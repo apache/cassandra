@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sasi.conf.view;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.index.sasi.SSTableIndex;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
@@ -32,9 +33,13 @@ import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 
 import com.google.common.collect.Iterables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class View implements Iterable<SSTableIndex>
 {
+    private static final Logger logger = LoggerFactory.getLogger(View.class);
+
     private final Map<Descriptor, SSTableIndex> view;
 
     private final TermTree termTree;
@@ -47,11 +52,13 @@ public class View implements Iterable<SSTableIndex>
     }
 
     public View(ColumnIndex index,
-                Collection<SSTableIndex> currentView,
+                Collection<SSTableIndex> currentIndexes,
                 Collection<SSTableReader> oldSSTables,
                 Set<SSTableIndex> newIndexes)
     {
         Map<Descriptor, SSTableIndex> newView = new HashMap<>();
+
+        Set<SSTableReader> newSSTables = newIndexes.stream().map(newIndex -> newIndex.getSSTable()).collect(Collectors.toSet());
 
         AbstractType<?> validator = index.getValidator();
         TermTree.Builder termTreeBuilder = (validator instanceof AsciiType || validator instanceof UTF8Type)
@@ -59,22 +66,34 @@ public class View implements Iterable<SSTableIndex>
                                             : new RangeTermTree.Builder(index.getMode().mode, validator);
 
         List<Interval<Key, SSTableIndex>> keyIntervals = new ArrayList<>();
-        for (SSTableIndex sstableIndex : Iterables.concat(currentView, newIndexes))
+        for (SSTableIndex sstableIndex : currentIndexes)
         {
             SSTableReader sstable = sstableIndex.getSSTable();
-            if (oldSSTables.contains(sstable) || sstable.isMarkedCompacted() || newView.containsKey(sstable.descriptor))
+            boolean markedCompacted = sstable.isMarkedCompacted();
+            if (oldSSTables.contains(sstable) || markedCompacted || newView.containsKey(sstable.descriptor))
             {
+                boolean keepFile = newSSTables.contains(sstable);
+                logger.debug("Releasing current SSTableIndex: {} (keepFile={}, markedCompacted={})", sstableIndex.getPath(), keepFile, markedCompacted);
+                sstableIndex.release(keepFile);
+                continue;
+            }
+
+            addIndexToView(index, newView, termTreeBuilder, keyIntervals, sstableIndex, sstable);
+        }
+
+        for (SSTableIndex sstableIndex : newIndexes)
+        {
+            SSTableReader sstable = sstableIndex.getSSTable();
+            if (newView.containsKey(sstable.descriptor))
+            {
+                logger.debug("Releasing new SSTableIndex: {}", sstableIndex.getPath());
                 sstableIndex.release();
                 continue;
             }
 
-            newView.put(sstable.descriptor, sstableIndex);
-
-            termTreeBuilder.add(sstableIndex);
-            keyIntervals.add(Interval.create(new Key(sstableIndex.minKey(), index.keyValidator()),
-                                             new Key(sstableIndex.maxKey(), index.keyValidator()),
-                                             sstableIndex));
+            addIndexToView(index, newView, termTreeBuilder, keyIntervals, sstableIndex, sstable);
         }
+
 
         this.view = newView;
         this.termTree = termTreeBuilder.build();
@@ -83,6 +102,16 @@ public class View implements Iterable<SSTableIndex>
 
         if (keyIntervalTree.intervalCount() != termTree.intervalCount())
             throw new IllegalStateException(String.format("mismatched sizes for intervals tree for keys vs terms: %d != %d", keyIntervalTree.intervalCount(), termTree.intervalCount()));
+    }
+
+    private void addIndexToView(ColumnIndex index, Map<Descriptor, SSTableIndex> newView, TermTree.Builder termTreeBuilder, List<Interval<Key, SSTableIndex>> keyIntervals, SSTableIndex sstableIndex, SSTableReader sstable)
+    {
+        newView.put(sstable.descriptor, sstableIndex);
+
+        termTreeBuilder.add(sstableIndex);
+        keyIntervals.add(Interval.create(new Key(sstableIndex.minKey(), index.keyValidator()),
+                                         new Key(sstableIndex.maxKey(), index.keyValidator()),
+                                         sstableIndex));
     }
 
     public Set<SSTableIndex> match(Expression expression)

@@ -127,12 +127,17 @@ public class SSTableIndex
 
     public void release()
     {
+        release(false);
+    }
+
+    public void release(boolean keepFile)
+    {
         int n = references.decrementAndGet();
         if (n == 0)
         {
             FileUtils.closeQuietly(index);
             sstableRef.release();
-            if (obsolete.get() || sstableRef.globalCount() == 0)
+            if (!keepFile && (obsolete.get() || sstableRef.globalCount() == 0))
                 FileUtils.delete(index.getIndexPath());
         }
     }
