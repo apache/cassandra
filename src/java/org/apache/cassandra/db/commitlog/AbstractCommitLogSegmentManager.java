@@ -204,7 +204,7 @@ public abstract class AbstractCommitLogSegmentManager
         }
     }
 
-    private boolean atSegmentBufferLimit()
+    public boolean atSegmentBufferLimit()
     {
         return CommitLogSegment.usesBufferPool(commitLog) && bufferPool.atLimit();
     }

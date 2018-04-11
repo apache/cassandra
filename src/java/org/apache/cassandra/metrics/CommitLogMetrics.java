@@ -22,6 +22,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogService;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
+import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerCDC;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -38,6 +39,8 @@ public class CommitLogMetrics
     public Gauge<Long> pendingTasks;
     /** Current size used by all the commit log segments */
     public Gauge<Long> totalCommitLogSize;
+    /** Current size used by all the CDC commit log segments */
+    public Gauge<Long> totalCDCCommitLogSize;
     /** Time spent waiting for a CLS to be allocated - under normal conditions this should be zero */
     public final Timer waitingOnSegmentAllocation;
     /** The time spent waiting on CL sync; for Periodic this is only occurs when the sync is lagging its sync interval */
@@ -78,5 +81,15 @@ public class CommitLogMetrics
                 return segmentManager.onDiskSize();
             }
         });
+        if (segmentManager instanceof CommitLogSegmentManagerCDC)
+        {
+            totalCDCCommitLogSize = Metrics.register(factory.createMetricName("TotalCDCCommitLogSize"), new Gauge<Long>()
+            {
+                public Long getValue()
+                {
+                    return ((CommitLogSegmentManagerCDC) segmentManager).totalCDCSizeOnDisk();
+                }
+            });
+        }
     }
 }

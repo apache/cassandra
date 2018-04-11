@@ -448,4 +448,12 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             cdcSizeTracker.processNewSegment(allocatingFrom());
         return cdcSizeTracker.getAllocatedSize();
     }
+
+    /**
+     * Returns total size in the tracker.
+     */
+    public long totalCDCSizeOnDisk()
+    {
+        return cdcSizeTracker.getAllocatedSize();
+    }
 }

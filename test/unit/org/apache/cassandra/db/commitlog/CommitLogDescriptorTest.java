@@ -336,7 +336,7 @@ public class CommitLogDescriptorTest
         File validCdcLink = new File(fileNameSuffix + ".log");
         File inferredIndexFile = CommitLogDescriptor.inferCdcIndexFile(validCdcLink);
         Assert.assertNotNull(inferredIndexFile);
-        Assert.assertEquals(fileNameSuffix + "_cdc.idx", inferredIndexFile.name());
+        Assert.assertEquals(fileNameSuffix + CommitLogDescriptor.INDEX_FILENAME_SUFFIX, inferredIndexFile.name());
 
         File invalidCdcLink = new File(fileNameSuffix + ".invalidlog");
         inferredIndexFile = CommitLogDescriptor.inferCdcIndexFile(invalidCdcLink);

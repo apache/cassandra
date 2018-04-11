@@ -339,7 +339,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         {
             for (File f : getCDCRawFiles())
             {
-                if (f.name().contains("_cdc.idx"))
+                if (f.name().contains(CommitLogDescriptor.INDEX_FILENAME_SUFFIX))
                     results.add(new CDCIndexData(f));
             }
         }

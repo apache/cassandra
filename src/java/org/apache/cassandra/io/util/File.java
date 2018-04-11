@@ -165,11 +165,14 @@ public class File implements Comparable<File>
 
     /**
      * This file will be deleted, with any failures being reported with an FSError
+     *
+     * @return
      * @throws FSWriteError if cannot be deleted
      */
-    public void delete()
+    public boolean delete()
     {
         maybeFail(delete(null, null));
+        return false;
     }
 
     /**

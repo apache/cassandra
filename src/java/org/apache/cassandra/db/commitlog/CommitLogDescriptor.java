@@ -51,10 +51,13 @@ public class CommitLogDescriptor
 {
     private static final String SEPARATOR = "-";
     private static final String FILENAME_PREFIX = "CommitLog" + SEPARATOR;
+    private static final String CDC_SUFFIX = "CDC";
+    private static final String CDC_EXTENSION = ".idx";
     private static final String FILENAME_EXTENSION = ".log";
-    private static final String INDEX_FILENAME_SUFFIX = "_cdc.idx";
+    public static final String INDEX_FILENAME_SUFFIX = SEPARATOR + CDC_SUFFIX + CDC_EXTENSION;
     // match both legacy and new version of commitlogs Ex: CommitLog-12345.log and CommitLog-4-12345.log.
     private static final Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "((\\d+)(" + SEPARATOR + "\\d+)?)" + FILENAME_EXTENSION);
+    private static final Pattern COMMIT_LOG_IDX_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "((\\d+)(" + SEPARATOR + "\\d+)?)" + SEPARATOR + CDC_SUFFIX + CDC_EXTENSION);
 
     static final String COMPRESSION_PARAMETERS_KEY = "compressionParameters";
     static final String COMPRESSION_CLASS_KEY = "compressionClass";
@@ -214,6 +217,19 @@ public class CommitLogDescriptor
         return matcher;
     }
 
+    public static CommitLogDescriptor fromIdxFileName(String name)
+    {
+        Matcher matcher;
+        if (!(matcher = COMMIT_LOG_IDX_FILE_PATTERN.matcher(name)).matches())
+            throw new RuntimeException("Cannot parse the version of the file: " + name);
+
+        if (matcher.group(3) == null)
+            throw new UnsupportedOperationException("Commitlog segment is too old to open; upgrade to 1.2.5+ first");
+
+        long id = Long.parseLong(matcher.group(3).split(SEPARATOR)[1]);
+        return new CommitLogDescriptor(Integer.parseInt(matcher.group(2)), id, null, new EncryptionContext());
+    }
+
     public int getMessagingVersion()
     {
         switch (version)
@@ -263,6 +279,11 @@ public class CommitLogDescriptor
     public EncryptionContext getEncryptionContext()
     {
         return encryptionContext;
+    }
+
+    public static boolean isIdxValid(String filename)
+    {
+        return COMMIT_LOG_IDX_FILE_PATTERN.matcher(filename).matches();
     }
 
     public String toString()

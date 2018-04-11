@@ -97,6 +97,7 @@ import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.concurrent.FutureTaskWithResources;
+import org.apache.cassandra.cdc.CDCManager;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
@@ -990,6 +991,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             doAuthSetup(true);
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
+
+        if (DatabaseDescriptor.isCDCEnabled())
+            CDCManager.instance.startCDCReader();
 
         initialized = true;
     }
