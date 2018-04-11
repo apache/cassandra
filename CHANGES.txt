@@ -8,6 +8,7 @@
  * RateBasedBackPressure unnecessarily invokes a lock on the Guava RateLimiter (CASSANDRA-14163)
  * Fix wildcard GROUP BY queries (CASSANDRA-14209)
 Merged from 3.0:
+ * Avoid deadlock when running nodetool refresh before node is fully up (CASSANDRA-14310)
  * Handle all exceptions when opening sstables (CASSANDRA-14202)
  * Handle incompletely written hint descriptors during startup (CASSANDRA-14080)
  * Handle repeat open bound from SRP in read repair (CASSANDRA-14330)
