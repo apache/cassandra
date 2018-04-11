@@ -34,8 +34,6 @@ import static java.lang.String.format;
 
 public final class TableParams
 {
-    public static final TableParams DEFAULT = TableParams.builder().build();
-
     public enum Option
     {
         BLOOM_FILTER_FP_CHANCE,
@@ -72,6 +70,8 @@ public final class TableParams
     public static final int DEFAULT_MAX_INDEX_INTERVAL = 2048;
     public static final double DEFAULT_CRC_CHECK_CHANCE = 1.0;
     public static final SpeculativeRetryPolicy DEFAULT_SPECULATIVE_RETRY = new PercentileSpeculativeRetryPolicy(99.0);
+
+    public static final TableParams DEFAULT = TableParams.builder().build();
 
     public final String comment;
     public final double readRepairChance;
