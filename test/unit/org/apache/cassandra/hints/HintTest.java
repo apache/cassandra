@@ -87,7 +87,7 @@ public class HintTest
         tokenMeta.updateNormalTokens(BootStrapper.getRandomTokens(tokenMeta, 1), local);
 
         for (TableMetadata table : Schema.instance.getTablesAndViews(KEYSPACE))
-            MigrationManager.announceTableUpdate(table.unbuild().gcGraceSeconds(TableParams.DEFAULT_GC_GRACE_SECONDS).build(), true);
+            MigrationManager.announceTableUpdate(table.unbuild().gcGraceSeconds(864000).build(), true);
     }
 
     @Test
