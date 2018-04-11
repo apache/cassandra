@@ -387,6 +387,11 @@ public class NodeProbe implements AutoCloseable
         ssProxy.forceKeyspaceFlush(keyspaceName, tableNames);
     }
 
+    public String getKeyspaceReplicationInfo(String keyspaceName)
+    {
+        return ssProxy.getKeyspaceReplicationInfo(keyspaceName);
+    }
+
     public void repairAsync(final PrintStream out, final String keyspace, Map<String, String> options) throws IOException
     {
         RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, options);
@@ -904,6 +909,11 @@ public class NodeProbe implements AutoCloseable
     public StorageProxyMBean getSpProxy()
     {
         return spProxy;
+    }
+
+    public GossiperMBean getGossProxy()
+    {
+        return gossProxy;
     }
 
     public String getEndpoint()

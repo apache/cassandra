@@ -1,4 +1,5 @@
 4.0
+ * nodetool describecluster should be more informative (CASSANDRA-13853)
  * Compaction performance improvements (CASSANDRA-14261) 
  * Refactor Pair usage to avoid boxing ints/longs (CASSANDRA-14260)
  * Add options to nodetool tablestats to sort and limit output (CASSANDRA-13889)
