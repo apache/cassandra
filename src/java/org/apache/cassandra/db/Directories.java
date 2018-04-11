@@ -784,19 +784,19 @@ public class Directories
      * @return  Return a map of all snapshots to space being used
      * The pair for a snapshot has size on disk and true size.
      */
-    public Map<String, Pair<Long, Long>> getSnapshotDetails()
+    public Map<String, SnapshotSizeDetails> getSnapshotDetails()
     {
         List<File> snapshots = listSnapshots();
-        final Map<String, Pair<Long, Long>> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
+        final Map<String, SnapshotSizeDetails> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
         for (File snapshot : snapshots)
         {
             final long sizeOnDisk = FileUtils.folderSize(snapshot);
             final long trueSize = getTrueAllocatedSizeIn(snapshot);
-            Pair<Long, Long> spaceUsed = snapshotSpaceMap.get(snapshot.getName());
+            SnapshotSizeDetails spaceUsed = snapshotSpaceMap.get(snapshot.getName());
             if (spaceUsed == null)
-                spaceUsed =  Pair.create(sizeOnDisk,trueSize);
+                spaceUsed =  new SnapshotSizeDetails(sizeOnDisk,trueSize);
             else
-                spaceUsed = Pair.create(spaceUsed.left + sizeOnDisk, spaceUsed.right + trueSize);
+                spaceUsed = new SnapshotSizeDetails(spaceUsed.sizeOnDiskBytes + sizeOnDisk, spaceUsed.dataSizeBytes + trueSize);
             snapshotSpaceMap.put(snapshot.getName(), spaceUsed);
         }
         return snapshotSpaceMap;
@@ -1030,6 +1030,34 @@ public class Directories
                 && desc.ksname.equals(metadata.keyspace)
                 && desc.cfname.equals(metadata.name)
                 && !toSkip.contains(file);
+        }
+    }
+
+    public static class SnapshotSizeDetails
+    {
+        final long sizeOnDiskBytes;
+        final long dataSizeBytes;
+
+        private SnapshotSizeDetails(long sizeOnDiskBytes, long dataSizeBytes)
+        {
+            this.sizeOnDiskBytes = sizeOnDiskBytes;
+            this.dataSizeBytes = dataSizeBytes;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = (int) sizeOnDiskBytes ^ (int) (sizeOnDiskBytes >>> 32);
+            return 31 * (hashCode ^ (int) ((int) dataSizeBytes ^ (dataSizeBytes >>> 32)));
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof SnapshotSizeDetails))
+                return false;
+            SnapshotSizeDetails that = (SnapshotSizeDetails)o;
+            return sizeOnDiskBytes == that.sizeOnDiskBytes && dataSizeBytes == that.dataSizeBytes;
         }
     }
 }

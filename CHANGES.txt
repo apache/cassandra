@@ -1,7 +1,7 @@
 4.0
+ * Refactor Pair usage to avoid boxing ints/longs (CASSANDRA-14260)
  * Add options to nodetool tablestats to sort and limit output (CASSANDRA-13889)
- * Rename internals to reflect CQL vocabulary
-   (CASSANDRA-14354)
+ * Rename internals to reflect CQL vocabulary (CASSANDRA-14354)
  * Add support for hybrid MIN(), MAX() speculative retry policies
    (CASSANDRA-14293, CASSANDRA-14338, CASSANDRA-14352)
  * Fix some regressions caused by 14058 (CASSANDRA-14353)

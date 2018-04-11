@@ -36,7 +36,6 @@ import org.apache.cassandra.net.async.ByteBufDataOutputStreamPlus;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * CassandraStreamWriter for compressed SSTable.
@@ -49,7 +48,7 @@ public class CompressedCassandraStreamWriter extends CassandraStreamWriter
 
     private final CompressionInfo compressionInfo;
 
-    public CompressedCassandraStreamWriter(SSTableReader sstable, Collection<Pair<Long, Long>> sections, CompressionInfo compressionInfo, StreamSession session)
+    public CompressedCassandraStreamWriter(SSTableReader sstable, Collection<SSTableReader.PartitionPositionBounds> sections, CompressionInfo compressionInfo, StreamSession session)
     {
         super(sstable, sections, session);
         this.compressionInfo = compressionInfo;
@@ -67,15 +66,15 @@ public class CompressedCassandraStreamWriter extends CassandraStreamWriter
         {
             long progress = 0L;
             // calculate chunks to transfer. we want to send continuous chunks altogether.
-            List<Pair<Long, Long>> sections = getTransferSections(compressionInfo.chunks);
+            List<SSTableReader.PartitionPositionBounds> sections = getTransferSections(compressionInfo.chunks);
 
             int sectionIdx = 0;
 
             // stream each of the required sections of the file
-            for (final Pair<Long, Long> section : sections)
+            for (final SSTableReader.PartitionPositionBounds section : sections)
             {
                 // length of the section to stream
-                long length = section.right - section.left;
+                long length = section.upperPosition - section.lowerPosition;
 
                 logger.trace("[Stream #{}] Writing section {} with length {} to stream.", session.planId(), sectionIdx++, length);
 
@@ -90,7 +89,7 @@ public class CompressedCassandraStreamWriter extends CassandraStreamWriter
                     long lastWrite;
                     try
                     {
-                        lastWrite = fc.read(outBuffer, section.left + bytesTransferred);
+                        lastWrite = fc.read(outBuffer, section.lowerPosition + bytesTransferred);
                         assert lastWrite == toTransfer : String.format("could not read required number of bytes from file to be streamed: read %d bytes, wanted %d bytes", lastWrite, toTransfer);
                         outBuffer.flip();
                         output.writeToChannel(outBuffer);
@@ -122,28 +121,28 @@ public class CompressedCassandraStreamWriter extends CassandraStreamWriter
     }
 
     // chunks are assumed to be sorted by offset
-    private List<Pair<Long, Long>> getTransferSections(CompressionMetadata.Chunk[] chunks)
+    private List<SSTableReader.PartitionPositionBounds> getTransferSections(CompressionMetadata.Chunk[] chunks)
     {
-        List<Pair<Long, Long>> transferSections = new ArrayList<>();
-        Pair<Long, Long> lastSection = null;
+        List<SSTableReader.PartitionPositionBounds> transferSections = new ArrayList<>();
+        SSTableReader.PartitionPositionBounds lastSection = null;
         for (CompressionMetadata.Chunk chunk : chunks)
         {
             if (lastSection != null)
             {
-                if (chunk.offset == lastSection.right)
+                if (chunk.offset == lastSection.upperPosition)
                 {
                     // extend previous section to end of this chunk
-                    lastSection = Pair.create(lastSection.left, chunk.offset + chunk.length + 4); // 4 bytes for CRC
+                    lastSection = new SSTableReader.PartitionPositionBounds(lastSection.lowerPosition, chunk.offset + chunk.length + 4); // 4 bytes for CRC
                 }
                 else
                 {
                     transferSections.add(lastSection);
-                    lastSection = Pair.create(chunk.offset, chunk.offset + chunk.length + 4);
+                    lastSection = new SSTableReader.PartitionPositionBounds(chunk.offset, chunk.offset + chunk.length + 4);
                 }
             }
             else
             {
-                lastSection = Pair.create(chunk.offset, chunk.offset + chunk.length + 4);
+                lastSection = new SSTableReader.PartitionPositionBounds(chunk.offset, chunk.offset + chunk.length + 4);
             }
         }
         if (lastSection != null)
