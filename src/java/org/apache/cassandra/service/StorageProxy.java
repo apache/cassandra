@@ -250,13 +250,13 @@ public class StorageProxy implements StorageProxyMBean
             while (System.nanoTime() - queryStartNanoTime < timeout)
             {
                 // for simplicity, we'll do a single liveness check at the start of each attempt
-                Pair<List<InetAddressAndPort>, Integer> p = getPaxosParticipants(metadata, key, consistencyForPaxos);
-                List<InetAddressAndPort> liveEndpoints = p.left;
-                int requiredParticipants = p.right;
+                PaxosParticipants p = getPaxosParticipants(metadata, key, consistencyForPaxos);
+                List<InetAddressAndPort> liveEndpoints = p.liveEndpoints;
+                int requiredParticipants = p.participants;
 
-                final Pair<UUID, Integer> pair = beginAndRepairPaxos(queryStartNanoTime, key, metadata, liveEndpoints, requiredParticipants, consistencyForPaxos, consistencyForCommit, true, state);
-                final UUID ballot = pair.left;
-                contentions += pair.right;
+                final PaxosBallotAndContention pair = beginAndRepairPaxos(queryStartNanoTime, key, metadata, liveEndpoints, requiredParticipants, consistencyForPaxos, consistencyForCommit, true, state);
+                final UUID ballot = pair.ballot;
+                contentions += pair.contentions;
 
                 // read the current values and check they validate the conditions
                 Tracing.trace("Reading existing values for CAS precondition");
@@ -356,7 +356,7 @@ public class StorageProxy implements StorageProxyMBean
         };
     }
 
-    private static Pair<List<InetAddressAndPort>, Integer> getPaxosParticipants(TableMetadata metadata, DecoratedKey key, ConsistencyLevel consistencyForPaxos) throws UnavailableException
+    private static PaxosParticipants getPaxosParticipants(TableMetadata metadata, DecoratedKey key, ConsistencyLevel consistencyForPaxos) throws UnavailableException
     {
         Token tk = key.getToken();
         List<InetAddressAndPort> naturalEndpoints = StorageService.instance.getNaturalEndpoints(metadata.keyspace, tk);
@@ -384,7 +384,7 @@ public class StorageProxy implements StorageProxyMBean
                                            participants + 1,
                                            liveEndpoints.size());
 
-        return Pair.create(liveEndpoints, requiredParticipants);
+        return new PaxosParticipants(liveEndpoints, requiredParticipants);
     }
 
     /**
@@ -393,7 +393,7 @@ public class StorageProxy implements StorageProxyMBean
      * @return the Paxos ballot promised by the replicas if no in-progress requests were seen and a quorum of
      * nodes have seen the mostRecentCommit.  Otherwise, return null.
      */
-    private static Pair<UUID, Integer> beginAndRepairPaxos(long queryStartNanoTime,
+    private static PaxosBallotAndContention beginAndRepairPaxos(long queryStartNanoTime,
                                                            DecoratedKey key,
                                                            TableMetadata metadata,
                                                            List<InetAddressAndPort> liveEndpoints,
@@ -486,7 +486,7 @@ public class StorageProxy implements StorageProxyMBean
                 continue;
             }
 
-            return Pair.create(ballot, contentions);
+            return new PaxosBallotAndContention(ballot, contentions);
         }
 
         recordCasContention(contentions);
@@ -1662,9 +1662,9 @@ public class StorageProxy implements StorageProxyMBean
         try
         {
             // make sure any in-progress paxos writes are done (i.e., committed to a majority of replicas), before performing a quorum read
-            Pair<List<InetAddressAndPort>, Integer> p = getPaxosParticipants(metadata, key, consistencyLevel);
-            List<InetAddressAndPort> liveEndpoints = p.left;
-            int requiredParticipants = p.right;
+            PaxosParticipants p = getPaxosParticipants(metadata, key, consistencyLevel);
+            List<InetAddressAndPort> liveEndpoints = p.liveEndpoints;
+            int requiredParticipants = p.participants;
 
             // does the work of applying in-progress writes; throws UAE or timeout if it can't
             final ConsistencyLevel consistencyForCommitOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
@@ -1673,9 +1673,9 @@ public class StorageProxy implements StorageProxyMBean
 
             try
             {
-                final Pair<UUID, Integer> pair = beginAndRepairPaxos(start, key, metadata, liveEndpoints, requiredParticipants, consistencyLevel, consistencyForCommitOrFetch, false, state);
-                if (pair.right > 0)
-                    casReadMetrics.contention.update(pair.right);
+                final PaxosBallotAndContention pair = beginAndRepairPaxos(start, key, metadata, liveEndpoints, requiredParticipants, consistencyLevel, consistencyForCommitOrFetch, false, state);
+                if (pair.contentions > 0)
+                    casReadMetrics.contention.update(pair.contentions);
             }
             catch (WriteTimeoutException e)
             {
@@ -2828,5 +2828,64 @@ public class StorageProxy implements StorageProxyMBean
 
     public void setOtcBacklogExpirationInterval(int intervalInMillis) {
         DatabaseDescriptor.setOtcBacklogExpirationInterval(intervalInMillis);
+    }
+
+
+    static class PaxosParticipants
+    {
+        final List<InetAddressAndPort> liveEndpoints;
+        final int participants;
+
+        PaxosParticipants(List<InetAddressAndPort> liveEndpoints, int participants)
+        {
+            this.liveEndpoints = liveEndpoints;
+            this.participants = participants;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = 31 + (liveEndpoints == null ? 0 : liveEndpoints.hashCode());
+            return 31 * hashCode * this.participants;
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof PaxosParticipants))
+                return false;
+            PaxosParticipants that = (PaxosParticipants)o;
+            // handles nulls properly
+            return Objects.equals(liveEndpoints, that.liveEndpoints) && participants == that.participants;
+        }
+    }
+
+    static class PaxosBallotAndContention
+    {
+        final UUID ballot;
+        final int contentions;
+
+        PaxosBallotAndContention(UUID ballot, int contentions)
+        {
+            this.ballot = ballot;
+            this.contentions = contentions;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = 31 + (ballot == null ? 0 : ballot.hashCode());
+            return 31 * hashCode * this.contentions;
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof PaxosBallotAndContention))
+                return false;
+            PaxosBallotAndContention that = (PaxosBallotAndContention)o;
+            // handles nulls properly
+            return Objects.equals(ballot, that.ballot) && contentions == that.contentions;
+        }
     }
 }

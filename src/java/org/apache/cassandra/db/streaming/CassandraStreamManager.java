@@ -146,7 +146,7 @@ public class CassandraStreamManager implements TableStreamManager
             for (SSTableReader sstable: refs)
             {
                 Ref<SSTableReader> ref = refs.get(sstable);
-                List<Pair<Long, Long>> sections = sstable.getPositionsForRanges(ranges);
+                List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(ranges);
                 if (sections.isEmpty())
                 {
                     ref.release();

@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -48,7 +49,6 @@ import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * CassandraStreamReader reads from stream and writes to SSTable.
@@ -58,7 +58,7 @@ public class CassandraStreamReader
     private static final Logger logger = LoggerFactory.getLogger(CassandraStreamReader.class);
     protected final TableId tableId;
     protected final long estimatedKeys;
-    protected final Collection<Pair<Long, Long>> sections;
+    protected final Collection<SSTableReader.PartitionPositionBounds> sections;
     protected final StreamSession session;
     protected final Version inputVersion;
     protected final long repairedAt;
@@ -162,8 +162,8 @@ public class CassandraStreamReader
     protected long totalSize()
     {
         long size = 0;
-        for (Pair<Long, Long> section : sections)
-            size += section.right - section.left;
+        for (SSTableReader.PartitionPositionBounds section : sections)
+            size += section.upperPosition - section.lowerPosition;
         return size;
     }
 

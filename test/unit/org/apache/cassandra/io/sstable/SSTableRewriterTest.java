@@ -60,7 +60,6 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.junit.Assert.*;
@@ -172,14 +171,14 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                         {
                             SSTableReader c = txn.current(sstables.iterator().next());
                             Collection<Range<Token>> r = Arrays.asList(new Range<>(cfs.getPartitioner().getMinimumToken(), cfs.getPartitioner().getMinimumToken()));
-                            List<Pair<Long, Long>> tmplinkPositions = sstable.getPositionsForRanges(r);
-                            List<Pair<Long, Long>> compactingPositions = c.getPositionsForRanges(r);
+                            List<SSTableReader.PartitionPositionBounds> tmplinkPositions = sstable.getPositionsForRanges(r);
+                            List<SSTableReader.PartitionPositionBounds> compactingPositions = c.getPositionsForRanges(r);
                             assertEquals(1, tmplinkPositions.size());
                             assertEquals(1, compactingPositions.size());
-                            assertEquals(0, tmplinkPositions.get(0).left.longValue());
+                            assertEquals(0, tmplinkPositions.get(0).lowerPosition);
                             // make sure we have no overlap between the early opened file and the compacting one:
-                            assertEquals(tmplinkPositions.get(0).right.longValue(), compactingPositions.get(0).left.longValue());
-                            assertEquals(c.uncompressedLength(), compactingPositions.get(0).right.longValue());
+                            assertEquals(tmplinkPositions.get(0).upperPosition, compactingPositions.get(0).lowerPosition);
+                            assertEquals(c.uncompressedLength(), compactingPositions.get(0).upperPosition);
                         }
                     }
                 }

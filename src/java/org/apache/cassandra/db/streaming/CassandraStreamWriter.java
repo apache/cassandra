@@ -38,7 +38,6 @@ import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.ByteBufCompressionDataOutputStreamPlus;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * CassandraStreamWriter writes given section of the SSTable to given channel.
@@ -50,11 +49,11 @@ public class CassandraStreamWriter
     private static final Logger logger = LoggerFactory.getLogger(CassandraStreamWriter.class);
 
     protected final SSTableReader sstable;
-    protected final Collection<Pair<Long, Long>> sections;
+    protected final Collection<SSTableReader.PartitionPositionBounds> sections;
     protected final StreamRateLimiter limiter;
     protected final StreamSession session;
 
-    public CassandraStreamWriter(SSTableReader sstable, Collection<Pair<Long, Long>> sections, StreamSession session)
+    public CassandraStreamWriter(SSTableReader sstable, Collection<SSTableReader.PartitionPositionBounds> sections, StreamSession session)
     {
         this.session = session;
         this.sstable = sstable;
@@ -89,16 +88,16 @@ public class CassandraStreamWriter
             try (DataOutputStreamPlus compressedOutput = new ByteBufCompressionDataOutputStreamPlus(output, limiter))
             {
                 // stream each of the required sections of the file
-                for (Pair<Long, Long> section : sections)
+                for (SSTableReader.PartitionPositionBounds section : sections)
                 {
-                    long start = validator == null ? section.left : validator.chunkStart(section.left);
+                    long start = validator == null ? section.lowerPosition : validator.chunkStart(section.lowerPosition);
                     // if the transfer does not start on the valididator's chunk boundary, this is the number of bytes to offset by
-                    int transferOffset = (int) (section.left - start);
+                    int transferOffset = (int) (section.lowerPosition - start);
                     if (validator != null)
                         validator.seek(start);
 
                     // length of the section to read
-                    long length = section.right - start;
+                    long length = section.upperPosition - start;
                     // tracks write progress
                     long bytesRead = 0;
                     while (bytesRead < length)
@@ -124,8 +123,8 @@ public class CassandraStreamWriter
     protected long totalSize()
     {
         long size = 0;
-        for (Pair<Long, Long> section : sections)
-            size += section.right - section.left;
+        for (SSTableReader.PartitionPositionBounds section : sections)
+            size += section.upperPosition - section.lowerPosition;
         return size;
     }
 

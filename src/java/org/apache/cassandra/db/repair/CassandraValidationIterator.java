@@ -243,8 +243,8 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         long estimatedTotalBytes = 0;
         for (SSTableReader sstable : sstables)
         {
-            for (Pair<Long, Long> positionsForRanges : sstable.getPositionsForRanges(ranges))
-                estimatedTotalBytes += positionsForRanges.right - positionsForRanges.left;
+            for (SSTableReader.PartitionPositionBounds positionsForRanges : sstable.getPositionsForRanges(ranges))
+                estimatedTotalBytes += positionsForRanges.upperPosition - positionsForRanges.lowerPosition;
         }
         estimatedBytes = estimatedTotalBytes;
     }

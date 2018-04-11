@@ -32,7 +32,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
@@ -42,12 +41,12 @@ public class CassandraOutgoingFile implements OutgoingStream
 {
     private final Ref<SSTableReader> ref;
     private final long estimatedKeys;
-    private final List<Pair<Long, Long>> sections;
+    private final List<SSTableReader.PartitionPositionBounds> sections;
     private final String filename;
     private final CassandraStreamHeader header;
     private final boolean keepSSTableLevel;
 
-    public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref, List<Pair<Long, Long>> sections, long estimatedKeys)
+    public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref, List<SSTableReader.PartitionPositionBounds> sections, long estimatedKeys)
     {
         Preconditions.checkNotNull(ref.get());
         this.ref = ref;

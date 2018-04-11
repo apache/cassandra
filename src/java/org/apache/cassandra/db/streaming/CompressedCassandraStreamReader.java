@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.streaming.ProgressInfo;
@@ -33,7 +34,6 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
 
@@ -83,14 +83,14 @@ public class CompressedCassandraStreamReader extends CassandraStreamReader
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
             String filename = writer.getFilename();
             int sectionIdx = 0;
-            for (Pair<Long, Long> section : sections)
+            for (SSTableReader.PartitionPositionBounds section : sections)
             {
                 assert cis.getTotalCompressedBytesRead() <= totalSize;
-                long sectionLength = section.right - section.left;
+                long sectionLength = section.upperPosition - section.lowerPosition;
 
                 logger.trace("[Stream #{}] Reading section {} with length {} from stream.", session.planId(), sectionIdx++, sectionLength);
                 // skip to beginning of section inside chunk
-                cis.position(section.left);
+                cis.position(section.lowerPosition);
                 in.reset(0);
 
                 while (in.getBytesRead() < sectionLength)
