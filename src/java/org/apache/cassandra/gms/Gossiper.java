@@ -32,6 +32,7 @@ import javax.management.ObjectName;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -1730,6 +1731,27 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         EndpointState state = getEndpointStateForEndpoint(ep);
         return state != null ? state.getReleaseVersion() : null;
+    }
+
+    public Map<String, List<String>> getReleaseVersionsWithPort()
+    {
+        Map<String, List<String>> results = new HashMap<String, List<String>>();
+        Iterable<InetAddressAndPort> allHosts = Iterables.concat(Gossiper.instance.getLiveMembers(), Gossiper.instance.getUnreachableMembers());
+
+        for (InetAddressAndPort host : allHosts)
+        {
+            CassandraVersion version = getReleaseVersion(host);
+            String stringVersion = version == null ? "" : version.toString();
+            List<String> hosts = results.get(stringVersion);
+            if (hosts == null)
+            {
+                hosts = new ArrayList<>();
+                results.put(stringVersion, hosts);
+            }
+            hosts.add(host.getHostAddress(true));
+        }
+
+        return results;
     }
 
     @Nullable
