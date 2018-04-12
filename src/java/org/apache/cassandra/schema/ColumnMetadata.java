@@ -445,11 +445,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     }
 
     /**
-     * Check if column is counter type. For thrift, it checks collection's value type
+     * Check if column is counter type.
      */
     public boolean isCounterColumn()
     {
-        if (type instanceof CollectionType) // for thrift
+        if (type instanceof CollectionType) // Possible with, for example, supercolumns
             return ((CollectionType) type).valueComparator().isCounter();
         return type.isCounter();
     }
