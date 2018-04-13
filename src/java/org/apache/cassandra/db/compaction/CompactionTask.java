@@ -197,9 +197,6 @@ public class CompactionTask extends AbstractCompactionTask
                     estimatedKeys = writer.estimatedKeys();
                     while (ci.hasNext())
                     {
-                        if (ci.isStopRequested())
-                            throw new CompactionInterruptedException(ci.getCompactionInfo());
-
                         if (writer.append(ci.next()))
                             totalKeysWritten++;
 

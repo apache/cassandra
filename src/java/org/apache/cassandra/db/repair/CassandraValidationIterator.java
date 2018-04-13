@@ -281,23 +281,15 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         return cfs.metadata.get();
     }
 
-    private void throwIfStopRequested()
-    {
-        if (ci.isStopRequested())
-            throw new CompactionInterruptedException(ci.getCompactionInfo());
-    }
-
     @Override
     public boolean hasNext()
     {
-        throwIfStopRequested();
         return ci.hasNext();
     }
 
     @Override
     public UnfilteredRowIterator next()
     {
-        throwIfStopRequested();
         return ci.next();
     }
 

@@ -310,6 +310,67 @@ public class CompactionIteratorTest
         }
     }
 
+    @Test
+    public void transformTest()
+    {
+        UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(metadata.comparator, false);
+        List<List<Unfiltered>> inputLists = parse(new String[] {"10[100] 11[100] 12[100]"}, generator);
+        List<List<Unfiltered>> tombstoneLists = parse(new String[] {}, generator);
+        List<Iterable<UnfilteredRowIterator>> content = ImmutableList.copyOf(Iterables.transform(inputLists, list -> ImmutableList.of(listToIterator(list, kk))));
+        Map<DecoratedKey, Iterable<UnfilteredRowIterator>> transformedSources = new TreeMap<>();
+        transformedSources.put(kk, Iterables.transform(tombstoneLists, list -> listToIterator(list, kk)));
+        try (CompactionController controller = new Controller(Keyspace.openAndGetStore(metadata), transformedSources, GC_BEFORE);
+             CompactionIterator iter = new CompactionIterator(OperationType.COMPACTION,
+                                                              Lists.transform(content, x -> new Scanner(x)),
+                                                              controller, NOW, null))
+        {
+            assertTrue(iter.hasNext());
+            UnfilteredRowIterator rows = iter.next();
+            assertTrue(rows.hasNext());
+            assertNotNull(rows.next());
+
+            iter.stop();
+            try
+            {
+                // Will call Transformation#applyToRow
+                rows.hasNext();
+                fail("Should have thrown CompactionInterruptedException");
+            }
+            catch (CompactionInterruptedException e)
+            {
+                // ignore
+            }
+        }
+    }
+
+    @Test
+    public void transformPartitionTest()
+    {
+        UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(metadata.comparator, false);
+        List<List<Unfiltered>> inputLists = parse(new String[] {"10[100] 11[100] 12[100]"}, generator);
+        List<List<Unfiltered>> tombstoneLists = parse(new String[] {}, generator);
+        List<Iterable<UnfilteredRowIterator>> content = ImmutableList.copyOf(Iterables.transform(inputLists, list -> ImmutableList.of(listToIterator(list, kk))));
+        Map<DecoratedKey, Iterable<UnfilteredRowIterator>> transformedSources = new TreeMap<>();
+        transformedSources.put(kk, Iterables.transform(tombstoneLists, list -> listToIterator(list, kk)));
+        try (CompactionController controller = new Controller(Keyspace.openAndGetStore(metadata), transformedSources, GC_BEFORE);
+             CompactionIterator iter = new CompactionIterator(OperationType.COMPACTION,
+                                                              Lists.transform(content, x -> new Scanner(x)),
+                                                              controller, NOW, null))
+        {
+            iter.stop();
+            try
+            {
+                // Will call Transformation#applyToPartition
+                iter.hasNext();
+                fail("Should have thrown CompactionInterruptedException");
+            }
+            catch (CompactionInterruptedException e)
+            {
+                // ignore
+            }
+        }
+    }
+
     class Controller extends CompactionController
     {
         private final Map<DecoratedKey, Iterable<UnfilteredRowIterator>> tombstoneSources;
