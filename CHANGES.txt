@@ -1,4 +1,5 @@
 4.0
+ * Abort compactions quicker (CASSANDRA-14397)
  * Support light-weight transactions in cassandra-stress (CASSANDRA-13529)
  * Make AsyncOneResponse use the correct timeout (CASSANDRA-14509)
  * Add option to sanity check tombstones on reads/compactions (CASSANDRA-14467)

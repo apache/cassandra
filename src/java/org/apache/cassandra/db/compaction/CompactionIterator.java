@@ -104,7 +104,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                            ? EmptyIterators.unfilteredPartition(controller.cfs.metadata())
                                            : UnfilteredPartitionIterators.merge(scanners, nowInSec, listener());
         merged = Transformation.apply(merged, new GarbageSkipper(controller, nowInSec));
-        this.compacted = Transformation.apply(merged, new Purger(controller, nowInSec));
+        merged = Transformation.apply(merged, new Purger(controller, nowInSec));
+        compacted = Transformation.apply(merged, new AbortableUnfilteredPartitionTransformation(this));
     }
 
     public TableMetadata metadata()
@@ -540,6 +541,41 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 return partition;
 
             return new GarbageSkippingUnfilteredRowIterator(partition, UnfilteredRowIterators.merge(iters, nowInSec), nowInSec, cellLevelGC);
+        }
+    }
+
+    private static class AbortableUnfilteredPartitionTransformation extends Transformation<UnfilteredRowIterator>
+    {
+        private final AbortableUnfilteredRowTransformation abortableIter;
+
+        private AbortableUnfilteredPartitionTransformation(CompactionIterator iter)
+        {
+            this.abortableIter = new AbortableUnfilteredRowTransformation(iter);
+        }
+
+        @Override
+        protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+        {
+            if (abortableIter.iter.isStopRequested())
+                throw new CompactionInterruptedException(abortableIter.iter.getCompactionInfo());
+            return Transformation.apply(partition, abortableIter);
+        }
+    }
+
+    private static class AbortableUnfilteredRowTransformation extends Transformation
+    {
+        private final CompactionIterator iter;
+
+        private AbortableUnfilteredRowTransformation(CompactionIterator iter)
+        {
+            this.iter = iter;
+        }
+
+        public Row applyToRow(Row row)
+        {
+            if (iter.isStopRequested())
+                throw new CompactionInterruptedException(iter.getCompactionInfo());
+            return row;
         }
     }
 }

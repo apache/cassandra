@@ -1155,9 +1155,6 @@ public class CompactionManager implements CompactionManagerMBean
 
             while (ci.hasNext())
             {
-                if (ci.isStopRequested())
-                    throw new CompactionInterruptedException(ci.getCompactionInfo());
-
                 try (UnfilteredRowIterator partition = ci.next();
                      UnfilteredRowIterator notCleaned = cleanupStrategy.cleanup(partition))
                 {
