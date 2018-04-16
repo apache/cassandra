@@ -274,7 +274,7 @@ public class TableCQLHelperTest extends CQLTester
         "\tAND speculative_retry = 'ALWAYS'\n" +
         "\tAND comment = 'comment'\n" +
         "\tAND caching = { 'keys': 'ALL', 'rows_per_partition': 'NONE' }\n" +
-        "\tAND compaction = { 'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy', 'sstable_size_in_mb': '1' }\n" +
+        "\tAND compaction = { 'max_threshold': '32', 'min_threshold': '4', 'sstable_size_in_mb': '1', 'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy' }\n" +
         "\tAND compression = { 'chunk_length_in_kb': '64', 'min_compress_ratio': '2.0', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor' }\n" +
         "\tAND cdc = false\n" +
         "\tAND extensions = { 'ext1': 0x76616c31 };"
