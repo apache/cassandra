@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import org.apache.commons.lang.StringUtils;
 import org.junit.After;
@@ -31,11 +33,13 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -386,6 +390,69 @@ public class CompactionsCQLTest extends CQLTester
         readAndValidate(true);
         readAndValidate(false);
         DatabaseDescriptor.setColumnIndexSize(maxSizePre);
+    }
+
+
+    @Test
+    public void testLCSThresholdParams() throws Throwable
+    {
+        createTable("create table %s (id int, id2 int, t blob, primary key (id, id2)) with compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':'1', 'max_threshold':'60'}");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        byte [] b = new byte[100 * 1024];
+        new Random().nextBytes(b);
+        ByteBuffer value = ByteBuffer.wrap(b);
+        for (int i = 0; i < 50; i++)
+        {
+            for (int j = 0; j < 10; j++)
+            {
+                execute("insert into %s (id, id2, t) values (?, ?, ?)", i, j, value);
+            }
+            cfs.forceBlockingFlush();
+        }
+        assertEquals(50, cfs.getLiveSSTables().size());
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepaired().get(0);
+        AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
+        // we should be compacting all 50 sstables:
+        assertEquals(50, act.transaction.originals().size());
+        act.execute(null);
+    }
+
+    @Test
+    public void testSTCSinL0() throws Throwable
+    {
+        createTable("create table %s (id int, id2 int, t blob, primary key (id, id2)) with compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':'1', 'max_threshold':'60'}");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        execute("insert into %s (id, id2, t) values (?, ?, ?)", 1,1,"L1");
+        cfs.forceBlockingFlush();
+        cfs.forceMajorCompaction();
+        SSTableReader l1sstable = cfs.getLiveSSTables().iterator().next();
+        assertEquals(1, l1sstable.getSSTableLevel());
+        // now we have a single L1 sstable, create many L0 ones:
+        byte [] b = new byte[100 * 1024];
+        new Random().nextBytes(b);
+        ByteBuffer value = ByteBuffer.wrap(b);
+        for (int i = 0; i < 50; i++)
+        {
+            for (int j = 0; j < 10; j++)
+            {
+                execute("insert into %s (id, id2, t) values (?, ?, ?)", i, j, value);
+            }
+            cfs.forceBlockingFlush();
+        }
+        assertEquals(51, cfs.getLiveSSTables().size());
+
+        // mark the L1 sstable as compacting to make sure we trigger STCS in L0:
+        LifecycleTransaction txn = cfs.getTracker().tryModify(l1sstable, OperationType.COMPACTION);
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepaired().get(0);
+        AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
+        // note that max_threshold is 60 (more than the amount of L0 sstables), but MAX_COMPACTING_L0 is 32, which means we will trigger STCS with at most max_threshold sstables
+        assertEquals(50, act.transaction.originals().size());
+        assertEquals(0, ((LeveledCompactionTask)act).getLevel());
+        assertTrue(act.transaction.originals().stream().allMatch(s -> s.getSSTableLevel() == 0));
+        txn.abort(); // unmark the l1 sstable compacting
+        act.execute(null);
     }
 
     private void prepareWide() throws Throwable

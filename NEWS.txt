@@ -38,6 +38,11 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - LCS now respects the max_threshold parameter when compacting - this was hard coded to 32
+     before, but now it is possible to do bigger compactions when compacting from L0 to L1.
+     This also applies to STCS-compactions in L0 - if there are more than 32 sstables in L0
+     we will compact at most max_threshold sstables in an L0 STCS compaction. See CASSANDRA-14388
+     for more information.
    - There is now an option to automatically upgrade sstables after Cassandra upgrade, enable
      either in `cassandra.yaml:automatic_sstable_upgrade` or via JMX during runtime. See
      CASSANDRA-14197.
