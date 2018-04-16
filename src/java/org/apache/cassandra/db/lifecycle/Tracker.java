@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.notifications.*;
@@ -444,6 +445,14 @@ public class Tracker
         INotification notification = new SSTableRepairStatusChanged(repairStatusesChanged);
         for (INotificationConsumer subscriber : subscribers)
             subscriber.handleNotification(notification, this);
+    }
+
+    public void notifySSTableMetadataChanged(SSTableReader levelChanged, StatsMetadata oldMetadata)
+    {
+        INotification notification = new SSTableMetadataChanged(levelChanged, oldMetadata);
+        for (INotificationConsumer subscriber : subscribers)
+            subscriber.handleNotification(notification, this);
+
     }
 
     public void notifyDeleting(SSTableReader deleting)

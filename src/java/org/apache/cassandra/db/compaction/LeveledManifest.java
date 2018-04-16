@@ -49,11 +49,6 @@ public class LeveledManifest
     private static final Logger logger = LoggerFactory.getLogger(LeveledManifest.class);
 
     /**
-     * if we have more than MAX_COMPACTING_L0 sstables in L0, we will run a round of STCS with at most
-     * cfs.getMaxCompactionThreshold() sstables.
-     */
-    private static final int MAX_COMPACTING_L0 = 32;
-    /**
      * If we go this many rounds without compacting
      * in the highest level, we start bringing in sstables from
      * that level into lower level compactions
@@ -420,7 +415,7 @@ public class LeveledManifest
 
     private CompactionCandidate getSTCSInL0CompactionCandidate()
     {
-        if (!DatabaseDescriptor.getDisableSTCSInL0() && getLevel(0).size() > MAX_COMPACTING_L0)
+        if (!DatabaseDescriptor.getDisableSTCSInL0() && getLevel(0).size() > cfs.getMaximumCompactionThreshold())
         {
             List<SSTableReader> mostInteresting = getSSTablesForSTCS(getLevel(0));
             if (!mostInteresting.isEmpty())
@@ -818,7 +813,7 @@ public class LeveledManifest
             tasks += estimated[i];
         }
 
-        if (!DatabaseDescriptor.getDisableSTCSInL0() && getLevel(0).size() > MAX_COMPACTING_L0)
+        if (!DatabaseDescriptor.getDisableSTCSInL0() && getLevel(0).size() > cfs.getMaximumCompactionThreshold())
         {
             int l0compactions = getLevel(0).size() / cfs.getMaximumCompactionThreshold();
             tasks += l0compactions;
@@ -862,6 +857,14 @@ public class LeveledManifest
             sstables.addAll(generation);
         }
         return sstables;
+    }
+
+    public synchronized void newLevel(SSTableReader sstable, int oldLevel)
+    {
+        boolean removed = generations[oldLevel].remove(sstable);
+        assert removed : "Could not remove " + sstable +" from " + oldLevel;
+        add(sstable);
+        lastCompactedKeys[oldLevel] = sstable.last;
     }
 
     public static class CompactionCandidate

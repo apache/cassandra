@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
@@ -49,18 +50,21 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     private static final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
     private static final boolean tolerateSstableSize = Boolean.getBoolean(Config.PROPERTY_PREFIX + "tolerate_sstable_size");
     private static final String LEVEL_FANOUT_SIZE_OPTION = "fanout_size";
+    private static final String SINGLE_SSTABLE_UPLEVEL_OPTION = "single_sstable_uplevel";
     public static final int DEFAULT_LEVEL_FANOUT_SIZE = 10;
 
     @VisibleForTesting
     final LeveledManifest manifest;
     private final int maxSSTableSizeInMB;
     private final int levelFanoutSize;
+    private final boolean singleSSTableUplevel;
 
     public LeveledCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
         super(cfs, options);
         int configuredMaxSSTableSize = 160;
         int configuredLevelFanoutSize = DEFAULT_LEVEL_FANOUT_SIZE;
+        boolean configuredSingleSSTableUplevel = false;
         SizeTieredCompactionStrategyOptions localOptions = new SizeTieredCompactionStrategyOptions(options);
         if (options != null)
         {
@@ -82,9 +86,15 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             {
                 configuredLevelFanoutSize = Integer.parseInt(options.get(LEVEL_FANOUT_SIZE_OPTION));
             }
+
+            if (options.containsKey(SINGLE_SSTABLE_UPLEVEL_OPTION))
+            {
+                configuredSingleSSTableUplevel = Boolean.parseBoolean(options.get(SINGLE_SSTABLE_UPLEVEL_OPTION));
+            }
         }
         maxSSTableSizeInMB = configuredMaxSSTableSize;
         levelFanoutSize = configuredLevelFanoutSize;
+        singleSSTableUplevel = configuredSingleSSTableUplevel;
 
         manifest = new LeveledManifest(cfs, this.maxSSTableSizeInMB, this.levelFanoutSize, localOptions);
         logger.trace("Created {}", manifest);
@@ -151,7 +161,12 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             LifecycleTransaction txn = cfs.getTracker().tryModify(candidate.sstables, OperationType.COMPACTION);
             if (txn != null)
             {
-                LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, txn, candidate.level, gcBefore, candidate.maxSSTableBytes, false);
+                AbstractCompactionTask newTask;
+                if (!singleSSTableUplevel || op == OperationType.TOMBSTONE_COMPACTION || txn.originals().size() > 1)
+                    newTask = new LeveledCompactionTask(cfs, txn, candidate.level, gcBefore, candidate.maxSSTableBytes, false);
+                else
+                    newTask = new SingleSSTableLCSTask(cfs, txn, candidate.level);
+
                 newTask.setCompactionType(op);
                 return newTask;
             }
@@ -330,6 +345,13 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     public void replaceSSTables(Collection<SSTableReader> removed, Collection<SSTableReader> added)
     {
         manifest.replace(removed, added);
+    }
+
+    @Override
+    public void metadataChanged(StatsMetadata oldMetadata, SSTableReader sstable)
+    {
+        if (sstable.getSSTableLevel() != oldMetadata.sstableLevel)
+            manifest.newLevel(sstable, oldMetadata.sstableLevel);
     }
 
     @Override
@@ -569,6 +591,10 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         }
 
         uncheckedOptions.remove(LEVEL_FANOUT_SIZE_OPTION);
+        uncheckedOptions.remove(SINGLE_SSTABLE_UPLEVEL_OPTION);
+
+        uncheckedOptions.remove(CompactionParams.Option.MIN_THRESHOLD.toString());
+        uncheckedOptions.remove(CompactionParams.Option.MAX_THRESHOLD.toString());
 
         uncheckedOptions.remove(CompactionParams.Option.MIN_THRESHOLD.toString());
         uncheckedOptions.remove(CompactionParams.Option.MAX_THRESHOLD.toString());
