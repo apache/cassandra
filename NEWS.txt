@@ -53,6 +53,12 @@ Upgrading
     - Changes to bloom_filter_fp_chance will no longer take effect on existing sstables when the node is restarted. Only
       compactions/upgradesstables regenerates bloom filters and Summaries sstable components. See CASSANDRA-11163
 
+Deprecation
+-----------
+    - Background read repair has been deprecated. dclocal_read_repair_chance and
+      read_repair_chance table options have been deprecated, and will be removed entirely in 4.0.
+      See CASSANDRA-13910 for details.
+
 3.0.16
 =====
 
