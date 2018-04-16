@@ -1,4 +1,5 @@
 4.0
+ * Fix junit failure for SSTableReaderTest (CASSANDRA-14387)
  * Abstract write path for pluggable storage (CASSANDRA-14118)
  * nodetool describecluster should be more informative (CASSANDRA-13853)
  * Compaction performance improvements (CASSANDRA-14261) 
