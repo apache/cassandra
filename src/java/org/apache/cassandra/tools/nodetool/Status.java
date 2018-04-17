@@ -56,19 +56,19 @@ public class Status extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        joiningNodes = probe.getJoiningNodes(withPort);
-        leavingNodes = probe.getLeavingNodes(withPort);
-        movingNodes = probe.getMovingNodes(withPort);
-        loadMap = probe.getLoadMap(withPort);
-        Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(withPort);
-        liveNodes = probe.getLiveNodes(withPort);
-        unreachableNodes = probe.getUnreachableNodes(withPort);
-        hostIDMap = probe.getHostIdMap(withPort);
+        joiningNodes = probe.getJoiningNodes(printPort);
+        leavingNodes = probe.getLeavingNodes(printPort);
+        movingNodes = probe.getMovingNodes(printPort);
+        loadMap = probe.getLoadMap(printPort);
+        Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(printPort);
+        liveNodes = probe.getLiveNodes(printPort);
+        unreachableNodes = probe.getUnreachableNodes(printPort);
+        hostIDMap = probe.getHostIdMap(printPort);
         epSnitchInfo = probe.getEndpointSnitchInfoProxy();
 
         StringBuilder errors = new StringBuilder();
 
-        if (withPort)
+        if (printPort)
         {
             Map<String, Float> ownerships = null;
             boolean hasEffectiveOwns = false;

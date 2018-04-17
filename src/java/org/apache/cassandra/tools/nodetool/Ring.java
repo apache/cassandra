@@ -53,7 +53,7 @@ public class Ring extends NodeToolCmd
     {
         try
         {
-            Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(withPort);
+            Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(printPort);
             LinkedHashMultimap<String, String> endpointsToTokens = LinkedHashMultimap.create();
             boolean haveVnodes = false;
             for (Map.Entry<String, String> entry : tokensToEndpoints.entrySet())
@@ -77,7 +77,7 @@ public class Ring extends NodeToolCmd
             StringBuilder errors = new StringBuilder();
             boolean showEffectiveOwnership = true;
 
-            if (withPort)
+            if (printPort)
             {
                 // Calculate per-token ownership of the ring
                 Map<String, Float> ownerships;
