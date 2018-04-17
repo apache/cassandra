@@ -1356,7 +1356,7 @@ public class JsonTest extends CQLTester
         Assert.assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
     }
 
-    @Test
+   @Test
     public void emptyStringJsonSerializationTest() throws Throwable
     {
         createTable("create table %s(id INT, name TEXT, PRIMARY KEY(id));");
@@ -1368,5 +1368,44 @@ public class JsonTest extends CQLTester
                    row("{\"id\": 0, \"name\": \"Foo\"}"),
                    row("{\"id\": 2, \"name\": \"\"}"),
                    row("{\"id\": 3, \"name\": null}"));
+    }
+
+    // CASSANDRA-14286
+    @Test
+    public void testJsonOrdering() throws Throwable
+    {
+        createTable("CREATE TABLE %s( PRIMARY KEY (a, b), a INT, b INT);");
+        execute("INSERT INTO %s(a, b) VALUES (20, 30);");
+        execute("INSERT INTO %s(a, b) VALUES (100, 200);");
+
+        assertRows(execute("SELECT JSON a, b FROM %s WHERE a IN (20, 100) ORDER BY b"),
+                   row("{\"a\": 20, \"b\": 30}"),
+                   row("{\"a\": 100, \"b\": 200}"));
+
+        assertRows(execute("SELECT JSON a, b FROM %s WHERE a IN (20, 100) ORDER BY b DESC"),
+                   row("{\"a\": 100, \"b\": 200}"),
+                   row("{\"a\": 20, \"b\": 30}"));
+
+        assertRows(execute("SELECT JSON a FROM %s WHERE a IN (20, 100) ORDER BY b DESC"),
+                   row("{\"a\": 100}"),
+                   row("{\"a\": 20}"));
+
+        // Check ordering with alias 
+        assertRows(execute("SELECT JSON a, b as c FROM %s WHERE a IN (20, 100) ORDER BY b"),
+                   row("{\"a\": 20, \"c\": 30}"),
+                   row("{\"a\": 100, \"c\": 200}"));
+
+        assertRows(execute("SELECT JSON a, b as c FROM %s WHERE a IN (20, 100) ORDER BY b DESC"),
+                   row("{\"a\": 100, \"c\": 200}"),
+                   row("{\"a\": 20, \"c\": 30}"));
+
+        // Check ordering with CAST 
+        assertRows(execute("SELECT JSON a, CAST(b AS FLOAT) FROM %s WHERE a IN (20, 100) ORDER BY b"),
+                   row("{\"a\": 20, \"cast(b as float)\": 30.0}"),
+                   row("{\"a\": 100, \"cast(b as float)\": 200.0}"));
+
+        assertRows(execute("SELECT JSON a, CAST(b AS FLOAT) FROM %s WHERE a IN (20, 100) ORDER BY b DESC"),
+                   row("{\"a\": 100, \"cast(b as float)\": 200.0}"),
+                   row("{\"a\": 20, \"cast(b as float)\": 30.0}"));
     }
 }

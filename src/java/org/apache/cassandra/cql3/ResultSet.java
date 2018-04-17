@@ -254,6 +254,11 @@ public class ResultSet
             return new ResultMetadata(EnumSet.copyOf(flags), names, columnCount, pagingState);
         }
 
+        public int getColumnCount()
+        {
+            return columnCount;
+        }
+
         /**
          * Return only the column names requested by the user, excluding those added for post-query re-orderings,
          * see definition of names and columnCount.
