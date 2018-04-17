@@ -18,6 +18,8 @@
 package org.apache.cassandra.service.reads;
 
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,7 +34,10 @@ public class PercentileSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     public static final PercentileSpeculativeRetryPolicy NINETY_NINE_P = new PercentileSpeculativeRetryPolicy(99.0);
 
     private static final Pattern PATTERN = Pattern.compile("^(?<val>[0-9.]+)p(ercentile)?$", Pattern.CASE_INSENSITIVE);
-    private static final DecimalFormat FORMATTER = new DecimalFormat("#.####");
+    /**
+     * The pattern above uses dot as decimal separator, so we use {@link Locale#ENGLISH} to enforce that. (CASSANDRA-14374)
+     */
+    private static final DecimalFormat FORMATTER = new DecimalFormat("#.####", new DecimalFormatSymbols(Locale.ENGLISH));
 
     private final double percentile;
 
