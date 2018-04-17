@@ -913,7 +913,7 @@ public class SelectStatement implements CQLStatement
             {
                 assert !forView;
                 verifyOrderingIsAllowed(restrictions);
-                orderingComparator = getOrderingComparator(cfm, selection, restrictions);
+                orderingComparator = getOrderingComparator(cfm, selection, restrictions, parameters.isJson);
                 isReversed = isReversed(cfm);
                 if (isReversed)
                     orderingComparator = Collections.reverseOrder(orderingComparator);
@@ -1016,13 +1016,14 @@ public class SelectStatement implements CQLStatement
 
         private Comparator<List<ByteBuffer>> getOrderingComparator(CFMetaData cfm,
                                                                    Selection selection,
-                                                                   StatementRestrictions restrictions)
+                                                                   StatementRestrictions restrictions,
+                                                                   boolean isJson)
                                                                    throws InvalidRequestException
         {
             if (!restrictions.keyIsInRelation())
                 return null;
 
-            Map<ColumnIdentifier, Integer> orderingIndexes = getOrderingIndex(cfm, selection);
+            Map<ColumnDefinition, Integer> orderingIndexes = getOrderingIndex(cfm, selection, isJson);
 
             List<Integer> idToSort = new ArrayList<Integer>();
             List<Comparator<ByteBuffer>> sorters = new ArrayList<Comparator<ByteBuffer>>();
@@ -1031,32 +1032,28 @@ public class SelectStatement implements CQLStatement
             {
                 ColumnIdentifier identifier = raw.prepare(cfm);
                 ColumnDefinition orderingColumn = cfm.getColumnDefinition(identifier);
-                idToSort.add(orderingIndexes.get(orderingColumn.name));
+                idToSort.add(orderingIndexes.get(orderingColumn));
                 sorters.add(orderingColumn.type);
             }
             return idToSort.size() == 1 ? new SingleColumnComparator(idToSort.get(0), sorters.get(0))
                     : new CompositeComparator(sorters, idToSort);
         }
 
-        private Map<ColumnIdentifier, Integer> getOrderingIndex(CFMetaData cfm, Selection selection)
+        private Map<ColumnDefinition, Integer> getOrderingIndex(CFMetaData cfm, Selection selection, boolean isJson)
                 throws InvalidRequestException
         {
             // If we order post-query (see orderResults), the sorted column needs to be in the ResultSet for sorting,
             // even if we don't
             // ultimately ship them to the client (CASSANDRA-4911).
-            Map<ColumnIdentifier, Integer> orderingIndexes = new HashMap<>();
             for (ColumnIdentifier.Raw raw : parameters.orderings.keySet())
             {
                 ColumnIdentifier column = raw.prepare(cfm);
                 final ColumnDefinition def = cfm.getColumnDefinition(column);
                 if (def == null)
                     handleUnrecognizedOrderingColumn(column);
-                int index = selection.getResultSetIndex(def);
-                if (index < 0)
-                    index = selection.addColumnForOrdering(def);
-                orderingIndexes.put(def.name, index);
+                selection.addColumnForOrdering(def);
             }
-            return orderingIndexes;
+            return selection.getOrderingIndex(isJson);
         }
 
         private boolean isReversed(CFMetaData cfm) throws InvalidRequestException
