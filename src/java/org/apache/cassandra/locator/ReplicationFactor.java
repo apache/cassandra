@@ -20,8 +20,6 @@ package org.apache.cassandra.locator;
 
 import java.util.Objects;
 
-import javax.xml.crypto.Data;
-
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -36,12 +34,7 @@ public class ReplicationFactor
 
     private ReplicationFactor(int replicas, int trans)
     {
-        Preconditions.checkArgument(trans == 0 || DatabaseDescriptor.isTransientReplicationEnabled(),
-                                    "Transient replication is not enabled on this node");
-        Preconditions.checkArgument(replicas >= 0,
-                                    "Replication factor must be non-negative, found %s", replicas);
-        Preconditions.checkArgument(trans == 0 || trans < replicas,
-                                    "Transient replicas must be zero, or less than total replication factor. For %s/%s", replicas, trans);
+        validate(replicas, trans);
         this.replicas = replicas;
         this.trans = trans;
         this.full = replicas - trans;
@@ -50,6 +43,16 @@ public class ReplicationFactor
     private ReplicationFactor(int replicas)
     {
         this(replicas, 0);
+    }
+
+    static void validate(int replicas, int trans)
+    {
+        Preconditions.checkArgument(trans == 0 || DatabaseDescriptor.isTransientReplicationEnabled(),
+                                    "Transient replication is not enabled on this node");
+        Preconditions.checkArgument(replicas >= 0,
+                                    "Replication factor must be non-negative, found %s", replicas);
+        Preconditions.checkArgument(trans == 0 || trans < replicas,
+                                    "Transient replicas must be zero, or less than total replication factor. For %s/%s", replicas, trans);
     }
 
     public boolean equals(Object o)
