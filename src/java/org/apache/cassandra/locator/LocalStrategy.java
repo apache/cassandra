@@ -38,19 +38,19 @@ public class LocalStrategy extends AbstractReplicationStrategy
     }
 
     /**
-     * We need to override this even if we override calculateNaturalEndpoints,
+     * We need to override this even if we override calculateNaturalReplicas,
      * because the default implementation depends on token calculations but
      * LocalStrategy may be used before tokens are set up.
      */
     @Override
-    public ArrayList<Replica> getNaturalEndpoints(RingPosition searchPosition)
+    public ArrayList<Replica> getNaturalReplicas(RingPosition searchPosition)
     {
         ArrayList<Replica> l = new ArrayList<>(1);
         l.add(Replica.full(FBUtilities.getBroadcastAddressAndPort()));
         return l;
     }
 
-    public List<Replica> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+    public List<Replica> calculateNaturalReplicas(Token token, TokenMetadata metadata)
     {
         return Collections.singletonList(Replica.full(FBUtilities.getBroadcastAddressAndPort()));
     }

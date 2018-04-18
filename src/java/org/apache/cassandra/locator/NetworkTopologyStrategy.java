@@ -148,7 +148,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     /**
      * calculate endpoints in one pass through the tokens by tracking our progress in each DC.
      */
-    public List<Replica> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
+    public List<Replica> calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata)
     {
         // we want to preserve insertion order so that the first added endpoint becomes primary
         Set<Replica> replicas = new LinkedHashSet<>();

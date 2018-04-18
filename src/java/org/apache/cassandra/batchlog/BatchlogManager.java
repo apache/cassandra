@@ -36,7 +36,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.locator.ReplicatedRange;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
@@ -449,7 +448,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             String ks = mutation.getKeyspaceName();
             Token tk = mutation.key().getToken();
 
-            for (Replica replica : StorageService.instance.getNaturalAndPendingEndpoints(ks, tk))
+            for (Replica replica : StorageService.instance.getNaturalAndPendingReplicas(ks, tk))
             {
                 Replicas.checkFull(replica);
                 if (replica.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))

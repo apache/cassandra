@@ -65,7 +65,7 @@ public final class ViewUtils
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
         List<Replica> baseReplicas = new ArrayList<>();
         List<Replica> viewReplicas = new ArrayList<>();
-        for (Replica baseEndpoint : replicationStrategy.getNaturalEndpoints(baseToken))
+        for (Replica baseEndpoint : replicationStrategy.getNaturalReplicas(baseToken))
         {
             // An endpoint is local if we're not using Net
             if (!(replicationStrategy instanceof NetworkTopologyStrategy) ||
@@ -73,7 +73,7 @@ public final class ViewUtils
                 baseReplicas.add(baseEndpoint);
         }
 
-        for (Replica viewEndpoint : replicationStrategy.getNaturalEndpoints(viewToken))
+        for (Replica viewEndpoint : replicationStrategy.getNaturalReplicas(viewToken))
         {
             // If we are a base endpoint which is also a view replica, we use ourselves as our view replica
             if (viewEndpoint.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))

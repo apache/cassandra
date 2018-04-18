@@ -114,7 +114,7 @@ public class TokenAllocation
     {
         double size = current.size(next);
         Token representative = current.getPartitioner().midpoint(current, next);
-        for (InetAddressAndPort n : Replicas.asEndpoints(rs.calculateNaturalEndpoints(representative, tokenMetadata)))
+        for (InetAddressAndPort n : Replicas.asEndpoints(rs.calculateNaturalReplicas(representative, tokenMetadata)))
         {
             Double v = ownership.get(n);
             ownership.put(n, v != null ? v + size : size);

@@ -871,8 +871,8 @@ public class TokenMetadata
         // all leaving nodes are gone.
         for (Range<Token> range : affectedRanges)
         {
-            Set<Replica> currentReplicas = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, metadata));
-            Set<Replica> newReplicas = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, allLeftMetadata));
+            Set<Replica> currentReplicas = ImmutableSet.copyOf(strategy.calculateNaturalReplicas(range.right, metadata));
+            Set<Replica> newReplicas = ImmutableSet.copyOf(strategy.calculateNaturalReplicas(range.right, allLeftMetadata));
             for (Replica replica : Replicas.difference(newReplicas, currentReplicas))
             {
                 newPendingRanges.addPendingRange(range, replica);
@@ -922,8 +922,8 @@ public class TokenMetadata
 
             for(ReplicatedRange range : moveAffectedRanges)
             {
-                Set<InetAddressAndPort> currentEndpoints = Replicas.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.getRange().right, metadata)));
-                Set<InetAddressAndPort> newEndpoints = Replicas.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.getRange().right, allLeftMetadata)));
+                Set<InetAddressAndPort> currentEndpoints = Replicas.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalReplicas(range.getRange().right, metadata)));
+                Set<InetAddressAndPort> newEndpoints = Replicas.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalReplicas(range.getRange().right, allLeftMetadata)));
                 Set<InetAddressAndPort> difference = Sets.difference(newEndpoints, currentEndpoints);
                 for(final InetAddressAndPort address : difference)
                 {

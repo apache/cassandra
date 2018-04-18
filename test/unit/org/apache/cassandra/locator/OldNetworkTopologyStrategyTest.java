@@ -160,7 +160,7 @@ public class OldNetworkTopologyStrategyTest
     {
         for (Token keyToken : keyTokens)
         {
-            List<InetAddressAndPort> endpoints = Replicas.asEndpointList(strategy.getNaturalEndpoints(keyToken));
+            List<InetAddressAndPort> endpoints = Replicas.asEndpointList(strategy.getNaturalReplicas(keyToken));
             for (int j = 0; j < endpoints.size(); j++)
             {
                 ArrayList<InetAddressAndPort> hostsExpected = expectedResults.get(keyToken.toString());

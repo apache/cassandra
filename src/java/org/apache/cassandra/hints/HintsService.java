@@ -31,7 +31,6 @@ import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -186,7 +185,7 @@ public final class HintsService implements HintsServiceMBean
         String keyspaceName = hint.mutation.getKeyspaceName();
         Token token = hint.mutation.key().getToken();
 
-        Iterable<Replica> replicas = StorageService.instance.getNaturalAndPendingEndpoints(keyspaceName, token);
+        Iterable<Replica> replicas = StorageService.instance.getNaturalAndPendingReplicas(keyspaceName, token);
         Replicas.checkFull(replicas);
         Iterable<InetAddressAndPort> endpoints = Replicas.asEndpoints(filter(replicas, StorageProxy::shouldHint));
         Iterable<UUID> hostIds = transform(endpoints, StorageService.instance::getHostIdForEndpoint);

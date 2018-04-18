@@ -43,7 +43,7 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
         this.rf = ReplicationFactor.fromString(this.configOptions.get("replication_factor"));
     }
 
-    public List<Replica> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+    public List<Replica> calculateNaturalReplicas(Token token, TokenMetadata metadata)
     {
         List<Replica> replicas = new ArrayList<>(rf.replicas);
         ArrayList<Token> tokens = metadata.sortedTokens();

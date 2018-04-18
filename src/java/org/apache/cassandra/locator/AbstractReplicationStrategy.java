@@ -73,9 +73,9 @@ public abstract class AbstractReplicationStrategy
         // lazy-initialize keyspace itself since we don't create them until after the replication strategies
     }
 
-    private final Map<Token, ArrayList<Replica>> cachedEndpoints = new NonBlockingHashMap<>();
+    private final Map<Token, ArrayList<Replica>> cachedReplicas = new NonBlockingHashMap<>();
 
-    public ArrayList<Replica> getCachedEndpoints(Token t)
+    public ArrayList<Replica> getCachedReplicas(Token t)
     {
         long lastVersion = tokenMetadata.getRingVersion();
 
@@ -86,13 +86,13 @@ public abstract class AbstractReplicationStrategy
                 if (lastVersion > lastInvalidatedVersion)
                 {
                     logger.trace("clearing cached endpoints");
-                    cachedEndpoints.clear();
+                    cachedReplicas.clear();
                     lastInvalidatedVersion = lastVersion;
                 }
             }
         }
 
-        return cachedEndpoints.get(t);
+        return cachedReplicas.get(t);
     }
 
     /**
@@ -102,18 +102,18 @@ public abstract class AbstractReplicationStrategy
      * @param searchPosition the position the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
      */
-    public ArrayList<Replica> getNaturalEndpoints(RingPosition searchPosition)
+    public ArrayList<Replica> getNaturalReplicas(RingPosition searchPosition)
     {
         Token searchToken = searchPosition.getToken();
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
-        ArrayList<Replica> endpoints = getCachedEndpoints(keyToken);
+        ArrayList<Replica> endpoints = getCachedReplicas(keyToken);
         if (endpoints == null)
         {
             TokenMetadata tm = tokenMetadata.cachedOnlyTokenMap();
             // if our cache got invalidated, it's possible there is a new token to account for too
             keyToken = TokenMetadata.firstToken(tm.sortedTokens(), searchToken);
-            endpoints = new ArrayList<>(calculateNaturalEndpoints(searchToken, tm));
-            cachedEndpoints.put(keyToken, endpoints);
+            endpoints = new ArrayList<>(calculateNaturalReplicas(searchToken, tm));
+            cachedReplicas.put(keyToken, endpoints);
         }
 
         return new ArrayList<>(endpoints);
@@ -122,12 +122,12 @@ public abstract class AbstractReplicationStrategy
     /**
      * calculate the natural endpoints for the given token
      *
-     * @see #getNaturalEndpoints(org.apache.cassandra.dht.RingPosition)
+     * @see #getNaturalReplicas(org.apache.cassandra.dht.RingPosition)
      *
      * @param searchToken the token the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
      */
-    public abstract List<Replica> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata);
+    public abstract List<Replica> calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata);
 
     public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Collection<Replica> naturalEndpoints,
                                                                        Collection<Replica> pendingEndpoints,
@@ -217,7 +217,7 @@ public abstract class AbstractReplicationStrategy
         for (Token token : metadata.sortedTokens())
         {
             Range<Token> range = metadata.getPrimaryRangeFor(token);
-            for (Replica replica : calculateNaturalEndpoints(token, metadata))
+            for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
                 map.put(replica.getEndpoint(), replica.decorateRange(range));
             }
@@ -233,7 +233,7 @@ public abstract class AbstractReplicationStrategy
         for (Token token : metadata.sortedTokens())
         {
             Range<Token> range = metadata.getPrimaryRangeFor(token);
-            for (Replica replica : calculateNaturalEndpoints(token, metadata))
+            for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
                 map.put(range, replica);
             }
