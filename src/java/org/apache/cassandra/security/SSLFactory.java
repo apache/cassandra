@@ -18,21 +18,18 @@
 package org.apache.cassandra.security;
 
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
@@ -41,7 +38,6 @@ import javax.net.ssl.TrustManagerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicates;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -55,7 +51,6 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
 import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import io.netty.util.ReferenceCountUtil;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.EncryptionOptions;
 
 /**
@@ -95,49 +90,6 @@ public final class SSLFactory
      * Cached references of SSL Contexts
      */
     private static final ConcurrentHashMap<CacheKey, SslContext> cachedSslContexts = new ConcurrentHashMap<>();
-
-    /**
-     * List of files that trigger hot reloading of SSL certificates
-     */
-    private static volatile List<HotReloadableFile> hotReloadableFiles = ImmutableList.of();
-
-    /**
-     * Default initial delay for hot reloading
-     */
-    public static final int DEFAULT_HOT_RELOAD_INITIAL_DELAY_SEC = 600;
-
-    /**
-     * Default periodic check delay for hot reloading
-     */
-    public static final int DEFAULT_HOT_RELOAD_PERIOD_SEC = 600;
-
-    /**
-     * State variable to maintain initialization invariant
-     */
-    private static boolean isHotReloadingInitialized = false;
-
-    /**
-     * Helper class for hot reloading SSL Contexts
-     */
-    private static class HotReloadableFile
-    {
-        private final File file;
-        private volatile long lastModTime;
-
-        HotReloadableFile(String path)
-        {
-            file = new File(path);
-            lastModTime = file.lastModified();
-        }
-
-        boolean shouldReload()
-        {
-            long curModTime = file.lastModified();
-            boolean result = curModTime != lastModTime;
-            lastModTime = curModTime;
-            return result;
-        }
-    }
 
     /**
      * Create a JSSE {@link SSLContext}.
@@ -295,67 +247,6 @@ public final class SSLFactory
             builder.trustManager(buildTrustManagerFactory(options));
 
         return builder.build();
-    }
-
-    /**
-     * Performs a lightweight check whether the certificate files have been refreshed.
-     *
-     * @throws IllegalStateException if {@link #initHotReloading(EncryptionOptions.ServerEncryptionOptions, EncryptionOptions, boolean)}
-     *                               is not called first
-     */
-    public static void checkCertFilesForHotReloading()
-    {
-        if (!isHotReloadingInitialized)
-            throw new IllegalStateException("Hot reloading functionality has not been initialized.");
-
-        logger.trace("Checking whether certificates have been updated");
-
-        if (hotReloadableFiles.stream().anyMatch(HotReloadableFile::shouldReload))
-        {
-            logger.info("SSL certificates have been updated. Reseting the ssl contexts for new connections.");
-            cachedSslContexts.clear();
-        }
-    }
-
-    /**
-     * Determines whether to hot reload certificates and schedules a periodic task for it.
-     *
-     * @param serverEncryptionOptions
-     * @param clientEncryptionOptions
-     */
-    public static synchronized void initHotReloading(EncryptionOptions.ServerEncryptionOptions serverEncryptionOptions,
-                                                     EncryptionOptions clientEncryptionOptions,
-                                                     boolean force)
-    {
-        if (isHotReloadingInitialized && !force)
-            return;
-
-        logger.debug("Initializing hot reloading SSLContext");
-
-        List<HotReloadableFile> fileList = new ArrayList<>();
-
-        if (serverEncryptionOptions.enabled)
-        {
-            fileList.add(new HotReloadableFile(serverEncryptionOptions.keystore));
-            fileList.add(new HotReloadableFile(serverEncryptionOptions.truststore));
-        }
-
-        if (clientEncryptionOptions.enabled)
-        {
-            fileList.add(new HotReloadableFile(clientEncryptionOptions.keystore));
-            fileList.add(new HotReloadableFile(clientEncryptionOptions.truststore));
-        }
-
-        hotReloadableFiles = ImmutableList.copyOf(fileList);
-
-        if (!isHotReloadingInitialized)
-        {
-            ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(SSLFactory::checkCertFilesForHotReloading,
-                                                                     DEFAULT_HOT_RELOAD_INITIAL_DELAY_SEC,
-                                                                     DEFAULT_HOT_RELOAD_PERIOD_SEC, TimeUnit.SECONDS);
-        }
-
-        isHotReloadingInitialized = true;
     }
 
     static class CacheKey

@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.security;
 
-import java.io.File;
 import java.io.IOException;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
@@ -163,40 +162,6 @@ public class SSLFactoryTest
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
         SSLFactory.buildKeyManagerFactory(options);
         Assert.assertTrue(SSLFactory.checkedExpiry);
-    }
-
-    @Test
-    public void testSslContextReload_HappyPath() throws IOException, InterruptedException
-    {
-        try
-        {
-            EncryptionOptions options = addKeystoreOptions(encryptionOptions);
-            options.enabled = true;
-
-            SSLFactory.initHotReloading((ServerEncryptionOptions) options, options, true);
-
-            SslContext oldCtx = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
-                                                         SSLFactory.SocketType.CLIENT, OpenSsl.isAvailable());
-            File keystoreFile = new File(options.keystore);
-
-            SSLFactory.checkCertFilesForHotReloading();
-            Thread.sleep(5000);
-            keystoreFile.setLastModified(System.currentTimeMillis());
-
-            SSLFactory.checkCertFilesForHotReloading();
-            SslContext newCtx = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
-                                                         SSLFactory.SocketType.CLIENT, OpenSsl.isAvailable());
-
-            Assert.assertNotSame(oldCtx, newCtx);
-        }
-        catch (Exception e)
-        {
-            throw e;
-        }
-        finally
-        {
-            DatabaseDescriptor.loadConfig();
-        }
     }
 
     @Test

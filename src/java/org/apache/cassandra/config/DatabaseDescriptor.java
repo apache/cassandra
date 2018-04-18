@@ -61,7 +61,6 @@ import org.apache.cassandra.net.BackPressureStrategy;
 import org.apache.cassandra.net.RateBasedBackPressure;
 import org.apache.cassandra.security.CertificateIssuer;
 import org.apache.cassandra.security.EncryptionContext;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.vault.VaultAuthenticator;
@@ -333,8 +332,6 @@ public class DatabaseDescriptor
         applySeedProvider();
 
         applyEncryptionContext();
-
-        applySslContextHotReload();
     }
 
     private static void applySimpleConfig()
@@ -974,11 +971,6 @@ public class DatabaseDescriptor
         // always attempt to load the cipher factory, as we could be in the situation where the user has disabled encryption,
         // but has existing commitlogs and sstables on disk that are still encrypted (and still need to be read)
         encryptionContext = new EncryptionContext(conf.transparent_data_encryption_options);
-    }
-
-    public static void applySslContextHotReload()
-    {
-        SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
     }
 
     public static void applySeedProvider()

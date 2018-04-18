@@ -100,7 +100,6 @@ import org.apache.cassandra.net.async.NettyFactory.InboundInitializer;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
@@ -1674,11 +1673,5 @@ public final class MessagingService implements MessagingServiceMBean
                 break;
         }
         return true;
-    }
-
-    @Override
-    public void reloadSslCertificates()
-    {
-        SSLFactory.checkCertFilesForHotReloading();
     }
 }
