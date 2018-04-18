@@ -1699,7 +1699,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             try
             {
-                InetAddressAndPort address = InetAddressAndPort.getByName(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value);
+                InetAddressAndPort address = InetAddressAndPort.getByName(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT).value);
                 return address.getHostAddress(withPort);
             }
             catch (UnknownHostException e)
