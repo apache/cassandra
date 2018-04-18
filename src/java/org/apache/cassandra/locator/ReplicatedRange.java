@@ -19,6 +19,7 @@
 package org.apache.cassandra.locator;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
@@ -42,6 +43,27 @@ public class ReplicatedRange
     public ReplicatedRange(Token left, Token right, boolean full)
     {
         this(new Range<>(left, right), full);
+    }
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReplicatedRange that = (ReplicatedRange) o;
+        return full == that.full &&
+               Objects.equals(range, that.range);
+    }
+
+    public int hashCode()
+    {
+
+        return Objects.hash(range, full);
+    }
+
+    @Override
+    public String toString()
+    {
+        return (full ? "Full" : "Transient") + range;
     }
 
     public Range<Token> getRange()

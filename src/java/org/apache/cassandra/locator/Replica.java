@@ -51,12 +51,14 @@ public class Replica
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Replica replica = (Replica) o;
-        return Objects.equals(endpoint, replica.endpoint);
+        return full == replica.full &&
+               Objects.equals(endpoint, replica.endpoint);
     }
 
     public int hashCode()
     {
-        return Objects.hash(endpoint);
+
+        return Objects.hash(endpoint, full);
     }
 
     @Override
