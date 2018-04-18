@@ -27,6 +27,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.TableParams.Option;
+import org.apache.cassandra.service.ClientWarn;
 
 import static java.lang.String.format;
 
@@ -35,6 +36,8 @@ public final class TableAttributes extends PropertyDefinitions
     private static final String KW_ID = "id";
     private static final Set<String> validKeywords;
     private static final Set<String> obsoleteKeywords;
+
+    private static boolean loggedReadRepairChanceDeprecationWarnings;
 
     static
     {
@@ -105,7 +108,17 @@ public final class TableAttributes extends PropertyDefinitions
         }
 
         if (hasOption(Option.DCLOCAL_READ_REPAIR_CHANCE))
-            builder.dcLocalReadRepairChance(getDouble(Option.DCLOCAL_READ_REPAIR_CHANCE));
+        {
+            double chance = getDouble(Option.DCLOCAL_READ_REPAIR_CHANCE);
+
+            if (chance != 0.0)
+            {
+                ClientWarn.instance.warn("dclocal_read_repair_chance table option has been deprecated and will be removed in version 4.0");
+                maybeLogReadRepairChanceDeprecationWarning();
+            }
+
+            builder.dcLocalReadRepairChance(chance);
+        }
 
         if (hasOption(Option.DEFAULT_TIME_TO_LIVE))
             builder.defaultTimeToLive(getInt(Option.DEFAULT_TIME_TO_LIVE));
@@ -123,7 +136,17 @@ public final class TableAttributes extends PropertyDefinitions
             builder.minIndexInterval(getInt(Option.MIN_INDEX_INTERVAL));
 
         if (hasOption(Option.READ_REPAIR_CHANCE))
-            builder.readRepairChance(getDouble(Option.READ_REPAIR_CHANCE));
+        {
+            double chance = getDouble(Option.READ_REPAIR_CHANCE);
+
+            if (chance != 0.0)
+            {
+                ClientWarn.instance.warn("read_repair_chance table option has been deprecated and will be removed in version 4.0");
+                maybeLogReadRepairChanceDeprecationWarning();
+            }
+
+            builder.readRepairChance(chance);
+        }
 
         if (hasOption(Option.SPECULATIVE_RETRY))
             builder.speculativeRetry(SpeculativeRetryParam.fromString(getString(Option.SPECULATIVE_RETRY)));
@@ -135,6 +158,15 @@ public final class TableAttributes extends PropertyDefinitions
             builder.cdc(getBoolean(Option.CDC.toString(), false));
 
         return builder.build();
+    }
+
+    private void maybeLogReadRepairChanceDeprecationWarning()
+    {
+        if (!loggedReadRepairChanceDeprecationWarnings)
+        {
+            logger.warn("dclocal_read_repair_chance and read_repair_chance table options have been deprecated and will be removed in version 4.0");
+            loggedReadRepairChanceDeprecationWarnings = true;
+        }
     }
 
     private Double getDeprecatedCrcCheckChance(Map<String, String> compressionOpts)
