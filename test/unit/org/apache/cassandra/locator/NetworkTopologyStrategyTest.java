@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
 import org.junit.Assert;
@@ -36,11 +37,15 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
 import org.apache.cassandra.service.StorageService;
+
+import static org.apache.cassandra.locator.Replica.full;
+import static org.apache.cassandra.locator.Replica.trans;
 
 public class NetworkTopologyStrategyTest
 {
@@ -51,6 +56,7 @@ public class NetworkTopologyStrategyTest
     public static void setupDD()
     {
         DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
 
     @Test
@@ -372,5 +378,35 @@ public class NetworkTopologyStrategyTest
     {
         Integer replicas = datacenters.get(dc);
         return replicas == null ? 0 : replicas;
+    }
+
+    @Test
+    public void transientReplica() throws Exception
+    {
+        IEndpointSnitch snitch = new SimpleSnitch();
+        DatabaseDescriptor.setEndpointSnitch(snitch);
+
+        List<InetAddressAndPort> endpoints = Lists.newArrayList(InetAddressAndPort.getByName("127.0.0.1"),
+                                                                InetAddressAndPort.getByName("127.0.0.2"),
+                                                                InetAddressAndPort.getByName("127.0.0.3"),
+                                                                InetAddressAndPort.getByName("127.0.0.4"));
+
+        Multimap<InetAddressAndPort, Token> tokens = HashMultimap.create();
+        tokens.put(endpoints.get(0), new LongToken(100));
+        tokens.put(endpoints.get(1), new LongToken(200));
+        tokens.put(endpoints.get(2), new LongToken(300));
+        tokens.put(endpoints.get(3), new LongToken(400));
+        TokenMetadata metadata = new TokenMetadata();
+        metadata.updateNormalTokens(tokens);
+
+        Map<String, String> configOptions = new HashMap<String, String>();
+        configOptions.put(snitch.getDatacenter((InetAddressAndPort) null), "3/1");
+
+        // Set the localhost to the tokenmetadata. Embedded cassandra way?
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
+
+        Assert.assertEquals(Lists.newArrayList(full(endpoints.get(0)), full(endpoints.get(1)), trans(endpoints.get(2))),
+                            strategy.getNaturalEndpoints(new LongToken(99)));
+
     }
 }

@@ -97,16 +97,22 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         /** Number of replicas left to fill from this DC. */
         int rfLeft;
         int acceptableRackRepeats;
+        int transients;
 
-        DatacenterEndpoints(int rf, int rackCount, int nodeCount, Set<Replica> replicas, Set<Pair<String, String>> racks)
+        DatacenterEndpoints(ReplicationFactor rf, int rackCount, int nodeCount, Set<Replica> replicas, Set<Pair<String, String>> racks)
         {
             this.replicas = replicas;
             this.racks = racks;
             // If there aren't enough nodes in this DC to fill the RF, the number of nodes is the effective RF.
-            this.rfLeft = Math.min(rf, nodeCount);
+            this.rfLeft = Math.min(rf.replicas, nodeCount);
             // If there aren't enough racks in this DC to fill the RF, we'll still use at least one node from each rack,
             // and the difference is to be filled by the first encountered nodes.
-            acceptableRackRepeats = rf - rackCount;
+            acceptableRackRepeats = rf.replicas - rackCount;
+
+            // if we have fewer replicas than rf calls for, reduce transients accordingly
+            int reduceTransients = rf.replicas - this.rfLeft;
+            transients = Math.max(rf.trans - reduceTransients, 0);
+            ReplicationFactor.validate(rfLeft, transients);
         }
 
         /**
@@ -118,20 +124,26 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             if (done())
                 return false;
 
+            if (Replicas.containsEndpoint(replicas, ep))
+                // Cannot repeat a node.
+                return false;
+
+            Replica replica = new Replica(ep, rfLeft > transients);
+
             if (racks.add(location))
             {
                 // New rack.
                 --rfLeft;
-                boolean added = replicas.add(Replica.full(ep));
+                boolean added = replicas.add(replica);
                 assert added;
                 return done();
             }
             if (acceptableRackRepeats <= 0)
                 // There must be rfLeft distinct racks left, do not add any more rack repeats.
                 return false;
-            if (!replicas.add(Replica.full(ep)))
-                // Cannot repeat a node.
-                return false;
+
+            boolean added = replicas.add(replica);
+            assert added;
             // Added a node that is from an already met rack to match RF when there aren't enough racks.
             --acceptableRackRepeats;
             --rfLeft;
@@ -168,11 +180,10 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         for (Map.Entry<String, ReplicationFactor> en : datacenters.entrySet())
         {
             String dc = en.getKey();
-            assert en.getValue().trans == 0 : "support transient replicas";
-            int rf = en.getValue().replicas;
+            ReplicationFactor rf = en.getValue();
             int nodeCount = sizeOrZero(allEndpoints.get(dc));
 
-            if (rf <= 0 || nodeCount <= 0)
+            if (rf.replicas <= 0 || nodeCount <= 0)
                 continue;
 
             DatacenterEndpoints dcEndpoints = new DatacenterEndpoints(rf, sizeOrZero(racks.get(dc)), nodeCount, replicas, seenRacks);
