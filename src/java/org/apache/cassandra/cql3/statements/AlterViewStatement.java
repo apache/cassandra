@@ -62,6 +62,8 @@ public class AlterViewStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("Cannot use ALTER MATERIALIZED VIEW on Table");
 
         ViewMetadata current = Schema.instance.getView(keyspace(), columnFamily());
+        if (current == null)
+            throw new InvalidRequestException("There is no materialized view in keyspace " + keyspace());
 
         if (attrs == null)
             throw new InvalidRequestException("ALTER MATERIALIZED VIEW WITH invoked, but no parameters found");
