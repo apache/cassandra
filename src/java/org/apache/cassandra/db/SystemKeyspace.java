@@ -1389,30 +1389,27 @@ public final class SystemKeyspace
 
     /**
      * Compare the release version in the system.local table with the one included in the distro.
-     * If they don't match, snapshot all tables in the system keyspace. This is intended to be
-     * called at startup to create a backup of the system tables during an upgrade
+     * If they don't match, snapshot all tables in the system and schema keyspaces. This is intended
+     * to be called at startup to create a backup of the system tables during an upgrade
      *
      * @throws IOException
      */
-    public static boolean snapshotOnVersionChange() throws IOException
+    public static void snapshotOnVersionChange() throws IOException
     {
         String previous = getPreviousVersionString();
         String next = FBUtilities.getReleaseVersionString();
 
-        // if we're restarting after an upgrade, snapshot the system keyspace
+        // if we're restarting after an upgrade, snapshot the system and schema keyspaces
         if (!previous.equals(NULL_VERSION.toString()) && !previous.equals(next))
 
         {
-            logger.info("Detected version upgrade from {} to {}, snapshotting system keyspace", previous, next);
+            logger.info("Detected version upgrade from {} to {}, snapshotting system keyspaces", previous, next);
             String snapshotName = Keyspace.getTimestampedSnapshotName(format("upgrade-%s-%s",
                                                                              previous,
                                                                              next));
-            Keyspace systemKs = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
-            systemKs.snapshot(snapshotName, null);
-            return true;
+            for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
+                Keyspace.open(keyspace).snapshot(snapshotName, null);
         }
-
-        return false;
     }
 
     /**
