@@ -39,7 +39,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -78,17 +77,6 @@ public class SSLFactoryTest
     public void tearDown()
     {
         KeyStoreManager.shutdown();
-    }
-
-    @Test
-    public void testFilterCipherSuites()
-    {
-        String[] supported = new String[] {"x", "b", "c", "f"};
-        String[] desired = new String[] { "k", "a", "b", "c" };
-        assertArrayEquals(new String[] { "b", "c" }, SSLFactory.filterCipherSuites(supported, desired));
-
-        desired = new String[] { "c", "b", "x" };
-        assertArrayEquals(desired, SSLFactory.filterCipherSuites(supported, desired));
     }
 
     @Test

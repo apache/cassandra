@@ -145,21 +145,6 @@ public final class SSLFactory
         }
     }
 
-    public static String[] filterCipherSuites(String[] supported, String[] desired)
-    {
-        if (Arrays.equals(supported, desired))
-            return desired;
-        List<String> ldesired = Arrays.asList(desired);
-        ImmutableSet<String> ssupported = ImmutableSet.copyOf(supported);
-        String[] ret = Iterables.toArray(Iterables.filter(ldesired, Predicates.in(ssupported)), String.class);
-        if (desired.length > ret.length && logger.isWarnEnabled())
-        {
-            Iterable<String> missing = Iterables.filter(ldesired, Predicates.not(Predicates.in(Sets.newHashSet(ret))));
-            logger.warn("Filtering out {} as it isn't supported by the socket", Iterables.toString(missing));
-        }
-        return ret;
-    }
-
     /**
      * get a netty {@link SslContext} instance
      */
