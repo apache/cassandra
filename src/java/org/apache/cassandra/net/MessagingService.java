@@ -1594,6 +1594,16 @@ public final class MessagingService implements MessagingServiceMBean
                                                    bounds.left.getPartitioner().getClass().getName()));
     }
 
+    /**
+     * This method is used to determine the preferred IP & Port of a peer using the
+     * {@link OutboundMessagingPool} and SystemKeyspace.
+     */
+    public InetAddressAndPort getPreferredRemoteAddr(InetAddressAndPort to)
+    {
+        OutboundMessagingPool pool = channelManagers.get(to);
+        return pool != null ? pool.getPreferredRemoteAddr() : SystemKeyspace.getPreferredIP(to);
+    }
+
     private OutboundMessagingPool getMessagingConnection(InetAddressAndPort to)
     {
         OutboundMessagingPool pool = channelManagers.get(to);

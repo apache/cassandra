@@ -135,7 +135,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     }
 
     @Override
-    public void initialize() throws IOException
+    public void initialize()
     {
         StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddressAndPort(),
                                                           session.sessionIndex(),
@@ -184,6 +184,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         ChannelPipeline pipeline = channel.pipeline();
         pipeline.addLast(NettyFactory.instance.streamingGroup, NettyFactory.INBOUND_STREAM_HANDLER_NAME, new StreamingInboundHandler(connectionId.remote(), protocolVersion, session));
         channel.attr(TRANSFERRING_FILE_ATTR).set(Boolean.FALSE);
+        logger.debug("Creating channel id {} local {} remote {}", channel.id(), channel.localAddress(), channel.remoteAddress());
         return channel;
     }
 
@@ -495,7 +496,8 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     {
         closed = true;
         logger.debug("{} Closing stream connection channels on {}", createLogTag(session, null), connectionId);
-        channelKeepAlives.stream().map(scheduledFuture -> scheduledFuture.cancel(false));
+        for (ScheduledFuture<?> future : channelKeepAlives)
+            future.cancel(false);
         channelKeepAlives.clear();
 
         List<Future<Void>> futures = new ArrayList<>(threadToChannelMap.size());
@@ -507,5 +509,11 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
 
         if (controlMessageChannel != null)
             controlMessageChannel.close();
+    }
+
+    @Override
+    public OutboundConnectionIdentifier getConnectionId()
+    {
+        return connectionId;
     }
 }

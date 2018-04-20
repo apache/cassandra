@@ -34,7 +34,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
@@ -428,7 +427,6 @@ public class RangeStreamer
         {
             String keyspace = entry.getKey();
             InetAddressAndPort source = entry.getValue().getKey();
-            InetAddressAndPort preferred = SystemKeyspace.getPreferredIP(source);
             Collection<Range<Token>> ranges = entry.getValue().getValue();
 
             // filter out already streamed ranges
@@ -441,7 +439,7 @@ public class RangeStreamer
             if (logger.isTraceEnabled())
                 logger.trace("{}ing from {} ranges {}", description, source, StringUtils.join(ranges, ", "));
             /* Send messages to respective folks to stream data over to me */
-            streamPlan.requestRanges(source, preferred, keyspace, ranges);
+            streamPlan.requestRanges(source, keyspace, ranges);
         }
 
         return streamPlan.execute();

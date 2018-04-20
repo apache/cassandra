@@ -1,4 +1,5 @@
 4.0
+ * Use the correct IP/Port for Streaming when localAddress is left unbound (CASSANDAR-14389)
  * nodetool listsnapshots is missing local system keyspace snapshots (CASSANDRA-14381)
  * Remove StreamCoordinator.streamExecutor thread pool (CASSANDRA-14402)
  * Rename nodetool --with-port to --print-port to disambiguate from --port (CASSANDRA-14392)
