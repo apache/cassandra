@@ -85,6 +85,8 @@ public class FBUtilities
     private static volatile InetAddressAndPort broadcastInetAddressAndPort;
     private static volatile InetAddressAndPort localInetAddressAndPort;
 
+    private final static CompletableFuture<InetAddressAndPort> broadcastAddressAndPortFuture = new CompletableFuture<>();
+
     public static int getAvailableProcessors()
     {
         String availableProcessors = System.getProperty("cassandra.available_processors");
@@ -152,8 +154,19 @@ public class FBUtilities
         if (broadcastInetAddressAndPort == null)
         {
             broadcastInetAddressAndPort = InetAddressAndPort.getByAddress(getJustBroadcastAddress());
+            broadcastAddressAndPortFuture.complete(broadcastInetAddressAndPort);
         }
         return broadcastInetAddressAndPort;
+    }
+
+    /**
+     * Returns a future that is completed once the broadcast address has been initialized. Must be used by any
+     * classes that want to access the broadcast address before {@link DatabaseDescriptor#applyAddressConfig()}
+     * has been executed, e.g. when instantiated by {@link DatabaseDescriptor#applySimpleConfig()}.
+     */
+    public static CompletableFuture<InetAddressAndPort> getBroadcastAddressAndPortWhenInitialized()
+    {
+        return broadcastAddressAndPortFuture;
     }
 
     /**

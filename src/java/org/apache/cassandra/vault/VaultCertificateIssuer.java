@@ -60,12 +60,13 @@ public class VaultCertificateIssuer implements CertificateIssuer
     private static final Logger logger = LoggerFactory.getLogger(VaultCertificateIssuer.class);
 
     private final String pkiPath;
-    private final String role;
-    private final String commonName;
-    private final String sanNames;
-    private final String sanIps;
     private final boolean useKeyStore;
     private final int renewDaysBeforeExpire;
+
+    private String role;
+    private String commonName;
+    private String sanIps;
+    private String sanNames;
 
     private final KeyFactory keyFactory;
     private final CertificateFactory certFactory;
@@ -79,15 +80,15 @@ public class VaultCertificateIssuer implements CertificateIssuer
         useKeyStore = (boolean) params.getOrDefault("use_keystore", true);
         renewDaysBeforeExpire = (int) params.getOrDefault("renew_days_before_expire", -1);
 
-        String fqdn = FBUtilities.getJustBroadcastAddress().getCanonicalHostName();
-        role = (String) params.getOrDefault("role", fqdn);
-        commonName = (String) params.getOrDefault("common_name", fqdn);
-
-        String ip = FBUtilities.getJustBroadcastAddress().getHostAddress();
-        sanIps = (String) params.getOrDefault("ip_sans", ip);
-
-        // we can't default to fqdn here, as it may represent an IP as fallback
-        sanNames = (String) params.get("alt_names");
+        FBUtilities.getBroadcastAddressAndPortWhenInitialized().thenAccept((addr) -> {
+            String fqdn = addr.address.getCanonicalHostName();
+            role = (String) params.getOrDefault("role", fqdn);
+            commonName = (String) params.getOrDefault("common_name", fqdn);
+            String ip = addr.getHostAddress(false);
+            sanIps = (String) params.getOrDefault("ip_sans", ip);
+            // we can't default to fqdn here, as it may represent an IP as fallback
+            sanNames = (String) params.get("alt_names");
+        });
 
         try
         {
@@ -114,6 +115,7 @@ public class VaultCertificateIssuer implements CertificateIssuer
     @Override
     public CompletableFuture<X509Credentials> generateCredentials()
     {
+        assert role != null;
         try
         {
             String uri = pkiPath + "/issue/" + role;
