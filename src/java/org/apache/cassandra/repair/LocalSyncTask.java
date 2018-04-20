@@ -59,16 +59,16 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     }
 
     @VisibleForTesting
-    StreamPlan createStreamPlan(InetAddressAndPort dst, InetAddressAndPort preferred, List<Range<Token>> differences)
+    StreamPlan createStreamPlan(InetAddressAndPort dst, List<Range<Token>> differences)
     {
         StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                           .listeners(this)
                           .flushBeforeTransfer(pendingRepair == null)
-                          .requestRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily);  // request ranges from the remote node
+                          .requestRanges(dst, desc.keyspace, differences, desc.columnFamily);  // request ranges from the remote node
         if (!pullRepair)
         {
             // send ranges to the remote node if we are not performing a pull repair
-            plan.transferRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily);
+            plan.transferRanges(dst, desc.keyspace, differences, desc.columnFamily);
         }
 
         return plan;
@@ -84,13 +84,12 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         // We can take anyone of the node as source or destination, however if one is localhost, we put at source to avoid a forwarding
         InetAddressAndPort dst = r2.endpoint.equals(local) ? r1.endpoint : r2.endpoint;
-        InetAddressAndPort preferred = SystemKeyspace.getPreferredIP(dst);
 
         String message = String.format("Performing streaming repair of %d ranges with %s", differences.size(), dst);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
 
-        createStreamPlan(dst, preferred, differences).execute();
+        createStreamPlan(dst, differences).execute();
     }
 
     public void handleStreamEvent(StreamEvent event)

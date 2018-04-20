@@ -2805,11 +2805,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (Map.Entry<InetAddressAndPort, Collection<Range<Token>>> entry : rangesToFetch.get(keyspaceName))
             {
                 InetAddressAndPort source = entry.getKey();
-                InetAddressAndPort preferred = SystemKeyspace.getPreferredIP(source);
                 Collection<Range<Token>> ranges = entry.getValue();
                 if (logger.isDebugEnabled())
                     logger.debug("Requesting from {} ranges {}", source, StringUtils.join(ranges, ", "));
-                stream.requestRanges(source, preferred, keyspaceName, ranges);
+                stream.requestRanges(source, keyspaceName, ranges);
             }
         }
         StreamResultFuture future = stream.execute();
@@ -4327,8 +4326,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     for (InetAddressAndPort address : endpointRanges.keySet())
                     {
                         logger.debug("Will stream range {} of keyspace {} to endpoint {}", endpointRanges.get(address), keyspace, address);
-                        InetAddressAndPort preferred = SystemKeyspace.getPreferredIP(address);
-                        streamPlan.transferRanges(address, preferred, keyspace, endpointRanges.get(address));
+                        streamPlan.transferRanges(address, keyspace, endpointRanges.get(address));
                     }
 
                     // stream requests
@@ -4336,8 +4334,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     for (InetAddressAndPort address : workMap.keySet())
                     {
                         logger.debug("Will request range {} of keyspace {} from endpoint {}", workMap.get(address), keyspace, address);
-                        InetAddressAndPort preferred = SystemKeyspace.getPreferredIP(address);
-                        streamPlan.requestRanges(address, preferred, keyspace, workMap.get(address));
+                        streamPlan.requestRanges(address, keyspace, workMap.get(address));
                     }
 
                     logger.debug("Keyspace {}: work map {}.", keyspace, workMap);
@@ -5107,10 +5104,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 List<Range<Token>> ranges = rangesEntry.getValue();
                 InetAddressAndPort newEndpoint = rangesEntry.getKey();
-                InetAddressAndPort preferred = SystemKeyspace.getPreferredIP(newEndpoint);
 
                 // TODO each call to transferRanges re-flushes, this is potentially a lot of waste
-                streamPlan.transferRanges(newEndpoint, preferred, keyspaceName, ranges);
+                streamPlan.transferRanges(newEndpoint, keyspaceName, ranges);
             }
         }
         return streamPlan.execute();

@@ -96,7 +96,6 @@ public class CassandraStreamManagerTest
         {
             return new StreamSession(StreamOperation.REPAIR,
                                      InetAddressAndPort.getByName("127.0.0.1"),
-                                     InetAddressAndPort.getByName("127.0.0.2"),
                                      connectionFactory,
                                      0,
                                      pendingRepair,

@@ -68,29 +68,27 @@ public class StreamPlan
      * Request data in {@code keyspace} and {@code ranges} from specific node.
      *
      * @param from endpoint address to fetch data from.
-     * @param connecting Actual connecting address for the endpoint
      * @param keyspace name of keyspace
      * @param ranges ranges to fetch
      * @return this object for chaining
      */
-    public StreamPlan requestRanges(InetAddressAndPort from, InetAddressAndPort connecting, String keyspace, Collection<Range<Token>> ranges)
+    public StreamPlan requestRanges(InetAddressAndPort from, String keyspace, Collection<Range<Token>> ranges)
     {
-        return requestRanges(from, connecting, keyspace, ranges, EMPTY_COLUMN_FAMILIES);
+        return requestRanges(from, keyspace, ranges, EMPTY_COLUMN_FAMILIES);
     }
 
     /**
      * Request data in {@code columnFamilies} under {@code keyspace} and {@code ranges} from specific node.
      *
      * @param from endpoint address to fetch data from.
-     * @param connecting Actual connecting address for the endpoint
      * @param keyspace name of keyspace
      * @param ranges ranges to fetch
      * @param columnFamilies specific column families
      * @return this object for chaining
      */
-    public StreamPlan requestRanges(InetAddressAndPort from, InetAddressAndPort connecting, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
+    public StreamPlan requestRanges(InetAddressAndPort from, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
     {
-        StreamSession session = coordinator.getOrCreateNextSession(from, connecting);
+        StreamSession session = coordinator.getOrCreateNextSession(from);
         session.addStreamRequest(keyspace, ranges, Arrays.asList(columnFamilies));
         return this;
     }
@@ -98,40 +96,15 @@ public class StreamPlan
     /**
      * Add transfer task to send data of specific {@code columnFamilies} under {@code keyspace} and {@code ranges}.
      *
-     * @see #transferRanges(InetAddressAndPort, InetAddressAndPort, String, java.util.Collection, String...)
-     */
-    public StreamPlan transferRanges(InetAddressAndPort to, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
-    {
-        return transferRanges(to, to, keyspace, ranges, columnFamilies);
-    }
-
-    /**
-     * Add transfer task to send data of specific keyspace and ranges.
-     *
      * @param to endpoint address of receiver
-     * @param connecting Actual connecting address of the endpoint
-     * @param keyspace name of keyspace
-     * @param ranges ranges to send
-     * @return this object for chaining
-     */
-    public StreamPlan transferRanges(InetAddressAndPort to, InetAddressAndPort connecting, String keyspace, Collection<Range<Token>> ranges)
-    {
-        return transferRanges(to, connecting, keyspace, ranges, EMPTY_COLUMN_FAMILIES);
-    }
-
-    /**
-     * Add transfer task to send data of specific {@code columnFamilies} under {@code keyspace} and {@code ranges}.
-     *
-     * @param to endpoint address of receiver
-     * @param connecting Actual connecting address of the endpoint
      * @param keyspace name of keyspace
      * @param ranges ranges to send
      * @param columnFamilies specific column families
      * @return this object for chaining
      */
-    public StreamPlan transferRanges(InetAddressAndPort to, InetAddressAndPort connecting, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
+    public StreamPlan transferRanges(InetAddressAndPort to, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
     {
-        StreamSession session = coordinator.getOrCreateNextSession(to, connecting);
+        StreamSession session = coordinator.getOrCreateNextSession(to);
         session.addTransferRanges(keyspace, ranges, Arrays.asList(columnFamilies), flushBeforeTransfer);
         return this;
     }

@@ -309,7 +309,7 @@ public class MessagingServiceTest
 
     private static void addDCLatency(long sentAt, long nowTime) throws IOException
     {
-        MessageIn.deriveConstructionTime(InetAddressAndPort.getLocalHost(), (int)sentAt, nowTime);
+        MessageIn.deriveConstructionTime(InetAddressAndPort.getLocalHost(), (int) sentAt, nowTime);
     }
 
     public static class MockBackPressureStrategy implements BackPressureStrategy<MockBackPressureStrategy.MockBackPressureState>
@@ -422,6 +422,7 @@ public class MessagingServiceTest
     /**
      * Make sure that if internode authenticatino fails for an outbound connection that all the code that relies
      * on getting the connection pool handles the null return
+     *
      * @throws Exception
      */
     @Test
@@ -659,5 +660,53 @@ public class MessagingServiceTest
             messagingService.clearServerChannels();
             Assert.assertEquals(0, messagingService.serverChannels.size());
         }
+    }
+
+
+    @Test
+    public void getPreferredRemoteAddrUsesPrivateIp() throws UnknownHostException
+    {
+        MessagingService ms = MessagingService.instance();
+        InetAddressAndPort local = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.4", 7000);
+        InetAddressAndPort remote = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.151", 7000);
+        InetAddressAndPort privateIp = InetAddressAndPort.getByName("127.0.0.6");
+
+        OutboundMessagingPool pool = new OutboundMessagingPool(privateIp, local, null,
+                                                               new MockBackPressureStrategy(null).newState(remote),
+                                                               ALLOW_NOTHING_AUTHENTICATOR);
+        ms.channelManagers.put(remote, pool);
+
+        Assert.assertEquals(privateIp, ms.getPreferredRemoteAddr(remote));
+    }
+
+    @Test
+    public void getPreferredRemoteAddrUsesPreferredIp() throws UnknownHostException
+    {
+        MessagingService ms = MessagingService.instance();
+        InetAddressAndPort remote = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.115", 7000);
+
+        InetAddressAndPort preferredIp = InetAddressAndPort.getByName("127.0.0.16");
+        SystemKeyspace.updatePreferredIP(remote, preferredIp);
+
+        Assert.assertEquals(preferredIp, ms.getPreferredRemoteAddr(remote));
+    }
+
+    @Test
+    public void getPreferredRemoteAddrUsesPrivateIpOverridesPreferredIp() throws UnknownHostException
+    {
+        MessagingService ms = MessagingService.instance();
+        InetAddressAndPort local = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.4", 7000);
+        InetAddressAndPort remote = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.105", 7000);
+        InetAddressAndPort privateIp = InetAddressAndPort.getByName("127.0.0.6");
+
+        OutboundMessagingPool pool = new OutboundMessagingPool(privateIp, local, null,
+                                                               new MockBackPressureStrategy(null).newState(remote),
+                                                               ALLOW_NOTHING_AUTHENTICATOR);
+        ms.channelManagers.put(remote, pool);
+
+        InetAddressAndPort preferredIp = InetAddressAndPort.getByName("127.0.0.16");
+        SystemKeyspace.updatePreferredIP(remote, preferredIp);
+
+        Assert.assertEquals(privateIp, ms.getPreferredRemoteAddr(remote));
     }
 }

@@ -334,7 +334,6 @@ public final class NettyFactory
                               .option(ChannelOption.TCP_NODELAY, params.tcpNoDelay)
                               .option(ChannelOption.WRITE_BUFFER_WATER_MARK, params.waterMark)
                               .handler(new OutboundInitializer(params));
-        bootstrap.localAddress(params.connectionId.local().address, 0);
         InetAddressAndPort remoteAddress = params.connectionId.connectionAddress();
         bootstrap.remoteAddress(new InetSocketAddress(remoteAddress.address, remoteAddress.port));
         return bootstrap;
