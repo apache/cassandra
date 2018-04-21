@@ -430,6 +430,7 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
             throw new FSReadError(e, getPath());
         }
 
+        bufferOffset = truncateTarget;
         resetBuffer();
     }
 
@@ -443,6 +444,7 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
         try
         {
             channel.truncate(toSize);
+            lastFlushOffset = toSize;
         }
         catch (IOException e)
         {

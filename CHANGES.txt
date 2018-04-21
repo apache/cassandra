@@ -1,4 +1,5 @@
 2.2.13
+ * Fix compaction failure caused by reading un-flushed data (CASSANDRA-12743)
  * Use Bounds instead of Range for sstables in anticompaction (CASSANDRA-14411)
  * Fix JSON queries with IN restrictions and ORDER BY clause (CASSANDRA-14286)
  * CQL fromJson(null) throws NullPointerException (CASSANDRA-13891)

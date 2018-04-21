@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.compress;
 
+import com.google.common.io.Files;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.File;
@@ -26,6 +27,7 @@ import java.util.*;
 
 import static org.apache.commons.io.FileUtils.readFileToByteArray;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.After;
 import org.junit.Test;
@@ -38,7 +40,9 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterTest;
 
 public class CompressedSequentialWriterTest extends SequentialWriterTest
@@ -107,6 +111,12 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
                 {
                     writer.write((byte)i);
                 }
+
+                if (bytesToTest <= CompressionParameters.DEFAULT_CHUNK_LENGTH)
+                    assertEquals(writer.getLastFlushOffset(), CompressionParameters.DEFAULT_CHUNK_LENGTH);
+                else
+                    assertTrue(writer.getLastFlushOffset() % CompressionParameters.DEFAULT_CHUNK_LENGTH == 0);
+
                 writer.resetAndTruncate(mark);
                 writer.write(dataPost);
                 writer.finish();
@@ -153,6 +163,48 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         for (TestableCSW sw : writers)
             sw.cleanup();
         writers.clear();
+    }
+
+    @Test
+    @Override
+    public void resetAndTruncateTest()
+    {
+        File tempFile = new File(Files.createTempDir(), "reset.txt");
+        File offsetsFile = FileUtils.createTempFile("compressedsequentialwriter.offset", "test");
+        final int bufferSize = 48;
+        final int writeSize = 64;
+        byte[] toWrite = new byte[writeSize];
+
+        try (SequentialWriter writer = new CompressedSequentialWriter(tempFile, offsetsFile.getPath(),
+                                                                                new CompressionParameters(LZ4Compressor.instance),new MetadataCollector(CellNames.fromAbstractType(UTF8Type.instance, false))))
+        {
+            // write bytes greather than buffer
+            writer.write(toWrite);
+            long flushedOffset = writer.getLastFlushOffset();
+            assertEquals(writeSize, writer.getFilePointer());
+            // mark thi position
+            FileMark pos = writer.mark();
+            // write another
+            writer.write(toWrite);
+            // another buffer should be flushed
+            assertEquals(flushedOffset * 2, writer.getLastFlushOffset());
+            assertEquals(writeSize * 2, writer.getFilePointer());
+            // reset writer
+            writer.resetAndTruncate(pos);
+            // current position and flushed size should be changed
+            assertEquals(writeSize, writer.getFilePointer());
+            assertEquals(flushedOffset, writer.getLastFlushOffset());
+            // write another byte less than buffer
+            writer.write(new byte[]{0});
+            assertEquals(writeSize + 1, writer.getFilePointer());
+            // flush off set should not be increase
+            assertEquals(flushedOffset, writer.getLastFlushOffset());
+            writer.finish();
+        }
+        catch (IOException e)
+        {
+            Assert.fail();
+        }
     }
 
     protected TestableTransaction newTest() throws IOException
