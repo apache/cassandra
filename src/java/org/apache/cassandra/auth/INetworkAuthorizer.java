@@ -20,9 +20,6 @@ package org.apache.cassandra.auth;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 
-/**
- * Not part of the roles hierarchy?? How would that even work?
- */
 public interface INetworkAuthorizer
 {
     /**
