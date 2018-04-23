@@ -537,13 +537,13 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 SSTableReader sstable = sstableIterator.next();
 
-                Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken());
+                Bounds<Token> sstableBounds = new Bounds<>(sstable.first.getToken(), sstable.last.getToken());
 
                 boolean shouldAnticompact = false;
 
                 for (Range<Token> r : normalizedRanges)
                 {
-                    if (r.contains(sstableRange))
+                    if (r.contains(sstableBounds.left) && r.contains(sstableBounds.right))
                     {
                         logger.info("SSTable {} fully contained in range {}, mutating repairedAt instead of anticompacting", sstable, r);
                         sstable.descriptor.getMetadataSerializer().mutateRepairedAt(sstable.descriptor, repairedAt);
@@ -555,16 +555,16 @@ public class CompactionManager implements CompactionManagerMBean
                         shouldAnticompact = true;
                         break;
                     }
-                    else if (sstableRange.intersects(r))
+                    else if (r.intersects(sstableBounds))
                     {
-                        logger.info("SSTable {} ({}) will be anticompacted on range {}", sstable, sstableRange, r);
+                        logger.info("SSTable {} ({}) will be anticompacted on range {}", sstable, sstableBounds, r);
                         shouldAnticompact = true;
                     }
                 }
 
                 if (!shouldAnticompact)
                 {
-                    logger.info("SSTable {} ({}) does not intersect repaired ranges {}, not touching repairedAt.", sstable, sstableRange, normalizedRanges);
+                    logger.info("SSTable {} ({}) does not intersect repaired ranges {}, not touching repairedAt.", sstable, sstableBounds, normalizedRanges);
                     nonAnticompacting.add(sstable);
                     sstableIterator.remove();
                 }
