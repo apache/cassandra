@@ -1,4 +1,5 @@
 4.0
+ * minor network authz improvements (Cassandra-14413)
  * Automatic sstable upgrades (CASSANDRA-14197)
  * Replace deprecated junit.framework.Assert usages with org.junit.Assert (CASSANDRA-14431)
  * cassandra-stress throws NPE if insert section isn't specified in user profile (CASSSANDRA-14426)

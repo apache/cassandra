@@ -206,7 +206,7 @@ public class CassandraNetworkAuthorizerTest
         // user should implicitly have access to all datacenters
         auth("CREATE ROLE %s WITH password = 'password' AND LOGIN = true", username);
         Assert.assertEquals(DCPermissions.all(), dcPerms(username));
-        assertNoDcPermRow(username);
+        assertDcPermRow(username);
 
         // unless explicitly restricted
         auth("ALTER ROLE %s WITH ACCESS TO DATACENTERS {'dc1', 'dc2'}", username);

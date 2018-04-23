@@ -77,7 +77,7 @@ public class CreateRoleStatement extends AuthenticationStatement
             return null;
 
         DatabaseDescriptor.getRoleManager().createRole(state.getUser(), role, opts);
-        if (dcPermissions.restrictsAccess())
+        if (DatabaseDescriptor.getNetworkAuthorizer().requireAuthorization())
         {
             DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
         }
