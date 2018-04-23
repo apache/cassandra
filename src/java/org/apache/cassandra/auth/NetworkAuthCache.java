@@ -20,9 +20,6 @@ package org.apache.cassandra.auth;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-/**
- * Created by blakeeggleston on 12/14/17.
- */
 public class NetworkAuthCache extends AuthCache<RoleResource, DCPermissions> implements AuthCacheMBean
 {
     public NetworkAuthCache(INetworkAuthorizer authorizer)
