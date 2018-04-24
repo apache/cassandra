@@ -142,7 +142,6 @@ public interface ColumnFamilyStoreMBean
      */
     public List<String> getSSTablesForKey(String key, boolean hexFormat);
 
-
     /**
      * Load new sstables from the given directory
      *
@@ -153,8 +152,16 @@ public interface ColumnFamilyStoreMBean
      * @param verifyTokens if the tokens in the new sstables should be verified that they are owned by the current node
      * @param invalidateCaches if row cache should be invalidated for the keys in the new sstables
      * @param jbodCheck if the new sstables should be placed 'optimally' - count tokens and move the sstable to the directory where it has the most keys
+     * @param extendedVerify if we should run an extended verify checking all values in the new sstables
      */
-    public void loadNewSSTables(String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck);
+    public void importNewSSTables(String srcPath,
+                                  boolean resetLevel,
+                                  boolean clearRepaired,
+                                  boolean verifySSTables,
+                                  boolean verifyTokens,
+                                  boolean invalidateCaches,
+                                  boolean jbodCheck,
+                                  boolean extendedVerify);
 
     @Deprecated
     public void loadNewSSTables();

@@ -31,6 +31,7 @@ import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.metrics.TableMetrics.Sampler;
 
@@ -588,20 +589,16 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void rescheduleFailedDeletions();
 
-    @Deprecated
-    public void loadNewSSTables(String ksName, String tableName);
-
     /**
-     * Import new SSTables to the given keyspace/table
+     * Load new SSTables to the given keyspace/table
      *
      * @param ksName The parent keyspace name
      * @param tableName The ColumnFamily name where SSTables belong
-     * @param srcPath The path where the SSTables will be loaded from
-     * @param resetLevel reset the level to 0 on the new sstables
-     * @param clearRepaired remove any repaired information from the new sstables
-     * @param verifyTokens verify that all tokens are owned by the node
+     *
+     * @see ColumnFamilyStoreMBean#loadNewSSTables()
      */
-    public void importNewSSTables(String ksName, String tableName, String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck);
+    @Deprecated
+    public void loadNewSSTables(String ksName, String tableName);
 
     /**
      * Return a List of Tokens representing a sample of keys across all ColumnFamilyStores.

@@ -30,6 +30,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import javax.management.*;
 import javax.management.openmbean.*;
 
@@ -70,6 +71,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -689,18 +691,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param ksName The keyspace name
      * @param cfName The columnFamily name
      */
-    public static void loadNewSSTables(String ksName, String cfName, String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck)
+    public static void loadNewSSTables(String ksName, String cfName)
     {
         /** ks/cf existence checks will be done by open and getCFS methods for us */
         Keyspace keyspace = Keyspace.open(ksName);
-        keyspace.getColumnFamilyStore(cfName).loadNewSSTables(srcPath, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, jbodCheck);
+        keyspace.getColumnFamilyStore(cfName).loadNewSSTables();
     }
 
-
     @Deprecated
-    public synchronized void loadNewSSTables()
+    public void loadNewSSTables()
     {
-        loadNewSSTables(null, true, false, false, false, false, false);
+        ImportOptions options = ImportOptions.options().resetLevel(true).build();
+        importNewSSTables(options);
     }
 
     /**
@@ -728,14 +730,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long count = 0;
         int maxIndex = 0;
         long maxCount = 0;
-        try (RandomAccessReader primaryIndex = RandomAccessReader.open(new File(desc.filenameFor(Component.PRIMARY_INDEX))))
+
+        try (KeyIterator iter = new KeyIterator(desc, cfs.metadata()))
         {
-            long indexSize = primaryIndex.length();
-            while (primaryIndex.getFilePointer() != indexSize)
+            while (iter.hasNext())
             {
-                ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
-                RowIndexEntry.Serializer.skip(primaryIndex, desc.version);
-                DecoratedKey decoratedKey = cfs.metadata().partitioner.decorateKey(key);
+                DecoratedKey decoratedKey = iter.next();
                 if (clearCaches)
                     cfs.invalidateCachedPartition(decoratedKey);
                 if (shouldCountKeys)
@@ -774,22 +774,37 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * #{@inheritDoc}
      */
-    public synchronized void loadNewSSTables(String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck)
+    public void importNewSSTables(String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck, boolean extendedVerify)
     {
-        logger.info("Loading new SSTables for {}/{} from {}... (resetLevel = {}, clearRepaired = {}, verifySSTables = {}, verifyTokens = {}, invalidateCaches = {}, jbodCheck = {})",
-                    keyspace.getName(), name, srcPath, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, jbodCheck);
+        ImportOptions options = ImportOptions.options(srcPath)
+                                             .resetLevel(resetLevel)
+                                             .clearRepaired(clearRepaired)
+                                             .verifySSTables(verifySSTables)
+                                             .verifyTokens(verifyTokens)
+                                             .invalidateCaches(invalidateCaches)
+                                             .jbodCheck(jbodCheck)
+                                             .extendedVerify(extendedVerify).build();
+
+        this.importNewSSTables(options);
+    }
+
+    @VisibleForTesting
+    synchronized void importNewSSTables(ImportOptions options)
+    {
+        logger.info("Loading new SSTables for {}/{}: {}",
+                    keyspace.getName(), name, options);
 
         File dir = null;
-        if (srcPath != null && !srcPath.isEmpty())
+        if (options.srcPath != null && !options.srcPath.isEmpty())
         {
-            dir = new File(srcPath);
+            dir = new File(options.srcPath);
             if (!dir.exists())
             {
-                throw new RuntimeException(String.format("Directory %s does not exist", srcPath));
+                throw new RuntimeException(String.format("Directory %s does not exist", options.srcPath));
             }
-            if (!Directories.verifyFullPermissions(dir, srcPath))
+            if (!Directories.verifyFullPermissions(dir, options.srcPath))
             {
-                throw new RuntimeException("Insufficient permissions on directory " + srcPath);
+                throw new RuntimeException("Insufficient permissions on directory " + options.srcPath);
             }
         }
 
@@ -802,7 +817,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 directories.sstableLister(dir, Directories.OnTxnErr.IGNORE).skipTemporary(true);
 
         // verify first to avoid starting to copy sstables to the data directories and then have to abort.
-        if (verifySSTables || verifyTokens)
+        if (options.verifySSTables || options.verifyTokens)
         {
             for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
             {
@@ -811,8 +826,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 try
                 {
                     reader = SSTableReader.open(descriptor, entry.getValue(), metadata);
-                    Verifier.Options verifierOptions = Verifier.options().extendedVerification(verifyTokens)
-                                                                         .checkOwnsTokens(verifyTokens)
+                    Verifier.Options verifierOptions = Verifier.options().extendedVerification(options.extendedVerify)
+                                                                         .checkOwnsTokens(options.verifyTokens)
                                                                          .invokeDiskFailurePolicy(false)
                                                                          .mutateRepairStatus(false).build();
                     try (Verifier verifier = new Verifier(this, reader, false, verifierOptions))
@@ -849,18 +864,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 if (new File(descriptor.filenameFor(Component.STATS)).exists())
                 {
-                    if (resetLevel)
+                    if (options.resetLevel)
                     {
                         descriptor.getMetadataSerializer().mutateLevel(descriptor, 0);
                     }
-                    if (clearRepaired)
+                    if (options.clearRepaired)
                     {
                         descriptor.getMetadataSerializer().mutateRepaired(descriptor,
                                                                           ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                           null);
                     }
                 }
-                targetDirectory = findBestDiskAndInvalidateCaches(this, descriptor, srcPath, invalidateCaches, jbodCheck);
+                targetDirectory = findBestDiskAndInvalidateCaches(this, descriptor, options.srcPath, options.invalidateCaches, options.jbodCheck);
                 logger.debug("{} will get copied to {}", descriptor, targetDirectory);
             }
             catch (IOException e)
@@ -898,7 +913,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (SSTableReader sstable : newSSTables)
                     sstable.selfRef().release();
                 // log which sstables we have copied so far, so that the operator can remove them
-                if (srcPath != null)
+                if (options.srcPath != null)
                     logger.error("Aborting import of sstables. {} copied, {} was corrupt", newSSTables, newDescriptor);
                 throw new RuntimeException(newDescriptor+" is corrupt, can't import", t);
             }
@@ -2806,4 +2821,117 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return neverPurgeTombstones;
     }
+
+    public static class ImportOptions
+    {
+        public final String srcPath;
+        public final boolean resetLevel;
+        public final boolean clearRepaired;
+        public final boolean verifySSTables;
+        public final boolean verifyTokens;
+        public final boolean invalidateCaches;
+        public final boolean jbodCheck;
+        public final boolean extendedVerify;
+
+        public ImportOptions(String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck, boolean extendedVerify)
+        {
+            this.srcPath = srcPath;
+            this.resetLevel = resetLevel;
+            this.clearRepaired = clearRepaired;
+            this.verifySSTables = verifySSTables;
+            this.verifyTokens = verifyTokens;
+            this.invalidateCaches = invalidateCaches;
+            this.jbodCheck = jbodCheck;
+            this.extendedVerify = extendedVerify;
+        }
+
+        public static Builder options(@Nullable String srcDir)
+        {
+            return new Builder(srcDir);
+        }
+
+        public static Builder options()
+        {
+            return options(null);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "ImportOptions{" +
+                   "srcPath='" + srcPath + '\'' +
+                   ", resetLevel=" + resetLevel +
+                   ", clearRepaired=" + clearRepaired +
+                   ", verifySSTables=" + verifySSTables +
+                   ", verifyTokens=" + verifyTokens +
+                   ", invalidateCaches=" + invalidateCaches +
+                   ", extendedVerify=" + extendedVerify +
+                   '}';
+        }
+
+        static class Builder
+        {
+            private final String srcPath;
+            private boolean resetLevel = false;
+            private boolean clearRepaired = false;
+            private boolean verifySSTables = false;
+            private boolean verifyTokens = false;
+            private boolean invalidateCaches = false;
+            private boolean jbodCheck = false;
+            private boolean extendedVerify = false;
+
+            private Builder(String srcPath)
+            {
+                this.srcPath = srcPath;
+            }
+
+            public Builder resetLevel(boolean value)
+            {
+                resetLevel = value;
+                return this;
+            }
+
+            public Builder clearRepaired(boolean value)
+            {
+                clearRepaired = value;
+                return this;
+            }
+
+            public Builder verifySSTables(boolean value)
+            {
+                verifySSTables = value;
+                return this;
+            }
+
+            public Builder verifyTokens(boolean value)
+            {
+                verifyTokens = value;
+                return this;
+            }
+
+            public Builder invalidateCaches(boolean value)
+            {
+                invalidateCaches = value;
+                return this;
+            }
+
+            public Builder jbodCheck(boolean value)
+            {
+                jbodCheck = value;
+                return this;
+            }
+
+            public Builder extendedVerify(boolean value)
+            {
+                extendedVerify = value;
+                return this;
+            }
+
+            public ImportOptions build()
+            {
+                return new ImportOptions(srcPath, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, jbodCheck, extendedVerify);
+            }
+        }
+    }
+
 }

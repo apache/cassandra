@@ -70,6 +70,11 @@ public class Import extends NodeToolCmd
             description = "Do a quick import without verifying sstables, clearing row cache or checking in which data directory to put the file")
     private boolean quick = false;
 
+    @Option(title = "extended_verify",
+            name = {"-e", "--extended-verify"},
+            description = "Run an extended verify, verifying all values in the new sstables")
+    private boolean extendedVerify = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -88,7 +93,8 @@ public class Import extends NodeToolCmd
             noInvalidateCaches = true;
             noVerify = true;
             noJBODCheck = true;
+            extendedVerify = false;
         }
-        probe.importNewSSTables(args.get(0), args.get(1), args.get(2), !keepLevel, !keepRepaired, !noVerify, !noVerifyTokens, !noInvalidateCaches, !noJBODCheck);
+        probe.importNewSSTables(args.get(0), args.get(1), args.get(2), !keepLevel, !keepRepaired, !noVerify, !noVerifyTokens, !noInvalidateCaches, !noJBODCheck, extendedVerify);
     }
 }

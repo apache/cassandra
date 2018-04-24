@@ -58,7 +58,6 @@ import static org.junit.Assert.fail;
 
 public class ImportTest extends CQLTester
 {
-
     @Test
     public void basicImportTest() throws Throwable
     {
@@ -73,7 +72,8 @@ public class ImportTest extends CQLTester
 
         assertEquals(0, execute("select * from %s").size());
 
-        getCurrentColumnFamilyStore().loadNewSSTables(backupdir.toString(), false, false, false, false, false, false);
+        ColumnFamilyStore.ImportOptions options = ColumnFamilyStore.ImportOptions.options(backupdir.toString()).build();
+        getCurrentColumnFamilyStore().importNewSSTables(options);
 
         assertEquals(10, execute("select * from %s").size());
     }
@@ -102,21 +102,25 @@ public class ImportTest extends CQLTester
         Set<SSTableReader> sstables = getCurrentColumnFamilyStore().getLiveSSTables();
         getCurrentColumnFamilyStore().clearUnsafe();
         for (SSTableReader sstable : sstables)
-            sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 123);
+            sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 8);
         File backupdir = moveToBackupDir(sstables);
         assertEquals(0, execute("select * from %s").size());
 
-        getCurrentColumnFamilyStore().loadNewSSTables(backupdir.toString(), false, false, false, false, false, false);
+        ColumnFamilyStore.ImportOptions options = ColumnFamilyStore.ImportOptions.options(backupdir.toString()).build();
+        getCurrentColumnFamilyStore().importNewSSTables(options);
 
         assertEquals(10, execute("select * from %s").size());
         sstables = getCurrentColumnFamilyStore().getLiveSSTables();
         assertEquals(1, sstables.size());
         for (SSTableReader sstable : sstables)
-            assertEquals(123, sstable.getSSTableLevel());
+            assertEquals(8, sstable.getSSTableLevel());
 
         getCurrentColumnFamilyStore().clearUnsafe();
         backupdir = moveToBackupDir(sstables);
-        getCurrentColumnFamilyStore().loadNewSSTables(backupdir.toString(), true, false, false, false, false, false);
+
+        options = ColumnFamilyStore.ImportOptions.options(backupdir.toString()).resetLevel(true).build();
+        getCurrentColumnFamilyStore().importNewSSTables(options);
+
         sstables = getCurrentColumnFamilyStore().getLiveSSTables();
         assertEquals(1, sstables.size());
         for (SSTableReader sstable : getCurrentColumnFamilyStore().getLiveSSTables())
@@ -140,7 +144,8 @@ public class ImportTest extends CQLTester
 
         assertEquals(0, execute("select * from %s").size());
 
-        getCurrentColumnFamilyStore().loadNewSSTables(backupdir.toString(), false, false, false, false, false, false);
+        ColumnFamilyStore.ImportOptions options = ColumnFamilyStore.ImportOptions.options(backupdir.toString()).build();
+        getCurrentColumnFamilyStore().importNewSSTables(options);
 
         assertEquals(10, execute("select * from %s").size());
         sstables = getCurrentColumnFamilyStore().getLiveSSTables();
@@ -150,7 +155,9 @@ public class ImportTest extends CQLTester
 
         getCurrentColumnFamilyStore().clearUnsafe();
         backupdir = moveToBackupDir(sstables);
-        getCurrentColumnFamilyStore().loadNewSSTables(backupdir.toString(), false, true, false, false, false, false);
+
+        options = ColumnFamilyStore.ImportOptions.options(backupdir.toString()).clearRepaired(true).build();
+        getCurrentColumnFamilyStore().importNewSSTables(options);
         sstables = getCurrentColumnFamilyStore().getLiveSSTables();
         assertEquals(1, sstables.size());
         for (SSTableReader sstable : getCurrentColumnFamilyStore().getLiveSSTables())
@@ -238,7 +245,7 @@ public class ImportTest extends CQLTester
         File dir = moveToBackupDir(toMove);
 
         MockCFS mock = new MockCFS(getCurrentColumnFamilyStore(), dirs);
-        mock.loadNewSSTables(dir.toString(), false, false, false, false, false, false);
+        mock.importNewSSTables(ColumnFamilyStore.ImportOptions.options(dir.toString()).build());
         assertEquals(1, mock.getLiveSSTables().size());
         for (SSTableReader sstable : mock.getLiveSSTables())
         {
@@ -272,8 +279,9 @@ public class ImportTest extends CQLTester
         File backupdir = moveToBackupDir(sstables);
         try
         {
-            getCurrentColumnFamilyStore().loadNewSSTables(backupdir.toString(), false, false, true, false, false, false);
-            fail("loadNewSSTables should fail!");
+            ColumnFamilyStore.ImportOptions options = ColumnFamilyStore.ImportOptions.options(backupdir.toString()).verifySSTables(true).build();
+            getCurrentColumnFamilyStore().importNewSSTables(options);
+            fail("importNewSSTables should fail!");
         }
         catch (Throwable t)
         {
@@ -307,7 +315,41 @@ public class ImportTest extends CQLTester
         File backupdir = moveToBackupDir(sstables);
         try
         {
-            getCurrentColumnFamilyStore().loadNewSSTables(backupdir.toString(), false, false, true, true, false, false);
+            ColumnFamilyStore.ImportOptions options = ColumnFamilyStore.ImportOptions.options(backupdir.toString()).verifySSTables(true).verifyTokens(true).build();
+            getCurrentColumnFamilyStore().importNewSSTables(options);
+        }
+        finally
+        {
+            tmd.clearUnsafe();
+        }
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testImportOutOfRangeExtendedVerify() throws Throwable
+    {
+        createTable("create table %s (id int primary key, d int)");
+        for (int i = 0; i < 1000; i++)
+            execute("insert into %s (id, d) values (?, ?)", i, i);
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        Set<SSTableReader> sstables = getCurrentColumnFamilyStore().getLiveSSTables();
+
+        getCurrentColumnFamilyStore().clearUnsafe();
+
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+
+        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.1"));
+        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.2"));
+        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.3"));
+
+
+        File backupdir = moveToBackupDir(sstables);
+        try
+        {
+            ColumnFamilyStore.ImportOptions options = ColumnFamilyStore.ImportOptions.options(backupdir.toString())
+                                                                                     .verifySSTables(true)
+                                                                                     .verifyTokens(true)
+                                                                                     .extendedVerify(true).build();
+            getCurrentColumnFamilyStore().importNewSSTables(options);
         }
         finally
         {
@@ -361,13 +403,16 @@ public class ImportTest extends CQLTester
         File backupdir = moveToBackupDir(Collections.singleton(sstableToImport));
         // make sure we don't wipe caches with invalidateCaches = false:
         Set<SSTableReader> beforeFirstImport = getCurrentColumnFamilyStore().getLiveSSTables();
-        getCurrentColumnFamilyStore().loadNewSSTables(backupdir.toString(), false, false, true, true, false, false);
+
+        ColumnFamilyStore.ImportOptions options = ColumnFamilyStore.ImportOptions.options(backupdir.toString()).verifySSTables(true).verifyTokens(true).build();
+        getCurrentColumnFamilyStore().importNewSSTables(options);
         assertEquals(20, CacheService.instance.rowCache.size());
         Set<SSTableReader> toMove = Sets.difference(getCurrentColumnFamilyStore().getLiveSSTables(), beforeFirstImport);
         getCurrentColumnFamilyStore().clearUnsafe();
         // move away the sstable we just imported again:
         backupdir = moveToBackupDir(toMove);
-        getCurrentColumnFamilyStore().loadNewSSTables(backupdir.toString(), false, false, true, true, true, false);
+        options = ColumnFamilyStore.ImportOptions.options(backupdir.toString()).verifySSTables(true).verifyTokens(true).invalidateCaches(true).build();
+        getCurrentColumnFamilyStore().importNewSSTables(options);
         assertEquals(10, CacheService.instance.rowCache.size());
         it = CacheService.instance.rowCache.keyIterator();
         while (it.hasNext())
@@ -388,7 +433,8 @@ public class ImportTest extends CQLTester
         getCurrentColumnFamilyStore().forceBlockingFlush();
         CacheService.instance.setRowCacheCapacityInMB(1);
         getCurrentColumnFamilyStore().clearUnsafe();
-        getCurrentColumnFamilyStore().loadNewSSTables(null, false, false, false, false, true, false);
+        ColumnFamilyStore.ImportOptions options = ColumnFamilyStore.ImportOptions.options(null).invalidateCaches(true).build();
+        getCurrentColumnFamilyStore().importNewSSTables(options);
         assertEquals(1, getCurrentColumnFamilyStore().getLiveSSTables().size());
     }
 
