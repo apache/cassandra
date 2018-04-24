@@ -232,6 +232,7 @@ public class OutboundTcpConnection extends Thread
                         // clear out the queue, else gossip messages back up.
                         drainedMessages.clear();
                         backlog.clear();
+                        currentMsgBufferCount = 0;
                         break inner;
                     }
                 }
