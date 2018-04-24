@@ -5241,20 +5241,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         LifecycleTransaction.rescheduleFailedDeletions();
     }
 
-    @Deprecated
-    public void loadNewSSTables(String ksName, String cfName)
-    {
-        ColumnFamilyStore.loadNewSSTables(ksName, cfName, null, true, false, false, false, false, false);
-    }
-
     /**
      * #{@inheritDoc}
      */
-    public void importNewSSTables(String ksName, String cfName, String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck)
+    @Deprecated
+    public void loadNewSSTables(String ksName, String cfName)
     {
         if (!isInitialized())
             throw new RuntimeException("Not yet initialized, can't load new sstables");
-        ColumnFamilyStore.loadNewSSTables(ksName, cfName, srcPath, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, jbodCheck);
+        ColumnFamilyStore.loadNewSSTables(ksName, cfName);
     }
 
     /**

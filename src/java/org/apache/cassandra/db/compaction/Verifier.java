@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.db.*;
@@ -27,6 +28,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.IndexSummary;
+import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -194,8 +196,31 @@ public class Verifier implements Closeable
             FileUtils.closeQuietly(validator);
         }
 
-        if ( !extended )
+        if (!extended)
+        {
+            if (options.checkOwnsTokens && !isOffline)
+            {
+                try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
+                {
+                    List<Range<Token>> ownedRanges = Range.normalize(StorageService.instance.getLocalAndPendingRanges(cfs.metadata.keyspace));
+                    if (ownedRanges.isEmpty())
+                        return;
+                    RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
+                    while (iter.hasNext())
+                    {
+                        DecoratedKey key = iter.next();
+                        rangeOwnHelper.check(key);
+                    }
+                }
+                catch (Throwable t)
+                {
+                    outputHandler.warn(t.getMessage());
+                    markAndThrow();
+                }
+            }
             return;
+        }
+
 
         outputHandler.output("Extended Verify requested, proceeding to inspect values");
 
@@ -210,7 +235,7 @@ public class Verifier implements Closeable
             }
 
             List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(StorageService.instance.getLocalAndPendingRanges(cfs.metadata().keyspace));
-            int rangeIndex = -1;
+            RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
             DecoratedKey prevKey = null;
 
             while (!dataFile.isEOF())
@@ -235,11 +260,14 @@ public class Verifier implements Closeable
 
                 if (options.checkOwnsTokens && ownedRanges.size() > 0)
                 {
-                    while (rangeIndex == -1 || !ownedRanges.get(rangeIndex).contains(key.getToken()))
+                    try
                     {
-                        rangeIndex++;
-                        if (rangeIndex > ownedRanges.size() - 1)
-                            throw new RuntimeException(String.format("Key %s in sstable %s not owned by local ranges %s", key, sstable, ownedRanges));
+                        rangeOwnHelper.check(key);
+                    }
+                    catch (Throwable t)
+                    {
+                        outputHandler.warn(String.format("Key %s in sstable %s not owned by local ranges %s", key, sstable, ownedRanges), t);
+                        markAndThrow();
                     }
                 }
 
@@ -305,6 +333,51 @@ public class Verifier implements Closeable
         }
 
         outputHandler.output("Verify of " + sstable + " succeeded. All " + goodRows + " rows read successfully");
+    }
+
+    /**
+     * Use the fact that check(..) is called with sorted tokens - we keep a pointer in to the normalized ranges
+     * and only bump the pointer if the key given is out of range. This is done to avoid calling .contains(..) many
+     * times for each key (with vnodes for example)
+     */
+    @VisibleForTesting
+    public static class RangeOwnHelper
+    {
+        private final List<Range<Token>> normalizedRanges;
+        private int rangeIndex = 0;
+        private DecoratedKey lastKey;
+
+        public RangeOwnHelper(List<Range<Token>> normalizedRanges)
+        {
+            this.normalizedRanges = normalizedRanges;
+        }
+
+        /**
+         * check if the given key is contained in any of the given ranges
+         *
+         * Must be called in sorted order - key should be increasing
+         *
+         * @param key the key
+         * @throws RuntimeException if the key is not contained
+         */
+        public void check(DecoratedKey key)
+        {
+            assert lastKey == null || key.compareTo(lastKey) > 0;
+            lastKey = key;
+
+            if (normalizedRanges.isEmpty()) // handle tests etc where we don't have any ranges
+                return;
+
+            if (rangeIndex > normalizedRanges.size() - 1)
+                throw new IllegalStateException("RangeOwnHelper can only be used to find the first out-of-range-token");
+
+            while (!normalizedRanges.get(rangeIndex).contains(key.getToken()))
+            {
+                rangeIndex++;
+                if (rangeIndex > normalizedRanges.size() - 1)
+                    throw new RuntimeException("Key "+key+" is not contained in the given ranges");
+            }
+        }
     }
 
     private void deserializeIndex(SSTableReader sstable) throws IOException

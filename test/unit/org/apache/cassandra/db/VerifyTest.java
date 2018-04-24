@@ -29,6 +29,9 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.FSWriteError;
@@ -51,7 +54,9 @@ import org.junit.runner.RunWith;
 import java.io.*;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
@@ -591,6 +596,99 @@ public class VerifyTest
             fail("Expected a RuntimeException to be thrown");
         }
         catch (CorruptSSTableException err) {}
+    }
+
+    @Test
+    public void testRangeOwnHelper()
+    {
+        List<Range<Token>> normalized = new ArrayList<>();
+        normalized.add(r(Long.MIN_VALUE, Long.MIN_VALUE + 1));
+        normalized.add(r(Long.MIN_VALUE + 5, Long.MIN_VALUE + 6));
+        normalized.add(r(Long.MIN_VALUE + 10, Long.MIN_VALUE + 11));
+        normalized.add(r(0,10));
+        normalized.add(r(10,11));
+        normalized.add(r(20,25));
+        normalized.add(r(26,200));
+
+        Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
+
+        roh.check(dk(1));
+        roh.check(dk(10));
+        roh.check(dk(11));
+        roh.check(dk(21));
+        roh.check(dk(25));
+        boolean gotException = false;
+        try
+        {
+            roh.check(dk(26));
+        }
+        catch (Throwable t)
+        {
+            gotException = true;
+        }
+        assertTrue(gotException);
+    }
+
+    @Test(expected = AssertionError.class)
+    public void testRangeOwnHelperBadToken()
+    {
+        List<Range<Token>> normalized = new ArrayList<>();
+        normalized.add(r(0,10));
+        Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
+        roh.check(dk(1));
+        // call with smaller token to get exception
+        roh.check(dk(0));
+    }
+
+
+    @Test
+    public void testRangeOwnHelperNormalize()
+    {
+        List<Range<Token>> normalized = Range.normalize(Collections.singletonList(r(0,0)));
+        Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
+        roh.check(dk(Long.MIN_VALUE));
+        roh.check(dk(0));
+        roh.check(dk(Long.MAX_VALUE));
+    }
+
+    @Test
+    public void testRangeOwnHelperNormalizeWrap()
+    {
+        List<Range<Token>> normalized = Range.normalize(Collections.singletonList(r(Long.MAX_VALUE - 1000,Long.MIN_VALUE + 1000)));
+        Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
+        roh.check(dk(Long.MIN_VALUE));
+        roh.check(dk(Long.MAX_VALUE));
+        boolean gotException = false;
+        try
+        {
+            roh.check(dk(26));
+        }
+        catch (Throwable t)
+        {
+            gotException = true;
+        }
+        assertTrue(gotException);
+    }
+
+    @Test
+    public void testEmptyRanges()
+    {
+        new Verifier.RangeOwnHelper(Collections.emptyList()).check(dk(1));
+    }
+
+    private DecoratedKey dk(long l)
+    {
+        return new BufferDecoratedKey(t(l), ByteBufferUtil.EMPTY_BYTE_BUFFER);
+    }
+
+    private Range<Token> r(long s, long e)
+    {
+        return new Range<>(t(s), t(e));
+    }
+
+    private Token t(long t)
+    {
+        return new Murmur3Partitioner.LongToken(t);
     }
 
 
