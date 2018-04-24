@@ -30,6 +30,7 @@ Merged from 3.0:
  * Fully utilise specified compaction threads (CASSANDRA-14210)
  * Pre-create deletion log records to finish compactions quicker (CASSANDRA-12763)
 Merged from 2.2:
+ * Use Bounds instead of Range for sstables in anticompaction (CASSANDRA-14411)
  * Fix JSON queries with IN restrictions and ORDER BY clause (CASSANDRA-14286)
  * Backport circleci yaml (CASSANDRA-14240)
 Merged from 2.1:
