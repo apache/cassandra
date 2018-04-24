@@ -406,7 +406,10 @@ public class NetworkTopologyStrategyTest
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
 
         Assert.assertEquals(Lists.newArrayList(full(endpoints.get(0)), full(endpoints.get(1)), trans(endpoints.get(2))),
-                            strategy.getNaturalEndpoints(new LongToken(99)));
+                            strategy.getNaturalReplicas(new LongToken(99)));
 
+
+        Assert.assertEquals(Lists.newArrayList(full(endpoints.get(1)), full(endpoints.get(2)), trans(endpoints.get(3))),
+                            strategy.getNaturalReplicas(new LongToken(101)));
     }
 }

@@ -20,13 +20,21 @@ package org.apache.cassandra.locator;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -40,6 +48,8 @@ import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageServiceAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.locator.Replica.full;
+import static org.apache.cassandra.locator.Replica.trans;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -53,6 +63,7 @@ public class SimpleStrategyTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1));
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
 
     @Test
@@ -176,6 +187,39 @@ public class SimpleStrategyTest
         }
 
         StorageServiceAccessor.setTokenMetadata(oldTmd);
+    }
+
+    @Test
+    public void transientReplica() throws Exception
+    {
+        IEndpointSnitch snitch = new SimpleSnitch();
+        DatabaseDescriptor.setEndpointSnitch(snitch);
+
+        List<InetAddressAndPort> endpoints = Lists.newArrayList(InetAddressAndPort.getByName("127.0.0.1"),
+                                                                InetAddressAndPort.getByName("127.0.0.2"),
+                                                                InetAddressAndPort.getByName("127.0.0.3"),
+                                                                InetAddressAndPort.getByName("127.0.0.4"));
+
+        Multimap<InetAddressAndPort, Token> tokens = HashMultimap.create();
+        tokens.put(endpoints.get(0), new Murmur3Partitioner.LongToken(100));
+        tokens.put(endpoints.get(1), new Murmur3Partitioner.LongToken(200));
+        tokens.put(endpoints.get(2), new Murmur3Partitioner.LongToken(300));
+        tokens.put(endpoints.get(3), new Murmur3Partitioner.LongToken(400));
+        TokenMetadata metadata = new TokenMetadata();
+        metadata.updateNormalTokens(tokens);
+
+        Map<String, String> configOptions = new HashMap<String, String>();
+        configOptions.put("replication_factor", "3/1");
+
+        // Set the localhost to the tokenmetadata. Embedded cassandra way?
+        SimpleStrategy strategy = new SimpleStrategy("ks", metadata, snitch, configOptions);
+
+        Assert.assertEquals(Lists.newArrayList(full(endpoints.get(0)), full(endpoints.get(1)), trans(endpoints.get(2))),
+                            strategy.getNaturalReplicas(new Murmur3Partitioner.LongToken(99)));
+
+
+        Assert.assertEquals(Lists.newArrayList(full(endpoints.get(1)), full(endpoints.get(2)), trans(endpoints.get(3))),
+                            strategy.getNaturalReplicas(new Murmur3Partitioner.LongToken(101)));
     }
 
     private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd)
