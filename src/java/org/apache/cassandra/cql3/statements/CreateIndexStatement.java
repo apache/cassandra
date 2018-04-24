@@ -30,6 +30,7 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.IndexName;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -89,6 +90,9 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
         if (table.isCompactTable() && !table.isStaticCompactTable())
             throw new InvalidRequestException("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns");
+
+        if (Keyspace.open(table.keyspace).getReplicationStrategy().getReplicationFactor().trans > 0)
+            throw new InvalidRequestException("Secondary indexes are not supported on transiently replicated keyspaces");
 
         List<IndexTarget> targets = new ArrayList<>(rawTargets.size());
         for (IndexTarget.Raw rawTarget : rawTargets)
