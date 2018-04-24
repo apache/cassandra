@@ -554,13 +554,13 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 SSTableReader sstable = sstableIterator.next();
 
-                Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken());
+                Bounds<Token> sstableBounds = new Bounds<>(sstable.first.getToken(), sstable.last.getToken());
 
                 boolean shouldAnticompact = false;
 
                 for (Range<Token> r : normalizedRanges)
                 {
-                    if (r.contains(sstableRange))
+                    if (r.contains(sstableBounds.left) && r.contains(sstableBounds.right))
                     {
                         logger.info("[repair #{}] SSTable {} fully contained in range {}, mutating repairedAt instead of anticompacting", parentRepairSession, sstable, r);
                         sstable.descriptor.getMetadataSerializer().mutateRepairedAt(sstable.descriptor, repairedAt);
@@ -572,16 +572,16 @@ public class CompactionManager implements CompactionManagerMBean
                         shouldAnticompact = true;
                         break;
                     }
-                    else if (sstableRange.intersects(r))
+                    else if (r.intersects(sstableBounds))
                     {
-                        logger.info("[repair #{}] SSTable {} ({}) will be anticompacted on range {}", parentRepairSession, sstable, sstableRange, r);
+                        logger.info("[repair #{}] SSTable {} ({}) will be anticompacted on range {}", parentRepairSession, sstable, sstableBounds, r);
                         shouldAnticompact = true;
                     }
                 }
 
                 if (!shouldAnticompact)
                 {
-                    logger.info("[repair #{}] SSTable {} ({}) does not intersect repaired ranges {}, not touching repairedAt.", parentRepairSession, sstable, sstableRange, normalizedRanges);
+                    logger.info("[repair #{}] SSTable {} ({}) does not intersect repaired ranges {}, not touching repairedAt.", parentRepairSession, sstable, sstableBounds, normalizedRanges);
                     nonAnticompacting.add(sstable);
                     sstableIterator.remove();
                 }
