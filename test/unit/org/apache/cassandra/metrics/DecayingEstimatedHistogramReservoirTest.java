@@ -380,6 +380,41 @@ public class DecayingEstimatedHistogramReservoirTest
         }
     }
 
+    @Test
+    public void testAggregation()
+    {
+        TestClock clock = new TestClock();
+
+        DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION, DecayingEstimatedHistogramReservoir.DEFAULT_BUCKET_COUNT, clock);
+        DecayingEstimatedHistogramReservoir another = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION, DecayingEstimatedHistogramReservoir.DEFAULT_BUCKET_COUNT, clock);
+
+        clock.addMillis(DecayingEstimatedHistogramReservoir.LANDMARK_RESET_INTERVAL_IN_MS - 1_000L);
+
+        histogram.update(1000);
+        clock.addMillis(100);
+        another.update(2000);
+        clock.addMillis(100);
+        histogram.update(2000);
+        clock.addMillis(100);
+        another.update(3000);
+        clock.addMillis(100);
+        histogram.update(3000);
+        clock.addMillis(100);
+        another.update(4000);
+
+        DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot snapshot = (DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot) histogram.getSnapshot();
+        DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot anotherSnapshot = (DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot) another.getSnapshot();
+
+        assertEquals(2000, snapshot.getMean(), 500D);
+        assertEquals(3000, anotherSnapshot.getMean(), 500D);
+
+        snapshot.add(anotherSnapshot);
+
+        // Another had newer decayLandmark, the aggregated snapshot should use it
+        assertEquals(anotherSnapshot.getSnapshotLandmark(), snapshot.getSnapshotLandmark());
+        assertEquals(2500, snapshot.getMean(), 500D);
+    }
+
     private void assertEstimatedQuantile(long expectedValue, double actualValue)
     {
         assertTrue("Expected at least [" + expectedValue + "] but actual is [" + actualValue + "]", actualValue >= expectedValue);
