@@ -265,8 +265,7 @@ public class BufferPool
                 if (cur + MACRO_CHUNK_SIZE > MEMORY_USAGE_THRESHOLD)
                 {
                     noSpamLogger.info("Maximum memory usage reached ({}), cannot allocate chunk of {}",
-                                      FBUtilities.prettyPrintMemory(MEMORY_USAGE_THRESHOLD),
-                                      FBUtilities.prettyPrintMemory(MACRO_CHUNK_SIZE));
+                                      MEMORY_USAGE_THRESHOLD, MACRO_CHUNK_SIZE);
                     return false;
                 }
                 if (memoryUsage.compareAndSet(cur, cur + MACRO_CHUNK_SIZE))
@@ -284,9 +283,7 @@ public class BufferPool
                 noSpamLogger.error("Buffer pool failed to allocate chunk of {}, current size {} ({}). " +
                                    "Attempting to continue; buffers will be allocated in on-heap memory which can degrade performance. " +
                                    "Make sure direct memory size (-XX:MaxDirectMemorySize) is large enough to accommodate off-heap memtables and caches.",
-                                   FBUtilities.prettyPrintMemory(MACRO_CHUNK_SIZE),
-                                   FBUtilities.prettyPrintMemory(sizeInBytes()),
-                                   oom.toString());
+                                   MACRO_CHUNK_SIZE, sizeInBytes(), oom.toString());
                 return false;
             }
 
