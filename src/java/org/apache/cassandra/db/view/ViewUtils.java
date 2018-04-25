@@ -93,14 +93,20 @@ public final class ViewUtils
         // number of replicas for all of the tokens in the ring.
         assert baseReplicas.size() == viewReplicas.size() : "Replication strategy should have the same number of endpoints for the base and the view";
 
-        for (Replica replica : baseReplicas)
+        int baseIdx = -1;
+        for (int i=0; i<baseReplicas.size(); i++)
         {
-            if (replica.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
-                return Optional.of(replica);
-
-
+            if (baseReplicas.get(i).getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
+            {
+                baseIdx = i;
+                break;
+            }
         }
-        //This node is not a base replica of this key, so we return empty
-        return Optional.empty();
+
+        if (baseIdx < 0)
+            //This node is not a base replica of this key, so we return empty
+            return Optional.empty();
+
+        return Optional.of(viewReplicas.get(baseIdx));
     }
 }

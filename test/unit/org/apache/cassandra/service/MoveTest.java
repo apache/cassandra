@@ -603,10 +603,10 @@ public class MoveTest
                 }
 
                 if (expected.size() == actual.size()) {
-                	assertEquals("mismatched endpoint sets", expected, Replicas.asEndpoints(actual));
+                	assertEquals("mismatched endpoint sets", expected, Replicas.asEndpointSet(actual));
                 } else {
                 	expected.add(hosts.get(MOVING_NODE));
-                	assertEquals("mismatched endpoint sets", expected, Replicas.asEndpoints(actual));
+                	assertEquals("mismatched endpoint sets", expected, Replicas.asEndpointSet(actual));
                 	numMoved++;
                 }
             }
