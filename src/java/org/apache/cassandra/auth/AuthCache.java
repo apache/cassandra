@@ -89,6 +89,19 @@ public class AuthCache<K, V> implements AuthCacheMBean
         }
     }
 
+    protected void unregisterMBean()
+    {
+        try
+        {
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            mbs.unregisterMBean(getObjectName());
+        }
+        catch (Exception e)
+        {
+            logger.warn("Error unregistering {} cache mbean", name, e);
+        }
+    }
+
     protected ObjectName getObjectName() throws MalformedObjectNameException
     {
         return new ObjectName(MBEAN_NAME_BASE + name);

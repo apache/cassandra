@@ -94,11 +94,21 @@ public class AuthenticatedUser
     /**
      * Get the roles that have been granted to the user via the IRoleManager
      *
-     * @return a list of roles that have been granted to the user
+     * @return a set of identifiers for the roles that have been granted to the user
      */
     public Set<RoleResource> getRoles()
     {
         return Roles.getRoles(role);
+    }
+
+    /**
+     * Get the detailed info on roles granted to the user via IRoleManager
+     *
+     * @return a set of Role objects detailing the roles granted to the user
+     */
+    public Set<Role> getRoleDetails()
+    {
+       return Roles.getRoleDetails(role);
     }
 
     public Set<Permission> getPermissions(IResource resource)
@@ -106,6 +116,24 @@ public class AuthenticatedUser
         return permissionsCache.getPermissions(this, resource);
     }
 
+    /**
+     * Check whether this user has login privileges.
+     * LOGIN is not inherited from granted roles, so must be directly granted to the primary role for this user
+     *
+     * @return true if the user is permitted to login, false otherwise.
+     */
+    public boolean canLogin()
+    {
+        return Roles.canLogin(getPrimaryRole());
+    }
+
+    /**
+     * Verify that there is not DC level restriction on this user accessing this node.
+     * Further extends the login privilege check by verifying that the primary role for this user is permitted
+     * to perform operations in the local (to this node) datacenter. Like LOGIN, this is not inherited from
+     * granted roles.
+     * @return true if the user is permitted to access nodes in this node's datacenter, false otherwise
+     */
     public boolean hasLocalAccess()
     {
         return networkAuthCache.get(this.getPrimaryRole()).canAccess(Datacenters.thisDatacenter());
@@ -136,4 +164,5 @@ public class AuthenticatedUser
     {
         return Objects.hashCode(name);
     }
+
 }
