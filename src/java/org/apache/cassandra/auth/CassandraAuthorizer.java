@@ -68,9 +68,10 @@ public class CassandraAuthorizer implements IAuthorizer
 
         Set<Permission> permissions = EnumSet.noneOf(Permission.class);
 
-        for (RoleResource role: user.getRoles())
-            addPermissionsForRole(permissions, resource, role);
-
+        // Even though we only care about the RoleResource here, we use getRoleDetails as
+        // it saves a Set creation in RolesCache
+        for (Role role: user.getRoleDetails())
+            addPermissionsForRole(permissions, resource, role.resource);
         return permissions;
     }
 

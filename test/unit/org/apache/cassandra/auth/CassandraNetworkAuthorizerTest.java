@@ -40,17 +40,16 @@ import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.CreateRoleStatement;
 import org.apache.cassandra.cql3.statements.DropRoleStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.apache.cassandra.auth.AuthKeyspace.NETWORK_PERMISSIONS;
+import static org.apache.cassandra.auth.RoleTestUtils.LocalCassandraRoleManager;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 
 public class CassandraNetworkAuthorizerTest
@@ -71,19 +70,6 @@ public class CassandraNetworkAuthorizerTest
         void processBatch(BatchStatement statement)
         {
             statement.executeLocally(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
-        }
-    }
-
-    private static class LocalCassandraRoleManager extends CassandraRoleManager
-    {
-        ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
-        {
-            return statement.executeLocally(QueryState.forInternalCalls(), options);
-        }
-
-        UntypedResultSet process(String query, ConsistencyLevel consistencyLevel) throws RequestValidationException, RequestExecutionException
-        {
-            return QueryProcessor.executeInternal(query);
         }
     }
 
@@ -122,15 +108,9 @@ public class CassandraNetworkAuthorizerTest
     }
 
     @Before
-    public void clear() throws Exception
+    public void clear()
     {
         Keyspace.open(AUTH_KEYSPACE_NAME).getColumnFamilyStore(NETWORK_PERMISSIONS).truncateBlocking();
-    }
-
-
-    private static UntypedResultSet query(String q)
-    {
-        return QueryProcessor.executeInternal(q);
     }
 
     private static void assertNoDcPermRow(String username)
@@ -175,6 +155,9 @@ public class CassandraNetworkAuthorizerTest
                || statement instanceof AlterRoleStatement
                || statement instanceof DropRoleStatement;
         AuthenticationStatement authStmt = (AuthenticationStatement) statement;
+
+        // invalidate roles cache so that any changes to the underlying roles are picked up
+        Roles.clearCache();
         authStmt.execute(getClientState());
     }
 
@@ -185,7 +168,7 @@ public class CassandraNetworkAuthorizerTest
     }
 
     @Test
-    public void create() throws Exception
+    public void create()
     {
         String username = createName();
 
@@ -197,7 +180,7 @@ public class CassandraNetworkAuthorizerTest
     }
 
     @Test
-    public void alter() throws Exception
+    public void alter()
     {
 
         String username = createName();
@@ -237,7 +220,7 @@ public class CassandraNetworkAuthorizerTest
     }
 
     @Test
-    public void superUser() throws Exception
+    public void superUser()
     {
         String username = createName();
         auth("CREATE ROLE %s WITH password = 'password' AND LOGIN = true AND ACCESS TO DATACENTERS {'dc1'}", username);
@@ -249,11 +232,10 @@ public class CassandraNetworkAuthorizerTest
     }
 
     @Test
-    public void cantLogin() throws Exception
+    public void cantLogin()
     {
         String username = createName();
         auth("CREATE ROLE %s", username);
         Assert.assertEquals(DCPermissions.none(), dcPerms(username));
-
     }
 }
