@@ -344,7 +344,7 @@ public abstract class AbstractReplicationStrategy
 
     public boolean hasSameSettings(AbstractReplicationStrategy other)
     {
-        return getClass().equals(other.getClass()) && getReplicationFactor() == other.getReplicationFactor();
+        return getClass().equals(other.getClass()) && getReplicationFactor().equals(other.getReplicationFactor());
     }
 
     protected void validateReplicationFactor(String s) throws ConfigurationException
