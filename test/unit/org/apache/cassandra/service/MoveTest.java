@@ -651,8 +651,6 @@ public class MoveTest
             newTokens.put(movingIndex, newToken);
         }
 
-        Collection<Replica> replicas;
-
         tmd = tmd.cloneAfterAllSettled();
         ss.setTokenMetadataUnsafe(tmd);
 
@@ -879,15 +877,16 @@ public class MoveTest
 
             for (Token token : keyTokens)
             {
-                replicas = tmd.getWriteEndpoints(token, keyspaceName, strategy.getNaturalReplicas(token));
-                assertEquals(expectedEndpoints.get(keyspaceName).get(token).size(), replicas.size());
-                assertTrue(expectedEndpoints.get(keyspaceName).get(token).containsAll(replicas));
+                Collection<InetAddressAndPort> endpoints = Replicas.asEndpoints(tmd.getWriteEndpoints(token, keyspaceName, strategy.getNaturalReplicas(token)));
+                assertEquals(expectedEndpoints.get(keyspaceName).get(token).size(), endpoints.size());
+                assertTrue(expectedEndpoints.get(keyspaceName).get(token).containsAll(endpoints));
             }
 
             // just to be sure that things still work according to the old tests, run them:
             if (strategy.getReplicationFactor().replicas != 3)
                 continue;
 
+            Collection<Replica> replicas = null;
             // tokens 5, 15 and 25 should go three nodes
             for (int i = 0; i < 3; i++)
             {
