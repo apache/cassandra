@@ -498,7 +498,8 @@ public class MoveTest
     private Map.Entry<Range<Token>, Collection<Replica>> generatePendingMapEntry(int start, int end, String... endpoints) throws UnknownHostException
     {
         Map<Range<Token>, Collection<Replica>> pendingRanges = new HashMap<>();
-        pendingRanges.put(generateRange(start, end), makeReplicas(endpoints));
+        Range<Token> range = generateRange(start, end);
+        pendingRanges.put(range, makeReplicas(range, endpoints));
         return pendingRanges.entrySet().iterator().next();
     }
 
@@ -1011,11 +1012,11 @@ public class MoveTest
         return addrs;
     }
 
-    private static Collection<Replica> makeReplicas(String... hosts) throws UnknownHostException
+    private static Collection<Replica> makeReplicas(Range<Token> range, String... hosts) throws UnknownHostException
     {
         ArrayList<Replica> replicas = new ArrayList<>(hosts.length);
         for (String host : hosts)
-            replicas.add(Replica.fullStandin(InetAddressAndPort.getByName(host)));
+            replicas.add(Replica.full(InetAddressAndPort.getByName(host), range));
         return replicas;
     }
 

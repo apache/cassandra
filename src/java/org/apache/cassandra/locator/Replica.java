@@ -75,7 +75,7 @@ public class Replica
     {
         StringBuilder sb = new StringBuilder();
         sb.append(full ? "Full" : "Transient");
-        sb.append('{').append(getEndpoint()).append('}');
+        sb.append('(').append(getEndpoint()).append(',').append(range).append(')');
         return sb.toString();
     }
 
