@@ -59,7 +59,7 @@ public class DynamicEndpointSnitchLongTest
             // problem we're looking for.
             for (int i = 0; i < 100; i++)
                 for (int j = 0; j < 256; j++)
-                    replicas.add(Replica.full(InetAddressAndPort.getByAddress(new byte[]{ 127, 0, (byte)i, (byte)j})));
+                    replicas.add(Replica.fullStandin(InetAddressAndPort.getByAddress(new byte[]{ 127, 0, (byte)i, (byte)j})));
 
             ScoreUpdater updater = new ScoreUpdater(dsnitch, replicas);
             updater.start();

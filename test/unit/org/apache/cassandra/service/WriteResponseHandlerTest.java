@@ -57,7 +57,7 @@ public class WriteResponseHandlerTest
     {
         try
         {
-            return Replica.full(InetAddressAndPort.getByName(name));
+            return Replica.fullStandin(InetAddressAndPort.getByName(name));
         }
         catch (UnknownHostException e)
         {

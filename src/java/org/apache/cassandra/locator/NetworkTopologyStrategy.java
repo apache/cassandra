@@ -119,7 +119,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
          * Attempts to add an endpoint to the replicas for this datacenter, adding to the replicas set if successful.
          * Returns true if the endpoint was added, and this datacenter does not require further replicas.
          */
-        boolean addEndpointAndCheckIfDone(InetAddressAndPort ep, Pair<String,String> location)
+        boolean addEndpointAndCheckIfDone(InetAddressAndPort ep, Pair<String,String> location, Token start, Token end)
         {
             if (done())
                 return false;
@@ -128,7 +128,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                 // Cannot repeat a node.
                 return false;
 
-            Replica replica = new Replica(ep, rfLeft > transients);
+            Replica replica = new Replica(ep, start, end, rfLeft > transients);
 
             if (racks.add(location))
             {
@@ -198,7 +198,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             InetAddressAndPort ep = tokenMetadata.getEndpoint(next);
             Pair<String, String> location = topology.getLocation(ep);
             DatacenterEndpoints dcEndpoints = dcs.get(location.left);
-            if (dcEndpoints != null && dcEndpoints.addEndpointAndCheckIfDone(ep, location))
+            if (dcEndpoints != null && dcEndpoints.addEndpointAndCheckIfDone(ep, location, tokenMetadata.getPredecessor(next), next))
                 --dcsToFill;
         }
         return new ArrayList<>(replicas);

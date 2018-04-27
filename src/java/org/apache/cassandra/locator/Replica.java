@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.locator;
 
+import java.net.InetAddress;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -37,13 +38,20 @@ import org.apache.cassandra.exceptions.UnavailableException;
 public class Replica
 {
     private final InetAddressAndPort endpoint;
+    private final Range<Token> range;
     private final boolean full;
 
-    public Replica(InetAddressAndPort endpoint, boolean full)
+    public Replica(InetAddressAndPort endpoint, Range<Token> range, boolean full)
     {
         Preconditions.checkNotNull(endpoint);
         this.endpoint = endpoint;
+        this.range = range;
         this.full = full;
+    }
+
+    public Replica(InetAddressAndPort endpoint, Token start, Token end, boolean full)
+    {
+        this(endpoint, new Range<>(start, end), full);
     }
 
     public boolean equals(Object o)
@@ -52,13 +60,14 @@ public class Replica
         if (o == null || getClass() != o.getClass()) return false;
         Replica replica = (Replica) o;
         return full == replica.full &&
-               Objects.equals(endpoint, replica.endpoint);
+               Objects.equals(endpoint, replica.endpoint) &&
+               Objects.equals(range, replica.range);
     }
 
     public int hashCode()
     {
 
-        return Objects.hash(endpoint, full);
+        return Objects.hash(endpoint, range, full);
     }
 
     @Override
@@ -73,6 +82,11 @@ public class Replica
     public final InetAddressAndPort getEndpoint()
     {
         return endpoint;
+    }
+
+    public Range<Token> getRange()
+    {
+        return range;
     }
 
     public ReplicatedRange decorateRange(Token left, Token right)
@@ -96,14 +110,39 @@ public class Replica
     }
 
 
-    public static Replica full(InetAddressAndPort endpoint)
+    public static Replica full(InetAddressAndPort endpoint, Range<Token> range)
     {
-        return new Replica(endpoint, true);
+        return new Replica(endpoint, range, true);
     }
 
-    public static Replica trans(InetAddressAndPort endpoint)
+    /**
+     * We need to assume an endpoint is a full replica in a with unknown ranges in a
+     * few cases, so this returns one that throw an exception if you try to get it's range
+     */
+    public static Replica fullStandin(InetAddressAndPort endpoint)
     {
-        return new Replica(endpoint, false);
+        return new Replica(endpoint, null, true) {
+            @Override
+            public Range<Token> getRange()
+            {
+                throw new UnsupportedOperationException("Can't get range on standin replicas");
+            }
+        };
+    }
+
+    public static Replica full(InetAddressAndPort endpoint, Token start, Token end)
+    {
+        return full(endpoint, new Range<>(start, end));
+    }
+
+    public static Replica trans(InetAddressAndPort endpoint, Range<Token> range)
+    {
+        return new Replica(endpoint, range, false);
+    }
+
+    public static Replica trans(InetAddressAndPort endpoint, Token start, Token end)
+    {
+        return trans(endpoint, new Range<>(start, end));
     }
 
     public static void assureSufficientFullReplica(Collection<Replica> replicas, ConsistencyLevel cl) throws UnavailableException

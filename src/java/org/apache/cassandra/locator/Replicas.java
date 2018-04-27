@@ -56,15 +56,20 @@ public class Replicas
         return endpoints;
     }
 
-    public static Collection<Replica> decorateEndpoints(Collection<InetAddressAndPort> endpoints, boolean full)
+    public static List<Replica> fullStandins(Collection<InetAddressAndPort> endpoints)
     {
-        return Collections2.transform(endpoints, e -> new Replica(e, full));
+        return Lists.newArrayList(Iterables.transform(endpoints, Replica::fullStandin));
     }
 
-    public static List<Replica> decorateEndpointList(List<InetAddressAndPort> endpoints, boolean full)
-    {
-        return Lists.newArrayList(Iterables.transform(endpoints, e -> new Replica(e, full)));
-    }
+//    public static Collection<Replica> decorateEndpoints(Collection<InetAddressAndPort> endpoints, boolean full)
+//    {
+//        return Collections2.transform(endpoints, e -> new Replica(e, full));
+//    }
+//
+//    public static List<Replica> decorateEndpointList(List<InetAddressAndPort> endpoints, boolean full)
+//    {
+//        return Lists.newArrayList(Iterables.transform(endpoints, e -> new Replica(e, full)));
+//    }
 
     public static List<String> stringify(Iterable<Replica> replicas, boolean withPort)
     {
@@ -99,9 +104,8 @@ public class Replicas
     {
         if (Iterables.all(newReplicas, Replica::isFull) && Iterables.all(oldReplicas, Replica::isFull))
         {
-            Set<InetAddressAndPort> newEndpoints = asEndpointSet(newReplicas);
             Set<InetAddressAndPort> oldEndpoints = asEndpointSet(oldReplicas);
-            return Sets.newHashSet(decorateEndpoints(Sets.difference(newEndpoints, oldEndpoints), true));
+            return Sets.newHashSet(Iterables.filter(newReplicas, r -> !oldEndpoints.contains(r.getEndpoint())));
         }
         else
         {

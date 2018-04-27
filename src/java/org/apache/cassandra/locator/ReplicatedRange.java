@@ -82,7 +82,7 @@ public class ReplicatedRange
     }
     public Replica decorateEndpoint(InetAddressAndPort endpoint)
     {
-        return full ? Replica.full(endpoint) : Replica.trans(endpoint);
+        return full ? Replica.full(endpoint, range) : Replica.trans(endpoint, range);
     }
 
     public boolean contains(Range<Token> that)

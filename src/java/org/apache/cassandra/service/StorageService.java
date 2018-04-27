@@ -4117,14 +4117,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private UUID getPreferredHintsStreamTarget()
     {
-        List<Replica> candidates = new ArrayList<>(Replicas.decorateEndpoints(StorageService.instance.getTokenMetadata().cloneAfterAllLeft().getAllEndpoints(), true));
+        List<Replica> candidates = Replicas.fullStandins(StorageService.instance.getTokenMetadata().cloneAfterAllLeft().getAllEndpoints());
         Replicas.removeEndpoint(candidates, FBUtilities.getBroadcastAddressAndPort());
-        for (Iterator<Replica> iter = candidates.iterator(); iter.hasNext(); )
-        {
-            Replica replica = iter.next();
-            if (!FailureDetector.instance.isAlive(replica.getEndpoint()))
-                iter.remove();
-        }
+        candidates.removeIf(replica -> !FailureDetector.instance.isAlive(replica.getEndpoint()));
 
         if (candidates.isEmpty())
         {

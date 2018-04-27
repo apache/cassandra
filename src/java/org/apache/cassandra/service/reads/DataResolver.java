@@ -78,7 +78,8 @@ public class DataResolver extends ResponseResolver
             iters.add(msg.payload.makeIterator(command));
 
             Replica replica = replicaMap.get(msg.from);
-            sources[i] = replica != null ? replica : Replica.full(msg.from);
+
+            sources[i] = replica != null ? replica : Replica.fullStandin(msg.from);
         }
 
         /*

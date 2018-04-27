@@ -35,6 +35,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -189,6 +190,17 @@ public class SimpleStrategyTest
         StorageServiceAccessor.setTokenMetadata(oldTmd);
     }
 
+    private static Token tk(long t)
+    {
+        return new Murmur3Partitioner.LongToken(t);
+    }
+
+    private static Range<Token> range(long l, long r)
+    {
+        return new Range<>(tk(l), tk(r));
+    }
+
+
     @Test
     public void transientReplica() throws Exception
     {
@@ -201,10 +213,10 @@ public class SimpleStrategyTest
                                                                 InetAddressAndPort.getByName("127.0.0.4"));
 
         Multimap<InetAddressAndPort, Token> tokens = HashMultimap.create();
-        tokens.put(endpoints.get(0), new Murmur3Partitioner.LongToken(100));
-        tokens.put(endpoints.get(1), new Murmur3Partitioner.LongToken(200));
-        tokens.put(endpoints.get(2), new Murmur3Partitioner.LongToken(300));
-        tokens.put(endpoints.get(3), new Murmur3Partitioner.LongToken(400));
+        tokens.put(endpoints.get(0), tk(100));
+        tokens.put(endpoints.get(1), tk(200));
+        tokens.put(endpoints.get(2), tk(300));
+        tokens.put(endpoints.get(3), tk(400));
         TokenMetadata metadata = new TokenMetadata();
         metadata.updateNormalTokens(tokens);
 
@@ -214,12 +226,16 @@ public class SimpleStrategyTest
         // Set the localhost to the tokenmetadata. Embedded cassandra way?
         SimpleStrategy strategy = new SimpleStrategy("ks", metadata, snitch, configOptions);
 
-        Assert.assertEquals(Lists.newArrayList(full(endpoints.get(0)), full(endpoints.get(1)), trans(endpoints.get(2))),
-                            strategy.getNaturalReplicas(new Murmur3Partitioner.LongToken(99)));
+        Assert.assertEquals(Lists.newArrayList(full(endpoints.get(0), range(400, 100)),
+                                               full(endpoints.get(1), range(100, 200)),
+                                               trans(endpoints.get(2), range(200, 300))),
+                            strategy.getNaturalReplicas(tk(99)));
 
 
-        Assert.assertEquals(Lists.newArrayList(full(endpoints.get(1)), full(endpoints.get(2)), trans(endpoints.get(3))),
-                            strategy.getNaturalReplicas(new Murmur3Partitioner.LongToken(101)));
+        Assert.assertEquals(Lists.newArrayList(full(endpoints.get(1), range(100, 200)),
+                                               full(endpoints.get(2), range(200, 300)),
+                                               trans(endpoints.get(3), range(300, 400))),
+                            strategy.getNaturalReplicas(tk(101)));
     }
 
     private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd)

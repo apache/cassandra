@@ -369,7 +369,8 @@ public class RangeFetchMapCalculatorTest
     {
         for (InetAddressAndPort endpoint : makeAddrs(hosts))
         {
-            rangesWithSources.put(generateNonTrivialRange(left, right), Replica.full(endpoint));
+            Range<Token> range = generateNonTrivialRange(left, right);
+            rangesWithSources.put(range, Replica.full(endpoint, range));
         }
     }
 
@@ -377,7 +378,8 @@ public class RangeFetchMapCalculatorTest
     {
         for (InetAddressAndPort endpoint : makeAddrs(hosts))
         {
-            rangesWithSources.put(generateTrivialRange(left, right), Replica.full(endpoint));
+            Range<Token> range = generateTrivialRange(left, right);
+            rangesWithSources.put(range, Replica.full(endpoint, range));
         }
     }
 

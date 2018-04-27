@@ -1062,7 +1062,7 @@ public class StorageProxy implements StorageProxyMBean
     private static void syncWriteToBatchlog(Collection<Mutation> mutations, Collection<InetAddressAndPort> endpoints, UUID uuid, long queryStartNanoTime)
     throws WriteTimeoutException, WriteFailureException
     {
-        Collection<Replica> replicas = Replicas.decorateEndpoints(endpoints, true);
+        Collection<Replica> replicas = Replicas.fullStandins(endpoints);
         WriteResponseHandler<?> handler = new WriteResponseHandler<>(replicas,
                                                                      Collections.emptyList(),
                                                                      replicas.size() == 1 ? ConsistencyLevel.ONE : ConsistencyLevel.TWO,
@@ -1094,7 +1094,7 @@ public class StorageProxy implements StorageProxyMBean
                 logger.trace("Sending batchlog remove request {} to {}", uuid, target);
 
             if (canDoLocalRequest(target))
-                performLocally(Stage.MUTATION, Replica.full(target), () -> BatchlogManager.remove(uuid));
+                performLocally(Stage.MUTATION, Replica.fullStandin(target), () -> BatchlogManager.remove(uuid));
             else
                 MessagingService.instance().sendOneWay(message, target);
         }

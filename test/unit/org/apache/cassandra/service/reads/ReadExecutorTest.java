@@ -58,9 +58,9 @@ public class ReadExecutorTest
         SchemaLoader.createKeyspace("Foo", KeyspaceParams.simple(3), SchemaLoader.standardCFMD("Foo", "Bar"));
         ks = Keyspace.open("Foo");
         cfs = ks.getColumnFamilyStore("Bar");
-        targets = ImmutableList.of(Replica.full(InetAddressAndPort.getByName("127.0.0.255")),
-                                   Replica.full(InetAddressAndPort.getByName("127.0.0.254")),
-                                   Replica.full(InetAddressAndPort.getByName("127.0.0.253")));
+        targets = ImmutableList.of(Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.255")),
+                                   Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.254")),
+                                   Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.253")));
         cfs.sampleLatencyNanos = 0;
     }
 

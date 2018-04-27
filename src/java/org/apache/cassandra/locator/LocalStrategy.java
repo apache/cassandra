@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
@@ -46,13 +47,17 @@ public class LocalStrategy extends AbstractReplicationStrategy
     public ArrayList<Replica> getNaturalReplicas(RingPosition searchPosition)
     {
         ArrayList<Replica> l = new ArrayList<>(1);
-        l.add(Replica.full(FBUtilities.getBroadcastAddressAndPort()));
+        l.add(Replica.full(FBUtilities.getBroadcastAddressAndPort(),
+                           DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                           DatabaseDescriptor.getPartitioner().getMinimumToken()));
         return l;
     }
 
     public List<Replica> calculateNaturalReplicas(Token token, TokenMetadata metadata)
     {
-        return Collections.singletonList(Replica.full(FBUtilities.getBroadcastAddressAndPort()));
+        return Collections.singletonList(Replica.full(FBUtilities.getBroadcastAddressAndPort(),
+                                                      DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                                                      DatabaseDescriptor.getPartitioner().getMinimumToken()));
     }
 
     public ReplicationFactor getReplicationFactor()

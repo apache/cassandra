@@ -66,16 +66,17 @@ public class PendingRangesBench
         pendingRangeMaps = new PendingRangeMaps();
         oldPendingRanges = HashMultimap.create();
 
-        List<Replica> replicas = Lists.newArrayList(Replica.full(InetAddressAndPort.getByName("127.0.0.1")),
-                                                    Replica.full(InetAddressAndPort.getByName("127.0.0.2")));
+        List<InetAddressAndPort> endpoints = Lists.newArrayList(InetAddressAndPort.getByName("127.0.0.1"),
+                                                                InetAddressAndPort.getByName("127.0.0.2"));
 
         for (int i = 0; i < maxToken; i++)
         {
             for (int j = 0; j < ThreadLocalRandom.current().nextInt(2); j ++)
             {
                 Range<Token> range = genRange(Integer.toString(i * 10 + 5), Integer.toString(i * 10 + 15));
-                pendingRangeMaps.addPendingRange(range, replicas.get(j));
-                oldPendingRanges.put(range, replicas.get(j));
+                Replica replica = Replica.full(endpoints.get(j), range);
+                pendingRangeMaps.addPendingRange(range, replica);
+                oldPendingRanges.put(range, replica);
             }
         }
 
@@ -83,8 +84,9 @@ public class PendingRangesBench
         for (int j = 0; j < ThreadLocalRandom.current().nextInt(2); j ++)
         {
             Range<Token> range = genRange(Integer.toString(maxToken * 10 + 5), Integer.toString(5));
-            pendingRangeMaps.addPendingRange(range, replicas.get(j));
-            oldPendingRanges.put(range, replicas.get(j));
+            Replica replica = Replica.full(endpoints.get(j), range);
+            pendingRangeMaps.addPendingRange(range, replica);
+            oldPendingRanges.put(range, replica);
         }
     }
 

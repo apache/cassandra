@@ -1015,7 +1015,7 @@ public class MoveTest
     {
         ArrayList<Replica> replicas = new ArrayList<>(hosts.length);
         for (String host : hosts)
-            replicas.add(Replica.full(InetAddressAndPort.getByName(host)));
+            replicas.add(Replica.fullStandin(InetAddressAndPort.getByName(host)));
         return replicas;
     }
 

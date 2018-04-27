@@ -129,7 +129,7 @@ public class DataResolverTest
         {
             try
             {
-                replicas.add(Replica.full(InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, (byte) (i + 1) })));
+                replicas.add(Replica.fullStandin(InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, (byte) (i + 1) })));
             }
             catch (UnknownHostException e)
             {
