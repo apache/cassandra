@@ -366,12 +366,10 @@ public class OldNetworkTopologyStrategyTest
         TokenMetadata tokenMetadataAfterMove = initTokenMetadata(tokensAfterMove);
         AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tokenMetadataCurrent, endpointSnitch, optsWithRF(2));
 
-        Collection<ReplicatedRange> currentRanges = strategy.getAddressRanges().get(movingNode);
-        Collection<ReplicatedRange> updatedRanges = strategy.getPendingAddressRanges(tokenMetadataAfterMove, tokensAfterMove[movingNodeIdx], movingNode);
+        Collection<Replica> currentRanges = strategy.getAddressReplicas().get(movingNode);
+        Collection<Replica> updatedRanges = strategy.getPendingAddressRanges(tokenMetadataAfterMove, tokensAfterMove[movingNodeIdx], movingNode);
 
-        Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = StorageService.instance.calculateStreamAndFetchRanges(currentRanges, updatedRanges);
-
-        return ranges;
+        return StorageService.instance.calculateStreamAndFetchRanges(currentRanges, updatedRanges);
     }
 
     private static Map<String, String> optsWithRF(int rf)

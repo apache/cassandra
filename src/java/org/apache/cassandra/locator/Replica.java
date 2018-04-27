@@ -19,13 +19,17 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
@@ -89,16 +93,6 @@ public class Replica
         return range;
     }
 
-    public ReplicatedRange decorateRange(Token left, Token right)
-    {
-        return new ReplicatedRange(left, right, full);
-    }
-
-    public ReplicatedRange decorateRange(Range<Token> range)
-    {
-        return decorateRange(range.left, range.right);
-    }
-
     public boolean isFull()
     {
         return full;
@@ -109,6 +103,36 @@ public class Replica
         return !isFull();
     }
 
+    public Set<Replica> subtract(Replica that)
+    {
+        assert isFull() && that.isFull();  // FIXME: this
+        Set<Range<Token>> ranges = range.subtract(that.range);
+        Set<Replica> replicatedRanges = Sets.newHashSetWithExpectedSize(ranges.size());
+        Replicas.decorateRanges(getEndpoint(), isFull(), ranges).forEach(replicatedRanges::add);
+        return replicatedRanges;
+    }
+
+    public List<Replica> normalize()
+    {
+        List<Range<Token>> normalized = Range.normalize(Collections.singleton(getRange()));
+        List<Replica> replicas = new ArrayList<>(normalized.size());
+        for (Range<Token> normalizedRange: normalized)
+        {
+            replicas.add(new Replica(getEndpoint(), normalizedRange, isFull()));
+        }
+        return replicas;
+    }
+
+    public boolean contains(Range<Token> that)
+    {
+        return range.contains(that);
+    }
+
+    public Replica decorateSubrange(Range<Token> subrange)
+    {
+        Preconditions.checkArgument(range.contains(subrange));
+        return new Replica(getEndpoint(), subrange, isFull());
+    }
 
     public static Replica full(InetAddressAndPort endpoint, Range<Token> range)
     {

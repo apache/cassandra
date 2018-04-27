@@ -210,16 +210,15 @@ public abstract class AbstractReplicationStrategy
      * (fixing this would probably require merging tokenmetadata into replicationstrategy,
      * so we could cache/invalidate cleanly.)
      */
-    public Multimap<InetAddressAndPort, ReplicatedRange> getAddressRanges(TokenMetadata metadata)
+    public Multimap<InetAddressAndPort, Replica> getAddressReplicas(TokenMetadata metadata)
     {
-        Multimap<InetAddressAndPort, ReplicatedRange> map = HashMultimap.create();
+        Multimap<InetAddressAndPort, Replica> map = HashMultimap.create();
 
         for (Token token : metadata.sortedTokens())
         {
-            Range<Token> range = metadata.getPrimaryRangeFor(token);
             for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
-                map.put(replica.getEndpoint(), replica.decorateRange(range));
+                map.put(replica.getEndpoint(), replica);
             }
         }
 
@@ -242,21 +241,21 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    public Multimap<InetAddressAndPort, ReplicatedRange> getAddressRanges()
+    public Multimap<InetAddressAndPort, Replica> getAddressReplicas()
     {
-        return getAddressRanges(tokenMetadata.cloneOnlyTokenMap());
+        return getAddressReplicas(tokenMetadata.cloneOnlyTokenMap());
     }
 
-    public Collection<ReplicatedRange> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddressAndPort pendingAddress)
+    public Collection<Replica> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddressAndPort pendingAddress)
     {
-        return getPendingAddressRanges(metadata, Arrays.asList(pendingToken), pendingAddress);
+        return getPendingAddressRanges(metadata, Collections.singleton(pendingToken), pendingAddress);
     }
 
-    public Collection<ReplicatedRange> getPendingAddressRanges(TokenMetadata metadata, Collection<Token> pendingTokens, InetAddressAndPort pendingAddress)
+    public Collection<Replica> getPendingAddressRanges(TokenMetadata metadata, Collection<Token> pendingTokens, InetAddressAndPort pendingAddress)
     {
         TokenMetadata temp = metadata.cloneOnlyTokenMap();
         temp.updateNormalTokens(pendingTokens, pendingAddress);
-        return getAddressRanges(temp).get(pendingAddress);
+        return getAddressReplicas(temp).get(pendingAddress);
     }
 
     public abstract void validateOptions() throws ConfigurationException;

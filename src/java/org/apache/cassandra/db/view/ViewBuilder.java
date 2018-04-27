@@ -44,8 +44,8 @@ import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.ReplicatedRange;
-import org.apache.cassandra.locator.ReplicatedRanges;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -138,15 +138,15 @@ class ViewBuilder
         }
 
         // Get the local ranges for which the view hasn't already been built nor it's building
-        Collection<ReplicatedRange> replicatedRanges = StorageService.instance.getLocalRanges(ksName);
-        ReplicatedRanges.checkFull(StorageService.instance.getLocalRanges(ksName));
-        Set<Range<Token>> newRanges = ReplicatedRanges.asRanges(replicatedRanges)
-                                                             .stream()
-                                                             .map(r -> r.subtractAll(builtRanges))
-                                                             .flatMap(Set::stream)
-                                                             .map(r -> r.subtractAll(pendingRanges.keySet()))
-                                                             .flatMap(Set::stream)
-                                                             .collect(Collectors.toSet());
+        Collection<Replica> replicatedRanges = StorageService.instance.getLocalReplicas(ksName);
+        Replicas.checkFull(StorageService.instance.getLocalReplicas(ksName));
+        Set<Range<Token>> newRanges = Replicas.asRanges(replicatedRanges)
+                                                        .stream()
+                                                        .map(r -> r.subtractAll(builtRanges))
+                                                        .flatMap(Set::stream)
+                                                        .map(r -> r.subtractAll(pendingRanges.keySet()))
+                                                        .flatMap(Set::stream)
+                                                        .collect(Collectors.toSet());
 
         // If there are no new nor pending ranges we should finish the build
         if (newRanges.isEmpty() && pendingRanges.isEmpty())

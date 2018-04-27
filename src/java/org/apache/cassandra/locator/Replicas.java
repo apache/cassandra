@@ -23,11 +23,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class Replicas
@@ -35,6 +38,16 @@ public class Replicas
     public static Collection<InetAddressAndPort> asEndpoints(Collection<Replica> replicas)
     {
         return Collections2.transform(replicas, Replica::getEndpoint);
+    }
+
+    public static Collection<Range<Token>> asRanges(Collection<Replica> replicas)
+    {
+        return Collections2.transform(replicas, Replica::getRange);
+    }
+
+    public static Iterable<Range<Token>> asRanges(Iterable<Replica> replicas)
+    {
+        return Iterables.transform(replicas, Replica::getRange);
     }
 
     public static Iterable<InetAddressAndPort> asEndpoints(Iterable<Replica> replicas)
@@ -56,9 +69,68 @@ public class Replicas
         return endpoints;
     }
 
+    public static Iterable<Range<Token>> fullRanges(Collection<Replica> replicas)
+    {
+        return asRanges(Iterables.filter(replicas, Replica::isFull));
+    }
+
     public static List<Replica> fullStandins(Collection<InetAddressAndPort> endpoints)
     {
         return Lists.newArrayList(Iterables.transform(endpoints, Replica::fullStandin));
+    }
+
+    public static Iterable<Replica> decorateRanges(InetAddressAndPort endpoint, boolean full, Iterable<Range<Token>> ranges)
+    {
+        return Iterables.transform(ranges, range -> new Replica(endpoint, range, full));
+
+    }
+
+    public static List<Replica> normalize(Collection<Replica> replicas)
+    {
+        if (Iterables.all(replicas, Replica::isFull))
+        {
+            Preconditions.checkArgument(Iterables.all(replicas, Replica::isFull));
+            List<Replica> normalized = new ArrayList<>(replicas.size());
+            for (Replica replica: replicas)
+            {
+                normalized.addAll(replica.normalize());
+            }
+
+           return normalized;
+        }
+        else
+        {
+            // FIXME: add support for transient replicas
+            throw new UnsupportedOperationException("transient replicas are currently unsupported");
+        }
+    }
+
+    public static Set<Replica> subtractAll(Replica replica, Collection<Replica> toSubtract)
+    {
+        if (replica.isFull() && Iterables.all(toSubtract, Replica::isFull))
+        {
+            return Sets.newHashSet(decorateRanges(replica.getEndpoint(),
+                                                  replica.isFull(),
+                                                  replica.getRange().subtractAll(asRanges(toSubtract))));
+        }
+        else
+        {
+            // FIXME: add support for transient replicas
+            throw new UnsupportedOperationException("transient replicas are currently unsupported");
+        }
+    }
+
+    public static boolean intersects(Replica lhs, Replica rhs)
+    {
+        if (lhs.isFull() && rhs.isFull())
+        {
+            return lhs.getRange().intersects(rhs.getRange());
+        }
+        else
+        {
+            // FIXME: add support for transient replicas
+            throw new UnsupportedOperationException("transient replicas are currently unsupported");
+        }
     }
 
 //    public static Collection<Replica> decorateEndpoints(Collection<InetAddressAndPort> endpoints, boolean full)

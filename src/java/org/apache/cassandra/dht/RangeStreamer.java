@@ -41,8 +41,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.locator.ReplicatedRange;
-import org.apache.cassandra.locator.ReplicatedRanges;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -180,9 +178,9 @@ public class RangeStreamer
      * Add ranges to be streamed for given keyspace.
      *
      * @param keyspaceName keyspace name
-     * @param ranges ranges to be streamed
+     * @param replicas ranges to be streamed
      */
-    public void addRanges(String keyspaceName, Collection<ReplicatedRange> ranges)
+    public void addRanges(String keyspaceName, Collection<Replica> replicas)
     {
         if(Keyspace.open(keyspaceName).getReplicationStrategy() instanceof LocalStrategy)
         {
@@ -190,12 +188,12 @@ public class RangeStreamer
             return;
         }
 
-        ReplicatedRanges.checkFull(ranges);
+        Replicas.checkFull(replicas);
 
         boolean useStrictSource = useStrictSourcesForRanges(keyspaceName);
         Multimap<Range<Token>, Replica> rangesForKeyspace = useStrictSource
-                ? getAllRangesWithStrictSourcesFor(keyspaceName, ReplicatedRanges.fullReplicaRanges(ranges))
-                : getAllRangesWithSourcesFor(keyspaceName, ReplicatedRanges.fullReplicaRanges(ranges));
+                ? getAllRangesWithStrictSourcesFor(keyspaceName, Replicas.fullRanges(replicas))
+                : getAllRangesWithSourcesFor(keyspaceName, Replicas.fullRanges(replicas));
 
         for (Map.Entry<Range<Token>, Replica> entry : rangesForKeyspace.entries())
             logger.info("{}: range {} exists on {} for keyspace {}", description, entry.getKey(), entry.getValue(), keyspaceName);
@@ -235,7 +233,7 @@ public class RangeStreamer
      *
      * @throws java.lang.IllegalStateException when there is no source to get data streamed
      */
-    private Multimap<Range<Token>, Replica> getAllRangesWithSourcesFor(String keyspaceName, Collection<Range<Token>> desiredRanges)
+    private Multimap<Range<Token>, Replica> getAllRangesWithSourcesFor(String keyspaceName, Iterable<Range<Token>> desiredRanges)
     {
         AbstractReplicationStrategy strat = Keyspace.open(keyspaceName).getReplicationStrategy();
         Multimap<Range<Token>, Replica> rangeAddresses = strat.getRangeAddresses(metadata.cloneOnlyTokenMap());
@@ -268,7 +266,7 @@ public class RangeStreamer
      *
      * @throws java.lang.IllegalStateException when there is no source to get data streamed, or more than 1 source found.
      */
-    private Multimap<Range<Token>, Replica> getAllRangesWithStrictSourcesFor(String keyspace, Collection<Range<Token>> desiredRanges)
+    private Multimap<Range<Token>, Replica> getAllRangesWithStrictSourcesFor(String keyspace, Iterable<Range<Token>> desiredRanges)
     {
         assert tokens != null;
         AbstractReplicationStrategy strat = Keyspace.open(keyspace).getReplicationStrategy();

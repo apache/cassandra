@@ -31,15 +31,13 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.locator.ReplicatedRange;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -110,8 +108,8 @@ public class SSTableLoaderTest
         public void init(String keyspace)
         {
             this.keyspace = keyspace;
-            for (ReplicatedRange range : StorageService.instance.getLocalRanges(KEYSPACE1))
-                addRangeForEndpoint(range.getRange(), FBUtilities.getBroadcastAddressAndPort());
+            for (Replica replica : StorageService.instance.getLocalReplicas(KEYSPACE1))
+                addRangeForEndpoint(replica.getRange(), FBUtilities.getBroadcastAddressAndPort());
         }
 
         public TableMetadataRef getTableMetadata(String tableName)

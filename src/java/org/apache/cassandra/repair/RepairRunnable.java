@@ -18,7 +18,6 @@
 package org.apache.cassandra.repair;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -29,8 +28,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -39,7 +36,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.*;
 import org.apache.commons.lang3.time.DurationFormatUtils;
-import org.junit.internal.runners.statements.Fail;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,8 +44,8 @@ import org.apache.cassandra.concurrent.JMXConfigurableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.locator.ReplicatedRange;
-import org.apache.cassandra.locator.ReplicatedRanges;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.Keyspace;
@@ -75,7 +71,6 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -239,11 +234,11 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
         List<CommonRange> commonRanges = new ArrayList<>();
 
-        //pre-calculate output of getLocalRanges and pass it to getNeighbors to increase performance and prevent
+        //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
         //calculation multiple times
-        Collection<ReplicatedRange> replicatedRanges = storageService.getLocalRanges(keyspace);
-        ReplicatedRanges.checkFull(replicatedRanges);
-        Collection<Range<Token>> keyspaceLocalRanges = ReplicatedRanges.asRanges(storageService.getLocalRanges(keyspace));
+        Collection<Replica> replicatedRanges = storageService.getLocalReplicas(keyspace);
+        Replicas.checkFull(replicatedRanges);
+        Collection<Range<Token>> keyspaceLocalRanges = Replicas.asRanges(storageService.getLocalReplicas(keyspace));
 
         try
         {

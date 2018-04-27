@@ -759,18 +759,18 @@ public class TokenMetadata
         return this.pendingRanges.get(keyspaceName);
     }
 
-    public List<ReplicatedRange> getPendingRanges(String keyspaceName, InetAddressAndPort endpoint)
+    public List<Replica> getPendingRanges(String keyspaceName, InetAddressAndPort endpoint)
     {
-        List<ReplicatedRange> ranges = new ArrayList<>();
+        List<Replica> replicas = new ArrayList<>();
         for (Map.Entry<Range<Token>, Replica> entry : getPendingRangesMM(keyspaceName).entries())
         {
             Replica replica = entry.getValue();
             if (replica.getEndpoint().equals(endpoint))
             {
-                ranges.add(replica.decorateRange(entry.getKey()));
+                replicas.add(replica);
             }
         }
-        return ranges;
+        return replicas;
     }
 
      /**
@@ -857,7 +857,7 @@ public class TokenMetadata
     {
         PendingRangeMaps newPendingRanges = new PendingRangeMaps();
 
-        Multimap<InetAddressAndPort, ReplicatedRange> addressRanges = strategy.getAddressRanges(metadata);
+        Multimap<InetAddressAndPort, Replica> addressRanges = strategy.getAddressReplicas(metadata);
 
         // Copy of metadata reflecting the situation after all leave operations are finished.
         TokenMetadata allLeftMetadata = removeEndpoints(metadata.cloneOnlyTokenMap(), leavingEndpoints);
@@ -865,7 +865,7 @@ public class TokenMetadata
         // get all ranges that will be affected by leaving nodes
         Set<Range<Token>> affectedRanges = new HashSet<Range<Token>>();
         for (InetAddressAndPort endpoint : leavingEndpoints)
-            affectedRanges.addAll(ReplicatedRanges.asRanges(addressRanges.get(endpoint)));
+            affectedRanges.addAll(Replicas.asRanges(addressRanges.get(endpoint)));
 
         // for each of those ranges, find what new nodes will be responsible for the range when
         // all leaving nodes are gone.
@@ -890,9 +890,9 @@ public class TokenMetadata
             Collection<Token> tokens = bootstrapAddresses.get(endpoint);
 
             allLeftMetadata.updateNormalTokens(tokens, endpoint);
-            for (ReplicatedRange range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+            for (Replica replica : strategy.getAddressReplicas(allLeftMetadata).get(endpoint))
             {
-                newPendingRanges.addPendingRange(range.getRange(), range.decorateEndpoint(endpoint));
+                newPendingRanges.addPendingRange(replica.getRange(), replica);
             }
             allLeftMetadata.removeEndpoint(endpoint);
         }
@@ -905,38 +905,38 @@ public class TokenMetadata
         for (Pair<Token, InetAddressAndPort> moving : movingEndpoints)
         {
             //Calculate all the ranges which will could be affected. This will include the ranges before and after the move.
-            Set<ReplicatedRange> moveAffectedRanges = new HashSet<>();
+            Set<Replica> moveAffectedReplicas = new HashSet<>();
             InetAddressAndPort endpoint = moving.right; // address of the moving node
             //Add ranges before the move
-            for (ReplicatedRange range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+            for (Replica replica : strategy.getAddressReplicas(allLeftMetadata).get(endpoint))
             {
-                moveAffectedRanges.add(range);
+                moveAffectedReplicas.add(replica);
             }
 
             allLeftMetadata.updateNormalToken(moving.left, endpoint);
             //Add ranges after the move
-            for (ReplicatedRange range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+            for (Replica replica : strategy.getAddressReplicas(allLeftMetadata).get(endpoint))
             {
-                moveAffectedRanges.add(range);
+                moveAffectedReplicas.add(replica);
             }
 
-            for(ReplicatedRange range : moveAffectedRanges)
+            for(Replica replica : moveAffectedReplicas)
             {
-                Set<InetAddressAndPort> currentEndpoints = Replicas.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalReplicas(range.getRange().right, metadata)));
-                Set<InetAddressAndPort> newEndpoints = Replicas.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalReplicas(range.getRange().right, allLeftMetadata)));
+                Set<InetAddressAndPort> currentEndpoints = Replicas.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalReplicas(replica.getRange().right, metadata)));
+                Set<InetAddressAndPort> newEndpoints = Replicas.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalReplicas(replica.getRange().right, allLeftMetadata)));
                 Set<InetAddressAndPort> difference = Sets.difference(newEndpoints, currentEndpoints);
                 for(final InetAddressAndPort address : difference)
                 {
-                    Collection<ReplicatedRange> newRanges = strategy.getAddressRanges(allLeftMetadata).get(address);
-                    Collection<ReplicatedRange> oldRanges = strategy.getAddressRanges(metadata).get(address);
+                    Collection<Replica> newReplicas = strategy.getAddressReplicas(allLeftMetadata).get(address);
+                    Collection<Replica> oldReplicas = strategy.getAddressReplicas(metadata).get(address);
                     //We want to get rid of any ranges which the node is currently getting.
-                    newRanges.removeAll(oldRanges);
+                    newReplicas.removeAll(oldReplicas);
 
-                    for(ReplicatedRange newRange : newRanges)
+                    for(Replica newReplica : newReplicas)
                     {
-                        for(ReplicatedRange pendingRange : ReplicatedRanges.subtractAll(newRange, oldRanges))
+                        for(Replica pendingReplica : Replicas.subtractAll(newReplica, oldReplicas))
                         {
-                            newPendingRanges.addPendingRange(pendingRange.getRange(), pendingRange.decorateEndpoint(address));
+                            newPendingRanges.addPendingRange(pendingReplica.getRange(), pendingReplica);
                         }
                     }
                 }

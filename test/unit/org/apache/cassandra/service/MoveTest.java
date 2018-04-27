@@ -32,7 +32,6 @@ import org.junit.Test;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.locator.ReplicatedRange;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -695,37 +694,18 @@ public class MoveTest
         *  }
         */
 
-        Multimap<InetAddressAndPort, ReplicatedRange> keyspace1ranges = keyspaceStrategyMap.get(Simple_RF1_KeyspaceName).getAddressRanges();
-        Collection<ReplicatedRange> ranges1 = keyspace1ranges.get(InetAddressAndPort.getByName("127.0.0.1"));
-        assertEquals(1, collectionSize(ranges1));
-        assertEquals(replicatedRange(97, 0), ranges1.iterator().next());
-        Collection<ReplicatedRange> ranges2 = keyspace1ranges.get(InetAddressAndPort.getByName("127.0.0.2"));
-        assertEquals(1, collectionSize(ranges2));
-        assertEquals(replicatedRange(0, 10), ranges2.iterator().next());
-        Collection<ReplicatedRange> ranges3 = keyspace1ranges.get(InetAddressAndPort.getByName("127.0.0.3"));
-        assertEquals(1, collectionSize(ranges3));
-        assertEquals(replicatedRange(10, 20), ranges3.iterator().next());
-        Collection<ReplicatedRange> ranges4 = keyspace1ranges.get(InetAddressAndPort.getByName("127.0.0.4"));
-        assertEquals(1, collectionSize(ranges4));
-        assertEquals(replicatedRange(20, 30), ranges4.iterator().next());
-        Collection<ReplicatedRange> ranges5 = keyspace1ranges.get(InetAddressAndPort.getByName("127.0.0.5"));
-        assertEquals(1, collectionSize(ranges5));
-        assertEquals(replicatedRange(30, 40), ranges5.iterator().next());
-        Collection<ReplicatedRange> ranges6 = keyspace1ranges.get(InetAddressAndPort.getByName("127.0.0.6"));
-        assertEquals(1, collectionSize(ranges6));
-        assertEquals(replicatedRange(40, 50), ranges6.iterator().next());
-        Collection<ReplicatedRange> ranges7 = keyspace1ranges.get(InetAddressAndPort.getByName("127.0.0.7"));
-        assertEquals(1, collectionSize(ranges7));
-        assertEquals(replicatedRange(50, 67), ranges7.iterator().next());
-        Collection<ReplicatedRange> ranges8 = keyspace1ranges.get(InetAddressAndPort.getByName("127.0.0.8"));
-        assertEquals(1, collectionSize(ranges8));
-        assertEquals(replicatedRange(67, 70), ranges8.iterator().next());
-        Collection<ReplicatedRange> ranges9 = keyspace1ranges.get(InetAddressAndPort.getByName("127.0.0.9"));
-        assertEquals(1, collectionSize(ranges9));
-        assertEquals(replicatedRange(70, 87), ranges9.iterator().next());
-        Collection<ReplicatedRange> ranges10 = keyspace1ranges.get(InetAddressAndPort.getByName("127.0.0.10"));
-        assertEquals(1, collectionSize(ranges10));
-        assertEquals(replicatedRange(87, 97), ranges10.iterator().next());
+        Multimap<InetAddressAndPort, Replica> keyspace1ranges = keyspaceStrategyMap.get(Simple_RF1_KeyspaceName).getAddressReplicas();
+
+        assertRanges(keyspace1ranges, "127.0.0.1", 97, 0);
+        assertRanges(keyspace1ranges, "127.0.0.2", 0, 10);
+        assertRanges(keyspace1ranges, "127.0.0.3", 10, 20);
+        assertRanges(keyspace1ranges, "127.0.0.4", 20, 30);
+        assertRanges(keyspace1ranges, "127.0.0.5", 30, 40);
+        assertRanges(keyspace1ranges, "127.0.0.6", 40, 50);
+        assertRanges(keyspace1ranges, "127.0.0.7", 50, 67);
+        assertRanges(keyspace1ranges, "127.0.0.8", 67, 70);
+        assertRanges(keyspace1ranges, "127.0.0.9", 70, 87);
+        assertRanges(keyspace1ranges, "127.0.0.10", 87, 97);
 
 
         /**
@@ -744,37 +724,17 @@ public class MoveTest
         * }
         */
 
-        Multimap<InetAddressAndPort, ReplicatedRange> keyspace3ranges = keyspaceStrategyMap.get(KEYSPACE3).getAddressRanges();
-        ranges1 = keyspace3ranges.get(InetAddressAndPort.getByName("127.0.0.1"));
-        assertEquals(collectionSize(ranges1), 5);
-        assertTrue(ranges1.equals(replicatedRanges(97, 0, 70, 87, 50, 67, 87, 97, 67, 70)));
-        ranges2 = keyspace3ranges.get(InetAddressAndPort.getByName("127.0.0.2"));
-        assertEquals(collectionSize(ranges2), 5);
-        assertTrue(ranges2.equals(replicatedRanges(97, 0, 70, 87, 87, 97, 0, 10, 67, 70)));
-        ranges3 = keyspace3ranges.get(InetAddressAndPort.getByName("127.0.0.3"));
-        assertEquals(collectionSize(ranges3), 5);
-        assertTrue(ranges3.equals(replicatedRanges(97, 0, 70, 87, 87, 97, 0, 10, 10, 20)));
-        ranges4 = keyspace3ranges.get(InetAddressAndPort.getByName("127.0.0.4"));
-        assertEquals(collectionSize(ranges4), 5);
-        assertTrue(ranges4.equals(replicatedRanges(97, 0, 20, 30, 87, 97, 0, 10, 10, 20)));
-        ranges5 = keyspace3ranges.get(InetAddressAndPort.getByName("127.0.0.5"));
-        assertEquals(collectionSize(ranges5), 5);
-        assertTrue(ranges5.equals(replicatedRanges(97, 0, 30, 40, 20, 30, 0, 10, 10, 20)));
-        ranges6 = keyspace3ranges.get(InetAddressAndPort.getByName("127.0.0.6"));
-        assertEquals(collectionSize(ranges6), 5);
-        assertTrue(ranges6.equals(replicatedRanges(40, 50, 30, 40, 20, 30, 0, 10, 10, 20)));
-        ranges7 = keyspace3ranges.get(InetAddressAndPort.getByName("127.0.0.7"));
-        assertEquals(collectionSize(ranges7), 5);
-        assertTrue(ranges7.equals(replicatedRanges(40, 50, 30, 40, 50, 67, 20, 30, 10, 20)));
-        ranges8 = keyspace3ranges.get(InetAddressAndPort.getByName("127.0.0.8"));
-        assertEquals(collectionSize(ranges8), 5);
-        assertTrue(ranges8.equals(replicatedRanges(40, 50, 30, 40, 50, 67, 20, 30, 67, 70)));
-        ranges9 = keyspace3ranges.get(InetAddressAndPort.getByName("127.0.0.9"));
-        assertEquals(collectionSize(ranges9), 5);
-        assertTrue(ranges9.equals(replicatedRanges(40, 50, 70, 87, 30, 40, 50, 67, 67, 70)));
-        ranges10 = keyspace3ranges.get(InetAddressAndPort.getByName("127.0.0.10"));
-        assertEquals(collectionSize(ranges10), 5);
-        assertTrue(ranges10.equals(replicatedRanges(40, 50, 70, 87, 50, 67, 87, 97, 67, 70)));
+        Multimap<InetAddressAndPort, Replica> keyspace3ranges = keyspaceStrategyMap.get(KEYSPACE3).getAddressReplicas();
+        assertRanges(keyspace3ranges, "127.0.0.1", 97, 0, 70, 87, 50, 67, 87, 97, 67, 70);
+        assertRanges(keyspace3ranges, "127.0.0.2", 97, 0, 70, 87, 87, 97, 0, 10, 67, 70);
+        assertRanges(keyspace3ranges, "127.0.0.3", 97, 0, 70, 87, 87, 97, 0, 10, 10, 20);
+        assertRanges(keyspace3ranges, "127.0.0.4", 97, 0, 20, 30, 87, 97, 0, 10, 10, 20);
+        assertRanges(keyspace3ranges, "127.0.0.5", 97, 0, 30, 40, 20, 30, 0, 10, 10, 20);
+        assertRanges(keyspace3ranges, "127.0.0.6", 40, 50, 30, 40, 20, 30, 0, 10, 10, 20);
+        assertRanges(keyspace3ranges, "127.0.0.7", 40, 50, 30, 40, 50, 67, 20, 30, 10, 20);
+        assertRanges(keyspace3ranges, "127.0.0.8", 40, 50, 30, 40, 50, 67, 20, 30, 67, 70);
+        assertRanges(keyspace3ranges, "127.0.0.9", 40, 50, 70, 87, 30, 40, 50, 67, 67, 70);
+        assertRanges(keyspace3ranges, "127.0.0.10", 40, 50, 70, 87, 50, 67, 87, 97, 67, 70);
 
 
         /**
@@ -792,37 +752,18 @@ public class MoveTest
          *      /127.0.0.10=[(70,87], (87,97], (67,70]]
          *  }
          */
-        Multimap<InetAddressAndPort, ReplicatedRange> keyspace4ranges = keyspaceStrategyMap.get(Simple_RF3_KeyspaceName).getAddressRanges();
-        ranges1 = keyspace4ranges.get(InetAddressAndPort.getByName("127.0.0.1"));
-        assertEquals(collectionSize(ranges1), 3);
-        assertTrue(ranges1.equals(replicatedRanges(97, 0, 70, 87, 87, 97)));
-        ranges2 = keyspace4ranges.get(InetAddressAndPort.getByName("127.0.0.2"));
-        assertEquals(collectionSize(ranges2), 3);
-        assertTrue(ranges2.equals(replicatedRanges(97, 0, 87, 97, 0, 10)));
-        ranges3 = keyspace4ranges.get(InetAddressAndPort.getByName("127.0.0.3"));
-        assertEquals(collectionSize(ranges3), 3);
-        assertTrue(ranges3.equals(replicatedRanges(97, 0, 0, 10, 10, 20)));
-        ranges4 = keyspace4ranges.get(InetAddressAndPort.getByName("127.0.0.4"));
-        assertEquals(collectionSize(ranges4), 3);
-        assertTrue(ranges4.equals(replicatedRanges(20, 30, 0, 10, 10, 20)));
-        ranges5 = keyspace4ranges.get(InetAddressAndPort.getByName("127.0.0.5"));
-        assertEquals(collectionSize(ranges5), 3);
-        assertTrue(ranges5.equals(replicatedRanges(30, 40, 20, 30, 10, 20)));
-        ranges6 = keyspace4ranges.get(InetAddressAndPort.getByName("127.0.0.6"));
-        assertEquals(collectionSize(ranges6), 3);
-        assertTrue(ranges6.equals(replicatedRanges(40, 50, 30, 40, 20, 30)));
-        ranges7 = keyspace4ranges.get(InetAddressAndPort.getByName("127.0.0.7"));
-        assertEquals(collectionSize(ranges7), 3);
-        assertTrue(ranges7.equals(replicatedRanges(40, 50, 30, 40, 50, 67)));
-        ranges8 = keyspace4ranges.get(InetAddressAndPort.getByName("127.0.0.8"));
-        assertEquals(collectionSize(ranges8), 3);
-        assertTrue(ranges8.equals(replicatedRanges(40, 50, 50, 67, 67, 70)));
-        ranges9 = keyspace4ranges.get(InetAddressAndPort.getByName("127.0.0.9"));
-        assertEquals(collectionSize(ranges9), 3);
-        assertTrue(ranges9.equals(replicatedRanges(70, 87, 50, 67, 67, 70)));
-        ranges10 = keyspace4ranges.get(InetAddressAndPort.getByName("127.0.0.10"));
-        assertEquals(collectionSize(ranges10), 3);
-        assertTrue(ranges10.equals(replicatedRanges(70, 87, 87, 97, 67, 70)));
+        Multimap<InetAddressAndPort, Replica> keyspace4ranges = keyspaceStrategyMap.get(Simple_RF3_KeyspaceName).getAddressReplicas();
+
+        assertRanges(keyspace3ranges, "127.0.0.1", 97, 0, 70, 87, 87, 97);
+        assertRanges(keyspace3ranges, "127.0.0.2", 97, 0, 87, 97, 0, 10);
+        assertRanges(keyspace3ranges, "127.0.0.3", 97, 0, 0, 10, 10, 20);
+        assertRanges(keyspace3ranges, "127.0.0.4", 20, 30, 0, 10, 10, 20);
+        assertRanges(keyspace3ranges, "127.0.0.5", 30, 40, 20, 30, 10, 20);
+        assertRanges(keyspace3ranges, "127.0.0.6", 40, 50, 30, 40, 20, 30);
+        assertRanges(keyspace3ranges, "127.0.0.7", 40, 50, 30, 40, 50, 67);
+        assertRanges(keyspace3ranges, "127.0.0.8", 40, 50, 50, 67, 67, 70);
+        assertRanges(keyspace3ranges, "127.0.0.9", 70, 87, 50, 67, 67, 70);
+        assertRanges(keyspace3ranges, "127.0.0.10", 70, 87, 87, 97, 67, 70);
 
         // pre-calculate the results.
         Map<String, Multimap<Token, InetAddressAndPort>> expectedEndpoints = new HashMap<>();
@@ -1036,7 +977,7 @@ public class MoveTest
         return new BigIntegerToken(String.valueOf(10 * position + 7));
     }
 
-    private int collectionSize(Collection<?> collection)
+    private static int collectionSize(Collection<?> collection)
     {
         if (collection.isEmpty())
             return 0;
@@ -1078,34 +1019,41 @@ public class MoveTest
         return new Range<Token>(tk(left), tk(right));
     }
 
-    private static ReplicatedRange replicatedRange(int left, int right, boolean full)
+    private static Replica replica(InetAddressAndPort endpoint, int left, int right, boolean full)
     {
-        return new ReplicatedRange(tk(left), tk(right), full);
+        return new Replica(endpoint, tk(left), tk(right), full);
     }
 
-    private static ReplicatedRange replicatedRange(int left, int right)
+    private static InetAddressAndPort inet(String name)
     {
-        return replicatedRange(left, right, true);
+        try
+        {
+            return InetAddressAndPort.getByName(name);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 
-    private Collection<ReplicatedRange> replicatedRanges(boolean full, int... rangePairs)
+    private static Replica replica(InetAddressAndPort endpoint, int left, int right)
+    {
+        return replica(endpoint, left, right, true);
+    }
+
+    private static void assertRanges(Multimap<InetAddressAndPort, Replica> epReplicas, String endpoint, int... rangePairs)
     {
         if (rangePairs.length % 2 == 1)
-            throw new RuntimeException("generateRanges argument count should be even");
+            throw new RuntimeException("assertRanges argument count should be even");
 
-        Set<ReplicatedRange> ranges = new HashSet<>();
-
-        for (int i = 0; i < rangePairs.length; i+=2)
+        InetAddressAndPort ep = inet(endpoint);
+        List<Replica> expected = new ArrayList<>(rangePairs.length/2);
+        for (int i=0; i<rangePairs.length; i+=2)
         {
-            ranges.add(replicatedRange(rangePairs[i], rangePairs[i+1], full));
+            expected.add(replica(ep, rangePairs[i], rangePairs[i+1]));
         }
 
-        return ranges;
+        Collection<Replica> actual = epReplicas.get(ep);
+        assertEquals(expected, actual);
     }
-
-    private Collection<ReplicatedRange> replicatedRanges(int... rangePairs)
-    {
-        return replicatedRanges(true, rangePairs);
-    }
-
 }
