@@ -1,4 +1,5 @@
 4.0-beta2
+ * Improve cassandra-stress logging when using a profile file that doesn't exist (CASSANDRA-14425)
  * Improve logging for socket connection/disconnection (CASSANDRA-15980)
  * Throw FSWriteError upon write failures in order to apply DiskFailurePolicy (CASSANDRA-15928)
  * Forbid altering UDTs used in partition keys (CASSANDRA-15933)
