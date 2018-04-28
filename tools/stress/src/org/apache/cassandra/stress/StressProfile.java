@@ -543,7 +543,7 @@ public class StressProfile implements Serializable
 
                         //Put PK predicates at the end
                         sb.append(pred);
-                        if (insert.containsKey("condition"))
+                        if (insert != null && insert.containsKey("condition"))
                         {
                             sb.append(" " + insert.get("condition"));
                             insert.remove("condition");
