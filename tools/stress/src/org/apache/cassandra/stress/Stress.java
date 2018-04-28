@@ -93,8 +93,7 @@ public final class Stress
             	Throwable rc = ExceptionUtils.getRootCause(e);
             	if (rc instanceof FileNotFoundException)
             	{
-            		e.printStackTrace();
-                    System.out.printf("File '%s' doesn't exist!!%n", rc.getMessage());
+                    System.out.printf("File '%s' doesn't exist!%n", rc.getMessage());
                     printHelpMessage();
                     return 1;
             	}

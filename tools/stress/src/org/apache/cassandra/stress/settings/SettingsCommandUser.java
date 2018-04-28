@@ -81,7 +81,7 @@ public class SettingsCommandUser extends SettingsCommand
             	yamlURI = URI.create(curYamlPath);
             	String uriScheme = yamlURI.getScheme();
             	if (uriScheme == null || "file".equals(uriScheme)) {
-                    throw new IllegalArgumentException("File '" + yamlURI.getPath() + "' doesn't exist.");
+                    throw new IllegalArgumentException("File '" + yamlURI.getPath() + "' doesn't exist!");
             	}
             }
             StressProfile profile = StressProfile.load(yamlURI);
