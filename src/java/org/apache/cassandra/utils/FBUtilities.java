@@ -34,11 +34,12 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -65,8 +66,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.AsyncOneResponse;
 
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.map.ObjectMapper;
+
 
 public class FBUtilities
 {

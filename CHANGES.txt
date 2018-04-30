@@ -1,4 +1,5 @@
 4.0
+ * Bump jackson version to >= 2.9.5 (CASSANDRA-14427)
  * Allow nodetool toppartitions without specifying table (CASSANDRA-14360)
  * Audit logging for database activity (CASSANDRA-12151)
  * Clean up build artifacts in docs container (CASSANDRA-14432)
