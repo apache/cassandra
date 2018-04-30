@@ -34,7 +34,6 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.Util.PartitionerSwitcher;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.SystemKeyspace;

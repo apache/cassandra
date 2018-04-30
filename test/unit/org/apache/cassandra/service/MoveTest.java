@@ -24,6 +24,7 @@ import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -754,16 +755,16 @@ public class MoveTest
          */
         Multimap<InetAddressAndPort, Replica> keyspace4ranges = keyspaceStrategyMap.get(Simple_RF3_KeyspaceName).getAddressReplicas();
 
-        assertRanges(keyspace3ranges, "127.0.0.1", 97, 0, 70, 87, 87, 97);
-        assertRanges(keyspace3ranges, "127.0.0.2", 97, 0, 87, 97, 0, 10);
-        assertRanges(keyspace3ranges, "127.0.0.3", 97, 0, 0, 10, 10, 20);
-        assertRanges(keyspace3ranges, "127.0.0.4", 20, 30, 0, 10, 10, 20);
-        assertRanges(keyspace3ranges, "127.0.0.5", 30, 40, 20, 30, 10, 20);
-        assertRanges(keyspace3ranges, "127.0.0.6", 40, 50, 30, 40, 20, 30);
-        assertRanges(keyspace3ranges, "127.0.0.7", 40, 50, 30, 40, 50, 67);
-        assertRanges(keyspace3ranges, "127.0.0.8", 40, 50, 50, 67, 67, 70);
-        assertRanges(keyspace3ranges, "127.0.0.9", 70, 87, 50, 67, 67, 70);
-        assertRanges(keyspace3ranges, "127.0.0.10", 70, 87, 87, 97, 67, 70);
+        assertRanges(keyspace4ranges, "127.0.0.1", 97, 0, 70, 87, 87, 97);
+        assertRanges(keyspace4ranges, "127.0.0.2", 97, 0, 87, 97, 0, 10);
+        assertRanges(keyspace4ranges, "127.0.0.3", 97, 0, 0, 10, 10, 20);
+        assertRanges(keyspace4ranges, "127.0.0.4", 20, 30, 0, 10, 10, 20);
+        assertRanges(keyspace4ranges, "127.0.0.5", 30, 40, 20, 30, 10, 20);
+        assertRanges(keyspace4ranges, "127.0.0.6", 40, 50, 30, 40, 20, 30);
+        assertRanges(keyspace4ranges, "127.0.0.7", 40, 50, 30, 40, 50, 67);
+        assertRanges(keyspace4ranges, "127.0.0.8", 40, 50, 50, 67, 67, 70);
+        assertRanges(keyspace4ranges, "127.0.0.9", 70, 87, 50, 67, 67, 70);
+        assertRanges(keyspace4ranges, "127.0.0.10", 70, 87, 87, 97, 67, 70);
 
         // pre-calculate the results.
         Map<String, Multimap<Token, InetAddressAndPort>> expectedEndpoints = new HashMap<>();
@@ -1047,7 +1048,7 @@ public class MoveTest
             throw new RuntimeException("assertRanges argument count should be even");
 
         InetAddressAndPort ep = inet(endpoint);
-        List<Replica> expected = new ArrayList<>(rangePairs.length/2);
+        Set<Replica> expected = Sets.newHashSetWithExpectedSize(rangePairs.length/2);
         for (int i=0; i<rangePairs.length; i+=2)
         {
             expected.add(replica(ep, rangePairs[i], rangePairs[i+1]));

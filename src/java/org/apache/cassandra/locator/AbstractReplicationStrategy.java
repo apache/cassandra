@@ -22,6 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
@@ -216,8 +217,10 @@ public abstract class AbstractReplicationStrategy
 
         for (Token token : metadata.sortedTokens())
         {
+            Range<Token> range = metadata.getPrimaryRangeFor(token);
             for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
+                Preconditions.checkState(range.equals(replica.getRange()) || this instanceof LocalStrategy);
                 map.put(replica.getEndpoint(), replica);
             }
         }
@@ -234,6 +237,7 @@ public abstract class AbstractReplicationStrategy
             Range<Token> range = metadata.getPrimaryRangeFor(token);
             for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
+                Preconditions.checkState(range.equals(replica.getRange()) || this instanceof LocalStrategy);
                 map.put(range, replica);
             }
         }

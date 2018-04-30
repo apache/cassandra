@@ -24,6 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 
@@ -53,14 +54,16 @@ public class SimpleStrategy extends AbstractReplicationStrategy
             return replicas;
 
         // Add the token at the index by default
+        Token replicaEnd = TokenMetadata.firstToken(tokens, token);
+        Token replicaStart = metadata.getPredecessor(replicaEnd);
+        Range<Token> replicaRange = new Range<>(replicaStart, replicaEnd);
         Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token, false);
         while (replicas.size() < rf.replicas && iter.hasNext())
         {
             Token tk = iter.next();
-            Token prev = metadata.getPredecessor(tk);
             InetAddressAndPort ep = metadata.getEndpoint(tk);
-            if (!replicas.contains(ep))
-                replicas.add(new Replica(ep, prev, tk, replicas.size() < rf.full));
+            if (!Replicas.containsEndpoint(replicas, ep))
+                replicas.add(new Replica(ep, replicaRange, replicas.size() < rf.full));
         }
         return replicas;
     }
