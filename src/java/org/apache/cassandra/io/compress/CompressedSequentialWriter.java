@@ -132,7 +132,7 @@ public class CompressedSequentialWriter extends SequentialWriter
             // write corresponding checksum
             compressed.rewind();
             crcMetadata.appendDirect(compressed, true);
-            lastFlushOffset += compressedLength + 4;
+            lastFlushOffset = uncompressedSize;
         }
         catch (IOException e)
         {
@@ -236,8 +236,21 @@ public class CompressedSequentialWriter extends SequentialWriter
         chunkCount = realMark.nextChunkIndex - 1;
 
         // truncate data and index file
-        truncate(chunkOffset);
+        truncate(chunkOffset, bufferOffset);
         metadataWriter.resetAndTruncate(realMark.nextChunkIndex - 1);
+    }
+
+    private void truncate(long toFileSize, long toBufferOffset)
+    {
+        try
+        {
+            fchannel.truncate(toFileSize);
+            lastFlushOffset = toBufferOffset;
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, getPath());
+        }
     }
 
     /**
