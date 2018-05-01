@@ -2866,7 +2866,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (Range<Token> range : ranges)
         {
             Collection<Replica> newReplicaEndpoints = Keyspace.open(keyspaceName).getReplicationStrategy().calculateNaturalReplicas(range.right, temp);
-            Replicas.removeAll(newReplicaEndpoints, currentReplicaEndpoints.get(range));
+            Replicas.removeEndpoints(newReplicaEndpoints, currentReplicaEndpoints.get(range));
             if (logger.isDebugEnabled())
                 if (newReplicaEndpoints.isEmpty())
                     logger.debug("Range {} already in all replicas", range);
@@ -4275,7 +4275,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                     //So we need to be careful to only be strict when endpoints == RF
                                     if (oldEndpoints.size() == strategy.getReplicationFactor().replicas)
                                     {
-                                        Replicas.removeAll(oldEndpoints, newEndpoints);
+                                        Replicas.removeEndpoints(oldEndpoints, newEndpoints);
 
                                         //No relocation required
                                         if (oldEndpoints.isEmpty())

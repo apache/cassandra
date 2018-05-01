@@ -191,11 +191,17 @@ public class Replicas
         replicas.removeIf(r -> r.getEndpoint().equals(toRemove));
     }
 
-    public static void removeAll(Collection<Replica> replicas, Collection<Replica> toRemove)
+    /**
+     * Remove by endpoint. Ranges are ignored when determining what to remove
+     */
+    public static void removeEndpoints(Collection<Replica> replicas, Collection<Replica> toRemove)
     {
         if (Iterables.all(replicas, Replica::isFull) && Iterables.all(toRemove, Replica::isFull))
         {
-            replicas.removeAll(toRemove);
+            for (Replica remove: toRemove)
+            {
+                removeEndpoint(replicas, remove.getEndpoint());
+            }
         }
         else
         {

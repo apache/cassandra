@@ -198,7 +198,6 @@ public class RangeStreamer
         for (Map.Entry<Range<Token>, Replica> entry : rangesForKeyspace.entries())
             logger.info("{}: range {} exists on {} for keyspace {}", description, entry.getKey(), entry.getValue(), keyspaceName);
 
-        // TODO: TRANS - add support for transient replication
         AbstractReplicationStrategy strat = Keyspace.open(keyspaceName).getReplicationStrategy();
         Multimap<InetAddressAndPort, Range<Token>> rangeFetchMap = useStrictSource || strat == null || strat.getReplicationFactor().replicas == 1
                                                             ? getRangeFetchMap(rangesForKeyspace, sourceFilters, keyspaceName, useStrictConsistency)
@@ -295,7 +294,7 @@ public class RangeStreamer
                     // So we need to be careful to only be strict when endpoints == RF
                     if (oldEndpoints.size() == strat.getReplicationFactor().replicas)
                     {
-                        Replicas.removeAll(oldEndpoints, newEndpoints);
+                        Replicas.removeEndpoints(oldEndpoints, newEndpoints);
                         assert oldEndpoints.size() == 1 : "Expected 1 endpoint but found " + oldEndpoints.size();
                     }
 

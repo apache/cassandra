@@ -200,7 +200,6 @@ public class SimpleStrategyTest
         return new Range<>(tk(l), tk(r));
     }
 
-
     @Test
     public void transientReplica() throws Exception
     {
@@ -223,18 +222,17 @@ public class SimpleStrategyTest
         Map<String, String> configOptions = new HashMap<String, String>();
         configOptions.put("replication_factor", "3/1");
 
-        // Set the localhost to the tokenmetadata. Embedded cassandra way?
         SimpleStrategy strategy = new SimpleStrategy("ks", metadata, snitch, configOptions);
 
         Assert.assertEquals(Lists.newArrayList(full(endpoints.get(0), range(400, 100)),
-                                               full(endpoints.get(1), range(100, 200)),
-                                               trans(endpoints.get(2), range(200, 300))),
+                                               full(endpoints.get(1), range(400, 100)),
+                                               trans(endpoints.get(2), range(400, 100))),
                             strategy.getNaturalReplicas(tk(99)));
 
 
         Assert.assertEquals(Lists.newArrayList(full(endpoints.get(1), range(100, 200)),
-                                               full(endpoints.get(2), range(200, 300)),
-                                               trans(endpoints.get(3), range(300, 400))),
+                                               full(endpoints.get(2), range(100, 200)),
+                                               trans(endpoints.get(3), range(100, 200))),
                             strategy.getNaturalReplicas(tk(101)));
     }
 
