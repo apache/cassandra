@@ -23,7 +23,7 @@ import java.io.IOException;
 
 import org.junit.BeforeClass;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.db.ColumnFamilyStore;

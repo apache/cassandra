@@ -24,7 +24,7 @@ import java.io.DataOutputStream;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.junit.Test;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 
 public class VIntCodingTest
 {

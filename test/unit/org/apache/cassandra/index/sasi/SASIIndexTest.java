@@ -75,7 +75,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 
 import org.junit.*;
 
@@ -1819,18 +1819,18 @@ public class SASIIndexTest
 
         UntypedResultSet.Row row1 = iterator.next();
         Assert.assertEquals(20160401L, row1.getLong("date"));
-        Assert.assertEquals(24.46, row1.getDouble("value"));
+        Assert.assertEquals(24.46, row1.getDouble("value"), 0.0);
         Assert.assertEquals(2, row1.getInt("variance"));
 
 
         UntypedResultSet.Row row2 = iterator.next();
         Assert.assertEquals(20160402L, row2.getLong("date"));
-        Assert.assertEquals(25.62, row2.getDouble("value"));
+        Assert.assertEquals(25.62, row2.getDouble("value"), 0.0);
         Assert.assertEquals(5, row2.getInt("variance"));
 
         UntypedResultSet.Row row3 = iterator.next();
         Assert.assertEquals(20160403L, row3.getLong("date"));
-        Assert.assertEquals(24.96, row3.getDouble("value"));
+        Assert.assertEquals(24.96, row3.getDouble("value"), 0.0);
         Assert.assertEquals(4, row3.getInt("variance"));
 
 
@@ -1842,7 +1842,7 @@ public class SASIIndexTest
 
         row1 = results.one();
         Assert.assertEquals(20160402L, row1.getLong("date"));
-        Assert.assertEquals(1.04, row1.getDouble("value"));
+        Assert.assertEquals(1.04, row1.getDouble("value"), 0.0);
         Assert.assertEquals(7, row1.getInt("variance"));
 
         // Only non statc columns filtering
@@ -1855,26 +1855,26 @@ public class SASIIndexTest
         row1 = iterator.next();
         Assert.assertEquals("TEMPERATURE", row1.getString("sensor_type"));
         Assert.assertEquals(20160401L, row1.getLong("date"));
-        Assert.assertEquals(24.46, row1.getDouble("value"));
+        Assert.assertEquals(24.46, row1.getDouble("value"), 0.0);
         Assert.assertEquals(2, row1.getInt("variance"));
 
 
         row2 = iterator.next();
         Assert.assertEquals("TEMPERATURE", row2.getString("sensor_type"));
         Assert.assertEquals(20160402L, row2.getLong("date"));
-        Assert.assertEquals(25.62, row2.getDouble("value"));
+        Assert.assertEquals(25.62, row2.getDouble("value"), 0.0);
         Assert.assertEquals(5, row2.getInt("variance"));
 
         row3 = iterator.next();
         Assert.assertEquals("TEMPERATURE", row3.getString("sensor_type"));
         Assert.assertEquals(20160403L, row3.getLong("date"));
-        Assert.assertEquals(24.96, row3.getDouble("value"));
+        Assert.assertEquals(24.96, row3.getDouble("value"), 0.0);
         Assert.assertEquals(4, row3.getInt("variance"));
 
         UntypedResultSet.Row row4 = iterator.next();
         Assert.assertEquals("PRESSURE", row4.getString("sensor_type"));
         Assert.assertEquals(20160402L, row4.getLong("date"));
-        Assert.assertEquals(1.04, row4.getDouble("value"));
+        Assert.assertEquals(1.04, row4.getDouble("value"), 0.0);
         Assert.assertEquals(7, row4.getInt("variance"));
     }
 
