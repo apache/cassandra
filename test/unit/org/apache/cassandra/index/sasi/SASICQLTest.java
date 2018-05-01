@@ -27,7 +27,7 @@ import org.junit.Test;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.apache.cassandra.cql3.CQLTester;
 
 public class SASICQLTest extends CQLTester

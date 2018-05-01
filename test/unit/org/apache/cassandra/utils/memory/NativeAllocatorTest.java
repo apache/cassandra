@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class NativeAllocatorTest

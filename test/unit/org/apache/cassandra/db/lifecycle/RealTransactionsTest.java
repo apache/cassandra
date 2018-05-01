@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Schema;

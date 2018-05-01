@@ -32,7 +32,7 @@ import org.junit.After;
 import org.junit.Test;
 
 import io.netty.channel.embedded.EmbeddedChannel;
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
