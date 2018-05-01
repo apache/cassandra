@@ -1,8 +1,9 @@
 4.0
- * minor network authz improvements (Cassandra-14413)
+ * Clean up build artifacts in docs container (CASSANDRA-14432)
+ * Minor network authz improvements (Cassandra-14413)
  * Automatic sstable upgrades (CASSANDRA-14197)
  * Replace deprecated junit.framework.Assert usages with org.junit.Assert (CASSANDRA-14431)
- * cassandra-stress throws NPE if insert section isn't specified in user profile (CASSSANDRA-14426)
+ * Cassandra-stress throws NPE if insert section isn't specified in user profile (CASSSANDRA-14426)
  * List clients by protocol versions `nodetool clientstats --by-protocol` (CASSANDRA-14335)
  * Improve LatencyMetrics performance by reducing write path processing (CASSANDRA-14281)
  * Add network authz (CASSANDRA-13985)
