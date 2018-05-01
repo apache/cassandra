@@ -121,7 +121,7 @@ public class CassandraKeyspaceLimitProvider
 
     public Map<String, KeyspaceLimits> getKeyspaceLimits() throws RequestExecutionException, RequestValidationException
     {
-        ResultMessage.Rows rows = selectStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(ConsistencyLevel.ONE, null), Dispatcher.RequestTime.forImmediateExecution());
+        ResultMessage.Rows rows = selectStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE, null), Dispatcher.RequestTime.forImmediateExecution());
         UntypedResultSet result = UntypedResultSet.create(rows.result);
         Map<String, KeyspaceLimits> map = new ConcurrentHashMap<>();
         for (UntypedResultSet.Row row : result)
