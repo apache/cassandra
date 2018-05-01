@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -34,9 +36,48 @@ public class ClientStats extends NodeToolCmd
     @Option(title = "list_connections", name = "--all", description = "Lists all connections")
     private boolean listConnections = false;
 
+    @Option(title = "by_protocol", name = "--by-protocol", description = "Lists last 100 client connections with oldest protocol version")
+    private boolean oldestProtocolConnections = false;
+
+    @Option(title = "clear_history", name = "--clear-history", description = "Clear the history of connected clients")
+    private boolean clearConnectionHistory = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
+        if (clearConnectionHistory)
+        {
+            System.out.println("Clearing history");
+            probe.clearConnectionHistory();
+            return;
+        }
+
+        if (oldestProtocolConnections)
+        {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy HH:mm:ss");
+
+            System.out.println("Clients by protocol version");
+            System.out.println("");
+
+            List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("clientsByProtocolVersion");
+
+            if (!clients.isEmpty())
+            {
+                TableBuilder table = new TableBuilder();
+                table.add("Protocol-Version", "IP-Address", "Last-Seen");
+
+                for (Map<String, String> client : clients)
+                {
+                    table.add(client.get("protocolVersion"), client.get("inetAddress"), sdf.format(new Date(Long.valueOf(client.get("lastSeenTime")))));
+                }
+
+                table.printTo(System.out);
+                System.out.println();
+            }
+
+            return;
+        }
+
         if (listConnections)
         {
             List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("connections");

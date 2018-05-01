@@ -672,4 +672,8 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return true if the node successfully starts resuming. (this does not mean bootstrap streaming was success.)
      */
     public boolean resumeBootstrap();
+
+
+    /** Clears the history of clients that have connected in the past **/
+    void clearConnectionHistory();
 }
