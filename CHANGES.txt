@@ -1,9 +1,10 @@
 4.0
  * Replace deprecated junit.framework.Assert usages with org.junit.Assert (CASSANDRA-14431)
  * cassandra-stress throws NPE if insert section isn't specified in user profile (CASSSANDRA-14426)
+ * List clients by protocol versions `nodetool clientstats --by-protocol` (CASSANDRA-14335)
  * Improve LatencyMetrics performance by reducing write path processing (CASSANDRA-14281)
  * Add network authz (CASSANDRA-13985)
- * Use the correct IP/Port for Streaming when localAddress is left unbound (CASSANDAR-14389)
+ * Use the correct IP/Port for Streaming when localAddress is left unbound (CASSANDRA-14389)
  * nodetool listsnapshots is missing local system keyspace snapshots (CASSANDRA-14381)
  * Remove StreamCoordinator.streamExecutor thread pool (CASSANDRA-14402)
  * Rename nodetool --with-port to --print-port to disambiguate from --port (CASSANDRA-14392)

@@ -148,6 +148,17 @@ public class NativeTransportService
             }
             return result;
         });
+
+        ClientMetrics.instance.addGauge("clientsByProtocolVersion", () ->
+        {
+            List<Map<String, String>> result = new ArrayList<>();
+            for (Server server : servers)
+            {
+                result.addAll(server.getClientsByProtocolVersion());
+            }
+            return result;
+        });
+
         AuthMetrics.init();
 
         initialized = true;
@@ -224,5 +235,11 @@ public class NativeTransportService
     Collection<Server> getServers()
     {
         return servers;
+    }
+
+    public void clearConnectionHistory()
+    {
+        for (Server server : servers)
+            server.clearConnectionHistory();
     }
 }

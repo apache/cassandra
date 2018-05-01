@@ -1520,6 +1520,7 @@ public class NodeProbe implements AutoCloseable
                 case "connections": // List<Map<String,String>> - list of all native connections and their properties
                 case "connectedNativeClients": // number of connected native clients
                 case "connectedNativeClientsByUser": // number of native clients by username
+                case "clientsByProtocolVersion": // number of native clients by username
                     return JMX.newMBeanProxy(mbeanServerConn,
                             new ObjectName("org.apache.cassandra.metrics:type=Client,name=" + metricName),
                             CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
@@ -1667,6 +1668,11 @@ public class NodeProbe implements AutoCloseable
     public void reloadSslCerts()
     {
         msProxy.reloadSslCertificates();
+    }
+
+    public void clearConnectionHistory()
+    {
+        ssProxy.clearConnectionHistory();
     }
 }
 

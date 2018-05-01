@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
@@ -206,6 +207,32 @@ public class Server implements CassandraDaemon.Server
         return result;
     }
 
+    public List<Map<String, String>> getClientsByProtocolVersion() {
+        LinkedHashMap<ProtocolVersion, ImmutableSet<ProtocolVersionTracker.ClientIPAndTime>> all = connectionTracker.protoTracker.getAll();
+        List<Map<String, String>> result = new ArrayList<>();
+
+        for (Map.Entry<ProtocolVersion, ImmutableSet<ProtocolVersionTracker.ClientIPAndTime>> entry : all.entrySet())
+        {
+            ProtocolVersion protoVersion = entry.getKey();
+
+            for (ProtocolVersionTracker.ClientIPAndTime client : entry.getValue())
+            {
+                result.add(new ImmutableMap.Builder<String, String>()
+                           .put("protocolVersion", protoVersion.toString())
+                           .put("inetAddress", client.inetAddress.toString())
+                           .put("lastSeenTime", String.valueOf(client.lastSeen))
+                           .build());
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public void clearConnectionHistory()
+    {
+        connectionTracker.protoTracker.clear();
+    }
+
     private void close()
     {
         // Close opened connections
@@ -282,6 +309,7 @@ public class Server implements CassandraDaemon.Server
         // TODO: should we be using the GlobalEventExecutor or defining our own?
         public final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
         private final EnumMap<Event.Type, ChannelGroup> groups = new EnumMap<>(Event.Type.class);
+        private final ProtocolVersionTracker protoTracker = new ProtocolVersionTracker();
 
         public ConnectionTracker()
         {
@@ -292,6 +320,9 @@ public class Server implements CassandraDaemon.Server
         public void addConnection(Channel ch, Connection connection)
         {
             allChannels.add(ch);
+
+            if (ch.remoteAddress() instanceof InetSocketAddress)
+                protoTracker.addConnection(((InetSocketAddress) ch.remoteAddress()).getAddress(), connection.getVersion());
         }
 
         public void register(Event.Type type, Channel ch)
@@ -334,6 +365,7 @@ public class Server implements CassandraDaemon.Server
             }
             return result;
         }
+
     }
 
     private static class Initializer extends ChannelInitializer<Channel>

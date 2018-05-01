@@ -5380,4 +5380,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setHintedHandoffThrottleInKB(throttleInKB);
         logger.info("Updated hinted_handoff_throttle_in_kb to {}", throttleInKB);
     }
+
+    @Override
+    public void clearConnectionHistory()
+    {
+        daemon.clearConnectionHistory();
+        logger.info("Cleared connection history");
+    }
 }
