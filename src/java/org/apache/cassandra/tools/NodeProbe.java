@@ -89,6 +89,7 @@ import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 
 import com.google.common.base.Function;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
@@ -418,21 +419,27 @@ public class NodeProbe implements AutoCloseable
             }
         }
     }
+    public Map<String, Map<String, CompositeData>> getPartitionSample(int capacity, int duration, int count, List<String> samplers) throws OpenDataException
+    {
+        return ssProxy.samplePartitions(duration, capacity, count, samplers);
+    }
 
-    public Map<Sampler, CompositeData> getPartitionSample(String ks, String cf, int capacity, int duration, int count, List<Sampler> samplers) throws OpenDataException
+    public Map<String, Map<String, CompositeData>> getPartitionSample(String ks, String cf, int capacity, int duration, int count, List<String> samplers) throws OpenDataException
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(ks, cf);
-        for(Sampler sampler : samplers)
+        for(String sampler : samplers)
         {
-            cfsProxy.beginLocalSampling(sampler.name(), capacity);
+            cfsProxy.beginLocalSampling(sampler, capacity);
         }
         Uninterruptibles.sleepUninterruptibly(duration, TimeUnit.MILLISECONDS);
-        Map<Sampler, CompositeData> result = Maps.newHashMap();
-        for(Sampler sampler : samplers)
+        Map<String, CompositeData> result = Maps.newHashMap();
+        for(String sampler : samplers)
         {
-            result.put(sampler, cfsProxy.finishLocalSampling(sampler.name(), count));
+            result.put(sampler, cfsProxy.finishLocalSampling(sampler, count));
         }
-        return result;
+        return new ImmutableMap.Builder<String, Map<String, CompositeData>>()
+                .put(ks + "." + cf, result)
+                .build();
     }
 
     public void invalidateCounterCache()
