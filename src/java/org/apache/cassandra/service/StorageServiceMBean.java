@@ -27,9 +27,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
 import javax.management.NotificationEmitter;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.TableMetrics.Sampler;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -627,6 +630,8 @@ public interface StorageServiceMBean extends NotificationEmitter
      *            disable tracing and 1 will enable tracing for all requests (which mich severely cripple the system)
      */
     public void setTraceProbability(double probability);
+
+    public Map<String, Map<String, CompositeData>> samplePartitions(long duration, int capacity, int count, List<String> samplers) throws OpenDataException;
 
     /**
      * Returns the configured tracing probability.
