@@ -129,6 +129,4 @@ public interface MessagingServiceMBean
     public boolean isBackPressureEnabled();
 
     public int getVersion(String address) throws UnknownHostException;
-
-    void reloadSslCertificates();
 }

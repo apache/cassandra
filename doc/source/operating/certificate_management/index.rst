@@ -16,25 +16,12 @@
 
 .. highlight:: none
 
-Operating Cassandra
-===================
+Certificate Handling
+====================
 
 .. toctree::
    :maxdepth: 2
 
-   snitch
-   topo_changes
-   repair
-   read_repair
-   hints
-   compaction
-   bloom_filters
-   compression
-   cdc
-   backups
-   bulk_loading
-   metrics
-   security
-   certificate_management/index
-   hardware
+   integrated
+   vault
 

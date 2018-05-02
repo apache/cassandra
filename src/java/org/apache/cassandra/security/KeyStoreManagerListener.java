@@ -15,16 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.tools;
 
-import io.airlift.airline.Command;
+package org.apache.cassandra.security;
 
-@Command(name = "reloadssl", description = "Signals Cassandra to reload SSL certificates")
-public class ReloadSslCertificates extends NodeTool.NodeToolCmd
+/**
+ * Listener for {@link KeyStoreManager} events.
+ */
+public interface KeyStoreManagerListener
 {
-    @Override
-    public void execute(NodeProbe probe)
-    {
-        probe.reloadSslCerts();
-    }
+    /**
+     * Signals that certificates in the keystore have been updated.
+     */
+    public void onCertificateUpdate();
 }

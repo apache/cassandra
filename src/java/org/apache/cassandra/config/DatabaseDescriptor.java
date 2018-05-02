@@ -60,10 +60,12 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.net.BackPressureStrategy;
 import org.apache.cassandra.net.RateBasedBackPressure;
+import org.apache.cassandra.security.CertificateIssuer;
 import org.apache.cassandra.security.EncryptionContext;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.vault.VaultAuthenticator;
+import org.apache.cassandra.vault.VaultCertificateIssuer;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -129,6 +131,13 @@ public class DatabaseDescriptor
 
     private static final boolean disableSTCSInL0 = Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_stcs_in_l0");
     private static final boolean unsafeSystem = Boolean.getBoolean(Config.PROPERTY_PREFIX + "unsafesystem");
+
+    private static URI vaultAddress;
+    private static File vaultCertificateFile;
+    private static VaultAuthenticator vaultAuthenticator;
+
+    private static CertificateIssuer serverCertificateIssuer;
+    private static CertificateIssuer clientCertificateIssuer;
 
     public static void daemonInitialization() throws ConfigurationException
     {
@@ -325,8 +334,6 @@ public class DatabaseDescriptor
         applySeedProvider();
 
         applyEncryptionContext();
-
-        applySslContextHotReload();
     }
 
     private static void applySimpleConfig()
@@ -748,6 +755,104 @@ public class DatabaseDescriptor
 
         if (conf.otc_coalescing_enough_coalesced_messages <= 0)
             throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be positive", false);
+
+        if (conf.vault_address != null)
+        {
+            try
+            {
+                vaultAddress = new URI(conf.vault_address);
+            }
+            catch (URISyntaxException e)
+            {
+                throw new ConfigurationException("Invalid vault_address URL", e);
+            }
+
+            if (conf.vault_authenticator == null)
+                throw new ConfigurationException("Missing vault_authenticator setting");
+        }
+
+        if (conf.vault_authenticator != null)
+        {
+            try
+            {
+                ParameterizedClass strategy = conf.vault_authenticator;
+                Class<?> clazz = Class.forName(strategy.class_name);
+                if (!VaultAuthenticator.class.isAssignableFrom(clazz))
+                    throw new ConfigurationException(strategy + " is not an instance of " + VaultAuthenticator.class.getCanonicalName(), false);
+
+                Constructor<?> ctor = clazz.getConstructor(Map.class);
+                VaultAuthenticator instance = (VaultAuthenticator) ctor.newInstance(strategy.parameters);
+                logger.info("Using Vault authenticator: {}", conf.vault_authenticator);
+                vaultAuthenticator = instance;
+            }
+            catch (ConfigurationException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new ConfigurationException("Error configuring vault_authenticator: " + conf.vault_authenticator, ex);
+            }
+        }
+
+        if (conf.vault_cert_file != null)
+        {
+            vaultCertificateFile = new File(conf.vault_cert_file);
+            if (!vaultCertificateFile.isFile() || !vaultCertificateFile.canRead())
+                throw new ConfigurationException("Unable to read certificate file: " + vaultCertificateFile.getAbsolutePath());
+        }
+
+        if (conf.server_certificate_issuer != null)
+        {
+            if (conf.server_encryption_options.internode_encryption == EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none)
+                throw new ConfigurationException("Server encryption must be enabled in order to use a server certificate issuer");
+            try
+            {
+                ParameterizedClass issuer = conf.server_certificate_issuer;
+                Class<?> clazz = Class.forName(issuer.class_name);
+                if (VaultCertificateIssuer.class.isAssignableFrom(clazz) && conf.vault_authenticator == null)
+                    throw new ConfigurationException("Vault authenticator must be configured when using VaultCertificateIssuer");
+
+                Constructor<?> ctor = clazz.getConstructor(Map.class);
+                CertificateIssuer instance = (CertificateIssuer) ctor.newInstance(issuer.parameters);
+                logger.info("Using server certificate issuer: {}", conf.server_certificate_issuer);
+                serverCertificateIssuer = instance;
+            }
+            catch (ConfigurationException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new ConfigurationException("Error configuring server_certificate_issuer: " + conf.server_certificate_issuer, ex);
+            }
+        }
+
+        if (conf.client_certificate_issuer != null)
+        {
+            if (!conf.client_encryption_options.enabled)
+                throw new ConfigurationException("Client encryption must be enabled in order to use a client certificate issuer");
+            try
+            {
+                ParameterizedClass issuer = conf.client_certificate_issuer;
+                Class<?> clazz = Class.forName(issuer.class_name);
+                if (VaultCertificateIssuer.class.isAssignableFrom(clazz) && conf.vault_authenticator == null)
+                    throw new ConfigurationException("Vault authenticator must be configured when using VaultCertificateIssuer");
+
+                Constructor<?> ctor = clazz.getConstructor(Map.class);
+                CertificateIssuer instance = (CertificateIssuer) ctor.newInstance(issuer.parameters);
+                logger.info("Using client certificate issuer: {}", conf.client_certificate_issuer);
+                clientCertificateIssuer = instance;
+            }
+            catch (ConfigurationException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new ConfigurationException("Error configuring client_certificate_issuer: " + conf.client_certificate_issuer, ex);
+            }
+        }
     }
 
     private static String storagedirFor(String type)
@@ -868,11 +973,6 @@ public class DatabaseDescriptor
         // always attempt to load the cipher factory, as we could be in the situation where the user has disabled encryption,
         // but has existing commitlogs and sstables on disk that are still encrypted (and still need to be read)
         encryptionContext = new EncryptionContext(conf.transparent_data_encryption_options);
-    }
-
-    public static void applySslContextHotReload()
-    {
-        SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
     }
 
     public static void applySeedProvider()
@@ -2532,7 +2632,17 @@ public class DatabaseDescriptor
 
     public static String getFullQueryLogPath()
     {
-        return  conf.full_query_log_dir;
+        return conf.full_query_log_dir;
+    }
+
+    public static URI getVaultAddress()
+    {
+        return vaultAddress;
+    }
+
+    public static File getVaultCertificateFile()
+    {
+        return vaultCertificateFile;
     }
 
     public static int getBlockForPeersPercentage()
@@ -2543,5 +2653,20 @@ public class DatabaseDescriptor
     public static int getBlockForPeersTimeoutInSeconds()
     {
         return conf.block_for_peers_timeout_in_secs;
+    }
+
+    public static VaultAuthenticator getVaultAuthenticator()
+    {
+        return vaultAuthenticator;
+    }
+
+    public static CertificateIssuer getServerCertificateIssuer()
+    {
+        return serverCertificateIssuer;
+    }
+
+    public static CertificateIssuer getClientCertificateIssuer()
+    {
+        return clientCertificateIssuer;
     }
 }

@@ -18,12 +18,12 @@
 */
 package org.apache.cassandra.security;
 
-import java.io.File;
 import java.io.IOException;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
 import javax.net.ssl.TrustManagerFactory;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,7 +39,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 
-import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class SSLFactoryTest
 {
@@ -65,23 +66,17 @@ public class SSLFactoryTest
     public void setup()
     {
         encryptionOptions = new ServerEncryptionOptions();
+        encryptionOptions.enabled = true;
         encryptionOptions.truststore = "test/conf/cassandra_ssl_test.truststore";
         encryptionOptions.truststore_password = "cassandra";
         encryptionOptions.require_client_auth = false;
         encryptionOptions.cipher_suites = new String[] {"TLS_RSA_WITH_AES_128_CBC_SHA"};
-
-        SSLFactory.checkedExpiry = false;
     }
 
-    @Test
-    public void testFilterCipherSuites()
+    @After
+    public void tearDown()
     {
-        String[] supported = new String[] {"x", "b", "c", "f"};
-        String[] desired = new String[] { "k", "a", "b", "c" };
-        assertArrayEquals(new String[] { "b", "c" }, SSLFactory.filterCipherSuites(supported, desired));
-
-        desired = new String[] { "c", "b", "x" };
-        assertArrayEquals(desired, SSLFactory.filterCipherSuites(supported, desired));
+        KeyStoreManager.shutdown();
     }
 
     @Test
@@ -95,6 +90,7 @@ public class SSLFactoryTest
         }
 
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
+        KeyStoreManager.instantiate(encryptionOptions, null);
         SslContext sslContext = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
                                                          SSLFactory.SocketType.CLIENT, true);
         Assert.assertNotNull(sslContext);
@@ -105,6 +101,7 @@ public class SSLFactoryTest
     public void getSslContext_JdkSsl() throws IOException
     {
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
+        KeyStoreManager.instantiate(encryptionOptions, null);
         SslContext sslContext = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
                                                          SSLFactory.SocketType.CLIENT, false);
         Assert.assertNotNull(sslContext);
@@ -140,63 +137,46 @@ public class SSLFactoryTest
         Assert.assertNotNull(trustManagerFactory);
     }
 
-    @Test(expected = IOException.class)
+    @Test
     public void buildKeyManagerFactory_NoFile() throws IOException
     {
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
         options.keystore = "/this/is/probably/not/a/file/on/your/test/machine";
-        SSLFactory.buildKeyManagerFactory(options);
+        try
+        {
+            KeyStoreManager.instantiate(encryptionOptions, null);
+            fail("Exception expected");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().contains("Keystore not found or unreadable"));
+        }
+        SSLFactory.buildKeyManagerFactory(options, true);
     }
 
-    @Test(expected = IOException.class)
+    @Test
     public void buildKeyManagerFactory_BadPassword() throws IOException
     {
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
         encryptionOptions.keystore_password = "HomeOfBadPasswords";
-        SSLFactory.buildKeyManagerFactory(options);
+        try
+        {
+            KeyStoreManager.instantiate(encryptionOptions, null);
+            fail("Exception expected");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().contains("Keystore was tampered with, or password was incorrect"));
+        }
+        SSLFactory.buildKeyManagerFactory(options, true);
     }
 
     @Test
     public void buildKeyManagerFactory_HappyPath() throws IOException
     {
-        Assert.assertFalse(SSLFactory.checkedExpiry);
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
-        SSLFactory.buildKeyManagerFactory(options);
-        Assert.assertTrue(SSLFactory.checkedExpiry);
-    }
-
-    @Test
-    public void testSslContextReload_HappyPath() throws IOException, InterruptedException
-    {
-        try
-        {
-            EncryptionOptions options = addKeystoreOptions(encryptionOptions);
-            options.enabled = true;
-
-            SSLFactory.initHotReloading((ServerEncryptionOptions) options, options, true);
-
-            SslContext oldCtx = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
-                                                         SSLFactory.SocketType.CLIENT, OpenSsl.isAvailable());
-            File keystoreFile = new File(options.keystore);
-
-            SSLFactory.checkCertFilesForHotReloading();
-            Thread.sleep(5000);
-            keystoreFile.setLastModified(System.currentTimeMillis());
-
-            SSLFactory.checkCertFilesForHotReloading();
-            SslContext newCtx = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
-                                                         SSLFactory.SocketType.CLIENT, OpenSsl.isAvailable());
-
-            Assert.assertNotSame(oldCtx, newCtx);
-        }
-        catch (Exception e)
-        {
-            throw e;
-        }
-        finally
-        {
-            DatabaseDescriptor.loadConfig();
-        }
+        KeyStoreManager.instantiate(encryptionOptions, null);
+        SSLFactory.buildKeyManagerFactory(options, true);
     }
 
     @Test
