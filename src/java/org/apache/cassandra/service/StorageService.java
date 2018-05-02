@@ -5223,23 +5223,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return sampledKeys;
     }
 
-    public Map<String, Map<Sampler, CompositeData>> samplePartitions(long duration, int capacity, int count,
-            List<Sampler> samplers) throws OpenDataException
+    /*
+     * little hard to parse for JMX MBean requirements, but the output looks something like:
+     *
+     *  {"keyspace.table":
+     *    {"SAMPLER": [{cardinality:i partitions: [{raw:"", string:"", count:i, error:i}, ...]}, ...]}
+     *  }
+     */
+    @Override
+    public Map<String, Map<String, CompositeData>> samplePartitions(long duration, int capacity, int count,
+            List<String> samplers) throws OpenDataException
     {
-        for (Sampler sampler : samplers)
+        for (String sampler : samplers)
+        {
             for (ColumnFamilyStore table : ColumnFamilyStore.all())
             {
-                table.beginLocalSampling(sampler.toString(), capacity);
+                table.beginLocalSampling(sampler, capacity);
             }
+        }
         Uninterruptibles.sleepUninterruptibly(duration, TimeUnit.MILLISECONDS);
-        ConcurrentHashMap<String, Map<Sampler, CompositeData>> result = new ConcurrentHashMap<>();
-        for (Sampler sampler : samplers)
+        ConcurrentHashMap<String, Map<String, CompositeData>> result = new ConcurrentHashMap<>();
+        for (String sampler : samplers)
             for (ColumnFamilyStore table : ColumnFamilyStore.all())
             {
                 String name = table.keyspace.getName() + "." + table.name;
-                Map<Sampler, CompositeData> topk = result.computeIfAbsent(name,
-                        x -> new HashMap<Sampler, CompositeData>());
-                topk.put(sampler, table.finishLocalSampling(sampler.toString(), count));
+                Map<String, CompositeData> topk = result.computeIfAbsent(name, x -> new HashMap<>());
+                topk.put(sampler, table.finishLocalSampling(sampler, count));
             }
         return result;
     }

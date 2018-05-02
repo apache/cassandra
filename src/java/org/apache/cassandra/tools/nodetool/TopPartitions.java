@@ -74,19 +74,19 @@ public class TopPartitions extends NodeToolCmd
             duration = Integer.valueOf(args.get(0));
         }
         // generate the list of samplers
-        List<Sampler> targets = Lists.newArrayList();
+        List<String> targets = Lists.newArrayList();
         for (String s : samplers.split(","))
         {
             try
             {
-                targets.add(Sampler.valueOf(s.toUpperCase()));
+                targets.add(Sampler.valueOf(s.toUpperCase()).toString());
             } catch (Exception e)
             {
                 throw new IllegalArgumentException(s + " is not a valid sampler, choose one of: " + join(Sampler.values(), ", "));
             }
         }
 
-        Map<String, Map<Sampler, CompositeData>> results;
+        Map<String, Map<String, CompositeData>> results;
         try
         {
             if (keyspace == null)
@@ -102,16 +102,16 @@ public class TopPartitions extends NodeToolCmd
             throw new RuntimeException(e);
         }
         boolean first = true;
-        for(Sampler sampler : targets)
+        for(String sampler : targets)
         {
             if(!first)
                 System.out.println();
             first = false;
-            System.out.printf(sampler+ " Sampler Top %d partitions:%n", topCount);
+            System.out.printf(sampler + " Sampler Top %d partitions:%n", topCount);
             TableBuilder out = new TableBuilder();
             out.add("\t", "Table", "Partition", "Count", "+/-");
             List<Pair<String, CompositeData>> topk = new ArrayList<>(topCount);
-            for (Entry<String, Map<Sampler, CompositeData>> tableResult : results.entrySet())
+            for (Entry<String, Map<String, CompositeData>> tableResult : results.entrySet())
             {
                 String tableName = tableResult.getKey();
                 CompositeData sampling = tableResult.getValue().get(sampler);

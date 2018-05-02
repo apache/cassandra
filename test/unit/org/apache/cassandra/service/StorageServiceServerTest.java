@@ -23,9 +23,17 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.TabularDataSupport;
 
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -33,12 +41,16 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.WindowsFailedSnapshotTracker;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -169,6 +181,40 @@ public class StorageServiceServerTest
 
         protectedFile.delete();
         protectedDir.delete();
+    }
+
+    @Test
+    public void testTopPartitionsNoArg() throws Exception
+    {
+        BlockingQueue<Map<String, Map<String, CompositeData>>> q = new ArrayBlockingQueue<>(1);
+        ColumnFamilyStore.all();
+        StageManager.getStage(Stage.MISC).execute(() ->
+        {
+            try
+            {
+                q.put(StorageService.instance.samplePartitions(1000, 100, 10, Lists.newArrayList("READS", "WRITES")));
+            }
+            catch (Exception e)
+            {
+                e.printStackTrace();
+            }
+        });
+        SystemKeyspace.persistLocalMetadata();
+        Map<String, Map<String, CompositeData>> result = q.poll(11, TimeUnit.SECONDS);
+        @SuppressWarnings("unchecked")
+        List<CompositeData> cd = (List<CompositeData>) (Object) Lists.newArrayList(((TabularDataSupport) result.get("system.local").get("WRITES").get("partitions")).values());
+        assertEquals(1, cd.size());
+    }
+
+    @Test
+    public void testTopPartitionsSingleTable() throws Exception
+    {
+        ColumnFamilyStore.getIfExists("system", "local").beginLocalSampling("WRITES", 5);
+        SystemKeyspace.persistLocalMetadata();
+        CompositeData result = ColumnFamilyStore.getIfExists("system", "local").finishLocalSampling("WRITES", 5);
+        @SuppressWarnings("unchecked")
+        List<CompositeData> cd = (List<CompositeData>) (Object) Lists.newArrayList(((TabularDataSupport) result.get("partitions")).values());
+        assertEquals(1, cd.size());
     }
 
     @Test

@@ -618,7 +618,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void setTraceProbability(double probability);
 
-    public Map<String, Map<Sampler, CompositeData>> samplePartitions(long duration, int capacity, int count, List<Sampler> samplers) throws OpenDataException;
+    public Map<String, Map<String, CompositeData>> samplePartitions(long duration, int capacity, int count, List<String> samplers) throws OpenDataException;
 
     /**
      * Returns the configured tracing probability.
