@@ -130,7 +130,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
     protected abstract void serializeSelection(DataOutputPlus out, int version) throws IOException;
     protected abstract long selectionSerializedSize(int version);
-    protected abstract Replica decorateEndpoint(InetAddressAndPort endpoint);
+    public abstract Replica decorateEndpoint(InetAddressAndPort endpoint);
 
     public abstract boolean isLimitedToOnePartition();
 

@@ -78,6 +78,10 @@ public class DataResolver extends ResponseResolver
             iters.add(msg.payload.makeIterator(command));
 
             Replica replica = replicaMap.get(msg.from);
+            if (replica == null)
+                replica = command.decorateEndpoint(msg.from);
+            if (replica == null)
+                replica = Replica.fullStandin(msg.from);
 
             sources[i] = replica != null ? replica : Replica.fullStandin(msg.from);
         }

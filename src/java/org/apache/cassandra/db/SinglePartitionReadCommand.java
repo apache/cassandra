@@ -1050,7 +1050,7 @@ public class SinglePartitionReadCommand extends ReadCommand
     }
 
     @Override
-    protected Replica decorateEndpoint(InetAddressAndPort endpoint)
+    public Replica decorateEndpoint(InetAddressAndPort endpoint)
     {
         for (Replica replica: StorageService.instance.getNaturalAndPendingReplicas(metadata().keyspace, partitionKey.getToken()))
         {

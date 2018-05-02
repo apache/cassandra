@@ -420,7 +420,7 @@ public class PartitionRangeReadCommand extends ReadCommand
     }
 
     @Override
-    protected Replica decorateEndpoint(InetAddressAndPort endpoint)
+    public Replica decorateEndpoint(InetAddressAndPort endpoint)
     {
         for (Replica replica: StorageService.instance.getNaturalAndPendingReplicas(metadata().keyspace, dataRange.stopKey().getToken()))
             if (replica.getEndpoint().equals(endpoint))

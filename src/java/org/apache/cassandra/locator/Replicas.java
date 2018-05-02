@@ -69,6 +69,20 @@ public class Replicas
         return endpoints;
     }
 
+    public static List<Replica> listIntersection(List<Replica> l1, List<Replica> l2)
+    {
+        Replicas.checkFull(l1);
+        Replicas.checkFull(l2);
+        // Note: we don't use Guava Sets.intersection() for 3 reasons:
+        //   1) retainAll would be inefficient if l1 and l2 are large but in practice both are the replicas for a range and
+        //   so will be very small (< RF). In that case, retainAll is in fact more efficient.
+        //   2) we do ultimately need a list so converting everything to sets don't make sense
+        //   3) l1 and l2 are sorted by proximity. The use of retainAll  maintain that sorting in the result, while using sets wouldn't.
+        Collection<InetAddressAndPort> endpoints = asEndpointList(l2);
+        l1.removeIf(r -> !endpoints.contains(r.getEndpoint()));
+        return l1;
+    }
+
     public static Iterable<Range<Token>> fullRanges(Collection<Replica> replicas)
     {
         return asRanges(Iterables.filter(replicas, Replica::isFull));

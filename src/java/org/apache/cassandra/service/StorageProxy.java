@@ -1891,18 +1891,6 @@ public class StorageProxy implements StorageProxyMBean
         return liveReplicas;
     }
 
-    private static List<Replica> intersection(List<Replica> l1, List<Replica> l2)
-    {
-        // Note: we don't use Guava Sets.intersection() for 3 reasons:
-        //   1) retainAll would be inefficient if l1 and l2 are large but in practice both are the replicas for a range and
-        //   so will be very small (< RF). In that case, retainAll is in fact more efficient.
-        //   2) we do ultimately need a list so converting everything to sets don't make sense
-        //   3) l1 and l2 are sorted by proximity. The use of retainAll  maintain that sorting in the result, while using sets wouldn't.
-        List<Replica> inter = new ArrayList<>(l1);
-        inter.retainAll(l2);
-        return inter;
-    }
-
     /**
      * Estimate the number of result rows per range in the ring based on our local data.
      * <p>
@@ -2007,7 +1995,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 RangeForQuery next = ranges.peek();
 
-                List<Replica> merged = intersection(current.liveReplicas, next.liveReplicas);
+                List<Replica> merged = Replicas.listIntersection(current.liveReplicas, next.liveReplicas);
 
                 // Check if there is enough endpoint for the merge to be possible.
                 if (!consistency.isSufficientLiveNodes(keyspace, merged))

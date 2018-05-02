@@ -230,7 +230,8 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
 
         // Do a full data read to resolve the correct response (and repair node that need be)
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        DataResolver resolver = new DataResolver(keyspace, command, ConsistencyLevel.ALL, allReplicas, allReplicas.size(), queryStartNanoTime, this);
+        DataResolver resolver = new DataResolver(keyspace, command, ConsistencyLevel.ALL, allReplicas,
+                                                 allReplicas.size(), queryStartNanoTime, this);
         ReadCallback readCallback = new ReadCallback(resolver, ConsistencyLevel.ALL, contactedReplicas.size(), command,
                                                      keyspace, allReplicas, queryStartNanoTime, this);
 
