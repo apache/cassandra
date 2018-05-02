@@ -79,8 +79,9 @@ public class Replicas
         //   2) we do ultimately need a list so converting everything to sets don't make sense
         //   3) l1 and l2 are sorted by proximity. The use of retainAll  maintain that sorting in the result, while using sets wouldn't.
         Collection<InetAddressAndPort> endpoints = asEndpointList(l2);
-        l1.removeIf(r -> !endpoints.contains(r.getEndpoint()));
-        return l1;
+        List<Replica> result = new ArrayList<>(l1.size());
+        result.addAll(Collections2.filter(l1, r -> endpoints.contains(r.getEndpoint())));
+        return result;
     }
 
     public static Iterable<Range<Token>> fullRanges(Collection<Replica> replicas)
