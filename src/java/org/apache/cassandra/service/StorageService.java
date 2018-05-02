@@ -111,6 +111,7 @@ import org.apache.cassandra.utils.TopKSampler.SamplerResult;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
+import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
 import static java.util.Arrays.asList;
@@ -261,8 +262,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public StorageService()
     {
-        // use dedicated executor for sending JMX notifications
-        super(Executors.newSingleThreadExecutor());
+        // use dedicated executor for handling JMX notifications
+        super(JMXBroadcastExecutor.executor);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try

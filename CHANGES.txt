@@ -1,4 +1,5 @@
 4.0
+ * Allow retrieving diagnostic events via JMX (CASSANDRA-14435)
  * Add base classes for diagnostic events (CASSANDRA-13457)
  * Clear view system metadata when dropping keyspace (CASSANDRA-14646)
  * Allocate ReentrantLock on-demand in java11 AtomicBTreePartitionerBase (CASSANDRA-14637)

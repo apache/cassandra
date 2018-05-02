@@ -17,11 +17,18 @@
  */
 package org.apache.cassandra.diag;
 
+import java.io.Serializable;
+import java.lang.management.ManagementFactory;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.function.Consumer;
+
+import javax.annotation.Nullable;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
@@ -38,7 +45,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 /**
  * Service for publishing and consuming {@link DiagnosticEvent}s.
  */
-public final class DiagnosticEventService
+public final class DiagnosticEventService implements DiagnosticEventServiceMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(DiagnosticEventService.class);
 
@@ -55,6 +62,20 @@ public final class DiagnosticEventService
 
     private DiagnosticEventService()
     {
+
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            ObjectName jmxObjectName = new ObjectName("org.apache.cassandra.diag:type=DiagnosticEventService");
+            mbs.registerMBean(this, jmxObjectName);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        // register broadcasters for JMX events
+        DiagnosticEventPersistence.start();
     }
 
     /**
@@ -99,10 +120,12 @@ public final class DiagnosticEventService
      */
     public synchronized <E extends DiagnosticEvent> void subscribe(Class<E> event, Consumer<E> consumer)
     {
+        logger.debug("Adding subscriber: {}", consumer);
         subscribersByClass = ImmutableSetMultimap.<Class<? extends DiagnosticEvent>, Consumer<DiagnosticEvent>>builder()
                               .putAll(subscribersByClass)
                               .put(event, new TypedConsumerWrapper<>(consumer))
                               .build();
+        logger.debug("Total subscribers: {}", subscribersByClass.values().size());
     }
 
     /**
@@ -149,6 +172,16 @@ public final class DiagnosticEventService
      */
     public synchronized <E extends DiagnosticEvent> void unsubscribe(Consumer<E> consumer)
     {
+        unsubscribe(null, consumer);
+    }
+
+    /**
+     * De-registers event handler from receiving any further events.
+     * @param event DiagnosticEvent class to unsubscribe from
+     * @param consumer Consumer registered for receiving events
+     */
+    public synchronized <E extends DiagnosticEvent> void unsubscribe(@Nullable Class<E> event, Consumer<E> consumer)
+    {
         // all events
         subscribersAll = ImmutableSet.copyOf(Iterables.filter(subscribersAll, (c) -> c != consumer));
 
@@ -161,7 +194,8 @@ public final class DiagnosticEventService
             if (subscriber instanceof TypedConsumerWrapper)
                 subscriber = ((TypedConsumerWrapper)subscriber).wrapped;
 
-            if (subscriber != consumer)
+            // other consumers or other events
+            if (subscriber != consumer || (event != null && !entry.getKey().equals(event)))
             {
                 byClassBuilder = byClassBuilder.put(entry);
             }
@@ -181,7 +215,7 @@ public final class DiagnosticEventService
                 Consumer<DiagnosticEvent> subscriber = e.getValue();
                 if (subscriber instanceof TypedConsumerWrapper)
                     subscriber = ((TypedConsumerWrapper) subscriber).wrapped;
-                return subscriber != consumer;
+                return subscriber != consumer || (event != null && !byClassEntry.getKey().equals(event));
             }).forEach(byTypeBuilder::put);
 
             ImmutableSetMultimap<Enum<?>, Consumer<DiagnosticEvent>> byType = byTypeBuilder.build();
@@ -256,6 +290,31 @@ public final class DiagnosticEventService
         subscribersByClass = ImmutableSetMultimap.of();
         subscribersAll = ImmutableSet.of();
         subscribersByClassAndType = ImmutableMap.of();
+    }
+
+    public boolean isDiagnosticsEnabled()
+    {
+        return DatabaseDescriptor.diagnosticEventsEnabled();
+    }
+
+    public void disableDiagnostics()
+    {
+        DatabaseDescriptor.setDiagnosticEventsEnabled(false);
+    }
+
+    public SortedMap<Long, Map<String, Serializable>> readEvents(String eventClazz, Long lastKey, int limit)
+    {
+        return DiagnosticEventPersistence.instance().getEvents(eventClazz, lastKey, limit, false);
+    }
+
+    public void enableEventPersistence(String eventClazz)
+    {
+        DiagnosticEventPersistence.instance().enableEventPersistence(eventClazz);
+    }
+
+    public void disableEventPersistence(String eventClazz)
+    {
+        DiagnosticEventPersistence.instance().disableEventPersistence(eventClazz);
     }
 
     /**

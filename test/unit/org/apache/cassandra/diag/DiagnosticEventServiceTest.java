@@ -214,7 +214,7 @@ public class DiagnosticEventServiceTest
         DatabaseDescriptor.setDiagnosticEventsEnabled(true);
     }
 
-    private static class TestEvent1 extends DiagnosticEvent
+    public static class TestEvent1 extends DiagnosticEvent
     {
         public TestEventType getType()
         {
@@ -227,7 +227,7 @@ public class DiagnosticEventServiceTest
         }
     }
 
-    private static class TestEvent2 extends DiagnosticEvent
+    public static class TestEvent2 extends DiagnosticEvent
     {
         public TestEventType getType()
         {
@@ -240,5 +240,5 @@ public class DiagnosticEventServiceTest
         }
     }
 
-    private enum TestEventType { TEST1, TEST2, TEST3 };
+    public enum TestEventType { TEST1, TEST2, TEST3 };
 }
