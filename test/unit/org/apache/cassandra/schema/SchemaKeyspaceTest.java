@@ -41,6 +41,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -133,5 +134,33 @@ public class SchemaKeyspaceTest
 
         assertEquals(metadata.params, params);
         assertEquals(new HashSet<>(metadata.columns()), columns);
+    }
+
+    @Test(expected = SchemaKeyspace.MissingColumns.class)
+    public void testSchemaNoPartition()
+    {
+        String testKS = "test_schema_no_partition";
+        String testTable = "invalid_table";
+        SchemaLoader.createKeyspace(testKS,
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(testKS, testTable));
+        // Delete partition column in the schema
+        String query = String.format("DELETE FROM %s.%s WHERE keyspace_name=? and table_name=? and column_name=?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.COLUMNS);
+        executeOnceInternal(query, testKS, testTable, "key");
+        SchemaKeyspace.fetchNonSystemKeyspaces();
+    }
+
+    @Test(expected = SchemaKeyspace.MissingColumns.class)
+    public void testSchemaNoColumn()
+    {
+        String testKS = "test_schema_no_Column";
+        String testTable = "invalid_table";
+        SchemaLoader.createKeyspace(testKS,
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(testKS, testTable));
+        // Delete all colmns in the schema
+        String query = String.format("DELETE FROM %s.%s WHERE keyspace_name=? and table_name=?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.COLUMNS);
+        executeOnceInternal(query, testKS, testTable);
+        SchemaKeyspace.fetchNonSystemKeyspaces();
     }
 }
