@@ -48,7 +48,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.MessageOut;
@@ -97,7 +97,7 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
                               long queryStartNanoTime,
                               ConsistencyLevel consistency)
     {
-        Replicas.checkFull(replicas);
+        ReplicaHelpers.checkFull(replicas);
         this.command = command;
         this.replicas = replicas;
         this.queryStartNanoTime = queryStartNanoTime;
@@ -169,7 +169,7 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
 
         public void reportMutation(Replica replica, Mutation mutation)
         {
-            Replicas.checkFull(replica);
+            ReplicaHelpers.checkFull(replica);
             AsyncOneResponse<?> response = sendRepairMutation(mutation, replica.getEndpoint());
 
             if (response != null)

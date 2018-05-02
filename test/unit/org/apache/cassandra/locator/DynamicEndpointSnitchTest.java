@@ -52,7 +52,7 @@ public class DynamicEndpointSnitchTest
 
     private static List<Replica> fullReplicas(InetAddressAndPort... endpoints)
     {
-        return Replicas.fullStandins(Arrays.asList(endpoints));
+        return ReplicaHelpers.fullStandins(Arrays.asList(endpoints));
     }
 
     @Test

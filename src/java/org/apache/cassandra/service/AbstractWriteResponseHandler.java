@@ -36,7 +36,7 @@ import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
@@ -227,7 +227,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
 
     public void assureSufficientLiveNodes() throws UnavailableException
     {
-        consistencyLevel.assureSufficientLiveNodes(keyspace, Iterables.filter(Replicas.concatNaturalAndPending(naturalReplicas, pendingReplicas), isReplicaAlive));
+        consistencyLevel.assureSufficientLiveNodes(keyspace, Iterables.filter(ReplicaHelpers.concatNaturalAndPending(naturalReplicas, pendingReplicas), isReplicaAlive));
     }
 
     protected void signal()

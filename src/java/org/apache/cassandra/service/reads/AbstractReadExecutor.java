@@ -39,7 +39,7 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
@@ -234,10 +234,10 @@ public abstract class AbstractReadExecutor
 
         public void executeAsync()
         {
-            Replicas.checkFull(targetReplicas);
-            makeDataRequests(Replicas.asEndpoints(targetReplicas.subList(0, 1)));
+            ReplicaHelpers.checkFull(targetReplicas);
+            makeDataRequests(ReplicaHelpers.asEndpoints(targetReplicas.subList(0, 1)));
             if (targetReplicas.size() > 1)
-                makeDigestRequests(Replicas.asEndpoints(targetReplicas.subList(1, targetReplicas.size())));
+                makeDigestRequests(ReplicaHelpers.asEndpoints(targetReplicas.subList(1, targetReplicas.size())));
         }
 
         public void maybeTryAdditionalReplicas()
@@ -274,24 +274,24 @@ public abstract class AbstractReadExecutor
             // that the last replica in our list is "extra."
             List<Replica> initialReplicas = targetReplicas.subList(0, targetReplicas.size() - 1);
 
-            Replicas.checkFull(initialReplicas);
+            ReplicaHelpers.checkFull(initialReplicas);
 
             if (handler.blockfor < initialReplicas.size())
             {
                 // We're hitting additional targets for read repair.  Since our "extra" replica is the least-
                 // preferred by the snitch, we do an extra data read to start with against a replica more
                 // likely to reply; better to let RR fail than the entire query.
-                makeDataRequests(Replicas.asEndpoints(initialReplicas.subList(0, 2)));
+                makeDataRequests(ReplicaHelpers.asEndpoints(initialReplicas.subList(0, 2)));
                 if (initialReplicas.size() > 2)
-                    makeDigestRequests(Replicas.asEndpoints(initialReplicas.subList(2, initialReplicas.size())));
+                    makeDigestRequests(ReplicaHelpers.asEndpoints(initialReplicas.subList(2, initialReplicas.size())));
             }
             else
             {
                 // not doing read repair; all replies are important, so it doesn't matter which nodes we
                 // perform data reads against vs digest.
-                makeDataRequests(Replicas.asEndpoints(initialReplicas.subList(0, 1)));
+                makeDataRequests(ReplicaHelpers.asEndpoints(initialReplicas.subList(0, 1)));
                 if (initialReplicas.size() > 1)
-                    makeDigestRequests(Replicas.asEndpoints(initialReplicas.subList(1, initialReplicas.size())));
+                    makeDigestRequests(ReplicaHelpers.asEndpoints(initialReplicas.subList(1, initialReplicas.size())));
             }
         }
 
@@ -308,7 +308,7 @@ public abstract class AbstractReadExecutor
                     retryCommand = command.copyAsDigestQuery();
 
                 Replica extraReplica = Iterables.getLast(targetReplicas);
-                Replicas.checkFull(extraReplica);
+                ReplicaHelpers.checkFull(extraReplica);
 
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);
@@ -359,10 +359,10 @@ public abstract class AbstractReadExecutor
         @Override
         public void executeAsync()
         {
-            Replicas.checkFull(targetReplicas);
-            makeDataRequests(Replicas.asEndpoints(targetReplicas.subList(0, targetReplicas.size() > 1 ? 2 : 1)));
+            ReplicaHelpers.checkFull(targetReplicas);
+            makeDataRequests(ReplicaHelpers.asEndpoints(targetReplicas.subList(0, targetReplicas.size() > 1 ? 2 : 1)));
             if (targetReplicas.size() > 2)
-                makeDigestRequests(Replicas.asEndpoints(targetReplicas.subList(2, targetReplicas.size())));
+                makeDigestRequests(ReplicaHelpers.asEndpoints(targetReplicas.subList(2, targetReplicas.size())));
             cfs.metric.speculativeRetries.inc();
         }
 

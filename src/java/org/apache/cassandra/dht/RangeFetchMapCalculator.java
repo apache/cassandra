@@ -32,7 +32,7 @@ import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -161,7 +161,7 @@ public class RangeFetchMapCalculator
                 List<Replica> replicas = new ArrayList<>(rangesWithSources.get(trivialRange));
                 // sort with the endpoint having the least number of streams first:
                 replicas.sort(Comparator.comparingInt(o -> optimisedMap.get(o.getEndpoint()).size()));
-                Replicas.checkFull(replicas);
+                ReplicaHelpers.checkFull(replicas);
                 for (Replica replica : replicas)
                 {
                     if (passFilters(replica, localDCCheck))
@@ -348,7 +348,7 @@ public class RangeFetchMapCalculator
     private boolean addEndpoints(MutableCapacityGraph<Vertex, Integer> capacityGraph, RangeVertex rangeVertex, boolean localDCCheck)
     {
         boolean sourceFound = false;
-        Replicas.checkFull(rangesWithSources.get(rangeVertex.getRange()));
+        ReplicaHelpers.checkFull(rangesWithSources.get(rangeVertex.getRange()));
         for (Replica replica : rangesWithSources.get(rangeVertex.getRange()))
         {
             if (passFilters(replica, localDCCheck))

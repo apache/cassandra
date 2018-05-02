@@ -124,7 +124,7 @@ public class SimpleStrategyTest
                 List<InetAddressAndPort> correctEndpoints = new ArrayList<>();
                 for (int j = 0; j < replicas.size(); j++)
                     correctEndpoints.add(hosts.get((i + j + 1) % hosts.size()));
-                assertEquals(new HashSet<>(correctEndpoints), Replicas.asEndpointSet(replicas));
+                assertEquals(new HashSet<>(correctEndpoints), ReplicaHelpers.asEndpointSet(replicas));
             }
         }
     }
@@ -176,14 +176,14 @@ public class SimpleStrategyTest
                 for (int j = 0; j < replicationFactor; j++)
                 {
                     //Check that the old nodes are definitely included
-                   assertTrue(Replicas.containsEndpoint(replicas, hosts.get((i + j + 1) % hosts.size())));
+                   assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get((i + j + 1) % hosts.size())));
                 }
 
                 // bootstrapEndpoint should be in the endpoints for i in MAX-RF to MAX, but not in any earlier ep.
                 if (i < RING_SIZE - replicationFactor)
-                    assertFalse(Replicas.containsEndpoint(replicas, bootstrapEndpoint));
+                    assertFalse(ReplicaHelpers.containsEndpoint(replicas, bootstrapEndpoint));
                 else
-                    assertTrue(Replicas.containsEndpoint(replicas, bootstrapEndpoint));
+                    assertTrue(ReplicaHelpers.containsEndpoint(replicas, bootstrapEndpoint));
             }
         }
 

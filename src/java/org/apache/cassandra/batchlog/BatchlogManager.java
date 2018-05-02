@@ -35,7 +35,7 @@ import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
@@ -450,7 +450,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
             for (Replica replica : StorageService.instance.getNaturalAndPendingReplicas(ks, tk))
             {
-                Replicas.checkFull(replica);
+                ReplicaHelpers.checkFull(replica);
                 if (replica.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
                 {
                     mutation.apply();
@@ -470,7 +470,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             if (liveReplicas.isEmpty())
                 return null;
 
-            Replicas.checkFull(liveReplicas);
+            ReplicaHelpers.checkFull(liveReplicas);
 
             ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(liveReplicas, System.nanoTime());
             MessageOut<Mutation> message = mutation.createMessage();
@@ -498,7 +498,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             ReplayWriteResponseHandler(Collection<Replica> writeReplicas, long queryStartNanoTime)
             {
                 super(writeReplicas, Collections.<Replica>emptySet(), null, null, null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
-                undelivered.addAll(Replicas.asEndpoints(writeReplicas));
+                undelivered.addAll(ReplicaHelpers.asEndpoints(writeReplicas));
             }
 
             @Override

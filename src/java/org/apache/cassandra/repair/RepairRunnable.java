@@ -45,7 +45,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.Keyspace;
@@ -237,8 +237,8 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
         //calculation multiple times
         Collection<Replica> replicatedRanges = storageService.getLocalReplicas(keyspace);
-        Replicas.checkFull(replicatedRanges);
-        Collection<Range<Token>> keyspaceLocalRanges = Replicas.asRanges(storageService.getLocalReplicas(keyspace));
+        ReplicaHelpers.checkFull(replicatedRanges);
+        Collection<Range<Token>> keyspaceLocalRanges = ReplicaHelpers.asRanges(storageService.getLocalReplicas(keyspace));
 
         try
         {

@@ -865,7 +865,7 @@ public class TokenMetadata
         // get all ranges that will be affected by leaving nodes
         Set<Range<Token>> affectedRanges = new HashSet<Range<Token>>();
         for (InetAddressAndPort endpoint : leavingEndpoints)
-            affectedRanges.addAll(Replicas.asRanges(addressRanges.get(endpoint)));
+            affectedRanges.addAll(ReplicaHelpers.asRanges(addressRanges.get(endpoint)));
 
         // for each of those ranges, find what new nodes will be responsible for the range when
         // all leaving nodes are gone.
@@ -873,7 +873,7 @@ public class TokenMetadata
         {
             Set<Replica> currentReplicas = ImmutableSet.copyOf(strategy.calculateNaturalReplicas(range.right, metadata));
             Set<Replica> newReplicas = ImmutableSet.copyOf(strategy.calculateNaturalReplicas(range.right, allLeftMetadata));
-            for (Replica replica : Replicas.difference(newReplicas, currentReplicas))
+            for (Replica replica : ReplicaHelpers.difference(newReplicas, currentReplicas))
             {
                 newPendingRanges.addPendingRange(range, replica);
             }
@@ -922,8 +922,8 @@ public class TokenMetadata
 
             for(Replica replica : moveAffectedReplicas)
             {
-                Set<InetAddressAndPort> currentEndpoints = Replicas.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalReplicas(replica.getRange().right, metadata)));
-                Set<InetAddressAndPort> newEndpoints = Replicas.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalReplicas(replica.getRange().right, allLeftMetadata)));
+                Set<InetAddressAndPort> currentEndpoints = ReplicaHelpers.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalReplicas(replica.getRange().right, metadata)));
+                Set<InetAddressAndPort> newEndpoints = ReplicaHelpers.asEndpointSet(ImmutableSet.copyOf(strategy.calculateNaturalReplicas(replica.getRange().right, allLeftMetadata)));
                 Set<InetAddressAndPort> difference = Sets.difference(newEndpoints, currentEndpoints);
                 for(final InetAddressAndPort address : difference)
                 {
@@ -934,7 +934,7 @@ public class TokenMetadata
 
                     for(Replica newReplica : newReplicas)
                     {
-                        for(Replica pendingReplica : Replicas.subtractAll(newReplica, oldReplicas))
+                        for(Replica pendingReplica : ReplicaHelpers.subtractAll(newReplica, oldReplicas))
                         {
                             newPendingRanges.addPendingRange(pendingReplica.getRange(), pendingReplica);
                         }

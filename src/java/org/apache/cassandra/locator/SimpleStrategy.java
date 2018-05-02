@@ -62,7 +62,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         {
             Token tk = iter.next();
             InetAddressAndPort ep = metadata.getEndpoint(tk);
-            if (!Replicas.containsEndpoint(replicas, ep))
+            if (!ReplicaHelpers.containsEndpoint(replicas, ep))
                 replicas.add(new Replica(ep, replicaRange, replicas.size() < rf.full));
         }
         return replicas;

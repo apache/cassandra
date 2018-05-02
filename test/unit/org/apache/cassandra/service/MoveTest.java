@@ -32,7 +32,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -604,10 +604,10 @@ public class MoveTest
                 }
 
                 if (expected.size() == actual.size()) {
-                	assertEquals("mismatched endpoint sets", expected, Replicas.asEndpointSet(actual));
+                	assertEquals("mismatched endpoint sets", expected, ReplicaHelpers.asEndpointSet(actual));
                 } else {
                 	expected.add(hosts.get(MOVING_NODE));
-                	assertEquals("mismatched endpoint sets", expected, Replicas.asEndpointSet(actual));
+                	assertEquals("mismatched endpoint sets", expected, ReplicaHelpers.asEndpointSet(actual));
                 	numMoved++;
                 }
             }
@@ -820,7 +820,7 @@ public class MoveTest
 
             for (Token token : keyTokens)
             {
-                Collection<InetAddressAndPort> endpoints = Replicas.asEndpoints(tmd.getWriteEndpoints(token, keyspaceName, strategy.getNaturalReplicas(token)));
+                Collection<InetAddressAndPort> endpoints = ReplicaHelpers.asEndpoints(tmd.getWriteEndpoints(token, keyspaceName, strategy.getNaturalReplicas(token)));
                 assertEquals(expectedEndpoints.get(keyspaceName).get(token).size(), endpoints.size());
                 assertTrue(expectedEndpoints.get(keyspaceName).get(token).containsAll(endpoints));
             }
@@ -835,65 +835,65 @@ public class MoveTest
             {
                 replicas = tmd.getWriteEndpoints(keyTokens.get(i), keyspaceName, strategy.getNaturalReplicas(keyTokens.get(i)));
                 assertEquals(3, replicas.size());
-                assertTrue(Replicas.containsEndpoint(replicas, hosts.get(i+1)));
-                assertTrue(Replicas.containsEndpoint(replicas, hosts.get(i+2)));
-                assertTrue(Replicas.containsEndpoint(replicas, hosts.get(i+3)));
+                assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(i + 1)));
+                assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(i + 2)));
+                assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(i + 3)));
             }
 
             // token 35 should go to nodes 4, 5, 6 and boot1
             replicas = tmd.getWriteEndpoints(keyTokens.get(3), keyspaceName, strategy.getNaturalReplicas(keyTokens.get(3)));
             assertEquals(4, replicas.size());
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(4)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(5)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(6)));
-            assertTrue(Replicas.containsEndpoint(replicas, boot1));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(4)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(5)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(6)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, boot1));
 
             // token 45 should go to nodes 5, 6, 7 boot1
             replicas = tmd.getWriteEndpoints(keyTokens.get(4), keyspaceName, strategy.getNaturalReplicas(keyTokens.get(4)));
             assertEquals(4, replicas.size());
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(5)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(6)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(7)));
-            assertTrue(Replicas.containsEndpoint(replicas, boot1));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(5)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(6)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(7)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, boot1));
 
             // token 55 should go to nodes 6, 7, 8 boot1 and boot2
             replicas = tmd.getWriteEndpoints(keyTokens.get(5), keyspaceName, strategy.getNaturalReplicas(keyTokens.get(5)));
             assertEquals(5, replicas.size());
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(6)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(7)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(8)));
-            assertTrue(Replicas.containsEndpoint(replicas, boot1));
-            assertTrue(Replicas.containsEndpoint(replicas, boot2));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(6)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(7)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(8)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, boot1));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, boot2));
 
             // token 65 should go to nodes 6, 7, 8 and boot2
             replicas = tmd.getWriteEndpoints(keyTokens.get(6), keyspaceName, strategy.getNaturalReplicas(keyTokens.get(6)));
             assertEquals(4, replicas.size());
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(6)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(7)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(8)));
-            assertTrue(Replicas.containsEndpoint(replicas, boot2));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(6)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(7)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(8)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, boot2));
 
             // token 75 should to go nodes 8, 9, 0 and boot2
             replicas = tmd.getWriteEndpoints(keyTokens.get(7), keyspaceName, strategy.getNaturalReplicas(keyTokens.get(7)));
             assertEquals(4, replicas.size());
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(8)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(9)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(0)));
-            assertTrue(Replicas.containsEndpoint(replicas, boot2));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(8)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(9)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(0)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, boot2));
 
             // token 85 should go to nodes 8, 9 and 0
             replicas = tmd.getWriteEndpoints(keyTokens.get(8), keyspaceName, strategy.getNaturalReplicas(keyTokens.get(8)));
             assertEquals(3, replicas.size());
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(8)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(9)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(0)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(8)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(9)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(0)));
 
             // token 95 should go to nodes 9, 0 and 1
             replicas = tmd.getWriteEndpoints(keyTokens.get(9), keyspaceName, strategy.getNaturalReplicas(keyTokens.get(9)));
             assertEquals(3, replicas.size());
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(9)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(0)));
-            assertTrue(Replicas.containsEndpoint(replicas, hosts.get(1)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(9)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(0)));
+            assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get(1)));
         }
 
         // all moving nodes are back to the normal state

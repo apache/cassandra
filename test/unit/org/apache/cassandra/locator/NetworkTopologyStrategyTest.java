@@ -216,7 +216,7 @@ public class NetworkTopologyStrategyTest
         {
             Token token = Murmur3Partitioner.instance.getRandomToken(rand);
             List<InetAddressAndPort> expected = calculateNaturalEndpoints(token, tokenMetadata, datacenters, snitch);
-            List<InetAddressAndPort> actual = Replicas.asEndpointList(nts.calculateNaturalReplicas(token, tokenMetadata));
+            List<InetAddressAndPort> actual = ReplicaHelpers.asEndpointList(nts.calculateNaturalReplicas(token, tokenMetadata));
             if (endpointsDiffer(expected, actual))
             {
                 System.err.println("Endpoints mismatch for token " + token);

@@ -425,9 +425,9 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             return true;
 
         // Make sure we return the subsnitch decision (i.e true if we're here) if we lack too much scores
-        double maxMerged = maxScore(Replicas.asEndpoints(merged));
-        double maxL1 = maxScore(Replicas.asEndpoints(l1));
-        double maxL2 = maxScore(Replicas.asEndpoints(l2));
+        double maxMerged = maxScore(ReplicaHelpers.asEndpoints(merged));
+        double maxL1 = maxScore(ReplicaHelpers.asEndpoints(l1));
+        double maxL2 = maxScore(ReplicaHelpers.asEndpoints(l2));
         if (maxMerged < 0 || maxL1 < 0 || maxL2 < 0)
             return true;
 

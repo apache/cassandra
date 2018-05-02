@@ -35,7 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -361,7 +361,7 @@ public class RangeFetchMapCalculatorTest
     {
         for (Map.Entry<InetAddressAndPort, Range<Token>> entry : result.entries())
         {
-            assertTrue(Replicas.containsEndpoint(rangesWithSources.get(entry.getValue()), entry.getKey()));
+            assertTrue(ReplicaHelpers.containsEndpoint(rangesWithSources.get(entry.getValue()), entry.getKey()));
         }
     }
 

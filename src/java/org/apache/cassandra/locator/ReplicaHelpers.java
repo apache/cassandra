@@ -33,7 +33,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class Replicas
+public class ReplicaHelpers
 {
     public static Collection<InetAddressAndPort> asEndpoints(Collection<Replica> replicas)
     {
@@ -71,8 +71,8 @@ public class Replicas
 
     public static List<Replica> listIntersection(List<Replica> l1, List<Replica> l2)
     {
-        Replicas.checkFull(l1);
-        Replicas.checkFull(l2);
+        ReplicaHelpers.checkFull(l1);
+        ReplicaHelpers.checkFull(l2);
         // Note: we don't use Guava Sets.intersection() for 3 reasons:
         //   1) retainAll would be inefficient if l1 and l2 are large but in practice both are the replicas for a range and
         //   so will be very small (< RF). In that case, retainAll is in fact more efficient.

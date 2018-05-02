@@ -125,7 +125,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             if (done())
                 return false;
 
-            if (Replicas.containsEndpoint(replicas, ep))
+            if (ReplicaHelpers.containsEndpoint(replicas, ep))
                 // Cannot repeat a node.
                 return false;
 

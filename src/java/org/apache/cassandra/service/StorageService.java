@@ -168,7 +168,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         List<Replica> ranges = new ArrayList<>();
         ranges.addAll(keyspace.getReplicationStrategy().getAddressReplicas().get(broadcastAddress));
         ranges.addAll(getTokenMetadata().getPendingRanges(ks, broadcastAddress));
-        return Replicas.normalize(ranges);
+        return ReplicaHelpers.normalize(ranges);
     }
 
     public Collection<Range<Token>> getPrimaryRanges(String keyspace)
@@ -1685,7 +1685,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Map<List<String>, List<String>> map = new HashMap<>();
         for (Map.Entry<Range<Token>,List<Replica>> entry : getRangeToAddressMap(keyspace).entrySet())
         {
-            map.put(entry.getKey().asList(), Replicas.stringify(entry.getValue(), withPort));
+            map.put(entry.getKey().asList(), ReplicaHelpers.stringify(entry.getValue(), withPort));
         }
         return map;
     }
@@ -1769,7 +1769,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (Map.Entry<Range<Token>, Collection<Replica>> entry : tokenMetadata.getPendingRangesMM(keyspace).asMap().entrySet())
         {
             List<Replica> l = new ArrayList<>(entry.getValue());
-            map.put(entry.getKey().asList(), Replicas.stringify(l, withPort));
+            map.put(entry.getKey().asList(), ReplicaHelpers.stringify(l, withPort));
         }
         return map;
     }
@@ -1900,7 +1900,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         : getRangeToAddressMap(keyspace);
 
         for (Map.Entry<Range<Token>, List<Replica>> entry : rangeToAddressMap.entrySet())
-            ranges.add(TokenRange.create(tf, entry.getKey(), Replicas.asEndpointList(entry.getValue()), withPort));
+            ranges.add(TokenRange.create(tf, entry.getKey(), ReplicaHelpers.asEndpointList(entry.getValue()), withPort));
 
         return ranges;
     }
@@ -2729,7 +2729,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
             List<Replica> replicas = snitch.getSortedListByProximity(myAddress, possibleRanges);
 
-            assert !Replicas.containsEndpoint(replicas, myAddress);
+            assert !ReplicaHelpers.containsEndpoint(replicas, myAddress);
 
             for (Replica replica : replicas)
             {
@@ -2812,8 +2812,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 Collection<Replica> replicas = entry.getValue();
                 if (logger.isDebugEnabled())
                     logger.debug("Requesting from {} replicas {}", source, StringUtils.join(replicas, ", "));
-                Replicas.checkFull(replicas);
-                stream.requestRanges(source, keyspaceName, Replicas.asRanges(replicas));
+                ReplicaHelpers.checkFull(replicas);
+                stream.requestRanges(source, keyspaceName, ReplicaHelpers.asRanges(replicas));
             }
         }
         StreamResultFuture future = stream.execute();
@@ -2837,7 +2837,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private Multimap<Range<Token>, Replica> getChangedRangesForLeaving(String keyspaceName, InetAddressAndPort endpoint)
     {
         // First get all ranges the leaving endpoint is responsible for
-        Collection<Range<Token>> ranges = Replicas.asRanges(getReplicasForEndpoint(keyspaceName, endpoint));
+        Collection<Range<Token>> ranges = ReplicaHelpers.asRanges(getReplicasForEndpoint(keyspaceName, endpoint));
 
         if (logger.isDebugEnabled())
             logger.debug("Node {} ranges [{}]", endpoint, StringUtils.join(ranges, ", "));
@@ -2866,7 +2866,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (Range<Token> range : ranges)
         {
             Collection<Replica> newReplicaEndpoints = Keyspace.open(keyspaceName).getReplicationStrategy().calculateNaturalReplicas(range.right, temp);
-            Replicas.removeEndpoints(newReplicaEndpoints, currentReplicaEndpoints.get(range));
+            ReplicaHelpers.removeEndpoints(newReplicaEndpoints, currentReplicaEndpoints.get(range));
             if (logger.isDebugEnabled())
                 if (newReplicaEndpoints.isEmpty())
                     logger.debug("Range {} already in all replicas", range);
@@ -3575,7 +3575,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
             else
             {
-                option.getRanges().addAll(Replicas.asRanges(getLocalReplicas(keyspace)));
+                option.getRanges().addAll(ReplicaHelpers.asRanges(getLocalReplicas(keyspace)));
             }
         }
         if (option.getRanges().isEmpty() || Keyspace.open(keyspace).getReplicationStrategy().getReplicationFactor().replicas < 2)
@@ -3803,7 +3803,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (metadata == null)
             throw new IllegalArgumentException("Unknown table '" + cf + "' in keyspace '" + keyspaceName + "'");
 
-        return Replicas.stringify(getNaturalReplicas(keyspaceName, tokenMetadata.partitioner.getToken(metadata.partitionKeyType.fromString(key))), true);
+        return ReplicaHelpers.stringify(getNaturalReplicas(keyspaceName, tokenMetadata.partitioner.getToken(metadata.partitionKeyType.fromString(key))), true);
     }
 
 
@@ -3815,7 +3815,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getNaturalEndpointsWithPort(String keyspaceName, ByteBuffer key)
     {
-        return Replicas.stringify(getNaturalReplicas(keyspaceName, tokenMetadata.partitioner.getToken(key)), true);
+        return ReplicaHelpers.stringify(getNaturalReplicas(keyspaceName, tokenMetadata.partitioner.getToken(key)), true);
     }
 
     /**
@@ -4076,7 +4076,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             Multimap<Range<Token>, Replica> rangesMM = getChangedRangesForLeaving(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
-            Replicas.checkFull(rangesMM.values());
+            ReplicaHelpers.checkFull(rangesMM.values());
 
             if (logger.isDebugEnabled())
                 logger.debug("Ranges needing transfer are [{}]", StringUtils.join(rangesMM.keySet(), ","));
@@ -4117,8 +4117,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private UUID getPreferredHintsStreamTarget()
     {
-        List<Replica> candidates = Replicas.fullStandins(StorageService.instance.getTokenMetadata().cloneAfterAllLeft().getAllEndpoints());
-        Replicas.removeEndpoint(candidates, FBUtilities.getBroadcastAddressAndPort());
+        List<Replica> candidates = ReplicaHelpers.fullStandins(StorageService.instance.getTokenMetadata().cloneAfterAllLeft().getAllEndpoints());
+        ReplicaHelpers.removeEndpoint(candidates, FBUtilities.getBroadcastAddressAndPort());
         candidates.removeIf(replica -> !FailureDetector.instance.isAlive(replica.getEndpoint()));
 
         if (candidates.isEmpty())
@@ -4275,7 +4275,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                     //So we need to be careful to only be strict when endpoints == RF
                                     if (oldEndpoints.size() == strategy.getReplicationFactor().replicas)
                                     {
-                                        Replicas.removeEndpoints(oldEndpoints, newEndpoints);
+                                        ReplicaHelpers.removeEndpoints(oldEndpoints, newEndpoints);
 
                                         //No relocation required
                                         if (oldEndpoints.isEmpty())
@@ -4319,8 +4319,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         Set<Replica> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalReplicas(toStream.right, tokenMetaClone));
                         Set<Replica> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalReplicas(toStream.right, tokenMetaCloneAllSettled));
 
-                        Replicas.checkFull(currentEndpoints);
-                        Replicas.checkFull(newEndpoints);
+                        ReplicaHelpers.checkFull(currentEndpoints);
+                        ReplicaHelpers.checkFull(newEndpoints);
 
                         logger.debug("Range: {} Current endpoints: {} New endpoints: {}", toStream, currentEndpoints, newEndpoints);
                         for (Replica replica : Sets.difference(newEndpoints, currentEndpoints))
@@ -4335,8 +4335,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     {
                         logger.debug("Will stream range {} of keyspace {} to endpoint {}", endpointRanges.get(address), keyspace, address);
                         Collection<Replica> ranges = endpointRanges.get(address);
-                        Replicas.checkFull(ranges);
-                        streamPlan.transferRanges(address, keyspace, Replicas.asRanges(endpointRanges.get(address)));
+                        ReplicaHelpers.checkFull(ranges);
+                        streamPlan.transferRanges(address, keyspace, ReplicaHelpers.asRanges(endpointRanges.get(address)));
                     }
 
                     // stream requests
@@ -4471,7 +4471,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // to take responsibility for new range)
             Multimap<Range<Token>, Replica> changedRanges = getChangedRangesForLeaving(keyspaceName, endpoint);
             IFailureDetector failureDetector = FailureDetector.instance;
-            for (InetAddressAndPort ep : Replicas.asEndpoints(changedRanges.values()))
+            for (InetAddressAndPort ep : ReplicaHelpers.asEndpoints(changedRanges.values()))
             {
                 if (failureDetector.isAlive(ep))
                     replicatingNodes.add(ep);
@@ -5068,7 +5068,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             String keyspace = entry.getKey();
             Multimap<Range<Token>, Replica> rangesWithEndpoints = entry.getValue();
-            Replicas.checkFull(rangesWithEndpoints.values());
+            ReplicaHelpers.checkFull(rangesWithEndpoints.values());
 
             if (rangesWithEndpoints.isEmpty())
                 continue;
@@ -5137,15 +5137,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Set<Replica> toStream = new HashSet<>();
         Set<Replica> toFetch  = new HashSet<>();
 
-        Replicas.checkFull(current);
-        Replicas.checkFull(updated);
+        ReplicaHelpers.checkFull(current);
+        ReplicaHelpers.checkFull(updated);
 
         for (Replica r1 : current)
         {
             boolean intersect = false;
             for (Replica r2 : updated)
             {
-                if (Replicas.intersects(r1, r2))
+                if (ReplicaHelpers.intersects(r1, r2))
                 {
                     // adding difference ranges to fetch from a ring
                     toStream.addAll(r1.subtract(r2));
@@ -5163,7 +5163,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             boolean intersect = false;
             for (Replica r1 : current)
             {
-                if (Replicas.intersects(r1, r2))
+                if (ReplicaHelpers.intersects(r1, r2))
                 {
                     // adding difference ranges to fetch from a ring
                     toFetch.addAll(r2.subtract(r1));
@@ -5176,7 +5176,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
 
-        return Pair.create(Sets.newHashSet(Replicas.asRanges(toStream)), Sets.newHashSet(Replicas.asRanges(toFetch)));
+        return Pair.create(Sets.newHashSet(ReplicaHelpers.asRanges(toStream)), Sets.newHashSet(ReplicaHelpers.asRanges(toFetch)));
     }
 
     public void bulkLoad(String directory)
@@ -5216,8 +5216,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     {
                         Range<Token> range = entry.getKey();
                         List<Replica> replicas = entry.getValue();
-                        Replicas.checkFull(replicas);
-                        for (InetAddressAndPort endpoint : Replicas.asEndpoints(replicas))
+                        ReplicaHelpers.checkFull(replicas);
+                        for (InetAddressAndPort endpoint : ReplicaHelpers.asEndpoints(replicas))
                             addRangeForEndpoint(range, endpoint);
                     }
                 }

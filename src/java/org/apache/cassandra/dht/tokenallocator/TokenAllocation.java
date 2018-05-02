@@ -38,7 +38,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
@@ -114,7 +114,7 @@ public class TokenAllocation
     {
         double size = current.size(next);
         Token representative = current.getPartitioner().midpoint(current, next);
-        for (InetAddressAndPort n : Replicas.asEndpoints(rs.calculateNaturalReplicas(representative, tokenMetadata)))
+        for (InetAddressAndPort n : ReplicaHelpers.asEndpoints(rs.calculateNaturalReplicas(representative, tokenMetadata)))
         {
             Double v = ownership.get(n);
             ownership.put(n, v != null ? v + size : size);

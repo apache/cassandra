@@ -41,7 +41,7 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.dht.Token;
@@ -186,8 +186,8 @@ public final class HintsService implements HintsServiceMBean
         Token token = hint.mutation.key().getToken();
 
         Iterable<Replica> replicas = StorageService.instance.getNaturalAndPendingReplicas(keyspaceName, token);
-        Replicas.checkFull(replicas);
-        Iterable<InetAddressAndPort> endpoints = Replicas.asEndpoints(filter(replicas, StorageProxy::shouldHint));
+        ReplicaHelpers.checkFull(replicas);
+        Iterable<InetAddressAndPort> endpoints = ReplicaHelpers.asEndpoints(filter(replicas, StorageProxy::shouldHint));
         Iterable<UUID> hostIds = transform(endpoints, StorageService.instance::getHostIdForEndpoint);
 
         write(hostIds, hint);

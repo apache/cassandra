@@ -39,9 +39,8 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.StorageProxy;
@@ -66,7 +65,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
                                          DataLimits.Counter mergedResultCounter,
                                          long queryStartNanoTime)
     {
-        Replicas.checkFull(source);
+        ReplicaHelpers.checkFull(source);
         this.command = command;
         this.source = source;
         this.singleResultCounter = singleResultCounter;

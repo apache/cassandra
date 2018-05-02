@@ -36,7 +36,7 @@ import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.DataIntegrityMetadata.FileDigestValidator;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
@@ -211,7 +211,7 @@ public class Verifier implements Closeable
 
             List<Range<Token>> ownedRanges = isOffline
                                              ? Collections.emptyList()
-                                             : Range.normalize(Replicas.asRanges(StorageService.instance.getLocalAndPendingReplicas(cfs.metadata().keyspace)));
+                                             : Range.normalize(ReplicaHelpers.asRanges(StorageService.instance.getLocalAndPendingReplicas(cfs.metadata().keyspace)));
             int rangeIndex = -1;
             DecoratedKey prevKey = null;
 

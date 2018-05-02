@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.locator;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -108,7 +107,7 @@ public class Replica
         assert isFull() && that.isFull();  // FIXME: this
         Set<Range<Token>> ranges = range.subtract(that.range);
         Set<Replica> replicatedRanges = Sets.newHashSetWithExpectedSize(ranges.size());
-        Replicas.decorateRanges(getEndpoint(), isFull(), ranges).forEach(replicatedRanges::add);
+        ReplicaHelpers.decorateRanges(getEndpoint(), isFull(), ranges).forEach(replicatedRanges::add);
         return replicatedRanges;
     }
 

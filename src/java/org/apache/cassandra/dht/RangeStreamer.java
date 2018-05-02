@@ -40,7 +40,7 @@ import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -188,12 +188,12 @@ public class RangeStreamer
             return;
         }
 
-        Replicas.checkFull(replicas);
+        ReplicaHelpers.checkFull(replicas);
 
         boolean useStrictSource = useStrictSourcesForRanges(keyspaceName);
         Multimap<Range<Token>, Replica> rangesForKeyspace = useStrictSource
-                ? getAllRangesWithStrictSourcesFor(keyspaceName, Replicas.fullRanges(replicas))
-                : getAllRangesWithSourcesFor(keyspaceName, Replicas.fullRanges(replicas));
+                ? getAllRangesWithStrictSourcesFor(keyspaceName, ReplicaHelpers.fullRanges(replicas))
+                : getAllRangesWithSourcesFor(keyspaceName, ReplicaHelpers.fullRanges(replicas));
 
         for (Map.Entry<Range<Token>, Replica> entry : rangesForKeyspace.entries())
             logger.info("{}: range {} exists on {} for keyspace {}", description, entry.getKey(), entry.getValue(), keyspaceName);
@@ -236,7 +236,7 @@ public class RangeStreamer
     {
         AbstractReplicationStrategy strat = Keyspace.open(keyspaceName).getReplicationStrategy();
         Multimap<Range<Token>, Replica> rangeAddresses = strat.getRangeAddresses(metadata.cloneOnlyTokenMap());
-        Replicas.checkFull(rangeAddresses.values());
+        ReplicaHelpers.checkFull(rangeAddresses.values());
 
         Multimap<Range<Token>, Replica> rangeSources = ArrayListMultimap.create();
         for (Range<Token> desiredRange : desiredRanges)
@@ -294,7 +294,7 @@ public class RangeStreamer
                     // So we need to be careful to only be strict when endpoints == RF
                     if (oldEndpoints.size() == strat.getReplicationFactor().replicas)
                     {
-                        Replicas.removeEndpoints(oldEndpoints, newEndpoints);
+                        ReplicaHelpers.removeEndpoints(oldEndpoints, newEndpoints);
                         assert oldEndpoints.size() == 1 : "Expected 1 endpoint but found " + oldEndpoints.size();
                     }
 
@@ -339,7 +339,7 @@ public class RangeStreamer
             outer:
             for (Replica replica : rangesWithSources.get(range))
             {
-                Replicas.checkFull(replica);
+                ReplicaHelpers.checkFull(replica);
                 for (ISourceFilter filter : sourceFilters)
                 {
                     if (!filter.shouldInclude(replica))
@@ -397,7 +397,7 @@ public class RangeStreamer
      */
     private static void validateRangeFetchMap(Multimap<Range<Token>, Replica> rangesWithSources, Multimap<InetAddressAndPort, Range<Token>> rangeFetchMapMap, String keyspace)
     {
-        Replicas.checkFull(rangesWithSources.values());
+        ReplicaHelpers.checkFull(rangesWithSources.values());
         for (Map.Entry<InetAddressAndPort, Range<Token>> entry : rangeFetchMapMap.entries())
         {
             if(entry.getKey().equals(FBUtilities.getBroadcastAddressAndPort()))
@@ -406,7 +406,7 @@ public class RangeStreamer
                                         + " in keyspace " + keyspace);
             }
 
-            if (!Replicas.containsEndpoint(rangesWithSources.get(entry.getValue()), entry.getKey()))
+            if (!ReplicaHelpers.containsEndpoint(rangesWithSources.get(entry.getValue()), entry.getKey()))
             {
                 throw new IllegalStateException("Trying to stream from wrong endpoint. Range: " + entry.getValue()
                                                 + " in keyspace " + keyspace + " from endpoint: " + entry.getKey());

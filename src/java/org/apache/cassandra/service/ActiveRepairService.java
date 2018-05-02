@@ -61,7 +61,7 @@ import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
@@ -80,8 +80,6 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
-
-import static org.apache.cassandra.config.Config.RepairCommandPoolFullStrategy.queue;
 
 /**
  * ActiveRepairService is the starting point for manual "active" repairs.
@@ -324,8 +322,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             return Collections.emptySet();
 
 
-        Replicas.checkFull(replicaSets.get(rangeSuperSet));
-        Set<InetAddressAndPort> neighbors = new HashSet<>(Replicas.asEndpoints(replicaSets.get(rangeSuperSet)));
+        ReplicaHelpers.checkFull(replicaSets.get(rangeSuperSet));
+        Set<InetAddressAndPort> neighbors = new HashSet<>(ReplicaHelpers.asEndpoints(replicaSets.get(rangeSuperSet)));
         neighbors.remove(FBUtilities.getBroadcastAddressAndPort());
 
         if (dataCenters != null && !dataCenters.isEmpty())

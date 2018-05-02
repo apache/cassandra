@@ -40,7 +40,7 @@ import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
@@ -466,7 +466,7 @@ public class CompactionManager implements CompactionManagerMBean
             return AllSSTableOpStatus.ABORTED;
         }
         // if local ranges is empty, it means no data should remain
-        final Collection<Range<Token>> ranges = Replicas.asRanges(StorageService.instance.getLocalReplicas(keyspace.getName()));
+        final Collection<Range<Token>> ranges = ReplicaHelpers.asRanges(StorageService.instance.getLocalReplicas(keyspace.getName()));
         final boolean hasIndexes = cfStore.indexManager.hasIndexes();
 
         return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
@@ -531,7 +531,7 @@ public class CompactionManager implements CompactionManagerMBean
             logger.info("Partitioner does not support splitting");
             return AllSSTableOpStatus.ABORTED;
         }
-        final Collection<Range<Token>> r = Replicas.asRanges(StorageService.instance.getLocalReplicas(cfs.keyspace.getName()));
+        final Collection<Range<Token>> r = ReplicaHelpers.asRanges(StorageService.instance.getLocalReplicas(cfs.keyspace.getName()));
 
         if (r.isEmpty())
         {
@@ -869,7 +869,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             ColumnFamilyStore cfs = entry.getKey();
             Keyspace keyspace = cfs.keyspace;
-            Collection<Range<Token>> ranges = Replicas.asRanges(StorageService.instance.getLocalReplicas(keyspace.getName()));
+            Collection<Range<Token>> ranges = ReplicaHelpers.asRanges(StorageService.instance.getLocalReplicas(keyspace.getName()));
             boolean hasIndexes = cfs.indexManager.hasIndexes();
             SSTableReader sstable = lookupSSTable(cfs, entry.getValue());
 

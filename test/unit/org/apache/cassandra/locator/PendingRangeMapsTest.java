@@ -74,7 +74,7 @@ public class PendingRangeMapsTest {
         assertEquals(1, pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("65")).size());
 
         Collection<Replica> replicas = pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("15"));
-        assertTrue(Replicas.containsEndpoint(replicas, InetAddressAndPort.getByName("127.0.0.1")));
+        assertTrue(ReplicaHelpers.containsEndpoint(replicas, InetAddressAndPort.getByName("127.0.0.1")));
     }
 
     @Test
@@ -103,7 +103,7 @@ public class PendingRangeMapsTest {
         assertEquals(1, pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("65")).size());
 
         Collection<Replica> replicas = pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("6"));
-        assertTrue(Replicas.containsEndpoint(replicas, InetAddressAndPort.getByName("127.0.0.1")));
-        assertTrue(Replicas.containsEndpoint(replicas, InetAddressAndPort.getByName("127.0.0.7")));
+        assertTrue(ReplicaHelpers.containsEndpoint(replicas, InetAddressAndPort.getByName("127.0.0.1")));
+        assertTrue(ReplicaHelpers.containsEndpoint(replicas, InetAddressAndPort.getByName("127.0.0.7")));
     }
 }
