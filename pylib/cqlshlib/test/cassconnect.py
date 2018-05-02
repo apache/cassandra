@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import with_statement
 
 import contextlib
-import tempfile
+import io
 import os.path
-from .basecase import cql, cqlsh, cqlshlog, TEST_HOST, TEST_PORT, rundir, policy, quote_name
+import tempfile
+
+from .basecase import TEST_HOST, TEST_PORT, cql, cqlsh, cqlshlog, policy, quote_name, rundir
 from .run_cqlsh import run_cqlsh, call_cqlsh
 
 test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
@@ -43,12 +44,12 @@ def make_ks_name():
     return os.path.basename(tempfile.mktemp(prefix='CqlshTests_'))
 
 def create_keyspace(cursor):
-    ksname = make_ks_name()
+    ksname = make_ks_name().lower()
     qksname = quote_name(ksname)
     cursor.execute('''
         CREATE KEYSPACE %s WITH replication =
             {'class': 'SimpleStrategy', 'replication_factor': 1};
-    ''' % quote_name(ksname))
+    ''' % qksname)
     cursor.execute('USE %s;' % qksname)
     TEST_KEYSPACES_CREATED.append(ksname)
     return ksname
@@ -63,11 +64,11 @@ def split_cql_commands(source):
 
 def execute_cql_commands(cursor, source, logprefix='INIT: '):
     for cql in split_cql_commands(source):
-        cqlshlog.debug(logprefix + cql)
+        cqlshlog.debug((logprefix + cql).encode("utf-8"))
         cursor.execute(cql)
 
 def execute_cql_file(cursor, fname):
-    with open(fname) as f:
+    with io.open(fname, "r", encoding="utf-8") as f:
         return execute_cql_commands(cursor, f.read())
 
 def create_db():
@@ -116,8 +117,6 @@ def cassandra_cursor(cql_version=None, ks=''):
         c = conn.connect(ks)
         # increase default timeout to fix flacky tests, see CASSANDRA-12481
         c.default_timeout = 60.0
-        # if ks is not None:
-        #     c.execute('USE %s;' % quote_name(c, ks))
         yield c
     finally:
         conn.shutdown()
@@ -137,4 +136,6 @@ def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
 def testcall_cqlsh(keyspace=None, **kwargs):
     if keyspace is None:
         keyspace = get_keyspace()
+    if ('input' in kwargs.keys() and isinstance(kwargs['input'], str)):
+        kwargs['input'] = kwargs['input'].encode('utf-8')
     return call_cqlsh(keyspace=keyspace, **kwargs)

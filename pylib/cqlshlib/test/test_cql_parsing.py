@@ -20,7 +20,7 @@
 from unittest import TestCase
 from operator import itemgetter
 
-from ..cql3handling import CqlRuleSet
+from cqlshlib.cql3handling import CqlRuleSet
 
 
 class TestCqlParsing(TestCase):
