@@ -17,11 +17,13 @@
 # to configure behavior, define $CQL_TEST_HOST to the destination address
 # and $CQL_TEST_PORT to the associated port.
 
-from __future__ import with_statement
 
+import locale
+import os
 import re
-from .basecase import BaseTestCase, cqlsh
-from .cassconnect import testrun_cqlsh
+from .basecase import BaseTestCase, cqlsh, cqlshlog
+from .cassconnect import create_db, remove_db, testrun_cqlsh
+from .run_cqlsh import TimeoutError
 import unittest
 import sys
 
@@ -41,8 +43,22 @@ completion_separation_re = re.compile(r'\s+')
 @unittest.skipIf(sys.platform == "win32", 'Tab completion tests not supported on Windows')
 class CqlshCompletionCase(BaseTestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        create_db()
+
+    @classmethod
+    def tearDownClass(cls):
+        remove_db()
+
     def setUp(self):
-        self.cqlsh_runner = testrun_cqlsh(cqlver=None, env={'COLUMNS': '100000'})
+        env = os.environ
+        env['COLUMNS'] = '100000'
+        if (locale.getpreferredencoding() != 'UTF-8'):
+             env['LC_CTYPE'] = 'en_US.utf8'
+        if ('PATH' in os.environ.keys()):
+            env['PATH'] = os.environ['PATH']
+        self.cqlsh_runner = testrun_cqlsh(cqlver=None, env=env)
         self.cqlsh = self.cqlsh_runner.__enter__()
 
     def tearDown(self):
@@ -81,14 +97,14 @@ class CqlshCompletionCase(BaseTestCase):
             prompt_regex = self.cqlsh.prompt.lstrip() + re.escape(inputstring)
             msg = ('Double-tab completion '
                    'does not print prompt for input "{}"'.format(inputstring))
-            self.assertRegexpMatches(choice_lines[-1], prompt_regex, msg=msg)
+            self.assertRegex(choice_lines[-1], prompt_regex, msg=msg)
 
         choice_lines = [line.strip() for line in choice_lines[:-1]]
         choice_lines = [line for line in choice_lines if line]
 
         if split_completed_lines:
-            completed_lines = map(set, (completion_separation_re.split(line.strip())
-                                  for line in choice_lines))
+            completed_lines = list(map(set, (completion_separation_re.split(line.strip())
+                                  for line in choice_lines)))
 
             if not completed_lines:
                 return set()
@@ -132,8 +148,14 @@ class CqlshCompletionCase(BaseTestCase):
                                        other_choices_ok=other_choices_ok,
                                        split_completed_lines=split_completed_lines)
         finally:
-            self.cqlsh.send(CTRL_C)  # cancel any current line
-            self.cqlsh.read_to_next_prompt()
+            try:
+                self.cqlsh.send(CTRL_C)  # cancel any current line
+                self.cqlsh.read_to_next_prompt(timeout=1.0)
+            except TimeoutError:
+                # retry once
+                self.cqlsh.send(CTRL_C)
+                self.cqlsh.read_to_next_prompt(timeout=10.0)
+ 
 
     def strategies(self):
         return self.module.CqlRuleSet.replication_strategies
@@ -345,8 +367,6 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=[',', 'WHERE'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE ",
                             choices=['TOKEN(', 'lonelykey'])
-        self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE ",
-                            choices=['TOKEN(', 'lonelykey'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonel",
                             immediate='ykey ')
@@ -392,7 +412,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'twenty_rows_composite_table',
                                      'utf8_with_special_chars',
                                      'system_traces.', 'songs',
-                                     '"' + self.cqlsh.keyspace + '".'],
+                                     self.cqlsh.keyspace + '.'],
                             other_choices_ok=True)
 
         self.trycompletions('DELETE FROM ',
@@ -407,7 +427,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'system_traces.', 'songs',
                                      'system_auth.', 'system_distributed.',
                                      'system_schema.', 'system_traces.',
-                                     '"' + self.cqlsh.keyspace + '".'],
+                                     self.cqlsh.keyspace + '.'],
                             other_choices_ok=True)
         self.trycompletions('DELETE FROM twenty_rows_composite_table ',
                             choices=['USING', 'WHERE'])
@@ -529,13 +549,13 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('DROP K', immediate='EYSPACE ')
         quoted_keyspace = '"' + self.cqlsh.keyspace + '"'
         self.trycompletions('DROP KEYSPACE ',
-                            choices=['IF', quoted_keyspace])
+                            choices=['IF', self.cqlsh.keyspace])
 
         self.trycompletions('DROP KEYSPACE ' + quoted_keyspace,
                             choices=[';'])
 
         self.trycompletions('DROP KEYSPACE I',
-                            immediate='F EXISTS ' + quoted_keyspace + ';')
+                            immediate='F EXISTS ' + self.cqlsh.keyspace + ' ;')
 
     def create_columnfamily_table_template(self, name):
         """Parameterized test for CREATE COLUMNFAMILY and CREATE TABLE. Since
@@ -544,11 +564,11 @@ class TestCqlshCompletion(CqlshCompletionCase):
         prefix = 'CREATE ' + name + ' '
         quoted_keyspace = '"' + self.cqlsh.keyspace + '"'
         self.trycompletions(prefix + '',
-                            choices=['IF', quoted_keyspace, '<new_table_name>'])
+                            choices=['IF', self.cqlsh.keyspace, '<new_table_name>'])
         self.trycompletions(prefix + 'IF ',
                             immediate='NOT EXISTS ')
         self.trycompletions(prefix + 'IF NOT EXISTS ',
-                            choices=['<new_table_name>', quoted_keyspace])
+                            choices=['<new_table_name>', self.cqlsh.keyspace])
         self.trycompletions(prefix + 'IF NOT EXISTS new_table ',
                             immediate='( ')
 
@@ -594,7 +614,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
                                      'COMPACT', 'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc'])
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH ',
                             choices=['bloom_filter_fp_chance', 'compaction',
                                      'compression',
@@ -603,7 +623,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
                                      'COMPACT', 'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc'])
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH bloom_filter_fp_chance ',
                             immediate='= ')
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH bloom_filter_fp_chance = ',
@@ -650,7 +670,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
                                      'COMPACT', 'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc'])
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'DateTieredCompactionStrategy', '",
                             choices=['base_time_seconds', 'max_sstable_age_days',
@@ -694,7 +714,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'utf8_with_special_chars',
                                      'system_traces.', 'songs',
                                      'system_distributed.',
-                                     '"' + self.cqlsh.keyspace + '".'],
+                                     self.cqlsh.keyspace + '.'],
                             other_choices_ok=True)
 
         self.trycompletions('DESC TYPE ',
@@ -717,7 +737,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'fbestsong',
                                      'fmax',
                                      'fmin',
-                                     '"' + self.cqlsh.keyspace + '".'],
+                                     self.cqlsh.keyspace + '.'],
                             other_choices_ok=True)
 
         self.trycompletions('DESC AGGREGATE ',
@@ -727,7 +747,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'system_distributed.',
                                      'aggmin',
                                      'aggmax',
-                                     '"' + self.cqlsh.keyspace + '".'],
+                                     self.cqlsh.keyspace + '.'],
                             other_choices_ok=True)
 
         # Unfortunately these commented tests will not work. This is due to the keyspace name containing quotes;

@@ -19,9 +19,9 @@ import cProfile
 import codecs
 import pstats
 
-from itertools import izip
+
 from datetime import timedelta, tzinfo
-from StringIO import StringIO
+from six import StringIO
 
 try:
     from line_profiler import LineProfiler
@@ -77,7 +77,7 @@ def find_common_prefix(strs):
     """
 
     common = []
-    for cgroup in izip(*strs):
+    for cgroup in zip(*strs):
         if all(x == cgroup[0] for x in cgroup[1:]):
             common.append(cgroup[0])
         else:
@@ -161,6 +161,6 @@ def profile_off(pr, file_name):
     ret = s.getvalue()
     if file_name:
         with open(file_name, 'w') as f:
-            print "Writing to %s\n" % (f.name, )
+            print("Writing to %s\n" % (f.name, ))
             f.write(ret)
     return ret

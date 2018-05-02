@@ -7,9 +7,19 @@
 ################################
 
 WORKSPACE=$1
+PYTHON_VERSION=$2
 
 if [ "${WORKSPACE}" = "" ]; then
     echo "Specify Cassandra source directory"
+    exit
+fi
+
+if [ "${PYTHON_VERSION}" = "" ]; then
+    PYTHON_VERSION=python3
+fi
+
+if [ "${PYTHON_VERSION}" != "python3" -a "${PYTHON_VERSION}" != "python2" ]; then
+    echo "Specify Python version python3 or python2"
     exit
 fi
 
@@ -22,6 +32,10 @@ export CCM_HEAP_NEWSIZE="200M"
 export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
 export NUM_TOKENS="32"
 export CASSANDRA_DIR=${WORKSPACE}
+
+if [ -z "$CASSANDRA_USE_JDK11" ]; then
+    export CASSANDRA_USE_JDK11=true
+fi
 
 # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
 for x in $(seq 1 3); do
@@ -39,8 +53,9 @@ fi
 
 # Set up venv with dtest dependencies
 set -e # enable immediate exit if venv setup fails
-virtualenv --python=python2 --no-site-packages venv
+virtualenv --python=$PYTHON_VERSION --no-site-packages venv
 source venv/bin/activate
+
 pip install -r ${CASSANDRA_DIR}/pylib/requirements.txt
 pip freeze
 
@@ -59,10 +74,11 @@ fi
 ccm remove test || true # in case an old ccm cluster is left behind
 ccm create test -n 1 --install-dir=${CASSANDRA_DIR}
 ccm updateconf "enable_user_defined_functions: true"
+ccm updateconf "enable_scripted_user_defined_functions: true"
 
 version_from_build=$(ccm node1 versionfrombuild)
 export pre_or_post_cdc=$(python -c """from distutils.version import LooseVersion
-print \"postcdc\" if LooseVersion(\"${version_from_build}\") >= \"3.8\" else \"precdc\"
+print (\"postcdc\" if LooseVersion(\"${version_from_build}\") >= \"3.8\" else \"precdc\")
 """)
 case "${pre_or_post_cdc}" in
     postcdc)

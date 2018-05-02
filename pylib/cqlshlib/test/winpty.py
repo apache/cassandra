@@ -15,11 +15,11 @@
 # limitations under the License.
 
 from threading import Thread
-from cStringIO import StringIO
-from Queue import Queue, Empty
+from six import StringIO
+from six.moves.queue import Queue, Empty
 
 
-class WinPty:
+class WinPty(object):
 
     def __init__(self, stdin):
         self._s = stdin
