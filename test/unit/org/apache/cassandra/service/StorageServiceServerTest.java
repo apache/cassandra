@@ -27,6 +27,7 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import javax.management.openmbean.CompositeData;
@@ -188,11 +189,11 @@ public class StorageServiceServerTest
     {
         BlockingQueue<Map<String, Map<String, CompositeData>>> q = new ArrayBlockingQueue<>(1);
         ColumnFamilyStore.all();
-        StageManager.getStage(Stage.MISC).execute(() ->
+        Executors.newCachedThreadPool().execute(() ->
         {
             try
             {
-                q.put(StorageService.instance.samplePartitions(1000, 100, 10, Lists.newArrayList("READS", "WRITES")));
+                q.put(StorageService.instance.samplePartitions(5000, 100, 10, Lists.newArrayList("READS", "WRITES")));
             }
             catch (Exception e)
             {
