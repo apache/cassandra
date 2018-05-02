@@ -28,6 +28,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.utils.FBUtilities;
 
 public final class ViewUtils
@@ -81,8 +82,8 @@ public final class ViewUtils
 
             // We have to remove any endpoint which is shared between the base and the view, as it will select itself
             // and throw off the counts otherwise.
-            if (baseReplicas.contains(viewEndpoint))
-                baseReplicas.remove(viewEndpoint);
+            if (Replicas.containsEndpoint(baseReplicas, viewEndpoint.getEndpoint()))
+                Replicas.removeEndpoint(baseReplicas, viewEndpoint.getEndpoint());
             else if (!(replicationStrategy instanceof NetworkTopologyStrategy) ||
                      DatabaseDescriptor.getEndpointSnitch().getDatacenter(viewEndpoint).equals(localDataCenter))
                 viewReplicas.add(viewEndpoint);
