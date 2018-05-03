@@ -37,7 +37,7 @@ public class SimpleSnitch extends AbstractEndpointSnitch
     }
 
     @Override
-    public void sortByProximity(final InetAddressAndPort address, List<Replica> addresses)
+    public void sortByProximity(final InetAddressAndPort address, ReplicaList addresses)
     {
         // Optimization to avoid walking the list
     }

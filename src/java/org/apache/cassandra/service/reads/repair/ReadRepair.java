@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service.reads.repair;
 
-import java.util.List;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -26,6 +25,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.service.reads.DigestResolver;
 
 public interface ReadRepair
@@ -40,8 +40,8 @@ public interface ReadRepair
      * repair started by this method.
      */
     public void startRepair(DigestResolver digestResolver,
-                            List<Replica> allEndpoints,
-                            List<Replica> contactedEndpoints,
+                            ReplicaList allEndpoints,
+                            ReplicaList contactedEndpoints,
                             Consumer<PartitionIterator> resultConsumer);
 
     /**
@@ -49,7 +49,7 @@ public interface ReadRepair
      */
     public void awaitRepair() throws ReadTimeoutException;
 
-    static ReadRepair create(ReadCommand command, List<Replica> endpoints, long queryStartNanoTime, ConsistencyLevel consistency)
+    static ReadRepair create(ReadCommand command, ReplicaList endpoints, long queryStartNanoTime, ConsistencyLevel consistency)
     {
         return new BlockingReadRepair(command, endpoints, queryStartNanoTime, consistency);
     }

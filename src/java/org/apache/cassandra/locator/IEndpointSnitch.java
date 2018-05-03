@@ -47,12 +47,12 @@ public interface IEndpointSnitch
     /**
      * returns a new <tt>List</tt> sorted by proximity to the given endpoint
      */
-    public List<Replica> getSortedListByProximity(InetAddressAndPort address, Collection<Replica> unsortedAddress);
+    public ReplicaList getSortedListByProximity(InetAddressAndPort address, Replicas unsortedAddress);
 
     /**
      * This method will sort the <tt>List</tt> by proximity to the given address.
      */
-    public void sortByProximity(InetAddressAndPort address, List<Replica> addresses);
+    public void sortByProximity(InetAddressAndPort address, ReplicaList addresses);
 
     /**
      * compares two endpoints in relation to the target endpoint, returning as Comparator.compare would
@@ -68,7 +68,7 @@ public interface IEndpointSnitch
      * Returns whether for a range query doing a query against merged is likely
      * to be faster than 2 sequential queries, one against l1 followed by one against l2.
      */
-    public boolean isWorthMergingForRangeQuery(List<Replica> merged, List<Replica> l1, List<Replica> l2);
+    public boolean isWorthMergingForRangeQuery(ReplicaList merged, ReplicaList l1, ReplicaList l2);
 
     /**
      * Determine if the datacenter or rack values in the current node's snitch conflict with those passed in parameters.

@@ -79,9 +79,10 @@ public class NetworkTopologyStrategyTest
         assert strategy.getReplicationFactor("DC2").replicas == 2;
         assert strategy.getReplicationFactor("DC3").replicas == 1;
         // Query for the natural hosts
-        ArrayList<Replica> endpoints = strategy.getNaturalReplicas(new StringToken("123"));
-        assert 6 == endpoints.size();
-        assert 6 == new HashSet<>(endpoints).size(); // ensure uniqueness
+        ReplicaList replicas = strategy.getNaturalReplicas(new StringToken("123"));
+        assert 6 == replicas.size();
+        assert 6 == replicas.asEndpointSet().size(); // ensure uniqueness
+        assert 6 == new ReplicaSet(replicas).size(); // ensure uniqueness
     }
 
     @Test
@@ -103,9 +104,10 @@ public class NetworkTopologyStrategyTest
         assert strategy.getReplicationFactor("DC2").replicas == 3;
         assert strategy.getReplicationFactor("DC3").replicas == 0;
         // Query for the natural hosts
-        ArrayList<Replica> endpoints = strategy.getNaturalReplicas(new StringToken("123"));
-        assert 6 == endpoints.size();
-        assert 6 == new HashSet<>(endpoints).size(); // ensure uniqueness
+        ReplicaList replicas = strategy.getNaturalReplicas(new StringToken("123"));
+        assert 6 == replicas.size();
+        assert 6 == replicas.asEndpointSet().size(); // ensure uniqueness
+        assert 6 == new ReplicaSet(replicas).size(); // ensure uniqueness
     }
 
     @Test
@@ -144,12 +146,14 @@ public class NetworkTopologyStrategyTest
 
         for (String testToken : new String[]{"123456", "200000", "000402", "ffffff", "400200"})
         {
-            List<Replica> endpoints = strategy.calculateNaturalReplicas(new StringToken(testToken), metadata);
-            Set<Replica> epSet = new HashSet<>(endpoints);
+            ReplicaList replicas = strategy.calculateNaturalReplicas(new StringToken(testToken), metadata);
+            ReplicaSet replicaSet = new ReplicaSet(replicas);
+            Set<InetAddressAndPort> endpointSet = replicas.asEndpointSet();
 
-            Assert.assertEquals(totalRF, endpoints.size());
-            Assert.assertEquals(totalRF, epSet.size());
-            logger.debug("{}: {}", testToken, endpoints);
+            Assert.assertEquals(totalRF, replicas.size());
+            Assert.assertEquals(totalRF, replicaSet.size());
+            Assert.assertEquals(totalRF, endpointSet.size());
+            logger.debug("{}: {}", testToken, replicas);
         }
     }
 
@@ -216,7 +220,7 @@ public class NetworkTopologyStrategyTest
         {
             Token token = Murmur3Partitioner.instance.getRandomToken(rand);
             List<InetAddressAndPort> expected = calculateNaturalEndpoints(token, tokenMetadata, datacenters, snitch);
-            List<InetAddressAndPort> actual = ReplicaHelpers.asEndpointList(nts.calculateNaturalReplicas(token, tokenMetadata));
+            List<InetAddressAndPort> actual = nts.calculateNaturalReplicas(token, tokenMetadata).asEndpointList();
             if (endpointsDiffer(expected, actual))
             {
                 System.err.println("Endpoints mismatch for token " + token);

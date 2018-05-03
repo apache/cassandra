@@ -119,12 +119,12 @@ public class SimpleStrategyTest
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                List<Replica> replicas = strategy.getNaturalReplicas(keyTokens[i]);
+                ReplicaList replicas = strategy.getNaturalReplicas(keyTokens[i]);
                 assertEquals(strategy.getReplicationFactor().replicas, replicas.size());
                 List<InetAddressAndPort> correctEndpoints = new ArrayList<>();
                 for (int j = 0; j < replicas.size(); j++)
                     correctEndpoints.add(hosts.get((i + j + 1) % hosts.size()));
-                assertEquals(new HashSet<>(correctEndpoints), ReplicaHelpers.asEndpointSet(replicas));
+                assertEquals(new HashSet<>(correctEndpoints), replicas.asEndpointSet());
             }
         }
     }
@@ -170,7 +170,7 @@ public class SimpleStrategyTest
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                Collection<Replica> replicas = tmd.getWriteEndpoints(keyTokens[i], keyspaceName, strategy.getNaturalReplicas(keyTokens[i]));
+                ReplicaList replicas = tmd.getWriteEndpoints(keyTokens[i], keyspaceName, strategy.getNaturalReplicas(keyTokens[i]));
                 assertTrue(replicas.size() >= replicationFactor);
 
                 for (int j = 0; j < replicationFactor; j++)

@@ -26,6 +26,7 @@ import com.google.common.collect.Maps;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
@@ -44,7 +45,7 @@ public class DataResolver extends ResponseResolver
     private final boolean enforceStrictLiveness;
     private final Map<InetAddressAndPort, Replica> replicaMap;
 
-    public DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, Collection<Replica> replicas, int maxResponseCount, long queryStartNanoTime, ReadRepair readRepair)
+    public DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, Replicas replicas, int maxResponseCount, long queryStartNanoTime, ReadRepair readRepair)
     {
         super(keyspace, command, consistency, readRepair, maxResponseCount);
         this.queryStartNanoTime = queryStartNanoTime;

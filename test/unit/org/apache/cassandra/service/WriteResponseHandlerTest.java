@@ -40,6 +40,8 @@ import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaList;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -51,7 +53,7 @@ public class WriteResponseHandlerTest
 {
     static Keyspace ks;
     static ColumnFamilyStore cfs;
-    static List<Replica> targets;
+    static ReplicaList targets;
 
     private static Replica full(String name)
     {
@@ -91,12 +93,12 @@ public class WriteResponseHandlerTest
                     return "datacenter2";
             }
 
-            public List<Replica> getSortedListByProximity(InetAddressAndPort address, Collection<Replica> unsortedAddress)
+            public ReplicaList getSortedListByProximity(InetAddressAndPort address, Replicas unsortedAddress)
             {
                 return null;
             }
 
-            public void sortByProximity(InetAddressAndPort address, List<Replica> replicas)
+            public void sortByProximity(InetAddressAndPort address, ReplicaList replicas)
             {
 
             }
@@ -111,7 +113,7 @@ public class WriteResponseHandlerTest
 
             }
 
-            public boolean isWorthMergingForRangeQuery(List<Replica> merged, List<Replica> l1, List<Replica> l2)
+            public boolean isWorthMergingForRangeQuery(ReplicaList merged, ReplicaList l1, ReplicaList l2)
             {
                 return false;
             }
@@ -120,8 +122,8 @@ public class WriteResponseHandlerTest
         SchemaLoader.createKeyspace("Foo", KeyspaceParams.nts("datacenter1", 3, "datacenter2", 3), SchemaLoader.standardCFMD("Foo", "Bar"));
         ks = Keyspace.open("Foo");
         cfs = ks.getColumnFamilyStore("Bar");
-        targets = ImmutableList.of(full("127.1.0.255"), full("127.1.0.254"), full("127.1.0.253"),
-                                   full("127.2.0.255"), full("127.2.0.254"), full("127.2.0.253"));
+        targets = ReplicaList.immutableCopyOf(full("127.1.0.255"), full("127.1.0.254"), full("127.1.0.253"),
+                                              full("127.2.0.255"), full("127.2.0.254"), full("127.2.0.253"));
     }
 
     @Before
@@ -234,7 +236,7 @@ public class WriteResponseHandlerTest
 
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, long queryStartTime)
     {
-        return ks.getReplicationStrategy().getWriteResponseHandler(targets, ImmutableList.of(), cl, new Runnable() {
+        return ks.getReplicationStrategy().getWriteResponseHandler(targets, ReplicaList.of(), cl, new Runnable() {
             public void run()
             {
 

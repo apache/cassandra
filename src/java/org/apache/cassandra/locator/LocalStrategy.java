@@ -17,10 +17,8 @@
  */
 package org.apache.cassandra.locator;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -32,10 +30,16 @@ import org.apache.cassandra.utils.FBUtilities;
 public class LocalStrategy extends AbstractReplicationStrategy
 {
     private static final ReplicationFactor RF = ReplicationFactor.rf(1);
+    private final ReplicaList replicas;
 
     public LocalStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
+
+        replicas = new ReplicaList(1);
+        replicas.add(Replica.full(FBUtilities.getBroadcastAddressAndPort(),
+                                  DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                                  DatabaseDescriptor.getPartitioner().getMinimumToken()));
     }
 
     /**
@@ -44,20 +48,14 @@ public class LocalStrategy extends AbstractReplicationStrategy
      * LocalStrategy may be used before tokens are set up.
      */
     @Override
-    public ArrayList<Replica> getNaturalReplicas(RingPosition searchPosition)
+    public ReplicaList getNaturalReplicas(RingPosition searchPosition)
     {
-        ArrayList<Replica> l = new ArrayList<>(1);
-        l.add(Replica.full(FBUtilities.getBroadcastAddressAndPort(),
-                           DatabaseDescriptor.getPartitioner().getMinimumToken(),
-                           DatabaseDescriptor.getPartitioner().getMinimumToken()));
-        return l;
+        return replicas;
     }
 
-    public List<Replica> calculateNaturalReplicas(Token token, TokenMetadata metadata)
+    public ReplicaList calculateNaturalReplicas(Token token, TokenMetadata metadata)
     {
-        return Collections.singletonList(Replica.full(FBUtilities.getBroadcastAddressAndPort(),
-                                                      DatabaseDescriptor.getPartitioner().getMinimumToken(),
-                                                      DatabaseDescriptor.getPartitioner().getMinimumToken()));
+        return replicas;
     }
 
     public ReplicationFactor getReplicationFactor()

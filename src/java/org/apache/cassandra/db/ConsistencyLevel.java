@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -179,7 +180,7 @@ public enum ConsistencyLevel
         return dcEndpoints;
     }
 
-    public List<Replica> filterForQuery(Keyspace keyspace, List<Replica> liveReplicas)
+    public ReplicaList filterForQuery(Keyspace keyspace, ReplicaList liveReplicas)
     {
         /*
          * If we are doing an each quorum query, we have to make sure that the endpoints we select
@@ -201,13 +202,13 @@ public enum ConsistencyLevel
         return liveReplicas.subList(0, Math.min(liveReplicas.size(), blockFor(keyspace)));
     }
 
-    private List<Replica> filterForEachQuorum(Keyspace keyspace, List<Replica> liveReplicas)
+    private ReplicaList filterForEachQuorum(Keyspace keyspace, ReplicaList liveReplicas)
     {
         NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
 
-        Map<String, List<Replica>> dcsReplicas = new HashMap<>();
+        Map<String, ReplicaList> dcsReplicas = new HashMap<>();
         for (String dc: strategy.getDatacenters())
-            dcsReplicas.put(dc, new ArrayList<>());
+            dcsReplicas.put(dc, new ReplicaList());
 
         for (Replica replica : liveReplicas)
         {
@@ -215,10 +216,10 @@ public enum ConsistencyLevel
             dcsReplicas.get(dc).add(replica);
         }
 
-        List<Replica> waitSet = new ArrayList<>();
-        for (Map.Entry<String, List<Replica>> dcEndpoints : dcsReplicas.entrySet())
+        ReplicaList waitSet = new ReplicaList();
+        for (Map.Entry<String, ReplicaList> dcEndpoints : dcsReplicas.entrySet())
         {
-            List<Replica> dcEndpoint = dcEndpoints.getValue();
+            ReplicaList dcEndpoint = dcEndpoints.getValue();
             waitSet.addAll(dcEndpoint.subList(0, Math.min(localQuorumFor(keyspace, dcEndpoints.getKey()), dcEndpoint.size())));
         }
 

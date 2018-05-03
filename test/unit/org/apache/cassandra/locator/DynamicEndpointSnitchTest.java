@@ -50,9 +50,9 @@ public class DynamicEndpointSnitchTest
         Thread.sleep(150);
     }
 
-    private static List<Replica> fullReplicas(InetAddressAndPort... endpoints)
+    private static ReplicaList fullReplicas(InetAddressAndPort... endpoints)
     {
-        return ReplicaHelpers.fullStandins(Arrays.asList(endpoints));
+        return ReplicaList.fullStandIns(Arrays.asList(endpoints));
     }
 
     @Test
@@ -71,7 +71,7 @@ public class DynamicEndpointSnitchTest
 
         // first, make all hosts equal
         setScores(dsnitch, 1, hosts, 10, 10, 10);
-        List<Replica> order = fullReplicas(host1, host2, host3);
+        ReplicaList order = fullReplicas(host1, host2, host3);
         assertEquals(order, dsnitch.getSortedListByProximity(self, fullReplicas(host1, host2, host3)));
 
         // make host1 a little worse

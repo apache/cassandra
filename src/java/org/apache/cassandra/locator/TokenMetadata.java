@@ -1205,11 +1205,11 @@ public class TokenMetadata
         return sb.toString();
     }
 
-    public Collection<Replica> pendingEndpointsFor(Token token, String keyspaceName)
+    public Replicas pendingEndpointsFor(Token token, String keyspaceName)
     {
         PendingRangeMaps pendingRangeMaps = this.pendingRanges.get(keyspaceName);
         if (pendingRangeMaps == null)
-            return Collections.emptyList();
+            return new ReplicaList(0);
 
         return pendingRangeMaps.pendingEndpointsFor(token);
     }
@@ -1217,9 +1217,9 @@ public class TokenMetadata
     /**
      * @deprecated retained for benefit of old tests
      */
-    public Collection<Replica> getWriteEndpoints(Token token, String keyspaceName, Collection<Replica> naturalEndpoints)
+    public ReplicaList getWriteEndpoints(Token token, String keyspaceName, Replicas naturalEndpoints)
     {
-        return ImmutableList.copyOf(Iterables.concat(naturalEndpoints, pendingEndpointsFor(token, keyspaceName)));
+        return ReplicaList.immutableCopyOf(Replicas.concat(naturalEndpoints, pendingEndpointsFor(token, keyspaceName)));
     }
 
     /** @return an endpoint to token multimap representation of tokenToEndpointMap (a copy) */

@@ -41,6 +41,8 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaHelpers;
+import org.apache.cassandra.locator.ReplicaList;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -245,7 +247,7 @@ public class RangeStreamer
             {
                 if (range.contains(desiredRange))
                 {
-                    List<Replica> preferred = snitch.getSortedListByProximity(address, rangeAddresses.get(range));
+                    ReplicaList preferred = snitch.getSortedListByProximity(address, Replicas.of(rangeAddresses.get(range)));
                     rangeSources.putAll(desiredRange, preferred);
                     break;
                 }

@@ -49,6 +49,7 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaHelpers;
+import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.MessageOut;
@@ -70,7 +71,7 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
         Boolean.getBoolean("cassandra.drop_oversized_readrepair_mutations");
 
     private final ReadCommand command;
-    private final List<Replica> replicas;
+    private final ReplicaList replicas;
     private final long queryStartNanoTime;
     private final ConsistencyLevel consistency;
 
@@ -93,7 +94,7 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
     }
 
     public BlockingReadRepair(ReadCommand command,
-                              List<Replica> replicas,
+                              ReplicaList replicas,
                               long queryStartNanoTime,
                               ConsistencyLevel consistency)
     {
@@ -224,7 +225,7 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
         return repair;
     }
 
-    public void startRepair(DigestResolver digestResolver, List<Replica> allReplicas, List<Replica> contactedReplicas, Consumer<PartitionIterator> resultConsumer)
+    public void startRepair(DigestResolver digestResolver, ReplicaList allReplicas, ReplicaList contactedReplicas, Consumer<PartitionIterator> resultConsumer)
     {
         ReadRepairMetrics.repairedBlocking.mark();
 

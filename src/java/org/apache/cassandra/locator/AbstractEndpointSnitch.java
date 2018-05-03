@@ -31,9 +31,9 @@ public abstract class AbstractEndpointSnitch implements IEndpointSnitch
      * @param unsortedAddress the nodes to sort
      * @return a new sorted <tt>List</tt>
      */
-    public List<Replica> getSortedListByProximity(InetAddressAndPort address, Collection<Replica> unsortedAddress)
+    public ReplicaList getSortedListByProximity(InetAddressAndPort address, Replicas unsortedAddress)
     {
-        List<Replica> preferred = new ArrayList<>(unsortedAddress);
+        ReplicaList preferred = new ReplicaList(unsortedAddress);
         sortByProximity(address, preferred);
         return preferred;
     }
@@ -43,9 +43,9 @@ public abstract class AbstractEndpointSnitch implements IEndpointSnitch
      * @param address the address to sort the proximity by
      * @param addresses the nodes to sort
      */
-    public void sortByProximity(final InetAddressAndPort address, List<Replica> addresses)
+    public void sortByProximity(final InetAddressAndPort address, ReplicaList addresses)
     {
-        Collections.sort(addresses, (r1, r2) -> compareEndpoints(address, r1, r2));
+        addresses.sort((r1, r2) -> compareEndpoints(address, r1, r2));
     }
 
     public void gossiperStarting()
@@ -53,7 +53,7 @@ public abstract class AbstractEndpointSnitch implements IEndpointSnitch
         // noop by default
     }
 
-    public boolean isWorthMergingForRangeQuery(List<Replica> merged, List<Replica> l1, List<Replica> l2)
+    public boolean isWorthMergingForRangeQuery(ReplicaList merged, ReplicaList l1, ReplicaList l2)
     {
         // Querying remote DC is likely to be an order of magnitude slower than
         // querying locally, so 2 queries to local nodes is likely to still be
@@ -64,7 +64,7 @@ public abstract class AbstractEndpointSnitch implements IEndpointSnitch
              : true;
     }
 
-    private boolean hasRemoteNode(List<Replica> l)
+    private boolean hasRemoteNode(ReplicaList l)
     {
         String localDc = DatabaseDescriptor.getLocalDataCenter();
         for (Replica replica : l)

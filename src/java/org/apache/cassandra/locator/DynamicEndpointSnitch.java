@@ -186,15 +186,15 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     }
 
     @Override
-    public List<Replica> getSortedListByProximity(final InetAddressAndPort address, Collection<Replica> replicas)
+    public ReplicaList getSortedListByProximity(final InetAddressAndPort address, Replicas replicas)
     {
-        List<Replica> list = new ArrayList<>(replicas);
+        ReplicaList list = new ReplicaList(replicas);
         sortByProximity(address, list);
         return list;
     }
 
     @Override
-    public void sortByProximity(final InetAddressAndPort address, List<Replica> addresses)
+    public void sortByProximity(final InetAddressAndPort address, ReplicaList addresses)
     {
         assert address.equals(FBUtilities.getBroadcastAddressAndPort()); // we only know about ourself
         if (dynamicBadnessThreshold == 0)
@@ -207,23 +207,17 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         }
     }
 
-    private void sortByProximityWithScore(final InetAddressAndPort address, List<Replica> addresses)
+    private void sortByProximityWithScore(final InetAddressAndPort address, ReplicaList addresses)
     {
         // Scores can change concurrently from a call to this method. But Collections.sort() expects
         // its comparator to be "stable", that is 2 endpoint should compare the same way for the duration
         // of the sort() call. As we copy the scores map on write, it is thus enough to alias the current
         // version of it during this call.
         final HashMap<InetAddressAndPort, Double> scores = this.scores;
-        Collections.sort(addresses, new Comparator<Replica>()
-        {
-            public int compare(Replica a1, Replica a2)
-            {
-                return compareEndpoints(address, a1, a2, scores);
-            }
-        });
+        addresses.sort((r1, r2) -> compareEndpoints(address, r1, r2, scores));
     }
 
-    private void sortByProximityWithBadness(final InetAddressAndPort address, List<Replica> replicas)
+    private void sortByProximityWithBadness(final InetAddressAndPort address, ReplicaList replicas)
     {
         if (replicas.size() < 2)
             return;
@@ -415,7 +409,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         return getSeverity(FBUtilities.getBroadcastAddressAndPort());
     }
 
-    public boolean isWorthMergingForRangeQuery(List<Replica> merged, List<Replica> l1, List<Replica> l2)
+    public boolean isWorthMergingForRangeQuery(ReplicaList merged, ReplicaList l1, ReplicaList l2)
     {
         if (!subsnitch.isWorthMergingForRangeQuery(merged, l1, l2))
             return false;
@@ -425,9 +419,9 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             return true;
 
         // Make sure we return the subsnitch decision (i.e true if we're here) if we lack too much scores
-        double maxMerged = maxScore(ReplicaHelpers.asEndpoints(merged));
-        double maxL1 = maxScore(ReplicaHelpers.asEndpoints(l1));
-        double maxL2 = maxScore(ReplicaHelpers.asEndpoints(l2));
+        double maxMerged = maxScore(merged.asEndpoints());
+        double maxL1 = maxScore(l1.asEndpoints());
+        double maxL2 = maxScore(l2.asEndpoints());
         if (maxMerged < 0 || maxL1 < 0 || maxL2 < 0)
             return true;
 
@@ -435,7 +429,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     }
 
     // Return the max score for the endpoint in the provided list, or -1.0 if no node have a score.
-    private double maxScore(Collection<InetAddressAndPort> endpoints)
+    private double maxScore(Iterable<InetAddressAndPort> endpoints)
     {
         double maxScore = -1.0;
         for (InetAddressAndPort endpoint : endpoints)

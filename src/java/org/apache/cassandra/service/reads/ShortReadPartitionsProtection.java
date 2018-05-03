@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaHelpers;
+import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.StorageProxy;
@@ -173,8 +174,8 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
     private UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd)
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        DataResolver resolver = new DataResolver(keyspace, cmd, ConsistencyLevel.ONE, Collections.singleton(source), 1, queryStartNanoTime, NoopReadRepair.instance);
-        ReadCallback handler = new ReadCallback(resolver, ConsistencyLevel.ONE, cmd, Collections.singletonList(source), queryStartNanoTime, NoopReadRepair.instance);
+        DataResolver resolver = new DataResolver(keyspace, cmd, ConsistencyLevel.ONE, ReplicaList.of(source), 1, queryStartNanoTime, NoopReadRepair.instance);
+        ReadCallback handler = new ReadCallback(resolver, ConsistencyLevel.ONE, cmd, ReplicaList.of(source), queryStartNanoTime, NoopReadRepair.instance);
 
         if (StorageProxy.canDoLocalRequest(source.getEndpoint()))
             StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));

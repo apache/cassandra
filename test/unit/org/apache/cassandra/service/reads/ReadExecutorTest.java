@@ -37,6 +37,7 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -49,7 +50,7 @@ public class ReadExecutorTest
 {
     static Keyspace ks;
     static ColumnFamilyStore cfs;
-    static List<Replica> targets;
+    static ReplicaList targets;
 
     @BeforeClass
     public static void setUpClass() throws Throwable
@@ -58,9 +59,9 @@ public class ReadExecutorTest
         SchemaLoader.createKeyspace("Foo", KeyspaceParams.simple(3), SchemaLoader.standardCFMD("Foo", "Bar"));
         ks = Keyspace.open("Foo");
         cfs = ks.getColumnFamilyStore("Bar");
-        targets = ImmutableList.of(Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.255")),
-                                   Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.254")),
-                                   Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.253")));
+        targets = ReplicaList.immutableCopyOf(Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.255")),
+                                              Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.254")),
+                                              Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.253")));
         cfs.sampleLatencyNanos = 0;
     }
 

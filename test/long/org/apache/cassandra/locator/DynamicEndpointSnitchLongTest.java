@@ -54,7 +54,7 @@ public class DynamicEndpointSnitchLongTest
             DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
             InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
 
-            List<Replica> replicas = new ArrayList<>();
+            ReplicaList replicas = new ReplicaList();
             // We want a big list of hosts so  sorting takes time, making it much more likely to reproduce the
             // problem we're looking for.
             for (int i = 0; i < 100; i++)
@@ -64,7 +64,7 @@ public class DynamicEndpointSnitchLongTest
             ScoreUpdater updater = new ScoreUpdater(dsnitch, replicas);
             updater.start();
 
-            List<Replica> result = null;
+            ReplicaList result = null;
             for (int i = 0; i < ITERATIONS; i++)
                 result = dsnitch.getSortedListByProximity(self, replicas);
 
@@ -84,10 +84,10 @@ public class DynamicEndpointSnitchLongTest
         public volatile boolean stopped;
 
         private final DynamicEndpointSnitch dsnitch;
-        private final List<Replica> hosts;
+        private final ReplicaList hosts;
         private final Random random = new Random();
 
-        public ScoreUpdater(DynamicEndpointSnitch dsnitch, List<Replica> hosts)
+        public ScoreUpdater(DynamicEndpointSnitch dsnitch, ReplicaList hosts)
         {
             this.dsnitch = dsnitch;
             this.hosts = hosts;

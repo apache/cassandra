@@ -1683,7 +1683,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         /* All the ranges for the tokens */
         Map<List<String>, List<String>> map = new HashMap<>();
-        for (Map.Entry<Range<Token>,List<Replica>> entry : getRangeToAddressMap(keyspace).entrySet())
+        for (Map.Entry<Range<Token>, ReplicaList> entry : getRangeToAddressMap(keyspace).entrySet())
         {
             map.put(entry.getKey().asList(), ReplicaHelpers.stringify(entry.getValue(), withPort));
         }
@@ -1736,7 +1736,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         /* All the ranges for the tokens */
         Map<List<String>, List<String>> map = new HashMap<>();
-        for (Map.Entry<Range<Token>, List<Replica>> entry : getRangeToAddressMap(keyspace).entrySet())
+        for (Map.Entry<Range<Token>, ReplicaList> entry : getRangeToAddressMap(keyspace).entrySet())
         {
             List<String> rpcaddrs = new ArrayList<>(entry.getValue().size());
             for (Replica replicas: entry.getValue())
@@ -1774,20 +1774,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return map;
     }
 
-    public Map<Range<Token>, List<Replica>> getRangeToAddressMap(String keyspace)
+    public Map<Range<Token>, ReplicaList> getRangeToAddressMap(String keyspace)
     {
         return getRangeToAddressMap(keyspace, tokenMetadata.sortedTokens());
     }
 
-    public Map<Range<Token>, List<Replica>> getRangeToAddressMapInLocalDC(String keyspace)
+    public Map<Range<Token>, ReplicaList> getRangeToAddressMapInLocalDC(String keyspace)
     {
         Predicate<Replica> isLocalDC = replica -> isLocalDC(replica.getEndpoint());
 
-        Map<Range<Token>, List<Replica>> origMap = getRangeToAddressMap(keyspace, getTokensInLocalDC());
-        Map<Range<Token>, List<Replica>> filteredMap = Maps.newHashMap();
-        for (Map.Entry<Range<Token>, List<Replica>> entry : origMap.entrySet())
+        Map<Range<Token>, ReplicaList> origMap = getRangeToAddressMap(keyspace, getTokensInLocalDC());
+        Map<Range<Token>, ReplicaList> filteredMap = Maps.newHashMap();
+        for (Map.Entry<Range<Token>, ReplicaList> entry : origMap.entrySet())
         {
-            List<Replica> endpointsInLocalDC = Lists.newArrayList(Collections2.filter(entry.getValue(), isLocalDC));
+            ReplicaList endpointsInLocalDC = entry.getValue().filter(isLocalDC);
             filteredMap.put(entry.getKey(), endpointsInLocalDC);
         }
 
@@ -1813,7 +1813,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return remoteDC.equals(localDC);
     }
 
-    private Map<Range<Token>, List<Replica>> getRangeToAddressMap(String keyspace, List<Token> sortedTokens)
+    private Map<Range<Token>, ReplicaList> getRangeToAddressMap(String keyspace, List<Token> sortedTokens)
     {
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system keyspace.
@@ -1894,13 +1894,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         List<TokenRange> ranges = new ArrayList<>();
         Token.TokenFactory tf = getTokenFactory();
 
-        Map<Range<Token>, List<Replica>> rangeToAddressMap =
+        Map<Range<Token>, ReplicaList> rangeToAddressMap =
                 includeOnlyLocalDC
                         ? getRangeToAddressMapInLocalDC(keyspace)
                         : getRangeToAddressMap(keyspace);
 
-        for (Map.Entry<Range<Token>, List<Replica>> entry : rangeToAddressMap.entrySet())
-            ranges.add(TokenRange.create(tf, entry.getKey(), ReplicaHelpers.asEndpointList(entry.getValue()), withPort));
+        for (Map.Entry<Range<Token>, ReplicaList> entry : rangeToAddressMap.entrySet())
+            ranges.add(TokenRange.create(tf, entry.getKey(), entry.getValue().asEndpointList(), withPort));
 
         return ranges;
     }
@@ -1987,9 +1987,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param ranges
      * @return mapping of ranges to the replicas responsible for them.
     */
-    private Map<Range<Token>, List<Replica>> constructRangeToEndpointMap(String keyspace, List<Range<Token>> ranges)
+    private Map<Range<Token>, ReplicaList> constructRangeToEndpointMap(String keyspace, List<Range<Token>> ranges)
     {
-        Map<Range<Token>, List<Replica>> rangeToEndpointMap = new HashMap<>(ranges.size());
+        Map<Range<Token>, ReplicaList> rangeToEndpointMap = new HashMap<>(ranges.size());
         for (Range<Token> range : ranges)
         {
             rangeToEndpointMap.put(range, Keyspace.open(keyspace).getReplicationStrategy().getNaturalReplicas(range.right));
@@ -2725,9 +2725,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // find alive sources for our new ranges
         for (Range<Token> range : ranges)
         {
-            Collection<Replica> possibleRanges = rangeReplicas.get(range);
+            Replicas possibleRanges = Replicas.of(rangeReplicas.get(range));
             IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-            List<Replica> replicas = snitch.getSortedListByProximity(myAddress, possibleRanges);
+            ReplicaList replicas = snitch.getSortedListByProximity(myAddress, possibleRanges);
 
             assert !ReplicaHelpers.containsEndpoint(replicas, myAddress);
 
@@ -2842,7 +2842,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (logger.isDebugEnabled())
             logger.debug("Node {} ranges [{}]", endpoint, StringUtils.join(ranges, ", "));
 
-        Map<Range<Token>, List<Replica>> currentReplicaEndpoints = new HashMap<>(ranges.size());
+        Map<Range<Token>, ReplicaList> currentReplicaEndpoints = new HashMap<>(ranges.size());
 
         // Find (for each range) all nodes that store replicas for these ranges as well
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap(); // don't do this in the loop! #7758
@@ -2865,8 +2865,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // range.
         for (Range<Token> range : ranges)
         {
-            Collection<Replica> newReplicaEndpoints = Keyspace.open(keyspaceName).getReplicationStrategy().calculateNaturalReplicas(range.right, temp);
-            ReplicaHelpers.removeEndpoints(newReplicaEndpoints, currentReplicaEndpoints.get(range));
+            Replicas newReplicaEndpoints = Keyspace.open(keyspaceName).getReplicationStrategy().calculateNaturalReplicas(range.right, temp);
+            newReplicaEndpoints.removeEndpoints(currentReplicaEndpoints.get(range));
             if (logger.isDebugEnabled())
                 if (newReplicaEndpoints.isEmpty())
                     logger.debug("Range {} already in all replicas", range);
@@ -3689,7 +3689,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
         for (Token token : metadata.sortedTokens())
         {
-            List<Replica> replicas = strategy.calculateNaturalReplicas(token, metadata);
+            ReplicaList replicas = strategy.calculateNaturalReplicas(token, metadata);
             if (replicas.size() > 0 && replicas.get(0).getEndpoint().equals(ep))
             {
                 Preconditions.checkState(replicas.get(0).isFull());
@@ -3717,7 +3717,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Collection<Range<Token>> localDCPrimaryRanges = new HashSet<>();
         for (Token token : metadata.sortedTokens())
         {
-            List<Replica> replicas = strategy.calculateNaturalReplicas(token, metadata);
+            ReplicaList replicas = strategy.calculateNaturalReplicas(token, metadata);
             for (Replica replica : replicas)
             {
                 if (localDcNodes.contains(replica.getEndpoint()))
@@ -3790,7 +3790,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (metadata == null)
             throw new IllegalArgumentException("Unknown table '" + cf + "' in keyspace '" + keyspaceName + "'");
 
-        return getNaturalReplicas(keyspaceName, tokenMetadata.partitioner.getToken(metadata.partitionKeyType.fromString(key))).stream().map(i -> i.getEndpoint().address).collect(toList());
+        ReplicaList replicas = getNaturalReplicas(keyspaceName, tokenMetadata.partitioner.getToken(metadata.partitionKeyType.fromString(key)));
+        List<InetAddress> inetList = new ArrayList<>(replicas.size());
+        replicas.forEach(r -> inetList.add(r.getEndpoint().address));
+        return inetList;
     }
 
     public List<String> getNaturalEndpointsWithPort(String keyspaceName, String cf, String key)
@@ -3810,7 +3813,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key)
     {
-        return getNaturalReplicas(keyspaceName, tokenMetadata.partitioner.getToken(key)).stream().map(i -> i.getEndpoint().address).collect(toList());
+        ReplicaList replicas = getNaturalReplicas(keyspaceName, tokenMetadata.partitioner.getToken(key));
+        List<InetAddress> inetList = new ArrayList<>(replicas.size());
+        replicas.forEach(r -> inetList.add(r.getEndpoint().address));
+        return inetList;
     }
 
     public List<String> getNaturalEndpointsWithPort(String keyspaceName, ByteBuffer key)
@@ -3826,7 +3832,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param pos position for which we need to find the endpoint
      * @return the endpoint responsible for this token
      */
-    public List<Replica> getNaturalReplicas(String keyspaceName, RingPosition pos)
+    public ReplicaList getNaturalReplicas(String keyspaceName, RingPosition pos)
     {
         return Keyspace.open(keyspaceName).getReplicationStrategy().getNaturalReplicas(pos);
     }
@@ -3834,9 +3840,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /**
      * Returns the endpoints currently responsible for storing the token plus pending ones
      */
-    public Iterable<Replica> getNaturalAndPendingReplicas(String keyspaceName, Token token)
+    public Replicas getNaturalAndPendingReplicas(String keyspaceName, Token token)
     {
-        return Iterables.concat(getNaturalReplicas(keyspaceName, token), tokenMetadata.pendingEndpointsFor(token, keyspaceName));
+        return Replicas.concat(getNaturalReplicas(keyspaceName, token), tokenMetadata.pendingEndpointsFor(token, keyspaceName));
     }
 
     /**
@@ -3847,16 +3853,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param key key for which we need to find the endpoint
      * @return the endpoint responsible for this key
      */
-    public List<Replica> getLiveNaturalReplicas(Keyspace keyspace, ByteBuffer key)
+    public ReplicaList getLiveNaturalReplicas(Keyspace keyspace, ByteBuffer key)
     {
         return getLiveNaturalReplicas(keyspace, tokenMetadata.decorateKey(key));
-    }
-
-    public List<Replica> getLiveNaturalReplicas(Keyspace keyspace, RingPosition pos)
-    {
-        List<Replica> replicas = new ArrayList<>();
-        getLiveNaturalReplicas(keyspace, pos, replicas);
-        return replicas;
     }
 
     /**
@@ -3865,17 +3864,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      *
      * @param keyspace keyspace name also known as keyspace
      * @param pos position for which we need to find the endpoint
-     * @param liveEps the list of endpoints to mutate
      */
-    public void getLiveNaturalReplicas(Keyspace keyspace, RingPosition pos, List<Replica> liveEps)
+    public ReplicaList getLiveNaturalReplicas(Keyspace keyspace, RingPosition pos)
     {
-        List<Replica> replicas = keyspace.getReplicationStrategy().getNaturalReplicas(pos);
+        ReplicaList replicas = keyspace.getReplicationStrategy().getNaturalReplicas(pos);
 
-        for (Replica replica : replicas)
-        {
-            if (FailureDetector.instance.isAlive(replica.getEndpoint()))
-                liveEps.add(replica);
-        }
+        return replicas.filter(r -> FailureDetector.instance.isAlive(r.getEndpoint()));
     }
 
     public void setLoggingLevel(String classQualifier, String rawLevel) throws Exception
@@ -4117,9 +4111,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private UUID getPreferredHintsStreamTarget()
     {
-        List<Replica> candidates = ReplicaHelpers.fullStandins(StorageService.instance.getTokenMetadata().cloneAfterAllLeft().getAllEndpoints());
-        ReplicaHelpers.removeEndpoint(candidates, FBUtilities.getBroadcastAddressAndPort());
-        candidates.removeIf(replica -> !FailureDetector.instance.isAlive(replica.getEndpoint()));
+        Set<InetAddressAndPort> endpoints = StorageService.instance.getTokenMetadata().cloneAfterAllLeft().getAllEndpoints();
+        endpoints.remove(FBUtilities.getBroadcastAddressAndPort());
+        endpoints.removeIf(e -> !FailureDetector.instance.isAlive(e));
+
+        ReplicaList candidates = ReplicaList.fullStandIns(endpoints);
 
         if (candidates.isEmpty())
         {
@@ -4264,7 +4260,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         {
                             if (range.contains(toFetch))
                             {
-                                List<Replica> endpoints = null;
+                                ReplicaList endpoints = null;
 
                                 if (useStrictConsistency)
                                 {
@@ -4284,11 +4280,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                         assert oldEndpoints.size() == 1 : "Expected 1 endpoint but found " + oldEndpoints.size();
                                     }
 
-                                    endpoints = Lists.newArrayList(oldEndpoints.iterator().next());
+                                    endpoints = ReplicaList.of(oldEndpoints.iterator().next());
                                 }
                                 else
                                 {
-                                    endpoints = snitch.getSortedListByProximity(localAddress, rangeAddresses.get(range));
+                                    endpoints = snitch.getSortedListByProximity(localAddress, Replicas.of(rangeAddresses.get(range)));
                                 }
 
                                 // storing range and preferred endpoint set
@@ -5212,10 +5208,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 this.keyspace = keyspace;
                 try
                 {
-                    for (Map.Entry<Range<Token>, List<Replica>> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
+                    for (Map.Entry<Range<Token>, ReplicaList> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
                     {
                         Range<Token> range = entry.getKey();
-                        List<Replica> replicas = entry.getValue();
+                        ReplicaList replicas = entry.getValue();
                         ReplicaHelpers.checkFull(replicas);
                         for (InetAddressAndPort endpoint : ReplicaHelpers.asEndpoints(replicas))
                             addRangeForEndpoint(range, endpoint);

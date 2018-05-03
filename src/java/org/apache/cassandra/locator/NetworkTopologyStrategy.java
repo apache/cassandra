@@ -161,7 +161,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     /**
      * calculate endpoints in one pass through the tokens by tracking our progress in each DC.
      */
-    public List<Replica> calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata)
+    public ReplicaList calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata)
     {
         // we want to preserve insertion order so that the first added endpoint becomes primary
         Set<Replica> replicas = new LinkedHashSet<>();
@@ -206,7 +206,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             if (dcEndpoints != null && dcEndpoints.addEndpointAndCheckIfDone(ep, location, replicatedRange))
                 --dcsToFill;
         }
-        return new ArrayList<>(replicas);
+        return new ReplicaList(replicas);
     }
 
     private int sizeOrZero(Multimap<?, ?> collection)

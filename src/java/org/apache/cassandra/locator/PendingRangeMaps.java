@@ -130,7 +130,7 @@ public class PendingRangeMaps implements Iterable<Map.Entry<Range<Token>, List<R
         }
     }
 
-    static final void addIntersections(Set<Replica> replicasToAdd,
+    static final void addIntersections(ReplicaSet replicasToAdd,
                                        NavigableMap<Range<Token>, List<Replica>> smallerMap,
                                        NavigableMap<Range<Token>, List<Replica>> biggerMap)
     {
@@ -145,9 +145,9 @@ public class PendingRangeMaps implements Iterable<Map.Entry<Range<Token>, List<R
         }
     }
 
-    public Collection<Replica> pendingEndpointsFor(Token token)
+    public ReplicaSet pendingEndpointsFor(Token token)
     {
-        Set<Replica> replicas = new HashSet<>();
+        ReplicaSet replicas = new ReplicaSet();
 
         Range<Token> searchRange = new Range<>(token, token);
 

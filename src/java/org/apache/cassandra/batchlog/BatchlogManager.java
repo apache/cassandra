@@ -36,6 +36,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaHelpers;
+import org.apache.cassandra.locator.ReplicaList;
+import org.apache.cassandra.locator.ReplicaSet;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
@@ -444,7 +447,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                                                                                      long writtenAt,
                                                                                      Set<InetAddressAndPort> hintedNodes)
         {
-            Set<Replica> liveReplicas = new HashSet<>();
+            ReplicaSet liveReplicas = new ReplicaSet();
             String ks = mutation.getKeyspaceName();
             Token tk = mutation.key().getToken();
 
@@ -495,10 +498,10 @@ public class BatchlogManager implements BatchlogManagerMBean
         {
             private final Set<InetAddressAndPort> undelivered = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-            ReplayWriteResponseHandler(Collection<Replica> writeReplicas, long queryStartNanoTime)
+            ReplayWriteResponseHandler(Replicas writeReplicas, long queryStartNanoTime)
             {
-                super(writeReplicas, Collections.<Replica>emptySet(), null, null, null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
-                undelivered.addAll(ReplicaHelpers.asEndpoints(writeReplicas));
+                super(writeReplicas, ReplicaList.of(), null, null, null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
+                Iterables.addAll(undelivered, writeReplicas.asEndpoints());
             }
 
             @Override

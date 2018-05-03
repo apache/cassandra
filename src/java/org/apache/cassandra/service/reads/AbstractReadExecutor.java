@@ -40,6 +40,7 @@ import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaHelpers;
+import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
@@ -62,7 +63,7 @@ public abstract class AbstractReadExecutor
 
     protected final ReadCommand command;
     protected final ConsistencyLevel consistency;
-    protected final List<Replica> targetReplicas;
+    protected final ReplicaList targetReplicas;
     protected final ReadRepair readRepair;
     protected final DigestResolver digestResolver;
     protected final ReadCallback handler;
@@ -71,7 +72,7 @@ public abstract class AbstractReadExecutor
     protected final long queryStartNanoTime;
     protected volatile PartitionIterator result = null;
 
-    AbstractReadExecutor(Keyspace keyspace, ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistency, List<Replica> targetReplicas, long queryStartNanoTime)
+    AbstractReadExecutor(Keyspace keyspace, ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistency, ReplicaList targetReplicas, long queryStartNanoTime)
     {
         this.command = command;
         this.consistency = consistency;
@@ -154,7 +155,7 @@ public abstract class AbstractReadExecutor
      *
      * @return target replicas + the extra replica, *IF* we speculated.
      */
-    public abstract List<Replica> getContactedReplicas();
+    public abstract ReplicaList getContactedReplicas();
 
     /**
      * send the initial set of requests
@@ -167,8 +168,8 @@ public abstract class AbstractReadExecutor
     public static AbstractReadExecutor getReadExecutor(SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, long queryStartNanoTime) throws UnavailableException
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        List<Replica> allReplicas = StorageProxy.getLiveSortedReplicas(keyspace, command.partitionKey());
-        List<Replica> targetReplicas = consistencyLevel.filterForQuery(keyspace, allReplicas);
+        ReplicaList allReplicas = StorageProxy.getLiveSortedReplicas(keyspace, command.partitionKey());
+        ReplicaList targetReplicas = consistencyLevel.filterForQuery(keyspace, allReplicas);
 
         // Throw UAE early if we don't have enough replicas.
         consistencyLevel.assureSufficientLiveNodes(keyspace, targetReplicas);
@@ -226,7 +227,7 @@ public abstract class AbstractReadExecutor
          */
         private final boolean logFailedSpeculation;
 
-        public NeverSpeculatingReadExecutor(Keyspace keyspace, ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistencyLevel, List<Replica> targetReplicas, long queryStartNanoTime, boolean logFailedSpeculation)
+        public NeverSpeculatingReadExecutor(Keyspace keyspace, ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistencyLevel, ReplicaList targetReplicas, long queryStartNanoTime, boolean logFailedSpeculation)
         {
             super(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime);
             this.logFailedSpeculation = logFailedSpeculation;
@@ -248,7 +249,7 @@ public abstract class AbstractReadExecutor
             }
         }
 
-        public List<Replica> getContactedReplicas()
+        public ReplicaList getContactedReplicas()
         {
             return targetReplicas;
         }
@@ -262,7 +263,7 @@ public abstract class AbstractReadExecutor
                                        ColumnFamilyStore cfs,
                                        ReadCommand command,
                                        ConsistencyLevel consistencyLevel,
-                                       List<Replica> targetReplicas,
+                                       ReplicaList targetReplicas,
                                        long queryStartNanoTime)
         {
             super(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime);
@@ -272,7 +273,7 @@ public abstract class AbstractReadExecutor
         {
             // if CL + RR result in covering all replicas, getReadExecutor forces AlwaysSpeculating.  So we know
             // that the last replica in our list is "extra."
-            List<Replica> initialReplicas = targetReplicas.subList(0, targetReplicas.size() - 1);
+            ReplicaList initialReplicas = targetReplicas.subList(0, targetReplicas.size() - 1);
 
             ReplicaHelpers.checkFull(initialReplicas);
 
@@ -317,7 +318,7 @@ public abstract class AbstractReadExecutor
             }
         }
 
-        public List<Replica> getContactedReplicas()
+        public ReplicaList getContactedReplicas()
         {
             return speculated
                  ? targetReplicas
@@ -340,7 +341,7 @@ public abstract class AbstractReadExecutor
                                              ColumnFamilyStore cfs,
                                              ReadCommand command,
                                              ConsistencyLevel consistencyLevel,
-                                             List<Replica> targetReplicas,
+                                             ReplicaList targetReplicas,
                                              long queryStartNanoTime)
         {
             super(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime);
@@ -351,7 +352,7 @@ public abstract class AbstractReadExecutor
             // no-op
         }
 
-        public List<Replica> getContactedReplicas()
+        public ReplicaList getContactedReplicas()
         {
             return targetReplicas;
         }

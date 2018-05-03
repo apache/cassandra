@@ -74,9 +74,9 @@ public abstract class AbstractReplicationStrategy
         // lazy-initialize keyspace itself since we don't create them until after the replication strategies
     }
 
-    private final Map<Token, ArrayList<Replica>> cachedReplicas = new NonBlockingHashMap<>();
+    private final Map<Token, ReplicaList> cachedReplicas = new NonBlockingHashMap<>();
 
-    public ArrayList<Replica> getCachedReplicas(Token t)
+    public ReplicaList getCachedReplicas(Token t)
     {
         long lastVersion = tokenMetadata.getRingVersion();
 
@@ -103,21 +103,21 @@ public abstract class AbstractReplicationStrategy
      * @param searchPosition the position the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
      */
-    public ArrayList<Replica> getNaturalReplicas(RingPosition searchPosition)
+    public ReplicaList getNaturalReplicas(RingPosition searchPosition)
     {
         Token searchToken = searchPosition.getToken();
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
-        ArrayList<Replica> endpoints = getCachedReplicas(keyToken);
+        ReplicaList endpoints = getCachedReplicas(keyToken);
         if (endpoints == null)
         {
             TokenMetadata tm = tokenMetadata.cachedOnlyTokenMap();
             // if our cache got invalidated, it's possible there is a new token to account for too
             keyToken = TokenMetadata.firstToken(tm.sortedTokens(), searchToken);
-            endpoints = new ArrayList<>(calculateNaturalReplicas(searchToken, tm));
+            endpoints = calculateNaturalReplicas(searchToken, tm);
             cachedReplicas.put(keyToken, endpoints);
         }
 
-        return new ArrayList<>(endpoints);
+        return new ReplicaList(endpoints);
     }
 
     /**
@@ -128,10 +128,10 @@ public abstract class AbstractReplicationStrategy
      * @param searchToken the token the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
      */
-    public abstract List<Replica> calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata);
+    public abstract ReplicaList calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata);
 
-    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Collection<Replica> naturalEndpoints,
-                                                                       Collection<Replica> pendingEndpoints,
+    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Replicas naturalEndpoints,
+                                                                       Replicas pendingEndpoints,
                                                                        ConsistencyLevel consistency_level,
                                                                        Runnable callback,
                                                                        WriteType writeType,
@@ -140,8 +140,8 @@ public abstract class AbstractReplicationStrategy
         return getWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, callback, writeType, queryStartNanoTime, DatabaseDescriptor.getIdealConsistencyLevel());
     }
 
-    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Collection<Replica> naturalEndpoints,
-                                                                       Collection<Replica> pendingEndpoints,
+    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Replicas naturalEndpoints,
+                                                                       Replicas pendingEndpoints,
                                                                        ConsistencyLevel consistency_level,
                                                                        Runnable callback,
                                                                        WriteType writeType,

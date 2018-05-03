@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.locator;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
@@ -89,8 +87,8 @@ public class ReplicationStrategyEndpointCacheTest
     public void runCacheRespectsTokenChangesTest(Class stratClass, Map<String, String> configOptions) throws Exception
     {
         setup(stratClass, configOptions);
-        ArrayList<Replica> initial;
-        ArrayList<Replica> replicas;
+        ReplicaList initial;
+        ReplicaList replicas;
 
         replicas = strategy.getNaturalReplicas(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
@@ -128,7 +126,7 @@ public class ReplicationStrategyEndpointCacheTest
             super(keyspaceName, tokenMetadata, snitch, configOptions);
         }
 
-        public List<Replica> calculateNaturalReplicas(Token token, TokenMetadata metadata)
+        public ReplicaList calculateNaturalReplicas(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalReplicas was already called, result should have been cached";
             called = true;
@@ -145,7 +143,7 @@ public class ReplicationStrategyEndpointCacheTest
             super(keyspaceName, tokenMetadata, snitch, configOptions);
         }
 
-        public List<Replica> calculateNaturalReplicas(Token token, TokenMetadata metadata)
+        public ReplicaList calculateNaturalReplicas(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalReplicas was already called, result should have been cached";
             called = true;
@@ -162,7 +160,7 @@ public class ReplicationStrategyEndpointCacheTest
             super(keyspaceName, tokenMetadata, snitch, configOptions);
         }
 
-        public List<Replica> calculateNaturalReplicas(Token token, TokenMetadata metadata)
+        public ReplicaList calculateNaturalReplicas(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalReplicas was already called, result should have been cached";
             called = true;

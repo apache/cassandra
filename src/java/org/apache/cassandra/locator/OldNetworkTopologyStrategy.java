@@ -43,9 +43,9 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
         this.rf = ReplicationFactor.fromString(this.configOptions.get("replication_factor"));
     }
 
-    public List<Replica> calculateNaturalReplicas(Token token, TokenMetadata metadata)
+    public ReplicaList calculateNaturalReplicas(Token token, TokenMetadata metadata)
     {
-        List<Replica> replicas = new ArrayList<>(rf.replicas);
+        ReplicaList replicas = new ReplicaList(rf.replicas);
         ArrayList<Token> tokens = metadata.sortedTokens();
 
         if (tokens.isEmpty())
@@ -96,7 +96,7 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
             {
                 Token t = iter.next();
                 Replica replica = Replica.full(metadata.getEndpoint(t), previousToken, primaryToken);
-                if (!replicas.contains(replica))
+                if (!replicas.containsEndpoint(replica.getEndpoint()))
                     replicas.add(replica);
             }
         }
