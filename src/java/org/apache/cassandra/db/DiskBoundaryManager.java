@@ -88,7 +88,7 @@ public class DiskBoundaryManager
                 // Reason we use use the future settled TMD is that if we decommission a node, we want to stream
                 // from that node to the correct location on disk, if we didn't, we would put new files in the wrong places.
                 // We do this to minimize the amount of data we need to move in rebalancedisks once everything settled
-                localRanges = ReplicaHelpers.asRanges(cfs.keyspace.getReplicationStrategy().getAddressReplicas(tmd.cloneAfterAllSettled()).get(FBUtilities.getBroadcastAddressAndPort()));
+                localRanges = cfs.keyspace.getReplicationStrategy().getAddressReplicas(tmd.cloneAfterAllSettled()).get(FBUtilities.getBroadcastAddressAndPort()).asRangeSet();
             }
             logger.debug("Got local ranges {} (ringVersion = {})", localRanges, ringVersion);
         }

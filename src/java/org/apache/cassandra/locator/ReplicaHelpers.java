@@ -69,70 +69,10 @@ public class ReplicaHelpers
         return endpoints;
     }
 
-    public static List<Replica> listIntersection(List<Replica> l1, List<Replica> l2)
-    {
-        ReplicaHelpers.checkFull(l1);
-        ReplicaHelpers.checkFull(l2);
-        // Note: we don't use Guava Sets.intersection() for 3 reasons:
-        //   1) retainAll would be inefficient if l1 and l2 are large but in practice both are the replicas for a range and
-        //   so will be very small (< RF). In that case, retainAll is in fact more efficient.
-        //   2) we do ultimately need a list so converting everything to sets don't make sense
-        //   3) l1 and l2 are sorted by proximity. The use of retainAll  maintain that sorting in the result, while using sets wouldn't.
-        Collection<InetAddressAndPort> endpoints = asEndpointList(l2);
-        List<Replica> result = new ArrayList<>(l1.size());
-        result.addAll(Collections2.filter(l1, r -> endpoints.contains(r.getEndpoint())));
-        return result;
-    }
-
-    public static Iterable<Range<Token>> fullRanges(Collection<Replica> replicas)
-    {
-        return asRanges(Iterables.filter(replicas, Replica::isFull));
-    }
-
-    public static List<Replica> fullStandins(Collection<InetAddressAndPort> endpoints)
-    {
-        return Lists.newArrayList(Iterables.transform(endpoints, Replica::fullStandin));
-    }
-
     public static Iterable<Replica> decorateRanges(InetAddressAndPort endpoint, boolean full, Iterable<Range<Token>> ranges)
     {
         return Iterables.transform(ranges, range -> new Replica(endpoint, range, full));
 
-    }
-
-    public static List<Replica> normalize(Collection<Replica> replicas)
-    {
-        if (Iterables.all(replicas, Replica::isFull))
-        {
-            Preconditions.checkArgument(Iterables.all(replicas, Replica::isFull));
-            List<Replica> normalized = new ArrayList<>(replicas.size());
-            for (Replica replica: replicas)
-            {
-                normalized.addAll(replica.normalize());
-            }
-
-           return normalized;
-        }
-        else
-        {
-            // FIXME: add support for transient replicas
-            throw new UnsupportedOperationException("transient replicas are currently unsupported");
-        }
-    }
-
-    public static Set<Replica> subtractAll(Replica replica, Collection<Replica> toSubtract)
-    {
-        if (replica.isFull() && Iterables.all(toSubtract, Replica::isFull))
-        {
-            return Sets.newHashSet(decorateRanges(replica.getEndpoint(),
-                                                  replica.isFull(),
-                                                  replica.getRange().subtractAll(asRanges(toSubtract))));
-        }
-        else
-        {
-            // FIXME: add support for transient replicas
-            throw new UnsupportedOperationException("transient replicas are currently unsupported");
-        }
     }
 
     public static boolean intersects(Replica lhs, Replica rhs)
@@ -147,16 +87,6 @@ public class ReplicaHelpers
             throw new UnsupportedOperationException("transient replicas are currently unsupported");
         }
     }
-
-//    public static Collection<Replica> decorateEndpoints(Collection<InetAddressAndPort> endpoints, boolean full)
-//    {
-//        return Collections2.transform(endpoints, e -> new Replica(e, full));
-//    }
-//
-//    public static List<Replica> decorateEndpointList(List<InetAddressAndPort> endpoints, boolean full)
-//    {
-//        return Lists.newArrayList(Iterables.transform(endpoints, e -> new Replica(e, full)));
-//    }
 
     public static List<String> stringify(Iterable<Replica> replicas, boolean withPort)
     {

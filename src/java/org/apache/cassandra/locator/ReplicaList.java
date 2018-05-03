@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableList;
@@ -61,6 +62,26 @@ public class ReplicaList extends Replicas
     private ReplicaList(List<Replica> replicaList)
     {
         this.replicaList = replicaList;
+    }
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReplicaList that = (ReplicaList) o;
+        return Objects.equals(replicaList, that.replicaList);
+    }
+
+    public int hashCode()
+    {
+
+        return Objects.hash(replicaList);
+    }
+
+    @Override
+    public String toString()
+    {
+        return replicaList.toString();
     }
 
     @Override
@@ -108,6 +129,12 @@ public class ReplicaList extends Replicas
         replicaList.removeIf(r -> r.getEndpoint().equals(endpoint));
     }
 
+    @Override
+    public void removeReplica(Replica replica)
+    {
+        replicaList.remove(replica);
+    }
+
     public ReplicaList filter(Predicate<Replica> predicate)
     {
         ArrayList<Replica> newReplicaList = new ArrayList<>(size());
@@ -152,6 +179,25 @@ public class ReplicaList extends Replicas
     public ReplicaList subList(int fromIndex, int toIndex)
     {
         return new ReplicaList(replicaList.subList(fromIndex, toIndex));
+    }
+
+    public ReplicaList normalizeByRange()
+    {
+        if (Iterables.all(this, Replica::isFull))
+        {
+            ReplicaList normalized = new ReplicaList(size());
+            for (Replica replica: this)
+            {
+                normalized.addAll(replica.normalizeByRange());
+            }
+
+            return normalized;
+        }
+        else
+        {
+            // FIXME: add support for transient replicas
+            throw new UnsupportedOperationException("transient replicas are currently unsupported");
+        }
     }
 
     public static ReplicaList immutableCopyOf(Replicas replicas)

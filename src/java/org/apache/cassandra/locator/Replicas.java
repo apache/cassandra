@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
@@ -34,6 +35,7 @@ public abstract class Replicas implements Iterable<Replica>
     public abstract void add(Replica replica);
     public abstract void addAll(Iterable<Replica> replicas);
     public abstract void removeEndpoint(InetAddressAndPort endpoint);
+    public abstract void removeReplica(Replica replica);
     public abstract int size();
 
     public Iterable<InetAddressAndPort> asEndpoints()
@@ -54,6 +56,21 @@ public abstract class Replicas implements Iterable<Replica>
     public Iterable<Range<Token>> asRanges()
     {
         return Iterables.transform(this, Replica::getRange);
+    }
+
+    public Set<Range<Token>> asRangeSet()
+    {
+        Set<Range<Token>> result = Sets.newHashSetWithExpectedSize(size());
+        for (Replica replica: this)
+        {
+            result.add(replica.getRange());
+        }
+        return result;
+    }
+
+    public Iterable<Range<Token>> fullRanges()
+    {
+        return Iterables.transform(Iterables.filter(this, Replica::isFull), Replica::getRange);
     }
 
     public boolean containsEndpoint(InetAddressAndPort endpoint)
@@ -80,23 +97,41 @@ public abstract class Replicas implements Iterable<Replica>
         }
     }
 
-    public boolean isEmpty()
+    public void removeReplicas(Replicas toRemove)
     {
-        return size() == 0;
-    }
-
-    public static Replicas concat(Replicas a, Replicas b)
-    {
-        Iterable<Replica> iterable;
-        if (Iterables.all(a, Replica::isFull) && Iterables.all(b, Replica::isFull))
+        if (Iterables.all(this, Replica::isFull) && Iterables.all(toRemove, Replica::isFull))
         {
-            iterable = Iterables.concat(a, b);
+            for (Replica remove: toRemove)
+            {
+                removeReplica(remove);
+            }
         }
         else
         {
             // FIXME: add support for transient replicas
             throw new UnsupportedOperationException("transient replicas are currently unsupported");
         }
+    }
+
+    public boolean isEmpty()
+    {
+        return size() == 0;
+    }
+
+    public static Replicas concatNaturalAndPendingAndFilter(Replicas natural, Replicas pending, Predicate<Replica> filter)
+    {
+        Iterable<Replica> unfilteredIterable;
+        if (Iterables.all(natural, Replica::isFull) && Iterables.all(pending, Replica::isFull))
+        {
+            unfilteredIterable = Iterables.concat(natural, pending);
+        }
+        else
+        {
+            // FIXME: add support for transient replicas
+            throw new UnsupportedOperationException("transient replicas are currently unsupported");
+        }
+
+        Iterable<Replica> iterable = filter != null ? Iterables.filter(unfilteredIterable, filter) : unfilteredIterable;
 
         return new Replicas()
         {
@@ -115,9 +150,15 @@ public abstract class Replicas implements Iterable<Replica>
                 throw new UnsupportedOperationException();
             }
 
+            @Override
+            public void removeReplica(Replica replica)
+            {
+                throw new UnsupportedOperationException();
+            }
+
             public int size()
             {
-                return a.size() + b.size();
+                return natural.size() + pending.size();
             }
 
             public Iterator<Replica> iterator()
@@ -125,6 +166,11 @@ public abstract class Replicas implements Iterable<Replica>
                 return iterable.iterator();
             }
         };
+    }
+
+    public static Replicas concatNaturalAndPending(Replicas natural, Replicas pending)
+    {
+        return concatNaturalAndPendingAndFilter(natural, pending, null);
     }
 
     public static Replicas of(Collection<Replica> replicas)
@@ -142,6 +188,12 @@ public abstract class Replicas implements Iterable<Replica>
             }
 
             public void removeEndpoint(InetAddressAndPort endpoint)
+            {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void removeReplica(Replica replica)
             {
                 throw new UnsupportedOperationException();
             }

@@ -108,7 +108,7 @@ public class ActiveRepairServiceTest
         // generate rf+1 nodes, and ensure that all nodes are returned
         Set<InetAddressAndPort> expected = addTokens(1 + Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor().replicas);
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
-        Collection<Range<Token>> ranges = ReplicaHelpers.asRanges(StorageService.instance.getLocalReplicas(KEYSPACE5));
+        Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).asRanges();
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
@@ -128,10 +128,10 @@ public class ActiveRepairServiceTest
         Set<InetAddressAndPort> expected = new HashSet<>();
         for (Replica replica : ars.getAddressReplicas().get(FBUtilities.getBroadcastAddressAndPort()))
         {
-            expected.addAll(ReplicaHelpers.asEndpoints(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replica.getRange())));
+            expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replica.getRange()).asEndpointSet());
         }
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
-        Collection<Range<Token>> ranges = ReplicaHelpers.asRanges(StorageService.instance.getLocalReplicas(KEYSPACE5));
+        Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).asRanges();
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
@@ -153,7 +153,7 @@ public class ActiveRepairServiceTest
         HashSet<InetAddressAndPort> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
         expected = Sets.intersection(expected, localEndpoints);
 
-        Collection<Range<Token>> ranges = ReplicaHelpers.asRanges(StorageService.instance.getLocalReplicas(KEYSPACE5));
+        Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).asRanges();
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
@@ -173,7 +173,7 @@ public class ActiveRepairServiceTest
         Set<InetAddressAndPort> expected = new HashSet<>();
         for (Replica replica : ars.getAddressReplicas().get(FBUtilities.getBroadcastAddressAndPort()))
         {
-            expected.addAll(ReplicaHelpers.asEndpoints(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replica.getRange())));
+            expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replica.getRange()).asEndpointSet());
         }
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
         // remove remote endpoints
@@ -181,7 +181,7 @@ public class ActiveRepairServiceTest
         HashSet<InetAddressAndPort> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
         expected = Sets.intersection(expected, localEndpoints);
 
-        Collection<Range<Token>> ranges = ReplicaHelpers.asRanges(StorageService.instance.getLocalReplicas(KEYSPACE5));
+        Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).asRanges();
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
@@ -201,12 +201,12 @@ public class ActiveRepairServiceTest
         List<InetAddressAndPort> expected = new ArrayList<>();
         for (Replica replicas : ars.getAddressReplicas().get(FBUtilities.getBroadcastAddressAndPort()))
         {
-            expected.addAll(ReplicaHelpers.asEndpoints(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicas.getRange())));
+            expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicas.getRange()).asEndpointSet());
         }
 
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
         Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().toString(),expected.get(0).toString());
-        Collection<Range<Token>> ranges = ReplicaHelpers.asRanges(StorageService.instance.getLocalReplicas(KEYSPACE5));
+        Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).asRanges();
 
         assertEquals(expected.get(0), ActiveRepairService.getNeighbors(KEYSPACE5, ranges,
                                                                        ranges.iterator().next(),
@@ -219,7 +219,7 @@ public class ActiveRepairServiceTest
         addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor().replicas);
         //Dont give local endpoint
         Collection<String> hosts = Arrays.asList("127.0.0.3");
-        Collection<Range<Token>> ranges = ReplicaHelpers.asRanges(StorageService.instance.getLocalReplicas(KEYSPACE5));
+        Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).asRanges();
         ActiveRepairService.getNeighbors(KEYSPACE5, ranges, ranges.iterator().next(), null, hosts);
     }
 

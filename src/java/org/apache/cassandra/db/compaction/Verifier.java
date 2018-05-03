@@ -211,7 +211,7 @@ public class Verifier implements Closeable
 
             List<Range<Token>> ownedRanges = isOffline
                                              ? Collections.emptyList()
-                                             : Range.normalize(ReplicaHelpers.asRanges(StorageService.instance.getLocalAndPendingReplicas(cfs.metadata().keyspace)));
+                                             : Range.normalize(StorageService.instance.getLocalAndPendingReplicas(cfs.metadata().keyspace).asRangeSet());
             int rangeIndex = -1;
             DecoratedKey prevKey = null;
 

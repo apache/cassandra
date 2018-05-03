@@ -697,7 +697,7 @@ public class MoveTest
         *  }
         */
 
-        Multimap<InetAddressAndPort, Replica> keyspace1ranges = keyspaceStrategyMap.get(Simple_RF1_KeyspaceName).getAddressReplicas();
+        Map<InetAddressAndPort, ReplicaSet> keyspace1ranges = keyspaceStrategyMap.get(Simple_RF1_KeyspaceName).getAddressReplicas();
 
         assertRanges(keyspace1ranges, "127.0.0.1", 97, 0);
         assertRanges(keyspace1ranges, "127.0.0.2", 0, 10);
@@ -727,7 +727,7 @@ public class MoveTest
         * }
         */
 
-        Multimap<InetAddressAndPort, Replica> keyspace3ranges = keyspaceStrategyMap.get(KEYSPACE3).getAddressReplicas();
+        Map<InetAddressAndPort, ReplicaSet> keyspace3ranges = keyspaceStrategyMap.get(KEYSPACE3).getAddressReplicas();
         assertRanges(keyspace3ranges, "127.0.0.1", 97, 0, 70, 87, 50, 67, 87, 97, 67, 70);
         assertRanges(keyspace3ranges, "127.0.0.2", 97, 0, 70, 87, 87, 97, 0, 10, 67, 70);
         assertRanges(keyspace3ranges, "127.0.0.3", 97, 0, 70, 87, 87, 97, 0, 10, 10, 20);
@@ -755,7 +755,7 @@ public class MoveTest
          *      /127.0.0.10=[(70,87], (87,97], (67,70]]
          *  }
          */
-        Multimap<InetAddressAndPort, Replica> keyspace4ranges = keyspaceStrategyMap.get(Simple_RF3_KeyspaceName).getAddressReplicas();
+        Map<InetAddressAndPort, ReplicaSet> keyspace4ranges = keyspaceStrategyMap.get(Simple_RF3_KeyspaceName).getAddressReplicas();
 
         assertRanges(keyspace4ranges, "127.0.0.1", 97, 0, 70, 87, 87, 97);
         assertRanges(keyspace4ranges, "127.0.0.2", 97, 0, 87, 97, 0, 10);
@@ -1044,19 +1044,19 @@ public class MoveTest
         return replica(endpoint, left, right, true);
     }
 
-    private static void assertRanges(Multimap<InetAddressAndPort, Replica> epReplicas, String endpoint, int... rangePairs)
+    private static void assertRanges(Map<InetAddressAndPort, ReplicaSet> epReplicas, String endpoint, int... rangePairs)
     {
         if (rangePairs.length % 2 == 1)
             throw new RuntimeException("assertRanges argument count should be even");
 
         InetAddressAndPort ep = inet(endpoint);
-        Set<Replica> expected = Sets.newHashSetWithExpectedSize(rangePairs.length/2);
+        ReplicaSet expected = new ReplicaSet(rangePairs.length/2);
         for (int i=0; i<rangePairs.length; i+=2)
         {
             expected.add(replica(ep, rangePairs[i], rangePairs[i+1]));
         }
 
-        Collection<Replica> actual = epReplicas.get(ep);
+        ReplicaSet actual = epReplicas.get(ep);
         assertEquals(expected, actual);
     }
 }

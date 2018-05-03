@@ -111,10 +111,34 @@ public class Replica
         return replicatedRanges;
     }
 
-    public List<Replica> normalize()
+    /**
+     * Subtract the ranges of the given replicas from the range of this replica,
+     * returning a set of replicas with the endpoint and transient information of
+     * this replica, and the ranges resulting from the subtraction.
+     */
+    public ReplicaSet subtractByRange(Replicas toSubtract)
+    {
+        if (isFull() && Iterables.all(toSubtract, Replica::isFull))
+        {
+            Set<Range<Token>> subtractedRanges = getRange().subtractAll(toSubtract.asRangeSet());
+            ReplicaSet replicaSet = new ReplicaSet(subtractedRanges.size());
+            for (Range<Token> range: subtractedRanges)
+            {
+                replicaSet.add(new Replica(getEndpoint(), range, isFull()));
+            }
+            return replicaSet;
+        }
+        else
+        {
+            // FIXME: add support for transient replicas
+            throw new UnsupportedOperationException("transient replicas are currently unsupported");
+        }
+    }
+
+    public ReplicaList normalizeByRange()
     {
         List<Range<Token>> normalized = Range.normalize(Collections.singleton(getRange()));
-        List<Replica> replicas = new ArrayList<>(normalized.size());
+        ReplicaList replicas = new ReplicaList(normalized.size());
         for (Range<Token> normalizedRange: normalized)
         {
             replicas.add(new Replica(getEndpoint(), normalizedRange, isFull()));

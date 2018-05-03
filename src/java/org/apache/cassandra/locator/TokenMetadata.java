@@ -857,7 +857,7 @@ public class TokenMetadata
     {
         PendingRangeMaps newPendingRanges = new PendingRangeMaps();
 
-        Multimap<InetAddressAndPort, Replica> addressRanges = strategy.getAddressReplicas(metadata);
+        Map<InetAddressAndPort, ReplicaSet> addressRanges = strategy.getAddressReplicas(metadata);
 
         // Copy of metadata reflecting the situation after all leave operations are finished.
         TokenMetadata allLeftMetadata = removeEndpoints(metadata.cloneOnlyTokenMap(), leavingEndpoints);
@@ -865,7 +865,7 @@ public class TokenMetadata
         // get all ranges that will be affected by leaving nodes
         Set<Range<Token>> affectedRanges = new HashSet<Range<Token>>();
         for (InetAddressAndPort endpoint : leavingEndpoints)
-            affectedRanges.addAll(ReplicaHelpers.asRanges(addressRanges.get(endpoint)));
+            affectedRanges.addAll(addressRanges.get(endpoint).asRangeSet());
 
         // for each of those ranges, find what new nodes will be responsible for the range when
         // all leaving nodes are gone.
@@ -927,14 +927,14 @@ public class TokenMetadata
                 Set<InetAddressAndPort> difference = Sets.difference(newEndpoints, currentEndpoints);
                 for(final InetAddressAndPort address : difference)
                 {
-                    Collection<Replica> newReplicas = strategy.getAddressReplicas(allLeftMetadata).get(address);
-                    Collection<Replica> oldReplicas = strategy.getAddressReplicas(metadata).get(address);
+                    ReplicaSet newReplicas = strategy.getAddressReplicas(allLeftMetadata).get(address);
+                    ReplicaSet oldReplicas = strategy.getAddressReplicas(metadata).get(address);
                     //We want to get rid of any ranges which the node is currently getting.
-                    newReplicas.removeAll(oldReplicas);
+                    newReplicas.removeReplicas(oldReplicas);
 
                     for(Replica newReplica : newReplicas)
                     {
-                        for(Replica pendingReplica : ReplicaHelpers.subtractAll(newReplica, oldReplicas))
+                        for (Replica pendingReplica: newReplica.subtractByRange(oldReplicas))
                         {
                             newPendingRanges.addPendingRange(pendingReplica.getRange(), pendingReplica);
                         }
@@ -1219,7 +1219,7 @@ public class TokenMetadata
      */
     public ReplicaList getWriteEndpoints(Token token, String keyspaceName, Replicas naturalEndpoints)
     {
-        return ReplicaList.immutableCopyOf(Replicas.concat(naturalEndpoints, pendingEndpointsFor(token, keyspaceName)));
+        return ReplicaList.immutableCopyOf(Replicas.concatNaturalAndPending(naturalEndpoints, pendingEndpointsFor(token, keyspaceName)));
     }
 
     /** @return an endpoint to token multimap representation of tokenToEndpointMap (a copy) */

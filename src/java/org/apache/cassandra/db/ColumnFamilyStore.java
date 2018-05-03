@@ -1494,11 +1494,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         List<AbstractBounds<PartitionPosition>> bounds = new ArrayList<>();
         DecoratedKey first = null, last = null;
         /*
-        normalize the intervals covered by the sstables
+        normalizeByRange the intervals covered by the sstables
         assume we have sstables like this (brackets representing first/last key in the sstable);
         [   ] [   ]    [   ]   [  ]
            [   ]         [       ]
-        then we can, instead of searching the interval tree 6 times, normalize the intervals and
+        then we can, instead of searching the interval tree 6 times, normalizeByRange the intervals and
         only query the tree 2 times, for these intervals;
         [         ]    [          ]
          */
@@ -1590,7 +1590,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // cleanup size estimation only counts bytes for keys local to this node
         long expectedFileSize = 0;
-        Collection<Range<Token>> ranges = ReplicaHelpers.asRanges(StorageService.instance.getLocalReplicas(keyspace.getName()));
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).asRangeSet();
         for (SSTableReader sstable : sstables)
         {
             List<SSTableReader.PartitionPositionBounds> positions = sstable.getPositionsForRanges(ranges);
@@ -1867,7 +1867,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void cleanupCache()
     {
-        Collection<Range<Token>> ranges = ReplicaHelpers.asRanges(StorageService.instance.getLocalReplicas(keyspace.getName()));
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).asRangeSet();
 
         for (Iterator<RowCacheKey> keyIter = CacheService.instance.rowCache.keyIterator();
              keyIter.hasNext(); )

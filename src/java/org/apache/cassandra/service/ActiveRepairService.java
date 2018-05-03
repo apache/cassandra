@@ -297,7 +297,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *
      * @return neighbors with whom we share the provided range
      */
-    public static Set<InetAddressAndPort> getNeighbors(String keyspaceName, Collection<Range<Token>> keyspaceLocalRanges,
+    public static Set<InetAddressAndPort> getNeighbors(String keyspaceName, Iterable<Range<Token>> keyspaceLocalRanges,
                                                        Range<Token> toRepair, Collection<String> dataCenters,
                                                        Collection<String> hosts)
     {

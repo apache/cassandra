@@ -366,8 +366,8 @@ public class OldNetworkTopologyStrategyTest
         TokenMetadata tokenMetadataAfterMove = initTokenMetadata(tokensAfterMove);
         AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tokenMetadataCurrent, endpointSnitch, optsWithRF(2));
 
-        Collection<Replica> currentRanges = strategy.getAddressReplicas().get(movingNode);
-        Collection<Replica> updatedRanges = strategy.getPendingAddressRanges(tokenMetadataAfterMove, tokensAfterMove[movingNodeIdx], movingNode);
+        ReplicaSet currentRanges = strategy.getAddressReplicas().get(movingNode);
+        ReplicaSet updatedRanges = strategy.getPendingAddressRanges(tokenMetadataAfterMove, tokensAfterMove[movingNodeIdx], movingNode);
 
         return StorageService.instance.calculateStreamAndFetchRanges(currentRanges, updatedRanges);
     }

@@ -22,6 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -211,9 +212,9 @@ public abstract class AbstractReplicationStrategy
      * (fixing this would probably require merging tokenmetadata into replicationstrategy,
      * so we could cache/invalidate cleanly.)
      */
-    public Multimap<InetAddressAndPort, Replica> getAddressReplicas(TokenMetadata metadata)
+    public Map<InetAddressAndPort, ReplicaSet> getAddressReplicas(TokenMetadata metadata)
     {
-        Multimap<InetAddressAndPort, Replica> map = HashMultimap.create();
+        Map<InetAddressAndPort, ReplicaSet> map = new HashMap<>();
 
         for (Token token : metadata.sortedTokens())
         {
@@ -221,16 +222,16 @@ public abstract class AbstractReplicationStrategy
             for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
                 Preconditions.checkState(range.equals(replica.getRange()) || this instanceof LocalStrategy);
-                map.put(replica.getEndpoint(), replica);
+                map.computeIfAbsent(replica.getEndpoint(), e -> new ReplicaSet()).add(replica);
             }
         }
 
         return map;
     }
 
-    public Multimap<Range<Token>, Replica> getRangeAddresses(TokenMetadata metadata)
+    public Map<Range<Token>, ReplicaSet> getRangeAddresses(TokenMetadata metadata)
     {
-        Multimap<Range<Token>, Replica> map = HashMultimap.create();
+        Map<Range<Token>, ReplicaSet> map = new HashMap<>();
 
         for (Token token : metadata.sortedTokens())
         {
@@ -238,24 +239,24 @@ public abstract class AbstractReplicationStrategy
             for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
                 Preconditions.checkState(range.equals(replica.getRange()) || this instanceof LocalStrategy);
-                map.put(range, replica);
+                map.computeIfAbsent(range, r -> new ReplicaSet()).add(replica);
             }
         }
 
         return map;
     }
 
-    public Multimap<InetAddressAndPort, Replica> getAddressReplicas()
+    public Map<InetAddressAndPort, ReplicaSet> getAddressReplicas()
     {
         return getAddressReplicas(tokenMetadata.cloneOnlyTokenMap());
     }
 
-    public Collection<Replica> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddressAndPort pendingAddress)
+    public ReplicaSet getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddressAndPort pendingAddress)
     {
         return getPendingAddressRanges(metadata, Collections.singleton(pendingToken), pendingAddress);
     }
 
-    public Collection<Replica> getPendingAddressRanges(TokenMetadata metadata, Collection<Token> pendingTokens, InetAddressAndPort pendingAddress)
+    public ReplicaSet getPendingAddressRanges(TokenMetadata metadata, Collection<Token> pendingTokens, InetAddressAndPort pendingAddress)
     {
         TokenMetadata temp = metadata.cloneOnlyTokenMap();
         temp.updateNormalTokens(pendingTokens, pendingAddress);

@@ -250,7 +250,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 // for simplicity, we'll do a single liveness check at the start of each attempt
                 PaxosParticipants p = getPaxosParticipants(metadata, key, consistencyForPaxos);
-                List<Replica> liveReplicas = p.liveReplicas;
+                ReplicaList liveReplicas = p.liveReplicas;
                 int requiredParticipants = p.participants;
 
                 final PaxosBallotAndContention pair = beginAndRepairPaxos(queryStartNanoTime, key, metadata, liveReplicas, requiredParticipants, consistencyForPaxos, consistencyForCommit, true, state);
@@ -364,8 +364,9 @@ public class StorageProxy implements StorageProxyMBean
         }
         int participants = pendingReplicas.size() + naturalReplicas.size();
         int requiredParticipants = participants / 2 + 1; // See CASSANDRA-8346, CASSANDRA-833
-        List<Replica> liveReplicas = ImmutableList.copyOf(Iterables.filter(ReplicaHelpers.concatNaturalAndPending(naturalReplicas, pendingReplicas),
-                                                                           r -> IAsyncCallback.isAlive.apply(r.getEndpoint())));
+        ReplicaList liveReplicas = ReplicaList.immutableCopyOf(Replicas.concatNaturalAndPendingAndFilter(naturalReplicas,
+                                                                                                         pendingReplicas,
+                                                                                                         r -> IAsyncCallback.isAlive.apply(r.getEndpoint())));
         if (liveReplicas.size() < requiredParticipants)
             throw new UnavailableException(consistencyForPaxos, requiredParticipants, liveReplicas.size());
 
@@ -390,7 +391,7 @@ public class StorageProxy implements StorageProxyMBean
     private static PaxosBallotAndContention beginAndRepairPaxos(long queryStartNanoTime,
                                                            DecoratedKey key,
                                                            TableMetadata metadata,
-                                                           List<Replica> liveEndpoints,
+                                                           ReplicaList liveEndpoints,
                                                            int requiredParticipants,
                                                            ConsistencyLevel consistencyForPaxos,
                                                            ConsistencyLevel consistencyForCommit,
@@ -497,12 +498,12 @@ public class StorageProxy implements StorageProxyMBean
             MessagingService.instance().sendOneWay(message, target);
     }
 
-    private static PrepareCallback preparePaxos(Commit toPrepare, List<Replica> replicas, int requiredParticipants, ConsistencyLevel consistencyForPaxos, long queryStartNanoTime)
+    private static PrepareCallback preparePaxos(Commit toPrepare, ReplicaList replicas, int requiredParticipants, ConsistencyLevel consistencyForPaxos, long queryStartNanoTime)
     throws WriteTimeoutException
     {
         PrepareCallback callback = new PrepareCallback(toPrepare.update.partitionKey(), toPrepare.update.metadata(), requiredParticipants, consistencyForPaxos, queryStartNanoTime);
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PREPARE, toPrepare, Commit.serializer);
-        for (InetAddressAndPort target : ReplicaHelpers.asEndpoints(replicas))
+        for (InetAddressAndPort target : replicas.asEndpoints())
         {
             if (canDoLocalRequest(target))
             {
@@ -535,7 +536,7 @@ public class StorageProxy implements StorageProxyMBean
         return callback;
     }
 
-    private static boolean proposePaxos(Commit proposal, List<Replica> replicas, int requiredParticipants, boolean timeoutIfPartial, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+    private static boolean proposePaxos(Commit proposal, ReplicaList replicas, int requiredParticipants, boolean timeoutIfPartial, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
     throws WriteTimeoutException
     {
         ProposeCallback callback = new ProposeCallback(replicas.size(), requiredParticipants, !timeoutIfPartial, consistencyLevel, queryStartNanoTime);
@@ -1663,7 +1664,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             // make sure any in-progress paxos writes are done (i.e., committed to a majority of replicas), before performing a quorum read
             PaxosParticipants p = getPaxosParticipants(metadata, key, consistencyLevel);
-            List<Replica> liveReplicas = p.liveReplicas;
+            ReplicaList liveReplicas = p.liveReplicas;
             int requiredParticipants = p.participants;
 
             // does the work of applying in-progress writes; throws UAE or timeout if it can't
@@ -2826,10 +2827,10 @@ public class StorageProxy implements StorageProxyMBean
 
     static class PaxosParticipants
     {
-        final List<Replica> liveReplicas;
+        final ReplicaList liveReplicas;
         final int participants;
 
-        PaxosParticipants(List<Replica> liveReplicas, int participants)
+        PaxosParticipants(ReplicaList liveReplicas, int participants)
         {
             this.liveReplicas = liveReplicas;
             this.participants = participants;

@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.collect.Iterables;
@@ -34,10 +35,34 @@ public class ReplicaSet extends Replicas
         replicaSet = new HashSet<>();
     }
 
+    public ReplicaSet(int expectedSize)
+    {
+        replicaSet = Sets.newHashSetWithExpectedSize(expectedSize);
+    }
+
     public ReplicaSet(Replicas replicas)
     {
         replicaSet = Sets.newHashSetWithExpectedSize(replicas.size());
         Iterables.addAll(replicaSet, replicas);
+    }
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReplicaSet that = (ReplicaSet) o;
+        return Objects.equals(replicaSet, that.replicaSet);
+    }
+
+    public int hashCode()
+    {
+        return Objects.hash(replicaSet);
+    }
+
+    @Override
+    public String toString()
+    {
+        return replicaSet.toString();
     }
 
     @Override
@@ -56,6 +81,12 @@ public class ReplicaSet extends Replicas
     public void removeEndpoint(InetAddressAndPort endpoint)
     {
         replicaSet.removeIf(r -> r.getEndpoint().equals(endpoint));
+    }
+
+    @Override
+    public void removeReplica(Replica replica)
+    {
+        replicaSet.remove(replica);
     }
 
     @Override

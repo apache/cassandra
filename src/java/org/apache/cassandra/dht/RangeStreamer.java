@@ -42,6 +42,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.locator.ReplicaList;
+import org.apache.cassandra.locator.ReplicaSet;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -182,7 +183,7 @@ public class RangeStreamer
      * @param keyspaceName keyspace name
      * @param replicas ranges to be streamed
      */
-    public void addRanges(String keyspaceName, Collection<Replica> replicas)
+    public void addRanges(String keyspaceName, Replicas replicas)
     {
         if(Keyspace.open(keyspaceName).getReplicationStrategy() instanceof LocalStrategy)
         {
@@ -194,8 +195,8 @@ public class RangeStreamer
 
         boolean useStrictSource = useStrictSourcesForRanges(keyspaceName);
         Multimap<Range<Token>, Replica> rangesForKeyspace = useStrictSource
-                ? getAllRangesWithStrictSourcesFor(keyspaceName, ReplicaHelpers.fullRanges(replicas))
-                : getAllRangesWithSourcesFor(keyspaceName, ReplicaHelpers.fullRanges(replicas));
+                ? getAllRangesWithStrictSourcesFor(keyspaceName, replicas.fullRanges())
+                : getAllRangesWithSourcesFor(keyspaceName, replicas.fullRanges());
 
         for (Map.Entry<Range<Token>, Replica> entry : rangesForKeyspace.entries())
             logger.info("{}: range {} exists on {} for keyspace {}", description, entry.getKey(), entry.getValue(), keyspaceName);
@@ -237,8 +238,9 @@ public class RangeStreamer
     private Multimap<Range<Token>, Replica> getAllRangesWithSourcesFor(String keyspaceName, Iterable<Range<Token>> desiredRanges)
     {
         AbstractReplicationStrategy strat = Keyspace.open(keyspaceName).getReplicationStrategy();
-        Multimap<Range<Token>, Replica> rangeAddresses = strat.getRangeAddresses(metadata.cloneOnlyTokenMap());
-        ReplicaHelpers.checkFull(rangeAddresses.values());
+        Map<Range<Token>, ReplicaSet> rangeAddresses = strat.getRangeAddresses(metadata.cloneOnlyTokenMap());
+        for (ReplicaSet replicaSet: rangeAddresses.values())
+            ReplicaHelpers.checkFull(replicaSet);
 
         Multimap<Range<Token>, Replica> rangeSources = ArrayListMultimap.create();
         for (Range<Token> desiredRange : desiredRanges)
@@ -247,7 +249,7 @@ public class RangeStreamer
             {
                 if (range.contains(desiredRange))
                 {
-                    ReplicaList preferred = snitch.getSortedListByProximity(address, Replicas.of(rangeAddresses.get(range)));
+                    ReplicaList preferred = snitch.getSortedListByProximity(address, rangeAddresses.get(range));
                     rangeSources.putAll(desiredRange, preferred);
                     break;
                 }
@@ -274,18 +276,18 @@ public class RangeStreamer
 
         // Active ranges
         TokenMetadata metadataClone = metadata.cloneOnlyTokenMap();
-        Multimap<Range<Token>, Replica> addressRanges = strat.getRangeAddresses(metadataClone);
+        Map<Range<Token>, ReplicaSet> addressRanges = strat.getRangeAddresses(metadataClone);
 
         // Pending ranges
         metadataClone.updateNormalTokens(tokens, address);
-        Multimap<Range<Token>, Replica> pendingRangeAddresses = strat.getRangeAddresses(metadataClone);
+        Map<Range<Token>, ReplicaSet> pendingRangeAddresses = strat.getRangeAddresses(metadataClone);
 
         // Collects the source that will have its range moved to the new node
         Multimap<Range<Token>, Replica> rangeSources = ArrayListMultimap.create();
 
         for (Range<Token> desiredRange : desiredRanges)
         {
-            for (Map.Entry<Range<Token>, Collection<Replica>> preEntry : addressRanges.asMap().entrySet())
+            for (Map.Entry<Range<Token>, ReplicaSet> preEntry : addressRanges.entrySet())
             {
                 if (preEntry.getKey().contains(desiredRange))
                 {
