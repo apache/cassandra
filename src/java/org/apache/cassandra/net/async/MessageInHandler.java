@@ -213,7 +213,10 @@ class MessageInHandler extends ByteToMessageDecoder
             ParameterType parameterType = ParameterType.byName.get(key);
             byte[] value = new byte[in.readInt()];
             in.readBytes(value);
-            parameters.put(parameterType, parameterType.serializer.deserialize(new DataInputBuffer(value), messagingVersion));
+            try (DataInputBuffer buffer = new DataInputBuffer(value))
+            {
+                parameters.put(parameterType, parameterType.serializer.deserialize(buffer, messagingVersion));
+            }
         }
 
         return true;
