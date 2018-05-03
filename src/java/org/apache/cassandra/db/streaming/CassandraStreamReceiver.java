@@ -98,6 +98,7 @@ public class CassandraStreamReceiver implements StreamReceiver
     }
 
     @Override
+    @SuppressWarnings("resource")
     public void received(IncomingStream stream)
     {
         CassandraIncomingFile file = getFile(stream);

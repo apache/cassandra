@@ -117,7 +117,10 @@ public class MessageIn<T>
                 {
                     byte[] value = new byte[in.readInt()];
                     in.readFully(value);
-                    builder.put(type, type.serializer.deserialize(new DataInputBuffer(value), version));
+                    try (DataInputBuffer buffer = new DataInputBuffer(value))
+                    {
+                        builder.put(type, type.serializer.deserialize(buffer, version));
+                    }
                 }
                 else
                 {

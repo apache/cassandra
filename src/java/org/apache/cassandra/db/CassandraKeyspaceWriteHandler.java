@@ -34,6 +34,7 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
     }
 
     @Override
+    @SuppressWarnings("resource") // group is closed when CassandraWriteContext is closed
     public WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
     {
         OpOrder.Group group = null;
@@ -60,6 +61,7 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
         }
     }
 
+    @SuppressWarnings("resource") // group is closed when CassandraWriteContext is closed
     private WriteContext createEmptyContext()
     {
         OpOrder.Group group = null;
