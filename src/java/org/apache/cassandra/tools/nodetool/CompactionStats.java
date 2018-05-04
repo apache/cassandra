@@ -25,8 +25,10 @@ import java.util.Map.Entry;
 import io.airlift.command.Command;
 import io.airlift.command.Option;
 
+import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -85,9 +87,10 @@ public class CompactionStats extends NodeToolCmd
                 String taskType = c.get("taskType");
                 String keyspace = c.get("keyspace");
                 String columnFamily = c.get("columnfamily");
-                String completedStr = humanReadable ? FileUtils.stringifyFileSize(completed) : Long.toString(completed);
-                String totalStr = humanReadable ? FileUtils.stringifyFileSize(total) : Long.toString(total);
                 String unit = c.get("unit");
+                boolean toFileSize = humanReadable && Unit.isFileSize(unit);
+                String completedStr = toFileSize ? FileUtils.stringifyFileSize(completed) : Long.toString(completed);
+                String totalStr = toFileSize ? FileUtils.stringifyFileSize(total) : Long.toString(total);
                 String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + "%";
                 String id = c.get("compactionId");
                 table.add(id, taskType, keyspace, columnFamily, completedStr, totalStr, unit, percentComplete);

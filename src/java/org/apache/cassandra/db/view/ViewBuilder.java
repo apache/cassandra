@@ -25,18 +25,21 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
@@ -208,7 +211,7 @@ public class ViewBuilder extends CompactionInfo.Holder
 
     public CompactionInfo getCompactionInfo()
     {
-        long rangesLeft = 0, rangesTotal = 0;
+        long rangesCompleted = 0, rangesTotal = 0;
         Token lastToken = prevToken;
 
         // This approximation is not very accurate, but since we do not have a method which allows us to calculate the
@@ -218,15 +221,11 @@ public class ViewBuilder extends CompactionInfo.Holder
         // has.
         for (Range<Token> range : StorageService.instance.getLocalRanges(baseCfs.keyspace.getName()))
         {
-            rangesLeft++;
             rangesTotal++;
-            // This will reset rangesLeft, so that the number of ranges left will be less than the total ranges at the
-            // end of the method.
-            if (lastToken == null || range.contains(lastToken))
-                rangesLeft = 0;
-        }
-
-        return new CompactionInfo(baseCfs.metadata, OperationType.VIEW_BUILD, rangesLeft, rangesTotal, "ranges", compactionId);
+             if ((lastToken != null) && lastToken.compareTo(range.right) > 0)
+                 rangesCompleted++;
+          }
+         return new CompactionInfo(baseCfs.metadata, OperationType.VIEW_BUILD, rangesCompleted, rangesTotal, Unit.RANGES, compactionId);
     }
 
     public void stop()

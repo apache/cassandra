@@ -32,20 +32,43 @@ public final class CompactionInfo implements Serializable
     private final OperationType tasktype;
     private final long completed;
     private final long total;
-    private final String unit;
+    private final Unit unit;
     private final UUID compactionId;
+
+    public static enum Unit
+    {
+        BYTES("bytes"), RANGES("ranges"), KEYS("keys");
+
+        private final String name;
+
+        private Unit(String name)
+        {
+            this.name = name;
+        }
+
+        @Override
+        public String toString()
+        {
+            return name;
+        }
+
+        public static boolean isFileSize(String unit)
+        {
+            return BYTES.toString().equals(unit);
+        }
+    }
 
     public CompactionInfo(CFMetaData cfm, OperationType tasktype, long bytesComplete, long totalBytes, UUID compactionId)
     {
-        this(cfm, tasktype, bytesComplete, totalBytes, "bytes", compactionId);
+        this(cfm, tasktype, bytesComplete, totalBytes, Unit.BYTES, compactionId);
     }
 
-    public CompactionInfo(OperationType tasktype, long completed, long total, String unit, UUID compactionId)
+    public CompactionInfo(OperationType tasktype, long completed, long total, Unit unit, UUID compactionId)
     {
         this(null, tasktype, completed, total, unit, compactionId);
     }
 
-    public CompactionInfo(CFMetaData cfm, OperationType tasktype, long completed, long total, String unit, UUID compactionId)
+    public CompactionInfo(CFMetaData cfm, OperationType tasktype, long completed, long total, Unit unit, UUID compactionId)
     {
         this.tasktype = tasktype;
         this.completed = completed;
@@ -127,7 +150,7 @@ public final class CompactionInfo implements Serializable
         ret.put("completed", Long.toString(completed));
         ret.put("total", Long.toString(total));
         ret.put("taskType", tasktype.toString());
-        ret.put("unit", unit);
+        ret.put("unit", unit.toString());
         ret.put("compactionId", compactionId == null ? "" : compactionId.toString());
         return ret;
     }
