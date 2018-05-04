@@ -224,15 +224,15 @@ public class SimpleStrategyTest
 
         SimpleStrategy strategy = new SimpleStrategy("ks", metadata, snitch, configOptions);
 
-        Assert.assertEquals(Lists.newArrayList(full(endpoints.get(0), range(400, 100)),
-                                               full(endpoints.get(1), range(400, 100)),
-                                               trans(endpoints.get(2), range(400, 100))),
+        Assert.assertEquals(ReplicaList.of(full(endpoints.get(0), range(400, 100)),
+                                           full(endpoints.get(1), range(400, 100)),
+                                           trans(endpoints.get(2), range(400, 100))),
                             strategy.getNaturalReplicas(tk(99)));
 
 
-        Assert.assertEquals(Lists.newArrayList(full(endpoints.get(1), range(100, 200)),
-                                               full(endpoints.get(2), range(100, 200)),
-                                               trans(endpoints.get(3), range(100, 200))),
+        Assert.assertEquals(ReplicaList.of(full(endpoints.get(1), range(100, 200)),
+                                           full(endpoints.get(2), range(100, 200)),
+                                           trans(endpoints.get(3), range(100, 200))),
                             strategy.getNaturalReplicas(tk(101)));
     }
 
