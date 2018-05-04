@@ -31,6 +31,8 @@ import com.google.common.collect.Iterables;
 
 public class ReplicaList extends Replicas
 {
+    static final ReplicaList EMPTY = new ReplicaList(ImmutableList.of());
+
     private final List<Replica> replicaList;
 
     public ReplicaList()

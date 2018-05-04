@@ -733,9 +733,9 @@ public class TokenMetadata
         return sortedTokens;
     }
 
-    public Map<Range<Token>, ReplicaSet> getPendingRangesMM(String keyspaceName)
+    public ReplicaMultimap<Range<Token>, ReplicaSet> getPendingRangesMM(String keyspaceName)
     {
-        Map<Range<Token>, ReplicaSet> map = new HashMap<>();
+        ReplicaMultimap<Range<Token>, ReplicaSet> map = ReplicaMultimap.set();
         PendingRangeMaps pendingRangeMaps = this.pendingRanges.get(keyspaceName);
 
         if (pendingRangeMaps != null)
@@ -745,7 +745,7 @@ public class TokenMetadata
                 Range<Token> range = entry.getKey();
                 for (Replica replica : entry.getValue())
                 {
-                    map.computeIfAbsent(range, r -> new ReplicaSet()).add(replica);
+                    map.put(range, replica);
                 }
             }
         }
@@ -762,14 +762,12 @@ public class TokenMetadata
     public ReplicaList getPendingRanges(String keyspaceName, InetAddressAndPort endpoint)
     {
         ReplicaList replicas = new ReplicaList();
-        for (Map.Entry<Range<Token>, ReplicaSet> entry : getPendingRangesMM(keyspaceName).entrySet())
+        for (Map.Entry<Range<Token>, Replica> entry : getPendingRangesMM(keyspaceName).entries())
         {
-            for (Replica replica: entry.getValue())
+            Replica replica = entry.getValue();
+            if (replica.getEndpoint().equals(endpoint))
             {
-                if (replica.getEndpoint().equals(endpoint))
-                {
-                    replicas.add(replica);
-                }
+                replicas.add(replica);
             }
         }
         return replicas;
@@ -859,7 +857,7 @@ public class TokenMetadata
     {
         PendingRangeMaps newPendingRanges = new PendingRangeMaps();
 
-        Map<InetAddressAndPort, ReplicaSet> addressRanges = strategy.getAddressReplicas(metadata);
+        ReplicaMultimap<InetAddressAndPort, ReplicaSet> addressRanges = strategy.getAddressReplicas(metadata);
 
         // Copy of metadata reflecting the situation after all leave operations are finished.
         TokenMetadata allLeftMetadata = removeEndpoints(metadata.cloneOnlyTokenMap(), leavingEndpoints);

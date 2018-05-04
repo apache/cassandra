@@ -226,6 +226,23 @@ public abstract class Replicas implements Iterable<Replica>
         };
     }
 
+    public static Replicas concat(Iterable<Replicas> replicasIterable)
+    {
+        Iterable<Replica> iterable = Iterables.concat(replicasIterable);
+        return new ImmutableReplicaContainer()
+        {
+            public int size()
+            {
+                return Iterables.size(iterable);
+            }
+
+            public Iterator<Replica> iterator()
+            {
+                return iterable.iterator();
+            }
+        };
+    }
+
     public static Replicas of(Collection<Replica> replicas)
     {
         return new ImmutableReplicaContainer()

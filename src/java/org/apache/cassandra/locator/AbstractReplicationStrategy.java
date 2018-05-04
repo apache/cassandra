@@ -212,9 +212,9 @@ public abstract class AbstractReplicationStrategy
      * (fixing this would probably require merging tokenmetadata into replicationstrategy,
      * so we could cache/invalidate cleanly.)
      */
-    public Map<InetAddressAndPort, ReplicaSet> getAddressReplicas(TokenMetadata metadata)
+    public ReplicaMultimap<InetAddressAndPort, ReplicaSet> getAddressReplicas(TokenMetadata metadata)
     {
-        Map<InetAddressAndPort, ReplicaSet> map = new HashMap<>();
+        ReplicaMultimap<InetAddressAndPort, ReplicaSet> map = ReplicaMultimap.set();
 
         for (Token token : metadata.sortedTokens())
         {
@@ -222,16 +222,16 @@ public abstract class AbstractReplicationStrategy
             for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
                 Preconditions.checkState(range.equals(replica.getRange()) || this instanceof LocalStrategy);
-                map.computeIfAbsent(replica.getEndpoint(), e -> new ReplicaSet()).add(replica);
+                map.put(replica.getEndpoint(), replica);
             }
         }
 
         return map;
     }
 
-    public Map<Range<Token>, ReplicaSet> getRangeAddresses(TokenMetadata metadata)
+    public ReplicaMultimap<Range<Token>, ReplicaSet> getRangeAddresses(TokenMetadata metadata)
     {
-        Map<Range<Token>, ReplicaSet> map = new HashMap<>();
+        ReplicaMultimap<Range<Token>, ReplicaSet> map = ReplicaMultimap.set();
 
         for (Token token : metadata.sortedTokens())
         {
@@ -239,14 +239,14 @@ public abstract class AbstractReplicationStrategy
             for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
                 Preconditions.checkState(range.equals(replica.getRange()) || this instanceof LocalStrategy);
-                map.computeIfAbsent(range, r -> new ReplicaSet()).add(replica);
+                map.put(range, replica);
             }
         }
 
         return map;
     }
 
-    public Map<InetAddressAndPort, ReplicaSet> getAddressReplicas()
+    public ReplicaMultimap<InetAddressAndPort, ReplicaSet> getAddressReplicas()
     {
         return getAddressReplicas(tokenMetadata.cloneOnlyTokenMap());
     }

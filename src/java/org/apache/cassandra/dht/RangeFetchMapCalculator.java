@@ -32,6 +32,7 @@ import com.google.common.collect.Multimap;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaList;
+import org.apache.cassandra.locator.ReplicaMultimap;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
@@ -73,7 +74,7 @@ public class RangeFetchMapCalculator
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeFetchMapCalculator.class);
     private static final long TRIVIAL_RANGE_LIMIT = 1000;
-    private final Map<Range<Token>, ReplicaList> rangesWithSources;
+    private final ReplicaMultimap<Range<Token>, ReplicaList> rangesWithSources;
     private final Collection<RangeStreamer.ISourceFilter> sourceFilters;
     private final String keyspace;
     //We need two Vertices to act as source and destination in the algorithm
@@ -81,7 +82,7 @@ public class RangeFetchMapCalculator
     private final Vertex destinationVertex = OuterVertex.getDestinationVertex();
     private final Set<Range<Token>> trivialRanges;
 
-    public RangeFetchMapCalculator(Map<Range<Token>, ReplicaList> rangesWithSources,
+    public RangeFetchMapCalculator(ReplicaMultimap<Range<Token>, ReplicaList> rangesWithSources,
                                    Collection<RangeStreamer.ISourceFilter> sourceFilters,
                                    String keyspace)
     {

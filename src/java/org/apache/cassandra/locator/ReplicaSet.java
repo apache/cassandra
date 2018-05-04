@@ -30,6 +30,8 @@ import com.google.common.collect.Sets;
 
 public class ReplicaSet extends Replicas
 {
+    static final ReplicaSet EMPTY = new ReplicaSet(ImmutableSet.of());
+
     private final Set<Replica> replicaSet;
 
     public ReplicaSet()

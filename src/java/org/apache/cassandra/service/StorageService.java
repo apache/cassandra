@@ -1766,7 +1766,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             keyspace = Schema.instance.getNonLocalStrategyKeyspaces().get(0);
 
         Map<List<String>, List<String>> map = new HashMap<>();
-        for (Map.Entry<Range<Token>, ReplicaSet> entry : tokenMetadata.getPendingRangesMM(keyspace).entrySet())
+        for (Map.Entry<Range<Token>, ReplicaSet> entry : tokenMetadata.getPendingRangesMM(keyspace).asMap().entrySet())
         {
             map.put(entry.getKey().asList(), Replicas.stringify(entry.getValue(), withPort));
         }
@@ -2714,11 +2714,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param ranges the ranges to find sources for
      * @return multimap of addresses to ranges the address is responsible for
      */
-    private Map<InetAddressAndPort, ReplicaSet> getNewSourceReplicas(String keyspaceName, Set<Range<Token>> ranges)
+    private ReplicaMultimap<InetAddressAndPort, ReplicaSet> getNewSourceReplicas(String keyspaceName, Set<Range<Token>> ranges)
     {
         InetAddressAndPort myAddress = FBUtilities.getBroadcastAddressAndPort();
-        Map<Range<Token>, ReplicaSet> rangeReplicas = Keyspace.open(keyspaceName).getReplicationStrategy().getRangeAddresses(tokenMetadata.cloneOnlyTokenMap());
-        Map<InetAddressAndPort, ReplicaSet> sourceRanges = new HashMap<>();
+        ReplicaMultimap<Range<Token>, ReplicaSet> rangeReplicas = Keyspace.open(keyspaceName).getReplicationStrategy().getRangeAddresses(tokenMetadata.cloneOnlyTokenMap());
+        ReplicaMultimap<InetAddressAndPort, ReplicaSet> sourceRanges = ReplicaMultimap.set();
         IFailureDetector failureDetector = FailureDetector.instance;
 
         // find alive sources for our new ranges
@@ -2734,7 +2734,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 if (failureDetector.isAlive(replica.getEndpoint()))
                 {
-                    sourceRanges.computeIfAbsent(replica.getEndpoint(), e -> new ReplicaSet()).add(replica);
+                    sourceRanges.put(replica.getEndpoint(), replica);
                     break;
                 }
             }
@@ -2787,18 +2787,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
-            Map<Range<Token>, ReplicaSet> changedRanges = getChangedRangesForLeaving(keyspaceName, endpoint);
+            ReplicaMultimap<Range<Token>, ReplicaSet> changedRanges = getChangedRangesForLeaving(keyspaceName, endpoint);
             Set<Range<Token>> myNewRanges = new HashSet<>();
-            for (Map.Entry<Range<Token>, ReplicaSet> entry : changedRanges.entrySet())
+            for (Map.Entry<Range<Token>, Replica> entry : changedRanges.entries())
             {
-                for (Replica replica: entry.getValue())
-                {
-                    if (replica.getEndpoint().equals(myAddress))
-                        myNewRanges.add(entry.getKey());
-                }
+                Replica replica = entry.getValue();
+                if (replica.getEndpoint().equals(myAddress))
+                    myNewRanges.add(entry.getKey());
             }
-            Map<InetAddressAndPort, ReplicaSet> sourceRanges = getNewSourceReplicas(keyspaceName, myNewRanges);
-            for (Map.Entry<InetAddressAndPort, ReplicaSet> entry : sourceRanges.entrySet())
+            ReplicaMultimap<InetAddressAndPort, ReplicaSet> sourceRanges = getNewSourceReplicas(keyspaceName, myNewRanges);
+            for (Map.Entry<InetAddressAndPort, ReplicaSet> entry : sourceRanges.asMap().entrySet())
             {
                 replicasToFetch.put(keyspaceName, entry);
             }
@@ -2835,7 +2833,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     // needs to be modified to accept either a keyspace or ARS.
-    private Map<Range<Token>, ReplicaSet> getChangedRangesForLeaving(String keyspaceName, InetAddressAndPort endpoint)
+    private ReplicaMultimap<Range<Token>, ReplicaSet> getChangedRangesForLeaving(String keyspaceName, InetAddressAndPort endpoint)
     {
         // First get all ranges the leaving endpoint is responsible for
         Collection<Range<Token>> ranges = getReplicasForEndpoint(keyspaceName, endpoint).asRangeSet();
@@ -2857,7 +2855,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (temp.isMember(endpoint))
             temp.removeEndpoint(endpoint);
 
-        Map<Range<Token>, ReplicaSet> changedRanges = new HashMap<>();
+        ReplicaMultimap<Range<Token>, ReplicaSet> changedRanges = ReplicaMultimap.set();
 
         // Go through the ranges and for each range check who will be
         // storing replicas for these ranges when the leaving endpoint
@@ -2873,7 +2871,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     logger.debug("Range {} already in all replicas", range);
                 else
                     logger.debug("Range {} will be responsibility of {}", range, StringUtils.join(newReplicaEndpoints, ", "));
-            changedRanges.computeIfAbsent(range, r -> new ReplicaSet()).addAll(newReplicaEndpoints);
+            changedRanges.putAll(range, newReplicaEndpoints);
         }
 
         return changedRanges;
@@ -4066,12 +4064,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void unbootstrap(Runnable onFinish) throws ExecutionException, InterruptedException
     {
-        Map<String, Map<Range<Token>, ReplicaSet>> rangesToStream = new HashMap<>();
+        Map<String, ReplicaMultimap<Range<Token>, ReplicaSet>> rangesToStream = new HashMap<>();
 
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
-            Map<Range<Token>, ReplicaSet> rangesMM = getChangedRangesForLeaving(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
-            Replicas.checkAllFull(rangesMM.values());
+            ReplicaMultimap<Range<Token>, ReplicaSet> rangesMM = getChangedRangesForLeaving(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
+            Replicas.checkFull(rangesMM.values());
 
             if (logger.isDebugEnabled())
                 logger.debug("Ranges needing transfer are [{}]", StringUtils.join(rangesMM.keySet(), ","));
@@ -4233,7 +4231,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 // replication strategy of the current keyspace
                 AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
-                Map<InetAddressAndPort, ReplicaSet> endpointToRanges = strategy.getAddressReplicas();
+                ReplicaMultimap<InetAddressAndPort, ReplicaSet> endpointToRanges = strategy.getAddressReplicas();
 
                 logger.debug("Calculating ranges to stream and request for keyspace {}", keyspace);
                 for (Token newToken : newTokens)
@@ -4245,7 +4243,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                     // ring ranges and endpoints associated with them
                     // this used to determine what nodes should we ping about range data
-                    Map<Range<Token>, ReplicaSet> rangeAddresses = strategy.getRangeAddresses(tokenMetaClone);
+                    ReplicaMultimap<Range<Token>, ReplicaSet> rangeAddresses = strategy.getRangeAddresses(tokenMetaClone);
 
                     // calculated parts of the ranges to request/stream from/to nodes in the ring
                     Pair<Set<Range<Token>>, Set<Range<Token>>> rangesPerKeyspace = calculateStreamAndFetchRanges(currentReplicas, updatedReplicas);
@@ -4254,7 +4252,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                      * In this loop we are going through all ranges "to fetch" and determining
                      * nodes in the ring responsible for data we are interested in
                      */
-                    Map<Range<Token>, ReplicaList> rangesToFetchWithPreferredEndpoints = new HashMap<>();
+                    ReplicaMultimap<Range<Token>, ReplicaList> rangesToFetchWithPreferredEndpoints = ReplicaMultimap.list();
                     for (Range<Token> toFetch : rangesPerKeyspace.right)
                     {
                         for (Range<Token> range : rangeAddresses.keySet())
@@ -4289,7 +4287,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                 }
 
                                 // storing range and preferred endpoint set
-                                rangesToFetchWithPreferredEndpoints.computeIfAbsent(toFetch, r -> new ReplicaList()).addAll(endpoints);
+                                rangesToFetchWithPreferredEndpoints.putAll(toFetch, endpoints);
                             }
                         }
 
@@ -4310,7 +4308,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                     // calculating endpoints to stream current ranges to if needed
                     // in some situations node will handle current ranges as part of the new ranges
-                    Map<InetAddressAndPort, ReplicaSet> endpointRanges = new HashMap<>();
+                    ReplicaMultimap<InetAddressAndPort, ReplicaSet> endpointRanges = ReplicaMultimap.set();
                     for (Range<Token> toStream : rangesPerKeyspace.left)
                     {
                         Set<Replica> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalReplicas(toStream.right, tokenMetaClone));
@@ -4323,7 +4321,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         for (Replica replica : Sets.difference(newEndpoints, currentEndpoints))
                         {
                             logger.debug("Range {} has new owner {}", toStream, replica);
-                            endpointRanges.computeIfAbsent(replica.getEndpoint(), e -> new ReplicaSet()).add(replica);
+                            endpointRanges.put(replica.getEndpoint(), replica);
                         }
                     }
 
@@ -4466,17 +4464,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // get all ranges that change ownership (that is, a node needs
             // to take responsibility for new range)
-            Map<Range<Token>, ReplicaSet> changedRanges = getChangedRangesForLeaving(keyspaceName, endpoint);
+            ReplicaMultimap<Range<Token>, ReplicaSet> changedRanges = getChangedRangesForLeaving(keyspaceName, endpoint);
             IFailureDetector failureDetector = FailureDetector.instance;
-            for (ReplicaSet replicaSet: changedRanges.values())
+            for (InetAddressAndPort ep: changedRanges.values().asEndpoints())
             {
-                for (InetAddressAndPort ep : replicaSet.asEndpoints())
-                {
-                    if (failureDetector.isAlive(ep))
-                        replicatingNodes.add(ep);
-                    else
-                        logger.warn("Endpoint {} is down and will not receive data for re-replication of {}", ep, endpoint);
-                }
+                if (failureDetector.isAlive(ep))
+                    replicatingNodes.add(ep);
+                else
+                    logger.warn("Endpoint {} is down and will not receive data for re-replication of {}", ep, endpoint);
             }
         }
         removingNode = endpoint;
@@ -4887,7 +4882,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Map<Token, Float> tokenOwnership = tokenMetadata.partitioner.describeOwnership(tokenMetadata.sortedTokens());
         LinkedHashMap<InetAddressAndPort, Float> finalOwnership = Maps.newLinkedHashMap();
 
-        Map<InetAddressAndPort, ReplicaSet> endpointToRanges = strategy.getAddressReplicas();
+        ReplicaMultimap<InetAddressAndPort, ReplicaSet> endpointToRanges = strategy.getAddressReplicas();
         // calculate ownership per dc
         for (Collection<InetAddressAndPort> endpoints : endpointsGroupedByDc)
         {
@@ -5059,16 +5054,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param rangesToStreamByKeyspace keyspaces and data ranges with endpoints included for each
      * @return async Future for whether stream was success
      */
-    private Future<StreamState> streamRanges(Map<String, Map<Range<Token>, ReplicaSet>> rangesToStreamByKeyspace)
+    private Future<StreamState> streamRanges(Map<String, ReplicaMultimap<Range<Token>, ReplicaSet>> rangesToStreamByKeyspace)
     {
         // First, we build a list of ranges to stream to each host, per table
         Map<String, Map<InetAddressAndPort, List<Range<Token>>>> sessionsToStreamByKeyspace = new HashMap<>();
 
-        for (Map.Entry<String, Map<Range<Token>, ReplicaSet>> entry : rangesToStreamByKeyspace.entrySet())
+        for (Map.Entry<String, ReplicaMultimap<Range<Token>, ReplicaSet>> entry : rangesToStreamByKeyspace.entrySet())
         {
             String keyspace = entry.getKey();
-            Map<Range<Token>, ReplicaSet> rangesWithEndpoints = entry.getValue();
-            Replicas.checkAllFull(rangesWithEndpoints.values());
+            ReplicaMultimap<Range<Token>, ReplicaSet> rangesWithEndpoints = entry.getValue();
+            Replicas.checkFull(rangesWithEndpoints.values());
 
             if (rangesWithEndpoints.isEmpty())
                 continue;
@@ -5077,27 +5072,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                                                                                          keyspace,
                                                                                                                          StorageService.instance.getTokenMetadata().partitioner);
             Map<InetAddressAndPort, List<Range<Token>>> rangesPerEndpoint = new HashMap<>();
-            for (Map.Entry<Range<Token>, ReplicaSet> endPointEntry : rangesWithEndpoints.entrySet())
+            for (Map.Entry<Range<Token>, Replica> endPointEntry : rangesWithEndpoints.entries())
             {
                 Range<Token> range = endPointEntry.getKey();
-                for (Replica replica: endPointEntry.getValue())
+                Replica replica = endPointEntry.getValue();
+                Set<Range<Token>> transferredRanges = transferredRangePerKeyspace.get(replica.getEndpoint());
+                if (transferredRanges != null && transferredRanges.contains(range))
                 {
-                    Set<Range<Token>> transferredRanges = transferredRangePerKeyspace.get(replica.getEndpoint());
-                    if (transferredRanges != null && transferredRanges.contains(range))
-                    {
-                        logger.debug("Skipping transferred range {} of keyspace {}, endpoint {}", range, keyspace, replica);
-                        continue;
-                    }
-
-                    List<Range<Token>> curRanges = rangesPerEndpoint.get(replica.getEndpoint());
-                    if (curRanges == null)
-                    {
-                        curRanges = new LinkedList<>();
-                        rangesPerEndpoint.put(replica.getEndpoint(), curRanges);
-                    }
-                    curRanges.add(range);
+                    logger.debug("Skipping transferred range {} of keyspace {}, endpoint {}", range, keyspace, replica);
+                    continue;
                 }
 
+                List<Range<Token>> curRanges = rangesPerEndpoint.get(replica.getEndpoint());
+                if (curRanges == null)
+                {
+                    curRanges = new LinkedList<>();
+                    rangesPerEndpoint.put(replica.getEndpoint(), curRanges);
+                }
+                curRanges.add(range);
             }
 
             sessionsToStreamByKeyspace.put(keyspace, rangesPerEndpoint);
