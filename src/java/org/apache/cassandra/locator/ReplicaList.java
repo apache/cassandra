@@ -231,4 +231,14 @@ public class ReplicaList extends Replicas
         }
         return replicaList;
     }
+
+    public static ReplicaList fullStandIns(Iterable<InetAddressAndPort> endpoints)
+    {
+        ReplicaList replicaList = new ReplicaList();
+        for (InetAddressAndPort endpoint: endpoints)
+        {
+            replicaList.add(Replica.fullStandin(endpoint));
+        }
+        return replicaList;
+    }
 }

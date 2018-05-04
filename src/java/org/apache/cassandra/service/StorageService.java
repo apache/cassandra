@@ -4111,10 +4111,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private UUID getPreferredHintsStreamTarget()
     {
         Set<InetAddressAndPort> endpoints = StorageService.instance.getTokenMetadata().cloneAfterAllLeft().getAllEndpoints();
-        endpoints.remove(FBUtilities.getBroadcastAddressAndPort());
-        endpoints.removeIf(e -> !FailureDetector.instance.isAlive(e));
 
-        ReplicaList candidates = ReplicaList.fullStandIns(endpoints);
+        ReplicaList candidates = ReplicaList.fullStandIns(Iterables.filter(endpoints,
+                                                                           e -> FailureDetector.instance.isAlive(e) &&
+                                                                                !FBUtilities.getBroadcastAddressAndPort().equals(e)));
 
         if (candidates.isEmpty())
         {
