@@ -42,6 +42,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.io.util.CorruptFileException;
@@ -312,7 +313,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                                       type,
                                       0,
                                       keysEstimate,
-                                      "keys",
+                                      Unit.KEYS,
                                       UUIDGen.getTimeUUID());
         }
 
