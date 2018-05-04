@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -51,14 +52,13 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedRegions;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FilterFactory;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -692,5 +692,73 @@ public class SSTableReaderTest
     private DecoratedKey k(int i)
     {
         return new BufferDecoratedKey(t(i), ByteBufferUtil.bytes(String.valueOf(i)));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testMoveAndOpenLiveSSTable()
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
+        SSTableReader sstable = getNewSSTable(cfs);
+        Descriptor notLiveDesc = new Descriptor(new File("/tmp"), "", "", 0);
+        SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components);
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testMoveAndOpenLiveSSTable2()
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
+        SSTableReader sstable = getNewSSTable(cfs);
+        Descriptor notLiveDesc = new Descriptor(new File("/tmp"), "", "", 0);
+        SSTableReader.moveAndOpenSSTable(cfs, notLiveDesc, sstable.descriptor, sstable.components);
+    }
+
+    @Test
+    public void testMoveAndOpenSSTable() throws IOException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
+        SSTableReader sstable = getNewSSTable(cfs);
+        cfs.clearUnsafe();
+        sstable.selfRef().release();
+        File tmpdir = Files.createTempDirectory("testMoveAndOpen").toFile();
+        tmpdir.deleteOnExit();
+        Descriptor notLiveDesc = new Descriptor(tmpdir, sstable.descriptor.ksname, sstable.descriptor.cfname, 100);
+        // make sure the new directory is empty and that the old files exist:
+        for (Component c : sstable.components)
+        {
+            File f = new File(notLiveDesc.filenameFor(c));
+            assertFalse(f.exists());
+            assertTrue(new File(sstable.descriptor.filenameFor(c)).exists());
+        }
+        SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components);
+        // make sure the files were moved:
+        for (Component c : sstable.components)
+        {
+            File f = new File(notLiveDesc.filenameFor(c));
+            assertTrue(f.exists());
+            assertTrue(f.toString().contains("-100-"));
+            f.deleteOnExit();
+            assertFalse(new File(sstable.descriptor.filenameFor(c)).exists());
+        }
+    }
+
+
+
+    private SSTableReader getNewSSTable(ColumnFamilyStore cfs)
+    {
+
+        Set<SSTableReader> before = cfs.getLiveSSTables();
+        for (int j = 0; j < 100; j += 2)
+        {
+            new RowUpdateBuilder(cfs.metadata(), j, String.valueOf(j))
+            .clustering("0")
+            .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+            .build()
+            .applyUnsafe();
+        }
+        cfs.forceBlockingFlush();
+        return Sets.difference(cfs.getLiveSSTables(), before).iterator().next();
     }
 }

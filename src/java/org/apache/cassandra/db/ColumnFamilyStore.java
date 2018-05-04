@@ -225,6 +225,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private final TableRepairManager repairManager;
 
+    private final SSTableImporter sstableImporter;
+
     private volatile boolean compactionSpaceCheck = true;
 
     @VisibleForTesting
@@ -458,6 +460,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         writeHandler = new CassandraTableWriteHandler(this);
         streamManager = new CassandraStreamManager(this);
         repairManager = new CassandraTableRepairManager(this);
+        sstableImporter = new SSTableImporter(this);
     }
 
     public void updateSpeculationThreshold()
@@ -701,239 +704,43 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     @Deprecated
     public void loadNewSSTables()
     {
-        ImportOptions options = ImportOptions.options().resetLevel(true).build();
-        importNewSSTables(options);
-    }
 
-    /**
-     * Iterates over all keys in the sstable index and invalidates the row cache
-     *
-     * also counts the number of tokens that should be on each disk in JBOD-config to minimize the amount of data compaction
-     * needs to move around
-     */
-    @VisibleForTesting
-    static File findBestDiskAndInvalidateCaches(ColumnFamilyStore cfs, Descriptor desc, String srcPath, boolean clearCaches, boolean jbodCheck) throws IOException
-    {
-        int boundaryIndex = 0;
-        DiskBoundaries boundaries = cfs.getDiskBoundaries();
-        boolean shouldCountKeys = boundaries.positions != null && jbodCheck;
-        if (!cfs.isRowCacheEnabled() || !clearCaches)
-        {
-            if (srcPath == null) // user has dropped the sstables in the data directory, use it directly
-                return desc.directory;
-            if (boundaries.directories != null && boundaries.directories.size() == 1) // only a single data directory, use it without counting keys
-                return cfs.directories.getLocationForDisk(boundaries.directories.get(0));
-            if (!shouldCountKeys) // for non-random partitioners positions can be null, get the directory with the most space available
-                return cfs.directories.getWriteableLocationToLoadFile(new File(desc.baseFilename()));
-        }
-
-        long count = 0;
-        int maxIndex = 0;
-        long maxCount = 0;
-
-        try (KeyIterator iter = new KeyIterator(desc, cfs.metadata()))
-        {
-            while (iter.hasNext())
-            {
-                DecoratedKey decoratedKey = iter.next();
-                if (clearCaches)
-                    cfs.invalidateCachedPartition(decoratedKey);
-                if (shouldCountKeys)
-                {
-                    while (boundaries.positions.get(boundaryIndex).compareTo(decoratedKey) < 0)
-                    {
-                        logger.debug("{} has {} keys in {}", desc, count, boundaries.positions.get(boundaryIndex));
-                        if (count > maxCount)
-                        {
-                            maxIndex = boundaryIndex;
-                            maxCount = count;
-                        }
-                        boundaryIndex++;
-                        count = 0;
-                    }
-                    count++;
-                }
-            }
-            if (shouldCountKeys)
-            {
-                if (count > maxCount)
-                    maxIndex = boundaryIndex;
-                logger.debug("{} has {} keys in {}", desc, count, boundaries.positions.get(boundaryIndex));
-            }
-        }
-        File dir;
-        if (srcPath == null)
-            dir = desc.directory;
-        else if (shouldCountKeys)
-            dir = cfs.directories.getLocationForDisk(boundaries.directories.get(maxIndex));
-        else
-            dir = cfs.directories.getWriteableLocationToLoadFile(new File(desc.baseFilename()));
-        return dir;
+        SSTableImporter.Options options = SSTableImporter.Options.options().resetLevel(true).build();
+        sstableImporter.importNewSSTables(options);
     }
 
     /**
      * #{@inheritDoc}
      */
-    public void importNewSSTables(String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck, boolean extendedVerify)
+    public synchronized List<String> importNewSSTables(Set<String> srcPaths, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean extendedVerify)
     {
-        ImportOptions options = ImportOptions.options(srcPath)
-                                             .resetLevel(resetLevel)
-                                             .clearRepaired(clearRepaired)
-                                             .verifySSTables(verifySSTables)
-                                             .verifyTokens(verifyTokens)
-                                             .invalidateCaches(invalidateCaches)
-                                             .jbodCheck(jbodCheck)
-                                             .extendedVerify(extendedVerify).build();
+        SSTableImporter.Options options = SSTableImporter.Options.options(srcPaths)
+                                                                 .resetLevel(resetLevel)
+                                                                 .clearRepaired(clearRepaired)
+                                                                 .verifySSTables(verifySSTables)
+                                                                 .verifyTokens(verifyTokens)
+                                                                 .invalidateCaches(invalidateCaches)
+                                                                 .extendedVerify(extendedVerify).build();
 
-        this.importNewSSTables(options);
+        return sstableImporter.importNewSSTables(options);
     }
 
-    @VisibleForTesting
-    synchronized void importNewSSTables(ImportOptions options)
+    Descriptor getUniqueDescriptorFor(Descriptor descriptor, File targetDirectory)
     {
-        logger.info("Loading new SSTables for {}/{}: {}",
-                    keyspace.getName(), name, options);
-
-        File dir = null;
-        if (options.srcPath != null && !options.srcPath.isEmpty())
+        Descriptor newDescriptor;
+        do
         {
-            dir = new File(options.srcPath);
-            if (!dir.exists())
-            {
-                throw new RuntimeException(String.format("Directory %s does not exist", options.srcPath));
-            }
-            if (!Directories.verifyFullPermissions(dir, options.srcPath))
-            {
-                throw new RuntimeException("Insufficient permissions on directory " + options.srcPath);
-            }
+            newDescriptor = new Descriptor(descriptor.version,
+                                           targetDirectory,
+                                           descriptor.ksname,
+                                           descriptor.cfname,
+                                           // Increment the generation until we find a filename that doesn't exist. This is needed because the new
+                                           // SSTables that are being loaded might already use these generation numbers.
+                                           fileIndexGenerator.incrementAndGet(),
+                                           descriptor.formatType);
         }
-
-        Set<Descriptor> currentDescriptors = new HashSet<>();
-        for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
-            currentDescriptors.add(sstable.descriptor);
-        Set<SSTableReader> newSSTables = new HashSet<>();
-        Directories.SSTableLister lister = dir == null ?
-                directories.sstableLister(Directories.OnTxnErr.IGNORE).skipTemporary(true) :
-                directories.sstableLister(dir, Directories.OnTxnErr.IGNORE).skipTemporary(true);
-
-        // verify first to avoid starting to copy sstables to the data directories and then have to abort.
-        if (options.verifySSTables || options.verifyTokens)
-        {
-            for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
-            {
-                Descriptor descriptor = entry.getKey();
-                SSTableReader reader = null;
-                try
-                {
-                    reader = SSTableReader.open(descriptor, entry.getValue(), metadata);
-                    Verifier.Options verifierOptions = Verifier.options().extendedVerification(options.extendedVerify)
-                                                                         .checkOwnsTokens(options.verifyTokens)
-                                                                         .invokeDiskFailurePolicy(false)
-                                                                         .mutateRepairStatus(false).build();
-                    try (Verifier verifier = new Verifier(this, reader, false, verifierOptions))
-                    {
-                        verifier.verify();
-                    }
-                }
-                catch (Throwable t)
-                {
-                    throw new RuntimeException("Can't import sstable "+descriptor, t);
-                }
-                finally
-                {
-                    if (reader != null)
-                        reader.selfRef().release();
-                }
-            }
-        }
-
-        for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
-        {
-            Descriptor descriptor = entry.getKey();
-
-            if (currentDescriptors.contains(descriptor))
-                continue; // old (initialized) SSTable found, skipping
-
-            if (!descriptor.isCompatible())
-                throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
-                        descriptor.getFormat().getLatestVersion(),
-                        descriptor));
-
-            File targetDirectory;
-            try
-            {
-                if (new File(descriptor.filenameFor(Component.STATS)).exists())
-                {
-                    if (options.resetLevel)
-                    {
-                        descriptor.getMetadataSerializer().mutateLevel(descriptor, 0);
-                    }
-                    if (options.clearRepaired)
-                    {
-                        descriptor.getMetadataSerializer().mutateRepaired(descriptor,
-                                                                          ActiveRepairService.UNREPAIRED_SSTABLE,
-                                                                          null);
-                    }
-                }
-                targetDirectory = findBestDiskAndInvalidateCaches(this, descriptor, options.srcPath, options.invalidateCaches, options.jbodCheck);
-                logger.debug("{} will get copied to {}", descriptor, targetDirectory);
-            }
-            catch (IOException e)
-            {
-                logger.error("{} is corrupt, can't import", descriptor, e);
-                throw new RuntimeException(e);
-            }
-
-            Descriptor newDescriptor;
-            do
-            {
-                newDescriptor = new Descriptor(descriptor.version,
-                                               // If source dir is not provided, then we are just loading from data directory, so use same data directory otherwise
-                                               // get the most suitable location to load into
-                                               targetDirectory,
-                                               descriptor.ksname,
-                                               descriptor.cfname,
-                                               // Increment the generation until we find a filename that doesn't exist. This is needed because the new
-                                               // SSTables that are being loaded might already use these generation numbers.
-                                               fileIndexGenerator.incrementAndGet(),
-                                               descriptor.formatType);
-            }
-            while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
-
-            logger.info("Renaming new SSTable {} to {}", descriptor, newDescriptor);
-            SSTableWriter.rename(descriptor, newDescriptor, entry.getValue());
-
-            SSTableReader reader;
-            try
-            {
-                reader = SSTableReader.open(newDescriptor, entry.getValue(), metadata);
-            }
-            catch (Throwable t)
-            {
-                for (SSTableReader sstable : newSSTables)
-                    sstable.selfRef().release();
-                // log which sstables we have copied so far, so that the operator can remove them
-                if (options.srcPath != null)
-                    logger.error("Aborting import of sstables. {} copied, {} was corrupt", newSSTables, newDescriptor);
-                throw new RuntimeException(newDescriptor+" is corrupt, can't import", t);
-            }
-            newSSTables.add(reader);
-        }
-
-        if (newSSTables.isEmpty())
-        {
-            logger.info("No new SSTables were found for {}/{}", keyspace.getName(), name);
-            return;
-        }
-
-        logger.info("Loading new SSTables and building secondary indexes for {}/{}: {}", keyspace.getName(), name, newSSTables);
-
-        try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
-        {
-            data.addSSTables(newSSTables);
-        }
-
-        logger.info("Done loading load new SSTables for {}/{}", keyspace.getName(), name);
+        while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
+        return newDescriptor;
     }
 
     public void rebuildSecondaryIndex(String idxName)
@@ -2822,117 +2629,4 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return neverPurgeTombstones;
     }
-
-    public static class ImportOptions
-    {
-        public final String srcPath;
-        public final boolean resetLevel;
-        public final boolean clearRepaired;
-        public final boolean verifySSTables;
-        public final boolean verifyTokens;
-        public final boolean invalidateCaches;
-        public final boolean jbodCheck;
-        public final boolean extendedVerify;
-
-        public ImportOptions(String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck, boolean extendedVerify)
-        {
-            this.srcPath = srcPath;
-            this.resetLevel = resetLevel;
-            this.clearRepaired = clearRepaired;
-            this.verifySSTables = verifySSTables;
-            this.verifyTokens = verifyTokens;
-            this.invalidateCaches = invalidateCaches;
-            this.jbodCheck = jbodCheck;
-            this.extendedVerify = extendedVerify;
-        }
-
-        public static Builder options(@Nullable String srcDir)
-        {
-            return new Builder(srcDir);
-        }
-
-        public static Builder options()
-        {
-            return options(null);
-        }
-
-        @Override
-        public String toString()
-        {
-            return "ImportOptions{" +
-                   "srcPath='" + srcPath + '\'' +
-                   ", resetLevel=" + resetLevel +
-                   ", clearRepaired=" + clearRepaired +
-                   ", verifySSTables=" + verifySSTables +
-                   ", verifyTokens=" + verifyTokens +
-                   ", invalidateCaches=" + invalidateCaches +
-                   ", extendedVerify=" + extendedVerify +
-                   '}';
-        }
-
-        static class Builder
-        {
-            private final String srcPath;
-            private boolean resetLevel = false;
-            private boolean clearRepaired = false;
-            private boolean verifySSTables = false;
-            private boolean verifyTokens = false;
-            private boolean invalidateCaches = false;
-            private boolean jbodCheck = false;
-            private boolean extendedVerify = false;
-
-            private Builder(String srcPath)
-            {
-                this.srcPath = srcPath;
-            }
-
-            public Builder resetLevel(boolean value)
-            {
-                resetLevel = value;
-                return this;
-            }
-
-            public Builder clearRepaired(boolean value)
-            {
-                clearRepaired = value;
-                return this;
-            }
-
-            public Builder verifySSTables(boolean value)
-            {
-                verifySSTables = value;
-                return this;
-            }
-
-            public Builder verifyTokens(boolean value)
-            {
-                verifyTokens = value;
-                return this;
-            }
-
-            public Builder invalidateCaches(boolean value)
-            {
-                invalidateCaches = value;
-                return this;
-            }
-
-            public Builder jbodCheck(boolean value)
-            {
-                jbodCheck = value;
-                return this;
-            }
-
-            public Builder extendedVerify(boolean value)
-            {
-                extendedVerify = value;
-                return this;
-            }
-
-            public ImportOptions build()
-            {
-                return new ImportOptions(srcPath, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, jbodCheck, extendedVerify);
-            }
-        }
-    }
-
 }
