@@ -207,8 +207,9 @@ public class Server implements CassandraDaemon.Server
         return result;
     }
 
-    public List<Map<String, String>> getClientsByProtocolVersion() {
-        LinkedHashMap<ProtocolVersion, ImmutableSet<ProtocolVersionTracker.ClientIPAndTime>> all = connectionTracker.protoTracker.getAll();
+    public List<Map<String, String>> getClientsByProtocolVersion()
+    {
+        LinkedHashMap<ProtocolVersion, ImmutableSet<ProtocolVersionTracker.ClientIPAndTime>> all = connectionTracker.protocolVersionTracker.getAll();
         List<Map<String, String>> result = new ArrayList<>();
 
         for (Map.Entry<ProtocolVersion, ImmutableSet<ProtocolVersionTracker.ClientIPAndTime>> entry : all.entrySet())
@@ -230,7 +231,7 @@ public class Server implements CassandraDaemon.Server
     @Override
     public void clearConnectionHistory()
     {
-        connectionTracker.protoTracker.clear();
+        connectionTracker.protocolVersionTracker.clear();
     }
 
     private void close()
@@ -309,7 +310,7 @@ public class Server implements CassandraDaemon.Server
         // TODO: should we be using the GlobalEventExecutor or defining our own?
         public final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
         private final EnumMap<Event.Type, ChannelGroup> groups = new EnumMap<>(Event.Type.class);
-        private final ProtocolVersionTracker protoTracker = new ProtocolVersionTracker();
+        private final ProtocolVersionTracker protocolVersionTracker = new ProtocolVersionTracker();
 
         public ConnectionTracker()
         {
@@ -322,7 +323,7 @@ public class Server implements CassandraDaemon.Server
             allChannels.add(ch);
 
             if (ch.remoteAddress() instanceof InetSocketAddress)
-                protoTracker.addConnection(((InetSocketAddress) ch.remoteAddress()).getAddress(), connection.getVersion());
+                protocolVersionTracker.addConnection(((InetSocketAddress) ch.remoteAddress()).getAddress(), connection.getVersion());
         }
 
         public void register(Event.Type type, Channel ch)

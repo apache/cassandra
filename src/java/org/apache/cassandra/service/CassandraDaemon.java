@@ -679,7 +679,8 @@ public class CassandraDaemon
         instance.activate();
     }
 
-    public void clearConnectionHistory() {
+    public void clearConnectionHistory()
+    {
         nativeTransportService.clearConnectionHistory();
     }
 

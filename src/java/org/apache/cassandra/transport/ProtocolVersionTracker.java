@@ -40,7 +40,7 @@ public class ProtocolVersionTracker
     public static final int DEFAULT_MAX_CAPACITY = 100;
 
     @VisibleForTesting
-    final EnumMap<ProtocolVersion, LoadingCache<InetAddress, Long>> clientsByProto;
+    final EnumMap<ProtocolVersion, LoadingCache<InetAddress, Long>> clientsByProtocolVersion;
 
     public ProtocolVersionTracker()
     {
@@ -49,12 +49,12 @@ public class ProtocolVersionTracker
 
     public ProtocolVersionTracker(final int capacity)
     {
-        this.clientsByProto = new EnumMap<>(ProtocolVersion.class);
+        clientsByProtocolVersion = new EnumMap<>(ProtocolVersion.class);
 
         for (ProtocolVersion version : ProtocolVersion.values())
         {
-            clientsByProto.put(version, Caffeine.newBuilder().maximumSize(capacity)
-                                                .build(key -> Clock.instance.currentTimeMillis()));
+            clientsByProtocolVersion.put(version, Caffeine.newBuilder().maximumSize(capacity)
+                                                          .build(key -> Clock.instance.currentTimeMillis()));
         }
     }
 
@@ -62,7 +62,7 @@ public class ProtocolVersionTracker
     {
         if (addr == null || version == null) return;
 
-        LoadingCache<InetAddress, Long> clients = clientsByProto.get(version);
+        LoadingCache<InetAddress, Long> clients = clientsByProtocolVersion.get(version);
         clients.put(addr, Clock.instance.currentTimeMillis());
     }
 
@@ -71,15 +71,17 @@ public class ProtocolVersionTracker
         LinkedHashMap<ProtocolVersion, ImmutableSet<ClientIPAndTime>> result = new LinkedHashMap<>();
         for (ProtocolVersion version : ProtocolVersion.values())
         {
-            result.put(version, ImmutableSet.copyOf(clientsByProto.get(version).asMap().entrySet().stream()
-                                                                  .map(e -> new ClientIPAndTime(e.getKey(), e.getValue())).collect(Collectors.toSet())));
+            ImmutableSet.Builder<ClientIPAndTime> ips = ImmutableSet.builder();
+            for (Map.Entry<InetAddress, Long> e : clientsByProtocolVersion.get(version).asMap().entrySet())
+                ips.add(new ClientIPAndTime(e.getKey(), e.getValue()));
+            result.put(version, ips.build());
         }
         return result;
     }
 
     public void clear()
     {
-        for (Map.Entry<ProtocolVersion, LoadingCache<InetAddress, Long>> entry : clientsByProto.entrySet())
+        for (Map.Entry<ProtocolVersion, LoadingCache<InetAddress, Long>> entry : clientsByProtocolVersion.entrySet())
         {
             entry.getValue().invalidateAll();
         }
