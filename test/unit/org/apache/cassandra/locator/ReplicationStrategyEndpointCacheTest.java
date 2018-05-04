@@ -105,7 +105,7 @@ public class ReplicationStrategyEndpointCacheTest
         tmd.removeEndpoint(InetAddressAndPort.getByName("127.0.0.5"));
         replicas = strategy.getNaturalReplicas(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
-        assert !ReplicaHelpers.containsEndpoint(replicas, InetAddressAndPort.getByName("127.0.0.5"));
+        assert !replicas.containsEndpoint(InetAddressAndPort.getByName("127.0.0.5"));
         assert !replicas.equals(initial);
 
         // test token change

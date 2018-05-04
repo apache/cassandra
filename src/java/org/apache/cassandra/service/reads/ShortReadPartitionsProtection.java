@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.reads;
 
-import java.util.Collections;
-
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -40,8 +38,8 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.locator.ReplicaList;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.StorageProxy;
@@ -66,7 +64,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
                                          DataLimits.Counter mergedResultCounter,
                                          long queryStartNanoTime)
     {
-        ReplicaHelpers.checkFull(source);
+        Replicas.checkFull(source);
         this.command = command;
         this.source = source;
         this.singleResultCounter = singleResultCounter;

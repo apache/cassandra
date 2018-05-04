@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.db.view;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -28,7 +26,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaHelpers;
+import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.utils.FBUtilities;
 
 public final class ViewUtils
@@ -64,8 +62,8 @@ public final class ViewUtils
         AbstractReplicationStrategy replicationStrategy = Keyspace.open(keyspaceName).getReplicationStrategy();
 
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
-        List<Replica> baseReplicas = new ArrayList<>();
-        List<Replica> viewReplicas = new ArrayList<>();
+        ReplicaList baseReplicas = new ReplicaList();
+        ReplicaList viewReplicas = new ReplicaList();
         for (Replica baseEndpoint : replicationStrategy.getNaturalReplicas(baseToken))
         {
             // An endpoint is local if we're not using Net
@@ -82,8 +80,8 @@ public final class ViewUtils
 
             // We have to remove any endpoint which is shared between the base and the view, as it will select itself
             // and throw off the counts otherwise.
-            if (ReplicaHelpers.containsEndpoint(baseReplicas, viewEndpoint.getEndpoint()))
-                ReplicaHelpers.removeEndpoint(baseReplicas, viewEndpoint.getEndpoint());
+            if (baseReplicas.containsEndpoint(viewEndpoint.getEndpoint()))
+                baseReplicas.removeEndpoint(viewEndpoint.getEndpoint());
             else if (!(replicationStrategy instanceof NetworkTopologyStrategy) ||
                      DatabaseDescriptor.getEndpointSnitch().getDatacenter(viewEndpoint).equals(localDataCenter))
                 viewReplicas.add(viewEndpoint);

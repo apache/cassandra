@@ -102,12 +102,15 @@ public class Replica
         return !isFull();
     }
 
-    public Set<Replica> subtract(Replica that)
+    public ReplicaSet subtract(Replica that)
     {
         assert isFull() && that.isFull();  // FIXME: this
         Set<Range<Token>> ranges = range.subtract(that.range);
-        Set<Replica> replicatedRanges = Sets.newHashSetWithExpectedSize(ranges.size());
-        ReplicaHelpers.decorateRanges(getEndpoint(), isFull(), ranges).forEach(replicatedRanges::add);
+        ReplicaSet replicatedRanges = new ReplicaSet(ranges.size());
+        for (Range<Token> range: ranges)
+        {
+            replicatedRanges.add(new Replica(getEndpoint(), range, isFull()));
+        }
         return replicatedRanges;
     }
 
@@ -148,7 +151,12 @@ public class Replica
 
     public boolean contains(Range<Token> that)
     {
-        return range.contains(that);
+        return getRange().contains(that);
+    }
+
+    public boolean intersectsOnRange(Replica replica)
+    {
+        return getRange().intersects(replica.getRange());
     }
 
     public Replica decorateSubrange(Range<Token> subrange)

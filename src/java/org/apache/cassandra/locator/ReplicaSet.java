@@ -20,9 +20,11 @@ package org.apache.cassandra.locator;
 
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
@@ -46,6 +48,11 @@ public class ReplicaSet extends Replicas
         Iterables.addAll(replicaSet, replicas);
     }
 
+    private ReplicaSet(Set<Replica> replicaSet)
+    {
+        this.replicaSet = replicaSet;
+    }
+
     public boolean equals(Object o)
     {
         if (this == o) return true;
@@ -66,9 +73,9 @@ public class ReplicaSet extends Replicas
     }
 
     @Override
-    public void add(Replica replica)
+    public boolean add(Replica replica)
     {
-        replicaSet.add(replica);
+        return replicaSet.add(replica);
     }
 
     @Override
@@ -99,5 +106,35 @@ public class ReplicaSet extends Replicas
     public Iterator<Replica> iterator()
     {
         return replicaSet.iterator();
+    }
+
+    public ReplicaSet differenceOnEndpoint(Replicas differenceOn)
+    {
+        if (Iterables.all(this, Replica::isFull) && Iterables.all(differenceOn, Replica::isFull))
+        {
+            Set<InetAddressAndPort> diffEndpoints = differenceOn.asEndpointSet();
+            return new ReplicaSet(Replicas.filterOnEndpoints(this, e -> !diffEndpoints.contains(e)));
+        }
+        else
+        {
+            // FIXME: add support for transient replicas
+            throw new UnsupportedOperationException("transient replicas are currently unsupported");
+        }
+
+    }
+
+    public static ReplicaSet immutableCopyOf(ReplicaSet from)
+    {
+        return new ReplicaSet(ImmutableSet.copyOf(from.replicaSet));
+    }
+
+    public static ReplicaSet immutableCopyOf(Replicas from)
+    {
+        return new ReplicaSet(ImmutableSet.<Replica>builder().addAll(from).build());
+    }
+
+    public static ReplicaSet ordered()
+    {
+        return new ReplicaSet(new LinkedHashSet<>());
     }
 }

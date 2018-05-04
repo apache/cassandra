@@ -176,14 +176,14 @@ public class SimpleStrategyTest
                 for (int j = 0; j < replicationFactor; j++)
                 {
                     //Check that the old nodes are definitely included
-                   assertTrue(ReplicaHelpers.containsEndpoint(replicas, hosts.get((i + j + 1) % hosts.size())));
+                   assertTrue(replicas.containsEndpoint(hosts.get((i + j + 1) % hosts.size())));
                 }
 
                 // bootstrapEndpoint should be in the endpoints for i in MAX-RF to MAX, but not in any earlier ep.
                 if (i < RING_SIZE - replicationFactor)
-                    assertFalse(ReplicaHelpers.containsEndpoint(replicas, bootstrapEndpoint));
+                    assertFalse(replicas.containsEndpoint(bootstrapEndpoint));
                 else
-                    assertTrue(ReplicaHelpers.containsEndpoint(replicas, bootstrapEndpoint));
+                    assertTrue(replicas.containsEndpoint(bootstrapEndpoint));
             }
         }
 

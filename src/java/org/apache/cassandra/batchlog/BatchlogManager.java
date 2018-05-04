@@ -35,7 +35,6 @@ import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.locator.ReplicaSet;
 import org.apache.cassandra.locator.Replicas;
@@ -453,7 +452,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
             for (Replica replica : StorageService.instance.getNaturalAndPendingReplicas(ks, tk))
             {
-                ReplicaHelpers.checkFull(replica);
+                Replicas.checkFull(replica);
                 if (replica.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
                 {
                     mutation.apply();
@@ -473,7 +472,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             if (liveReplicas.isEmpty())
                 return null;
 
-            ReplicaHelpers.checkFull(liveReplicas);
+            Replicas.checkFull(liveReplicas);
 
             ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(liveReplicas, System.nanoTime());
             MessageOut<Mutation> message = mutation.createMessage();

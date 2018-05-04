@@ -136,7 +136,7 @@ public class StorageProxy implements StorageProxyMBean
         standardWritePerformer = new WritePerformer()
         {
             public void apply(IMutation mutation,
-                              Iterable<Replica> targets,
+                              Replicas targets,
                               AbstractWriteResponseHandler<IMutation> responseHandler,
                               String localDataCenter,
                               ConsistencyLevel consistency_level)
@@ -156,7 +156,7 @@ public class StorageProxy implements StorageProxyMBean
         counterWritePerformer = new WritePerformer()
         {
             public void apply(IMutation mutation,
-                              Iterable<Replica> targets,
+                              Replicas targets,
                               AbstractWriteResponseHandler<IMutation> responseHandler,
                               String localDataCenter,
                               ConsistencyLevel consistencyLevel)
@@ -168,7 +168,7 @@ public class StorageProxy implements StorageProxyMBean
         counterWriteOnCoordinatorPerformer = new WritePerformer()
         {
             public void apply(IMutation mutation,
-                              Iterable<Replica> targets,
+                              Replicas targets,
                               AbstractWriteResponseHandler<IMutation> responseHandler,
                               String localDataCenter,
                               ConsistencyLevel consistencyLevel)
@@ -364,9 +364,9 @@ public class StorageProxy implements StorageProxyMBean
         }
         int participants = pendingReplicas.size() + naturalReplicas.size();
         int requiredParticipants = participants / 2 + 1; // See CASSANDRA-8346, CASSANDRA-833
-        ReplicaList liveReplicas = ReplicaList.immutableCopyOf(Replicas.concatNaturalAndPendingAndFilter(naturalReplicas,
-                                                                                                         pendingReplicas,
-                                                                                                         r -> IAsyncCallback.isAlive.apply(r.getEndpoint())));
+
+        Replicas concatenated = Replicas.concatNaturalAndPending(naturalReplicas, pendingReplicas);
+        ReplicaList liveReplicas = ReplicaList.immutableCopyOf(Replicas.filter(concatenated, IAsyncCallback.isReplicaAlive));
         if (liveReplicas.size() < requiredParticipants)
             throw new UnavailableException(consistencyForPaxos, requiredParticipants, liveReplicas.size());
 
@@ -541,7 +541,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         ProposeCallback callback = new ProposeCallback(replicas.size(), requiredParticipants, !timeoutIfPartial, consistencyLevel, queryStartNanoTime);
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PROPOSE, proposal, Commit.serializer);
-        for (InetAddressAndPort target : ReplicaHelpers.asEndpoints(replicas))
+        for (InetAddressAndPort target : replicas.asEndpoints())
         {
             if (canDoLocalRequest(target))
             {
@@ -599,7 +599,7 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_COMMIT, proposal, Commit.serializer);
-        for (Replica replica : ReplicaHelpers.concatNaturalAndPending(naturalReplicas, pendingReplicas))
+        for (Replica replica : Replicas.concatNaturalAndPending(naturalReplicas, pendingReplicas))
         {
             InetAddressAndPort destination = replica.getEndpoint();
             checkHintOverload(replica);
@@ -781,7 +781,7 @@ public class StorageProxy implements StorageProxyMBean
         Token token = mutation.key().getToken();
 
         Iterable<Replica> endpoints = StorageService.instance.getNaturalAndPendingReplicas(keyspaceName, token);
-        ArrayList<Replica> replicasToHint = new ArrayList<>(Iterables.size(endpoints));
+        ReplicaList replicasToHint = new ReplicaList(Iterables.size(endpoints));
 
         // local writes can timeout, but cannot be dropped (see LocalMutationRunnable and CASSANDRA-6510),
         // so there is no need to hint or retry.
@@ -798,8 +798,8 @@ public class StorageProxy implements StorageProxyMBean
         Token token = mutation.key().getToken();
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
 
-        return ReplicaHelpers.containsEndpoint(StorageService.instance.getNaturalReplicas(keyspaceName, token), local)
-               || ReplicaHelpers.containsEndpoint(StorageService.instance.getTokenMetadata().pendingEndpointsFor(token, keyspaceName), local);
+        return StorageService.instance.getNaturalReplicas(keyspaceName, token).containsEndpoint(local)
+               || StorageService.instance.getTokenMetadata().pendingEndpointsFor(token, keyspaceName).containsEndpoint(local);
     }
 
     /**
@@ -1105,7 +1105,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
-            Iterable<Replica> replicas = ReplicaHelpers.concatNaturalAndPending(wrapper.handler.naturalReplicas, wrapper.handler.pendingReplicas);
+            Replicas replicas = Replicas.concatNaturalAndPending(wrapper.handler.naturalReplicas, wrapper.handler.pendingReplicas);
 
             try
             {
@@ -1123,7 +1123,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
-            Iterable<Replica> replicas = ReplicaHelpers.concatNaturalAndPending(wrapper.handler.naturalReplicas, wrapper.handler.pendingReplicas);
+            Replicas replicas = Replicas.concatNaturalAndPending(wrapper.handler.naturalReplicas, wrapper.handler.pendingReplicas);
             sendToHintedReplicas(wrapper.mutation, replicas, wrapper.handler, localDataCenter, stage);
         }
 
@@ -1167,7 +1167,7 @@ public class StorageProxy implements StorageProxyMBean
         // exit early if we can't fulfill the CL at this time
         responseHandler.assureSufficientLiveNodes();
 
-        performer.apply(mutation, ReplicaHelpers.concatNaturalAndPending(naturalReplicas, pendingReplicas), responseHandler, localDataCenter, consistency_level);
+        performer.apply(mutation, Replicas.concatNaturalAndPending(naturalReplicas, pendingReplicas), responseHandler, localDataCenter, consistency_level);
         return responseHandler;
     }
 
@@ -1284,13 +1284,13 @@ public class StorageProxy implements StorageProxyMBean
         // this dc replicas:
         Collection<Replica> localDc = null;
         // extra-datacenter replicas, grouped by dc
-        Map<String, Collection<Replica>> dcGroups = null;
+        Map<String, Replicas> dcGroups = null;
         // only need to create a Message for non-local writes
         MessageOut<Mutation> message = null;
 
         boolean insertLocal = false;
         Replica localReplica = null;
-        ArrayList<Replica> endpointsToHint = null;
+        ReplicaList endpointsToHint = null;
 
         List<InetAddressAndPort> backPressureHosts = null;
 
@@ -1324,10 +1324,10 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     else
                     {
-                        Collection<Replica> messages = (dcGroups != null) ? dcGroups.get(dc) : null;
+                        Replicas messages = (dcGroups != null) ? dcGroups.get(dc) : null;
                         if (messages == null)
                         {
-                            messages = new ArrayList<>(3); // most DCs will have <= 3 replicas
+                            messages = new ReplicaList(3); // most DCs will have <= 3 replicas
                             if (dcGroups == null)
                                 dcGroups = new HashMap<>();
                             dcGroups.put(dc, messages);
@@ -1349,7 +1349,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (shouldHint(destination))
                 {
                     if (endpointsToHint == null)
-                        endpointsToHint = new ArrayList<>(targetsSize);
+                        endpointsToHint = new ReplicaList(targetsSize);
 
                     endpointsToHint.add(destination);
                 }
@@ -1376,7 +1376,7 @@ public class StorageProxy implements StorageProxyMBean
         if (dcGroups != null)
         {
             // for each datacenter, send the message to one node to relay the write to other replicas
-            for (Collection<Replica> dcTargets : dcGroups.values())
+            for (Replicas dcTargets : dcGroups.values())
                 sendMessagesToNonlocalDC(message, dcTargets, responseHandler);
         }
     }
@@ -1398,7 +1398,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     private static void sendMessagesToNonlocalDC(MessageOut<? extends IMutation> message,
-                                                 Collection<Replica> targets,
+                                                 Replicas targets,
                                                  AbstractWriteResponseHandler<IMutation> handler)
     {
         Iterator<Replica> iter = targets.iterator();
@@ -1419,8 +1419,8 @@ public class StorageProxy implements StorageProxyMBean
             messageIds[idIdx++] = id;
             logger.trace("Adding FWD message to {}@{}", id, destination);
         }
-        ReplicaHelpers.checkFull(targets);
-        message = message.withParameter(ParameterType.FORWARD_TO.FORWARD_TO, new ForwardToContainer(ReplicaHelpers.asEndpoints(targets), messageIds));
+        Replicas.checkFull(targets);
+        message = message.withParameter(ParameterType.FORWARD_TO.FORWARD_TO, new ForwardToContainer(targets.asEndpointList(), messageIds));
         // send the combined message + forward headers
         int id = MessagingService.instance().sendWriteRR(message, target, handler, true);
         logger.trace("Sending message to {}@{}", id, target);
@@ -1579,7 +1579,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     private static Runnable counterWriteTask(final IMutation mutation,
-                                             final Iterable<Replica> targets,
+                                             final Replicas targets,
                                              final AbstractWriteResponseHandler<IMutation> responseHandler,
                                              final String localDataCenter)
     {
@@ -1593,7 +1593,7 @@ public class StorageProxy implements StorageProxyMBean
                 Mutation result = ((CounterMutation) mutation).applyCounterMutation();
                 responseHandler.response(null);
 
-                Iterable<Replica> remotes = ReplicaHelpers.filterLocalReplica(targets);
+                Iterable<Replica> remotes = Replicas.filterLocalEndpoint(targets);
                 if (!Iterables.isEmpty(remotes))
                     sendToHintedReplicas(result, remotes, responseHandler, localDataCenter, Stage.COUNTER_MUTATION);
             }
@@ -2415,7 +2415,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public static boolean shouldHint(Replica replica)
     {
-        ReplicaHelpers.checkFull(replica);
+        Replicas.checkFull(replica);
         if (DatabaseDescriptor.hintedHandoffEnabled())
         {
             Set<String> disabledDCs = DatabaseDescriptor.hintedHandoffDisabledDCs();
@@ -2499,7 +2499,7 @@ public class StorageProxy implements StorageProxyMBean
     public interface WritePerformer
     {
         public void apply(IMutation mutation,
-                          Iterable<Replica> targets,
+                          Replicas targets,
                           AbstractWriteResponseHandler<IMutation> responseHandler,
                           String localDataCenter,
                           ConsistencyLevel consistencyLevel) throws OverloadedException;
@@ -2590,7 +2590,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (MessagingService.DROPPABLE_VERBS.contains(verb))
                     MessagingService.instance().incrementDroppedMutations(mutationOpt, timeTaken);
-                HintRunnable runnable = new HintRunnable(Collections.singleton(localReplica))
+                HintRunnable runnable = new HintRunnable(Replicas.singleton(localReplica))
                 {
                     protected void runMayThrow() throws Exception
                     {
@@ -2621,9 +2621,9 @@ public class StorageProxy implements StorageProxyMBean
      */
     private abstract static class HintRunnable implements Runnable
     {
-        public final Collection<Replica> targets;
+        public final Replicas targets;
 
-        protected HintRunnable(Collection<Replica> targets)
+        protected HintRunnable(Replicas targets)
         {
             this.targets = targets;
         }
@@ -2641,7 +2641,7 @@ public class StorageProxy implements StorageProxyMBean
             finally
             {
                 StorageMetrics.totalHintsInProgress.dec(targets.size());
-                for (InetAddressAndPort target : ReplicaHelpers.asEndpoints(targets))
+                for (InetAddressAndPort target : targets.asEndpoints())
                     getHintsInProgressFor(target).decrementAndGet();
             }
         }
@@ -2689,21 +2689,21 @@ public class StorageProxy implements StorageProxyMBean
 
     public static Future<Void> submitHint(Mutation mutation, Replica target, AbstractWriteResponseHandler<IMutation> responseHandler)
     {
-        return submitHint(mutation, Collections.singleton(target), responseHandler);
+        return submitHint(mutation, Replicas.singleton(target), responseHandler);
     }
 
     public static Future<Void> submitHint(Mutation mutation,
-                                          Collection<Replica> targets,
+                                          Replicas targets,
                                           AbstractWriteResponseHandler<IMutation> responseHandler)
     {
-        ReplicaHelpers.checkFull(targets);
+        Replicas.checkFull(targets);
         HintRunnable runnable = new HintRunnable(targets)
         {
             public void runMayThrow()
             {
                 Set<InetAddressAndPort> validTargets = new HashSet<>(targets.size());
                 Set<UUID> hostIds = new HashSet<>(targets.size());
-                for (InetAddressAndPort target : ReplicaHelpers.asEndpoints(targets))
+                for (InetAddressAndPort target : targets.asEndpoints())
                 {
                     UUID hostId = StorageService.instance.getHostIdForEndpoint(target);
                     if (hostId != null)

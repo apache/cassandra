@@ -18,8 +18,11 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 import com.google.common.base.Predicate;
@@ -28,11 +31,12 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.FBUtilities;
 
 public abstract class Replicas implements Iterable<Replica>
 {
 
-    public abstract void add(Replica replica);
+    public abstract boolean add(Replica replica);
     public abstract void addAll(Iterable<Replica> replicas);
     public abstract void removeEndpoint(InetAddressAndPort endpoint);
     public abstract void removeReplica(Replica replica);
@@ -46,6 +50,16 @@ public abstract class Replicas implements Iterable<Replica>
     public Set<InetAddressAndPort> asEndpointSet()
     {
         Set<InetAddressAndPort> result = Sets.newHashSetWithExpectedSize(size());
+        for (Replica replica: this)
+        {
+            result.add(replica.getEndpoint());
+        }
+        return result;
+    }
+
+    public List<InetAddressAndPort> asEndpointList()
+    {
+        List<InetAddressAndPort> result = new ArrayList<>(size());
         for (Replica replica: this)
         {
             result.add(replica.getEndpoint());
@@ -118,12 +132,79 @@ public abstract class Replicas implements Iterable<Replica>
         return size() == 0;
     }
 
-    public static Replicas concatNaturalAndPendingAndFilter(Replicas natural, Replicas pending, Predicate<Replica> filter)
+    private static abstract class ImmutableReplicaContainer extends Replicas
     {
-        Iterable<Replica> unfilteredIterable;
+        @Override
+        public boolean add(Replica replica)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void addAll(Iterable<Replica> replicas)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void removeEndpoint(InetAddressAndPort endpoint)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void removeReplica(Replica replica)
+        {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    public static Replicas filter(Replicas source, Predicate<Replica> predicate)
+    {
+        Iterable<Replica> iterable = Iterables.filter(source, predicate);
+        return new ImmutableReplicaContainer()
+        {
+            public int size()
+            {
+                return Iterables.size(iterable);
+            }
+
+            public Iterator<Replica> iterator()
+            {
+                return iterable.iterator();
+            }
+        };
+    }
+
+    public static Replicas filterOnEndpoints(Replicas source, Predicate<InetAddressAndPort> predicate)
+    {
+        Iterable<Replica> iterable = Iterables.filter(source, r -> predicate.apply(r.getEndpoint()));
+        return new ImmutableReplicaContainer()
+        {
+            public int size()
+            {
+                return Iterables.size(iterable);
+            }
+
+            public Iterator<Replica> iterator()
+            {
+                return iterable.iterator();
+            }
+        };
+    }
+
+    public static Replicas filterLocalEndpoint(Replicas replicas)
+    {
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+        return filterOnEndpoints(replicas, e -> !e.equals(local));
+    }
+
+    public static Replicas concatNaturalAndPending(Replicas natural, Replicas pending)
+    {
+        Iterable<Replica> iterable;
         if (Iterables.all(natural, Replica::isFull) && Iterables.all(pending, Replica::isFull))
         {
-            unfilteredIterable = Iterables.concat(natural, pending);
+            iterable = Iterables.concat(natural, pending);
         }
         else
         {
@@ -131,31 +212,8 @@ public abstract class Replicas implements Iterable<Replica>
             throw new UnsupportedOperationException("transient replicas are currently unsupported");
         }
 
-        Iterable<Replica> iterable = filter != null ? Iterables.filter(unfilteredIterable, filter) : unfilteredIterable;
-
-        return new Replicas()
+        return new ImmutableReplicaContainer()
         {
-            public void add(Replica replica)
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            public void addAll(Iterable<Replica> replicas)
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            public void removeEndpoint(InetAddressAndPort endpoint)
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void removeReplica(Replica replica)
-            {
-                throw new UnsupportedOperationException();
-            }
-
             public int size()
             {
                 return natural.size() + pending.size();
@@ -168,36 +226,10 @@ public abstract class Replicas implements Iterable<Replica>
         };
     }
 
-    public static Replicas concatNaturalAndPending(Replicas natural, Replicas pending)
-    {
-        return concatNaturalAndPendingAndFilter(natural, pending, null);
-    }
-
     public static Replicas of(Collection<Replica> replicas)
     {
-        return new Replicas()
+        return new ImmutableReplicaContainer()
         {
-            public void add(Replica replica)
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            public void addAll(Iterable<Replica> replicas)
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            public void removeEndpoint(InetAddressAndPort endpoint)
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void removeReplica(Replica replica)
-            {
-                throw new UnsupportedOperationException();
-            }
-
             public int size()
             {
                 return replicas.size();
@@ -210,4 +242,50 @@ public abstract class Replicas implements Iterable<Replica>
         };
     }
 
+    public static Replicas singleton(Replica replica)
+    {
+        return of(Collections.singleton(replica));
+    }
+
+    /**
+     * Basically a placeholder for places new logic for transient replicas should go
+     */
+    public static void checkFull(Replica replica)
+    {
+        if (!replica.isFull())
+        {
+            // FIXME: add support for transient replicas
+            throw new UnsupportedOperationException("transient replicas are currently unsupported");
+        }
+    }
+
+    /**
+     * Basically a placeholder for places new logic for transient replicas should go
+     */
+    public static void checkFull(Iterable<Replica> replicas)
+    {
+        if (!Iterables.all(replicas, Replica::isFull))
+        {
+            // FIXME: add support for transient replicas
+            throw new UnsupportedOperationException("transient replicas are currently unsupported");
+        }
+    }
+
+    public static void checkAllFull(Iterable<? extends Replicas> replicas)
+    {
+        for (Replicas iterable: replicas)
+        {
+            checkFull(iterable);
+        }
+    }
+
+    public static List<String> stringify(Replicas replicas, boolean withPort)
+    {
+        List<String> stringEndpoints = new ArrayList<>(replicas.size());
+        for (Replica replica: replicas)
+        {
+            stringEndpoints.add(replica.getEndpoint().getHostAddress(withPort));
+        }
+        return stringEndpoints;
+    }
 }

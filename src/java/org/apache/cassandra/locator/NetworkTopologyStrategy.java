@@ -86,7 +86,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     private static final class DatacenterEndpoints
     {
         /** List accepted endpoints get pushed into. */
-        Set<Replica> replicas;
+        ReplicaSet replicas;
 
         /**
          * Racks encountered so far. Replicas are put into separate racks while possible.
@@ -100,7 +100,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         int acceptableRackRepeats;
         int transients;
 
-        DatacenterEndpoints(ReplicationFactor rf, int rackCount, int nodeCount, Set<Replica> replicas, Set<Pair<String, String>> racks)
+        DatacenterEndpoints(ReplicationFactor rf, int rackCount, int nodeCount, ReplicaSet replicas, Set<Pair<String, String>> racks)
         {
             this.replicas = replicas;
             this.racks = racks;
@@ -125,7 +125,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             if (done())
                 return false;
 
-            if (ReplicaHelpers.containsEndpoint(replicas, ep))
+            if (replicas.containsEndpoint(ep))
                 // Cannot repeat a node.
                 return false;
 
@@ -164,7 +164,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     public ReplicaList calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata)
     {
         // we want to preserve insertion order so that the first added endpoint becomes primary
-        Set<Replica> replicas = new LinkedHashSet<>();
+        ReplicaSet replicas = ReplicaSet.ordered();
         Set<Pair<String, String>> seenRacks = new HashSet<>();
 
         Topology topology = tokenMetadata.getTopology();

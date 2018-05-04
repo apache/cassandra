@@ -60,9 +60,8 @@ import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaHelpers;
 import org.apache.cassandra.locator.ReplicaList;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
@@ -323,7 +322,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             return Collections.emptySet();
 
 
-        ReplicaHelpers.checkFull(replicaSets.get(rangeSuperSet));
+        Replicas.checkFull(replicaSets.get(rangeSuperSet));
         Set<InetAddressAndPort> neighbors = replicaSets.get(rangeSuperSet).asEndpointSet();
         neighbors.remove(FBUtilities.getBroadcastAddressAndPort());
 

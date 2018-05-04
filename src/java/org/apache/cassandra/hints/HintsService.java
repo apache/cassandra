@@ -40,15 +40,13 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaHelpers;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 
-import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.size;
 
@@ -185,9 +183,9 @@ public final class HintsService implements HintsServiceMBean
         String keyspaceName = hint.mutation.getKeyspaceName();
         Token token = hint.mutation.key().getToken();
 
-        Iterable<Replica> replicas = StorageService.instance.getNaturalAndPendingReplicas(keyspaceName, token);
-        ReplicaHelpers.checkFull(replicas);
-        Iterable<InetAddressAndPort> endpoints = ReplicaHelpers.asEndpoints(filter(replicas, StorageProxy::shouldHint));
+        Replicas replicas = StorageService.instance.getNaturalAndPendingReplicas(keyspaceName, token);
+        Replicas.checkFull(replicas);
+        Iterable<InetAddressAndPort> endpoints = Replicas.filter(replicas, StorageProxy::shouldHint).asEndpoints();
         Iterable<UUID> hostIds = transform(endpoints, StorageService.instance::getHostIdForEndpoint);
 
         write(hostIds, hint);

@@ -85,9 +85,9 @@ public class ReplicaList extends Replicas
     }
 
     @Override
-    public void add(Replica replica)
+    public boolean add(Replica replica)
     {
-        replicaList.add(replica);
+        return replicaList.add(replica);
     }
 
     @Override
@@ -155,8 +155,8 @@ public class ReplicaList extends Replicas
 
     public static ReplicaList intersectEndpoints(ReplicaList l1, ReplicaList l2)
     {
-        ReplicaHelpers.checkFull(l1);
-        ReplicaHelpers.checkFull(l2);
+        Replicas.checkFull(l1);
+        Replicas.checkFull(l2);
         // Note: we don't use Guava Sets.intersection() for 3 reasons:
         //   1) retainAll would be inefficient if l1 and l2 are large but in practice both are the replicas for a range and
         //   so will be very small (< RF). In that case, retainAll is in fact more efficient.
