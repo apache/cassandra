@@ -36,8 +36,8 @@ public class ClientStats extends NodeToolCmd
     @Option(title = "list_connections", name = "--all", description = "Lists all connections")
     private boolean listConnections = false;
 
-    @Option(title = "by_protocol", name = "--by-protocol", description = "Lists last 100 client connections with oldest protocol version")
-    private boolean oldestProtocolConnections = false;
+    @Option(title = "by_protocol", name = "--by-protocol", description = "Lists most recent client connections by protocol version")
+    private boolean connectionsByProtocolVersion = false;
 
     @Option(title = "clear_history", name = "--clear-history", description = "Clear the history of connected clients")
     private boolean clearConnectionHistory = false;
@@ -47,17 +47,17 @@ public class ClientStats extends NodeToolCmd
     {
         if (clearConnectionHistory)
         {
-            System.out.println("Clearing history");
+            System.out.println("Clearing connection history");
             probe.clearConnectionHistory();
             return;
         }
 
-        if (oldestProtocolConnections)
+        if (connectionsByProtocolVersion)
         {
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy HH:mm:ss");
 
             System.out.println("Clients by protocol version");
-            System.out.println("");
+            System.out.println();
 
             List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("clientsByProtocolVersion");
 
