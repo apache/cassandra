@@ -132,10 +132,10 @@ public class Verifier implements Closeable
             outputHandler.debug(t.getMessage());
             markAndThrow(false);
         }
-        outputHandler.output(String.format("Checking computed hash of %s ", sstable));
 
         try
         {
+            outputHandler.debug("Deserializing index for "+sstable);
             deserializeIndex(sstable);
         }
         catch (Throwable t)
@@ -146,8 +146,8 @@ public class Verifier implements Closeable
 
         try
         {
+            outputHandler.debug("Deserializing index summary for "+sstable);
             deserializeIndexSummary(sstable);
-
         }
         catch (Throwable t)
         {
@@ -158,6 +158,7 @@ public class Verifier implements Closeable
 
         try
         {
+            outputHandler.debug("Deserializing bloom filter for "+sstable);
             deserializeBloomFilter(sstable);
 
         }
@@ -167,10 +168,33 @@ public class Verifier implements Closeable
             markAndThrow();
         }
 
+        if (options.checkOwnsTokens && !isOffline)
+        {
+            outputHandler.debug("Checking that all tokens are owned by the current node");
+            try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
+            {
+                List<Range<Token>> ownedRanges = Range.normalize(StorageService.instance.getLocalAndPendingRanges(cfs.metadata.keyspace));
+                if (ownedRanges.isEmpty())
+                    return;
+                RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
+                while (iter.hasNext())
+                {
+                    DecoratedKey key = iter.next();
+                    rangeOwnHelper.check(key);
+                }
+            }
+            catch (Throwable t)
+            {
+                outputHandler.warn(t.getMessage());
+                markAndThrow();
+            }
+        }
+
         if (options.quick)
             return;
 
         // Verify will use the Digest files, which works for both compressed and uncompressed sstables
+        outputHandler.output(String.format("Checking computed hash of %s ", sstable));
         try
         {
             validator = null;
@@ -197,33 +221,9 @@ public class Verifier implements Closeable
         }
 
         if (!extended)
-        {
-            if (options.checkOwnsTokens && !isOffline)
-            {
-                try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
-                {
-                    List<Range<Token>> ownedRanges = Range.normalize(StorageService.instance.getLocalAndPendingRanges(cfs.metadata.keyspace));
-                    if (ownedRanges.isEmpty())
-                        return;
-                    RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
-                    while (iter.hasNext())
-                    {
-                        DecoratedKey key = iter.next();
-                        rangeOwnHelper.check(key);
-                    }
-                }
-                catch (Throwable t)
-                {
-                    outputHandler.warn(t.getMessage());
-                    markAndThrow();
-                }
-            }
             return;
-        }
-
 
         outputHandler.output("Extended Verify requested, proceeding to inspect values");
-
 
         try
         {

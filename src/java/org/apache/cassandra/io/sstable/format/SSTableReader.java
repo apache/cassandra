@@ -26,6 +26,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
@@ -2419,4 +2420,48 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             return lowerPosition == that.lowerPosition && upperPosition == that.upperPosition;
         }
     }
+
+    /**
+     * Moves the sstable in oldDescriptor to a new place (with generation etc) in newDescriptor.
+     *
+     * All components given will be moved/renamed
+     */
+    public static SSTableReader moveAndOpenSSTable(ColumnFamilyStore cfs, Descriptor oldDescriptor, Descriptor newDescriptor, Set<Component> components)
+    {
+        if (!oldDescriptor.isCompatible())
+            throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
+                                                     oldDescriptor.getFormat().getLatestVersion(),
+                                                     oldDescriptor));
+
+        boolean isLive = cfs.getLiveSSTables().stream().anyMatch(r -> r.descriptor.equals(newDescriptor)
+                                                                      || r.descriptor.equals(oldDescriptor));
+        if (isLive)
+        {
+            String message = String.format("Can't move and open a file that is already in use in the table %s -> %s", oldDescriptor, newDescriptor);
+            logger.error(message);
+            throw new RuntimeException(message);
+        }
+        if (new File(newDescriptor.filenameFor(Component.DATA)).exists())
+        {
+            String msg = String.format("File %s already exists, can't move the file there", newDescriptor.filenameFor(Component.DATA));
+            logger.error(msg);
+            throw new RuntimeException(msg);
+        }
+
+        logger.info("Renaming new SSTable {} to {}", oldDescriptor, newDescriptor);
+        SSTableWriter.rename(oldDescriptor, newDescriptor, components);
+
+        SSTableReader reader;
+        try
+        {
+            reader = SSTableReader.open(newDescriptor, components, cfs.metadata);
+        }
+        catch (Throwable t)
+        {
+            logger.error("Aborting import of sstables. {} was corrupt", newDescriptor);
+            throw new RuntimeException(newDescriptor + " is corrupt, can't import", t);
+        }
+        return reader;
+    }
+
 }

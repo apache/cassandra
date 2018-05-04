@@ -24,7 +24,10 @@ import io.airlift.airline.Command;
 
 import io.airlift.airline.Option;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -32,7 +35,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "import", description = "Import new SSTables to the system")
 public class Import extends NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> <table> <directory>", description = "The keyspace, table name and directory to import sstables from")
+    @Arguments(usage = "<keyspace> <table> <directory> ...", description = "The keyspace, table name and directories to import sstables from")
     private List<String> args = new ArrayList<>();
 
     @Option(title = "keep_level",
@@ -60,11 +63,6 @@ public class Import extends NodeToolCmd
             description = "Don't invalidate the row cache when importing")
     private boolean noInvalidateCaches = false;
 
-    @Option(title = "no_jbod_check",
-            name = {"-j", "--no-jbod-check"},
-            description = "Don't iterate over keys to check which data directory is best suited")
-    private boolean noJBODCheck = false;
-
     @Option(title = "quick",
             name = {"-q", "--quick"},
             description = "Do a quick import without verifying sstables, clearing row cache or checking in which data directory to put the file")
@@ -78,23 +76,24 @@ public class Import extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(args.size() == 3, "import requires keyspace, table name and directory");
-
-        if (!noVerifyTokens && noVerify)
-        {
-            noVerifyTokens = true;
-            System.out.println("Not verifying tokens since --no-verify or -v is set");
-        }
+        checkArgument(args.size() >= 3, "import requires keyspace, table name and directories");
 
         if (quick)
         {
-            System.out.println("Doing a quick import - skipping sstable verification, row cache invalidation and JBOD checking");
+            System.out.println("Doing a quick import - skipping sstable verification and row cache invalidation");
             noVerifyTokens = true;
             noInvalidateCaches = true;
             noVerify = true;
-            noJBODCheck = true;
             extendedVerify = false;
         }
-        probe.importNewSSTables(args.get(0), args.get(1), args.get(2), !keepLevel, !keepRepaired, !noVerify, !noVerifyTokens, !noInvalidateCaches, !noJBODCheck, extendedVerify);
+        List<String> srcPaths = Lists.newArrayList(args.subList(2, args.size()));
+        List<String> failedDirs = probe.importNewSSTables(args.get(0), args.get(1), new HashSet<>(srcPaths), !keepLevel, !keepRepaired, !noVerify, !noVerifyTokens, !noInvalidateCaches, extendedVerify);
+        if (!failedDirs.isEmpty())
+        {
+            System.err.println("Some directories failed to import, check server logs for details:");
+            for (String directory : failedDirs)
+                System.err.println(directory);
+            System.exit(1);
+        }
     }
 }
