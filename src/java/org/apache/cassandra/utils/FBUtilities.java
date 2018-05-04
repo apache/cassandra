@@ -54,6 +54,8 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.utils.concurrent.*;
+
+import org.apache.cassandra.db.monitoring.IBadQueryReporter;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -651,6 +653,13 @@ public class FBUtilities
             className = "org.apache.cassandra.auth." + className;
         }
         return FBUtilities.construct(className, "network authorizer");
+    }
+
+    public static IBadQueryReporter newBadQueryReporter(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.db.monitoring." + className;
+        return FBUtilities.construct(className, "badquery reporter");
     }
 
     public static IAuditLogger newAuditLogger(String className, Map<String, String> parameters) throws ConfigurationException

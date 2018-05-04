@@ -294,7 +294,7 @@ public class DataRange
         {
             sb.append(getOperator(isStart, isInclusive)).append(" ");
             sb.append("token(");
-            appendKeyString(sb, metadata.partitionKeyType, ((DecoratedKey)pos).getKey());
+            appendKeyString(sb, metadata.partitionKeyType, ((DecoratedKey)pos).getKey(), ", ");
             sb.append(")");
         }
         else
@@ -312,14 +312,14 @@ public class DataRange
              : (isInclusive ? "<=" : "<");
     }
 
-    public static void appendKeyString(StringBuilder sb, AbstractType<?> type, ByteBuffer key)
+    public static void appendKeyString(StringBuilder sb, AbstractType<?> type, ByteBuffer key, String keySeparator)
     {
         if (type instanceof CompositeType)
         {
             CompositeType ct = (CompositeType)type;
             ByteBuffer[] values = ct.split(key);
             for (int i = 0; i < ct.types.size(); i++)
-                sb.append(i == 0 ? "" : ", ").append(ct.types.get(i).toCQLString(values[i]));
+                sb.append(i == 0 ? "" : keySeparator).append(ct.types.get(i).toCQLString(values[i]));
         }
         else
         {

@@ -23,6 +23,10 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Stream;
+import java.util.Map;
+
+import org.apache.cassandra.db.monitoring.BadQuery;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -50,6 +54,7 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -259,6 +264,8 @@ public class BigTableWriter extends SSTableWriter
 
     private void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)
     {
+        BadQuery.checkForLargeWrite(metadata(), key, rowSize);
+
         if (rowSize > DatabaseDescriptor.getCompactionLargePartitionWarningThreshold())
         {
             String keyString = metadata().partitionKeyType.getString(key.getKey());

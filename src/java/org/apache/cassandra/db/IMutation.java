@@ -69,4 +69,7 @@ public interface IMutation
         }
         return size;
     }
+
+    public Collection<String> getTableNames();
+    public String getKey();
 }

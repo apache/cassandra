@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * Implement BadQuery detection in Cassandra (T1696605)
  * Implement a pluggable interface in Cassandra to throttle read and write requests (T745738)
 </end>
 
@@ -1880,7 +1881,6 @@ Merged from 2.2:
  * Fix nested Tuples/UDTs validation (CASSANDRA-13646)
 Merged from 2.1:
  * Clone HeartBeatState when building gossip messages. Make its generation/version volatile (CASSANDRA-13700)
-
 
 3.11.0
  * Allow native function calls in CQLSSTableWriter (CASSANDRA-12606)

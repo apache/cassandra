@@ -1152,6 +1152,13 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         return "token=" + partitionKey.getToken().toString();
     }
 
+    public String getKey()
+    {
+        StringBuilder sb = new StringBuilder();
+        DataRange.appendKeyString(sb, metadata().partitionKeyType, partitionKey().getKey(), ":");
+        return sb.toString();
+    }
+
     protected void serializeSelection(DataOutputPlus out, int version) throws IOException
     {
         metadata().partitionKeyType.writeValue(partitionKey().getKey(), out);

@@ -48,6 +48,10 @@ import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
+
+import org.apache.cassandra.db.monitoring.BadQueriesInSystemLog;
+import org.apache.cassandra.db.monitoring.BadQueriesInTable;
+import org.apache.cassandra.db.monitoring.IBadQueryReporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -309,6 +313,8 @@ public class DatabaseDescriptor
     {
         return clientInitialized || toolInitialized;
     }
+
+    private static IBadQueryReporter badQueryReporter;
 
     public static boolean isDaemonInitialized()
     {
@@ -961,6 +967,11 @@ public class DatabaseDescriptor
         // run audit logging options through sanitation and validation
         if (conf.audit_logging_options != null)
             setAuditLoggingOptions(conf.audit_logging_options);
+
+        if (conf.bad_query_reporter != null)
+            badQueryReporter = FBUtilities.newBadQueryReporter(conf.bad_query_reporter);
+        else
+            badQueryReporter = new BadQueriesInSystemLog();
     }
 
     @VisibleForTesting
@@ -1611,6 +1622,24 @@ public class DatabaseDescriptor
     {
         // the below division is safe as this setter is used only in tests with values that won't lead to precision loss
         conf.max_value_size = new DataStorageSpec.IntMebibytesBound((maxValueSizeInBytes / (1024L * 1024)), MEBIBYTES);
+    }
+
+    public static IBadQueryReporter getBadQueryReporter()
+    {
+        return badQueryReporter;
+    }
+
+    @VisibleForTesting
+    public static void setBadQueryReporter(String reporter)
+    {
+        if (reporter.equals("BadQueriesInTable"))
+        {
+            badQueryReporter = new BadQueriesInTable();
+        }
+        else if (reporter.equals("BadQueriesInSystemLog"))
+        {
+            badQueryReporter = new BadQueriesInSystemLog();
+        }
     }
 
     /**
@@ -4691,5 +4720,70 @@ public class DatabaseDescriptor
     public static void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
     {
         conf.paxos_repair_race_wait = paxosRepairRaceWait;
+    }
+
+    public static void setBadQueryTracingStatus(Boolean tracingStatus)
+    {
+        conf.bad_query_tracing_enabled = tracingStatus;
+    }
+
+    public static boolean isBadQueryTracingEnabled()
+    {
+        return conf.bad_query_tracing_enabled;
+    }
+
+    public static int getBadQueryLoggingInterval()
+    {
+        return conf.bad_query_logging_interval_in_s;
+    }
+
+    public static int getBadQueryMaxSamplesPerIntervalInSyslog()
+    {
+        return conf.bad_query_max_samples_per_interval_in_syslog;
+    }
+
+    public static Double getBadQueryTracingFraction()
+    {
+        return conf.bad_query_tracing_fraction;
+    }
+
+    public static Long getBadQueryReadMaxPartitionsizeInBytes()
+    {
+        return conf.bad_query_read_max_partitionsize_in_bytes;
+    }
+
+    public static Long getBadQueryWriteMaxPartitionSizeInBytes()
+    {
+        return conf.bad_query_write_max_partitionsize_in_bytes;
+    }
+
+    public static Integer getBadQueryReadSlowLocalLatencyInMs()
+    {
+        return conf.bad_query_read_slow_local_latency_in_ms;
+    }
+
+    public static Integer getBadQueryWriteSlowLocalLatencyInMs()
+    {
+        return conf.bad_query_write_slow_local_latency_in_ms;
+    }
+
+    public static Integer getBadQueryReadSlowCoordLatenchInMs()
+    {
+        return conf.bad_query_read_slow_coord_latency_in_ms;
+    }
+
+    public static Integer getBadQueryWriteSlowCoordLatencyInMs()
+    {
+        return conf.bad_query_write_slow_coord_latency_in_ms;
+    }
+
+    public static Integer getBadQueryTombstoneLimit()
+    {
+        return conf.bad_query_tombstone_limit;
+    }
+
+    public static String getBadQueryIgnoreKeyspaces()
+    {
+        return conf.bad_query_ignore_keyspaces;
     }
 }

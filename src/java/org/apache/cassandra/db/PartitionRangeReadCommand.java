@@ -431,6 +431,11 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                (dataRange.keyRange.inclusiveRight() ? ']' : ')');
     }
 
+    public String getKey()
+    {
+        return rowFilter().isEmpty() ? "" : rowFilter().toString();
+    }
+
     /**
      * Allow to post-process the result of the query after it has been reconciled on the coordinator
      * but before it is passed to the CQL layer to return the ResultSet.

@@ -84,6 +84,14 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
+import org.apache.cassandra.fql.FullQueryLogger;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
+import org.apache.cassandra.db.monitoring.BadQuery;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1354,6 +1362,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         assert tokenMetadata.sortedTokens().size() > 0;
 
         doRequestThrottlerSetup();
+
+        doBadQuerySetup();
     }
 
     @VisibleForTesting
@@ -1401,6 +1411,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return authSetupCalled.get();
     }
 
+    private void doBadQuerySetup()
+    {
+        if (DatabaseDescriptor.isBadQueryTracingEnabled())
+        {
+            logger.info("enable badquery tracing");
+            BadQuery.setup();
+        }
+    }
 
     @VisibleForTesting
     public void setUpDistributedSystemKeyspaces()

@@ -29,6 +29,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.monitoring.BadQuery;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -123,6 +124,32 @@ public class Mutation implements IMutation, Supplier<Mutation>
         return modifications.keySet();
     }
 
+    public Collection<String> getTableNames()
+    {
+        Set<String> tables = new HashSet<>();
+        for (PartitionUpdate update : modifications.values())
+        {
+            tables.add(update.metadata().name);
+        }
+        return tables;
+    }
+
+    public String getKey()
+    {
+        boolean firstRound = true;
+        StringBuilder key = new StringBuilder();
+        for (PartitionUpdate update : modifications.values())
+        {
+            if (!firstRound)
+            {
+                key.append(":");
+            }
+            key.append(update.metadata().partitionKeyType.getString(key().getKey()));
+            firstRound = false;
+        }
+        return key.toString();
+    }
+
     public DecoratedKey key()
     {
         return key;
@@ -148,6 +175,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
     public void validateSize(int version, int overhead)
     {
         long totalSize = serializedSize(version) + overhead;
+        BadQuery.checkForLargeWrite(this, totalSize);
         if(totalSize > MAX_MUTATION_SIZE)
         {
             CommitLog.instance.metrics.oversizedMutations.mark();

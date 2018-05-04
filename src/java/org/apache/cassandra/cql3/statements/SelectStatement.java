@@ -27,6 +27,7 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.db.monitoring.BadQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -250,6 +251,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     {
         ConsistencyLevel cl = options.getConsistency();
         checkNotNull(cl, "Invalid empty consistency level");
+        BadQuery.checkForCLSettings(this.table, options.getConsistency());
 
         cl.validateForRead();
         Guardrails.readConsistencyLevels.guard(EnumSet.of(cl), state.getClientState());
@@ -1674,7 +1676,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             {
                 sb.append(" = ");
                 if (compoundPk) sb.append('(');
-                DataRange.appendKeyString(sb, table.partitionKeyType, Iterables.getOnlyElement(keys));
+                DataRange.appendKeyString(sb, table.partitionKeyType, Iterables.getOnlyElement(keys), ", ");
                 if (compoundPk) sb.append(')');
             }
             else
@@ -1687,7 +1689,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                         sb.append(", ");
 
                     if (compoundPk) sb.append('(');
-                    DataRange.appendKeyString(sb, table.partitionKeyType, key);
+                    DataRange.appendKeyString(sb, table.partitionKeyType, key, ", ");
                     if (compoundPk) sb.append(')');
                     first = false;
                 }

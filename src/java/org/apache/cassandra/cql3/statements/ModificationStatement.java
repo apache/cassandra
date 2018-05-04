@@ -22,6 +22,7 @@ import java.util.*;
 
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.db.monitoring.BadQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -480,6 +481,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     public ResultMessage execute(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     throws RequestExecutionException, RequestValidationException
     {
+        BadQuery.checkForCompactionStrategySettings(this.metadata(), this.attrs);
+        BadQuery.checkForCLSettings(this.metadata(), options.getConsistency());
+
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 

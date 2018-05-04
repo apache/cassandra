@@ -18,6 +18,8 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -121,5 +123,31 @@ public final class VirtualMutation implements IMutation
     public void validateSize(int version, int overhead)
     {
         // no-op
+    }
+
+    public Collection<String> getTableNames()
+    {
+        Set<String> tables = new HashSet<>();
+        for (PartitionUpdate update : modifications.values())
+        {
+            tables.add(update.metadata().name);
+        }
+        return tables;
+    }
+
+    public String getKey()
+    {
+        boolean firstRound = true;
+        StringBuilder key = new StringBuilder();
+        for (PartitionUpdate update : modifications.values())
+        {
+            if (!firstRound)
+            {
+                key.append(":");
+            }
+            key.append(update.metadata().partitionKeyType.getString(key().getKey()));
+            firstRound = false;
+        }
+        return key.toString();
     }
 }

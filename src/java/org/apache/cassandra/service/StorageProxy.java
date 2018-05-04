@@ -50,6 +50,7 @@ import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.ContentionStrategy;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.db.monitoring.BadQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -966,6 +967,7 @@ public class StorageProxy implements StorageProxyMBean
             writeMetrics.addNano(latency);
             writeMetricsForLevel(consistencyLevel).addNano(latency);
             updateCoordinatorWriteLatencyTableMetric(mutations, latency);
+            BadQuery.checkForSlowCoordinatorWrite(mutations, latency);
         }
     }
 
@@ -2063,6 +2065,8 @@ public class StorageProxy implements StorageProxyMBean
             // TODO avoid giving every command the same latency number.  Can fix this in CASSADRA-5329
             for (ReadCommand command : group.queries)
                 Keyspace.openAndGetStore(command.metadata()).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
+
+            BadQuery.checkForSlowCoordinatorRead(group.queries, latency);
         }
     }
 
