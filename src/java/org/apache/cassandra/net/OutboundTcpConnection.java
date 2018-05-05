@@ -268,6 +268,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                         // are added between the calls of backlog.size() and backlog.clear()
                         dropped.addAndGet(backlog.size());
                         backlog.clear();
+                        currentMsgBufferCount = 0;
                         break inner;
                     }
                 }
