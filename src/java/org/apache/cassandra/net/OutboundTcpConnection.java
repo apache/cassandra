@@ -267,6 +267,7 @@ public class OutboundTcpConnection extends Thread
                         // are added between the calls of backlog.size() and backlog.clear()
                         dropped.addAndGet(backlog.size());
                         backlog.clear();
+                        currentMsgBufferCount = 0;
                         break inner;
                     }
                 }
