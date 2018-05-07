@@ -114,7 +114,7 @@ public class Config
     @Deprecated
     public Integer concurrent_replicates = null;
 
-    public int memtable_flush_writers = 0;
+    public int memtable_flush_writers = 1;
     public Integer memtable_heap_space_in_mb;
     public Integer memtable_offheap_space_in_mb;
     public Float memtable_cleanup_threshold = null;
