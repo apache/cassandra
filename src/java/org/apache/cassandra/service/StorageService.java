@@ -4774,7 +4774,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getNonSystemKeyspaces()
     {
-        return Collections.unmodifiableList(Schema.instance.getNonSystemKeyspaces());
+        List<String> nonKeyspaceNamesList = new ArrayList<>(Schema.instance.getNonSystemKeyspaces());
+        return Collections.unmodifiableList(nonKeyspaceNamesList);
     }
 
     public List<String> getNonLocalStrategyKeyspaces()
