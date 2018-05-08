@@ -420,26 +420,38 @@ public abstract class Message
             }
         }
 
-        private static final class Flusher implements Runnable
+        private static abstract class Flusher implements Runnable
         {
             final EventLoop eventLoop;
             final ConcurrentLinkedQueue<FlushItem> queued = new ConcurrentLinkedQueue<>();
-            final AtomicBoolean running = new AtomicBoolean(false);
+            final AtomicBoolean scheduled = new AtomicBoolean(false);
             final HashSet<ChannelHandlerContext> channels = new HashSet<>();
             final List<FlushItem> flushed = new ArrayList<>();
-            int runsSinceFlush = 0;
-            int runsWithNoWork = 0;
-            private Flusher(EventLoop eventLoop)
-            {
-                this.eventLoop = eventLoop;
-            }
+
             void start()
             {
-                if (!running.get() && running.compareAndSet(false, true))
+                if (!scheduled.get() && scheduled.compareAndSet(false, true))
                 {
                     this.eventLoop.execute(this);
                 }
             }
+
+            public Flusher(EventLoop eventLoop)
+            {
+                this.eventLoop = eventLoop;
+            }
+        }
+
+        private static final class LegacyFlusher extends Flusher
+        {
+            int runsSinceFlush = 0;
+            int runsWithNoWork = 0;
+
+            private LegacyFlusher(EventLoop eventLoop)
+            {
+                super(eventLoop);
+            }
+
             public void run()
             {
 
@@ -476,8 +488,8 @@ public abstract class Message
                     // either reschedule or cancel
                     if (++runsWithNoWork > 5)
                     {
-                        running.set(false);
-                        if (queued.isEmpty() || !running.compareAndSet(false, true))
+                        scheduled.set(false);
+                        if (queued.isEmpty() || !scheduled.compareAndSet(false, true))
                             return;
                     }
                 }
@@ -486,11 +498,48 @@ public abstract class Message
             }
         }
 
+        private static final class ImmediateFlusher extends Flusher
+        {
+            private ImmediateFlusher(EventLoop eventLoop)
+            {
+                super(eventLoop);
+            }
+
+            public void run()
+            {
+                boolean doneWork = false;
+                FlushItem flush;
+                scheduled.set(false);
+
+                while (null != (flush = queued.poll()))
+                {
+                    channels.add(flush.ctx);
+                    flush.ctx.write(flush.response, flush.ctx.voidPromise());
+                    flushed.add(flush);
+                    doneWork = true;
+                }
+
+                if (doneWork)
+                {
+                    for (ChannelHandlerContext channel : channels)
+                        channel.flush();
+                    for (FlushItem item : flushed)
+                        item.sourceFrame.release();
+
+                    channels.clear();
+                    flushed.clear();
+                }
+            }
+        }
+
         private static final ConcurrentMap<EventLoop, Flusher> flusherLookup = new ConcurrentHashMap<>();
 
-        public Dispatcher()
+        private final boolean useLegacyFlusher;
+
+        public Dispatcher(boolean useLegacyFlusher)
         {
             super(false);
+            this.useLegacyFlusher = useLegacyFlusher;
         }
 
         @Override
@@ -538,7 +587,8 @@ public abstract class Message
             Flusher flusher = flusherLookup.get(loop);
             if (flusher == null)
             {
-                Flusher alt = flusherLookup.putIfAbsent(loop, flusher = new Flusher(loop));
+                Flusher created = useLegacyFlusher ? new LegacyFlusher(loop) : new ImmediateFlusher(loop);
+                Flusher alt = flusherLookup.putIfAbsent(loop, flusher = created);
                 if (alt != null)
                     flusher = alt;
             }
