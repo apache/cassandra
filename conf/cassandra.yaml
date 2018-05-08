@@ -1222,3 +1222,7 @@ audit_logging_options:
 # If enabled, diagnostic events can be helpful for troubleshooting operational issues. Emitted events contain details
 # on internal state and temporal relationships across events, accessible by clients via JMX.
 diagnostic_events_enabled: false
+
+# Define use of legacy delayed flusher for replies to TCP connections. This will increase latency, but might be beneficial for
+# legacy use-cases where only a single connection is used for each Cassandra node. Default is false.
+#native_transport_flush_in_batches_legacy: false
