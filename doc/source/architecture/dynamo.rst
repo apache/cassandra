@@ -74,6 +74,26 @@ nodes in each rack, the data load on the smallest rack may be much higher.  Simi
 into a new rack, it will be considered a replica for the entire ring.  For this reason, many operators choose to
 configure all nodes on a single "rack".
 
+.. _transient-replication:
+
+Transient Replication
+~~~~~~~~~~~~~~~~~~~~~
+
+Transient replication allows you to configure a subset of replicas to only replicate data that hasn't been incrementally
+repaired. This allows you to trade data redundancy for storage usage, and increased read and write throughput. For instance,
+if you have a replication factor of 3, with 1 transient replica, 2 replicas will replicate all data for a given token
+range, while the 3rd will only keep data that hasn't been incrementally repaired. Since you're reducing the copies kept
+of data by the number of transient replicas, transient replication is best suited to multiple dc deployments.
+
+
+To use transient replication, you first need to enable it in ``cassandra.yaml``.
+Once enabled, both SimpleStrategy and NetworkTopologyStrategy can be configured to transiently replicate data. You configure
+it by specifying replication factor as ``<total_replicas>/<transient_replicas``
+Both SimpleStrategy and NetworkTopologyStrategy support configuring transient replication.
+
+Transient replication is an experimental feature that may not be ready for production use.
+
+
 Tunable Consistency
 ^^^^^^^^^^^^^^^^^^^
 

@@ -1032,6 +1032,10 @@ enable_scripted_user_defined_functions: false
 # Materialized views are considered experimental and are not recommended for production use.
 enable_materialized_views: true
 
+# Enables creation of transiently replicated keyspaces on this node.
+# Transient replication is experimental and is not recommended for production use.
+#enable_transient_replication: true
+
 # The default Windows kernel timer and scheduling resolution is 15.6ms for power conservation.
 # Lowering this value on Windows can provide much tighter latency and better throughput, however
 # some virtualized environments may see a negative performance impact from changing this setting

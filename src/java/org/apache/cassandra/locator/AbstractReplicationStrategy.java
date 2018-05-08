@@ -333,6 +333,10 @@ public abstract class AbstractReplicationStrategy
         AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
         strategy.validateExpectedOptions();
         strategy.validateOptions();
+        if (strategy.getReplicationFactor().trans > 0 && !DatabaseDescriptor.isTransientReplicationEnabled())
+        {
+            throw new ConfigurationException("Transient replication is disabled. Enable in cassandra.yaml to use.");
+        }
     }
 
     public static Class<AbstractReplicationStrategy> getClass(String cls) throws ConfigurationException
