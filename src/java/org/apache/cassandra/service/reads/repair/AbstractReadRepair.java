@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 import com.google.common.base.Preconditions;
 
 import com.codahale.metrics.Meter;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
@@ -32,11 +33,12 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ParameterType;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
@@ -75,9 +77,14 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, L extends Repli
         this.cfs = Keyspace.openAndGetStore(command.metadata());
     }
 
-    void sendReadCommand(InetAddressAndPort to, ReadCallback readCallback)
+    void sendReadCommand(Replica to, ReadCallback readCallback)
     {
-        MessagingService.instance().sendRRWithFailure(command.createMessage(), to, readCallback);
+        MessageOut<ReadCommand> message = command.createMessage();
+        // if enabled, request additional info about repaired data from any full replicas
+        if (command.isTrackingRepairedStatus() && to.isFull())
+            message = message.withParameter(ParameterType.TRACK_REPAIRED_DATA, MessagingService.ONE_BYTE);
+
+        MessagingService.instance().sendRRWithFailure(message, to.endpoint(), readCallback);
     }
 
     abstract Meter getRepairMeter();
@@ -94,10 +101,14 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, L extends Repli
 
         digestRepair = new DigestRepair(resolver, readCallback, resultConsumer);
 
+        // if enabled, request additional info about repaired data from any full replicas
+        if (DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled())
+            command.trackRepairedStatus();
+
         for (Replica replica : replicaLayout.selected())
         {
             Tracing.trace("Enqueuing full data read to {}", replica);
-            sendReadCommand(replica.endpoint(), readCallback);
+            sendReadCommand(replica, readCallback);
         }
         ReadRepairDiagnostics.startRepair(this, replicaLayout.selected().endpoints(), digestResolver, replicaLayout.all().endpoints());
     }
@@ -137,7 +148,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, L extends Repli
 
             Replica replica = uncontacted.selected().iterator().next();
             Tracing.trace("Enqueuing speculative full data read to {}", replica);
-            sendReadCommand(replica.endpoint(), repair.readCallback);
+            sendReadCommand(replica, repair.readCallback);
             ReadRepairMetrics.speculatedRead.mark();
             ReadRepairDiagnostics.speculatedRead(this, replica.endpoint(), uncontacted.all().endpoints());
         }

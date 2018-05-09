@@ -30,6 +30,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.service.reads.ReadCallback;
 
@@ -46,10 +47,10 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
         ReadCallback readCallback = null;
 
         @Override
-        void sendReadCommand(InetAddressAndPort to, ReadCallback callback)
+        void sendReadCommand(Replica to, ReadCallback callback)
         {
             assert readCallback == null || readCallback == callback;
-            readCommandRecipients.add(to);
+            readCommandRecipients.add(to.endpoint());
             readCallback = callback;
         }
 

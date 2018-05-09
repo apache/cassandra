@@ -217,6 +217,19 @@ public class TableMetrics
     public final Counter speculativeWrites;
     public final Gauge<Long> speculativeWriteLatencyNanos;
 
+    /**
+     * Metrics for inconsistencies detected between repaired data sets across replicas. These
+     * are tracked on the coordinator.
+     */
+    // Incremented where an inconsistency is detected and there are no pending repair sessions affecting
+    // the data being read, indicating a genuine mismatch between replicas' repaired data sets.
+    public final TableMeter confirmedRepairedInconsistencies;
+    // Incremented where an inconsistency is detected, but there are pending & uncommitted repair sessions
+    // in play on at least one replica. This may indicate a false positive as the inconsistency could be due to
+    // replicas marking the repair session as committed at slightly different times and so some consider it to
+    // be part of the repaired set whilst others do not.
+    public final TableMeter unconfirmedRepairedInconsistencies;
+
     public final static LatencyMetrics globalReadLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Read");
     public final static LatencyMetrics globalWriteLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Write");
     public final static LatencyMetrics globalRangeLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Range");
@@ -922,6 +935,9 @@ public class TableMetrics
 
         readRepairRequests = Metrics.meter(factory.createMetricName("ReadRepairRequests"));
         shortReadProtectionRequests = Metrics.meter(factory.createMetricName("ShortReadProtectionRequests"));
+
+        confirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesConfirmed", cfs.keyspace.metric.confirmedRepairedInconsistencies);
+        unconfirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesUnconfirmed", cfs.keyspace.metric.unconfirmedRepairedInconsistencies);
     }
 
     public void updateSSTableIterated(int count)
@@ -1091,6 +1107,21 @@ public class TableMetrics
                                             globalAliasFactory.createMetricName(alias)));
     }
 
+    protected TableMeter createTableMeter(String name, Meter keyspaceMeter)
+    {
+        return createTableMeter(name, name, keyspaceMeter);
+    }
+
+    protected TableMeter createTableMeter(String name, String alias, Meter keyspaceMeter)
+    {
+        Meter meter = Metrics.meter(factory.createMetricName(name), aliasFactory.createMetricName(alias));
+        register(name, alias, meter);
+        return new TableMeter(meter,
+                              keyspaceMeter,
+                              Metrics.meter(globalFactory.createMetricName(name),
+                                            globalAliasFactory.createMetricName(alias)));
+    }
+
     /**
      * Registers a metric to be removed when unloading CF.
      * @return true if first time metric with that name has been registered
@@ -1101,6 +1132,25 @@ public class TableMetrics
         allTableMetrics.get(name).add(metric);
         all.put(name, alias);
         return ret;
+    }
+
+    public static class TableMeter
+    {
+        public final Meter[] all;
+        public final Meter table;
+        private TableMeter(Meter table, Meter keyspace, Meter global)
+        {
+            this.table = table;
+            this.all = new Meter[]{table, keyspace, global};
+        }
+
+        public void mark()
+        {
+            for (Meter meter : all)
+            {
+                meter.mark();
+            }
+        }
     }
 
     public static class TableHistogram
