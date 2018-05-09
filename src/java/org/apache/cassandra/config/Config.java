@@ -395,6 +395,26 @@ public class Config
     public volatile boolean diagnostic_events_enabled = false;
 
     /**
+     * flags for enabling tracking repaired state of data during reads
+     * separate flags for range & single partition reads as single partition reads are only tracked
+     * when CL > 1 and a digest mismatch occurs. Currently, range queries don't use digests so if
+     * enabled for range reads, all such reads will include repaired data tracking. As this adds
+     * some overhead, operators may wish to disable it whilst still enabling it for partition reads
+     */
+    public volatile boolean repaired_data_tracking_for_range_reads_enabled = false;
+    public volatile boolean repaired_data_tracking_for_partition_reads_enabled = false;
+    /* If true, unconfirmed mismatches (those which cannot be considered conclusive proof of out of
+     * sync repaired data due to the presence of pending repair sessions, or unrepaired partition
+     * deletes) will increment a metric, distinct from confirmed mismatches. If false, unconfirmed
+     * mismatches are simply ignored by the coordinator.
+     * This is purely to allow operators to avoid potential signal:noise issues as these types of
+     * mismatches are considerably less actionable than their confirmed counterparts. Setting this
+     * to true only disables the incrementing of the counters when an unconfirmed mismatch is found
+     * and has no other effect on the collection or processing of the repaired data.
+     */
+    public volatile boolean report_unconfirmed_repaired_data_mismatches = false;
+
+    /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
     @Deprecated

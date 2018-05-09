@@ -93,4 +93,19 @@ public interface StorageProxyMBean
      * Stop logging queries but leave any generated files on disk.
      */
     public void stopFullQueryLogger();
+
+    /**
+     * Tracking and reporting of variances in the repaired data set across replicas at read time
+     */
+    void enableRepairedDataTrackingForRangeReads();
+    void disableRepairedDataTrackingForRangeReads();
+    boolean getRepairedDataTrackingEnabledForRangeReads();
+
+    void enableRepairedDataTrackingForPartitionReads();
+    void disableRepairedDataTrackingForPartitionReads();
+    boolean getRepairedDataTrackingEnabledForPartitionReads();
+
+    void enableReportingUnconfirmedRepairedDataMismatches();
+    void disableReportingUnconfirmedRepairedDataMismatches();
+    boolean getReportingUnconfirmedRepairedDataMismatchesEnabled();
 }

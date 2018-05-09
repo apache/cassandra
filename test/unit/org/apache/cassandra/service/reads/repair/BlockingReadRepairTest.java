@@ -93,10 +93,10 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         ReadCallback readCallback = null;
 
         @Override
-        void sendReadCommand(InetAddressAndPort to, ReadCallback callback)
+        void sendReadCommand(Replica to, ReadCallback callback)
         {
             assert readCallback == null || readCallback == callback;
-            readCommandRecipients.add(to);
+            readCommandRecipients.add(to.endpoint());
             readCallback = callback;
         }
 

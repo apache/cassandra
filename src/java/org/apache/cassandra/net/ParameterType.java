@@ -39,7 +39,8 @@ public enum ParameterType
     FAILURE_REASON("FAIL_REASON", ShortVersionedSerializer.instance),
     FAILURE_CALLBACK("CAL_BAC", DummyByteVersionedSerializer.instance),
     TRACE_SESSION("TraceSession", UUIDSerializer.serializer),
-    TRACE_TYPE("TraceType", Tracing.traceTypeSerializer);
+    TRACE_TYPE("TraceType", Tracing.traceTypeSerializer),
+    TRACK_REPAIRED_DATA("TrackRepaired", DummyByteVersionedSerializer.instance);
 
     public static final Map<String, ParameterType> byName;
     public final String key;

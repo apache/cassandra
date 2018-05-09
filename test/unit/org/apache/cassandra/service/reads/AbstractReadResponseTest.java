@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.reads;
 
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.SortedSet;
@@ -214,15 +215,38 @@ public abstract class AbstractReadResponseTest
         return dk(Integer.toString(k));
     }
 
-    static MessageIn<ReadResponse> response(ReadCommand command, InetAddressAndPort from, UnfilteredPartitionIterator data, boolean digest)
+
+    static MessageIn<ReadResponse> response(ReadCommand command,
+                                            InetAddressAndPort from,
+                                            UnfilteredPartitionIterator data,
+                                            boolean isDigestResponse,
+                                            int fromVersion,
+                                            ByteBuffer repairedDataDigest,
+                                            boolean hasPendingRepair)
     {
-        ReadResponse response = digest ? ReadResponse.createDigestResponse(data, command) : ReadResponse.createDataResponse(data, command);
-        return MessageIn.create(from, response, Collections.emptyMap(), MessagingService.Verb.READ, MessagingService.current_version);
+        ReadResponse response = isDigestResponse
+                                ? ReadResponse.createDigestResponse(data, command)
+                                : ReadResponse.createRemoteDataResponse(data, repairedDataDigest, hasPendingRepair, command, fromVersion);
+        return MessageIn.create(from, response, Collections.emptyMap(), MessagingService.Verb.READ, fromVersion);
+    }
+
+    static MessageIn<ReadResponse> response(InetAddressAndPort from,
+                                            UnfilteredPartitionIterator partitionIterator,
+                                            ByteBuffer repairedDigest,
+                                            boolean hasPendingRepair,
+                                            ReadCommand cmd)
+    {
+        return response(cmd, from, partitionIterator, false, MessagingService.current_version, repairedDigest, hasPendingRepair);
+    }
+
+    static MessageIn<ReadResponse> response(ReadCommand command, InetAddressAndPort from, UnfilteredPartitionIterator data, boolean isDigestResponse)
+    {
+        return response(command, from, data, false, MessagingService.current_version, ByteBufferUtil.EMPTY_BYTE_BUFFER, isDigestResponse);
     }
 
     static MessageIn<ReadResponse> response(ReadCommand command, InetAddressAndPort from, UnfilteredPartitionIterator data)
     {
-        return response(command, from, data, false);
+        return response(command, from, data, false, MessagingService.current_version, ByteBufferUtil.EMPTY_BYTE_BUFFER, false);
     }
 
     public RangeTombstone tombstone(Object start, Object end, long markedForDeleteAt, int localDeletionTime)
