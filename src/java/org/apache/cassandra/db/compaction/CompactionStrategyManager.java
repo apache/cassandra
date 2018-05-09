@@ -210,6 +210,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @return
      */
     @VisibleForTesting
+    @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
     AbstractCompactionTask findUpgradeSSTableTask()
     {
         if (!isEnabled() || !DatabaseDescriptor.automaticSSTableUpgrade())
