@@ -51,6 +51,12 @@ public class BadQueryInSyslogTest extends CQLTester
     private static BadQueriesInSystemLog bq;
     ColumnFamilyStore cfs;
 
+    public BadQueryInSyslogTest()
+    {
+        requireNetwork();
+        BadQuery.setup();
+    }
+
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
@@ -66,8 +72,6 @@ public class BadQueryInSyslogTest extends CQLTester
         cfm = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
         v = cfm.getColumn(new ColumnIdentifier("v", true));
         s = cfm.getColumn(new ColumnIdentifier("s", true));
-        BadQuery.setup();
-        MonitoringService.instance.setBadQueryTracingFraction(1.0);
         DatabaseDescriptor.setBadQueryReporter("BadQueriesInSystemLog");
         bq = (BadQueriesInSystemLog) DatabaseDescriptor.getBadQueryReporter();
     }

@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.cql3.validation.miscellaneous;
 
-import javax.xml.crypto.Data;
-
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
