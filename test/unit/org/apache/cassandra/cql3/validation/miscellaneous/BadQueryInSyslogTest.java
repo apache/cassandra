@@ -27,6 +27,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -48,6 +49,7 @@ public class BadQueryInSyslogTest extends CQLTester
     private static ColumnMetadata v;
     private static ColumnMetadata s;
     private static BadQueriesInSystemLog bq;
+    ColumnFamilyStore cfs;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -73,7 +75,9 @@ public class BadQueryInSyslogTest extends CQLTester
     @Before
     public void truncate()
     {
-        Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).truncateBlocking();
+        MonitoringService.instance.setBadQueryTracingFraction(1.0);
+        cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
+        cfs.truncateBlocking();
         bq.clear();
     }
 
@@ -81,6 +85,7 @@ public class BadQueryInSyslogTest extends CQLTester
     {
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s) VALUES ('k', 's')");
         QueryProcessor.executeInternal("SELECT s FROM ks.tbl WHERE k='k'");
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 
     @Test

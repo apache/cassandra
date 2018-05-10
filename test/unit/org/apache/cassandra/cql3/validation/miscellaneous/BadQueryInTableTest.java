@@ -29,6 +29,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -50,6 +51,7 @@ public class BadQueryInTableTest extends CQLTester
     private static ColumnMetadata v;
     private static ColumnMetadata s;
     private static BadQueriesInTable bq;
+    ColumnFamilyStore cfs;
 
     public BadQueryInTableTest()
     {
@@ -80,7 +82,8 @@ public class BadQueryInTableTest extends CQLTester
     public void truncate()
     {
         MonitoringService.instance.setBadQueryTracingFraction(1.0);
-        Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).truncateBlocking();
+        cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
+        cfs.truncateBlocking();
         bq.clear();
     }
 
@@ -88,6 +91,7 @@ public class BadQueryInTableTest extends CQLTester
     {
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s) VALUES ('k', 's')");
         QueryProcessor.executeInternal("SELECT s FROM ks.tbl WHERE k='k'");
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 
     @Test
