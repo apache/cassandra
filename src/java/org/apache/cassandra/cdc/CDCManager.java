@@ -52,6 +52,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CDCMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
@@ -101,15 +103,7 @@ public class CDCManager implements CDCManagerMBean
     {
         logger.info("Initializing CDC...");
         instance = new CDCManager();
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            mbs.registerMBean(instance, new ObjectName(MBEAN_NAME));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
     }
 
     private static ScheduledExecutorPlus newCdcExecutor()
@@ -155,6 +149,11 @@ public class CDCManager implements CDCManagerMBean
                 String ksName = m.getKeyspaceName();
                 Keyspace ks = Schema.instance.getKeyspaceInstance(ksName);
                 ICDCHandler handler = ks.getCDCHandler();
+                // return quietly if handler is null as we don't want per-mutation log for misconfigured keyspaces
+                if (handler == null)
+                {
+                    return;
+                }
                 long st = System.currentTimeMillis();
                 try
                 {
@@ -439,6 +438,26 @@ public class CDCManager implements CDCManagerMBean
     }
 
     /**
+     * Checks if there's any cdc-enabled table but empty handler on the keyspace and log an error.
+     */
+    private void validateTables()
+    {
+        for (String keyspaceName : Schema.instance.getUserKeyspaces().names())
+        {
+            Keyspace keyspace = Schema.instance.getKeyspaceInstance(keyspaceName);
+            for (TableMetadata table : Schema.instance.getTablesAndViews(keyspaceName))
+            {
+                if (table.params.cdc == true && keyspace.getCDCHandler() == null)
+                {
+                    logger.error("CDCManager is started, but cdc_handler for keyspace {} is not set. The CDC data for table {} will be deleted without consuming.",
+                                 keyspaceName, table.name);
+                }
+            }
+        }
+        return;
+    }
+
+    /**
      * Gets the number of active CDC idx files.
      */
     public long getActiveIdxCount()
@@ -469,13 +488,15 @@ public class CDCManager implements CDCManagerMBean
     public void startCDCReader()
     {
         logger.info("Starting CDC...");
-        started = true;
+        // validate cdc-enabled tables for null cdc_handler
+        validateTables();
         if (cdcExecutor.isShutdown())
         {
             logger.info("The CDC Executor was shut down. Creating a new CDC Executor...");
             cdcExecutor = newCdcExecutor();
         }
         cdcExecutor.scheduleAtFixedRate(this::scanLogs, 0, this.scanPeriod, TimeUnit.MILLISECONDS);
+        started = true;
     }
 
     /**
@@ -484,8 +505,8 @@ public class CDCManager implements CDCManagerMBean
     public void stopCDCReader()
     {
         logger.info("Stopping CDC...");
-        started = false;
         cdcExecutor.shutdown();
+        started = false;
     }
 
     /**
