@@ -39,6 +39,11 @@ Audit logging captures following events
 
 - All database commands executed via Native protocol (CQL) attempted or successfully executed.
 
+Limitations
+^^^^^^^^^^^
+
+Executing prepared statements will log the query as provided by the client in the prepare call, along with the execution time stamp and all other attributes (see below). Actual values bound for prepared statement execution will not show up in the audit log.
+
 What does it log
 ^^^^^^^^^^^^^^^^^^^
 Each audit log implementation has access to the following attributes, and for the default text based logger these fields are concatenated with `|` s to yield the final message.
@@ -70,7 +75,7 @@ cassandra.yaml configurations for AuditLog
 	- ``included_users``: Comma separated list of users to be included in audit log, default - includes all users
 	- ``excluded_users``: Comma separated list of users to be excluded from audit log, default - excludes no user
 
-	  
+
 List of available categories are: QUERY, DML, DDL, DCL, OTHER, AUTH, ERROR, PREPARE
 
 NodeTool command to enable AuditLog
