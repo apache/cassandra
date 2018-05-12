@@ -240,6 +240,7 @@
 
 
 3.11.3
+ * Remove string formatting lines from BufferPool hot path (CASSANDRA-14416)
  * Detect OpenJDK jvm type and architecture (CASSANDRA-12793)
  * Don't use guava collections in the non-system keyspace jmx attributes (CASSANDRA-12271)
  * Allow existing nodes to use all peers in shadow round (CASSANDRA-13851)
