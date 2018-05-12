@@ -377,7 +377,7 @@ Function SetCassandraEnvironment
     }
 
     # provides hints to the JIT compiler
-    $env:JVM_OPTS = "$env:JVM_OPTS -XX:CompileCommandFile=$env:CASSANDRA_CONF\hotspot_compiler"
+    $env:JVM_OPTS = "$env:JVM_OPTS -XX:CompileCommandFile=""$env:CASSANDRA_CONF\hotspot_compiler"""
 
     # add the jamm javaagent
     if (($env:JVM_VENDOR -ne "OpenJDK") -or ($env:JVM_VERSION.CompareTo("1.6.0") -eq 1) -or
@@ -390,7 +390,7 @@ Function SetCassandraEnvironment
     if ($env:CASSANDRA_HEAPDUMP_DIR)
     {
         $unixTimestamp = [int64](([datetime]::UtcNow)-(get-date "1/1/1970")).TotalSeconds
-        $env:JVM_OPTS="$env:JVM_OPTS -XX:HeapDumpPath=$env:CASSANDRA_HEAPDUMP_DIR\cassandra-$unixTimestamp-pid$pid.hprof"
+        $env:JVM_OPTS="$env:JVM_OPTS -XX:HeapDumpPath=""$env:CASSANDRA_HEAPDUMP_DIR\cassandra-$unixTimestamp-pid$pid.hprof"""
     }
 
     # stop the jvm on OutOfMemoryError as it can result in some data corruption
