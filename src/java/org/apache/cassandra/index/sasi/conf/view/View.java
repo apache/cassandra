@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sasi.conf.view;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.index.sasi.SSTableIndex;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
@@ -59,10 +60,15 @@ public class View implements Iterable<SSTableIndex>
                                             : new RangeTermTree.Builder(index.getMode().mode, validator);
 
         List<Interval<Key, SSTableIndex>> keyIntervals = new ArrayList<>();
-        for (SSTableIndex sstableIndex : Iterables.concat(currentView, newIndexes))
+        // Ensure oldSSTables and newIndexes are disjoint (in index redistribution case the intersection can be non-empty).
+        // also favor newIndexes over currentView in case an SSTable has been re-opened (also occurs during redistribution)
+        // See CASSANDRA-14055
+        Collection<SSTableReader> toRemove = new HashSet<>(oldSSTables);
+        toRemove.removeAll(newIndexes.stream().map(SSTableIndex::getSSTable).collect(Collectors.toSet()));
+        for (SSTableIndex sstableIndex : Iterables.concat(newIndexes, currentView))
         {
             SSTableReader sstable = sstableIndex.getSSTable();
-            if (oldSSTables.contains(sstable) || sstable.isMarkedCompacted() || newView.containsKey(sstable.descriptor))
+            if (toRemove.contains(sstable) || sstable.isMarkedCompacted() || newView.containsKey(sstable.descriptor))
             {
                 sstableIndex.release();
                 continue;
