@@ -19,9 +19,13 @@
 package org.apache.cassandra.service.reads.repair;
 
 import java.util.Arrays;
+import java.util.Map;
+
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
@@ -49,6 +53,7 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
     private final boolean isReversed;
     private final InetAddressAndPort[] sources;
     private final ReadCommand command;
+    private final ConsistencyLevel consistency;
 
     private final PartitionUpdate.Builder[] repairs;
 
@@ -64,9 +69,9 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
     // For each source, record if there is an open range to send as repair, and from where.
     private final ClusteringBound[] markerToRepair;
 
-    private final RepairListener repairListener;
+    private final ReadRepair readRepair;
 
-    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, InetAddressAndPort[] sources, ReadCommand command, RepairListener repairListener)
+    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, InetAddressAndPort[] sources, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
     {
         this.partitionKey = partitionKey;
         this.columns = columns;
@@ -77,7 +82,8 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
         sourceDeletionTime = new DeletionTime[sources.length];
         markerToRepair = new ClusteringBound[sources.length];
         this.command = command;
-        this.repairListener = repairListener;
+        this.consistency = consistency;
+        this.readRepair = readRepair;
 
         this.diffListener = new RowDiffListener()
         {
@@ -300,22 +306,25 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
 
     public void close()
     {
-        RepairListener.PartitionRepair repair = null;
+        Map<InetAddressAndPort, Mutation> mutations = null;
         for (int i = 0; i < repairs.length; i++)
         {
             if (repairs[i] == null)
                 continue;
 
-            if (repair == null)
-            {
-                repair = repairListener.startPartitionRepair();
-            }
-            repair.reportMutation(sources[i], new Mutation(repairs[i].build()));
+            Mutation mutation = BlockingReadRepairs.createRepairMutation(repairs[i].build(), consistency, sources[i], false);
+            if (mutation == null)
+                continue;
+
+            if (mutations == null)
+                mutations = Maps.newHashMapWithExpectedSize(sources.length);
+
+            mutations.put(sources[i], mutation);
         }
 
-        if (repair != null)
+        if (mutations != null)
         {
-            repair.finish();
+            readRepair.repairPartition(partitionKey, mutations, sources);
         }
     }
 }

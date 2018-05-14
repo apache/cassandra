@@ -34,4 +34,9 @@ public class ReadRepairMetrics
     public static final Meter repairedBackground = Metrics.meter(factory.createMetricName("RepairedBackground"));
     @Deprecated
     public static final Meter attempted = Metrics.meter(factory.createMetricName("Attempted"));
+
+    public static final Meter speculatedRead = Metrics.meter(factory.createMetricName("SpeculatedRead"));
+    public static final Meter speculatedWrite = Metrics.meter(factory.createMetricName("SpeculatedWrite"));
+
+    public static void init() {}
 }

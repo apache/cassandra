@@ -125,6 +125,7 @@ public final class MessagingService implements MessagingServiceMBean
     public static final int VERSION_30 = 10;
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
+    public static final int minimum_version = VERSION_30;
     public static final int current_version = VERSION_40;
 
     public static final byte[] ONE_BYTE = new byte[1];

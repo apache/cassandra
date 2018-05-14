@@ -22,16 +22,12 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.reads.DataResolver;
-import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
-import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -47,8 +43,6 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.reads.repair.ReadRepair;
-import org.apache.cassandra.service.reads.repair.RepairListener;
 import org.apache.cassandra.service.reads.repair.TestableReadRepair;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -118,7 +112,7 @@ public class DataResolverTest
 
         nowInSec = FBUtilities.nowInSeconds();
         command = Util.cmd(cfs, dk).withNowInSeconds(nowInSec).build();
-        readRepair = new TestableReadRepair(command);
+        readRepair = new TestableReadRepair(command, ConsistencyLevel.QUORUM);
     }
 
     @Test
@@ -346,7 +340,7 @@ public class DataResolverTest
     @Test
     public void testResolveWithBothEmpty()
     {
-        TestableReadRepair readRepair = new TestableReadRepair(command);
+        TestableReadRepair readRepair = new TestableReadRepair(command, ConsistencyLevel.QUORUM);
         DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
         resolver.preprocess(readResponseMessage(peer(), EmptyIterators.unfilteredPartition(cfm)));
         resolver.preprocess(readResponseMessage(peer(), EmptyIterators.unfilteredPartition(cfm)));
@@ -715,7 +709,7 @@ public class DataResolverTest
     public void testResolveComplexDelete()
     {
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        TestableReadRepair readRepair = new TestableReadRepair(cmd, ConsistencyLevel.QUORUM);
         DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
 
         long[] ts = {100, 200};
@@ -767,7 +761,7 @@ public class DataResolverTest
     public void testResolveDeletedCollection()
     {
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        TestableReadRepair readRepair = new TestableReadRepair(cmd, ConsistencyLevel.QUORUM);
         DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
 
         long[] ts = {100, 200};
@@ -810,7 +804,7 @@ public class DataResolverTest
     public void testResolveNewCollection()
     {
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        TestableReadRepair readRepair = new TestableReadRepair(cmd, ConsistencyLevel.QUORUM);
         DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
 
         long[] ts = {100, 200};
@@ -859,7 +853,7 @@ public class DataResolverTest
     public void testResolveNewCollectionOverwritingDeleted()
     {
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        TestableReadRepair readRepair = new TestableReadRepair(cmd, ConsistencyLevel.QUORUM);
         DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
 
         long[] ts = {100, 200};
