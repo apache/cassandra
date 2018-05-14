@@ -14,6 +14,7 @@
  * RateBasedBackPressure unnecessarily invokes a lock on the Guava RateLimiter (CASSANDRA-14163)
  * Fix wildcard GROUP BY queries (CASSANDRA-14209)
 Merged from 3.0:
+ * Fix deprecated repair error notifications from 3.x clusters to legacy JMX clients (CASSANDRA-13121)
  * Cassandra not starting when using enhanced startup scripts in windows (CASSANDRA-14418)
  * Fix progress stats and units in compactionstats (CASSANDRA-12244)
  * Better handle missing partition columns in system_schema.columns (CASSANDRA-14379)

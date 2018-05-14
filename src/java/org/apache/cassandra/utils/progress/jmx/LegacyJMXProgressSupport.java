@@ -35,7 +35,7 @@ import static org.apache.cassandra.service.ActiveRepairService.Status;
  */
 public class LegacyJMXProgressSupport implements ProgressListener
 {
-    protected static final Pattern SESSION_FAILED_MATCHER = Pattern.compile("Repair session .* for range .* failed with error .*");
+    protected static final Pattern SESSION_FAILED_MATCHER = Pattern.compile("Repair session .* for range .* failed with error .*|Repair command .* failed with error .*");
     protected static final Pattern SESSION_SUCCESS_MATCHER = Pattern.compile("Repair session .* for range .* finished");
 
     private final AtomicLong notificationSerialNumber = new AtomicLong();
@@ -86,6 +86,7 @@ public class LegacyJMXProgressSupport implements ProgressListener
                 return Optional.of(Status.STARTED);
             case COMPLETE:
                 return Optional.of(Status.FINISHED);
+            case ERROR:
             case PROGRESS:
                 if (SESSION_FAILED_MATCHER.matcher(event.getMessage()).matches())
                 {
