@@ -241,6 +241,7 @@
 
 
 3.11.3
+ * Fix New SASI view creation during Index Redistribution (CASSANDRA-14055)
  * Remove string formatting lines from BufferPool hot path (CASSANDRA-14416)
  * Detect OpenJDK jvm type and architecture (CASSANDRA-12793)
  * Don't use guava collections in the non-system keyspace jmx attributes (CASSANDRA-12271)
