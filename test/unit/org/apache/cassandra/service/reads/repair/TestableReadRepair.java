@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -31,36 +33,23 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.reads.DigestResolver;
 
-public class TestableReadRepair implements ReadRepair, RepairListener
+public class TestableReadRepair implements ReadRepair
 {
     public final Map<InetAddressAndPort, Mutation> sent = new HashMap<>();
 
     private final ReadCommand command;
+    private final ConsistencyLevel consistency;
 
-    public TestableReadRepair(ReadCommand command)
+    public TestableReadRepair(ReadCommand command, ConsistencyLevel consistency)
     {
         this.command = command;
-    }
-
-    private class TestablePartitionRepair implements RepairListener.PartitionRepair
-    {
-        @Override
-        public void reportMutation(InetAddressAndPort endpoint, Mutation mutation)
-        {
-            sent.put(endpoint, mutation);
-        }
-
-        @Override
-        public void finish()
-        {
-
-        }
+        this.consistency = consistency;
     }
 
     @Override
     public UnfilteredPartitionIterators.MergeListener getMergeListener(InetAddressAndPort[] endpoints)
     {
-        return new PartitionIteratorMergeListener(endpoints, command, this);
+        return new PartitionIteratorMergeListener(endpoints, command, consistency, this);
     }
 
     @Override
@@ -70,21 +59,33 @@ public class TestableReadRepair implements ReadRepair, RepairListener
     }
 
     @Override
-    public void awaitRepair() throws ReadTimeoutException
+    public void awaitReads() throws ReadTimeoutException
     {
 
     }
 
     @Override
-    public PartitionRepair startPartitionRepair()
+    public void maybeSendAdditionalReads()
     {
-        return new TestablePartitionRepair();
+
     }
 
     @Override
-    public void awaitRepairs(long timeoutMillis)
+    public void maybeSendAdditionalWrites()
     {
 
+    }
+
+    @Override
+    public void awaitWrites()
+    {
+
+    }
+
+    @Override
+    public void repairPartition(DecoratedKey key, Map<InetAddressAndPort, Mutation> mutations, InetAddressAndPort[] destinations)
+    {
+        sent.putAll(mutations);
     }
 
     public Mutation getForEndpoint(InetAddressAndPort endpoint)

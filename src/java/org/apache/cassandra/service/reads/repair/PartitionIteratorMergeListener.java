@@ -20,8 +20,8 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.List;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -34,18 +34,20 @@ public class PartitionIteratorMergeListener implements UnfilteredPartitionIterat
 {
     private final InetAddressAndPort[] sources;
     private final ReadCommand command;
-    private final RepairListener repairListener;
+    private final ConsistencyLevel consistency;
+    private final ReadRepair readRepair;
 
-    public PartitionIteratorMergeListener(InetAddressAndPort[] sources, ReadCommand command, RepairListener repairListener)
+    public PartitionIteratorMergeListener(InetAddressAndPort[] sources, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
     {
         this.sources = sources;
         this.command = command;
-        this.repairListener = repairListener;
+        this.consistency = consistency;
+        this.readRepair = readRepair;
     }
 
     public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
     {
-        return new RowIteratorMergeListener(partitionKey, columns(versions), isReversed(versions), sources, command, repairListener);
+        return new RowIteratorMergeListener(partitionKey, columns(versions), isReversed(versions), sources, command, consistency, readRepair);
     }
 
     private RegularAndStaticColumns columns(List<UnfilteredRowIterator> versions)
@@ -81,7 +83,6 @@ public class PartitionIteratorMergeListener implements UnfilteredPartitionIterat
 
     public void close()
     {
-        repairListener.awaitRepairs(DatabaseDescriptor.getWriteRpcTimeout());
     }
 }
 

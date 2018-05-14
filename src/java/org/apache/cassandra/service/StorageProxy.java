@@ -183,6 +183,8 @@ public class StorageProxy implements StorageProxyMBean
             readMetricsMap.put(level, new ClientRequestMetrics("Read-" + level.name()));
             writeMetricsMap.put(level, new ClientWriteRequestMetrics("Write-" + level.name()));
         }
+
+        ReadRepairMetrics.init();
     }
 
     /**
@@ -1766,6 +1768,34 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
+    private static PartitionIterator concatAndBlockOnRepair(List<PartitionIterator> iterators, List<ReadRepair> repairs)
+    {
+        PartitionIterator concatenated = PartitionIterators.concat(iterators);
+
+        if (repairs.isEmpty())
+            return concatenated;
+
+        return new PartitionIterator()
+        {
+            public void close()
+            {
+                concatenated.close();
+                repairs.forEach(ReadRepair::maybeSendAdditionalWrites);
+                repairs.forEach(ReadRepair::awaitWrites);
+            }
+
+            public boolean hasNext()
+            {
+                return concatenated.hasNext();
+            }
+
+            public RowIterator next()
+            {
+                return concatenated.next();
+            }
+        };
+    }
+
     /**
      * This function executes local and remote reads, and blocks for the results:
      *
@@ -1784,43 +1814,59 @@ public class StorageProxy implements StorageProxyMBean
 
         AbstractReadExecutor[] reads = new AbstractReadExecutor[cmdCount];
 
+        // Get the replica locations, sorted by response time according to the snitch, and create a read executor
+        // for type of speculation we'll use in this read
         for (int i=0; i<cmdCount; i++)
         {
             reads[i] = AbstractReadExecutor.getReadExecutor(commands.get(i), consistencyLevel, queryStartNanoTime);
         }
 
+        // sends a data request to the closest replica, and a digest request to the others. If we have a speculating
+        // read executoe, we'll only send read requests to enough replicas to satisfy the consistency level
         for (int i=0; i<cmdCount; i++)
         {
             reads[i].executeAsync();
         }
 
+        // if we have a speculating read executor and it looks like we may not receive a response from the initial
+        // set of replicas we sent messages to, speculatively send an additional messages to an un-contacted replica
         for (int i=0; i<cmdCount; i++)
         {
             reads[i].maybeTryAdditionalReplicas();
         }
 
+        // wait for enough responses to meet the consistency level. If there's a digest mismatch, begin the read
+        // repair process by sending full data reads to all replicas we received responses from.
         for (int i=0; i<cmdCount; i++)
         {
             reads[i].awaitResponses();
         }
 
+        // read repair - if it looks like we may not receive enough full data responses to meet CL, send
+        // an additional request to any remaining replicas we haven't contacted (if there are any)
         for (int i=0; i<cmdCount; i++)
         {
-            reads[i].maybeRepairAdditionalReplicas();
+            reads[i].maybeSendAdditionalDataRequests();
         }
 
+        // read repair - block on full data responses
         for (int i=0; i<cmdCount; i++)
         {
             reads[i].awaitReadRepair();
         }
 
+        // if we didn't do a read repair, return the contents of the data response, if we did do a read
+        // repair, merge the full data reads
         List<PartitionIterator> results = new ArrayList<>(cmdCount);
+        List<ReadRepair> repairs = new ArrayList<>(cmdCount);
         for (int i=0; i<cmdCount; i++)
         {
             results.add(reads[i].getResult());
+            repairs.add(reads[i].getReadRepair());
         }
 
-        return PartitionIterators.concat(results);
+        // if we did a read repair, assemble repair mutation and block on them
+        return concatAndBlockOnRepair(results, repairs);
     }
 
     public static class LocalReadRunnable extends DroppableRunnable
@@ -2029,12 +2075,14 @@ public class StorageProxy implements StorageProxyMBean
     {
         private final DataResolver resolver;
         private final ReadCallback handler;
+        private final ReadRepair readRepair;
         private PartitionIterator result;
 
-        private SingleRangeResponse(DataResolver resolver, ReadCallback handler)
+        private SingleRangeResponse(DataResolver resolver, ReadCallback handler, ReadRepair readRepair)
         {
             this.resolver = resolver;
             this.handler = handler;
+            this.readRepair = readRepair;
         }
 
         private void waitForResponse() throws ReadTimeoutException
@@ -2165,7 +2213,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             PartitionRangeReadCommand rangeCommand = command.forSubRange(toQuery.range, isFirst);
 
-            ReadRepair readRepair = ReadRepair.create(command, toQuery.filteredEndpoints, queryStartNanoTime, consistency);
+            ReadRepair readRepair = ReadRepair.create(command, queryStartNanoTime, consistency);
             DataResolver resolver = new DataResolver(keyspace, rangeCommand, consistency, toQuery.filteredEndpoints.size(), queryStartNanoTime, readRepair);
 
             int blockFor = consistency.blockFor(keyspace);
@@ -2188,15 +2236,18 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
 
-            return new SingleRangeResponse(resolver, handler);
+            return new SingleRangeResponse(resolver, handler, readRepair);
         }
 
         private PartitionIterator sendNextRequests()
         {
             List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
+            List<ReadRepair> readRepairs = new ArrayList<>(concurrencyFactor);
             for (int i = 0; i < concurrencyFactor && ranges.hasNext(); i++)
             {
-                concurrentQueries.add(query(ranges.next(), i == 0));
+                SingleRangeResponse response = query(ranges.next(), i == 0);
+                concurrentQueries.add(response);
+                readRepairs.add(response.readRepair);
                 ++rangesQueried;
             }
 
@@ -2204,7 +2255,7 @@ public class StorageProxy implements StorageProxyMBean
             // We want to count the results for the sake of updating the concurrency factor (see updateConcurrencyFactor) but we don't want to
             // enforce any particular limit at this point (this could break code than rely on postReconciliationProcessing), hence the DataLimits.NONE.
             counter = DataLimits.NONE.newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
-            return counter.applyTo(PartitionIterators.concat(concurrentQueries));
+            return counter.applyTo(concatAndBlockOnRepair(concurrentQueries, readRepairs));
         }
 
         public void close()
