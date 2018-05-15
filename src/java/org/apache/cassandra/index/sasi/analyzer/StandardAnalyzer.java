@@ -23,10 +23,13 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.cassandra.index.sasi.analyzer.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -38,6 +41,15 @@ import com.carrotsearch.hppc.IntObjectOpenHashMap;
 
 public class StandardAnalyzer extends AbstractAnalyzer
 {
+
+    private static final Set<AbstractType<?>> VALID_ANALYZABLE_TYPES = new HashSet<AbstractType<?>>()
+    {
+        {
+            add(UTF8Type.instance);
+            add(AsciiType.instance);
+        }
+    };
+
     public enum TokenType
     {
         EOF(-1),
@@ -197,5 +209,11 @@ public class StandardAnalyzer extends AbstractAnalyzer
     public boolean isTokenizing()
     {
         return true;
+    }
+
+    @Override
+    public boolean isCompatibleWith(AbstractType<?> validator)
+    {
+        return VALID_ANALYZABLE_TYPES.contains(validator);
     }
 }
