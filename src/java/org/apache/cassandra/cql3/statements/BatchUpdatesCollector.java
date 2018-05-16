@@ -19,10 +19,10 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.db.virtual.VirtualMutation;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
@@ -84,15 +84,20 @@ final class BatchUpdatesCollector implements UpdatesCollector
 
     private IMutationBuilder getMutationBuilder(TableMetadata metadata, DecoratedKey dk, ConsistencyLevel consistency)
     {
-        String ksName = metadata.keyspace;
-        IMutationBuilder mutationBuilder = keyspaceMap(ksName).get(dk.getKey());
-        if (mutationBuilder == null)
+        return keyspaceMap(metadata.keyspace).computeIfAbsent(dk.getKey(), k -> makeMutationBuilder(metadata, dk, consistency));
+    }
+
+    private IMutationBuilder makeMutationBuilder(TableMetadata metadata, DecoratedKey partitionKey, ConsistencyLevel cl)
+    {
+        if (metadata.isVirtual())
         {
-            MutationBuilder builder = new MutationBuilder(ksName, dk);
-            mutationBuilder = metadata.isCounter() ? new CounterMutationBuilder(builder, consistency) : builder;
-            keyspaceMap(ksName).put(dk.getKey(), mutationBuilder);
+            return new VirtualMutationBuilder(metadata.keyspace, partitionKey);
         }
-        return mutationBuilder;
+        else
+        {
+            MutationBuilder builder = new MutationBuilder(metadata.keyspace, partitionKey);
+            return metadata.isCounter() ? new CounterMutationBuilder(builder, cl) : builder;
+        }
     }
 
     /**
@@ -226,6 +231,43 @@ final class BatchUpdatesCollector implements UpdatesCollector
         public PartitionUpdate.Builder get(TableId id)
         {
             return mutationBuilder.get(id);
+        }
+    }
+
+    private static class VirtualMutationBuilder implements IMutationBuilder
+    {
+        private final String keyspaceName;
+        private final DecoratedKey partitionKey;
+
+        private final HashMap<TableId, PartitionUpdate.Builder> modifications = new HashMap<>();
+
+        private VirtualMutationBuilder(String keyspaceName, DecoratedKey partitionKey)
+        {
+            this.keyspaceName = keyspaceName;
+            this.partitionKey = partitionKey;
+        }
+
+        @Override
+        public VirtualMutationBuilder add(PartitionUpdate.Builder builder)
+        {
+            PartitionUpdate.Builder prev = modifications.put(builder.metadata().id, builder);
+            if (null != prev)
+                throw new IllegalStateException();
+            return this;
+        }
+
+        @Override
+        public VirtualMutation build()
+        {
+            ImmutableMap.Builder<TableId, PartitionUpdate> updates = new ImmutableMap.Builder<>();
+            modifications.forEach((tableId, updateBuilder) -> updates.put(tableId, updateBuilder.build()));
+            return new VirtualMutation(keyspaceName, partitionKey, updates.build());
+        }
+
+        @Override
+        public PartitionUpdate.Builder get(TableId tableId)
+        {
+            return modifications.get(tableId);
         }
     }
 }

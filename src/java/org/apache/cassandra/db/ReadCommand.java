@@ -19,7 +19,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.function.LongPredicate;
-import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
@@ -29,7 +28,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.monitoring.ApproximateTime;
-import org.apache.cassandra.db.monitoring.MonitorableImpl;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.StoppingTransformation;
@@ -37,6 +35,7 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexNotAvailableException;
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -57,19 +56,13 @@ import org.apache.cassandra.utils.FBUtilities;
  * <p>
  * This contains all the informations needed to do a local read.
  */
-public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
+public abstract class ReadCommand extends AbstractReadQuery
 {
     private static final int TEST_ITERATION_DELAY_MILLIS = Integer.parseInt(System.getProperty("cassandra.test.read_iteration_delay_ms", "0"));
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
     public static final IVersionedSerializer<ReadCommand> serializer = new Serializer();
 
     private final Kind kind;
-    private final TableMetadata metadata;
-    private final int nowInSec;
-
-    private final ColumnFilter columnFilter;
-    private final RowFilter rowFilter;
-    private final DataLimits limits;
 
     private final boolean isDigestQuery;
     // if a digest query, the version for which the digest is expected. Ignored if not a digest.
@@ -115,14 +108,10 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
                           DataLimits limits,
                           IndexMetadata index)
     {
+        super(metadata, nowInSec, columnFilter, rowFilter, limits);
         this.kind = kind;
         this.isDigestQuery = isDigestQuery;
         this.digestVersion = digestVersion;
-        this.metadata = metadata;
-        this.nowInSec = nowInSec;
-        this.columnFilter = columnFilter;
-        this.rowFilter = rowFilter;
-        this.limits = limits;
         this.index = index;
     }
 
@@ -140,72 +129,11 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     public abstract ReadCommand withUpdatedLimit(DataLimits newLimits);
 
     /**
-     * The metadata for the table queried.
-     *
-     * @return the metadata for the table queried.
-     */
-    public TableMetadata metadata()
-    {
-        return metadata;
-    }
-
-    /**
-     * The time in seconds to use as "now" for this query.
-     * <p>
-     * We use the same time as "now" for the whole query to avoid considering different
-     * values as expired during the query, which would be buggy (would throw of counting amongst other
-     * things).
-     *
-     * @return the time (in seconds) to use as "now".
-     */
-    public int nowInSec()
-    {
-        return nowInSec;
-    }
-
-    /**
      * The configured timeout for this command.
      *
      * @return the configured timeout for this command.
      */
     public abstract long getTimeout();
-
-    /**
-     * A filter on which (non-PK) columns must be returned by the query.
-     *
-     * @return which columns must be fetched by this query.
-     */
-    public ColumnFilter columnFilter()
-    {
-        return columnFilter;
-    }
-
-    /**
-     * Filters/Resrictions on CQL rows.
-     * <p>
-     * This contains the restrictions that are not directly handled by the
-     * {@code ClusteringIndexFilter}. More specifically, this includes any non-PK column
-     * restrictions and can include some PK columns restrictions when those can't be
-     * satisfied entirely by the clustering index filter (because not all clustering columns
-     * have been restricted for instance). If there is 2ndary indexes on the table,
-     * one of this restriction might be handled by a 2ndary index.
-     *
-     * @return the filter holding the expression that rows must satisfy.
-     */
-    public RowFilter rowFilter()
-    {
-        return rowFilter;
-    }
-
-    /**
-     * The limits set on this query.
-     *
-     * @return the limits set on this query.
-     */
-    public DataLimits limits()
-    {
-        return limits;
-    }
 
     /**
      * Whether this query is a digest one or not.
@@ -327,9 +255,8 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
      */
     public void maybeValidateIndex()
     {
-        Index index = getIndex(Keyspace.openAndGetStore(metadata));
         if (null != index)
-            index.validate(this);
+            IndexRegistry.obtain(metadata()).getIndex(index).validate(this);
     }
 
     /**
@@ -388,11 +315,6 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
     protected abstract void recordLatency(TableMetrics metric, long latencyNanos);
 
-    public PartitionIterator executeInternal(ReadExecutionController controller)
-    {
-        return UnfilteredPartitionIterators.filter(executeLocally(controller), nowInSec());
-    }
-
     public ReadExecutionController executionController()
     {
         return ReadExecutionController.forCommand(this);
@@ -410,7 +332,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             private final int warningThreshold = DatabaseDescriptor.getTombstoneWarnThreshold();
 
             private final boolean respectTombstoneThresholds = !SchemaConstants.isLocalSystemKeyspace(ReadCommand.this.metadata().keyspace);
-            private final boolean enforceStrictLiveness = metadata.enforceStrictLiveness();
+            private final boolean enforceStrictLiveness = metadata().enforceStrictLiveness();
 
             private int liveRows = 0;
             private int tombstones = 0;
@@ -553,7 +475,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
         private void maybeDelayForTesting()
         {
-            if (!metadata.keyspace.startsWith("system"))
+            if (!metadata().keyspace.startsWith("system"))
                 FBUtilities.sleepQuietly(TEST_ITERATION_DELAY_MILLIS);
         }
     }
@@ -605,7 +527,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     {
         StringBuilder sb = new StringBuilder();
         sb.append("SELECT ").append(columnFilter());
-        sb.append(" FROM ").append(metadata().keyspace).append('.').append(metadata.name);
+        sb.append(" FROM ").append(metadata().keyspace).append('.').append(metadata().name);
         appendCQLWhereClause(sb);
 
         if (limits() != DataLimits.NONE)
@@ -657,11 +579,11 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             out.writeByte(digestFlag(command.isDigestQuery()) | indexFlag(null != command.indexMetadata()));
             if (command.isDigestQuery())
                 out.writeUnsignedVInt(command.digestVersion());
-            command.metadata.id.serialize(out);
+            command.metadata().id.serialize(out);
             out.writeInt(command.nowInSec());
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
             RowFilter.serializer.serialize(command.rowFilter(), out, version);
-            DataLimits.serializer.serialize(command.limits(), out, version, command.metadata.comparator);
+            DataLimits.serializer.serialize(command.limits(), out, version, command.metadata().comparator);
             if (null != command.index)
                 IndexMetadata.serializer.serialize(command.index, out, version);
 
@@ -714,11 +636,11 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
         {
             return 2 // kind + flags
                    + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
-                   + command.metadata.id.serializedSize()
+                   + command.metadata().id.serializedSize()
                    + TypeSizes.sizeof(command.nowInSec())
                    + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
                    + RowFilter.serializer.serializedSize(command.rowFilter(), version)
-                   + DataLimits.serializer.serializedSize(command.limits(), version, command.metadata.comparator)
+                   + DataLimits.serializer.serializedSize(command.limits(), version, command.metadata().comparator)
                    + command.selectionSerializedSize(version)
                    + command.indexSerializedSize(version);
         }

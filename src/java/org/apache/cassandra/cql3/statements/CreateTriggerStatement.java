@@ -62,6 +62,8 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
     public void validate(ClientState state) throws RequestValidationException
     {
         TableMetadata metadata = Schema.instance.validateTable(keyspace(), columnFamily());
+        if (metadata.isVirtual())
+            throw new InvalidRequestException("Cannot CREATE TRIGGER against a virtual table");
         if (metadata.isView())
             throw new InvalidRequestException("Cannot CREATE TRIGGER against a materialized view");
 

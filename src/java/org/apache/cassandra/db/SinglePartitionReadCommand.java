@@ -20,13 +20,10 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-
-import org.apache.commons.lang3.tuple.Pair;
 
 import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.RowCacheKey;
@@ -53,9 +50,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -63,7 +58,7 @@ import org.apache.cassandra.utils.btree.BTreeSet;
 /**
  * A read command that selects a (part of a) single partition.
  */
-public class SinglePartitionReadCommand extends ReadCommand
+public class SinglePartitionReadCommand extends ReadCommand implements SinglePartitionReadQuery
 {
     protected static final SelectionDeserializer selectionDeserializer = new Deserializer();
 
@@ -314,6 +309,7 @@ public class SinglePartitionReadCommand extends ReadCommand
                                               indexMetadata());
     }
 
+    @Override
     public SinglePartitionReadCommand withUpdatedLimit(DataLimits newLimits)
     {
         return new SinglePartitionReadCommand(isDigestQuery(),
@@ -328,11 +324,13 @@ public class SinglePartitionReadCommand extends ReadCommand
                                               indexMetadata());
     }
 
+    @Override
     public DecoratedKey partitionKey()
     {
         return partitionKey;
     }
 
+    @Override
     public ClusteringIndexFilter clusteringIndexFilter()
     {
         return clusteringIndexFilter;
@@ -348,35 +346,7 @@ public class SinglePartitionReadCommand extends ReadCommand
         return DatabaseDescriptor.getReadRpcTimeout();
     }
 
-    public boolean selectsKey(DecoratedKey key)
-    {
-        if (!this.partitionKey().equals(key))
-            return false;
-
-        return rowFilter().partitionKeyRestrictionsAreSatisfiedBy(key, metadata().partitionKeyType);
-    }
-
-    public boolean selectsClustering(DecoratedKey key, Clustering clustering)
-    {
-        if (clustering == Clustering.STATIC_CLUSTERING)
-            return !columnFilter().fetchedColumns().statics.isEmpty();
-
-        if (!clusteringIndexFilter().selects(clustering))
-            return false;
-
-        return rowFilter().clusteringKeyRestrictionsAreSatisfiedBy(clustering);
-    }
-
-    /**
-     * Returns a new command suitable to paging from the last returned row.
-     *
-     * @param lastReturned the last row returned by the previous page. The newly created command
-     * will only query row that comes after this (in query order). This can be {@code null} if this
-     * is the first page.
-     * @param limits the limits to use for the page to query.
-     *
-     * @return the newly create command.
-     */
+    @Override
     public SinglePartitionReadCommand forPaging(Clustering lastReturned, DataLimits limits)
     {
         // We shouldn't have set digest yet when reaching that point
@@ -393,16 +363,6 @@ public class SinglePartitionReadCommand extends ReadCommand
     public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
     {
         return StorageProxy.read(Group.one(this), consistency, clientState, queryStartNanoTime);
-    }
-
-    public SinglePartitionPager getPager(PagingState pagingState, ProtocolVersion protocolVersion)
-    {
-        return getPager(this, pagingState, protocolVersion);
-    }
-
-    private static SinglePartitionPager getPager(SinglePartitionReadCommand command, PagingState pagingState, ProtocolVersion protocolVersion)
-    {
-        return new SinglePartitionPager(command, pagingState, protocolVersion);
     }
 
     protected void recordLatency(TableMetrics metric, long latencyNanos)
@@ -1054,23 +1014,34 @@ public class SinglePartitionReadCommand extends ReadCommand
     /**
      * Groups multiple single partition read commands.
      */
-    public static class Group implements ReadQuery
+    public static class Group extends SinglePartitionReadQuery.Group<SinglePartitionReadCommand>
     {
-        public final List<SinglePartitionReadCommand> commands;
-        private final DataLimits limits;
-        private final int nowInSec;
-        private final boolean selectsFullPartitions;
+        public static Group create(TableMetadata metadata,
+                                   int nowInSec,
+                                   ColumnFilter columnFilter,
+                                   RowFilter rowFilter,
+                                   DataLimits limits,
+                                   List<DecoratedKey> partitionKeys,
+                                   ClusteringIndexFilter clusteringIndexFilter)
+        {
+            List<SinglePartitionReadCommand> commands = new ArrayList<>(partitionKeys.size());
+            for (DecoratedKey partitionKey : partitionKeys)
+            {
+                commands.add(SinglePartitionReadCommand.create(metadata,
+                                                               nowInSec,
+                                                               columnFilter,
+                                                               rowFilter,
+                                                               limits,
+                                                               partitionKey,
+                                                               clusteringIndexFilter));
+            }
+
+            return new Group(commands, limits);
+        }
 
         public Group(List<SinglePartitionReadCommand> commands, DataLimits limits)
         {
-            assert !commands.isEmpty();
-            this.commands = commands;
-            this.limits = limits;
-            SinglePartitionReadCommand firstCommand = commands.get(0);
-            this.nowInSec = firstCommand.nowInSec();
-            this.selectsFullPartitions = firstCommand.selectsFullPartition();
-            for (int i = 1; i < commands.size(); i++)
-                assert commands.get(i).nowInSec() == nowInSec;
+            super(commands, limits);
         }
 
         public static Group one(SinglePartitionReadCommand command)
@@ -1081,97 +1052,6 @@ public class SinglePartitionReadCommand extends ReadCommand
         public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
         {
             return StorageProxy.read(this, consistency, clientState, queryStartNanoTime);
-        }
-
-        public int nowInSec()
-        {
-            return nowInSec;
-        }
-
-        public DataLimits limits()
-        {
-            return limits;
-        }
-
-        public TableMetadata metadata()
-        {
-            return commands.get(0).metadata();
-        }
-
-        @Override
-        public boolean selectsFullPartition()
-        {
-            return selectsFullPartitions;
-        }
-
-        public ReadExecutionController executionController()
-        {
-            // Note that the only difference between the command in a group must be the partition key on which
-            // they applied. So as far as ReadOrderGroup is concerned, we can use any of the commands to start one.
-            return commands.get(0).executionController();
-        }
-
-        public PartitionIterator executeInternal(ReadExecutionController controller)
-        {
-            // Note that the only difference between the command in a group must be the partition key on which
-            // they applied.
-            boolean enforceStrictLiveness = commands.get(0).metadata().enforceStrictLiveness();
-            return limits.filter(UnfilteredPartitionIterators.filter(executeLocally(controller, false), nowInSec),
-                                 nowInSec,
-                                 selectsFullPartitions,
-                                 enforceStrictLiveness);
-        }
-
-        public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
-        {
-            return executeLocally(executionController, true);
-        }
-
-        /**
-         * Implementation of {@link ReadQuery#executeLocally(ReadExecutionController)}.
-         *
-         * @param executionController - the {@code ReadExecutionController} protecting the read.
-         * @param sort - whether to sort the inner commands by partition key, required for merging the iterator
-         *               later on. This will be false when called by {@link ReadQuery#executeInternal(ReadExecutionController)}
-         *               because in this case it is safe to do so as there is no merging involved and we don't want to
-         *               change the old behavior which was to not sort by partition.
-         *
-         * @return - the iterator that can be used to retrieve the query result.
-         */
-        private UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController, boolean sort)
-        {
-            List<Pair<DecoratedKey, UnfilteredPartitionIterator>> partitions = new ArrayList<>(commands.size());
-            for (SinglePartitionReadCommand cmd : commands)
-                partitions.add(Pair.of(cmd.partitionKey, cmd.executeLocally(executionController)));
-
-            if (sort)
-                Collections.sort(partitions, (p1, p2) -> p1.getLeft().compareTo(p2.getLeft()));
-
-            return UnfilteredPartitionIterators.concat(partitions.stream().map(p -> p.getRight()).collect(Collectors.toList()));
-        }
-
-        public QueryPager getPager(PagingState pagingState, ProtocolVersion protocolVersion)
-        {
-            if (commands.size() == 1)
-                return SinglePartitionReadCommand.getPager(commands.get(0), pagingState, protocolVersion);
-
-            return new MultiPartitionPager(this, pagingState, protocolVersion);
-        }
-
-        public boolean selectsKey(DecoratedKey key)
-        {
-            return Iterables.any(commands, c -> c.selectsKey(key));
-        }
-
-        public boolean selectsClustering(DecoratedKey key, Clustering clustering)
-        {
-            return Iterables.any(commands, c -> c.selectsClustering(key, clustering));
-        }
-
-        @Override
-        public String toString()
-        {
-            return commands.toString();
         }
     }
 

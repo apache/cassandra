@@ -17,74 +17,113 @@
  */
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Generic abstraction for read queries.
- * <p>
- * The main implementation of this is {@link ReadCommand} but we have this interface because
- * {@link SinglePartitionReadCommand.Group} is also consider as a "read query" but is not a
- * {@code ReadCommand}.
  */
 public interface ReadQuery
 {
-    ReadQuery EMPTY = new ReadQuery()
+    public static ReadQuery empty(final TableMetadata metadata)
     {
-        public ReadExecutionController executionController()
+        return new ReadQuery()
         {
-            return ReadExecutionController.empty();
-        }
+            public TableMetadata metadata()
+            {
+                return metadata;
+            }
 
-        public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
-        {
-            return EmptyIterators.partition();
-        }
+            public ReadExecutionController executionController()
+            {
+                return ReadExecutionController.empty();
+            }
 
-        public PartitionIterator executeInternal(ReadExecutionController controller)
-        {
-            return EmptyIterators.partition();
-        }
+            public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
+            {
+                return EmptyIterators.partition();
+            }
 
-        public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
-        {
-            return EmptyIterators.unfilteredPartition(executionController.metadata());
-        }
+            public PartitionIterator executeInternal(ReadExecutionController controller)
+            {
+                return EmptyIterators.partition();
+            }
 
-        public DataLimits limits()
-        {
-            // What we return here doesn't matter much in practice. However, returning DataLimits.NONE means
-            // "no particular limit", which makes SelectStatement.execute() take the slightly more complex "paging"
-            // path. Not a big deal but it's easy enough to return a limit of 0 rows which avoids this.
-            return DataLimits.cqlLimits(0);
-        }
+            public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
+            {
+                return EmptyIterators.unfilteredPartition(executionController.metadata());
+            }
 
-        public QueryPager getPager(PagingState state, ProtocolVersion protocolVersion)
-        {
-            return QueryPager.EMPTY;
-        }
+            public DataLimits limits()
+            {
+                // What we return here doesn't matter much in practice. However, returning DataLimits.NONE means
+                // "no particular limit", which makes SelectStatement.execute() take the slightly more complex "paging"
+                // path. Not a big deal but it's easy enough to return a limit of 0 rows which avoids this.
+                return DataLimits.cqlLimits(0);
+            }
 
-        public boolean selectsKey(DecoratedKey key)
-        {
-            return false;
-        }
+            public QueryPager getPager(PagingState state, ProtocolVersion protocolVersion)
+            {
+                return QueryPager.EMPTY;
+            }
 
-        public boolean selectsClustering(DecoratedKey key, Clustering clustering)
-        {
-            return false;
-        }
+            public boolean selectsKey(DecoratedKey key)
+            {
+                return false;
+            }
 
-        @Override
-        public boolean selectsFullPartition()
-        {
-            return false;
-        }
-    };
+            public boolean selectsClustering(DecoratedKey key, Clustering clustering)
+            {
+                return false;
+            }
+
+            @Override
+            public int nowInSec()
+            {
+                return FBUtilities.nowInSeconds();
+            }
+
+            @Override
+            public boolean selectsFullPartition()
+            {
+                return false;
+            }
+
+            @Override
+            public boolean isEmpty()
+            {
+                return true;
+            }
+
+            @Override
+            public RowFilter rowFilter()
+            {
+                return RowFilter.NONE;
+            }
+
+            @Override
+            public ColumnFilter columnFilter()
+            {
+                return ColumnFilter.NONE;
+            }
+        };
+    }
+
+    /**
+     * The metadata for the table this is a query on.
+     *
+     * @return the metadata for the table this is a query on.
+     */
+    public TableMetadata metadata();
 
     /**
      * Starts a new read operation.
@@ -156,8 +195,63 @@ public interface ReadQuery
     public boolean selectsClustering(DecoratedKey key, Clustering clustering);
 
     /**
+     * The time in seconds to use as "now" for this query.
+     * <p>
+     * We use the same time as "now" for the whole query to avoid considering different
+     * values as expired during the query, which would be buggy (would throw of counting amongst other
+     * things).
+     *
+     * @return the time (in seconds) to use as "now".
+     */
+    public int nowInSec();
+
+    /**
      * Checks if this {@code ReadQuery} selects full partitions, that is it has no filtering on clustering or regular columns.
      * @return {@code true} if this {@code ReadQuery} selects full partitions, {@code false} otherwise.
      */
     public boolean selectsFullPartition();
+
+    /**
+     * Filters/Resrictions on CQL rows.
+     * <p>
+     * This contains the restrictions that are not directly handled by the
+     * {@code ClusteringIndexFilter}. More specifically, this includes any non-PK column
+     * restrictions and can include some PK columns restrictions when those can't be
+     * satisfied entirely by the clustering index filter (because not all clustering columns
+     * have been restricted for instance). If there is 2ndary indexes on the table,
+     * one of this restriction might be handled by a 2ndary index.
+     *
+     * @return the filter holding the expression that rows must satisfy.
+     */
+    public RowFilter rowFilter();
+
+    /**
+     * A filter on which (non-PK) columns must be returned by the query.
+     *
+     * @return which columns must be fetched by this query.
+     */
+    public ColumnFilter columnFilter();
+
+    /**
+     * Whether this query is known to return nothing upfront.
+     * <p>
+     * This is overridden by the {@code ReadQuery} created through {@link #empty(TableMetadata)}, and that's probably the
+     * only place that should override it.
+     *
+     * @return if this method is guaranteed to return no results whatsoever.
+     */
+    public default boolean isEmpty()
+    {
+        return false;
+    }
+
+    /**
+     * If the index manager for the table determines that there's an applicable
+     * 2i that can be used to execute this query, call its (optional)
+     * validation method to check that nothing in this query's parameters
+     * violates the implementation specific validation rules.
+     */
+    default void maybeValidateIndex()
+    {
+    }
 }

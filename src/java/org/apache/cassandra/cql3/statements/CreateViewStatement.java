@@ -151,6 +151,8 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
         TableMetadata metadata = Schema.instance.validateTable(baseName.getKeyspace(), baseName.getColumnFamily());
 
+        if (metadata.isVirtual())
+            throw new InvalidRequestException("Materialized views are not supported on virtual tables");
         if (metadata.isCounter())
             throw new InvalidRequestException("Materialized views are not supported on counter tables");
         if (metadata.isView())
@@ -317,7 +319,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
         TableMetadata.Builder builder =
             TableMetadata.builder(keyspace(), columnFamily(), properties.properties.getId())
-                         .isView(true)
+                         .kind(TableMetadata.Kind.VIEW)
                          .params(params);
 
         add(metadata, targetPartitionKeys, builder::addPartitionKeyColumn);

@@ -75,6 +75,9 @@ public class DropTableStatement extends SchemaAlteringStatement
                 if (metadata.isView())
                     throw new InvalidRequestException("Cannot use DROP TABLE on Materialized View");
 
+                if (metadata.isVirtual())
+                    throw new InvalidRequestException("Cannot drop virtual tables");
+
                 boolean rejectDrop = false;
                 StringBuilder messageBuilder = new StringBuilder();
                 for (ViewMetadata def : ksm.views)

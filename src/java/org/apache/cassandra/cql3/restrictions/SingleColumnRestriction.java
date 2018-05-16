@@ -30,7 +30,7 @@ import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -71,9 +71,9 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     }
 
     @Override
-    public boolean hasSupportingIndex(SecondaryIndexManager indexManager)
+    public boolean hasSupportingIndex(IndexRegistry indexRegistry)
     {
-        for (Index index : indexManager.listIndexes())
+        for (Index index : indexRegistry.listIndexes())
             if (isSupportedBy(index))
                 return true;
 
@@ -151,7 +151,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
         @Override
         public void addRowFilterTo(RowFilter filter,
-                                   SecondaryIndexManager indexManager,
+                                   IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
             filter.add(columnDef, Operator.EQ, value.bindAndGet(options));
@@ -215,7 +215,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
         @Override
         public void addRowFilterTo(RowFilter filter,
-                                   SecondaryIndexManager indexManager,
+                                   IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
             throw invalidRequest("IN restrictions are not supported on indexed columns");
@@ -385,7 +385,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexManager, QueryOptions options)
+        public void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             for (Bound b : Bound.values())
                 if (hasBound(b))
@@ -475,7 +475,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexManager, QueryOptions options)
+        public void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             for (ByteBuffer value : bindAndGet(values, options))
                 filter.add(columnDef, Operator.CONTAINS, value);
@@ -615,7 +615,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
         @Override
         public void addRowFilterTo(RowFilter filter,
-                                   SecondaryIndexManager indexManager,
+                                   IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
             throw new UnsupportedOperationException("Secondary indexes do not support IS NOT NULL restrictions");
@@ -691,16 +691,16 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
         @Override
         public void addRowFilterTo(RowFilter filter,
-                                   SecondaryIndexManager indexManager,
+                                   IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
             Pair<Operator, ByteBuffer> operation = makeSpecific(value.bindAndGet(options));
 
             // there must be a suitable INDEX for LIKE_XXX expressions
             RowFilter.SimpleExpression expression = filter.add(columnDef, operation.left, operation.right);
-            indexManager.getBestIndexFor(expression)
-                        .orElseThrow(() -> invalidRequest("%s is only supported on properly indexed columns",
-                                                          expression));
+            indexRegistry.getBestIndexFor(expression)
+                         .orElseThrow(() -> invalidRequest("%s is only supported on properly indexed columns",
+                                                           expression));
         }
 
         @Override

@@ -21,8 +21,14 @@
 package org.apache.cassandra.index;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Optional;
 
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * The collection of all Index instances for a base table.
@@ -34,9 +40,72 @@ import org.apache.cassandra.schema.IndexMetadata;
  */
 public interface IndexRegistry
 {
+    /**
+     * An empty {@code IndexRegistry}
+     */
+    public static final IndexRegistry EMPTY = new IndexRegistry()
+    {
+        @Override
+        public void unregisterIndex(Index index)
+        {
+        }
+
+        @Override
+        public void registerIndex(Index index)
+        {
+        }
+
+        @Override
+        public Collection<Index> listIndexes()
+        {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public Index getIndex(IndexMetadata indexMetadata)
+        {
+            return null;
+        }
+
+        @Override
+        public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
+        {
+            return Optional.empty();
+        }
+
+        @Override
+        public void validate(PartitionUpdate update)
+        {
+        }
+    };
+
     void registerIndex(Index index);
     void unregisterIndex(Index index);
 
     Index getIndex(IndexMetadata indexMetadata);
     Collection<Index> listIndexes();
+
+    Optional<Index> getBestIndexFor(RowFilter.Expression expression);
+
+    /**
+     * Called at write time to ensure that values present in the update
+     * are valid according to the rules of all registered indexes which
+     * will process it. The partition key as well as the clustering and
+     * cell values for each row in the update may be checked by index
+     * implementations
+     *
+     * @param update PartitionUpdate containing the values to be validated by registered Index implementations
+     */
+    void validate(PartitionUpdate update);
+
+    /**
+     * Returns the {@code IndexRegistry} associated to the specified table.
+     *
+     * @param table the table metadata
+     * @return the {@code IndexRegistry} associated to the specified table
+     */
+    public static IndexRegistry obtain(TableMetadata table)
+    {
+        return table.isVirtual() ? EMPTY : Keyspace.openAndGetStore(table).indexManager;
+    }
 }

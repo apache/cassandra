@@ -73,6 +73,8 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(name.getKeyspace());
         if (ksm == null)
             throw new InvalidRequestException(String.format("Cannot add type in unknown keyspace %s", name.getKeyspace()));
+        if (ksm.isVirtual())
+            throw new InvalidRequestException("Cannot create types in virtual keyspaces");
 
         if (ksm.types.get(name.getUserTypeName()).isPresent() && !ifNotExists)
             throw new InvalidRequestException(String.format("A user type of name %s already exists", name));
