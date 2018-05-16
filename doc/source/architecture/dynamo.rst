@@ -80,16 +80,15 @@ Transient Replication
 ~~~~~~~~~~~~~~~~~~~~~
 
 Transient replication allows you to configure a subset of replicas to only replicate data that hasn't been incrementally
-repaired. This allows you to trade data redundancy for storage usage, and increased read and write throughput. For instance,
-if you have a replication factor of 3, with 1 transient replica, 2 replicas will replicate all data for a given token
-range, while the 3rd will only keep data that hasn't been incrementally repaired. Since you're reducing the copies kept
-of data by the number of transient replicas, transient replication is best suited to multiple dc deployments.
+repaired. This allows you to decouple data redundancy from availability. For instance, if you have a keyspace replicated
+at rf 3, and alter it to rf 5 with 2 transient replicas, you go from being able to tolerate one failed replica to being
+able to tolerate two, without corresponding increase in storage usage. This is because 3 nodes will replicate all the data
+for a given token range, and the other 2 will only replicate data that hasn't been incrementally repaired.
 
-
-To use transient replication, you first need to enable it in ``cassandra.yaml``.
-Once enabled, both SimpleStrategy and NetworkTopologyStrategy can be configured to transiently replicate data. You configure
-it by specifying replication factor as ``<total_replicas>/<transient_replicas``
-Both SimpleStrategy and NetworkTopologyStrategy support configuring transient replication.
+To use transient replication, you first need to enable it in ``cassandra.yaml``. Once enabled, both SimpleStrategy and
+NetworkTopologyStrategy can be configured to transiently replicate data. You configure it by specifying replication factor
+as ``<total_replicas>/<transient_replicas`` Both SimpleStrategy and NetworkTopologyStrategy support configuring transient
+replication.
 
 Transient replication is an experimental feature that may not be ready for production use.
 
