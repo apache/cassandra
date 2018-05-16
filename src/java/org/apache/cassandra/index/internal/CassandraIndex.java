@@ -739,6 +739,7 @@ public abstract class CassandraIndex implements Index
 
         TableMetadata.Builder builder =
             TableMetadata.builder(baseCfsMetadata.keyspace, baseCfsMetadata.indexTableName(indexMetadata), baseCfsMetadata.id)
+                         .kind(TableMetadata.Kind.INDEX)
                          // tables for legacy KEYS indexes are non-compound and dense
                          .isDense(indexMetadata.isKeys())
                          .isCompound(!indexMetadata.isKeys())

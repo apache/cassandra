@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.MapDifference;
@@ -28,15 +29,12 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.*;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.KeyspaceNotDefinedException;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnknownTableException;
@@ -312,7 +310,8 @@ public final class Schema
     public KeyspaceMetadata getKeyspaceMetadata(String keyspaceName)
     {
         assert keyspaceName != null;
-        return keyspaces.getNullable(keyspaceName);
+        KeyspaceMetadata keyspace = keyspaces.getNullable(keyspaceName);
+        return null != keyspace ? keyspace : VirtualKeyspaceRegistry.instance.getKeyspaceMetadataNullable(keyspaceName);
     }
 
     private Set<String> getNonSystemKeyspacesSet()
@@ -426,15 +425,17 @@ public final class Schema
         assert keyspace != null;
         assert table != null;
 
-        KeyspaceMetadata ksm = keyspaces.getNullable(keyspace);
+        KeyspaceMetadata ksm = getKeyspaceMetadata(keyspace);
         return ksm == null
              ? null
              : ksm.getTableOrViewNullable(table);
     }
 
+    @Nullable
     public TableMetadata getTableMetadata(TableId id)
     {
-        return keyspaces.getTableOrViewNullable(id);
+        TableMetadata table = keyspaces.getTableOrViewNullable(id);
+        return null != table ? table : VirtualKeyspaceRegistry.instance.getTableMetadataNullable(id);
     }
 
     public TableMetadata validateTable(String keyspaceName, String tableName)
@@ -442,7 +443,7 @@ public final class Schema
         if (tableName.isEmpty())
             throw new InvalidRequestException("non-empty table is required");
 
-        KeyspaceMetadata keyspace = keyspaces.getNullable(keyspaceName);
+        KeyspaceMetadata keyspace = getKeyspaceMetadata(keyspaceName);
         if (keyspace == null)
             throw new KeyspaceNotDefinedException(format("keyspace %s does not exist", keyspaceName));
 

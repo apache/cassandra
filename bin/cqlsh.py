@@ -437,6 +437,9 @@ class Shell(cmd.Cmd):
     shunted_query_out = None
     use_paging = True
 
+    # TODO remove after virtual tables are added to connection metadata
+    virtual_keyspaces = None
+
     default_page_size = 100
 
     def __init__(self, hostname, port, color=False,
@@ -628,7 +631,10 @@ class Shell(cmd.Cmd):
         self.connection_versions = vers
 
     def get_keyspace_names(self):
-        return map(str, self.conn.metadata.keyspaces.keys())
+        # TODO remove after virtual tables are added to connection metadata
+        if self.virtual_keyspaces is None:
+            self.init_virtual_keyspaces_meta()
+        return map(str, self.conn.metadata.keyspaces.keys() + self.virtual_keyspaces.keys())
 
     def get_columnfamily_names(self, ksname=None):
         if ksname is None:
@@ -692,9 +698,78 @@ class Shell(cmd.Cmd):
         return self.conn.metadata.partitioner
 
     def get_keyspace_meta(self, ksname):
-        if ksname not in self.conn.metadata.keyspaces:
-            raise KeyspaceNotFound('Keyspace %r not found.' % ksname)
-        return self.conn.metadata.keyspaces[ksname]
+        if ksname in self.conn.metadata.keyspaces:
+            return self.conn.metadata.keyspaces[ksname]
+
+        # TODO remove after virtual tables are added to connection metadata
+        if self.virtual_keyspaces is None:
+            self.init_virtual_keyspaces_meta()
+        if ksname in self.virtual_keyspaces:
+            return self.virtual_keyspaces[ksname]
+
+        raise KeyspaceNotFound('Keyspace %r not found.' % ksname)
+
+    # TODO remove after virtual tables are added to connection metadata
+    def init_virtual_keyspaces_meta(self):
+        self.virtual_keyspaces = {}
+        for vkeyspace in self.fetch_virtual_keyspaces():
+            self.virtual_keyspaces[vkeyspace.name] = vkeyspace
+
+    # TODO remove after virtual tables are added to connection metadata
+    def fetch_virtual_keyspaces(self):
+        keyspaces = []
+
+        result = self.session.execute('SELECT keyspace_name FROM system_virtual_schema.keyspaces;')
+        for row in result:
+            name = row['keyspace_name']
+            keyspace = KeyspaceMetadata(name, False, None, None)
+            tables = self.fetch_virtual_tables(name)
+            for table in tables:
+                keyspace.tables[table.name] = table
+            keyspaces.append(keyspace)
+
+        return keyspaces
+
+    # TODO remove after virtual tables are added to connection metadata
+    def fetch_virtual_tables(self, keyspace_name):
+        tables = []
+
+        result = self.session.execute("SELECT * FROM system_virtual_schema.tables WHERE keyspace_name = '{}';".format(keyspace_name))
+        for row in result:
+            name = row['table_name']
+            table = TableMetadata(keyspace_name, name)
+            self.fetch_virtual_columns(table)
+            tables.append(table)
+
+        return tables
+
+    # TODO remove after virtual tables are added to connection metadata
+    def fetch_virtual_columns(self, table):
+        result = self.session.execute("SELECT * FROM system_virtual_schema.columns WHERE keyspace_name = '{}' AND table_name = '{}';".format(table.keyspace_name, table.name))
+
+        partition_key_columns = []
+        clustering_columns = []
+
+        for row in result:
+            name = row['column_name']
+            cql_type = row['type']
+            kind = row['kind']
+            position = row['position']
+            is_static = kind == 'static'
+            is_reversed = row['clustering_order'] == 'desc'
+            column = ColumnMetadata(table, name, cql_type, is_static, is_reversed)
+            table.columns[column.name] = column
+
+            if kind == 'partition_key':
+                partition_key_columns.append((position, column))
+            elif kind == 'clustering':
+                clustering_columns.append((position, column))
+
+        partition_key_columns.sort(key=lambda t: t[0])
+        clustering_columns.sort(key=lambda t: t[0])
+
+        table.partition_key  = map(lambda t: t[1], partition_key_columns)
+        table.clustering_key = map(lambda t: t[1], clustering_columns)
 
     def get_keyspaces(self):
         return self.conn.metadata.keyspaces.values()
@@ -707,7 +782,6 @@ class Shell(cmd.Cmd):
         if ksname is None:
             ksname = self.current_keyspace
         ksmeta = self.get_keyspace_meta(ksname)
-
         if tablename not in ksmeta.tables:
             if ksname == 'system_auth' and tablename in ['roles', 'role_permissions']:
                 self.get_fake_auth_table_meta(ksname, tablename)

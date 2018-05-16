@@ -88,6 +88,9 @@ public class AlterTableStatement extends SchemaAlteringStatement
         if (current.isView())
             throw new InvalidRequestException("Cannot use ALTER TABLE on Materialized View");
 
+        if (current.isVirtual())
+            throw new InvalidRequestException("Cannot alter virtual tables");
+
         TableMetadata.Builder builder = current.unbuild();
 
         ColumnIdentifier columnName = null;

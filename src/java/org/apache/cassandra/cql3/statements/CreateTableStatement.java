@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.regex.Pattern;
+
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
 import org.apache.commons.lang3.StringUtils;
@@ -134,7 +135,6 @@ public class CreateTableStatement extends SchemaAlteringStatement
                .isCompound(isCompound)
                .isCounter(hasCounters)
                .isSuper(false)
-               .isView(false)
                .params(params);
 
         for (int i = 0; i < keyAliases.size(); i++)
@@ -213,6 +213,9 @@ public class CreateTableStatement extends SchemaAlteringStatement
             KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace());
             if (ksm == null)
                 throw new ConfigurationException(String.format("Keyspace %s doesn't exist", keyspace()));
+            if (ksm.isVirtual())
+                throw new InvalidRequestException("Cannot create tables in virtual keyspaces");
+
             return prepare(ksm.types);
         }
 

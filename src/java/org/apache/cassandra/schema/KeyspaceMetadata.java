@@ -36,16 +36,23 @@ import static java.lang.String.format;
  */
 public final class KeyspaceMetadata
 {
+    public enum Kind
+    {
+        REGULAR, VIRTUAL
+    }
+
     public final String name;
+    public final Kind kind;
     public final KeyspaceParams params;
     public final Tables tables;
     public final Views views;
     public final Types types;
     public final Functions functions;
 
-    private KeyspaceMetadata(String name, KeyspaceParams params, Tables tables, Views views, Types types, Functions functions)
+    private KeyspaceMetadata(String name, Kind kind, KeyspaceParams params, Tables tables, Views views, Types types, Functions functions)
     {
         this.name = name;
+        this.kind = kind;
         this.params = params;
         this.tables = tables;
         this.views = views;
@@ -55,42 +62,52 @@ public final class KeyspaceMetadata
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params)
     {
-        return new KeyspaceMetadata(name, params, Tables.none(), Views.none(), Types.none(), Functions.none());
+        return new KeyspaceMetadata(name, Kind.REGULAR, params, Tables.none(), Views.none(), Types.none(), Functions.none());
     }
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables)
     {
-        return new KeyspaceMetadata(name, params, tables, Views.none(), Types.none(), Functions.none());
+        return new KeyspaceMetadata(name, Kind.REGULAR, params, tables, Views.none(), Types.none(), Functions.none());
     }
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables, Views views, Types types, Functions functions)
     {
-        return new KeyspaceMetadata(name, params, tables, views, types, functions);
+        return new KeyspaceMetadata(name, Kind.REGULAR, params, tables, views, types, functions);
+    }
+
+    public static KeyspaceMetadata virtual(String name, Tables tables)
+    {
+        return new KeyspaceMetadata(name, Kind.VIRTUAL, KeyspaceParams.local(), tables, Views.none(), Types.none(), Functions.none());
     }
 
     public KeyspaceMetadata withSwapped(KeyspaceParams params)
     {
-        return new KeyspaceMetadata(name, params, tables, views, types, functions);
+        return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
     }
 
     public KeyspaceMetadata withSwapped(Tables regular)
     {
-        return new KeyspaceMetadata(name, params, regular, views, types, functions);
+        return new KeyspaceMetadata(name, kind, params, regular, views, types, functions);
     }
 
     public KeyspaceMetadata withSwapped(Views views)
     {
-        return new KeyspaceMetadata(name, params, tables, views, types, functions);
+        return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
     }
 
     public KeyspaceMetadata withSwapped(Types types)
     {
-        return new KeyspaceMetadata(name, params, tables, views, types, functions);
+        return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
     }
 
     public KeyspaceMetadata withSwapped(Functions functions)
     {
-        return new KeyspaceMetadata(name, params, tables, views, types, functions);
+        return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
+    }
+
+    public boolean isVirtual()
+    {
+        return kind == Kind.VIRTUAL;
     }
 
     public Iterable<TableMetadata> tablesAndViews()
@@ -129,7 +146,7 @@ public final class KeyspaceMetadata
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, params, tables, views, functions, types);
+        return Objects.hashCode(name, kind, params, tables, views, functions, types);
     }
 
     @Override
@@ -144,6 +161,7 @@ public final class KeyspaceMetadata
         KeyspaceMetadata other = (KeyspaceMetadata) o;
 
         return name.equals(other.name)
+            && kind == other.kind
             && params.equals(other.params)
             && tables.equals(other.tables)
             && views.equals(other.views)
@@ -156,6 +174,7 @@ public final class KeyspaceMetadata
     {
         return MoreObjects.toStringHelper(this)
                           .add("name", name)
+                          .add("kind", kind)
                           .add("params", params)
                           .add("tables", tables)
                           .add("views", views)

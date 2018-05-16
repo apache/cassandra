@@ -66,6 +66,8 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("Unknown keyspace " + name);
         if (SchemaConstants.isLocalSystemKeyspace(ksm.name))
             throw new InvalidRequestException("Cannot alter system keyspace");
+        if (ksm.isVirtual())
+            throw new InvalidRequestException("Cannot alter virtual keyspaces");
 
         attrs.validate();
 

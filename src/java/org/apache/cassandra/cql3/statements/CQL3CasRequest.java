@@ -22,6 +22,7 @@ import java.util.*;
 
 import com.google.common.collect.*;
 
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
@@ -183,7 +184,7 @@ public class CQL3CasRequest implements CASRequest
         return conditionColumns;
     }
 
-    public SinglePartitionReadCommand readCommand(int nowInSec)
+    public SinglePartitionReadQuery readCommand(int nowInSec)
     {
         assert staticConditions != null || !conditions.isEmpty();
 
@@ -193,16 +194,16 @@ public class CQL3CasRequest implements CASRequest
         // With only a static condition, we still want to make the distinction between a non-existing partition and one
         // that exists (has some live data) but has not static content. So we query the first live row of the partition.
         if (conditions.isEmpty())
-            return SinglePartitionReadCommand.create(metadata,
-                                                     nowInSec,
-                                                     columnFilter,
-                                                     RowFilter.NONE,
-                                                     DataLimits.cqlLimits(1),
-                                                     key,
-                                                     new ClusteringIndexSliceFilter(Slices.ALL, false));
+            return SinglePartitionReadQuery.create(metadata,
+                                                   nowInSec,
+                                                   columnFilter,
+                                                   RowFilter.NONE,
+                                                   DataLimits.cqlLimits(1),
+                                                   key,
+                                                   new ClusteringIndexSliceFilter(Slices.ALL, false));
 
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(conditions.navigableKeySet(), false);
-        return SinglePartitionReadCommand.create(metadata, nowInSec, key, columnFilter, filter);
+        return SinglePartitionReadQuery.create(metadata, nowInSec, key, columnFilter, filter);
     }
 
     /**
@@ -244,7 +245,7 @@ public class CQL3CasRequest implements CASRequest
             upd.applyUpdates(current, updateBuilder);
 
         PartitionUpdate partitionUpdate = updateBuilder.build();
-        Keyspace.openAndGetStore(metadata).indexManager.validate(partitionUpdate);
+        IndexRegistry.obtain(metadata).validate(partitionUpdate);
 
         return partitionUpdate;
     }

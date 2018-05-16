@@ -65,6 +65,8 @@ import org.apache.cassandra.schema.TableMetadata;
  */
 public class ColumnFilter
 {
+    public static final ColumnFilter NONE = selection(RegularAndStaticColumns.NONE);
+
     public static final Serializer serializer = new Serializer();
 
     // True if _fetched_ includes all regular columns (and any static in _queried_), in which case metadata must not be

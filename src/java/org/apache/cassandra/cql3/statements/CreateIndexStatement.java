@@ -82,6 +82,9 @@ public class CreateIndexStatement extends SchemaAlteringStatement
     {
         TableMetadata table = Schema.instance.validateTable(keyspace(), columnFamily());
 
+        if (table.isVirtual())
+            throw new InvalidRequestException("Secondary indexes are not supported on virtual tables");
+
         if (table.isCounter())
             throw new InvalidRequestException("Secondary indexes are not supported on counter tables");
 

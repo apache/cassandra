@@ -203,6 +203,11 @@ public abstract class ModificationStatement implements CQLStatement
         return metadata().isView();
     }
 
+    public boolean isVirtual()
+    {
+        return metadata().isVirtual();
+    }
+
     public long getTimestamp(long now, QueryOptions options) throws InvalidRequestException
     {
         return attrs.getTimestamp(now, options);
@@ -248,6 +253,8 @@ public abstract class ModificationStatement implements CQLStatement
         checkFalse(isCounter() && attrs.isTimestampSet(), "Cannot provide custom timestamp for counter updates");
         checkFalse(isCounter() && attrs.isTimeToLiveSet(), "Cannot provide custom TTL for counter updates");
         checkFalse(isView(), "Cannot directly modify a materialized view");
+        checkFalse(isVirtual() && attrs.isTimeToLiveSet(), "Expiring columns are not supported by virtual tables");
+        checkFalse(isVirtual() && hasConditions(), "Conditional updates are not supported by virtual tables");
     }
 
     public RegularAndStaticColumns updatedColumns()
@@ -440,6 +447,9 @@ public abstract class ModificationStatement implements CQLStatement
     private ResultMessage executeWithoutCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
+        if (isVirtual())
+            return executeInternalWithoutCondition(queryState, options, queryStartNanoTime);
+
         ConsistencyLevel cl = options.getConsistency();
         if (isCounter())
             cl.validateCounterForWrite(metadata());
@@ -613,7 +623,7 @@ public abstract class ModificationStatement implements CQLStatement
     {
         UUID ballot = UUIDGen.getTimeUUIDFromMicros(state.getTimestamp());
 
-        SinglePartitionReadCommand readCommand = request.readCommand(FBUtilities.nowInSeconds());
+        SinglePartitionReadQuery readCommand = request.readCommand(FBUtilities.nowInSeconds());
         FilteredPartition current;
         try (ReadExecutionController executionController = readCommand.executionController();
              PartitionIterator iter = readCommand.executeInternal(executionController))
