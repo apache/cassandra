@@ -1209,7 +1209,7 @@ public class TokenMetadata
     {
         PendingRangeMaps pendingRangeMaps = this.pendingRanges.get(keyspaceName);
         if (pendingRangeMaps == null)
-            return new ReplicaList(0);
+            return Replicas.empty();
 
         return pendingRangeMaps.pendingEndpointsFor(token);
     }

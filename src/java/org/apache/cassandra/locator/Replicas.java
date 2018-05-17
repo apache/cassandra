@@ -27,8 +27,8 @@ import java.util.Set;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
-import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.dht.Range;
@@ -75,6 +75,11 @@ public abstract class Replicas implements Iterable<Replica>
         return result;
     }
 
+    public Collection<InetAddressAndPort> asUnmodifiableEndpointCollection()
+    {
+        return Collections2.transform(getUnmodifiableCollection(), Replica::getEndpoint);
+    }
+
     public Iterable<Range<Token>> asRanges()
     {
         return Iterables.transform(this, Replica::getRange);
@@ -102,7 +107,12 @@ public abstract class Replicas implements Iterable<Replica>
 
     public boolean containsEndpoint(InetAddressAndPort endpoint)
     {
-        return Iterables.any(this, r -> r.getEndpoint().equals(endpoint));
+        for (Replica replica: this)
+        {
+            if (replica.getEndpoint().equals(endpoint))
+                return true;
+        }
+        return false;
     }
 
     /**
@@ -280,6 +290,27 @@ public abstract class Replicas implements Iterable<Replica>
         };
     }
 
+    public static Replicas of(Replica replica)
+    {
+        return new ImmutableReplicaContainer()
+        {
+            public int size()
+            {
+                return 1;
+            }
+
+            protected Collection<Replica> getUnmodifiableCollection()
+            {
+                return Collections.singleton(replica);
+            }
+
+            public Iterator<Replica> iterator()
+            {
+                return Iterators.singletonIterator(replica);
+            }
+        };
+    }
+
     public static Replicas of(Collection<Replica> replicas)
     {
         return new ImmutableReplicaContainer()
@@ -302,9 +333,32 @@ public abstract class Replicas implements Iterable<Replica>
         };
     }
 
+    private static Replicas EMPTY = new ImmutableReplicaContainer()
+    {
+        public int size()
+        {
+            return 0;
+        }
+
+        protected Collection<Replica> getUnmodifiableCollection()
+        {
+            return Collections.emptyList();
+        }
+
+        public Iterator<Replica> iterator()
+        {
+            return Collections.emptyIterator();
+        }
+    };
+
+    public static Replicas empty()
+    {
+        return EMPTY;
+    }
+
     public static Replicas singleton(Replica replica)
     {
-        return of(Collections.singleton(replica));
+        return of(replica);
     }
 
     /**
@@ -328,14 +382,6 @@ public abstract class Replicas implements Iterable<Replica>
         {
             // FIXME: add support for transient replicas
             throw new UnsupportedOperationException("transient replicas are currently unsupported");
-        }
-    }
-
-    public static void checkAllFull(Iterable<? extends Replicas> replicas)
-    {
-        for (Replicas iterable: replicas)
-        {
-            checkFull(iterable);
         }
     }
 

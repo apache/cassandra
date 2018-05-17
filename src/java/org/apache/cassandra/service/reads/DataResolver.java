@@ -52,7 +52,10 @@ public class DataResolver extends ResponseResolver
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
 
         replicaMap = Maps.newHashMapWithExpectedSize(replicas.size());
-        replicas.forEach(r -> replicaMap.put(r.getEndpoint(), r));
+        for (Replica replica: replicas)
+        {
+            replicaMap.put(replica.getEndpoint(), replica);
+        }
     }
 
     public PartitionIterator getData()

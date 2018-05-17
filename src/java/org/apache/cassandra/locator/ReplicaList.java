@@ -123,16 +123,6 @@ public class ReplicaList extends Replicas
         return replicaList.get(idx);
     }
 
-    public List<InetAddressAndPort> asEndpointList()
-    {
-        List<InetAddressAndPort> endpoints = new ArrayList<>(replicaList.size());
-        for (Replica replica: replicaList)
-        {
-            endpoints.add(replica.getEndpoint());
-        }
-        return endpoints;
-    }
-
     @Override
     public void removeEndpoint(InetAddressAndPort endpoint)
     {
@@ -149,6 +139,17 @@ public class ReplicaList extends Replicas
     public void removeReplica(Replica replica)
     {
         replicaList.remove(replica);
+    }
+
+    @Override
+    public boolean containsEndpoint(InetAddressAndPort endpoint)
+    {
+        for (int i=0; i<size(); i++)
+        {
+            if (replicaList.get(i).getEndpoint().equals(endpoint))
+                return true;
+        }
+        return false;
     }
 
     public ReplicaList filter(Predicate<Replica> predicate)
@@ -181,6 +182,18 @@ public class ReplicaList extends Replicas
         //   3) l1 and l2 are sorted by proximity. The use of retainAll  maintain that sorting in the result, while using sets wouldn't.
         Collection<InetAddressAndPort> endpoints = l2.asEndpointList();
         return l1.filter(r -> endpoints.contains(r.getEndpoint()));
+    }
+
+    public static ReplicaList of()
+    {
+        return new ReplicaList(0);
+    }
+
+    public static ReplicaList of(Replica replica)
+    {
+        ReplicaList replicaList = new ReplicaList(1);
+        replicaList.add(replica);
+        return replicaList;
     }
 
     public static ReplicaList of(Replica... replicas)

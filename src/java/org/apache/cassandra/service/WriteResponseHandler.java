@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import org.slf4j.Logger;
@@ -58,7 +55,7 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 
     public WriteResponseHandler(Replica replica, WriteType writeType, Runnable callback, long queryStartNanoTime)
     {
-        this(new ReplicaList(Collections.singleton(replica)), new ReplicaList(), ConsistencyLevel.ONE, null, callback, writeType, queryStartNanoTime);
+        this(ReplicaList.of(replica), Replicas.empty(), ConsistencyLevel.ONE, null, callback, writeType, queryStartNanoTime);
     }
 
     public WriteResponseHandler(Replica replica, WriteType writeType, long queryStartNanoTime)

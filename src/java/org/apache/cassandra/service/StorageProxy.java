@@ -503,9 +503,9 @@ public class StorageProxy implements StorageProxyMBean
     {
         PrepareCallback callback = new PrepareCallback(toPrepare.update.partitionKey(), toPrepare.update.metadata(), requiredParticipants, consistencyForPaxos, queryStartNanoTime);
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PREPARE, toPrepare, Commit.serializer);
-        for (InetAddressAndPort target : replicas.asEndpoints())
+        for (Replica replica: replicas)
         {
-            if (canDoLocalRequest(target))
+            if (canDoLocalRequest(replica.getEndpoint()))
             {
                 StageManager.getStage(MessagingService.verbStages.get(MessagingService.Verb.PAXOS_PREPARE)).execute(new Runnable()
                 {
@@ -529,7 +529,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
-                MessagingService.instance().sendRR(message, target, callback);
+                MessagingService.instance().sendRR(message, replica.getEndpoint(), callback);
             }
         }
         callback.await();
@@ -541,9 +541,9 @@ public class StorageProxy implements StorageProxyMBean
     {
         ProposeCallback callback = new ProposeCallback(replicas.size(), requiredParticipants, !timeoutIfPartial, consistencyLevel, queryStartNanoTime);
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PROPOSE, proposal, Commit.serializer);
-        for (InetAddressAndPort target : replicas.asEndpoints())
+        for (Replica replica : replicas)
         {
-            if (canDoLocalRequest(target))
+            if (canDoLocalRequest(replica.getEndpoint()))
             {
                 StageManager.getStage(MessagingService.verbStages.get(MessagingService.Verb.PAXOS_PROPOSE)).execute(new Runnable()
                 {
@@ -567,7 +567,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
-                MessagingService.instance().sendRR(message, target, callback);
+                MessagingService.instance().sendRR(message, replica.getEndpoint(), callback);
             }
         }
         callback.await();
@@ -1420,7 +1420,7 @@ public class StorageProxy implements StorageProxyMBean
             logger.trace("Adding FWD message to {}@{}", id, destination);
         }
         Replicas.checkFull(targets);
-        message = message.withParameter(ParameterType.FORWARD_TO.FORWARD_TO, new ForwardToContainer(targets.asEndpointList(), messageIds));
+        message = message.withParameter(ParameterType.FORWARD_TO.FORWARD_TO, new ForwardToContainer(targets.asUnmodifiableEndpointCollection(), messageIds));
         // send the combined message + forward headers
         int id = MessagingService.instance().sendWriteRR(message, target, handler, true);
         logger.trace("Sending message to {}@{}", id, target);

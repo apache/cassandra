@@ -3849,19 +3849,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * specified key i.e for replication.
      *
      * @param keyspace keyspace name also known as keyspace
-     * @param key key for which we need to find the endpoint
-     * @return the endpoint responsible for this key
-     */
-    public ReplicaList getLiveNaturalReplicas(Keyspace keyspace, ByteBuffer key)
-    {
-        return getLiveNaturalReplicas(keyspace, tokenMetadata.decorateKey(key));
-    }
-
-    /**
-     * This method attempts to return N endpoints that are responsible for storing the
-     * specified key i.e for replication.
-     *
-     * @param keyspace keyspace name also known as keyspace
      * @param pos position for which we need to find the endpoint
      */
     public ReplicaList getLiveNaturalReplicas(Keyspace keyspace, RingPosition pos)
