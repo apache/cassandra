@@ -85,12 +85,17 @@ public class DelimiterAnalyzer extends AbstractAnalyzer
 
                 CharBuffer readahead = cb.duplicate();
                 // loop until we see the next delimiter character, or reach end of data
-                while (readahead.hasRemaining() && readahead.get() != delimiter);
+                boolean readaheadRemaining;
+                while ((readaheadRemaining = readahead.hasRemaining()) && readahead.get() != delimiter);
 
-                char[] chars = new char[readahead.position() - cb.position() - (readahead.hasRemaining() ? 1 : 0)];
+                char[] chars = new char[readahead.position() - cb.position() - (readaheadRemaining ? 1 : 0)];
                 cb.get(chars);
                 Preconditions.checkState(!cb.hasRemaining() || cb.get() == delimiter);
-                return charset.encode(CharBuffer.wrap(chars));
+
+                return 0 < chars.length
+                        ? charset.encode(CharBuffer.wrap(chars))
+                        // blank partition keys not permitted, ref ConcurrentRadixTree.putIfAbsent(..)
+                        : computeNext();
             }
         };
     }
