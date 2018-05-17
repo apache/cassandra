@@ -69,7 +69,6 @@ public class Replica
 
     public int hashCode()
     {
-
         return Objects.hash(endpoint, range, full);
     }
 
@@ -107,7 +106,7 @@ public class Replica
         assert isFull() && that.isFull();  // FIXME: this
         Set<Range<Token>> ranges = range.subtract(that.range);
         ReplicaSet replicatedRanges = new ReplicaSet(ranges.size());
-        for (Range<Token> range: ranges)
+        for (Range<Token> range : ranges)
         {
             replicatedRanges.add(new Replica(getEndpoint(), range, isFull()));
         }
@@ -125,7 +124,7 @@ public class Replica
         {
             Set<Range<Token>> subtractedRanges = getRange().subtractAll(toSubtract.asRangeSet());
             ReplicaSet replicaSet = new ReplicaSet(subtractedRanges.size());
-            for (Range<Token> range: subtractedRanges)
+            for (Range<Token> range : subtractedRanges)
             {
                 replicaSet.add(new Replica(getEndpoint(), range, isFull()));
             }
@@ -138,15 +137,13 @@ public class Replica
         }
     }
 
-    public ReplicaList normalizeByRange()
+    public void addNormalizeByRange(ReplicaList dst)
     {
         List<Range<Token>> normalized = Range.normalize(Collections.singleton(getRange()));
-        ReplicaList replicas = new ReplicaList(normalized.size());
-        for (Range<Token> normalizedRange: normalized)
+        for (Range<Token> normalizedRange : normalized)
         {
-            replicas.add(new Replica(getEndpoint(), normalizedRange, isFull()));
+            dst.add(new Replica(getEndpoint(), normalizedRange, isFull()));
         }
-        return replicas;
     }
 
     public boolean contains(Range<Token> that)
@@ -176,7 +173,8 @@ public class Replica
      */
     public static Replica fullStandin(InetAddressAndPort endpoint)
     {
-        return new Replica(endpoint, null, true) {
+        return new Replica(endpoint, null, true)
+        {
             @Override
             public Range<Token> getRange()
             {
@@ -198,24 +196,6 @@ public class Replica
     public static Replica trans(InetAddressAndPort endpoint, Token start, Token end)
     {
         return trans(endpoint, new Range<>(start, end));
-    }
-
-    public static void assureSufficientFullReplica(Collection<Replica> replicas, ConsistencyLevel cl) throws UnavailableException
-    {
-        if (!Iterables.any(replicas, Replica::isFull))
-        {
-            throw new UnavailableException(cl, "At least one full replica required", 1, 0);
-        }
-    }
-
-    public static Iterable<InetAddressAndPort> toEndpoints(Iterable<Replica> replicas)
-    {
-        return Iterables.transform(replicas, Replica::getEndpoint);
-    }
-
-    public static List<InetAddressAndPort> toEndpointList(List<Replica> replicas)
-    {
-        return Lists.newArrayList(toEndpoints(replicas));
     }
 }
 

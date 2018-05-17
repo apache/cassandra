@@ -67,7 +67,7 @@ public class ReplicaSet extends Replicas
 
     public int hashCode()
     {
-        return Objects.hash(replicaSet);
+        return replicaSet.hashCode();
     }
 
     @Override
@@ -91,7 +91,13 @@ public class ReplicaSet extends Replicas
     @Override
     public void removeEndpoint(InetAddressAndPort endpoint)
     {
-        replicaSet.removeIf(r -> r.getEndpoint().equals(endpoint));
+        for (Replica replica: replicaSet)
+        {
+            if (replica.getEndpoint().equals(endpoint))
+            {
+                replicaSet.remove(replica);
+            }
+        }
     }
 
     @Override

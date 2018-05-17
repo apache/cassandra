@@ -20,17 +20,28 @@ package org.apache.cassandra.locator;
 
 import java.util.AbstractMap;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-
-import com.google.common.collect.Iterables;
 
 public abstract class ReplicaMultimap<K, V extends Replicas>
 {
     Map<K, V> map = new HashMap<>();
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReplicaMultimap<?, ?> that = (ReplicaMultimap<?, ?>) o;
+        return Objects.equals(map, that.map);
+    }
+
+    public int hashCode()
+    {
+        return map.hashCode();
+    }
 
     protected abstract V getDefault();
     protected abstract V createEmpty(K key);

@@ -221,6 +221,7 @@ public abstract class AbstractReplicationStrategy
             Range<Token> range = metadata.getPrimaryRangeFor(token);
             for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
+                // LocalStrategy always returns (min, min] ranges for it's replicas, so we skip the check here
                 Preconditions.checkState(range.equals(replica.getRange()) || this instanceof LocalStrategy);
                 map.put(replica.getEndpoint(), replica);
             }
@@ -238,6 +239,7 @@ public abstract class AbstractReplicationStrategy
             Range<Token> range = metadata.getPrimaryRangeFor(token);
             for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
+                // LocalStrategy always returns (min, min] ranges for it's replicas, so we skip the check here
                 Preconditions.checkState(range.equals(replica.getRange()) || this instanceof LocalStrategy);
                 map.put(range, replica);
             }

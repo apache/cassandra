@@ -208,7 +208,7 @@ public enum ConsistencyLevel
 
         Map<String, ReplicaList> dcsReplicas = new HashMap<>();
         for (String dc: strategy.getDatacenters())
-            dcsReplicas.put(dc, new ReplicaList());
+            dcsReplicas.put(dc, ReplicaList.withMaxSize(liveReplicas.size()));
 
         for (Replica replica : liveReplicas)
         {
@@ -216,7 +216,7 @@ public enum ConsistencyLevel
             dcsReplicas.get(dc).add(replica);
         }
 
-        ReplicaList waitSet = new ReplicaList();
+        ReplicaList waitSet = new ReplicaList(ReplicaList.withMaxSize(liveReplicas.size()));
         for (Map.Entry<String, ReplicaList> dcEndpoints : dcsReplicas.entrySet())
         {
             ReplicaList dcEndpoint = dcEndpoints.getValue();

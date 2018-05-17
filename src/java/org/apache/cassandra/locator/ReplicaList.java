@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
@@ -77,8 +78,7 @@ public class ReplicaList extends Replicas
 
     public int hashCode()
     {
-
-        return Objects.hash(replicaList);
+        return replicaList.hashCode();
     }
 
     @Override
@@ -90,6 +90,7 @@ public class ReplicaList extends Replicas
     @Override
     public boolean add(Replica replica)
     {
+        Preconditions.checkNotNull(replica);
         return replicaList.add(replica);
     }
 
@@ -135,7 +136,13 @@ public class ReplicaList extends Replicas
     @Override
     public void removeEndpoint(InetAddressAndPort endpoint)
     {
-        replicaList.removeIf(r -> r.getEndpoint().equals(endpoint));
+        for (int i=replicaList.size()-1; i>=0; i--)
+        {
+            if (replicaList.get(i).getEndpoint().equals(endpoint))
+            {
+                replicaList.remove(i);
+            }
+        }
     }
 
     @Override
@@ -146,9 +153,10 @@ public class ReplicaList extends Replicas
 
     public ReplicaList filter(Predicate<Replica> predicate)
     {
-        ArrayList<Replica> newReplicaList = new ArrayList<>(size());
-        for (Replica replica: replicaList)
+        ArrayList<Replica> newReplicaList = size() < 10 ? new ArrayList<>(size()) : new ArrayList<>();
+        for (int i=0; i<size(); i++)
         {
+            Replica replica = replicaList.get(i);
             if (predicate.test(replica))
             {
                 newReplicaList.add(replica);
@@ -197,7 +205,7 @@ public class ReplicaList extends Replicas
             ReplicaList normalized = new ReplicaList(size());
             for (Replica replica: this)
             {
-                normalized.addAll(replica.normalizeByRange());
+                replica.addNormalizeByRange(normalized);
             }
 
             return normalized;
@@ -247,5 +255,16 @@ public class ReplicaList extends Replicas
             replicaList.add(Replica.fullStandin(endpoint));
         }
         return replicaList;
+    }
+
+    /**
+     * For allocating ReplicaLists where the final size is unknown, but
+     * should be less than the given size. Prevents overallocations in cases
+     * where there are less than the default ArrayList size, and defers to the
+     * ArrayList algorithem where there might be more
+     */
+    public static ReplicaList withMaxSize(int size)
+    {
+        return size < 10 ? new ReplicaList(size) : new ReplicaList();
     }
 }
