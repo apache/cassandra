@@ -26,6 +26,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -1485,6 +1486,11 @@ public class DatabaseDescriptor
                          getWriteRpcTimeout(),
                          getCounterWriteRpcTimeout(),
                          getTruncateRpcTimeout());
+    }
+
+    public static long getPingTimeout()
+    {
+        return TimeUnit.SECONDS.toMillis(getBlockForPeersTimeoutInSeconds());
     }
 
     public static double getPhiConvictThreshold()

@@ -33,10 +33,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
@@ -878,9 +878,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return endpointStateMap.get(ep);
     }
 
-    public Set<Entry<InetAddressAndPort, EndpointState>> getEndpointStates()
+    public ImmutableSet<InetAddressAndPort> getEndpoints()
     {
-        return endpointStateMap.entrySet();
+        return ImmutableSet.copyOf(endpointStateMap.keySet());
+    }
+
+    public int getEndpointCount()
+    {
+        return endpointStateMap.size();
     }
 
     public UUID getHostId(InetAddressAndPort endpoint)
@@ -1798,11 +1803,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_MIN_WAIT_MS, TimeUnit.MILLISECONDS);
         int totalPolls = 0;
         int numOkay = 0;
-        int epSize = Gossiper.instance.getEndpointStates().size();
+        int epSize = Gossiper.instance.getEndpointCount();
         while (numOkay < GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
         {
             Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
-            int currentSize = Gossiper.instance.getEndpointStates().size();
+            int currentSize = Gossiper.instance.getEndpointCount();
             totalPolls++;
             if (currentSize == epSize)
             {
