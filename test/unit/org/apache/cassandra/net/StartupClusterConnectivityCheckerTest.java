@@ -19,111 +19,139 @@
 package org.apache.cassandra.net;
 
 import java.net.UnknownHostException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
 
-import com.google.common.net.InetAddresses;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.locator.InetAddressAndPort;
+
+import static org.apache.cassandra.net.async.OutboundConnectionIdentifier.ConnectionType.SMALL_MESSAGE;
 
 public class StartupClusterConnectivityCheckerTest
 {
-    @Test
-    public void testConnectivity_SimpleHappyPath() throws UnknownHostException
+    private StartupClusterConnectivityChecker connectivityChecker;
+    private Set<InetAddressAndPort> peers;
+
+    @BeforeClass
+    public static void before()
     {
-        StartupClusterConnectivityChecker connectivityChecker = new StartupClusterConnectivityChecker(70, 10, addr -> true);
-        int count = 10;
-        Set<InetAddressAndPort> peers = createNodes(count);
-        Assert.assertEquals(StartupClusterConnectivityChecker.State.FINISH_SUCCESS,
-                            connectivityChecker.checkStatus(peers, new AtomicInteger(count * 2), System.nanoTime(), false, 0));
+        DatabaseDescriptor.daemonInitialization();
+    }
+
+    @Before
+    public void setUp() throws UnknownHostException
+    {
+        connectivityChecker = new StartupClusterConnectivityChecker(70, 10);
+        peers = new HashSet<>();
+        peers.add(InetAddressAndPort.getByName("127.0.1.0"));
+        peers.add(InetAddressAndPort.getByName("127.0.1.1"));
+        peers.add(InetAddressAndPort.getByName("127.0.1.2"));
+    }
+
+    @After
+    public void tearDown()
+    {
+        MessagingService.instance().clearMessageSinks();
     }
 
     @Test
-    public void testConnectivity_SimpleContinue() throws UnknownHostException
+    public void execute_HappyPath()
     {
-        StartupClusterConnectivityChecker connectivityChecker = new StartupClusterConnectivityChecker(70, 10, addr -> true);
-        int count = 10;
-        Set<InetAddressAndPort> peers = createNodes(count);
-        Assert.assertEquals(StartupClusterConnectivityChecker.State.CONTINUE,
-                            connectivityChecker.checkStatus(peers, new AtomicInteger(0), System.nanoTime(), false, 0));
+        Sink sink = new Sink(true, true);
+        MessagingService.instance().addMessageSink(sink);
+        Assert.assertTrue(connectivityChecker.execute(peers));
+        checkAllConnectionTypesSeen(sink);
     }
 
     @Test
-    public void testConnectivity_Timeout() throws UnknownHostException
+    public void execute_NotAlive()
     {
-        StartupClusterConnectivityChecker connectivityChecker = new StartupClusterConnectivityChecker(70, 10, addr -> true);
-        int count = 10;
-        Set<InetAddressAndPort> peers = createNodes(count);
-        Assert.assertEquals(StartupClusterConnectivityChecker.State.CONTINUE,
-                            connectivityChecker.checkStatus(peers, new AtomicInteger(0), System.nanoTime(), false, 4));
-        Assert.assertEquals(StartupClusterConnectivityChecker.State.FINISH_TIMEOUT,
-                            connectivityChecker.checkStatus(peers, new AtomicInteger(0), System.nanoTime(), true, 5));
+        Sink sink = new Sink(false, true);
+        MessagingService.instance().addMessageSink(sink);
+        Assert.assertFalse(connectivityChecker.execute(peers));
+        checkAllConnectionTypesSeen(sink);
     }
 
     @Test
-    public void testConnectivity_SimpleUpdating() throws UnknownHostException
+    public void execute_NoConnectionsAcks()
     {
-        UpdatablePredicate predicate = new UpdatablePredicate();
-        final int count = 100;
-        final int thresholdPercentage = 70;
-        StartupClusterConnectivityChecker connectivityChecker = new StartupClusterConnectivityChecker(thresholdPercentage, 10, predicate);
-        Set<InetAddressAndPort> peers = createNodes(count);
+        Sink sink = new Sink(true, false);
+        MessagingService.instance().addMessageSink(sink);
+        Assert.assertFalse(connectivityChecker.execute(peers));
+    }
 
-        AtomicInteger connectedCount = new AtomicInteger();
-
-        for (int i = 0; i < count; i++)
+    private void checkAllConnectionTypesSeen(Sink sink)
+    {
+        for (InetAddressAndPort peer : peers)
         {
-            predicate.reset(i);
-            connectedCount.set(i * 2);
-            StartupClusterConnectivityChecker.State expectedState = i < thresholdPercentage ?
-                                                                    StartupClusterConnectivityChecker.State.CONTINUE :
-                                                                    StartupClusterConnectivityChecker.State.FINISH_SUCCESS;
-            Assert.assertEquals("failed on iteration " + i,
-                                expectedState, connectivityChecker.checkStatus(peers, connectedCount, System.nanoTime(), false, i));
+            ConnectionTypeRecorder recorder = sink.seenConnectionRequests.get(peer);
+            Assert.assertNotNull(recorder);
+            Assert.assertTrue(recorder.seenSmallMessageRequest);
+            Assert.assertTrue(recorder.seenLargeMessageRequest);
         }
     }
 
-    /**
-     * returns true until index = threshold, then returns false.
-     */
-    private class UpdatablePredicate implements Predicate<InetAddressAndPort>
+    private static class Sink implements IMessageSink
     {
-        int index;
-        int threshold;
+        private final boolean markAliveInGossip;
+        private final boolean processConnectAck;
+        private final Map<InetAddressAndPort, ConnectionTypeRecorder> seenConnectionRequests;
 
-        void reset(int threshold)
+        Sink(boolean markAliveInGossip, boolean processConnectAck)
         {
-            index = 0;
-            this.threshold = threshold;
+            this.markAliveInGossip = markAliveInGossip;
+            this.processConnectAck = processConnectAck;
+            seenConnectionRequests = new HashMap<>();
         }
 
         @Override
-        public boolean test(InetAddressAndPort inetAddressAndPort)
+        public boolean allowOutgoingMessage(MessageOut message, int id, InetAddressAndPort to)
         {
-            index++;
-            return index <= threshold;
+            ConnectionTypeRecorder recorder = seenConnectionRequests.computeIfAbsent(to, inetAddress ->  new ConnectionTypeRecorder());
+            if (message.connectionType == SMALL_MESSAGE)
+            {
+                Assert.assertFalse(recorder.seenSmallMessageRequest);
+                recorder.seenSmallMessageRequest = true;
+            }
+            else
+            {
+                Assert.assertFalse(recorder.seenLargeMessageRequest);
+                recorder.seenLargeMessageRequest = true;
+            }
+
+            if (processConnectAck)
+            {
+                MessageIn msgIn = MessageIn.create(to, message.payload, Collections.emptyMap(), MessagingService.Verb.REQUEST_RESPONSE, 1);
+                MessagingService.instance().getRegisteredCallback(id).callback.response(msgIn);
+            }
+
+            if (markAliveInGossip)
+                Gossiper.instance.realMarkAlive(to, new EndpointState(new HeartBeatState(1, 1)));
+            return false;
+        }
+
+        @Override
+        public boolean allowIncomingMessage(MessageIn message, int id)
+        {
+            return false;
         }
     }
 
-    private static Set<InetAddressAndPort> createNodes(int count) throws UnknownHostException
+    private static class ConnectionTypeRecorder
     {
-        Set<InetAddressAndPort> nodes = new HashSet<>();
-
-        if (count < 1)
-            Assert.fail("need at least *one* node in the set!");
-
-        InetAddressAndPort node = InetAddressAndPort.getByName("127.0.0.1");
-        nodes.add(node);
-        for (int i = 1; i < count; i++)
-        {
-            node = InetAddressAndPort.getByAddress(InetAddresses.increment(node.address));
-            nodes.add(node);
-        }
-        return nodes;
+        boolean seenSmallMessageRequest;
+        boolean seenLargeMessageRequest;
     }
-
 }

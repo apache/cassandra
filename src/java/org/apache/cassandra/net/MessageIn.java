@@ -146,8 +146,14 @@ public class MessageIn<T>
             }
             serializer = (IVersionedSerializer<T2>) callback.serializer;
         }
+
         if (payloadSize == 0 || serializer == null)
+        {
+            // if there's no deserializer for the verb, skip the payload bytes to leave
+            // the stream in a clean state (for the next message)
+            in.skipBytesFully(payloadSize);
             return create(from, null, parameters, verb, version, constructionTime);
+        }
 
         T2 payload = serializer.deserialize(in, version);
         return MessageIn.create(from, payload, parameters, verb, version, constructionTime);

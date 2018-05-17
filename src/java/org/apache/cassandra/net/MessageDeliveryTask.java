@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.util.EnumSet;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Shorts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +51,24 @@ public class MessageDeliveryTask implements Runnable
 
     public void run()
     {
+        process();
+    }
+
+    /**
+     * A helper function for making unit testing reasonable.
+     *
+     * @return true if the message was processed; else false.
+     */
+    @VisibleForTesting
+    boolean process()
+    {
         MessagingService.Verb verb = message.verb;
+        if (verb == null)
+        {
+            logger.trace("Unknown verb {}", verb);
+            return false;
+        }
+
         MessagingService.instance().metrics.addQueueWaitTime(verb.toString(),
                                                              ApproximateTime.currentTimeMillis() - enqueueTime);
 
@@ -59,14 +77,14 @@ public class MessageDeliveryTask implements Runnable
             && timeTaken > message.getTimeout())
         {
             MessagingService.instance().incrementDroppedMessages(message, timeTaken);
-            return;
+            return false;
         }
 
         IVerbHandler verbHandler = MessagingService.instance().getVerbHandler(verb);
         if (verbHandler == null)
         {
-            logger.trace("Unknown verb {}", verb);
-            return;
+            logger.trace("No handler for verb {}", verb);
+            return false;
         }
 
         try
@@ -91,6 +109,7 @@ public class MessageDeliveryTask implements Runnable
 
         if (GOSSIP_VERBS.contains(message.verb))
             Gossiper.instance.setLastProcessedMessageAt(message.constructionTime);
+        return true;
     }
 
     private void handleFailure(Throwable t)
