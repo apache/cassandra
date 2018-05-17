@@ -1589,7 +1589,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // cleanup size estimation only counts bytes for keys local to this node
         long expectedFileSize = 0;
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).asRangeSet();
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).asUnmodifiableRangeCollection();
         for (SSTableReader sstable : sstables)
         {
             List<SSTableReader.PartitionPositionBounds> positions = sstable.getPositionsForRanges(ranges);
@@ -1866,7 +1866,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void cleanupCache()
     {
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).asRangeSet();
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).asUnmodifiableRangeCollection();
 
         for (Iterator<RowCacheKey> keyIter = CacheService.instance.rowCache.keyIterator();
              keyIter.hasNext(); )

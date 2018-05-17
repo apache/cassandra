@@ -465,7 +465,7 @@ public class CompactionManager implements CompactionManagerMBean
             return AllSSTableOpStatus.ABORTED;
         }
         // if local ranges is empty, it means no data should remain
-        final Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).asRangeSet();
+        final Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).asUnmodifiableRangeCollection();
         final boolean hasIndexes = cfStore.indexManager.hasIndexes();
 
         return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
@@ -530,9 +530,8 @@ public class CompactionManager implements CompactionManagerMBean
             logger.info("Partitioner does not support splitting");
             return AllSSTableOpStatus.ABORTED;
         }
-        final Collection<Range<Token>> r = StorageService.instance.getLocalReplicas(cfs.keyspace.getName()).asRangeSet();
 
-        if (r.isEmpty())
+        if (StorageService.instance.getLocalReplicas(cfs.keyspace.getName()).isEmpty())
         {
             logger.info("Relocate cannot run before a node has joined the ring");
             return AllSSTableOpStatus.ABORTED;
@@ -868,7 +867,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             ColumnFamilyStore cfs = entry.getKey();
             Keyspace keyspace = cfs.keyspace;
-            Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).asRangeSet();
+            Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).asUnmodifiableRangeCollection();
             boolean hasIndexes = cfs.indexManager.hasIndexes();
             SSTableReader sstable = lookupSSTable(cfs, entry.getValue());
 

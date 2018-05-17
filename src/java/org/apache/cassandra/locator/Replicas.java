@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Set;
 
 import com.google.common.base.Predicate;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
@@ -46,6 +48,7 @@ public abstract class Replicas implements Iterable<Replica>
     public abstract void removeEndpoint(InetAddressAndPort endpoint);
     public abstract void removeReplica(Replica replica);
     public abstract int size();
+    protected abstract Collection<Replica> getUnmodifiableCollection();
 
     public Iterable<InetAddressAndPort> asEndpoints()
     {
@@ -85,6 +88,11 @@ public abstract class Replicas implements Iterable<Replica>
             result.add(replica.getRange());
         }
         return result;
+    }
+
+    public Collection<Range<Token>> asUnmodifiableRangeCollection()
+    {
+        return Collections2.transform(getUnmodifiableCollection(), Replica::getRange);
     }
 
     public Iterable<Range<Token>> fullRanges()
@@ -178,6 +186,12 @@ public abstract class Replicas implements Iterable<Replica>
             {
                 return iterable.iterator();
             }
+
+            @Override
+            protected Collection<Replica> getUnmodifiableCollection()
+            {
+                return Collections.unmodifiableCollection(source.getUnmodifiableCollection());
+            }
         };
     }
 
@@ -194,6 +208,12 @@ public abstract class Replicas implements Iterable<Replica>
             public Iterator<Replica> iterator()
             {
                 return iterable.iterator();
+            }
+
+            @Override
+            protected Collection<Replica> getUnmodifiableCollection()
+            {
+                return Collections.unmodifiableCollection(source.getUnmodifiableCollection());
             }
         };
     }
@@ -228,6 +248,12 @@ public abstract class Replicas implements Iterable<Replica>
             {
                 return iterable.iterator();
             }
+
+            @Override
+            protected Collection<Replica> getUnmodifiableCollection()
+            {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
@@ -245,6 +271,12 @@ public abstract class Replicas implements Iterable<Replica>
             {
                 return iterable.iterator();
             }
+
+            @Override
+            protected Collection<Replica> getUnmodifiableCollection()
+            {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
@@ -260,6 +292,12 @@ public abstract class Replicas implements Iterable<Replica>
             public Iterator<Replica> iterator()
             {
                 return replicas.iterator();
+            }
+
+            @Override
+            protected Collection<Replica> getUnmodifiableCollection()
+            {
+                return Collections.unmodifiableCollection(replicas);
             }
         };
     }

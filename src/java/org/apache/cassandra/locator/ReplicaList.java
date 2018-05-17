@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -37,28 +38,28 @@ public class ReplicaList extends Replicas
 
     public ReplicaList()
     {
-        replicaList = new ArrayList<>();
+        this(new ArrayList<>());
     }
 
     public ReplicaList(int capacity)
     {
-        replicaList = new ArrayList<>(capacity);
+        this(new ArrayList<>(capacity));
     }
 
     public ReplicaList(ReplicaList from)
     {
-        replicaList = new ArrayList<>(from.replicaList);
+        this(new ArrayList<>(from.replicaList));
     }
 
     public ReplicaList(Replicas from)
     {
-        replicaList = new ArrayList<>(from.size());
+        this(new ArrayList<>(from.size()));
         addAll(from);
     }
 
     public ReplicaList(Collection<Replica> from)
     {
-        replicaList = new ArrayList<>(from);
+        this(new ArrayList<>(from));
     }
 
     private ReplicaList(List<Replica> replicaList)
@@ -102,6 +103,12 @@ public class ReplicaList extends Replicas
     public int size()
     {
         return replicaList.size();
+    }
+
+    @Override
+    protected Collection<Replica> getUnmodifiableCollection()
+    {
+        return Collections.unmodifiableCollection(replicaList);
     }
 
     @Override

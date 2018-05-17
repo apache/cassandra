@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -36,17 +38,17 @@ public class ReplicaSet extends Replicas
 
     public ReplicaSet()
     {
-        replicaSet = new HashSet<>();
+        this(new HashSet<>());
     }
 
     public ReplicaSet(int expectedSize)
     {
-        replicaSet = Sets.newHashSetWithExpectedSize(expectedSize);
+        this(Sets.newHashSetWithExpectedSize(expectedSize));
     }
 
     public ReplicaSet(Replicas replicas)
     {
-        replicaSet = Sets.newHashSetWithExpectedSize(replicas.size());
+        this(Sets.newHashSetWithExpectedSize(replicas.size()));
         Iterables.addAll(replicaSet, replicas);
     }
 
@@ -102,6 +104,12 @@ public class ReplicaSet extends Replicas
     public int size()
     {
         return replicaSet.size();
+    }
+
+    @Override
+    protected Collection<Replica> getUnmodifiableCollection()
+    {
+        return Collections.unmodifiableCollection(replicaSet);
     }
 
     @Override
