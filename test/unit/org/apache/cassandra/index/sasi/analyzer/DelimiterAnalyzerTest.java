@@ -54,7 +54,30 @@ public class DelimiterAnalyzerTest
         while (analyzer.hasNext())
             output.append(ByteBufferUtil.string(analyzer.next()) + (analyzer.hasNext() ? ' ' : ""));
 
-        Assert.assertTrue(testString.equals(output.toString()));
+        Assert.assertEquals(testString, output.toString());
+        Assert.assertFalse(testString.toLowerCase().equals(output.toString()));
+    }
+
+    @Test
+    public void testBlankEntries() throws Exception
+    {
+        DelimiterAnalyzer analyzer = new DelimiterAnalyzer();
+
+        analyzer.init(
+            new HashMap()
+                {{
+                    put(DelimiterTokenizingOptions.DELIMITER, ",");
+                }},
+            UTF8Type.instance);
+
+        String testString = ",Nip,,,,it,,,in,,the,bud,,,";
+        ByteBuffer toAnalyze = ByteBuffer.wrap(testString.getBytes());
+        analyzer.reset(toAnalyze);
+        StringBuilder output = new StringBuilder();
+        while (analyzer.hasNext())
+            output.append(ByteBufferUtil.string(analyzer.next()) + (analyzer.hasNext() ? ',' : ""));
+
+        Assert.assertEquals("Nip,it,in,the,bud", output.toString());
         Assert.assertFalse(testString.toLowerCase().equals(output.toString()));
     }
 
