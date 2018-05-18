@@ -21,7 +21,6 @@ package org.apache.cassandra.dht;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -34,7 +33,6 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.locator.ReplicaMultimap;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -356,7 +354,7 @@ public class RangeFetchMapCalculator
             {
                 sourceFound = true;
                 // if we pass filters, it means that we don't filter away localhost and we can count it as a source:
-                if (replica.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
+                if (replica.isLocal())
                     continue; // but don't add localhost to the graph to avoid streaming locally
                 final Vertex endpointVertex = new EndpointVertex(replica.getEndpoint());
                 capacityGraph.insertVertex(rangeVertex);

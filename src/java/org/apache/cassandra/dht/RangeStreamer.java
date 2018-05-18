@@ -347,7 +347,7 @@ public class RangeStreamer
                         continue outer;
                 }
 
-                if (replica.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
+                if (replica.isLocal())
                 {
                     // If localhost is a source, we have found one, but we don't add it to the map to avoid streaming locally
                     foundSource = true;

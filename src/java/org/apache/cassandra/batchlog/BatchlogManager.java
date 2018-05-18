@@ -453,7 +453,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             for (Replica replica : StorageService.instance.getNaturalAndPendingReplicas(ks, tk))
             {
                 Replicas.checkFull(replica);
-                if (replica.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
+                if (replica.isLocal())
                 {
                     mutation.apply();
                 }

@@ -75,7 +75,7 @@ public final class ViewUtils
         for (Replica viewEndpoint : replicationStrategy.getNaturalReplicas(viewToken))
         {
             // If we are a base endpoint which is also a view replica, we use ourselves as our view replica
-            if (viewEndpoint.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
+            if (viewEndpoint.isLocal())
                 return Optional.of(viewEndpoint);
 
             // We have to remove any endpoint which is shared between the base and the view, as it will select itself
@@ -95,7 +95,7 @@ public final class ViewUtils
         int baseIdx = -1;
         for (int i=0; i<baseReplicas.size(); i++)
         {
-            if (baseReplicas.get(i).getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
+            if (baseReplicas.get(i).isLocal())
             {
                 baseIdx = i;
                 break;

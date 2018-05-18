@@ -786,7 +786,7 @@ public class StorageProxy implements StorageProxyMBean
         // local writes can timeout, but cannot be dropped (see LocalMutationRunnable and CASSANDRA-6510),
         // so there is no need to hint or retry.
         for (Replica target : endpoints)
-            if (!target.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()) && shouldHint(target))
+            if (!target.isLocal() && shouldHint(target))
                 replicasToHint.add(target);
 
         submitHint(mutation, replicasToHint, null);
@@ -866,7 +866,7 @@ public class StorageProxy implements StorageProxyMBean
                     // When local node is the endpoint we can just apply the mutation locally,
                     // unless there are pending endpoints, in which case we want to do an ordinary
                     // write so the view mutation is sent to the pending endpoint
-                    if (pairedEndpoint.get().getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()) && StorageService.instance.isJoined()
+                    if (pairedEndpoint.get().isLocal() && StorageService.instance.isJoined()
                         && pendingReplicas.isEmpty())
                     {
                         try
@@ -1495,7 +1495,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         Replica replica = findSuitableReplica(cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency());
 
-        if (replica.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
+        if (replica.isLocal())
         {
             return applyCounterMutationOnCoordinator(cm, localDataCenter, queryStartNanoTime);
         }
