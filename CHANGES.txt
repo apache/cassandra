@@ -1,4 +1,5 @@
 4.0
+ * Add a virtual table to expose all running sstable tasks (CASSANDRA-14457)
  * Let nodetool import take a list of directories (CASSANDRA-14442)
  * Avoid unneeded memory allocations / cpu for disabled log levels (CASSANDRA-14488)
  * Implement virtual keyspace interface (CASSANDRA-7622)
