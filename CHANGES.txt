@@ -1,4 +1,5 @@
 3.0.25:
+ * Don't allow seeds to replace without using unsafe (CASSANDRA-14463)
  * Calculate time remaining correctly for all compaction types in compactionstats (CASSANDRA-14701)
  * Receipt of gossip shutdown notification updates TokenMetadata (CASSANDRA-16796)
  * Count bloom filter misses correctly (CASSANDRA-12922)

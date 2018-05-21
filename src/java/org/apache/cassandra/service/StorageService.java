@@ -570,6 +570,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!MessagingService.instance().isListening())
             MessagingService.instance().listen();
 
+        if (!shouldBootstrap() && !Boolean.getBoolean("cassandra.allow_unsafe_replace"))
+            throw new RuntimeException("Replacing a node without bootstrapping risks invalidating consistency " +
+                                       "guarantees as the expected data may not be present until repair is run. " +
+                                       "To perform this operation, please restart with " +
+                                       "-Dcassandra.allow_unsafe_replace=true");
+
         // make magic happen
         Map<InetAddress, EndpointState> epStates = Gossiper.instance.doShadowRound();
         // now that we've gossiped at least once, we should be able to find the node we're replacing
@@ -810,9 +816,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 if (SystemKeyspace.bootstrapComplete())
                     throw new RuntimeException("Cannot replace address with a node that is already bootstrapped");
-                if (!DatabaseDescriptor.isAutoBootstrap())
-                    throw new RuntimeException("Trying to replace_address with auto_bootstrap disabled will not work, check your configuration");
                 bootstrapTokens = prepareReplacementInfo();
+                if (!shouldBootstrap())
+                {
+                    // Will not do replace procedure, persist the tokens we're taking over locally
+                    // so that they don't get clobbered with auto generated ones in joinTokenRing
+                    SystemKeyspace.updateTokens(bootstrapTokens);
+                }
                 if (isReplacingSameAddress())
                 {
                     logger.warn("Writes will not be forwarded to this node during replacement because it has the same address as " +
