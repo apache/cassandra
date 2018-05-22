@@ -116,6 +116,11 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
         return true;
     }
 
+    public boolean hasInvalidDeletions()
+    {
+        return !startDeletion.validate() || !endDeletion.validate();
+    }
+
     public RangeTombstoneBoundaryMarker copy(AbstractAllocator allocator)
     {
         return new RangeTombstoneBoundaryMarker(clustering().copy(allocator), endDeletion, startDeletion);

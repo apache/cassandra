@@ -683,4 +683,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void disableAuditLog();
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories, String includedUsers, String excludedUsers) throws ConfigurationException;
     public boolean isAuditLogEnabled();
+    public String getCorruptedTombstoneStrategy();
+    public void setCorruptedTombstoneStrategy(String strategy);
 }

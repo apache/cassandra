@@ -2596,4 +2596,14 @@ public class DatabaseDescriptor
     {
         conf.audit_logging_options = auditLoggingOptions;
     }
+
+    public static Config.CorruptedTombstoneStrategy getCorruptedTombstoneStrategy()
+    {
+        return conf.corrupted_tombstone_strategy;
+    }
+
+    public static void setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy strategy)
+    {
+        conf.corrupted_tombstone_strategy = strategy;
+    }
 }

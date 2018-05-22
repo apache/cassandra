@@ -17,23 +17,38 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang.StringUtils;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.serializers.MarshalException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -41,6 +56,21 @@ public class CompactionsCQLTest extends CQLTester
 {
 
     public static final int SLEEP_TIME = 5000;
+
+    private Config.CorruptedTombstoneStrategy strategy;
+
+    @Before
+    public void before()
+    {
+        strategy = DatabaseDescriptor.getCorruptedTombstoneStrategy();
+    }
+
+    @After
+    public void after()
+    {
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(DatabaseDescriptor.getCorruptedTombstoneStrategy());
+    }
+
 
     @Test
     public void testTriggerMinorCompactionSTCS() throws Throwable
@@ -245,6 +275,189 @@ public class CompactionsCQLTest extends CQLTester
         testPerCFSNeverPurgeTombstonesHelper(false);
     }
 
+    @Test
+    public void testCompactionInvalidRTs() throws Throwable
+    {
+        // set the corruptedTombstoneStrategy to exception since these tests require it - if someone changed the default
+        // in test/conf/cassandra.yaml they would start failing
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
+        prepare();
+        // write a range tombstone with negative local deletion time (LDTs are not set by user and should not be negative):
+        RangeTombstone rt = new RangeTombstone(Slice.ALL, new DeletionTime(System.currentTimeMillis(), -1));
+        RowUpdateBuilder rub = new RowUpdateBuilder(getCurrentColumnFamilyStore().metadata(), System.currentTimeMillis() * 1000, 22).clustering(33).addRangeTombstone(rt);
+        rub.build().apply();
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        compactAndValidate();
+        readAndValidate(true);
+        readAndValidate(false);
+    }
+
+    @Test
+    public void testCompactionInvalidTombstone() throws Throwable
+    {
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
+        prepare();
+        // write a standard tombstone with negative local deletion time (LDTs are not set by user and should not be negative):
+        RowUpdateBuilder rub = new RowUpdateBuilder(getCurrentColumnFamilyStore().metadata(), -1, System.currentTimeMillis() * 1000, 22).clustering(33).delete("b");
+        rub.build().apply();
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        compactAndValidate();
+        readAndValidate(true);
+        readAndValidate(false);
+    }
+
+    @Test
+    public void testCompactionInvalidPartitionDeletion() throws Throwable
+    {
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
+        prepare();
+        // write a partition deletion with negative local deletion time (LDTs are not set by user and should not be negative)::
+        PartitionUpdate pu = PartitionUpdate.simpleBuilder(getCurrentColumnFamilyStore().metadata(), 22).nowInSec(-1).delete().build();
+        new Mutation(pu).apply();
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        compactAndValidate();
+        readAndValidate(true);
+        readAndValidate(false);
+    }
+
+    @Test
+    public void testCompactionInvalidRowDeletion() throws Throwable
+    {
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
+        prepare();
+        // write a row deletion with negative local deletion time (LDTs are not set by user and should not be negative):
+        RowUpdateBuilder.deleteRowAt(getCurrentColumnFamilyStore().metadata(), System.currentTimeMillis() * 1000, -1, 22, 33).apply();
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        compactAndValidate();
+        readAndValidate(true);
+        readAndValidate(false);
+    }
+
+    private void prepare() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int, id2 int, b text, primary key (id, id2))");
+        for (int i = 0; i < 2; i++)
+            execute("INSERT INTO %s (id, id2, b) VALUES (?, ?, ?)", i, i, String.valueOf(i));
+    }
+
+    @Test
+    public void testIndexedReaderRowDeletion() throws Throwable
+    {
+        // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt row deletion
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
+        int maxSizePre = DatabaseDescriptor.getColumnIndexSize();
+        DatabaseDescriptor.setColumnIndexSize(1024);
+        prepareWide();
+        RowUpdateBuilder.deleteRowAt(getCurrentColumnFamilyStore().metadata(), System.currentTimeMillis() * 1000, -1, 22, 33).apply();
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        readAndValidate(true);
+        readAndValidate(false);
+        DatabaseDescriptor.setColumnIndexSize(maxSizePre);
+    }
+
+    @Test
+    public void testIndexedReaderTombstone() throws Throwable
+    {
+        // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt standard tombstone
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
+        int maxSizePre = DatabaseDescriptor.getColumnIndexSize();
+        DatabaseDescriptor.setColumnIndexSize(1024);
+        prepareWide();
+        RowUpdateBuilder rub = new RowUpdateBuilder(getCurrentColumnFamilyStore().metadata(), -1, System.currentTimeMillis() * 1000, 22).clustering(33).delete("b");
+        rub.build().apply();
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        readAndValidate(true);
+        readAndValidate(false);
+        DatabaseDescriptor.setColumnIndexSize(maxSizePre);
+    }
+
+    @Test
+    public void testIndexedReaderRT() throws Throwable
+    {
+        // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt range tombstone
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
+        int maxSizePre = DatabaseDescriptor.getColumnIndexSize();
+        DatabaseDescriptor.setColumnIndexSize(1024);
+        prepareWide();
+        RangeTombstone rt = new RangeTombstone(Slice.ALL, new DeletionTime(System.currentTimeMillis(), -1));
+        RowUpdateBuilder rub = new RowUpdateBuilder(getCurrentColumnFamilyStore().metadata(), System.currentTimeMillis() * 1000, 22).clustering(33).addRangeTombstone(rt);
+        rub.build().apply();
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        readAndValidate(true);
+        readAndValidate(false);
+        DatabaseDescriptor.setColumnIndexSize(maxSizePre);
+    }
+
+    private void prepareWide() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int, id2 int, b text, primary key (id, id2))");
+        for (int i = 0; i < 100; i++)
+            execute("INSERT INTO %s (id, id2, b) VALUES (?, ?, ?)", 22, i, StringUtils.repeat("ABCDEFG", 10));
+    }
+
+    private void compactAndValidate()
+    {
+        boolean gotException = false;
+        try
+        {
+            getCurrentColumnFamilyStore().forceMajorCompaction();
+        }
+        catch(Throwable t)
+        {
+            gotException = true;
+            Throwable cause = t;
+            while (cause != null && !(cause instanceof MarshalException))
+                cause = cause.getCause();
+            assertNotNull(cause);
+            MarshalException me = (MarshalException) cause;
+            assertTrue(me.getMessage().contains(getCurrentColumnFamilyStore().metadata.keyspace+"."+getCurrentColumnFamilyStore().metadata.name));
+            assertTrue(me.getMessage().contains("Key 22"));
+        }
+        assertTrue(gotException);
+        assertSuspectAndReset(getCurrentColumnFamilyStore().getLiveSSTables());
+    }
+
+    private void readAndValidate(boolean asc) throws Throwable
+    {
+        execute("select * from %s where id = 0 order by id2 "+(asc ? "ASC" : "DESC"));
+
+        boolean gotException = false;
+        try
+        {
+            for (UntypedResultSet.Row r : execute("select * from %s")) {}
+        }
+        catch (Throwable t)
+        {
+            assertTrue(t instanceof CorruptSSTableException);
+            gotException = true;
+            Throwable cause = t;
+            while (cause != null && !(cause instanceof MarshalException))
+                cause = cause.getCause();
+            assertNotNull(cause);
+            MarshalException me = (MarshalException) cause;
+            assertTrue(me.getMessage().contains("Key 22"));
+        }
+        assertSuspectAndReset(getCurrentColumnFamilyStore().getLiveSSTables());
+        assertTrue(gotException);
+        gotException = false;
+        try
+        {
+            execute("select * from %s where id = 22 order by id2 "+(asc ? "ASC" : "DESC"));
+        }
+        catch (Throwable t)
+        {
+            assertTrue(t instanceof CorruptSSTableException);
+            gotException = true;
+            Throwable cause = t;
+            while (cause != null && !(cause instanceof MarshalException))
+                cause = cause.getCause();
+            assertNotNull(cause);
+            MarshalException me = (MarshalException) cause;
+            assertTrue(me.getMessage().contains("Key 22"));
+        }
+        assertTrue(gotException);
+        assertSuspectAndReset(getCurrentColumnFamilyStore().getLiveSSTables());
+    }
 
     public void testPerCFSNeverPurgeTombstonesHelper(boolean deletedCell) throws Throwable
     {
@@ -279,6 +492,16 @@ public class CompactionsCQLTest extends CQLTester
         getCurrentColumnFamilyStore().forceMajorCompaction();
         assertTombstones(getCurrentColumnFamilyStore().getLiveSSTables().iterator().next(), false);
         getCurrentColumnFamilyStore().truncateBlocking();
+    }
+
+    private void assertSuspectAndReset(Collection<SSTableReader> sstables)
+    {
+        assertFalse(sstables.isEmpty());
+        for (SSTableReader sstable : sstables)
+        {
+            assertTrue(sstable.isMarkedSuspect());
+            sstable.unmarkSuspect();
+        }
     }
 
     private void assertTombstones(SSTableReader sstable, boolean expectTS)

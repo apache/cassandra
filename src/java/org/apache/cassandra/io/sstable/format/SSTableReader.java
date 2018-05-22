@@ -1729,6 +1729,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         isSuspect.getAndSet(true);
     }
 
+    @VisibleForTesting
+    public void unmarkSuspect()
+    {
+        isSuspect.getAndSet(false);
+    }
+
     public boolean isMarkedSuspect()
     {
         return isSuspect.get();

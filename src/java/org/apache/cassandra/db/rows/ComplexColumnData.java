@@ -138,6 +138,16 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
             cell.digest(hasher);
     }
 
+    public boolean hasInvalidDeletions()
+    {
+        if (!complexDeletion.validate())
+            return true;
+        for (Cell cell : this)
+            if (cell.hasInvalidDeletions())
+                return true;
+        return false;
+    }
+
     public ComplexColumnData markCounterLocalToBeCleared()
     {
         return transformAndFilter(complexDeletion, Cell::markCounterLocalToBeCleared);
