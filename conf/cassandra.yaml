@@ -1198,3 +1198,6 @@ audit_logging_options:
     # included_users:
     # excluded_users:
 
+# validate tombstones on reads and compaction
+# can be either "disabled", "warn" or "exception"
+# corrupted_tombstone_strategy: disabled

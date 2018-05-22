@@ -88,6 +88,15 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         HashingUtils.updateWithLong(hasher, markedForDeleteAt());
     }
 
+    /**
+     * check if this deletion time is valid - localDeletionTime can never be negative
+     * @return true if it is valid
+     */
+    public boolean validate()
+    {
+        return localDeletionTime >= 0;
+    }
+
     @Override
     public boolean equals(Object o)
     {

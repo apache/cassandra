@@ -111,6 +111,8 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                     this.staticRow = Rows.EMPTY_STATIC_ROW;
                     this.reader = createReader(indexEntry, file, shouldCloseFile);
                 }
+                if (!partitionLevelDeletion.validate())
+                    UnfilteredValidation.handleInvalid(metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
 
                 if (reader != null && !slices.isEmpty())
                     reader.setForSlice(nextSlice());
