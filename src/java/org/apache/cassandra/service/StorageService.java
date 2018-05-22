@@ -63,6 +63,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -5470,5 +5471,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean isAuditLogEnabled()
     {
         return AuditLogManager.getInstance().isAuditingEnabled();
+    }
+
+    public String getCorruptedTombstoneStrategy()
+    {
+        return DatabaseDescriptor.getCorruptedTombstoneStrategy().toString();
+    }
+
+    public void setCorruptedTombstoneStrategy(String strategy)
+    {
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.valueOf(strategy));
+        logger.info("Setting corrupted tombstone strategy to {}", strategy);
     }
 }

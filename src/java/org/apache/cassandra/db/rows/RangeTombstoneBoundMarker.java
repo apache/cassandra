@@ -68,6 +68,11 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<Clus
         return false;
     }
 
+    public boolean hasInvalidDeletions()
+    {
+        return !deletionTime().validate();
+    }
+
     /**
      * The deletion time for the range tombstone this is a bound of.
      */

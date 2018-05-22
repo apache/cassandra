@@ -383,7 +383,7 @@ public class Config
 
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
 
-
+    public CorruptedTombstoneStrategy corrupted_tombstone_strategy = CorruptedTombstoneStrategy.disabled;
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
@@ -466,6 +466,13 @@ public class Config
     {
         queue,
         reject
+    }
+
+    public enum CorruptedTombstoneStrategy
+    {
+        disabled,
+        warn,
+        exception
     }
 
     private static final List<String> SENSITIVE_KEYS = new ArrayList<String>() {{
