@@ -27,6 +27,6 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
 
     private SystemViewsKeyspace()
     {
-        super(NAME, ImmutableList.of(new CompactionStats(NAME)));
+        super(NAME, ImmutableList.of(new CompactionsTable(NAME)));
     }
 }
