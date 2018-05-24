@@ -17,7 +17,7 @@
  under the License.
 -->
 
-<configuration debug="false" scan="true">
+<configuration debug="false" scan="true" scanPeriod="60 seconds">
   <!-- Shutdown hook ensures that async appender flushes -->
   <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
 

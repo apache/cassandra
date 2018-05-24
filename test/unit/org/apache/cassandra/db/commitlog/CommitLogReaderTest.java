@@ -170,7 +170,7 @@ public class CommitLogReaderTest extends CQLTester
         int j = 0;
         while (i + j < handler.seenMutationCount())
         {
-            PartitionUpdate pu = handler.seenMutations.get(i + j).get(currentTableMetadata());
+            PartitionUpdate pu = handler.seenMutations.get(i + j).getPartitionUpdate(currentTableMetadata());
             if (pu == null)
             {
                 j++;
@@ -234,7 +234,7 @@ public class CommitLogReaderTest extends CQLTester
 
         public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc)
         {
-            if ((metadata == null) || (metadata != null && m.get(metadata) != null)) {
+            if ((metadata == null) || (metadata != null && m.getPartitionUpdate(metadata) != null)) {
                 seenMutations.add(m);
             }
         }

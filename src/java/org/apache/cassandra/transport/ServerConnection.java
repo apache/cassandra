@@ -26,6 +26,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 
+import com.codahale.metrics.Counter;
+
 public class ServerConnection extends Connection
 {
     private enum State { UNINITIALIZED, AUTHENTICATION, READY }
@@ -33,6 +35,7 @@ public class ServerConnection extends Connection
     private volatile IAuthenticator.SaslNegotiator saslNegotiator;
     private final ClientState clientState;
     private volatile State state;
+    public final Counter requests = new Counter();
 
     private final ConcurrentMap<Integer, QueryState> queryStates = new ConcurrentHashMap<>();
 
@@ -54,6 +57,11 @@ public class ServerConnection extends Connection
                 qState = newState;
         }
         return qState;
+    }
+
+    public ClientState getClientState()
+    {
+        return clientState;
     }
 
     public QueryState validateNewMessage(Message.Type type, ProtocolVersion version, int streamId)

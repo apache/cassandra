@@ -1,3 +1,23 @@
+PLEASE READ: MAXIMUM TTL EXPIRATION DATE NOTICE (CASSANDRA-14092)
+------------------------------------------------------------------
+(General upgrading instructions are available in the next section)
+
+The maximum expiration timestamp that can be represented by the storage engine is
+2038-01-19T03:14:06+00:00, which means that inserts with TTL thatl expire after
+this date are not currently supported. By default, INSERTS with TTL exceeding the
+maximum supported date are rejected, but it's possible to choose a different
+ expiration overflow policy. See CASSANDRA-14092.txt for more details.
+
+Prior to 3.0.16 (3.0.X) and 3.11.2 (3.11.x) there was no protection against INSERTS
+with TTL expiring after the maximum supported date, causing the expiration time
+field to overflow and the records to expire immediately. Clusters in the 2.X and
+lower series are not subject to this when assertions are enabled. Backed up SSTables
+can be potentially recovered and recovery instructions can be found on the
+CASSANDRA-14092.txt file.
+
+If you use or plan to use very large TTLS (10 to 20 years), read CASSANDRA-14092.txt
+for more information.
+
 GENERAL UPGRADING ADVICE FOR ANY VERSION
 ========================================
 
@@ -18,6 +38,11 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - There is now an option to automatically upgrade sstables after Cassandra upgrade, enable
+     either in `cassandra.yaml:automatic_sstable_upgrade` or via JMX during runtime. See
+     CASSANDRA-14197.
+   - `nodetool refresh` has been deprecated in favour of `nodetool import` - see CASSANDRA-6719
+     for details
    - An experimental option to compare all merkle trees together has been added - for example, in
      a 3 node cluster with 2 replicas identical and 1 out-of-date, with this option enabled, the
      out-of-date replica will only stream a single copy from up-to-date replica. Enable it by adding
@@ -39,7 +64,7 @@ New features
      This property can be modified at runtime through both JMX and the new `setconcurrentviewbuilders`
      and `getconcurrentviewbuilders` nodetool commands. See CASSANDRA-12245 for more details.
    - There is now a binary full query log based on Chronicle Queue that can be controlled using
-     nodetool enablefullquerylog, disablefullquerylog, and resetfullquerylog. The log 
+     nodetool enablefullquerylog, disablefullquerylog, and resetfullquerylog. The log
      contains all queries invoked, approximate time they were invoked, any parameters necessary
      to bind wildcard values, and all query options. A human readable version of the log can be
      dumped or tailed using the new bin/fqltool utility. The full query log is designed to be safe
@@ -48,6 +73,14 @@ New features
      See nodetool and fqltool help text for more information.
    - SSTableDump now supports the -l option to output each partition as it's own json object
      See CASSANDRA-13848 for more detail
+   - Metric for coordinator writes per table has been added. See CASSANDRA-14232
+   - Nodetool cfstats now has options to sort by various metrics as well as limit results.
+   - Operators can restrict login user activity to one or more datacenters. See `network_authorizer`
+     in cassandra.yaml, and the docs for create and alter role statements. CASSANDRA-13985
+   - Roles altered from login=true to login=false will prevent existing connections from executing any
+     statements after the cache has been refreshed. CASSANDRA-13985
+   - Support for audit logging of database activity. If enabled, logs every incoming
+     CQL command request, Authentication (successful as well as unsuccessful login) to a node.
 
 Upgrading
 ---------
@@ -101,6 +134,31 @@ Upgrading
 	  Batch mode remains a valid commit log mode, however.
 	- There is a new commit log mode, group, which is similar to batch mode
 	  but blocks for up to a configurable number of milliseconds between disk flushes.
+	- nodetool clearsnapshot now required the --all flag to remove all snapshots.
+	  Previous behavior would delete all snapshots by default.
+    - Nodes are now identified by a combination of IP, and storage port.
+      Existing JMX APIs, nodetool, and system tables continue to work
+      and accept/return just an IP, but there is a new
+      version of each that works with the full unambiguous identifier.
+      You should prefer these over the deprecated ambiguous versions that only
+      work with an IP. This was done to support multiple instances per IP.
+      Additionally we are moving to only using a single port for encrypted and
+      unencrypted traffic and if you want multiple instances per IP you must
+      first switch encrypted traffic to the storage port and not a separate
+      encrypted port. If you want to use multiple instances per IP
+      with SSL you will need to use StartTLS on storage_port and set
+      outgoing_encrypted_port_source to gossip outbound connections
+      know what port to connect to for each instance. Before changing
+      storage port or native port at nodes you must first upgrade the entire cluster
+      and clients to 4.0 so they can handle the port not being consistent across
+      the cluster.
+    - Names of AWS regions/availability zones have been cleaned up to more correctly
+      match the Amazon names. There is now a new option in conf/cassandra-rackdc.properties
+      that lets users enable the correct names for new clusters, or use the legacy
+      names for existing clusters. See conf/cassandra-rackdc.properties for details.
+    - Background repair has been removed. dclocal_read_repair_chance and
+      read_repair_chance table options have been removed and are now rejected.
+      See CASSANDRA-13910 for details.
 
 Materialized Views
 -------------------
@@ -110,11 +168,22 @@ Materialized Views
    - An 'enable_materialized_views' flag has been added to cassandra.yaml to allow operators to prevent creation of
      views
 
+3.11.3
+=====
+
+Upgrading
+---------
+    - Materialized view users upgrading from 3.0.15 (3.0.X series) or 3.11.1 (3.11.X series) and  later that have performed range movements (join, decommission, move, etc),
+      should run repair on the base tables, and subsequently on the views to ensure data affected by CASSANDRA-14251 is correctly propagated to all replicas.
+    - Changes to bloom_filter_fp_chance will no longer take effect on existing sstables when the node is restarted. Only
+      compactions/upgradesstables regenerates bloom filters and Summaries sstable components. See CASSANDRA-11163
+
 3.11.2
 ======
 
 Upgrading
 ---------
+   - See MAXIMUM TTL EXPIRATION DATE NOTICE above.
     - Cassandra is now relying on the JVM options to properly shutdown on OutOfMemoryError. By default it will
       rely on the OnOutOfMemoryError option as the ExitOnOutOfMemoryError and CrashOnOutOfMemoryError options
       are not supported by the older 1.7 and 1.8 JVMs. A warning will be logged at startup if none of those JVM

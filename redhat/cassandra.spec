@@ -22,6 +22,7 @@ Source0:       %{relname}-src.tar.gz
 BuildRoot:     %{_tmppath}/%{relname}root-%(%{__id_u} -n)
 
 BuildRequires: ant >= 1.9
+BuildRequires: ant-junit >= 1.9
 
 Requires:      jre >= 1.8.0
 Requires:      python(abi) >= 2.7
@@ -116,7 +117,7 @@ exit 0
 
 %files
 %defattr(0644,root,root,0755)
-%doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt
+%doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt
 %attr(755,root,root) %{_bindir}/cassandra-stress
 %attr(755,root,root) %{_bindir}/cqlsh
 %attr(755,root,root) %{_bindir}/cqlsh.py
@@ -130,10 +131,10 @@ exit 0
 %attr(755,root,root) %{_bindir}/stop-server
 %attr(755,root,root) %{_sbindir}/cassandra
 %attr(755,root,root) /%{_sysconfdir}/rc.d/init.d/%{username}
-%attr(755,root,root) /%{_sysconfdir}/default/%{username}
-%attr(755,root,root) /%{_sysconfdir}/security/limits.d/%{username}.conf
-%attr(755,root,root) /usr/share/%{username}*
-%attr(755,root,root) %config(noreplace) /%{_sysconfdir}/%{username}
+%{_sysconfdir}/default/%{username}
+%{_sysconfdir}/security/limits.d/%{username}.conf
+/usr/share/%{username}*
+%config(noreplace) /%{_sysconfdir}/%{username}
 %attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}/*
 %attr(755,%{username},%{username}) /var/log/%{username}*
 %attr(755,%{username},%{username}) /var/run/%{username}*

@@ -85,7 +85,7 @@ public class HandshakeProtocolTest
     @Test
     public void thirdMessageTest() throws Exception
     {
-        ThirdHandshakeMessage before = new ThirdHandshakeMessage(MessagingService.current_version, FBUtilities.getBroadcastAddress());
+        ThirdHandshakeMessage before = new ThirdHandshakeMessage(MessagingService.current_version, FBUtilities.getBroadcastAddressAndPort());
         buf = before.encode(PooledByteBufAllocator.DEFAULT);
         ThirdHandshakeMessage after = ThirdHandshakeMessage.maybeDecode(buf);
         assertEquals(before, after);

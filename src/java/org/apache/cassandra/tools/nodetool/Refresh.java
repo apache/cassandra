@@ -36,6 +36,7 @@ public class Refresh extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+        System.out.println("nodetool refresh is deprecated, use nodetool import instead");
         checkArgument(args.size() == 2, "refresh requires ks and cf args");
         probe.loadNewSSTables(args.get(0), args.get(1));
     }

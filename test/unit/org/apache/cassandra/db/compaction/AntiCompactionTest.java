@@ -19,9 +19,11 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -29,12 +31,16 @@ import java.util.UUID;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.After;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
@@ -96,7 +102,7 @@ public class AntiCompactionTest
     private void registerParentRepairSession(UUID sessionID, Collection<Range<Token>> ranges, long repairedAt, UUID pendingRepair) throws IOException
     {
         ActiveRepairService.instance.registerParentRepairSession(sessionID,
-                                                                 InetAddress.getByName("10.0.0.1"),
+                                                                 InetAddressAndPort.getByName("10.0.0.1"),
                                                                  Lists.newArrayList(cfs), ranges,
                                                                  pendingRepair != null || repairedAt != UNREPAIRED_SSTABLE,
                                                                  repairedAt, true, PreviewKind.NONE);
@@ -310,7 +316,8 @@ public class AntiCompactionTest
         ColumnFamilyStore store = prepareColumnFamilyStore();
         Collection<SSTableReader> sstables = getUnrepairedSSTables(store);
         assertEquals(store.getLiveSSTables().size(), sstables.size());
-        Range<Token> range = new Range<Token>(new BytesToken("0".getBytes()), new BytesToken("9999".getBytes()));
+        // the sstables start at "0".getBytes() = 48, we need to include that first token, with "/".getBytes() = 47
+        Range<Token> range = new Range<Token>(new BytesToken("/".getBytes()), new BytesToken("9999".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
         UUID parentRepairSession = pendingRepair == null ? UUID.randomUUID() : pendingRepair;
         registerParentRepairSession(parentRepairSession, ranges, repairedAt, pendingRepair);
@@ -351,6 +358,7 @@ public class AntiCompactionTest
         {
             generateSStable(store,Integer.toString(table));
         }
+        int refCountBefore = Iterables.get(store.getLiveSSTables(), 0).selfRef().globalCount();
         Collection<SSTableReader> sstables = getUnrepairedSSTables(store);
         assertEquals(store.getLiveSSTables().size(), sstables.size());
 
@@ -358,15 +366,21 @@ public class AntiCompactionTest
         List<Range<Token>> ranges = Arrays.asList(range);
         UUID parentRepairSession = UUID.randomUUID();
         registerParentRepairSession(parentRepairSession, ranges, UNREPAIRED_SSTABLE, null);
-
+        boolean gotException = false;
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
             CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, 1, NO_PENDING_REPAIR, parentRepairSession);
         }
+        catch (IllegalStateException e)
+        {
+            gotException = true;
+        }
 
+        assertTrue(gotException);
         assertThat(store.getLiveSSTables().size(), is(10));
         assertThat(Iterables.get(store.getLiveSSTables(), 0).isRepaired(), is(false));
+        assertEquals(refCountBefore, Iterables.get(store.getLiveSSTables(), 0).selfRef().globalCount());
     }
 
     private ColumnFamilyStore prepareColumnFamilyStore()
@@ -436,5 +450,92 @@ public class AntiCompactionTest
             Assert.assertEquals(Transactional.AbstractTransactional.State.ABORTED, txn.state());
             Assert.assertTrue(refs.isEmpty());
         }
+    }
+
+    @Test
+    public void testSSTablesToInclude()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS("anticomp");
+        List<SSTableReader> sstables = new ArrayList<>();
+        sstables.add(MockSchema.sstable(1, 10, 100, cfs));
+        sstables.add(MockSchema.sstable(2, 100, 200, cfs));
+
+        Range<Token> r = new Range<>(t(10), t(100)); // should include sstable 1 and 2 above, but none is fully contained (Range is (x, y])
+
+        Iterator<SSTableReader> sstableIterator = sstables.iterator();
+        Set<SSTableReader> fullyContainedSSTables = CompactionManager.findSSTablesToAnticompact(sstableIterator, Collections.singletonList(r), UUID.randomUUID());
+        assertTrue(fullyContainedSSTables.isEmpty());
+        assertEquals(2, sstables.size());
+    }
+
+    @Test
+    public void testSSTablesToInclude2()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS("anticomp");
+        List<SSTableReader> sstables = new ArrayList<>();
+        SSTableReader sstable1 = MockSchema.sstable(1, 10, 100, cfs);
+        SSTableReader sstable2 = MockSchema.sstable(2, 100, 200, cfs);
+        sstables.add(sstable1);
+        sstables.add(sstable2);
+
+        Range<Token> r = new Range<>(t(9), t(100)); // sstable 1 is fully contained
+
+        Iterator<SSTableReader> sstableIterator = sstables.iterator();
+        Set<SSTableReader> fullyContainedSSTables = CompactionManager.findSSTablesToAnticompact(sstableIterator, Collections.singletonList(r), UUID.randomUUID());
+        assertEquals(Collections.singleton(sstable1), fullyContainedSSTables);
+        assertEquals(Collections.singletonList(sstable2), sstables);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testSSTablesToNotInclude()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS("anticomp");
+        List<SSTableReader> sstables = new ArrayList<>();
+        SSTableReader sstable1 = MockSchema.sstable(1, 0, 5, cfs);
+        sstables.add(sstable1);
+
+        Range<Token> r = new Range<>(t(9), t(100)); // sstable is not intersecting and should not be included
+
+        Iterator<SSTableReader> sstableIterator = sstables.iterator();
+        CompactionManager.findSSTablesToAnticompact(sstableIterator, Collections.singletonList(r), UUID.randomUUID());
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testSSTablesToNotInclude2()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS("anticomp");
+        List<SSTableReader> sstables = new ArrayList<>();
+        SSTableReader sstable1 = MockSchema.sstable(1, 10, 10, cfs);
+        SSTableReader sstable2 = MockSchema.sstable(2, 100, 200, cfs);
+        sstables.add(sstable1);
+        sstables.add(sstable2);
+
+        Range<Token> r = new Range<>(t(10), t(11)); // no sstable included, throw
+
+        Iterator<SSTableReader> sstableIterator = sstables.iterator();
+        CompactionManager.findSSTablesToAnticompact(sstableIterator, Collections.singletonList(r), UUID.randomUUID());
+    }
+
+    @Test
+    public void testSSTablesToInclude4()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS("anticomp");
+        List<SSTableReader> sstables = new ArrayList<>();
+        SSTableReader sstable1 = MockSchema.sstable(1, 10, 100, cfs);
+        SSTableReader sstable2 = MockSchema.sstable(2, 100, 200, cfs);
+        sstables.add(sstable1);
+        sstables.add(sstable2);
+
+        Range<Token> r = new Range<>(t(9), t(200)); // sstable 2 is fully contained - last token is equal
+
+        Iterator<SSTableReader> sstableIterator = sstables.iterator();
+        Set<SSTableReader> fullyContainedSSTables = CompactionManager.findSSTablesToAnticompact(sstableIterator, Collections.singletonList(r), UUID.randomUUID());
+        assertEquals(Sets.newHashSet(sstable1, sstable2), fullyContainedSSTables);
+        assertTrue(sstables.isEmpty());
+    }
+
+    private Token t(long t)
+    {
+        return new Murmur3Partitioner.LongToken(t);
     }
 }

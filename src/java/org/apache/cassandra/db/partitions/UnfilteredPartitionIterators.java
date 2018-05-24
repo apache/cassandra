@@ -49,6 +49,16 @@ public abstract class UnfilteredPartitionIterators
     {
         public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions);
         public void close();
+
+        public static MergeListener NOOP = new MergeListener()
+        {
+            public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
+            {
+                return UnfilteredRowIterators.MergeListener.NOOP;
+            }
+
+            public void close() {}
+        };
     }
 
     @SuppressWarnings("resource") // The created resources are returned right away
@@ -129,10 +139,19 @@ public abstract class UnfilteredPartitionIterators
             {
                 UnfilteredRowIterators.MergeListener rowListener = listener.getRowMergeListener(partitionKey, toMerge);
 
+                // Make a single empty iterator object to merge, we don't need toMerge.size() copiess
+                UnfilteredRowIterator empty = null;
+
                 // Replace nulls by empty iterators
                 for (int i = 0; i < toMerge.size(); i++)
+                {
                     if (toMerge.get(i) == null)
-                        toMerge.set(i, EmptyIterators.unfilteredRow(metadata, partitionKey, isReverseOrder));
+                    {
+                        if (null == empty)
+                            empty = EmptyIterators.unfilteredRow(metadata, partitionKey, isReverseOrder);
+                        toMerge.set(i, empty);
+                    }
+                }
 
                 return UnfilteredRowIterators.merge(toMerge, nowInSec, rowListener);
             }

@@ -60,7 +60,6 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.junit.Assert.*;
@@ -172,14 +171,14 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                         {
                             SSTableReader c = txn.current(sstables.iterator().next());
                             Collection<Range<Token>> r = Arrays.asList(new Range<>(cfs.getPartitioner().getMinimumToken(), cfs.getPartitioner().getMinimumToken()));
-                            List<Pair<Long, Long>> tmplinkPositions = sstable.getPositionsForRanges(r);
-                            List<Pair<Long, Long>> compactingPositions = c.getPositionsForRanges(r);
+                            List<SSTableReader.PartitionPositionBounds> tmplinkPositions = sstable.getPositionsForRanges(r);
+                            List<SSTableReader.PartitionPositionBounds> compactingPositions = c.getPositionsForRanges(r);
                             assertEquals(1, tmplinkPositions.size());
                             assertEquals(1, compactingPositions.size());
-                            assertEquals(0, tmplinkPositions.get(0).left.longValue());
+                            assertEquals(0, tmplinkPositions.get(0).lowerPosition);
                             // make sure we have no overlap between the early opened file and the compacting one:
-                            assertEquals(tmplinkPositions.get(0).right.longValue(), compactingPositions.get(0).left.longValue());
-                            assertEquals(c.uncompressedLength(), compactingPositions.get(0).right.longValue());
+                            assertEquals(tmplinkPositions.get(0).upperPosition, compactingPositions.get(0).lowerPosition);
+                            assertEquals(c.uncompressedLength(), compactingPositions.get(0).upperPosition);
                         }
                     }
                 }
@@ -772,65 +771,6 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         }
         truncateCF();
         validateCFS(cfs);
-    }
-
-    @Test
-    public void testSSTableSectionsForRanges() throws IOException, InterruptedException, ExecutionException
-    {
-        Keyspace keyspace = Keyspace.open(KEYSPACE);
-        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        truncate(cfs);
-
-        cfs.addSSTable(writeFile(cfs, 1000));
-
-        Collection<SSTableReader> allSSTables = cfs.getLiveSSTables();
-        assertEquals(1, allSSTables.size());
-        final Token firstToken = allSSTables.iterator().next().first.getToken();
-        DatabaseDescriptor.setSSTablePreempiveOpenIntervalInMB(1);
-
-        List<StreamSession.SSTableStreamingSections> sectionsBeforeRewrite = StreamSession.getSSTableSectionsForRanges(
-            Collections.singleton(new Range<Token>(firstToken, firstToken)),
-            Collections.singleton(cfs), null, PreviewKind.NONE);
-        assertEquals(1, sectionsBeforeRewrite.size());
-        for (StreamSession.SSTableStreamingSections section : sectionsBeforeRewrite)
-            section.ref.release();
-        final AtomicInteger checkCount = new AtomicInteger();
-        // needed since we get notified when compaction is done as well - we can't get sections for ranges for obsoleted sstables
-        final AtomicBoolean done = new AtomicBoolean(false);
-        final AtomicBoolean failed = new AtomicBoolean(false);
-        Runnable r = new Runnable()
-        {
-            public void run()
-            {
-                while (!done.get())
-                {
-                    Set<Range<Token>> range = Collections.singleton(new Range<Token>(firstToken, firstToken));
-                    List<StreamSession.SSTableStreamingSections> sections = StreamSession.getSSTableSectionsForRanges(range, Collections.singleton(cfs), null, PreviewKind.NONE);
-                    if (sections.size() != 1)
-                        failed.set(true);
-                    for (StreamSession.SSTableStreamingSections section : sections)
-                        section.ref.release();
-                    checkCount.incrementAndGet();
-                    Uninterruptibles.sleepUninterruptibly(5, TimeUnit.MILLISECONDS);
-                }
-            }
-        };
-        Thread t = NamedThreadFactory.createThread(r);
-        try
-        {
-            t.start();
-            cfs.forceMajorCompaction();
-            // reset
-        }
-        finally
-        {
-            DatabaseDescriptor.setSSTablePreempiveOpenIntervalInMB(50);
-            done.set(true);
-            t.join(20);
-        }
-        assertFalse(failed.get());
-        assertTrue(checkCount.get() >= 2);
-        truncate(cfs);
     }
 
     /**

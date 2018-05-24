@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -86,6 +87,9 @@ public class AlterTableStatement extends SchemaAlteringStatement
         TableMetadata current = Schema.instance.validateTable(keyspace(), columnFamily());
         if (current.isView())
             throw new InvalidRequestException("Cannot use ALTER TABLE on Materialized View");
+
+        if (current.isVirtual())
+            throw new InvalidRequestException("Cannot alter virtual tables");
 
         TableMetadata.Builder builder = current.unbuild();
 
@@ -221,9 +225,9 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
 
                     if (!Iterables.isEmpty(views))
-                        throw new InvalidRequestException(String.format("Cannot drop column %s on base table with materialized views.",
+                    throw new InvalidRequestException(String.format("Cannot drop column %s on base table %s with materialized views.",
                                                                         columnName.toString(),
-                                                                        keyspace()));
+                                                                        columnFamily()));
                 }
                 break;
             case OPTS:
@@ -303,5 +307,11 @@ public class AlterTableStatement extends SchemaAlteringStatement
         return String.format("AlterTableStatement(name=%s, type=%s)",
                              cfName,
                              oType);
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.ALTER_TABLE, keyspace(), cfName.getColumnFamily());
     }
 }

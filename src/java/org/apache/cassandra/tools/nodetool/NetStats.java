@@ -50,11 +50,11 @@ public class NetStats extends NodeToolCmd
             System.out.printf("%s %s%n", status.streamOperation.getDescription(), status.planId.toString());
             for (SessionInfo info : status.sessions)
             {
-                System.out.printf("    %s", info.peer.toString());
+                System.out.printf("    %s", info.peer.toString(printPort));
                 // print private IP when it is used
                 if (!info.peer.equals(info.connecting))
                 {
-                    System.out.printf(" (using %s)", info.connecting.toString());
+                    System.out.printf(" (using %s)", info.connecting.toString(printPort));
                 }
                 System.out.printf("%n");
                 if (!info.receivingSummaries.isEmpty())
@@ -65,7 +65,7 @@ public class NetStats extends NodeToolCmd
                         System.out.printf("        Receiving %d files, %d bytes total. Already received %d files, %d bytes total%n", info.getTotalFilesToReceive(), info.getTotalSizeToReceive(), info.getTotalFilesReceived(), info.getTotalSizeReceived());
                     for (ProgressInfo progress : info.getReceivingFiles())
                     {
-                        System.out.printf("            %s%n", progress.toString());
+                        System.out.printf("            %s%n", progress.toString(printPort));
                     }
                 }
                 if (!info.sendingSummaries.isEmpty())
@@ -76,7 +76,7 @@ public class NetStats extends NodeToolCmd
                         System.out.printf("        Sending %d files, %d bytes total. Already sent %d files, %d bytes total%n", info.getTotalFilesToSend(), info.getTotalSizeToSend(), info.getTotalFilesSent(), info.getTotalSizeSent());
                     for (ProgressInfo progress : info.getSendingFiles())
                     {
-                        System.out.printf("            %s%n", progress.toString());
+                        System.out.printf("            %s%n", progress.toString(printPort));
                     }
                 }
             }

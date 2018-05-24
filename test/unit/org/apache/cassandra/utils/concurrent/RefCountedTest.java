@@ -20,7 +20,7 @@ package org.apache.cassandra.utils.concurrent;
 
 import org.junit.Test;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 
 import java.io.File;
 import java.lang.ref.WeakReference;

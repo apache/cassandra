@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.net.async;
 
-import java.net.InetSocketAddress;
 import java.util.Optional;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -28,6 +27,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.net.BackPressureState;
 import org.apache.cassandra.net.MessageOut;
@@ -56,14 +56,14 @@ public class OutboundMessagingPool
      * An override address on which to communicate with the peer. Typically used for something like EC2 public IP addresses
      * which need to be used for communication between EC2 regions.
      */
-    private InetSocketAddress preferredRemoteAddr;
+    private InetAddressAndPort preferredRemoteAddr;
 
-    public OutboundMessagingPool(InetSocketAddress remoteAddr, InetSocketAddress localAddr, ServerEncryptionOptions encryptionOptions,
+    public OutboundMessagingPool(InetAddressAndPort remoteAddr, InetAddressAndPort localAddr, ServerEncryptionOptions encryptionOptions,
                                  BackPressureState backPressureState, IInternodeAuthenticator authenticator)
     {
         preferredRemoteAddr = remoteAddr;
         this.backPressureState = backPressureState;
-        metrics = new ConnectionMetrics(localAddr.getAddress(), this);
+        metrics = new ConnectionMetrics(localAddr, this);
 
 
         smallMessageChannel = new OutboundMessagingConnection(OutboundConnectionIdentifier.small(localAddr, preferredRemoteAddr),
@@ -76,10 +76,10 @@ public class OutboundMessagingPool
                                                         encryptionOptions, Optional.empty(), authenticator);
     }
 
-    private static Optional<CoalescingStrategy> coalescingStrategy(InetSocketAddress remoteAddr)
+    private static Optional<CoalescingStrategy> coalescingStrategy(InetAddressAndPort remoteAddr)
     {
         String strategyName = DatabaseDescriptor.getOtcCoalescingStrategy();
-        String displayName = remoteAddr.getAddress().getHostAddress();
+        String displayName = remoteAddr.toString();
         return CoalescingStrategies.newCoalescingStrategy(strategyName,
                                                           DatabaseDescriptor.getOtcCoalescingWindow(),
                                                           OutboundMessagingConnection.logger,
@@ -100,14 +100,21 @@ public class OutboundMessagingPool
     @VisibleForTesting
     public OutboundMessagingConnection getConnection(MessageOut msg)
     {
-        // optimize for the common path (the small message channel)
-        if (Stage.GOSSIP != msg.getStage())
+        if (msg.connectionType == null)
         {
-            return msg.serializedSize(smallMessageChannel.getTargetVersion()) < LARGE_MESSAGE_THRESHOLD
-            ? smallMessageChannel
-            : largeMessageChannel;
+            // optimize for the common path (the small message channel)
+            if (Stage.GOSSIP != msg.getStage())
+            {
+                return msg.serializedSize(smallMessageChannel.getTargetVersion()) < LARGE_MESSAGE_THRESHOLD
+                       ? smallMessageChannel
+                       : largeMessageChannel;
+            }
+            return gossipChannel;
         }
-        return gossipChannel;
+        else
+        {
+            return getConnection(msg.connectionType);
+        }
     }
 
     /**
@@ -117,7 +124,7 @@ public class OutboundMessagingPool
      *
      * @param addr IP Address to use (and prefer) going forward for connecting to the peer
      */
-    public void reconnectWithNewIp(InetSocketAddress addr)
+    public void reconnectWithNewIp(InetAddressAndPort addr)
     {
         preferredRemoteAddr = addr;
         gossipChannel.reconnectWithNewIp(addr);
@@ -137,20 +144,17 @@ public class OutboundMessagingPool
         smallMessageChannel.close(softClose);
     }
 
-    /**
-     * For testing purposes only.
-     */
     @VisibleForTesting
-    OutboundMessagingConnection getConnection(ConnectionType connectionType)
+    final OutboundMessagingConnection getConnection(ConnectionType connectionType)
     {
         switch (connectionType)
         {
-            case GOSSIP:
-                return gossipChannel;
-            case LARGE_MESSAGE:
-                return largeMessageChannel;
             case SMALL_MESSAGE:
                 return smallMessageChannel;
+            case LARGE_MESSAGE:
+                return largeMessageChannel;
+            case GOSSIP:
+                return gossipChannel;
             default:
                 throw new IllegalArgumentException("unsupported connection type: " + connectionType);
         }
@@ -166,7 +170,7 @@ public class OutboundMessagingPool
         return metrics.timeouts.getCount();
     }
 
-    public InetSocketAddress getPreferredRemoteAddr()
+    public InetAddressAndPort getPreferredRemoteAddr()
     {
         return preferredRemoteAddr;
     }

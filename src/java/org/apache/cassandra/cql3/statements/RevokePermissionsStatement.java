@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Set;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -27,6 +28,8 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class RevokePermissionsStatement extends PermissionsManagementStatement
 {
@@ -39,5 +42,18 @@ public class RevokePermissionsStatement extends PermissionsManagementStatement
     {
         DatabaseDescriptor.getAuthorizer().revoke(state.getUser(), permissions, resource, grantee);
         return null;
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        String keyspace = resource.hasParent() ? resource.getParent().getName() : resource.getName();
+        return new AuditLogContext(AuditLogEntryType.REVOKE, keyspace, resource.getName());
     }
 }

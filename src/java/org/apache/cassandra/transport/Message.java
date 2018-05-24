@@ -42,6 +42,7 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
@@ -201,6 +202,10 @@ public abstract class Message
     public static abstract class Request extends Message
     {
         protected boolean tracingRequested;
+
+        protected final AuditLogManager auditLogManager = AuditLogManager.getInstance();
+        protected boolean auditLogEnabled = auditLogManager.isAuditingEnabled();
+        protected boolean isLoggingEnabled = auditLogManager.isLoggingEnabled();
 
         protected Request(Type type)
         {
@@ -514,6 +519,7 @@ public abstract class Message
                 QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion(), request.getStreamId());
 
                 logger.trace("Received: {}, v={}", request, connection.getVersion());
+                connection.requests.inc();
                 response = request.execute(qstate, queryStartNanoTime);
                 response.setStreamId(request.getStreamId());
                 response.setWarnings(ClientWarn.instance.getWarnings());

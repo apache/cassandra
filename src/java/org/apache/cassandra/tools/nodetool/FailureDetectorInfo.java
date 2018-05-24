@@ -33,7 +33,7 @@ public class FailureDetectorInfo extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        TabularData data = probe.getFailureDetectorPhilValues();
+        TabularData data = probe.getFailureDetectorPhilValues(printPort);
         System.out.printf("%10s,%16s%n", "Endpoint", "Phi");
         for (Object o : data.keySet())
         {

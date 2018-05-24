@@ -31,15 +31,18 @@ public interface FailureDetectorMBean
 
     public double getPhiConvictThreshold();
 
-    public String getAllEndpointStates();
+    @Deprecated public String getAllEndpointStates();
+    public String getAllEndpointStatesWithPort();
 
     public String getEndpointState(String address) throws UnknownHostException;
 
-    public Map<String, String> getSimpleStates();
+    @Deprecated public Map<String, String> getSimpleStates();
+    public Map<String, String> getSimpleStatesWithPort();
 
     public int getDownEndpointCount();
 
     public int getUpEndpointCount();
 
-    public TabularData getPhiValues() throws OpenDataException;
+    @Deprecated public TabularData getPhiValues() throws OpenDataException;
+    public TabularData getPhiValuesWithPort() throws OpenDataException;
 }

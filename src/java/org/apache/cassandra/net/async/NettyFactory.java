@@ -48,6 +48,7 @@ import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.NativeTransportService;
@@ -121,7 +122,7 @@ public final class NettyFactory
     NettyFactory(boolean useEpoll)
     {
         this.useEpoll = useEpoll;
-        acceptGroup = getEventLoopGroup(useEpoll, determineAcceptGroupSize(DatabaseDescriptor.getServerEncryptionOptions()),
+        acceptGroup = getEventLoopGroup(useEpoll, determineAcceptGroupSize(DatabaseDescriptor.getInternodeMessagingEncyptionOptions()),
                                         "MessagingService-NettyAcceptor-Thread", false);
         inboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyInbound-Thread", false);
         outboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyOutbound-Thread", true);
@@ -184,9 +185,9 @@ public final class NettyFactory
      * Create a {@link Channel} that listens on the {@code localAddr}. This method will block while trying to bind to the address,
      * but it does not make a remote call.
      */
-    public Channel createInboundChannel(InetSocketAddress localAddr, InboundInitializer initializer, int receiveBufferSize) throws ConfigurationException
+    public Channel createInboundChannel(InetAddressAndPort localAddr, InboundInitializer initializer, int receiveBufferSize) throws ConfigurationException
     {
-        String nic = FBUtilities.getNetworkInterface(localAddr.getAddress());
+        String nic = FBUtilities.getNetworkInterface(localAddr.address);
         logger.info("Starting Messaging Service on {} {}, encryption: {}",
                     localAddr, nic == null ? "" : String.format(" (%s)", nic), encryptionLogStatement(initializer.encryptionOptions));
         Class<? extends ServerChannel> transport = useEpoll ? EpollServerSocketChannel.class : NioServerSocketChannel.class;
@@ -202,7 +203,7 @@ public final class NettyFactory
         if (receiveBufferSize > 0)
             bootstrap.childOption(ChannelOption.SO_RCVBUF, receiveBufferSize);
 
-        ChannelFuture channelFuture = bootstrap.bind(localAddr);
+        ChannelFuture channelFuture = bootstrap.bind(new InetSocketAddress(localAddr.address, localAddr.port));
 
         if (!channelFuture.awaitUninterruptibly().isSuccess())
         {
@@ -286,7 +287,7 @@ public final class NettyFactory
                 }
                 else
                 {
-                    SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, true, true);
+                    SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, true, SSLFactory.ConnectionType.INTERNODE_MESSAGING, SSLFactory.SocketType.SERVER);
                     InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? channel.remoteAddress() : null;
                     SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
                     logger.trace("creating inbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
@@ -333,8 +334,8 @@ public final class NettyFactory
                               .option(ChannelOption.TCP_NODELAY, params.tcpNoDelay)
                               .option(ChannelOption.WRITE_BUFFER_WATER_MARK, params.waterMark)
                               .handler(new OutboundInitializer(params));
-        bootstrap.localAddress(params.connectionId.local(), 0);
-        bootstrap.remoteAddress(params.connectionId.connectionAddress());
+        InetAddressAndPort remoteAddress = params.connectionId.connectionAddress();
+        bootstrap.remoteAddress(new InetSocketAddress(remoteAddress.address, remoteAddress.port));
         return bootstrap;
     }
 
@@ -360,9 +361,10 @@ public final class NettyFactory
             // order of handlers: ssl -> logger -> handshakeHandler
             if (params.encryptionOptions != null)
             {
-                SslContext sslContext = SSLFactory.getSslContext(params.encryptionOptions, true, false);
+                SslContext sslContext = SSLFactory.getSslContext(params.encryptionOptions, true, SSLFactory.ConnectionType.INTERNODE_MESSAGING, SSLFactory.SocketType.CLIENT);
                 // for some reason channel.remoteAddress() will return null
-                InetSocketAddress peer = params.encryptionOptions.require_endpoint_verification ? params.connectionId.remoteAddress() : null;
+                InetAddressAndPort address = params.connectionId.remote();
+                InetSocketAddress peer = params.encryptionOptions.require_endpoint_verification ? new InetSocketAddress(address.address, address.port) : null;
                 SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
                 logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
                 pipeline.addFirst(SSL_CHANNEL_HANDLER_NAME, sslHandler);

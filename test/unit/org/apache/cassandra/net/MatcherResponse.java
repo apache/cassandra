@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.net;
 
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Queue;
@@ -26,6 +25,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * Sends a response for an incoming message with a matching {@link Matcher}.
@@ -76,7 +77,7 @@ public class MatcherResponse
      * Respond with the message created by the provided function that will be called with each intercepted outbound message.
      * @param fnResponse    function to call for creating reply based on intercepted message and target address
      */
-    public <T, S> MockMessagingSpy respond(BiFunction<MessageOut<T>, InetAddress, MessageIn<S>> fnResponse)
+    public <T, S> MockMessagingSpy respond(BiFunction<MessageOut<T>, InetAddressAndPort, MessageIn<S>> fnResponse)
     {
         return respondN(fnResponse, Integer.MAX_VALUE);
     }
@@ -101,7 +102,7 @@ public class MatcherResponse
      */
     public <T, S> MockMessagingSpy respondNWithPayloadForEachReceiver(Function<MessageOut<T>, S> fnResponse, MessagingService.Verb verb, int limit)
     {
-        return respondN((MessageOut<T> msg, InetAddress to) -> {
+        return respondN((MessageOut<T> msg, InetAddressAndPort to) -> {
                     S payload = fnResponse.apply(msg);
                     if (payload == null)
                         return null;
@@ -147,7 +148,7 @@ public class MatcherResponse
      * each intercepted outbound message.
      * @param fnResponse    function to call for creating reply based on intercepted message and target address
      */
-    public <T, S> MockMessagingSpy respondN(BiFunction<MessageOut<T>, InetAddress, MessageIn<S>> fnResponse, int limit)
+    public <T, S> MockMessagingSpy respondN(BiFunction<MessageOut<T>, InetAddressAndPort, MessageIn<S>> fnResponse, int limit)
     {
         limitCounter.set(limit);
 
@@ -155,7 +156,7 @@ public class MatcherResponse
 
         sink = new IMessageSink()
         {
-            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to)
+            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddressAndPort to)
             {
                 // prevent outgoing message from being send in case matcher indicates a match
                 // and instead send the mocked response

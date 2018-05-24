@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair.consistent;
 
-import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +25,7 @@ import java.util.UUID;
 
 import com.google.common.base.Preconditions;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizePromise;
 import org.apache.cassandra.repair.messages.PrepareConsistentResponse;
@@ -43,10 +43,15 @@ public class CoordinatorSessions
         return new CoordinatorSession(builder);
     }
 
-    public synchronized CoordinatorSession registerSession(UUID sessionId, Set<InetAddress> participants)
+    public synchronized CoordinatorSession registerSession(UUID sessionId, Set<InetAddressAndPort> participants, boolean isForced)
     {
-        Preconditions.checkArgument(!sessions.containsKey(sessionId), "A coordinator already exists for session %s", sessionId);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionId);
+
+        Preconditions.checkArgument(!sessions.containsKey(sessionId),
+                                    "A coordinator already exists for session %s", sessionId);
+        Preconditions.checkArgument(!isForced || prs.repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE,
+                                    "cannot promote data for forced incremental repairs");
+
         CoordinatorSession.Builder builder = CoordinatorSession.builder();
         builder.withState(ConsistentSession.State.PREPARING);
         builder.withSessionID(sessionId);

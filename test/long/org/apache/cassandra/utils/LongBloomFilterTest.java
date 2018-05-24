@@ -39,7 +39,7 @@ public class LongBloomFilterTest
     public void testBigInt()
     {
         int size = 10 * 1000 * 1000;
-        IFilter bf = getFilter(size, FilterTestHelper.spec.bucketsPerElement, false);
+        IFilter bf = getFilter(size, FilterTestHelper.spec.bucketsPerElement);
         double fp = testFalsePositives(bf,
                                        new KeyGenerator.IntGenerator(size),
                                        new KeyGenerator.IntGenerator(size, size * 2));
@@ -50,7 +50,7 @@ public class LongBloomFilterTest
     public void testBigRandom()
     {
         int size = 10 * 1000 * 1000;
-        IFilter bf = getFilter(size, FilterTestHelper.spec.bucketsPerElement, false);
+        IFilter bf = getFilter(size, FilterTestHelper.spec.bucketsPerElement);
         double fp = testFalsePositives(bf,
                                        new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
                                        new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
@@ -64,7 +64,7 @@ public class LongBloomFilterTest
     public void testConstrained()
     {
         int size = 10 * 1000 * 1000;
-        try (IFilter bf = getFilter(size, 0.01, false))
+        try (IFilter bf = getFilter(size, 0.01))
         {
             double fp = testFalsePositives(bf,
                                            new KeyGenerator.IntGenerator(size),
@@ -77,7 +77,7 @@ public class LongBloomFilterTest
     {
         for (long bits : staticBits)
         {
-            try (IFilter bf = getFilter(elements, targetFp, false);)
+            try (IFilter bf = getFilter(elements, targetFp))
             {
                 SequentialHashGenerator gen = new SequentialHashGenerator(staticBitCount, bits);
                 long[] hash = new long[2];
@@ -160,7 +160,7 @@ public class LongBloomFilterTest
     public void timeit()
     {
         int size = 300 * FilterTestHelper.ELEMENTS;
-        IFilter bf = getFilter(size, FilterTestHelper.spec.bucketsPerElement, false);
+        IFilter bf = getFilter(size, FilterTestHelper.spec.bucketsPerElement);
         double sumfp = 0;
         for (int i = 0; i < 10; i++)
         {

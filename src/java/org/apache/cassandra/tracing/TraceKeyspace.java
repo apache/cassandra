@@ -48,35 +48,36 @@ public final class TraceKeyspace
 
     private static final TableMetadata Sessions =
         parse(SESSIONS,
-              "tracing sessions",
-              "CREATE TABLE %s ("
-              + "session_id uuid,"
-              + "command text,"
-              + "client inet,"
-              + "coordinator inet,"
-              + "duration int,"
-              + "parameters map<text, text>,"
-              + "request text,"
-              + "started_at timestamp,"
-              + "PRIMARY KEY ((session_id)))");
+                "tracing sessions",
+                "CREATE TABLE %s ("
+                + "session_id uuid,"
+                + "command text,"
+                + "client inet,"
+                + "coordinator inet,"
+                + "coordinator_port int,"
+                + "duration int,"
+                + "parameters map<text, text>,"
+                + "request text,"
+                + "started_at timestamp,"
+                + "PRIMARY KEY ((session_id)))");
 
     private static final TableMetadata Events =
         parse(EVENTS,
-              "tracing events",
-              "CREATE TABLE %s ("
-              + "session_id uuid,"
-              + "event_id timeuuid,"
-              + "activity text,"
-              + "source inet,"
-              + "source_elapsed int,"
-              + "thread text,"
-              + "PRIMARY KEY ((session_id), event_id))");
+                "tracing events",
+                "CREATE TABLE %s ("
+                + "session_id uuid,"
+                + "event_id timeuuid,"
+                + "activity text,"
+                + "source inet,"
+                + "source_port int,"
+                + "source_elapsed int,"
+                + "thread text,"
+                + "PRIMARY KEY ((session_id), event_id))");
 
     private static TableMetadata parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.TRACE_KEYSPACE_NAME)
                                    .id(TableId.forSystemTable(SchemaConstants.TRACE_KEYSPACE_NAME, table))
-                                   .dcLocalReadRepairChance(0.0)
                                    .gcGraceSeconds(0)
                                    .memtableFlushPeriod((int) TimeUnit.HOURS.toMillis(1))
                                    .comment(description)
@@ -100,7 +101,8 @@ public final class TraceKeyspace
         builder.row()
                .ttl(ttl)
                .add("client", client)
-               .add("coordinator", FBUtilities.getBroadcastAddress())
+               .add("coordinator", FBUtilities.getBroadcastAddressAndPort().address)
+               .add("coordinator_port", FBUtilities.getBroadcastAddressAndPort().port)
                .add("request", request)
                .add("started_at", new Date(startedAt))
                .add("command", command)
@@ -125,7 +127,8 @@ public final class TraceKeyspace
                                               .ttl(ttl);
 
         rowBuilder.add("activity", message)
-                  .add("source", FBUtilities.getBroadcastAddress())
+                  .add("source", FBUtilities.getBroadcastAddressAndPort().address)
+                  .add("source_port", FBUtilities.getBroadcastAddressAndPort().port)
                   .add("thread", threadName);
 
         if (elapsed >= 0)

@@ -55,28 +55,28 @@ import org.apache.cassandra.net.async.OutboundConnectionIdentifier;
 import org.apache.cassandra.streaming.StreamConnectionFactory;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingMessageSender;
-import org.apache.cassandra.streaming.messages.IncomingFileMessage;
+import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
-import org.apache.cassandra.streaming.messages.OutgoingFileMessage;
+import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Responsible for sending {@link StreamMessage}s to a given peer. We manage an array of netty {@link Channel}s
- * for sending {@link OutgoingFileMessage} instances; all other {@link StreamMessage} types are sent via
+ * for sending {@link OutgoingStreamMessage} instances; all other {@link StreamMessage} types are sent via
  * a special control channel. The reason for this is to treat those messages carefully and not let them get stuck
- * behind a file transfer.
+ * behind a stream transfer.
  *
- * One of the challenges when sending files is we might need to delay shipping the file if:
+ * One of the challenges when sending streams is we might need to delay shipping the stream if:
  *
  * - we've exceeded our network I/O use due to rate limiting (at the cassandra level)
  * - the receiver isn't keeping up, which causes the local TCP socket buffer to not empty, which causes epoll writes to not
  * move any bytes to the socket, which causes buffers to stick around in user-land (a/k/a cassandra) memory.
  *
- * When those conditions occur, it's easy enough to reschedule processing the file once the resources pick up
+ * When those conditions occur, it's easy enough to reschedule processing the stream once the resources pick up
  * (we acquire the permits from the rate limiter, or the socket drains). However, we need to ensure that
- * no other messages are submitted to the same channel while the current file is still being processed.
+ * no other messages are submitted to the same channel while the current stream is still being processed.
  */
 public class NettyStreamingMessageSender implements StreamingMessageSender
 {
@@ -97,8 +97,8 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     private volatile boolean closed;
 
     /**
-     * A special {@link Channel} for sending non-file streaming messages, basically anything that isn't an
-     * {@link OutgoingFileMessage} (or an {@link IncomingFileMessage}, but a node doesn't send that, it's only received).
+     * A special {@link Channel} for sending non-stream streaming messages, basically anything that isn't an
+     * {@link OutgoingStreamMessage} (or an {@link IncomingStreamMessage}, but a node doesn't send that, it's only received).
      */
     private Channel controlMessageChannel;
 
@@ -113,9 +113,9 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     private final ConcurrentMap<Thread, Channel> threadToChannelMap = new ConcurrentHashMap<>();
 
     /**
-     * A netty channel attribute used to indicate if a channel is currently transferring a file. This is primarily used
+     * A netty channel attribute used to indicate if a channel is currently transferring a stream. This is primarily used
      * to indicate to the {@link KeepAliveTask} if it is safe to send a {@link KeepAliveMessage}, as sending the
-     * (application level) keep-alive in the middle of streaming a file would be bad news.
+     * (application level) keep-alive in the middle of a stream would be bad news.
      */
     @VisibleForTesting
     static final AttributeKey<Boolean> TRANSFERRING_FILE_ATTR = AttributeKey.valueOf("transferringFile");
@@ -135,13 +135,12 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     }
 
     @Override
-    public void initialize() throws IOException
+    public void initialize()
     {
-        StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddress(),
+        StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddressAndPort(),
                                                           session.sessionIndex(),
                                                           session.planId(),
                                                           session.streamOperation(),
-                                                          session.keepSSTableLevel(),
                                                           session.getPendingRepair(),
                                                           session.getPreviewKind());
         sendMessage(message);
@@ -183,8 +182,9 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     {
         Channel channel = factory.createConnection(connectionId, protocolVersion);
         ChannelPipeline pipeline = channel.pipeline();
-        pipeline.addLast(NettyFactory.instance.streamingGroup, NettyFactory.INBOUND_STREAM_HANDLER_NAME, new StreamingInboundHandler(connectionId.remoteAddress(), protocolVersion, session));
+        pipeline.addLast(NettyFactory.instance.streamingGroup, NettyFactory.INBOUND_STREAM_HANDLER_NAME, new StreamingInboundHandler(connectionId.remote(), protocolVersion, session));
         channel.attr(TRANSFERRING_FILE_ATTR).set(Boolean.FALSE);
+        logger.debug("Creating channel id {} local {} remote {}", channel.id(), channel.localAddress(), channel.remoteAddress());
         return channel;
     }
 
@@ -209,12 +209,12 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         if (closed)
             throw new RuntimeException("stream has been closed, cannot send " + message);
 
-        if (message instanceof OutgoingFileMessage)
+        if (message instanceof OutgoingStreamMessage)
         {
             if (isPreview)
-                throw new RuntimeException("Cannot send file messages for preview streaming sessions");
+                throw new RuntimeException("Cannot send stream data messages for preview streaming sessions");
             logger.debug("{} Sending {}", createLogTag(session, null), message);
-            fileTransferExecutor.submit(new FileStreamTask((OutgoingFileMessage)message));
+            fileTransferExecutor.submit(new FileStreamTask((OutgoingStreamMessage)message));
             return;
         }
 
@@ -271,7 +271,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             return null;
 
         Channel channel = channelFuture.channel();
-        logger.error("{} failed to send a stream message/file to peer {}: msg = {}",
+        logger.error("{} failed to send a stream message/data to peer {}: msg = {}",
                      createLogTag(session, channel), connectionId, msg, future.cause());
 
         // StreamSession will invoke close(), but we have to mark this sender as closed so the session doesn't try
@@ -288,12 +288,12 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         private static final int SEMAPHORE_UNAVAILABLE_LOG_INTERVAL = 3;
 
         /**
-         * Even though we expect only an {@link OutgoingFileMessage} at runtime, the type here is {@link StreamMessage}
+         * Even though we expect only an {@link OutgoingStreamMessage} at runtime, the type here is {@link StreamMessage}
          * to facilitate simpler testing.
          */
         private final StreamMessage msg;
 
-        FileStreamTask(OutgoingFileMessage ofm)
+        FileStreamTask(OutgoingStreamMessage ofm)
         {
             this.msg = ofm;
         }
@@ -357,9 +357,9 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                     if (now - timeOfLastLogging > logIntervalNanos)
                     {
                         timeOfLastLogging = now;
-                        OutgoingFileMessage ofm = (OutgoingFileMessage)msg;
-                        logger.info("{} waiting to acquire a permit to begin streaming file {}. This message logs every {} minutes",
-                                    createLogTag(session, null), ofm.getFilename(), logInterval);
+                        OutgoingStreamMessage ofm = (OutgoingStreamMessage)msg;
+                        logger.info("{} waiting to acquire a permit to begin streaming {}. This message logs every {} minutes",
+                                    createLogTag(session, null), ofm.getName(), logInterval);
                     }
                 }
                 catch (InterruptedException ie)
@@ -496,7 +496,8 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     {
         closed = true;
         logger.debug("{} Closing stream connection channels on {}", createLogTag(session, null), connectionId);
-        channelKeepAlives.stream().map(scheduledFuture -> scheduledFuture.cancel(false));
+        for (ScheduledFuture<?> future : channelKeepAlives)
+            future.cancel(false);
         channelKeepAlives.clear();
 
         List<Future<Void>> futures = new ArrayList<>(threadToChannelMap.size());
@@ -508,5 +509,11 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
 
         if (controlMessageChannel != null)
             controlMessageChannel.close();
+    }
+
+    @Override
+    public OutboundConnectionIdentifier getConnectionId()
+    {
+        return connectionId;
     }
 }

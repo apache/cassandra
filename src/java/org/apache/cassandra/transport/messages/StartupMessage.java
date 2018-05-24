@@ -23,6 +23,7 @@ import java.util.Map;
 import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -36,6 +37,8 @@ public class StartupMessage extends Message.Request
     public static final String CQL_VERSION = "CQL_VERSION";
     public static final String COMPRESSION = "COMPRESSION";
     public static final String PROTOCOL_VERSIONS = "PROTOCOL_VERSIONS";
+    public static final String DRIVER_NAME = "DRIVER_NAME";
+    public static final String DRIVER_VERSION = "DRIVER_VERSION";
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
@@ -96,6 +99,14 @@ public class StartupMessage extends Message.Request
             {
                 throw new ProtocolException(String.format("Unknown compression algorithm: %s", compression));
             }
+        }
+
+        ClientState clientState = state.getClientState();
+        String driverName = options.get(DRIVER_NAME);
+        if (null != driverName)
+        {
+            clientState.setDriverName(driverName);
+            clientState.setDriverVersion(options.get(DRIVER_VERSION));
         }
 
         if (DatabaseDescriptor.getAuthenticator().requireAuthentication())

@@ -43,6 +43,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.async.NettyFactory.Mode;
@@ -258,12 +259,12 @@ public class OutboundMessagingConnection
         logger.debug("connection attempt {} to {}", connectAttemptCount, connectionId);
 
 
-        InetSocketAddress remote = connectionId.remoteAddress();
-        if (!authenticator.authenticate(remote.getAddress(), remote.getPort()))
+        InetAddressAndPort remote = connectionId.remote();
+        if (!authenticator.authenticate(remote.address, remote.port))
         {
             logger.warn("Internode auth failed connecting to {}", connectionId);
             //Remove the connection pool and other thread so messages aren't queued
-            MessagingService.instance().destroyConnectionPool(remote.getAddress());
+            MessagingService.instance().destroyConnectionPool(remote);
 
             // don't update the state field as destroyConnectionPool() *should* call OMC.close()
             // on all the connections in the OMP for the remoteAddress
@@ -284,7 +285,7 @@ public class OutboundMessagingConnection
     }
 
     @VisibleForTesting
-    static boolean shouldCompressConnection(InetAddress localHost, InetAddress remoteHost)
+    static boolean shouldCompressConnection(InetAddressAndPort localHost, InetAddressAndPort remoteHost)
     {
         return (DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.all)
                || ((DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.dc) && !isLocalDC(localHost, remoteHost));
@@ -355,7 +356,7 @@ public class OutboundMessagingConnection
         return null;
     }
 
-    static boolean isLocalDC(InetAddress localHost, InetAddress remoteHost)
+    static boolean isLocalDC(InetAddressAndPort localHost, InetAddressAndPort remoteHost)
     {
         String remoteDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(remoteHost);
         String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(localHost);
@@ -478,7 +479,7 @@ public class OutboundMessagingConnection
         {
             case SUCCESS:
                 assert result.channelWriter != null;
-                logger.debug("successfully connected to {}, conmpress = {}, coalescing = {}", connectionId,
+                logger.debug("successfully connected to {}, compress = {}, coalescing = {}", connectionId,
                              shouldCompressConnection(connectionId.local(), connectionId.remote()),
                              coalescingStrategy.isPresent() ? coalescingStrategy.get() : CoalescingStrategies.Strategy.DISABLED);
                 if (state.get() == State.CLOSED)
@@ -585,7 +586,7 @@ public class OutboundMessagingConnection
      * Any outstanding messages in the existing channel will still be sent to the previous address (we won't/can't move them from
      * one channel to another).
      */
-    void reconnectWithNewIp(InetSocketAddress newAddr)
+    void reconnectWithNewIp(InetAddressAndPort newAddr)
     {
         State currentState = state.get();
 

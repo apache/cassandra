@@ -18,7 +18,6 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.UUID;
 
@@ -39,6 +38,7 @@ import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessageIn;
@@ -81,13 +81,13 @@ public class HintTest
     public void resetGcGraceSeconds()
     {
         TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
-        InetAddress local = FBUtilities.getBroadcastAddress();
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         tokenMeta.clearUnsafe();
         tokenMeta.updateHostId(UUID.randomUUID(), local);
         tokenMeta.updateNormalTokens(BootStrapper.getRandomTokens(tokenMeta, 1), local);
 
         for (TableMetadata table : Schema.instance.getTablesAndViews(KEYSPACE))
-            MigrationManager.announceTableUpdate(table.unbuild().gcGraceSeconds(TableParams.DEFAULT_GC_GRACE_SECONDS).build(), true);
+            MigrationManager.announceTableUpdate(table.unbuild().gcGraceSeconds(864000).build(), true);
     }
 
     @Test
@@ -230,8 +230,8 @@ public class HintTest
 
         // Prepare metadata with injected stale endpoint serving the mutation key.
         TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
-        InetAddress local = FBUtilities.getBroadcastAddress();
-        InetAddress endpoint = InetAddress.getByName("1.1.1.1");
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+        InetAddressAndPort endpoint = InetAddressAndPort.getByName("1.1.1.1");
         UUID localId = StorageService.instance.getLocalHostUUID();
         UUID targetId = UUID.randomUUID();
         tokenMeta.updateHostId(targetId, endpoint);
@@ -271,8 +271,8 @@ public class HintTest
 
         // Prepare metadata with injected stale endpoint.
         TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
-        InetAddress local = FBUtilities.getBroadcastAddress();
-        InetAddress endpoint = InetAddress.getByName("1.1.1.1");
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+        InetAddressAndPort endpoint = InetAddressAndPort.getByName("1.1.1.1");
         UUID localId = StorageService.instance.getLocalHostUUID();
         UUID targetId = UUID.randomUUID();
         tokenMeta.updateHostId(targetId, endpoint);

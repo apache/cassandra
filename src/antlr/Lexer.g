@@ -145,6 +145,8 @@ K_PASSWORD:    P A S S W O R D;
 K_LOGIN:       L O G I N;
 K_NOLOGIN:     N O L O G I N;
 K_OPTIONS:     O P T I O N S;
+K_ACCESS:      A C C E S S;
+K_DATACENTERS: D A T A C E N T E R S;
 
 K_CLUSTERING:  C L U S T E R I N G;
 K_ASCII:       A S C I I;

@@ -18,6 +18,7 @@
 package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -25,6 +26,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionsTest;
@@ -34,6 +37,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -95,7 +99,7 @@ public class ValidatorTest
 
         final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
 
-        InetAddress remote = InetAddress.getByName("127.0.0.2");
+        InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
 
@@ -134,7 +138,7 @@ public class ValidatorTest
 
         final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
 
-        InetAddress remote = InetAddress.getByName("127.0.0.2");
+        InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
 
         Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
         validator.fail();
@@ -189,13 +193,13 @@ public class ValidatorTest
                                                cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
                                                                                                                 sstable.last.getToken())));
 
-        ActiveRepairService.instance.registerParentRepairSession(repairSessionId, FBUtilities.getBroadcastAddress(),
+        ActiveRepairService.instance.registerParentRepairSession(repairSessionId, FBUtilities.getBroadcastAddressAndPort(),
                                                                  Collections.singletonList(cfs), desc.ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                  false, PreviewKind.NONE);
 
         final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddress(), 0, true, false, PreviewKind.NONE);
-        CompactionManager.instance.submitValidation(cfs, validator);
+        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddressAndPort(), 0, true, false, PreviewKind.NONE);
+        ValidationManager.instance.submitValidation(cfs, validator);
 
         MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
         assertEquals(MessagingService.Verb.REPAIR_MESSAGE, message.verb);
@@ -213,12 +217,51 @@ public class ValidatorTest
         assertEquals(trees.rowCount(), n);
     }
 
+    @Test
+    public void testCountingHasher()
+    {
+        Hasher [] hashers = new Hasher[] {new Validator.CountingHasher(), Validator.CountingHasher.hashFunctions[0].newHasher(), Validator.CountingHasher.hashFunctions[1].newHasher() };
+        byte [] random = UUIDGen.getTimeUUIDBytes();
+
+        // call all overloaded methods:
+        for (Hasher hasher : hashers)
+        {
+            hasher.putByte((byte) 33)
+                  .putBytes(random)
+                  .putBytes(ByteBuffer.wrap(random))
+                  .putBytes(random, 0, 3)
+                  .putChar('a')
+                  .putBoolean(false)
+                  .putDouble(3.3)
+                  .putInt(77)
+                  .putFloat(99)
+                  .putLong(101)
+                  .putShort((short) 23);
+        }
+
+        long len = Byte.BYTES
+                   + random.length * 2 // both the byte[] and the ByteBuffer
+                   + 3 // 3 bytes from the random byte[]
+                   + Character.BYTES
+                   + Byte.BYTES
+                   + Double.BYTES
+                   + Integer.BYTES
+                   + Float.BYTES
+                   + Long.BYTES
+                   + Short.BYTES;
+
+        byte [] h = hashers[0].hash().asBytes();
+        assertTrue(Arrays.equals(hashers[1].hash().asBytes(), Arrays.copyOfRange(h, 0, 16)));
+        assertTrue(Arrays.equals(hashers[2].hash().asBytes(), Arrays.copyOfRange(h, 16, 32)));
+        assertEquals(len, ((Validator.CountingHasher)hashers[0]).getCount());
+    }
+
     private CompletableFuture<MessageOut> registerOutgoingMessageSink()
     {
         final CompletableFuture<MessageOut> future = new CompletableFuture<>();
         MessagingService.instance().addMessageSink(new IMessageSink()
         {
-            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to)
+            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddressAndPort to)
             {
                 future.complete(message);
                 return false;

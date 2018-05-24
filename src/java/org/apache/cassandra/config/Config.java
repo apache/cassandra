@@ -32,6 +32,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 
 /**
@@ -52,6 +53,7 @@ public class Config
     public String authenticator;
     public String authorizer;
     public String role_manager;
+    public String network_authorizer;
     public volatile int permissions_validity_in_ms = 2000;
     public volatile int permissions_cache_max_entries = 1000;
     public volatile int permissions_update_interval_in_ms = -1;
@@ -128,6 +130,13 @@ public class Config
     public boolean listen_on_broadcast_address = false;
     public String internode_authenticator;
 
+    /*
+     * RPC address and interface refer to the address/interface used for the native protocol used to communicate with
+     * clients. It's still called RPC in some places even though Thrift RPC is gone. If you see references to native
+     * address or native port it's derived from the RPC address configuration.
+     *
+     * native_transport_port is the port that is paired with RPC address to bind on.
+     */
     public String rpc_address;
     public String rpc_interface;
     public boolean rpc_interface_prefer_ipv6 = false;
@@ -365,6 +374,15 @@ public class Config
     public int repair_command_pool_size = concurrent_validations;
 
     public String full_query_log_dir = null;
+
+    // parameters to adjust how much to delay startup until a certain amount of the cluster is connect to and marked alive
+    public int block_for_peers_percentage = 70;
+    public int block_for_peers_timeout_in_secs = 10;
+    public volatile boolean automatic_sstable_upgrade = false;
+    public volatile int max_concurrent_automatic_sstable_upgrades = 1;
+
+    public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
+
 
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}

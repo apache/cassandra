@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.List;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.cql3.conditions.Conditions;
@@ -30,6 +31,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -50,7 +53,7 @@ public class DeleteStatement extends ModificationStatement
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate update, Clustering clustering, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering clustering, UpdateParameters params)
     throws InvalidRequestException
     {
         TableMetadata metadata = metadata();
@@ -63,19 +66,19 @@ public class DeleteStatement extends ModificationStatement
             // We're not deleting any specific columns so it's either a full partition deletion ....
             if (clustering.size() == 0)
             {
-                update.addPartitionDeletion(params.deletionTime());
+                updateBuilder.addPartitionDeletion(params.deletionTime());
             }
             // ... or a row deletion ...
             else if (clustering.size() == metadata.clusteringColumns().size())
             {
                 params.newRow(clustering);
                 params.addRowDeletion();
-                update.add(params.buildRow());
+                updateBuilder.add(params.buildRow());
             }
             // ... or a range of rows deletion.
             else
             {
-                update.add(params.makeRangeTombstone(metadata.comparator, clustering));
+                updateBuilder.add(params.makeRangeTombstone(metadata.comparator, clustering));
             }
         }
         else
@@ -91,22 +94,22 @@ public class DeleteStatement extends ModificationStatement
                 params.newRow(clustering);
 
                 for (Operation op : regularDeletions)
-                    op.execute(update.partitionKey(), params);
-                update.add(params.buildRow());
+                    op.execute(updateBuilder.partitionKey(), params);
+                updateBuilder.add(params.buildRow());
             }
 
             if (!staticDeletions.isEmpty())
             {
                 params.newRow(Clustering.STATIC_CLUSTERING);
                 for (Operation op : staticDeletions)
-                    op.execute(update.partitionKey(), params);
-                update.add(params.buildRow());
+                    op.execute(updateBuilder.partitionKey(), params);
+                updateBuilder.add(params.buildRow());
             }
         }
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate update, Slice slice, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder update, Slice slice, UpdateParameters params)
     {
         List<Operation> regularDeletions = getRegularOperations();
         List<Operation> staticDeletions = getStaticOperations();
@@ -141,6 +144,8 @@ public class DeleteStatement extends ModificationStatement
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
+            checkFalse(metadata.isVirtual(), "Virtual tables don't support DELETE statements");
+
             Operations operations = new Operations(type);
 
             for (Operation.RawDeletion deletion : deletions)
@@ -182,5 +187,16 @@ public class DeleteStatement extends ModificationStatement
 
             return stmt;
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.DELETE, keyspace(), columnFamily());
     }
 }

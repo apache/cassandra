@@ -1,0 +1,347 @@
+default_env_vars: &default_env_vars
+    JAVA_HOME: /usr/local/openjdk8u154-cassandra-b02
+    ANT_HOME: /usr/local/apache-ant-1.10.1
+    LANG: en_US.UTF-8
+    JDK_HOME: /usr/local/openjdk8u154-cassandra-b02
+    JAVA8_HOME: /usr/local/openjdk8u154-cassandra-b02
+    JAVA7_HOME: /usr/local/openjdk7u82-cassandra-b02
+    KEEP_TEST_DIR: true
+    DEFAULT_DIR: /home/cassandra/cassandra-dtest
+    PYTHONIOENCODING: utf-8
+    PYTHONUNBUFFERED: true
+    CASS_DRIVER_NO_EXTENSIONS: true
+    CASS_DRIVER_NO_CYTHON: true
+# For environments with xlarge instances, use more memory
+high_capacity_env_vars: &high_capacity_env_vars
+    <<: *default_env_vars
+    CCM_MAX_HEAP_SIZE: 2048M
+    CCM_HEAP_NEWSIZE: 512M
+# For environments with limited memory (e.g the free OSS CircleCI Tier)
+resource_constrained_env_vars: &resource_constrained_env_vars
+    <<: *default_env_vars
+    CCM_MAX_HEAP_SIZE: 1024M
+    CCM_HEAP_NEWSIZE: 256M
+# Settings for users who do not have a paid CircleCI account
+default_env_settings: &default_env_settings
+    resource_class: medium
+    parallelism: 4
+# Settings for users with high-capacity, paid CircleCI account
+high_capacity_env_settings: &high_capacity_env_settings
+    resource_class: xlarge
+    parallelism: 100
+default_jobs: &default_jobs
+        jobs:
+            - build
+            - unit_tests:
+                  requires:
+                      - build
+with_dtests_jobs: &with_dtest_jobs
+        jobs:
+            - build
+            - unit_tests:
+                  requires:
+                      - build
+            - dtests-with-vnodes:
+                  requires:
+                      - build
+            - dtests-no-vnodes:
+                  requires:
+                      - build
+with_dtest_jobs_only: &with_dtest_jobs_only
+        jobs:
+            - build
+            - dtests-with-vnodes:
+                  requires:
+                      - build
+            - dtests-no-vnodes:
+                  requires:
+                      - build
+# Set env_settings, env_vars, and workflows/build_and_run_tests based on environment
+env_settings: &env_settings
+    <<: *default_env_settings
+    #<<: *high_capacity_env_settings
+env_vars: &env_vars
+    <<: *resource_constrained_env_vars
+    #<<: *high_capacity_env_vars
+workflows:
+    version: 2
+    build_and_run_tests: *default_jobs
+    #build_and_run_tests: *with_dtest_jobs_only
+    #build_and_run_tests: *with_dtest_jobs
+docker_image: &docker_image kjellman/cassandra-test:0.4.3
+version: 2
+jobs:
+  build:
+    <<: *env_settings
+    parallelism: 1 # This job doesn't benefit from parallelism
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    docker:
+      - image: *docker_image
+        environment:
+            <<: *env_vars
+    steps:
+      - run:
+          name: Log Environment Information
+          command: |
+              echo '*** id ***'
+              id
+              echo '*** cat /proc/cpuinfo ***'
+              cat /proc/cpuinfo
+              echo '*** free -m ***'
+              free -m
+              echo '*** df -m ***'
+              df -m
+              echo '*** ifconfig -a ***'
+              ifconfig -a
+              echo '*** uname -a ***'
+              uname -a
+              echo '*** mount ***'
+              mount
+              echo '*** env ***'
+              env
+      - run:
+          name: Clone Cassandra Repository (via git)
+          command: |
+            export LANG=en_US.UTF-8
+            git clone --single-branch --depth 1 --branch $CIRCLE_BRANCH git://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git ~/cassandra
+      - run:
+          name: Build Cassandra
+          command: |
+            export LANG=en_US.UTF-8
+            export JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF8"
+            export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+            cd ~/cassandra
+            # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
+            for x in $(seq 1 3); do
+                ${ANT_HOME}/bin/ant clean jar
+                RETURN="$?"
+                if [ "${RETURN}" -eq "0" ]; then
+                    break
+                fi
+            done
+            # Exit, if we didn't build successfully
+            if [ "${RETURN}" -ne "0" ]; then
+                echo "Build failed with exit code: ${RETURN}"
+                exit ${RETURN}
+            fi
+          no_output_timeout: 15m
+      - run:
+          name: Run eclipse-warnings
+          command: |
+            export LANG=en_US.UTF-8
+            export JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF8"
+            export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+            cd ~/cassandra
+            ant eclipse-warnings
+      - persist_to_workspace:
+            root: /home/cassandra
+            paths:
+                - cassandra
+                - .m2
+  unit_tests:
+    <<: *env_settings
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    docker:
+      - image: *docker_image
+        environment:
+            <<: *env_vars
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run:
+          name: Determine Tests to Run
+          no_output_timeout: 15m
+          command: |
+            # reminder: this code (along with all the steps) is independently executed on every circle container
+            # so the goal here is to get the circleci script to return the tests *this* container will run
+            # which we do via the `circleci` cli tool.
+
+            export LANG=en_US.UTF-8
+            rm -fr ~/cassandra-dtest/upgrade_tests
+            echo "***java tests***"
+
+            # get all of our unit test filenames
+            set -eo pipefail && circleci tests glob "$HOME/cassandra/test/unit/**/*.java" > /tmp/all_java_unit_tests.txt
+
+            # split up the unit tests into groups based on the number of containers we have
+            set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
+            set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | cut -c 37-1000000 | grep "Test\.java$" > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+            echo "** /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt"
+            cat /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+      - run:
+         name: Run Unit Tests
+         command: |
+            export LANG=en_US.UTF-8
+            export JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF8"
+            export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+            #Skip all syncing to disk to avoid performance issues in flaky CI environments
+            export CASSANDRA_SKIP_SYNC=true
+
+            time mv ~/cassandra /tmp
+            cd /tmp/cassandra
+            ant testclasslist -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+         no_output_timeout: 15m
+      - store_test_results:
+            path: /tmp/cassandra/build/test/output/
+      - store_artifacts:
+          path: /tmp/cassandra/build/test/output
+          destination: junitxml
+      - store_artifacts:
+          path: /tmp/cassandra/build/test/logs
+          destination: logs
+  dtests-with-vnodes:
+    <<: *env_settings
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    docker:
+      - image: *docker_image
+        environment:
+            <<: *env_vars
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run:
+          name: Clone Cassandra dtest Repository (via git)
+          command: |
+            export LANG=en_US.UTF-8
+            git clone --single-branch --branch master --depth 1 git://github.com/apache/cassandra-dtest.git ~/cassandra-dtest
+      - run:
+          name: Configure virtualenv and python Dependencies
+          command: |
+            # note, this should be super quick as all dependencies should be pre-installed in the docker image
+            # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
+            # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
+            # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
+            export LANG=en_US.UTF-8
+            source ~/env/bin/activate
+            export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+            export CASS_DRIVER_NO_EXTENSIONS=true
+            export CASS_DRIVER_NO_CYTHON=true
+            pip3 install --exists-action w -r ~/cassandra-dtest/requirements.txt
+            pip3 freeze
+      - run:
+          name: Determine Tests to Run
+          no_output_timeout: 5m
+          command: |
+            # reminder: this code (along with all the steps) is independently executed on every circle container
+            # so the goal here is to get the circleci script to return the tests *this* container will run
+            # which we do via the `circleci` cli tool.
+
+            export LANG=en_US.UTF-8
+            cd cassandra-dtest
+            source ~/env/bin/activate
+            export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+
+            echo "***Collected DTests (with vnodes)***"
+            set -eo pipefail && ./run_dtests.py --use-vnodes --dtest-print-tests-only --skip-resource-intensive-tests --dtest-print-tests-output=/tmp/all_dtest_tests_with_vnodes
+            set -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_with_vnodes > /tmp/split_dtest_tests_with_vnodes.txt
+            cat /tmp/split_dtest_tests_with_vnodes.txt | tr '\n' ' ' > /tmp/split_dtest_tests_with_vnodes_final.txt
+            # cat /tmp/split_dtest_tests_with_vnodes.txt
+            cat /tmp/split_dtest_tests_with_vnodes_final.txt
+      - run:
+          name: Run dtests (with vnodes)
+          no_output_timeout: 15m
+          command: |
+            echo "cat /tmp/split_dtest_tests_with_vnodes_final.txt"
+            cat /tmp/split_dtest_tests_with_vnodes_final.txt
+
+            source ~/env/bin/activate
+            export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+
+            cd ~/cassandra-dtest
+            mkdir -p /tmp/dtest
+
+            echo "env: $(env)"
+            echo "** done env"
+            mkdir -p /tmp/results/dtests
+            # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
+            export SPLIT_TESTS=`cat /tmp/split_dtest_tests_with_vnodes_final.txt`
+            #Skip all syncing to disk to avoid performance issues in flaky CI environments
+            export CASSANDRA_SKIP_SYNC=true
+            set -o pipefail && cd ~/cassandra-dtest && pytest --log-level="INFO" --use-vnodes --num-tokens=32 --junit-xml=/tmp/results/dtests/pytest_result_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --skip-resource-intensive-tests --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+      - store_test_results:
+          path: /tmp/results
+      - store_artifacts:
+          path: /tmp/dtest
+          destination: dtest_with_vnodes
+      - store_artifacts:
+          path: ~/cassandra-dtest/logs
+          destination: dtest_with_vnodes_logs
+  dtests-no-vnodes:
+    <<: *env_settings
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    docker:
+      - image: *docker_image
+        environment:
+            <<: *env_vars
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run:
+          name: Clone Cassandra dtest Repository (via git)
+          command: |
+            export LANG=en_US.UTF-8
+            git clone --single-branch --branch master --depth 1 git://github.com/apache/cassandra-dtest.git ~/cassandra-dtest
+      - run:
+          name: Configure virtualenv and python Dependencies
+          command: |
+            # note, this should be super quick as all dependencies should be pre-installed in the docker image
+            # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
+            # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
+            # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
+            export LANG=en_US.UTF-8
+            source ~/env/bin/activate
+            export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+            export CASS_DRIVER_NO_EXTENSIONS=true
+            export CASS_DRIVER_NO_CYTHON=true
+            pip3 install --exists-action w -r ~/cassandra-dtest/requirements.txt
+            pip3 freeze
+      - run:
+          name: Determine Tests to Run
+          no_output_timeout: 5m
+          command: |
+            # reminder: this code (along with all the steps) is independently executed on every circle container
+            # so the goal here is to get the circleci script to return the tests *this* container will run
+            # which we do via the `circleci` cli tool.
+
+            export LANG=en_US.UTF-8
+            cd cassandra-dtest
+            source ~/env/bin/activate
+            export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+
+            echo "***Collected DTests (without vnodes)***"
+            ./run_dtests.py --dtest-print-tests-only --skip-resource-intensive-tests --dtest-print-tests-output=/tmp/all_dtest_tests_without_vnodes
+            set -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_without_vnodes > /tmp/split_dtest_tests_without_vnodes.txt
+            cat /tmp/split_dtest_tests_without_vnodes.txt | tr '\n' ' ' > /tmp/split_dtest_tests_without_vnodes_final.txt
+            # cat /tmp/split_dtest_tests_without_vnodes.txt
+            cat /tmp/split_dtest_tests_without_vnodes_final.txt
+      - run:
+          name: Run dtests (without vnodes)
+          no_output_timeout: 15m
+          command: |
+            # for now require at least 50 circleci containers to run the dtests (with less resources the tests won't produce reliable results or will fail to complete)
+            if [ $CIRCLE_NODE_TOTAL -gt 0 ]; then
+                source ~/env/bin/activate
+                export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+
+                cd ~/cassandra-dtest
+                mkdir -p /tmp/dtest
+
+                mkdir -p /tmp/results/dtests
+                # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
+                export SPLIT_TESTS=`cat /tmp/split_dtest_tests_without_vnodes_final.txt`
+                #Skip all syncing to disk to avoid performance issues in flaky CI environments
+                export CASSANDRA_SKIP_SYNC=true
+                set -o pipefail && cd ~/cassandra-dtest && pytest --log-level="INFO" --junit-xml=/tmp/results/dtests/pytest_result_novnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --skip-resource-intensive-tests --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout-novnodes.txt
+            fi
+      - store_test_results:
+          path: /tmp/results
+      - store_artifacts:
+          path: /tmp/dtest
+          destination: dtest_no_vnodes
+      - store_artifacts:
+          path: ~/cassandra-dtest/logs
+          destination: dtest_no_vnodes_logs

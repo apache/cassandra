@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -28,7 +29,10 @@ import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.common.primitives.Longs;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.index.Index;
 
@@ -37,12 +41,12 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -107,8 +111,8 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     private volatile CompactionParams schemaCompactionParams;
     private boolean shouldDefragment;
+    private boolean supportsEarlyOpen;
     private int fanout;
-
 
     public CompactionStrategyManager(ColumnFamilyStore cfs)
     {
@@ -201,6 +205,37 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
+    /**
+     * finds the oldest (by modification date) non-latest-version sstable on disk and creates an upgrade task for it
+     * @return
+     */
+    @VisibleForTesting
+    @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
+    AbstractCompactionTask findUpgradeSSTableTask()
+    {
+        if (!isEnabled() || !DatabaseDescriptor.automaticSSTableUpgrade())
+            return null;
+        Set<SSTableReader> compacting = cfs.getTracker().getCompacting();
+        List<SSTableReader> potentialUpgrade = cfs.getLiveSSTables()
+                                                  .stream()
+                                                  .filter(s -> !compacting.contains(s) && !s.descriptor.version.isLatestVersion())
+                                                  .sorted((o1, o2) -> {
+                                                      File f1 = new File(o1.descriptor.filenameFor(Component.DATA));
+                                                      File f2 = new File(o2.descriptor.filenameFor(Component.DATA));
+                                                      return Longs.compare(f1.lastModified(), f2.lastModified());
+                                                  }).collect(Collectors.toList());
+        for (SSTableReader sstable : potentialUpgrade)
+        {
+            LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.UPGRADE_SSTABLES);
+            if (txn != null)
+            {
+                logger.debug("Running automatic sstable upgrade for {}", sstable);
+                return getCompactionStrategyFor(sstable).getCompactionTask(txn, Integer.MIN_VALUE, Long.MAX_VALUE);
+            }
+        }
+        return null;
+    }
+
     public boolean isEnabled()
     {
         return enabled && isActive;
@@ -257,6 +292,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             unrepaired.forEach(AbstractCompactionStrategy::startup);
             pendingRepairs.forEach(PendingRepairManager::startup);
             shouldDefragment = repaired.get(0).shouldDefragment();
+            supportsEarlyOpen = repaired.get(0).supportsEarlyOpen();
             fanout = (repaired.get(0) instanceof LeveledCompactionStrategy) ? ((LeveledCompactionStrategy) repaired.get(0)).getLevelFanoutSize() : LeveledCompactionStrategy.DEFAULT_LEVEL_FANOUT_SIZE;
         }
         finally
@@ -338,34 +374,74 @@ public class CompactionStrategyManager implements INotificationConsumer
     @VisibleForTesting
     List<AbstractCompactionStrategy> getRepaired()
     {
-        return repaired;
+        readLock.lock();
+        try
+        {
+            return Lists.newArrayList(repaired);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     @VisibleForTesting
     List<AbstractCompactionStrategy> getUnrepaired()
     {
-        return unrepaired;
+        readLock.lock();
+        try
+        {
+            return Lists.newArrayList(unrepaired);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     @VisibleForTesting
     List<AbstractCompactionStrategy> getForPendingRepair(UUID sessionID)
     {
-        List<AbstractCompactionStrategy> strategies = new ArrayList<>(pendingRepairs.size());
-        pendingRepairs.forEach(p -> strategies.add(p.get(sessionID)));
-        return strategies;
+        readLock.lock();
+        try
+        {
+            List<AbstractCompactionStrategy> strategies = new ArrayList<>(pendingRepairs.size());
+            pendingRepairs.forEach(p -> strategies.add(p.get(sessionID)));
+            return strategies;
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     @VisibleForTesting
     Set<UUID> pendingRepairs()
     {
-        Set<UUID> ids = new HashSet<>();
-        pendingRepairs.forEach(p -> ids.addAll(p.getSessions()));
-        return ids;
+        readLock.lock();
+        try
+        {
+            Set<UUID> ids = new HashSet<>();
+            pendingRepairs.forEach(p -> ids.addAll(p.getSessions()));
+            return ids;
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     public boolean hasDataForPendingRepair(UUID sessionID)
     {
-        return Iterables.any(pendingRepairs, prm -> prm.hasDataForSession(sessionID));
+        readLock.lock();
+        try
+        {
+            return Iterables.any(pendingRepairs, prm -> prm.hasDataForSession(sessionID));
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     public void shutdown()
@@ -703,7 +779,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            getCompactionStrategyFor(deleted).removeSSTable(deleted);
+            compactionStrategyFor(deleted).removeSSTable(deleted);
         }
         finally
         {
@@ -1161,51 +1237,68 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public List<String> getStrategyFolders(AbstractCompactionStrategy strategy)
     {
-        Directories.DataDirectory[] locations = cfs.getDirectories().getWriteableLocations();
-        if (partitionSSTablesByTokenRange)
+        readLock.lock();
+        try
         {
-            int unrepairedIndex = unrepaired.indexOf(strategy);
-            if (unrepairedIndex > 0)
+            Directories.DataDirectory[] locations = cfs.getDirectories().getWriteableLocations();
+            if (partitionSSTablesByTokenRange)
             {
-                return Collections.singletonList(locations[unrepairedIndex].location.getAbsolutePath());
-            }
-            int repairedIndex = repaired.indexOf(strategy);
-            if (repairedIndex > 0)
-            {
-                return Collections.singletonList(locations[repairedIndex].location.getAbsolutePath());
-            }
-            for (int i = 0; i < pendingRepairs.size(); i++)
-            {
-                PendingRepairManager pending = pendingRepairs.get(i);
-                if (pending.hasStrategy(strategy))
+                int unrepairedIndex = unrepaired.indexOf(strategy);
+                if (unrepairedIndex > 0)
                 {
-                    return Collections.singletonList(locations[i].location.getAbsolutePath());
+                    return Collections.singletonList(locations[unrepairedIndex].location.getAbsolutePath());
+                }
+                int repairedIndex = repaired.indexOf(strategy);
+                if (repairedIndex > 0)
+                {
+                    return Collections.singletonList(locations[repairedIndex].location.getAbsolutePath());
+                }
+                for (int i = 0; i < pendingRepairs.size(); i++)
+                {
+                    PendingRepairManager pending = pendingRepairs.get(i);
+                    if (pending.hasStrategy(strategy))
+                    {
+                        return Collections.singletonList(locations[i].location.getAbsolutePath());
+                    }
                 }
             }
+            List<String> folders = new ArrayList<>(locations.length);
+            for (Directories.DataDirectory location : locations)
+            {
+                folders.add(location.location.getAbsolutePath());
+            }
+            return folders;
         }
-        List<String> folders = new ArrayList<>(locations.length);
-        for (Directories.DataDirectory location : locations)
+        finally
         {
-            folders.add(location.location.getAbsolutePath());
+            readLock.unlock();
         }
-        return folders;
     }
 
     public boolean supportsEarlyOpen()
     {
-        return repaired.get(0).supportsEarlyOpen();
+        return supportsEarlyOpen;
     }
 
     @VisibleForTesting
     List<PendingRepairManager> getPendingRepairManagers()
     {
-        return pendingRepairs;
+        maybeReloadDiskBoundaries();
+        readLock.lock();
+        try
+        {
+            return pendingRepairs;
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     /**
      * Mutates sstable repairedAt times and notifies listeners of the change with the writeLock held. Prevents races
      * with other processes between when the metadata is changed and when sstables are moved between strategies.
-     */
+      */
     public void mutateRepaired(Collection<SSTableReader> sstables, long repairedAt, UUID pendingRepair) throws IOException
     {
         Set<SSTableReader> changed = new HashSet<>();

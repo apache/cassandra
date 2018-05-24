@@ -186,8 +186,7 @@ For instance::
         common_name text,
         population varint,
         average_size int
-    ) WITH comment='Important biological records'
-       AND read_repair_chance = 1.0;
+    ) WITH comment='Important biological records';
 
     CREATE TABLE timeline (
         userid uuid,
@@ -374,7 +373,7 @@ then the rows (which all belong to the same partition) are all stored internally
 ``b`` column (the order they are displayed above). So where the partition key of the table allows to group rows on the
 same replica set, the clustering columns controls how those rows are stored on the replica. That sorting allows the
 retrieval of a range of rows within a partition (for instance, in the example above, ``SELECT * FROM t WHERE a = 0 AND b
-> 1 and b <= 3``) very efficient.
+> 1 and b <= 3``) to be very efficient.
 
 
 .. _create-table-options:
@@ -453,15 +452,6 @@ A table supports the following options:
 +================================+==========+=============+===========================================================+
 | ``comment``                    | *simple* | none        | A free-form, human-readable comment.                      |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
-| ``read_repair_chance``         | *simple* | 0           | The probability with which to query extra nodes (e.g.     |
-|                                |          |             | more nodes than required by the consistency level) for    |
-|                                |          |             | the purpose of read repairs.                              |
-+--------------------------------+----------+-------------+-----------------------------------------------------------+
-| ``dclocal_read_repair_chance`` | *simple* | 0.1         | The probability with which to query extra nodes (e.g.     |
-|                                |          |             | more nodes than required by the consistency level)        |
-|                                |          |             | belonging to the same data center than the read           |
-|                                |          |             | coordinator for the purpose of read repairs.              |
-+--------------------------------+----------+-------------+-----------------------------------------------------------+
 | ``speculative_retry``          | *simple* | 99PERCENTILE| :ref:`Speculative retry options                           |
 |                                |          |             | <speculative-retry-options>`.                             |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
@@ -495,19 +485,32 @@ consistency levels: one for consistency level ``ONE``, a quorum for ``QUORUM``, 
 ``speculative_retry`` determines when coordinators may query additional replicas, which is useful
 when replicas are slow or unresponsive.  The following are legal values (case-insensitive):
 
-========================= ================ =============================================================================
- Format                    Example          Description
-========================= ================ =============================================================================
- ``XPERCENTILE``           90.5PERCENTILE   Coordinators record average per-table response times for all replicas.
-                                            If a replica takes longer than ``X`` percent of this table's average
-                                            response time, the coordinator queries an additional replica.
-                                            ``X`` must be between 0 and 100.
- ``XP``                    90.5P            Synonym for ``XPERCENTILE``
- ``Yms``                   25ms             If a replica takes more than ``Y`` milliseconds to respond,
-                                            the coordinator queries an additional replica.
- ``ALWAYS``                                 Coordinators always query all replicas.
- ``NONE``                                   Coordinators never query additional replicas.
-========================= ================ =============================================================================
+============================ ======================== =============================================================================
+ Format                       Example                  Description
+============================ ======================== =============================================================================
+ ``XPERCENTILE``             90.5PERCENTILE           Coordinators record average per-table response times for all replicas.
+                                                      If a replica takes longer than ``X`` percent of this table's average
+                                                      response time, the coordinator queries an additional replica.
+                                                      ``X`` must be between 0 and 100.
+ ``XP``                      90.5P                    Synonym for ``XPERCENTILE``
+ ``Yms``                     25ms                     If a replica takes more than ``Y`` milliseconds to respond,
+                                                      the coordinator queries an additional replica.
+ ``MIN(XPERCENTILE,YMS)``    MIN(99PERCENTILE,35MS)   A hybrid policy that will use either the specified percentile or fixed
+                                                      milliseconds depending on which value is lower at the time of calculation.
+                                                      Parameters are ``XPERCENTILE``, ``XP``, or ``Yms``.
+                                                      This is helpful to help protect against a single slow instance; in the
+                                                      happy case the 99th percentile is normally lower than the specified
+                                                      fixed value however, a slow host may skew the percentile very high
+                                                      meaning the slower the cluster gets, the higher the value of the percentile,
+                                                      and the higher the calculated time used to determine if we should
+                                                      speculate or not. This allows us to set an upper limit that we want to
+                                                      speculate at, but avoid skewing the tail latencies by speculating at the
+                                                      lower value when the percentile is less than the specified fixed upper bound.
+ ``MAX(XPERCENTILE,YMS)``    MAX(90.5P,25ms)          A hybrid policy that will use either the specified percentile or fixed
+                                                      milliseconds depending on which value is higher at the time of calculation.
+ ``ALWAYS``                                           Coordinators always query all replicas.
+ ``NEVER``                                            Coordinators never query additional replicas.
+============================ =================== =============================================================================
 
 This setting does not affect reads with consistency level ``ALL`` because they already query all replicas.
 
@@ -623,8 +626,7 @@ For instance::
     ALTER TABLE addamsFamily ADD gravesite varchar;
 
     ALTER TABLE addamsFamily
-           WITH comment = 'A most excellent and useful table'
-           AND read_repair_chance = 0.2;
+           WITH comment = 'A most excellent and useful table';
 
 The ``ALTER TABLE`` statement can:
 

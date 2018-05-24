@@ -85,13 +85,13 @@ public class RowTest
     @Test
     public void testMergeRangeTombstones() throws InterruptedException
     {
-        PartitionUpdate update1 = new PartitionUpdate(metadata, dk, metadata.regularAndStaticColumns(), 1);
+        PartitionUpdate.Builder update1 = new PartitionUpdate.Builder(metadata, dk, metadata.regularAndStaticColumns(), 1);
         writeRangeTombstone(update1, "1", "11", 123, 123);
         writeRangeTombstone(update1, "2", "22", 123, 123);
         writeRangeTombstone(update1, "3", "31", 123, 123);
         writeRangeTombstone(update1, "4", "41", 123, 123);
 
-        PartitionUpdate update2 = new PartitionUpdate(metadata, dk, metadata.regularAndStaticColumns(), 1);
+        PartitionUpdate.Builder update2 = new PartitionUpdate.Builder(metadata, dk, metadata.regularAndStaticColumns(), 1);
         writeRangeTombstone(update2, "1", "11", 123, 123);
         writeRangeTombstone(update2, "111", "112", 1230, 123);
         writeRangeTombstone(update2, "2", "24", 123, 123);
@@ -99,7 +99,7 @@ public class RowTest
         writeRangeTombstone(update2, "4", "41", 123, 1230);
         writeRangeTombstone(update2, "5", "51", 123, 1230);
 
-        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(ImmutableList.of(update1.unfilteredIterator(), update2.unfilteredIterator()), nowInSeconds))
+        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(ImmutableList.of(update1.build().unfilteredIterator(), update2.build().unfilteredIterator()), nowInSeconds))
         {
             Object[][] expected = new Object[][]{ { "1", "11", 123l, 123 },
                                                   { "111", "112", 1230l, 123 },
@@ -204,7 +204,7 @@ public class RowTest
         assertEquals(expected[3], deletionTime.localDeletionTime());
     }
 
-    public void writeRangeTombstone(PartitionUpdate update, Object start, Object end, long markedForDeleteAt, int localDeletionTime)
+    public void writeRangeTombstone(PartitionUpdate.Builder update, Object start, Object end, long markedForDeleteAt, int localDeletionTime)
     {
         ClusteringComparator comparator = cfs.getComparator();
         update.add(new RangeTombstone(Slice.make(comparator.make(start), comparator.make(end)), new DeletionTime(markedForDeleteAt, localDeletionTime)));

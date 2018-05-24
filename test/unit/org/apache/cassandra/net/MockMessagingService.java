@@ -17,14 +17,15 @@
  */
 package org.apache.cassandra.net;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.function.Predicate;
+
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * Starting point for mocking {@link MessagingService} interactions. Outgoing messages can be
  * intercepted by first creating a {@link MatcherResponse} by calling {@link MockMessagingService#when(Matcher)}.
- * Alternatively {@link Matcher}s can be created by using helper methods such as {@link #to(InetAddress)},
+ * Alternatively {@link Matcher}s can be created by using helper methods such as {@link #to(InetAddressAndPort)},
  * {@link #verb(MessagingService.Verb)} or {@link #payload(Predicate)} and may also be
  * nested using {@link MockMessagingService#all(Matcher[])} or {@link MockMessagingService#any(Matcher[])}.
  * After each test, {@link MockMessagingService#cleanup()} must be called for free listeners registered
@@ -58,11 +59,11 @@ public class MockMessagingService
      * Creates a matcher that will indicate if the target address of the outgoing message equals the
      * provided address.
      */
-    public static Matcher<InetAddress> to(String address)
+    public static Matcher<InetAddressAndPort> to(String address)
     {
         try
         {
-            return to(InetAddress.getByName(address));
+            return to(InetAddressAndPort.getByName(address));
         }
         catch (UnknownHostException e)
         {
@@ -74,7 +75,7 @@ public class MockMessagingService
      * Creates a matcher that will indicate if the target address of the outgoing message equals the
      * provided address.
      */
-    public static Matcher<InetAddress> to(InetAddress address)
+    public static Matcher<InetAddressAndPort> to(InetAddressAndPort address)
     {
         return (in, to) -> to == address || to.equals(address);
     }
@@ -117,7 +118,7 @@ public class MockMessagingService
      */
     public static <T> Matcher<?> all(Matcher<?>... matchers)
     {
-        return (MessageOut<T> out, InetAddress to) -> {
+        return (MessageOut<T> out, InetAddressAndPort to) -> {
             for (Matcher matcher : matchers)
             {
                 if (!matcher.matches(out, to))
@@ -132,7 +133,7 @@ public class MockMessagingService
      */
     public static <T> Matcher<?> any(Matcher<?>... matchers)
     {
-        return (MessageOut<T> out, InetAddress to) -> {
+        return (MessageOut<T> out, InetAddressAndPort to) -> {
             for (Matcher matcher : matchers)
             {
                 if (matcher.matches(out, to))

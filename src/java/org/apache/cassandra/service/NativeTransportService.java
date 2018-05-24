@@ -18,12 +18,18 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,7 +91,7 @@ public class NativeTransportService
                                                                 .withEventLoopGroup(workerGroup)
                                                                 .withHost(nativeAddr);
 
-        if (!DatabaseDescriptor.getClientEncryptionOptions().enabled)
+        if (!DatabaseDescriptor.getNativeProtocolEncryptionOptions().enabled)
         {
             servers = Collections.singleton(builder.withSSL(false).withPort(nativePort).build());
         }
@@ -109,12 +115,48 @@ public class NativeTransportService
         }
 
         // register metrics
-        ClientMetrics.instance.addCounter("connectedNativeClients", () ->
+        ClientMetrics.instance.addGauge("connectedNativeClients", () ->
         {
             int ret = 0;
             for (Server server : servers)
                 ret += server.getConnectedClients();
             return ret;
+        });
+        ClientMetrics.instance.addGauge("connectedNativeClientsByUser", () ->
+        {
+            Map<String, Integer> result = new HashMap<>();
+            for (Server server : servers)
+            {
+                for (Entry<String, Integer> e : server.getConnectedClientsByUser().entrySet())
+                {
+                    String user = e.getKey();
+                    result.put(user, result.getOrDefault(user, 0) + e.getValue());
+                }
+            }
+            return result;
+        });
+
+        ClientMetrics.instance.addGauge("connections", () ->
+        {
+            List<Map<String, String>> result = new ArrayList<>();
+            for (Server server : servers)
+            {
+                for (Map<String, String> e : server.getConnectionStates())
+                {
+                    result.add(e);
+                }
+            }
+            return result;
+        });
+
+        ClientMetrics.instance.addGauge("clientsByProtocolVersion", () ->
+        {
+            List<Map<String, String>> result = new ArrayList<>();
+            for (Server server : servers)
+            {
+                result.addAll(server.getClientsByProtocolVersion());
+            }
+            return result;
         });
 
         AuthMetrics.init();
@@ -155,14 +197,14 @@ public class NativeTransportService
     }
 
     /**
-     * @return intend to use epoll bassed event looping
+     * @return intend to use epoll based event looping
      */
     public static boolean useEpoll()
     {
         final boolean enableEpoll = Boolean.parseBoolean(System.getProperty("cassandra.native.epoll.enabled", "true"));
 
         if (enableEpoll && !Epoll.isAvailable() && NativeLibrary.osType == NativeLibrary.OSType.LINUX)
-            logger.warn("epoll not availble {}", Epoll.unavailabilityCause());
+            logger.warn("epoll not available {}", Epoll.unavailabilityCause());
 
         return enableEpoll && Epoll.isAvailable();
     }
@@ -193,5 +235,11 @@ public class NativeTransportService
     Collection<Server> getServers()
     {
         return servers;
+    }
+
+    public void clearConnectionHistory()
+    {
+        for (Server server : servers)
+            server.clearConnectionHistory();
     }
 }

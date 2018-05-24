@@ -20,40 +20,36 @@ package org.apache.cassandra.net.async;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.BiConsumer;
 
-import com.google.common.base.Charsets;
+import com.google.common.net.InetAddresses;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufOutputStream;
-import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.channel.epoll.EpollEventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.util.concurrent.Future;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ParameterType;
 import org.apache.cassandra.net.async.MessageInHandler.MessageHeader;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class MessageInHandlerTest
 {
-    private static final InetSocketAddress addr = new InetSocketAddress("127.0.0.1", 0);
+    private static final InetAddressAndPort addr = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.1"), 0);
     private static final int MSG_VERSION = MessagingService.current_version;
 
     private static final int MSG_ID = 42;
@@ -81,7 +77,7 @@ public class MessageInHandlerTest
         buf.writeInt(-1);
         buf.writerIndex(len);
 
-        MessageInHandler handler = new MessageInHandler(addr.getAddress(), MSG_VERSION, null);
+        MessageInHandler handler = new MessageInHandler(addr, MSG_VERSION, null);
         EmbeddedChannel channel = new EmbeddedChannel(handler);
         Assert.assertTrue(channel.isOpen());
         channel.writeInbound(buf);
@@ -98,22 +94,25 @@ public class MessageInHandlerTest
     @Test
     public void decode_HappyPath_WithParameters() throws Exception
     {
-        Map<String, byte[]> parameters = new HashMap<>();
-        parameters.put("p1", "val1".getBytes(Charsets.UTF_8));
-        parameters.put("p2", "val2".getBytes(Charsets.UTF_8));
+        UUID uuid = UUIDGen.getTimeUUID();
+        Map<ParameterType, Object> parameters = new HashMap<>();
+        parameters.put(ParameterType.FAILURE_REASON, (short)42);
+        parameters.put(ParameterType.TRACE_SESSION, uuid);
         MessageInWrapper result = decode_HappyPath(parameters);
         Assert.assertEquals(2, result.messageIn.parameters.size());
+        Assert.assertEquals((short)42, result.messageIn.parameters.get(ParameterType.FAILURE_REASON));
+        Assert.assertEquals(uuid, result.messageIn.parameters.get(ParameterType.TRACE_SESSION));
     }
 
-    private MessageInWrapper decode_HappyPath(Map<String, byte[]> parameters) throws Exception
+    private MessageInWrapper decode_HappyPath(Map<ParameterType, Object> parameters) throws Exception
     {
         MessageOut msgOut = new MessageOut(MessagingService.Verb.ECHO);
-        for (Map.Entry<String, byte[]> param : parameters.entrySet())
+        for (Map.Entry<ParameterType, Object> param : parameters.entrySet())
             msgOut = msgOut.withParameter(param.getKey(), param.getValue());
         serialize(msgOut);
 
         MessageInWrapper wrapper = new MessageInWrapper();
-        MessageInHandler handler = new MessageInHandler(addr.getAddress(), MSG_VERSION, wrapper.messageConsumer);
+        MessageInHandler handler = new MessageInHandler(addr, MSG_VERSION, wrapper.messageConsumer);
         List<Object> out = new ArrayList<>();
         handler.decode(null, buf, out);
 
@@ -140,7 +139,7 @@ public class MessageInHandlerTest
     public void decode_WithHalfReceivedParameters() throws Exception
     {
         MessageOut msgOut = new MessageOut(MessagingService.Verb.ECHO);
-        msgOut = msgOut.withParameter("p3", "val1".getBytes(Charsets.UTF_8));
+        msgOut = msgOut.withParameter(ParameterType.FAILURE_REASON, (short)42);
 
         serialize(msgOut);
 
@@ -150,7 +149,7 @@ public class MessageInHandlerTest
         buf.writerIndex(originalWriterIndex - 6);
 
         MessageInWrapper wrapper = new MessageInWrapper();
-        MessageInHandler handler = new MessageInHandler(addr.getAddress(), MSG_VERSION, wrapper.messageConsumer);
+        MessageInHandler handler = new MessageInHandler(addr, MSG_VERSION, wrapper.messageConsumer);
         List<Object> out = new ArrayList<>();
         handler.decode(null, buf, out);
 
@@ -221,7 +220,7 @@ public class MessageInHandlerTest
     @Test
     public void exceptionHandled()
     {
-        MessageInHandler handler = new MessageInHandler(addr.getAddress(), MSG_VERSION, null);
+        MessageInHandler handler = new MessageInHandler(addr, MSG_VERSION, null);
         EmbeddedChannel channel = new EmbeddedChannel(handler);
         Assert.assertTrue(channel.isOpen());
         handler.exceptionCaught(channel.pipeline().firstContext(), new EOFException());

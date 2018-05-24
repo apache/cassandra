@@ -18,7 +18,7 @@
 package org.apache.cassandra.tools;
 
 import java.io.IOException;
-import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.Set;
 import javax.net.ssl.SSLContext;
 
@@ -33,6 +33,7 @@ import org.apache.commons.cli.Options;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.sstable.SSTableLoader;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.utils.FBUtilities;
@@ -57,13 +58,15 @@ public class BulkLoader
                 new ExternalClient(
                         options.hosts,
                         options.nativePort,
-                        options.authProvider,
                         options.storagePort,
+                        options.authProvider,
                         options.sslStoragePort,
                         options.serverEncOptions,
-                        buildSSLOptions(options.clientEncOptions)),
+                        buildSSLOptions(options.clientEncOptions),
+                        options.allowServerPortDiscovery),
                         handler,
-                        options.connectionsPerHost);
+                        options.connectionsPerHost,
+                        options.targetKeyspace);
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
         DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(options.interDcThrottle);
         StreamResultFuture future = null;
@@ -124,7 +127,7 @@ public class BulkLoader
         private long peak = 0;
         private int totalFiles = 0;
 
-        private final Multimap<InetAddress, SessionInfo> sessionsByHost = HashMultimap.create();
+        private final Multimap<InetAddressAndPort, SessionInfo> sessionsByHost = HashMultimap.create();
 
         public ProgressIndicator()
         {
@@ -165,7 +168,7 @@ public class BulkLoader
 
                 boolean updateTotalFiles = totalFiles == 0;
                 // recalculate progress across all sessions in all hosts and display
-                for (InetAddress peer : sessionsByHost.keySet())
+                for (InetAddressAndPort peer : sessionsByHost.keySet())
                 {
                     sb.append("[").append(peer).append("]");
 
@@ -268,20 +271,19 @@ public class BulkLoader
 
     static class ExternalClient extends NativeSSTableLoaderClient
     {
-        private final int storagePort;
         private final int sslStoragePort;
         private final EncryptionOptions.ServerEncryptionOptions serverEncOptions;
 
-        public ExternalClient(Set<InetAddress> hosts,
-                              int port,
-                              AuthProvider authProvider,
+        public ExternalClient(Set<InetSocketAddress> hosts,
+                              int nativePort,
                               int storagePort,
+                              AuthProvider authProvider,
                               int sslStoragePort,
                               EncryptionOptions.ServerEncryptionOptions serverEncryptionOptions,
-                              SSLOptions sslOptions)
+                              SSLOptions sslOptions,
+                              boolean allowServerPortDiscovery)
         {
-            super(hosts, port, authProvider, sslOptions);
-            this.storagePort = storagePort;
+            super(hosts, nativePort, storagePort, authProvider, sslOptions, allowServerPortDiscovery);
             this.sslStoragePort = sslStoragePort;
             serverEncOptions = serverEncryptionOptions;
         }
@@ -289,7 +291,7 @@ public class BulkLoader
         @Override
         public StreamConnectionFactory getConnectionFactory()
         {
-            return new BulkLoadConnectionFactory(storagePort, sslStoragePort, serverEncOptions, false);
+            return new BulkLoadConnectionFactory(sslStoragePort, serverEncOptions, false);
         }
     }
 

@@ -72,24 +72,30 @@ public class ProtocolVersionTest
         Assert.assertTrue(ProtocolVersion.V2.isSmallerOrEqualTo(ProtocolVersion.V2));
         Assert.assertTrue(ProtocolVersion.V3.isSmallerOrEqualTo(ProtocolVersion.V3));
         Assert.assertTrue(ProtocolVersion.V4.isSmallerOrEqualTo(ProtocolVersion.V4));
+        Assert.assertTrue(ProtocolVersion.V5.isSmallerOrEqualTo(ProtocolVersion.V5));
 
         Assert.assertTrue(ProtocolVersion.V1.isGreaterOrEqualTo(ProtocolVersion.V1));
         Assert.assertTrue(ProtocolVersion.V2.isGreaterOrEqualTo(ProtocolVersion.V2));
         Assert.assertTrue(ProtocolVersion.V3.isGreaterOrEqualTo(ProtocolVersion.V3));
         Assert.assertTrue(ProtocolVersion.V4.isGreaterOrEqualTo(ProtocolVersion.V4));
+        Assert.assertTrue(ProtocolVersion.V5.isGreaterOrEqualTo(ProtocolVersion.V5));
 
         Assert.assertTrue(ProtocolVersion.V1.isSmallerThan(ProtocolVersion.V2));
         Assert.assertTrue(ProtocolVersion.V2.isSmallerThan(ProtocolVersion.V3));
         Assert.assertTrue(ProtocolVersion.V3.isSmallerThan(ProtocolVersion.V4));
+        Assert.assertTrue(ProtocolVersion.V4.isSmallerThan(ProtocolVersion.V5));
 
         Assert.assertFalse(ProtocolVersion.V1.isGreaterThan(ProtocolVersion.V2));
         Assert.assertFalse(ProtocolVersion.V2.isGreaterThan(ProtocolVersion.V3));
         Assert.assertFalse(ProtocolVersion.V3.isGreaterThan(ProtocolVersion.V4));
+        Assert.assertFalse(ProtocolVersion.V4.isGreaterThan(ProtocolVersion.V5));
 
+        Assert.assertTrue(ProtocolVersion.V5.isGreaterThan(ProtocolVersion.V4));
         Assert.assertTrue(ProtocolVersion.V4.isGreaterThan(ProtocolVersion.V3));
         Assert.assertTrue(ProtocolVersion.V3.isGreaterThan(ProtocolVersion.V2));
         Assert.assertTrue(ProtocolVersion.V2.isGreaterThan(ProtocolVersion.V1));
 
+        Assert.assertFalse(ProtocolVersion.V5.isSmallerThan(ProtocolVersion.V4));
         Assert.assertFalse(ProtocolVersion.V4.isSmallerThan(ProtocolVersion.V3));
         Assert.assertFalse(ProtocolVersion.V3.isSmallerThan(ProtocolVersion.V2));
         Assert.assertFalse(ProtocolVersion.V2.isSmallerThan(ProtocolVersion.V1));

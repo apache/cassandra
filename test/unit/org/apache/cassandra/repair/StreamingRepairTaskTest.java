@@ -60,7 +60,7 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
     }
 
     @Test
-    public void incrementalStreamPlan() throws Exception
+    public void incrementalStreamPlan()
     {
         UUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
@@ -69,7 +69,7 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
         SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges(), PreviewKind.NONE);
         StreamingRepairTask task = new StreamingRepairTask(desc, request.initiator, request.src, request.dst, request.ranges, desc.sessionId, PreviewKind.NONE, false);
 
-        StreamPlan plan = task.createStreamPlan(request.src, request.dst);
+        StreamPlan plan = task.createStreamPlan(request.dst);
         Assert.assertFalse(plan.getFlushBeforeTransfer());
     }
 
@@ -82,7 +82,7 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
         SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges(), PreviewKind.NONE);
         StreamingRepairTask task = new StreamingRepairTask(desc, request.initiator, request.src, request.dst, request.ranges, null, PreviewKind.NONE, false);
 
-        StreamPlan plan = task.createStreamPlan(request.src, request.dst);
+        StreamPlan plan = task.createStreamPlan(request.dst);
         Assert.assertTrue(plan.getFlushBeforeTransfer());
     }
 }

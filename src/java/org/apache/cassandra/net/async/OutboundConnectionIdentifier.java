@@ -18,8 +18,9 @@
 
 package org.apache.cassandra.net.async;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
+import com.carrotsearch.hppc.IntObjectMap;
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * Identifies an outbound messaging connection.
@@ -30,32 +31,57 @@ import java.net.InetSocketAddress;
  */
 public class OutboundConnectionIdentifier
 {
-    enum ConnectionType
+    public enum ConnectionType
     {
-        GOSSIP, LARGE_MESSAGE, SMALL_MESSAGE, STREAM
+        GOSSIP (0), LARGE_MESSAGE (1), SMALL_MESSAGE (2), STREAM (3);
+
+        private final int id;
+
+        ConnectionType(int id)
+        {
+            this.id = id;
+        }
+
+        public int getId()
+        {
+            return id;
+        }
+
+        private static final IntObjectMap<ConnectionType> idMap = new IntObjectOpenHashMap<>(values().length);
+        static
+        {
+            for (ConnectionType type : values())
+                idMap.put(type.id, type);
+        }
+
+        public static ConnectionType fromId(int id)
+        {
+            return idMap.get(id);
+        }
+
     }
 
     /**
      * Memoization of the local node's broadcast address.
      */
-    private final InetSocketAddress localAddr;
+    private final InetAddressAndPort localAddr;
 
     /**
      * The address by which the remote is identified. This may be different from {@link #remoteConnectionAddr} for
      * something like EC2 public IP address which need to be used for communication between EC2 regions.
      */
-    private final InetSocketAddress remoteAddr;
+    private final InetAddressAndPort remoteAddr;
 
     /**
      * The address to which we're connecting to the node (often the same as {@link #remoteAddr} but not always).
      */
-    private final InetSocketAddress remoteConnectionAddr;
+    private final InetAddressAndPort remoteConnectionAddr;
 
     private final ConnectionType connectionType;
 
-    private OutboundConnectionIdentifier(InetSocketAddress localAddr,
-                                         InetSocketAddress remoteAddr,
-                                         InetSocketAddress remoteConnectionAddr,
+    private OutboundConnectionIdentifier(InetAddressAndPort localAddr,
+                                         InetAddressAndPort remoteAddr,
+                                         InetAddressAndPort remoteConnectionAddr,
                                          ConnectionType connectionType)
     {
         this.localAddr = localAddr;
@@ -64,8 +90,8 @@ public class OutboundConnectionIdentifier
         this.connectionType = connectionType;
     }
 
-    private OutboundConnectionIdentifier(InetSocketAddress localAddr,
-                                         InetSocketAddress remoteAddr,
+    private OutboundConnectionIdentifier(InetAddressAndPort localAddr,
+                                         InetAddressAndPort remoteAddr,
                                          ConnectionType connectionType)
     {
         this(localAddr, remoteAddr, remoteAddr, connectionType);
@@ -75,7 +101,7 @@ public class OutboundConnectionIdentifier
      * Creates an identifier for a small message connection and using the remote "identifying" address as its connection
      * address.
      */
-    public static OutboundConnectionIdentifier small(InetSocketAddress localAddr, InetSocketAddress remoteAddr)
+    public static OutboundConnectionIdentifier small(InetAddressAndPort localAddr, InetAddressAndPort remoteAddr)
     {
         return new OutboundConnectionIdentifier(localAddr, remoteAddr, ConnectionType.SMALL_MESSAGE);
     }
@@ -84,7 +110,7 @@ public class OutboundConnectionIdentifier
      * Creates an identifier for a large message connection and using the remote "identifying" address as its connection
      * address.
      */
-    public static OutboundConnectionIdentifier large(InetSocketAddress localAddr, InetSocketAddress remoteAddr)
+    public static OutboundConnectionIdentifier large(InetAddressAndPort localAddr, InetAddressAndPort remoteAddr)
     {
         return new OutboundConnectionIdentifier(localAddr, remoteAddr, ConnectionType.LARGE_MESSAGE);
     }
@@ -93,7 +119,7 @@ public class OutboundConnectionIdentifier
      * Creates an identifier for a gossip connection and using the remote "identifying" address as its connection
      * address.
      */
-    public static OutboundConnectionIdentifier gossip(InetSocketAddress localAddr, InetSocketAddress remoteAddr)
+    public static OutboundConnectionIdentifier gossip(InetAddressAndPort localAddr, InetAddressAndPort remoteAddr)
     {
         return new OutboundConnectionIdentifier(localAddr, remoteAddr, ConnectionType.GOSSIP);
     }
@@ -102,7 +128,7 @@ public class OutboundConnectionIdentifier
      * Creates an identifier for a gossip connection and using the remote "identifying" address as its connection
      * address.
      */
-    public static OutboundConnectionIdentifier stream(InetSocketAddress localAddr, InetSocketAddress remoteAddr)
+    public static OutboundConnectionIdentifier stream(InetAddressAndPort localAddr, InetAddressAndPort remoteAddr)
     {
         return new OutboundConnectionIdentifier(localAddr, remoteAddr, ConnectionType.STREAM);
     }
@@ -115,45 +141,37 @@ public class OutboundConnectionIdentifier
      * @return a newly created connection identifier that differs from this one only by using {@code remoteConnectionAddr}
      * as connection address to the remote.
      */
-    public OutboundConnectionIdentifier withNewConnectionAddress(InetSocketAddress remoteConnectionAddr)
+    public OutboundConnectionIdentifier withNewConnectionAddress(InetAddressAndPort remoteConnectionAddr)
     {
         return new OutboundConnectionIdentifier(localAddr, remoteAddr, remoteConnectionAddr, connectionType);
     }
 
     public OutboundConnectionIdentifier withNewConnectionPort(int port)
     {
-        return new OutboundConnectionIdentifier(localAddr, new InetSocketAddress(remoteAddr.getAddress(), port),
-                                                new InetSocketAddress(remoteConnectionAddr.getAddress(), port), connectionType);
+        return new OutboundConnectionIdentifier(localAddr, InetAddressAndPort.getByAddressOverrideDefaults(remoteAddr.address, port),
+                                                InetAddressAndPort.getByAddressOverrideDefaults(remoteConnectionAddr.address, port), connectionType);
     }
 
     /**
      * The local node address.
      */
-    public InetAddress local()
+    public InetAddressAndPort local()
     {
-        return localAddr.getAddress();
+        return localAddr;
     }
 
     /**
      * The remote node identifying address (the one to use for anything else than connecting to the node).
      */
-    public InetSocketAddress remoteAddress()
+    public  InetAddressAndPort remote()
     {
         return remoteAddr;
     }
 
     /**
-     * The remote node identifying address (the one to use for anything else than connecting to the node).
-     */
-    public  InetAddress remote()
-    {
-        return remoteAddr.getAddress();
-    }
-
-    /**
      * The remote node connection address (the one to use to actually connect to the remote, and only that).
      */
-    public InetSocketAddress connectionAddress()
+    public InetAddressAndPort connectionAddress()
     {
         return remoteConnectionAddr;
     }

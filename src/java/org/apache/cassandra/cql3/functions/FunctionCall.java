@@ -103,6 +103,8 @@ public class FunctionCall extends Term.NonTerminal
 
     private static Term.Terminal makeTerminal(Function fun, ByteBuffer result, ProtocolVersion version) throws InvalidRequestException
     {
+        if (result == null)
+            return null;
         if (fun.returnType().isCollection())
         {
             switch (((CollectionType) fun.returnType()).kind)

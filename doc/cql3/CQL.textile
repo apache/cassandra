@@ -250,8 +250,7 @@ CREATE TABLE monkeySpecies (
     common_name text,
     population varint,
     average_size int
-) WITH comment='Important biological records'
-   AND read_repair_chance = 1.0;
+) WITH comment='Important biological records';
 
 CREATE TABLE timeline (
     userid uuid,
@@ -334,8 +333,6 @@ Table creation supports the following other @<property>@:
 
 |_. option                    |_. kind   |_. default   |_. description|
 |@comment@                    | _simple_ | none        | A free-form, human-readable comment.|
-|@read_repair_chance@         | _simple_ | 0.1         | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) for the purpose of read repairs.|
-|@dclocal_read_repair_chance@ | _simple_ | 0           | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) belonging to the same data center than the read coordinator for the purpose of read repairs.|
 |@gc_grace_seconds@           | _simple_ | 864000      | Time to wait before garbage collecting tombstones (deletion markers).|
 |@bloom_filter_fp_chance@     | _simple_ | 0.00075     | The target probability of false positive of the sstable bloom filters. Said bloom filters will be sized to provide the provided probability (thus lowering this value impact the size of bloom filters in-memory and on-disk)|
 |@default_time_to_live@       | _simple_ | 0           | The default expiration time ("TTL") in seconds for a table.|
@@ -411,8 +408,7 @@ ALTER TABLE addamsFamily
 ADD gravesite varchar;
 
 ALTER TABLE addamsFamily
-WITH comment = 'A most excellent and useful column family'
- AND read_repair_chance = 0.2;
+WITH comment = 'A most excellent and useful column family';
 p. 
 The @ALTER@ statement is used to manipulate table definitions. It allows for adding new columns, dropping existing ones, or updating the table options. As with table creation, @ALTER COLUMNFAMILY@ is allowed as an alias for @ALTER TABLE@.
 
@@ -2298,6 +2294,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @BOOLEAN@      | no  |
 | @BY@           | yes |
 | @CALLED@       | no  |
+| @CAST@         | no  |
 | @CLUSTERING@   | no  |
 | @COLUMNFAMILY@ | yes |
 | @COMPACT@      | no  |
@@ -2308,12 +2305,14 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @CUSTOM@       | no  |
 | @DATE@         | no  |
 | @DECIMAL@      | no  |
+| @DEFAULT@      | yes |
 | @DELETE@       | yes |
 | @DESC@         | yes |
 | @DESCRIBE@     | yes |
 | @DISTINCT@     | no  |
 | @DOUBLE@       | no  |
 | @DROP@         | yes |
+| @DURATION@     | no  |
 | @ENTRIES@      | yes |
 | @EXECUTE@      | yes |
 | @EXISTS@       | no  |
@@ -2326,6 +2325,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @FUNCTION@     | no  |
 | @FUNCTIONS@    | no  |
 | @GRANT@        | yes |
+| @GROUP@        | no  |
 | @IF@           | yes |
 | @IN@           | yes |
 | @INDEX@        | yes |
@@ -2336,16 +2336,21 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @INSERT@       | yes |
 | @INT@          | no  |
 | @INTO@         | yes |
+| @IS@           | yes |
 | @JSON@         | no  |
 | @KEY@          | no  |
 | @KEYS@         | no  |
 | @KEYSPACE@     | yes |
 | @KEYSPACES@    | no  |
 | @LANGUAGE@     | no  |
+| @LIKE@         | no  |
 | @LIMIT@        | yes |
 | @LIST@         | no  |
 | @LOGIN@        | no  |
 | @MAP@          | no  |
+| @MATERIALIZED@ | yes |
+| @MBEAN@        | yes |
+| @MBEANS@       | yes |
 | @MODIFY@       | yes |
 | @NAN@          | yes |
 | @NOLOGIN@      | no  |
@@ -2358,7 +2363,9 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @OPTIONS@      | no  |
 | @OR@           | yes |
 | @ORDER@        | yes |
+| @PARTITION@    | no  |
 | @PASSWORD@     | no  |
+| @PER@          | no  |
 | @PERMISSION@   | no  |
 | @PERMISSIONS@  | no  |
 | @PRIMARY@      | yes |
@@ -2391,6 +2398,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @TUPLE@        | no  |
 | @TYPE@         | no  |
 | @UNLOGGED@     | yes |
+| @UNSET@        | yes |
 | @UPDATE@       | yes |
 | @USE@          | yes |
 | @USER@         | no  |
@@ -2400,6 +2408,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @VALUES@       | no  |
 | @VARCHAR@      | no  |
 | @VARINT@       | no  |
+| @VIEW@         | yes |
 | @WHERE@        | yes |
 | @WITH@         | yes |
 | @WRITETIME@    | no  |

@@ -174,9 +174,9 @@ public abstract class ModificationStatement implements CQLStatement
         return restrictions;
     }
 
-    public abstract void addUpdateForKey(PartitionUpdate update, Clustering clustering, UpdateParameters params);
+    public abstract void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering clustering, UpdateParameters params);
 
-    public abstract void addUpdateForKey(PartitionUpdate update, Slice slice, UpdateParameters params);
+    public abstract void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Slice slice, UpdateParameters params);
 
     public int getBoundTerms()
     {
@@ -203,6 +203,11 @@ public abstract class ModificationStatement implements CQLStatement
         return metadata().isView();
     }
 
+    public boolean isVirtual()
+    {
+        return metadata().isVirtual();
+    }
+
     public long getTimestamp(long now, QueryOptions options) throws InvalidRequestException
     {
         return attrs.getTimestamp(now, options);
@@ -215,7 +220,7 @@ public abstract class ModificationStatement implements CQLStatement
 
     public int getTimeToLive(QueryOptions options) throws InvalidRequestException
     {
-        return attrs.getTimeToLive(options, metadata().params.defaultTimeToLive);
+        return attrs.getTimeToLive(options, metadata);
     }
 
     public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
@@ -248,6 +253,8 @@ public abstract class ModificationStatement implements CQLStatement
         checkFalse(isCounter() && attrs.isTimestampSet(), "Cannot provide custom timestamp for counter updates");
         checkFalse(isCounter() && attrs.isTimeToLiveSet(), "Cannot provide custom TTL for counter updates");
         checkFalse(isView(), "Cannot directly modify a materialized view");
+        checkFalse(isVirtual() && attrs.isTimeToLiveSet(), "Expiring columns are not supported by virtual tables");
+        checkFalse(isVirtual() && hasConditions(), "Conditional updates are not supported by virtual tables");
     }
 
     public RegularAndStaticColumns updatedColumns()
@@ -440,6 +447,9 @@ public abstract class ModificationStatement implements CQLStatement
     private ResultMessage executeWithoutCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
+        if (isVirtual())
+            return executeInternalWithoutCondition(queryState, options, queryStartNanoTime);
+
         ConsistencyLevel cl = options.getConsistency();
         if (isCounter())
             cl.validateCounterForWrite(metadata());
@@ -613,7 +623,7 @@ public abstract class ModificationStatement implements CQLStatement
     {
         UUID ballot = UUIDGen.getTimeUUIDFromMicros(state.getTimestamp());
 
-        SinglePartitionReadCommand readCommand = request.readCommand(FBUtilities.nowInSeconds());
+        SinglePartitionReadQuery readCommand = request.readCommand(FBUtilities.nowInSeconds());
         FilteredPartition current;
         try (ReadExecutionController executionController = readCommand.executionController();
              PartitionIterator iter = readCommand.executeInternal(executionController))
@@ -643,10 +653,8 @@ public abstract class ModificationStatement implements CQLStatement
      */
     private Collection<? extends IMutation> getMutations(QueryOptions options, boolean local, long now, long queryStartNanoTime)
     {
-        UpdatesCollector collector = new UpdatesCollector(Collections.singletonMap(metadata.id, updatedColumns), 1);
+        UpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, 1);
         addUpdates(collector, options, local, now, queryStartNanoTime);
-        collector.validateIndexedColumns();
-
         return collector.toMutations();
     }
 
@@ -678,10 +686,10 @@ public abstract class ModificationStatement implements CQLStatement
                 Validation.validateKey(metadata(), key);
                 DecoratedKey dk = metadata().partitioner.decorateKey(key);
 
-                PartitionUpdate upd = collector.getPartitionUpdate(metadata(), dk, options.getConsistency());
+                PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
 
                 for (Slice slice : slices)
-                    addUpdateForKey(upd, slice, params);
+                    addUpdateForKey(updateBuilder, slice, params);
             }
         }
         else
@@ -699,25 +707,24 @@ public abstract class ModificationStatement implements CQLStatement
                 Validation.validateKey(metadata(), key);
                 DecoratedKey dk = metadata().partitioner.decorateKey(key);
 
-                PartitionUpdate upd = collector.getPartitionUpdate(metadata, dk, options.getConsistency());
+                PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
 
                 if (!restrictions.hasClusteringColumnsRestrictions())
                 {
-                    addUpdateForKey(upd, Clustering.EMPTY, params);
+                    addUpdateForKey(updateBuilder, Clustering.EMPTY, params);
                 }
                 else
                 {
                     for (Clustering clustering : clusterings)
                     {
-                       for (ByteBuffer c : clustering.getRawValues())
-                       {
-                           if (c != null && c.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-                               throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
-                                                                               clustering.dataSize(),
-                                                                               FBUtilities.MAX_UNSIGNED_SHORT));
-                       }
-
-                        addUpdateForKey(upd, clustering, params);
+                        for (ByteBuffer c : clustering.getRawValues())
+                        {
+                            if (c != null && c.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+                                throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
+                                                                                clustering.dataSize(),
+                                                                                FBUtilities.MAX_UNSIGNED_SHORT));
+                        }
+                        addUpdateForKey(updateBuilder, clustering, params);
                     }
                 }
             }

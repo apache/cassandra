@@ -118,20 +118,20 @@ public class CounterMutationTest
         cfsTwo.truncateBlocking();
 
         // Do the update (+1, -1), (+2, -2)
-        Mutation batch = new Mutation(KEYSPACE1, Util.dk("key1"));
+        Mutation.PartitionUpdateCollector batch = new Mutation.PartitionUpdateCollector(KEYSPACE1, Util.dk("key1"));
         batch.add(new RowUpdateBuilder(cfsOne.metadata(), 5, "key1")
             .clustering("cc")
             .add("val", 1L)
             .add("val2", -1L)
-            .build().get(cfsOne.metadata()));
+            .build().getPartitionUpdate(cfsOne.metadata()));
 
         batch.add(new RowUpdateBuilder(cfsTwo.metadata(), 5, "key1")
             .clustering("cc")
             .add("val", 2L)
             .add("val2", -2L)
-            .build().get(cfsTwo.metadata()));
+            .build().getPartitionUpdate(cfsTwo.metadata()));
 
-        new CounterMutation(batch, ConsistencyLevel.ONE).apply();
+        new CounterMutation(batch.build(), ConsistencyLevel.ONE).apply();
 
         ColumnMetadata c1cfs1 = cfsOne.metadata().getColumn(ByteBufferUtil.bytes("val"));
         ColumnMetadata c2cfs1 = cfsOne.metadata().getColumn(ByteBufferUtil.bytes("val2"));

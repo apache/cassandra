@@ -58,7 +58,7 @@ import static java.util.stream.Collectors.toList;
  */
 class ViewBuilder
 {
-    private static final Logger logger = LoggerFactory.getLogger(ViewBuilderTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(ViewBuilder.class);
 
     private static final int NUM_TASKS = Runtime.getRuntime().availableProcessors() * 4;
 

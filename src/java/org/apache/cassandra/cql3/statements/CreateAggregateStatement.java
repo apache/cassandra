@@ -23,8 +23,10 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.List;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
@@ -36,6 +38,8 @@ import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 /**
  * A {@code CREATE AGGREGATE} statement parsed from a CQL query.
@@ -203,8 +207,12 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         if (ifNotExists && orReplace)
             throw new InvalidRequestException("Cannot use both 'OR REPLACE' and 'IF NOT EXISTS' directives");
 
-        if (Schema.instance.getKeyspaceMetadata(functionName.keyspace) == null)
+
+        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(functionName.keyspace);
+        if (null == ksm)
             throw new InvalidRequestException(String.format("Cannot add aggregate '%s' to non existing keyspace '%s'.", functionName.name, functionName.keyspace));
+        if (ksm.isVirtual())
+            throw new InvalidRequestException("Cannot create aggregates in virtual keyspaces");
     }
 
     public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws RequestValidationException
@@ -257,5 +265,17 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         r.add(stateType);
         r.addAll(argTypes);
         return r;
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.CREATE_AGGREGATE, keyspace(), functionName.name);
     }
 }

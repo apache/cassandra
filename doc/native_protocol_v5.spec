@@ -93,8 +93,8 @@ Table of Contents
   it is moving. The rest of that byte is the protocol version (5 for the protocol
   defined in this document). In other words, for this version of the protocol,
   version will be one of:
-    0x04    Request frame for this protocol version
-    0x84    Response frame for this protocol version
+    0x05    Request frame for this protocol version
+    0x85    Response frame for this protocol version
 
   Please note that while every message ships with the version, only one version
   of messages is accepted on a given connection. In other words, the first message
@@ -409,13 +409,13 @@ Table of Contents
   Executes a prepared query. The body of the message must be:
   <id><result_metadata_id><query_parameters>
   where
-  - <id> is the prepared query ID. It's the [short bytes] returned as a
-      response to a PREPARE message. As for <query_parameters>, it has the exact
-      same definition as in QUERY (see Section 4.1.4).
+    - <id> is the prepared query ID. It's the [short bytes] returned as a
+      response to a PREPARE message.
     - <result_metadata_id> is the ID of the resultset metadata that was sent
       along with response to PREPARE message. If a RESULT/Rows message reports
       changed resultset metadata with the Metadata_changed flag, the reported new
       resultset metadata must be used in subsequent executions.
+    - <query_parameters> has the exact same definition as in QUERY (see Section 4.1.4).
 
 
 4.1.7. BATCH
@@ -1134,6 +1134,12 @@ Table of Contents
                              - "BATCH_LOG": the timeout occurred during the
                                write to the batch log when a (logged) batch
                                write was requested.
+                            - "CAS": the timeout occured during the Compare And Set write/update.
+                            - "VIEW": the timeout occured when a write involves
+                              VIEW update and failure to acqiure local view(MV)
+                              lock for key within timeout
+                            - "CDC": the timeout occured when cdc_total_space_in_mb is
+                              exceeded when doing a write to data tracked by cdc.
     0x1200    Read_timeout: Timeout exception during a read request. The rest
               of the ERROR message body will be
                 <cl><received><blockfor><data_present>
@@ -1209,6 +1215,12 @@ Table of Contents
                              - "BATCH_LOG": the failure occured during the
                                write to the batch log when a (logged) batch
                                write was requested.
+                            - "CAS": the failure occured during the Compare And Set write/update.
+                            - "VIEW": the failure occured when a write involves
+                              VIEW update and failure to acqiure local view(MV)
+                              lock for key within timeout
+                            - "CDC": the failure occured when cdc_total_space_in_mb is
+                              exceeded when doing a write to data tracked by cdc.
 
     0x2000    Syntax_error: The submitted query has a syntax error.
     0x2100    Unauthorized: The logged user doesn't have the right to perform

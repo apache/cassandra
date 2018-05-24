@@ -79,7 +79,7 @@ public class Mx4jTool
     {
         String sAddress = System.getProperty("mx4jaddress");
         if (StringUtils.isEmpty(sAddress))
-            sAddress = FBUtilities.getBroadcastAddress().getHostAddress();
+            sAddress = FBUtilities.getBroadcastAddressAndPort().address.getHostAddress();
         return sAddress;
     }
 

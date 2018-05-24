@@ -17,8 +17,11 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -48,11 +51,14 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedRegions;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.FilterFactory;
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -120,11 +126,11 @@ public class SSTableReaderTest
         // confirm that positions increase continuously
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
         long previous = -1;
-        for (Pair<Long,Long> section : sstable.getPositionsForRanges(ranges))
+        for (SSTableReader.PartitionPositionBounds section : sstable.getPositionsForRanges(ranges))
         {
-            assert previous <= section.left : previous + " ! < " + section.left;
-            assert section.left < section.right : section.left + " ! < " + section.right;
-            previous = section.right;
+            assert previous <= section.lowerPosition : previous + " ! < " + section.lowerPosition;
+            assert section.lowerPosition < section.upperPosition : section.lowerPosition + " ! < " + section.upperPosition;
+            previous = section.upperPosition;
         }
     }
 
@@ -263,13 +269,13 @@ public class SSTableReaderTest
         long p6 = sstable.getPosition(k(6), SSTableReader.Operator.EQ).position;
         long p7 = sstable.getPosition(k(7), SSTableReader.Operator.EQ).position;
 
-        Pair<Long, Long> p = sstable.getPositionsForRanges(makeRanges(t(2), t(6))).get(0);
+        SSTableReader.PartitionPositionBounds p = sstable.getPositionsForRanges(makeRanges(t(2), t(6))).get(0);
 
         // range are start exclusive so we should start at 3
-        assert p.left == p3;
+        assert p.lowerPosition == p3;
 
         // to capture 6 we have to stop at the start of 7
-        assert p.right == p7;
+        assert p.upperPosition == p7;
     }
 
     @Test
@@ -355,7 +361,6 @@ public class SSTableReaderTest
                 .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build()
                 .applyUnsafe();
-
         }
         store.forceBlockingFlush();
 
@@ -364,10 +369,86 @@ public class SSTableReaderTest
 
         // test to see if sstable can be opened as expected
         SSTableReader target = SSTableReader.open(desc);
-        Assert.assertEquals(target.getIndexSummarySize(), 1);
-        Assert.assertArrayEquals(ByteBufferUtil.getArray(firstKey.getKey()), target.getIndexSummaryKey(0));
         assert target.first.equals(firstKey);
         assert target.last.equals(lastKey);
+
+        executeInternal(String.format("ALTER TABLE \"%s\".\"%s\" WITH bloom_filter_fp_chance = 0.3", ks, cf));
+
+        File summaryFile = new File(desc.filenameFor(Component.SUMMARY));
+        Path bloomPath = new File(desc.filenameFor(Component.FILTER)).toPath();
+        Path summaryPath = summaryFile.toPath();
+
+        long bloomModified = Files.getLastModifiedTime(bloomPath).toMillis();
+        long summaryModified = Files.getLastModifiedTime(summaryPath).toMillis();
+
+        TimeUnit.MILLISECONDS.sleep(1000); // sleep to ensure modified time will be different
+
+        // Offline tests
+        // check that bloomfilter/summary ARE NOT regenerated
+        target = SSTableReader.openNoValidation(desc, store.metadata);
+
+        assertEquals(bloomModified, Files.getLastModifiedTime(bloomPath).toMillis());
+        assertEquals(summaryModified, Files.getLastModifiedTime(summaryPath).toMillis());
+
+        target.selfRef().release();
+
+        // check that bloomfilter/summary ARE NOT regenerated and BF=AlwaysPresent when filter component is missing
+        Set<Component> components = SSTable.discoverComponentsFor(desc);
+        components.remove(Component.FILTER);
+        target = SSTableReader.openNoValidation(desc, components, store);
+
+        assertEquals(bloomModified, Files.getLastModifiedTime(bloomPath).toMillis());
+        assertEquals(summaryModified, Files.getLastModifiedTime(summaryPath).toMillis());
+        assertEquals(FilterFactory.AlwaysPresent, target.getBloomFilter());
+
+        target.selfRef().release();
+
+        // #### online tests ####
+        // check that summary & bloomfilter are not regenerated when SSTable is opened and BFFP has been changed
+        target = SSTableReader.open(desc, store.metadata);
+
+        assertEquals(bloomModified, Files.getLastModifiedTime(bloomPath).toMillis());
+        assertEquals(summaryModified, Files.getLastModifiedTime(summaryPath).toMillis());
+
+        target.selfRef().release();
+
+        // check that bloomfilter is recreated when it doesn't exist and this causes the summary to be recreated
+        components = SSTable.discoverComponentsFor(desc);
+        components.remove(Component.FILTER);
+
+        target = SSTableReader.open(desc, components, store.metadata);
+
+        assertTrue("Bloomfilter was not recreated", bloomModified < Files.getLastModifiedTime(bloomPath).toMillis());
+        assertTrue("Summary was not recreated", summaryModified < Files.getLastModifiedTime(summaryPath).toMillis());
+
+        target.selfRef().release();
+
+        // check that only the summary is regenerated when it is deleted
+        components.add(Component.FILTER);
+        summaryModified = Files.getLastModifiedTime(summaryPath).toMillis();
+        summaryFile.delete();
+
+        TimeUnit.MILLISECONDS.sleep(1000); // sleep to ensure modified time will be different
+        bloomModified = Files.getLastModifiedTime(bloomPath).toMillis();
+
+        target = SSTableReader.open(desc, components, store.metadata);
+
+        assertEquals(bloomModified, Files.getLastModifiedTime(bloomPath).toMillis());
+        assertTrue("Summary was not recreated", summaryModified < Files.getLastModifiedTime(summaryPath).toMillis());
+
+        target.selfRef().release();
+
+        // check that summary and bloomfilter is not recreated when the INDEX is missing
+        components.add(Component.SUMMARY);
+        components.remove(Component.PRIMARY_INDEX);
+
+        summaryModified = Files.getLastModifiedTime(summaryPath).toMillis();
+        target = SSTableReader.open(desc, components, store.metadata, false, false);
+
+        TimeUnit.MILLISECONDS.sleep(1000); // sleep to ensure modified time will be different
+        assertEquals(bloomModified, Files.getLastModifiedTime(bloomPath).toMillis());
+        assertEquals(summaryModified, Files.getLastModifiedTime(summaryPath).toMillis());
+
         target.selfRef().release();
     }
 
@@ -455,7 +536,7 @@ public class SSTableReaderTest
         ranges.add(new Range<Token>(t(98), t(99)));
 
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
-        List<Pair<Long,Long>> sections = sstable.getPositionsForRanges(ranges);
+        List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(ranges);
         assert sections.size() == 1 : "Expected to find range in sstable" ;
 
         // re-open the same sstable as it would be during bulk loading

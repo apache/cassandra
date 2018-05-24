@@ -37,7 +37,7 @@ import org.apache.cassandra.dht.Token;
 
 public class RangeDenormalizer
 {
-    private static final Logger logger = LoggerFactory.getLogger(IncomingRepairStreamTracker.class);
+    private static final Logger logger = LoggerFactory.getLogger(RangeDenormalizer.class);
 
     /**
      * "Denormalizes" (kind of the opposite of what Range.normalize does) the ranges in the keys of {{incoming}}

@@ -272,6 +272,6 @@ public class BinLog implements Runnable, StoreFileListener
 
     public abstract static class ReleaseableWriteMarshallable implements WriteMarshallable
     {
-        protected abstract void release();
+        public abstract void release();
     }
 }

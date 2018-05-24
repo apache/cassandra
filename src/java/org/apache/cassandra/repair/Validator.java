@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -27,6 +26,7 @@ import java.util.Random;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.hash.Funnel;
 import com.google.common.hash.HashCode;
+import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 
@@ -41,6 +41,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -64,7 +65,7 @@ public class Validator implements Runnable
     private static final Logger logger = LoggerFactory.getLogger(Validator.class);
 
     public final RepairJobDesc desc;
-    public final InetAddress initiator;
+    public final InetAddressAndPort initiator;
     public final int nowInSec;
     private final boolean evenTreeDistribution;
     public final boolean isIncremental;
@@ -81,17 +82,17 @@ public class Validator implements Runnable
 
     private final PreviewKind previewKind;
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int nowInSec, PreviewKind previewKind)
     {
         this(desc, initiator, nowInSec, false, false, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, boolean isIncremental, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int nowInSec, boolean isIncremental, PreviewKind previewKind)
     {
         this(desc, initiator, nowInSec, false, isIncremental, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
     {
         this.desc = desc;
         this.initiator = initiator;
@@ -192,80 +193,127 @@ public class Validator implements Runnable
         return range.contains(t);
     }
 
+    /**
+     * Hasher that concatenates the hash code from 2 hash functions (murmur3_128) with different
+     * seeds and counts the number of bytes we hashed.
+     *
+     * Everything hashed by this class is hashed by both hash functions and the
+     * resulting hashcode is a concatenation of the output bytes from each.
+     *
+     * Idea from Guavas Hashing.ConcatenatedHashFunction, but that is package-private so we can't use it
+     */
+    @VisibleForTesting
     static class CountingHasher implements Hasher
     {
-        private long count;
-        private final Hasher underlying;
+        @VisibleForTesting
+        static final HashFunction[] hashFunctions = new HashFunction[2];
 
-        CountingHasher(Hasher underlying)
+        static
         {
-            this.underlying = underlying;
+            for (int i = 0; i < hashFunctions.length; i++)
+                hashFunctions[i] = Hashing.murmur3_128(i * 1000);
+        }
+        private long count;
+        private final int bits;
+        private final Hasher[] underlying = new Hasher[2];
+
+        CountingHasher()
+        {
+            int bits = 0;
+            for (int i = 0; i < underlying.length; i++)
+            {
+                this.underlying[i] = hashFunctions[i].newHasher();
+                bits += hashFunctions[i].bits();
+            }
+            this.bits = bits;
         }
 
         public Hasher putByte(byte b)
         {
             count += 1;
-            return underlying.putByte(b);
+            for (Hasher h : underlying)
+                h.putByte(b);
+            return this;
         }
 
         public Hasher putBytes(byte[] bytes)
         {
             count += bytes.length;
-            return underlying.putBytes(bytes);
+            for (Hasher h : underlying)
+                h.putBytes(bytes);
+            return this;
         }
 
         public Hasher putBytes(byte[] bytes, int offset, int length)
         {
             count += length;
-            return underlying.putBytes(bytes, offset, length);
+            for (Hasher h : underlying)
+                h.putBytes(bytes, offset, length);
+            return this;
         }
 
         public Hasher putBytes(ByteBuffer byteBuffer)
         {
             count += byteBuffer.remaining();
-            return underlying.putBytes(byteBuffer);
+            for (Hasher h : underlying)
+                h.putBytes(byteBuffer.duplicate());
+            return this;
         }
 
         public Hasher putShort(short i)
         {
             count += Short.BYTES;
-            return underlying.putShort(i);
+            for (Hasher h : underlying)
+                h.putShort(i);
+            return this;
         }
 
         public Hasher putInt(int i)
         {
             count += Integer.BYTES;
-            return underlying.putInt(i);
+            for (Hasher h : underlying)
+                h.putInt(i);
+            return this;
         }
 
         public Hasher putLong(long l)
         {
             count += Long.BYTES;
-            return underlying.putLong(l);
+            for (Hasher h : underlying)
+                h.putLong(l);
+            return this;
         }
 
         public Hasher putFloat(float v)
         {
             count += Float.BYTES;
-            return underlying.putFloat(v);
+            for (Hasher h : underlying)
+                h.putFloat(v);
+            return this;
         }
 
         public Hasher putDouble(double v)
         {
             count += Double.BYTES;
-            return underlying.putDouble(v);
+            for (Hasher h : underlying)
+                h.putDouble(v);
+            return this;
         }
 
         public Hasher putBoolean(boolean b)
         {
             count += Byte.BYTES;
-            return underlying.putBoolean(b);
+            for (Hasher h : underlying)
+                h.putBoolean(b);
+            return this;
         }
 
         public Hasher putChar(char c)
         {
             count += Character.BYTES;
-            return underlying.putChar(c);
+            for (Hasher h : underlying)
+                h.putChar(c);
+            return this;
         }
 
         public Hasher putUnencodedChars(CharSequence charSequence)
@@ -285,7 +333,19 @@ public class Validator implements Runnable
 
         public HashCode hash()
         {
-            return underlying.hash();
+            byte[] res = new byte[bits / 8];
+            int i = 0;
+            for (Hasher hasher : underlying)
+            {
+                HashCode newHash = hasher.hash();
+                i += newHash.writeBytesTo(res, i, newHash.bits() / 8);
+            }
+            return HashCode.fromBytes(res);
+        }
+
+        public long getCount()
+        {
+            return count;
         }
     }
 
@@ -293,7 +353,7 @@ public class Validator implements Runnable
     {
         validated++;
         // MerkleTree uses XOR internally, so we want lots of output bits here
-        CountingHasher hasher = new CountingHasher(Hashing.sha256().newHasher());
+        CountingHasher hasher = new CountingHasher();
         UnfilteredRowIterators.digest(partition, hasher, MessagingService.current_version);
         // only return new hash for merkle tree in case digest was updated - see CASSANDRA-8979
         return hasher.count > 0
@@ -352,7 +412,7 @@ public class Validator implements Runnable
     public void run()
     {
         // respond to the request that triggered this validation
-        if (!initiator.equals(FBUtilities.getBroadcastAddress()))
+        if (!initiator.equals(FBUtilities.getBroadcastAddressAndPort()))
         {
             logger.info("{} Sending completed merkle tree to {} for {}.{}", previewKind.logPrefix(desc.sessionId), initiator, desc.keyspace, desc.columnFamily);
             Tracing.traceRepair("Sending completed merkle tree to {} for {}.{}", initiator, desc.keyspace, desc.columnFamily);

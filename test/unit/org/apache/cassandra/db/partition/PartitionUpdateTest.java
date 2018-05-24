@@ -25,7 +25,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Test;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 
 public class PartitionUpdateTest extends CQLTester
 {
@@ -46,5 +46,20 @@ public class PartitionUpdateTest extends CQLTester
         builder.newRow().add("s", 1);
         builder.newRow(1).add("a", 1);
         Assert.assertEquals(2, builder.build().operationCount());
+    }
+
+    @Test
+    public void testUpdateAllTimestamp()
+    {
+        createTable("CREATE TABLE %s (key text, clustering int, a int, b int, c int, s int static, PRIMARY KEY(key, clustering))");
+        TableMetadata cfm = currentTableMetadata();
+
+        long timestamp = FBUtilities.timestampMicros();
+        RowUpdateBuilder rub = new RowUpdateBuilder(cfm, timestamp, "key0").clustering(1).add("a", 1);
+        PartitionUpdate pu = rub.buildUpdate();
+        PartitionUpdate pu2 = new PartitionUpdate.Builder(pu, 0).updateAllTimestamp(0).build();
+
+        Assert.assertTrue(pu.maxTimestamp() > 0);
+        Assert.assertTrue(pu2.maxTimestamp() == 0);
     }
 }

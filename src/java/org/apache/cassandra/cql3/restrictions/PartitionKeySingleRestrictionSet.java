@@ -27,7 +27,7 @@ import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.index.IndexRegistry;
 
 /**
  * A set of single restrictions on the partition key.
@@ -121,12 +121,12 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
 
     @Override
     public void addRowFilterTo(RowFilter filter,
-                               SecondaryIndexManager indexManager,
+                               IndexRegistry indexRegistry,
                                QueryOptions options)
     {
         for (SingleRestriction restriction : restrictions)
         {
-             restriction.addRowFilterTo(filter, indexManager, options);
+             restriction.addRowFilterTo(filter, indexRegistry, options);
         }
     }
 

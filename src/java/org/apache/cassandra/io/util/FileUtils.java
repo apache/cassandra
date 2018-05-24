@@ -19,6 +19,7 @@ package org.apache.cassandra.io.util;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -29,12 +30,16 @@ import java.nio.file.attribute.FileStoreAttributeView;
 import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.utils.SyncUtil;
 import sun.nio.ch.DirectBuffer;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -116,6 +121,13 @@ public final class FileUtils
     public static File createTempFile(String prefix, String suffix)
     {
         return createTempFile(prefix, suffix, new File(System.getProperty("java.io.tmpdir")));
+    }
+
+    public static File createDeletableTempFile(String prefix, String suffix)
+    {
+        File f = createTempFile(prefix, suffix, new File(System.getProperty("java.io.tmpdir")));
+        f.deleteOnExit();
+        return f;
     }
 
     public static Throwable deleteWithConfirm(String filePath, boolean expect, Throwable accumulate)
@@ -388,6 +400,45 @@ public final class FileUtils
         ScheduledExecutors.nonPeriodicTasks.execute(runnable);
     }
 
+    public static long parseFileSize(String value)
+    {
+        long result;
+        if (!value.matches("\\d+(\\.\\d+)? (GiB|KiB|MiB|TiB|bytes)"))
+        {
+            throw new IllegalArgumentException(
+                String.format("value %s is not a valid human-readable file size", value));
+        }
+        if (value.endsWith(" TiB"))
+        {
+            result = Math.round(Double.valueOf(value.replace(" TiB", "")) * ONE_TB);
+            return result;
+        }
+        else if (value.endsWith(" GiB"))
+        {
+            result = Math.round(Double.valueOf(value.replace(" GiB", "")) * ONE_GB);
+            return result;
+        }
+        else if (value.endsWith(" KiB"))
+        {
+            result = Math.round(Double.valueOf(value.replace(" KiB", "")) * ONE_KB);
+            return result;
+        }
+        else if (value.endsWith(" MiB"))
+        {
+            result = Math.round(Double.valueOf(value.replace(" MiB", "")) * ONE_MB);
+            return result;
+        }
+        else if (value.endsWith(" bytes"))
+        {
+            result = Math.round(Double.valueOf(value.replace(" bytes", "")));
+            return result;
+        }
+        else
+        {
+            throw new IllegalStateException(String.format("FileUtils.parseFileSize() reached an illegal state parsing %s", value));
+        }
+    }
+
     public static String stringifyFileSize(double value)
     {
         double d;
@@ -550,14 +601,46 @@ public final class FileUtils
         write(file, Arrays.asList(lines), StandardOpenOption.TRUNCATE_EXISTING);
     }
 
+    /**
+     * Write lines to a file adding a newline to the end of each supplied line using the provided open options.
+     *
+     * If open option sync or dsync is provided this will not open the file with sync or dsync since it might end up syncing
+     * many times for a lot of lines. Instead it will write all the lines and sync once at the end. Since the file is
+     * never returned there is not much difference from the perspective of the caller.
+     * @param file
+     * @param lines
+     * @param options
+     */
     public static void write(File file, List<String> lines, StandardOpenOption ... options)
     {
-        try
+        Set<StandardOpenOption> optionsSet = new HashSet<>(Arrays.asList(options));
+        //Emulate the old FileSystemProvider.newOutputStream behavior for open options.
+        if (optionsSet.isEmpty())
         {
-            Files.write(file.toPath(),
-                        lines,
-                        CHARSET,
-                        options);
+            optionsSet.add(StandardOpenOption.CREATE);
+            optionsSet.add(StandardOpenOption.TRUNCATE_EXISTING);
+        }
+        boolean sync = optionsSet.remove(StandardOpenOption.SYNC);
+        boolean dsync = optionsSet.remove(StandardOpenOption.DSYNC);
+        optionsSet.add(StandardOpenOption.WRITE);
+
+        Path filePath = file.toPath();
+        try (FileChannel fc = filePath.getFileSystem().provider().newFileChannel(filePath, optionsSet);
+             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(Channels.newOutputStream(fc), CHARSET.newEncoder())))
+        {
+            for (CharSequence line: lines) {
+                writer.append(line);
+                writer.newLine();
+            }
+
+            if (sync)
+            {
+                SyncUtil.force(fc, true);
+            }
+            else if (dsync)
+            {
+                SyncUtil.force(fc, false);
+            }
         }
         catch (IOException ex)
         {

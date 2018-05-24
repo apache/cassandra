@@ -35,35 +35,48 @@ import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.IFilter.FilterKey;
 import org.apache.cassandra.utils.KeyGenerator.RandomStringGenerator;
+import org.apache.cassandra.utils.obs.IBitSet;
+
+import static org.junit.Assert.assertEquals;
 
 public class BloomFilterTest
 {
     public IFilter bfInvHashes;
 
-    public BloomFilterTest()
-    {
 
-    }
 
-    public static IFilter testSerialize(IFilter f) throws IOException
+    public static IFilter testSerialize(IFilter f, boolean oldBfFormat) throws IOException
     {
         f.add(FilterTestHelper.bytes("a"));
         DataOutputBuffer out = new DataOutputBuffer();
-        FilterFactory.serialize(f, out);
+        if (oldBfFormat)
+        {
+            SerializationsTest.serializeOldBfFormat((BloomFilter) f, out);
+        }
+        else
+        {
+            BloomFilterSerializer.serialize((BloomFilter) f, out);
+        }
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
-        IFilter f2 = FilterFactory.deserialize(new DataInputStream(in), true);
+        IFilter f2 = BloomFilterSerializer.deserialize(new DataInputStream(in), oldBfFormat);
 
         assert f2.isPresent(FilterTestHelper.bytes("a"));
         assert !f2.isPresent(FilterTestHelper.bytes("b"));
         return f2;
     }
 
+    static void compare(IBitSet bs, IBitSet newbs)
+    {
+        assertEquals(bs.capacity(), newbs.capacity());
+        for (long i = 0; i < bs.capacity(); i++)
+            assertEquals(bs.get(i), newbs.get(i));
+    }
 
     @Before
     public void setup()
     {
-        bfInvHashes = FilterFactory.getFilter(10000L, FilterTestHelper.MAX_FAILURE_RATE, true);
+        bfInvHashes = FilterFactory.getFilter(10000L, FilterTestHelper.MAX_FAILURE_RATE);
     }
 
     @After
@@ -112,7 +125,7 @@ public class BloomFilterTest
         {
             return;
         }
-        IFilter bf2 = FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE, true);
+        IFilter bf2 = FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE);
         int skipEven = KeyGenerator.WordGenerator.WORDS % 2 == 0 ? 0 : 2;
         FilterTestHelper.testFalsePositives(bf2,
                                             new KeyGenerator.WordGenerator(skipEven, 2),
@@ -123,7 +136,8 @@ public class BloomFilterTest
     @Test
     public void testSerialize() throws IOException
     {
-        BloomFilterTest.testSerialize(bfInvHashes).close();
+        BloomFilterTest.testSerialize(bfInvHashes, true).close();
+        BloomFilterTest.testSerialize(bfInvHashes, false).close();
     }
 
     @Test
@@ -142,7 +156,7 @@ public class BloomFilterTest
         {
             hashes.clear();
             FilterKey buf = FilterTestHelper.wrap(keys.next());
-            BloomFilter bf = (BloomFilter) FilterFactory.getFilter(10, 1, false);
+            BloomFilter bf = (BloomFilter) FilterFactory.getFilter(10, 1);
             for (long hashIndex : bf.getHashBuckets(buf, MAX_HASH_COUNT, 1024 * 1024))
             {
                 hashes.add(hashIndex);
@@ -157,21 +171,21 @@ public class BloomFilterTest
     public void testOffHeapException()
     {
         long numKeys = ((long)Integer.MAX_VALUE) * 64L + 1L; // approx 128 Billion
-        FilterFactory.getFilter(numKeys, 0.01d, true).close();
+        FilterFactory.getFilter(numKeys, 0.01d).close();
     }
 
     @Test
     public void compareCachedKey()
     {
-        try (BloomFilter bf1 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
-             BloomFilter bf2 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
-             BloomFilter bf3 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false))
+        try (BloomFilter bf1 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE);
+             BloomFilter bf2 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE);
+             BloomFilter bf3 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE))
         {
             RandomStringGenerator gen1 = new KeyGenerator.RandomStringGenerator(new Random().nextInt(), FilterTestHelper.ELEMENTS);
 
             // make sure all bitsets are empty.
-            BitSetTest.compare(bf1.bitset, bf2.bitset);
-            BitSetTest.compare(bf1.bitset, bf3.bitset);
+            compare(bf1.bitset, bf2.bitset);
+            compare(bf1.bitset, bf3.bitset);
 
             while (gen1.hasNext())
             {
@@ -182,8 +196,8 @@ public class BloomFilterTest
                 bf3.add(cached);
             }
 
-            BitSetTest.compare(bf1.bitset, bf2.bitset);
-            BitSetTest.compare(bf1.bitset, bf3.bitset);
+            compare(bf1.bitset, bf2.bitset);
+            compare(bf1.bitset, bf3.bitset);
         }
     }
 
@@ -193,17 +207,16 @@ public class BloomFilterTest
     {
         ByteBuffer test = ByteBuffer.wrap(new byte[] {0, 1});
 
-        File file = FileUtils.createTempFile("bloomFilterTest-", ".dat");
-        BloomFilter filter = (BloomFilter) FilterFactory.getFilter(((long) Integer.MAX_VALUE / 8) + 1, 0.01d, true);
+        File file = FileUtils.createDeletableTempFile("bloomFilterTest-", ".dat");
+        BloomFilter filter = (BloomFilter) FilterFactory.getFilter(((long) Integer.MAX_VALUE / 8) + 1, 0.01d);
         filter.add(FilterTestHelper.wrap(test));
         DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(file));
-        FilterFactory.serialize(filter, out);
-        filter.bitset.serialize(out);
+        BloomFilterSerializer.serialize(filter, out);
         out.close();
         filter.close();
 
         DataInputStream in = new DataInputStream(new FileInputStream(file));
-        BloomFilter filter2 = (BloomFilter) FilterFactory.deserialize(in, true);
+        BloomFilter filter2 = BloomFilterSerializer.deserialize(in, false);
         Assert.assertTrue(filter2.isPresent(FilterTestHelper.wrap(test)));
         FileUtils.closeQuietly(in);
         filter2.close();

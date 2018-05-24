@@ -57,7 +57,7 @@ public class CassandraAuthorizer implements IAuthorizer
     private static final String RESOURCE = "resource";
     private static final String PERMISSIONS = "permissions";
 
-    private SelectStatement authorizeRoleStatement;
+    SelectStatement authorizeRoleStatement;
 
     public CassandraAuthorizer()
     {
@@ -180,11 +180,7 @@ public class CassandraAuthorizer implements IAuthorizer
                                                   BatchStatement.Type.LOGGED,
                                                   Lists.newArrayList(Iterables.filter(statements, ModificationStatement.class)),
                                                   Attributes.none());
-        QueryProcessor.instance.processBatch(batch,
-                                             QueryState.forInternalCalls(),
-                                             BatchQueryOptions.withoutPerStatementVariables(QueryOptions.DEFAULT),
-                                             System.nanoTime());
-
+        processBatch(batch);
     }
 
     // Add every permission on the resource granted to the role
@@ -195,7 +191,8 @@ public class CassandraAuthorizer implements IAuthorizer
                                                              Lists.newArrayList(ByteBufferUtil.bytes(role.getRoleName()),
                                                                                 ByteBufferUtil.bytes(resource.getName())));
 
-        ResultMessage.Rows rows = authorizeRoleStatement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
+        ResultMessage.Rows rows = select(authorizeRoleStatement, options);
+
         UntypedResultSet result = UntypedResultSet.create(rows.result);
 
         if (!result.isEmpty() && result.one().has(PERMISSIONS))
@@ -346,8 +343,21 @@ public class CassandraAuthorizer implements IAuthorizer
         return StringUtils.replace(name, "'", "''");
     }
 
-    private UntypedResultSet process(String query) throws RequestExecutionException
+    ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
+    {
+        return statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
+    }
+
+    UntypedResultSet process(String query) throws RequestExecutionException
     {
         return QueryProcessor.process(query, ConsistencyLevel.LOCAL_ONE);
+    }
+
+    void processBatch(BatchStatement statement)
+    {
+        QueryProcessor.instance.processBatch(statement,
+                                             QueryState.forInternalCalls(),
+                                             BatchQueryOptions.withoutPerStatementVariables(QueryOptions.DEFAULT),
+                                             System.nanoTime());
     }
 }

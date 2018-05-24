@@ -102,7 +102,7 @@ In other words:
 - A string constant is an arbitrary sequence of characters enclosed by single-quote(``'``). A single-quote
   can be included by repeating it, e.g. ``'It''s raining today'``. Those are not to be confused with quoted
   :ref:`identifiers` that use double-quotes. Alternatively, a string can be defined by enclosing the arbitrary sequence
-  of characters by two dollar characters, in which case single-quote can be use without escaping (``$$It's raining
+  of characters by two dollar characters, in which case single-quote can be used without escaping (``$$It's raining
   today$$``). That latter form is often used when defining :ref:`user-defined functions <udfs>` to avoid having to
   escape single-quote characters in function body (as they are more likely to occur than ``$$``).
 - Integer, float and boolean constant are defined as expected. Note however than float allows the special ``NaN`` and
