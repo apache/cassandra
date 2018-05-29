@@ -106,6 +106,7 @@ if [ "x$MAX_HEAP_SIZE" = "x" ]; then
 fi
 
 "$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
+        -XX:ParallelGCThreads=1 \
         -Dcassandra.storagedir="$cassandra_storagedir" \
         -Dlogback.configurationFile=logback-tools.xml \
         $JVM_ARGS \

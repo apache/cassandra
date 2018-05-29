@@ -244,6 +244,7 @@
 
 
 3.11.3
+ * Reduce nodetool GC thread count (CASSANDRA-14475)
  * Fix New SASI view creation during Index Redistribution (CASSANDRA-14055)
  * Remove string formatting lines from BufferPool hot path (CASSANDRA-14416)
  * Detect OpenJDK jvm type and architecture (CASSANDRA-12793)
