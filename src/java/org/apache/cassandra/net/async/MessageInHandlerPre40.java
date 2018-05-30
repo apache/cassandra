@@ -26,46 +26,40 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-import com.google.common.primitives.Ints;
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.ByteToMessageDecoder;
-import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParameterType;
-import org.apache.cassandra.utils.vint.VIntCoding;
 
-/**
- * Parses out individual messages from the incoming buffers. Each message, both header and payload, is incrementally built up
- * from the available input data, then passed to the {@link #messageConsumer}.
- *
- * Note: this class derives from {@link ByteToMessageDecoder} to take advantage of the {@link ByteToMessageDecoder.Cumulator}
- * behavior across {@link #decode(ChannelHandlerContext, ByteBuf, List)} invocations. That way we don't have to maintain
- * the not-fully consumed {@link ByteBuf}s.
- */
-public class MessageInHandler extends BaseMessageInHandler
+public class MessageInHandlerPre40 extends BaseMessageInHandler
 {
-    public static final Logger logger = LoggerFactory.getLogger(MessageInHandler.class);
+    public static final Logger logger = LoggerFactory.getLogger(MessageInHandlerPre40.class);
+
+    static final int PARAMETERS_SIZE_LENGTH = Integer.BYTES;
+    static final int PARAMETERS_VALUE_SIZE_LENGTH = Integer.BYTES;
+    static final int PAYLOAD_SIZE_LENGTH = Integer.BYTES;
 
     private State state;
     private MessageHeader messageHeader;
 
-    MessageInHandler(InetAddressAndPort peer, int messagingVersion)
+    MessageInHandlerPre40(InetAddressAndPort peer, int messagingVersion)
     {
         this (peer, messagingVersion, MESSAGING_SERVICE_CONSUMER);
     }
 
-    public MessageInHandler(InetAddressAndPort peer, int messagingVersion, BiConsumer<MessageIn, Integer> messageConsumer)
+    public MessageInHandlerPre40(InetAddressAndPort peer, int messagingVersion, BiConsumer<MessageIn, Integer> messageConsumer)
     {
         super(peer, messagingVersion, messageConsumer);
 
-        if (messagingVersion < MessagingService.VERSION_40)
+        if (messagingVersion >= MessagingService.VERSION_40)
             throw new IllegalArgumentException(String.format("wrong messaging version for this handler", messagingVersion));
 
         state = State.READ_FIRST_CHUNK;
@@ -90,8 +84,17 @@ public class MessageInHandler extends BaseMessageInHandler
                         MessageHeader header = readFirstChunk(in);
                         if (header == null)
                             return;
-                        header.from = peer;
                         messageHeader = header;
+                        state = State.READ_IP_ADDRESS;
+                        // fall-through
+                    case READ_IP_ADDRESS:
+                        // unfortunately, this assumes knowledge of how CompactEndpointSerializationHelper serializes data (the first byte is the size).
+                        // first, check that we can actually read the size byte, then check if we can read that number of bytes.
+                        // the "+ 1" is to make sure we have the size byte in addition to the serialized IP addr count of bytes in the buffer.
+                        int readableBytes = in.readableBytes();
+                        if (readableBytes < 1 || readableBytes < in.getByte(in.readerIndex()) + 1)
+                            return;
+                        messageHeader.from = CompactEndpointSerializationHelper.instance.deserialize(inputPlus, messagingVersion);
                         state = State.READ_VERB;
                         // fall-through
                     case READ_VERB:
@@ -101,34 +104,31 @@ public class MessageInHandler extends BaseMessageInHandler
                         state = State.READ_PARAMETERS_SIZE;
                         // fall-through
                     case READ_PARAMETERS_SIZE:
-                        long length = VIntCoding.readUnsignedVInt(in);
-                        if (length < 0)
+                        if (in.readableBytes() < PARAMETERS_SIZE_LENGTH)
                             return;
-                        messageHeader.parameterLength = (int) length;
+                        messageHeader.parameterLength = in.readInt();
                         messageHeader.parameters = messageHeader.parameterLength == 0 ? Collections.emptyMap() : new EnumMap<>(ParameterType.class);
                         state = State.READ_PARAMETERS_DATA;
                         // fall-through
                     case READ_PARAMETERS_DATA:
                         if (messageHeader.parameterLength > 0)
                         {
-                            if (in.readableBytes() < messageHeader.parameterLength)
+                            if (!readParameters(in, inputPlus, messageHeader.parameterLength, messageHeader.parameters))
                                 return;
-                            readParameters(in, inputPlus, messageHeader.parameterLength, messageHeader.parameters);
                         }
                         state = State.READ_PAYLOAD_SIZE;
                         // fall-through
                     case READ_PAYLOAD_SIZE:
-                        length = VIntCoding.readUnsignedVInt(in);
-                        if (length < 0)
+                        if (in.readableBytes() < PAYLOAD_SIZE_LENGTH)
                             return;
-                        messageHeader.payloadSize = (int) length;
+                        messageHeader.payloadSize = in.readInt();
                         state = State.READ_PAYLOAD;
                         // fall-through
                     case READ_PAYLOAD:
                         if (in.readableBytes() < messageHeader.payloadSize)
                             return;
 
-                        // TODO consider deserializing the message not on the event loop
+                        // TODO consider deserailizing the messge not on the event loop
                         MessageIn<Object> messageIn = MessageIn.read(inputPlus, messagingVersion,
                                                                      messageHeader.messageId, messageHeader.constructionTime, messageHeader.from,
                                                                      messageHeader.payloadSize, messageHeader.verb, messageHeader.parameters);
@@ -150,23 +150,78 @@ public class MessageInHandler extends BaseMessageInHandler
         }
     }
 
-    private void readParameters(ByteBuf in, ByteBufDataInputPlus inputPlus, int parameterLength, Map<ParameterType, Object> parameters) throws IOException
+    /**
+     * @return <code>true</code> if all the parameters have been read from the {@link ByteBuf}; else, <code>false</code>.
+     */
+    private boolean readParameters(ByteBuf in, ByteBufDataInputPlus inputPlus, int parameterCount, Map<ParameterType, Object> parameters) throws IOException
     {
-        // makes the assumption we have all the bytes required to read the headers
-        final int endIndex = in.readerIndex() + parameterLength;
-        while (in.readerIndex() < endIndex)
+        // makes the assumption that map.size() is a constant time function (HashMap.size() is)
+        while (parameters.size() < parameterCount)
         {
+            if (!canReadNextParam(in))
+                return false;
+
             String key = DataInputStream.readUTF(inputPlus);
             ParameterType parameterType = ParameterType.byName.get(key);
-            long valueLength =  VIntCoding.readUnsignedVInt(in);
-            byte[] value = new byte[Ints.checkedCast(valueLength)];
+            byte[] value = new byte[in.readInt()];
             in.readBytes(value);
             try (DataInputBuffer buffer = new DataInputBuffer(value))
             {
                 parameters.put(parameterType, parameterType.serializer.deserialize(buffer, messagingVersion));
             }
         }
+
+        return true;
     }
+
+    /**
+     * Determine if we can read the next parameter from the {@link ByteBuf}. This method will *always* set the {@code in}
+     * readIndex back to where it was when this method was invoked.
+     *
+     * NOTE: this function would be sooo much simpler if we included a parameters length int in the messaging format,
+     * instead of checking the remaining readable bytes for each field as we're parsing it. c'est la vie ...
+     */
+    @VisibleForTesting
+    static boolean canReadNextParam(ByteBuf in)
+    {
+        in.markReaderIndex();
+        // capture the readableBytes value here to avoid all the virtual function calls.
+        // subtract 6 as we know we'll be reading a short and an int (for the utf and value lengths).
+        final int minimumBytesRequired = 6;
+        int readableBytes = in.readableBytes() - minimumBytesRequired;
+        if (readableBytes < 0)
+            return false;
+
+        // this is a tad invasive, but since we know the UTF string is prefaced with a 2-byte length,
+        // read that to make sure we have enough bytes to read the string itself.
+        short strLen = in.readShort();
+        // check if we can read that many bytes for the UTF
+        if (strLen > readableBytes)
+        {
+            in.resetReaderIndex();
+            return false;
+        }
+        in.skipBytes(strLen);
+        readableBytes -= strLen;
+
+        // check if we can read the value length
+        if (readableBytes < PARAMETERS_VALUE_SIZE_LENGTH)
+        {
+            in.resetReaderIndex();
+            return false;
+        }
+        int valueLength = in.readInt();
+        // check if we read that many bytes for the value
+        if (valueLength > readableBytes)
+        {
+            in.resetReaderIndex();
+            return false;
+        }
+
+        in.resetReaderIndex();
+        return true;
+    }
+
 
     @Override
     MessageHeader getMessageHeader()
