@@ -20,7 +20,7 @@ the `source` subdirectory. The documentation uses [sphinx](http://www.sphinx-doc
 and is thus written in [reStructuredText](http://docutils.sourceforge.net/rst.html).
 
 To build the HTML documentation, you will need to first install sphinx and the
-[sphinx ReadTheDocs theme](the https://pypi.python.org/pypi/sphinx_rtd_theme).
+[sphinx ReadTheDocs theme](https://pypi.org/project/sphinx_rtd_theme/).
 When using Python 3.6 on Windows, use `py -m pip install sphinx sphinx_rtd_theme`, on unix
 use:
 ```
