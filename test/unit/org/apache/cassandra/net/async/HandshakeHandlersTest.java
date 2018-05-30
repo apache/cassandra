@@ -19,14 +19,17 @@
 package org.apache.cassandra.net.async;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Optional;
 
 import com.google.common.net.InetAddresses;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.SchemaLoader;
@@ -47,6 +50,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import static org.apache.cassandra.net.async.InboundHandshakeHandler.State.HANDSHAKE_COMPLETE;
 import static org.apache.cassandra.net.async.OutboundMessagingConnection.State.READY;
 
+@RunWith(Parameterized.class)
 public class HandshakeHandlersTest
 {
     private static final String KEYSPACE1 = "NettyPipilineTest";
@@ -54,8 +58,8 @@ public class HandshakeHandlersTest
 
     private static final InetAddressAndPort LOCAL_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.1"), 9999);
     private static final InetAddressAndPort REMOTE_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.2"), 9999);
-    private static final int MESSAGING_VERSION = MessagingService.current_version;
     private static final OutboundConnectionIdentifier connectionId = OutboundConnectionIdentifier.small(LOCAL_ADDR, REMOTE_ADDR);
+    private final int messagingVersion;
 
     @BeforeClass
     public static void beforeClass() throws ConfigurationException
@@ -65,6 +69,17 @@ public class HandshakeHandlersTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance));
         CompactionManager.instance.disableAutoCompaction();
+    }
+
+    public HandshakeHandlersTest(int messagingVersion)
+    {
+        this.messagingVersion = messagingVersion;
+    }
+
+    @Parameters()
+    public static Iterable<?> generateData()
+    {
+        return Arrays.asList(MessagingService.VERSION_30, MessagingService.VERSION_40);
     }
 
     @Test
@@ -169,19 +184,20 @@ public class HandshakeHandlersTest
                                                                   .compress(compress)
                                                                   .coalescingStrategy(Optional.empty())
                                                                   .protocolVersion(MessagingService.current_version)
+                                                                  .backlogSupplier(this::nopBacklog)
                                                                   .build();
         OutboundHandshakeHandler outboundHandshakeHandler = new OutboundHandshakeHandler(params);
         EmbeddedChannel outboundChannel = new EmbeddedChannel(outboundHandshakeHandler);
         OutboundMessagingConnection omc = new OutboundMessagingConnection(connectionId, null, Optional.empty(), new AllowAllInternodeAuthenticator());
-        omc.setTargetVersion(MESSAGING_VERSION);
-        outboundHandshakeHandler.setupPipeline(outboundChannel, MESSAGING_VERSION);
+        omc.setTargetVersion(messagingVersion);
+        outboundHandshakeHandler.setupPipeline(outboundChannel, messagingVersion);
 
         // remove the outbound handshake message from the outbound messages
         outboundChannel.outboundMessages().clear();
 
         InboundHandshakeHandler handler = new InboundHandshakeHandler(new TestAuthenticator(true));
         EmbeddedChannel inboundChannel = new EmbeddedChannel(handler);
-        handler.setupMessagingPipeline(inboundChannel.pipeline(), REMOTE_ADDR, compress, MESSAGING_VERSION);
+        handler.setupMessagingPipeline(inboundChannel.pipeline(), REMOTE_ADDR, compress, messagingVersion);
 
         return new TestChannels(outboundChannel, inboundChannel);
     }
@@ -201,6 +217,11 @@ public class HandshakeHandlersTest
     private Void nop(OutboundHandshakeHandler.HandshakeResult handshakeResult)
     {
         // do nothing, really
+        return null;
+    }
+
+    private QueuedMessage nopBacklog()
+    {
         return null;
     }
 }

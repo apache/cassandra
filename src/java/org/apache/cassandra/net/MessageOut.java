@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.net;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,47 +30,43 @@ import com.google.common.primitives.Ints;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.async.OutboundConnectionIdentifier.ConnectionType;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 
 /**
  * Each message contains a header with several fixed fields, an optional key-value parameters section, and then
- * the message payload itself. Note: the IP address in the header may be either IPv4 (4 bytes) or IPv6 (16 bytes).
- * The diagram below shows the IPv4 address for brevity.
+ * the message payload itself. Note: the legacy IP address (pre-4.0) in the header may be either IPv4 (4 bytes)
+ * or IPv6 (16 bytes). The diagram below shows the IPv4 address for brevity. In pre-4.0, the payloadSize was
+ * encoded as a 4-byte integer; in 4.0 and up it is an unsigned byte (255 parameters should be enough for anyone).
  *
  * <pre>
  * {@code
- *            1 1 1 1 1 2 2 2 2 2 3 3 3 3 3 4 4 4 4 4 5 5 5 5 5 6 6
- *  0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * |                       PROTOCOL MAGIC                          |
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * |                         Message ID                            |
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * |                         Timestamp                             |
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * |  Addr len |           IP Address (IPv4)                       /
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * /           |                 Verb                              /
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * /           |            Parameters size                        /
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * /           |             Parameter data                        /
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * /                                                               |
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * |                        Payload size                           |
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * |                                                               /
- * /                           Payload                             /
- * /                                                               |
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *            1 1 1 1 1 2 2 2 2 2 3
+ *  0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |       PROTOCOL MAGIC          |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |        Message ID             |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |        Timestamp              |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |          Verb                 |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |ParmLen| Parameter data (var)  |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |   Payload size (vint)         |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                               /
+ * /           Payload             /
+ * /                               |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  * }
  * </pre>
  *
@@ -163,7 +160,7 @@ public class MessageOut<T>
         newParameters.addAll(parameters);
         newParameters.add(type);
         newParameters.add(value);
-        return new MessageOut<T>(verb, payload, serializer, newParameters, connectionType);
+        return new MessageOut<T>(from, verb, payload, serializer, newParameters, connectionType);
     }
 
     public Stage getStage()
@@ -185,25 +182,60 @@ public class MessageOut<T>
 
     public void serialize(DataOutputPlus out, int version) throws IOException
     {
-        CompactEndpointSerializationHelper.instance.serialize(from, out, version);
+        if (version >= MessagingService.VERSION_40)
+            serialize40(out, version);
+        else
+            serializePre40(out, version);
+    }
 
+    private void serialize40(DataOutputPlus out, int version) throws IOException
+    {
         out.writeInt(verb.getId());
+
+        // serialize the headers, if any
         assert parameters.size() % PARAMETER_TUPLE_SIZE == 0;
-        out.writeInt(parameters.size() / PARAMETER_TUPLE_SIZE);
-        for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
+        if (parameters.isEmpty())
         {
-            ParameterType type = (ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET);
-            out.writeUTF(type.key);
-            IVersionedSerializer serializer = type.serializer;
-            Object parameter = parameters.get(ii + PARAMETER_TUPLE_PARAMETER_OFFSET);
-            out.writeInt(Ints.checkedCast(serializer.serializedSize(parameter, version)));
-            serializer.serialize(parameter, out, version);
+            out.writeVInt(0);
+        }
+        else
+        {
+            try (DataOutputBuffer buf = new DataOutputBuffer())
+            {
+                serializeParams(buf, version);
+                out.writeUnsignedVInt(buf.getLength());
+                out.write(buf.buffer());
+            }
         }
 
         if (payload != null)
         {
             int payloadSize = payloadSerializedSize >= 0
-                              ? (int)payloadSerializedSize
+                              ? payloadSerializedSize
+                              : (int) serializer.serializedSize(payload, version);
+
+            out.writeUnsignedVInt(payloadSize);
+            serializer.serialize(payload, out, version);
+        }
+        else
+        {
+            out.writeUnsignedVInt(0);
+        }
+    }
+
+    private void serializePre40(DataOutputPlus out, int version) throws IOException
+    {
+        CompactEndpointSerializationHelper.instance.serialize(from, out, version);
+        out.writeInt(verb.getId());
+
+        assert parameters.size() % PARAMETER_TUPLE_SIZE == 0;
+        out.writeInt(parameters.size() / PARAMETER_TUPLE_SIZE);
+        serializeParams(out, version);
+
+        if (payload != null)
+        {
+            int payloadSize = payloadSerializedSize >= 0
+                              ? payloadSerializedSize
                               : (int) serializer.serializedSize(payload, version);
 
             out.writeInt(payloadSize);
@@ -215,13 +247,73 @@ public class MessageOut<T>
         }
     }
 
+    private void serializeParams(DataOutputPlus out, int version) throws IOException
+    {
+        for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
+        {
+            ParameterType type = (ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET);
+            out.writeUTF(type.key);
+            IVersionedSerializer serializer = type.serializer;
+            Object parameter = parameters.get(ii + PARAMETER_TUPLE_PARAMETER_OFFSET);
+
+            int valueLength = Ints.checkedCast(serializer.serializedSize(parameter, version));
+            if (version >= MessagingService.VERSION_40)
+                out.writeUnsignedVInt(valueLength);
+            else
+                out.writeInt(valueLength);
+
+            serializer.serialize(parameter, out, version);
+        }
+    }
+
     private MessageOutSizes calculateSerializedSize(int version)
+    {
+        return version >= MessagingService.VERSION_40
+               ? calculateSerializedSize40(version)
+               : calculateSerializedSizePre40(version);
+    }
+
+    private MessageOutSizes calculateSerializedSize40(int version)
+    {
+        long size = 0;
+        size += TypeSizes.sizeof(verb.getId());
+
+        if (parameters.isEmpty())
+        {
+            size += VIntCoding.computeVIntSize(0);
+        }
+        else
+        {
+            // calculate the params size independently, as we write that before the actual params block
+            int paramsSize = 0;
+            for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
+            {
+                ParameterType type = (ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET);
+                paramsSize += TypeSizes.sizeof(type.key());
+                IVersionedSerializer serializer = type.serializer;
+                Object parameter = parameters.get(ii + PARAMETER_TUPLE_PARAMETER_OFFSET);
+                int valueLength = Ints.checkedCast(serializer.serializedSize(parameter, version));
+                paramsSize += VIntCoding.computeUnsignedVIntSize(valueLength);//length prefix
+                paramsSize += valueLength;
+            }
+            size += VIntCoding.computeUnsignedVIntSize(paramsSize);
+            size += paramsSize;
+        }
+
+        long payloadSize = payload == null ? 0 : serializer.serializedSize(payload, version);
+        assert payloadSize <= Integer.MAX_VALUE; // larger values are supported in sstables but not messages
+        size += VIntCoding.computeUnsignedVIntSize(payloadSize);
+        size += payloadSize;
+        return new MessageOutSizes(size, payloadSize);
+    }
+
+    private MessageOutSizes calculateSerializedSizePre40(int version)
     {
         long size = 0;
         size += CompactEndpointSerializationHelper.instance.serializedSize(from, version);
 
         size += TypeSizes.sizeof(verb.getId());
-        size += TypeSizes.sizeof(parameters.size());
+        size += TypeSizes.sizeof(parameters.size() / PARAMETER_TUPLE_SIZE);
         for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
         {
             ParameterType type = (ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET);
