@@ -606,6 +606,7 @@
         <dependency groupId="com.boundary" artifactId="high-scale-lib"/>
         <dependency groupId="org.yaml" artifactId="snakeyaml"/>
         <dependency groupId="org.mindrot" artifactId="jbcrypt"/>
+        <dependency groupId="io.airlift" artifactId="airline"/>
         <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core"/>
         <dependency groupId="io.dropwizard.metrics" artifactId="metrics-jvm"/>
         <dependency groupId="com.addthis.metrics" artifactId="reporter-config3"/>
@@ -644,6 +645,7 @@
         <dependency groupId="org.fusesource" artifactId="sigar"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
+        <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core-j8"/>
         <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" />
         <dependency groupId="org.jctools" artifactId="jctools-core"/>
         <dependency groupId="org.ow2.asm" artifactId="asm" />
