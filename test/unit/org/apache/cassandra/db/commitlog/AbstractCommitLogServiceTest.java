@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.AbstractCommitLogService.SyncRunnable;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FreeRunningClock;
 
@@ -117,7 +118,7 @@ public class AbstractCommitLogServiceTest
         long syncTimeMillis = AbstractCommitLogService.DEFAULT_MARKER_INTERVAL_MILLIS * 2;
         FreeRunningClock clock = new FreeRunningClock();
         FakeCommitLogService commitLogService = new FakeCommitLogService(syncTimeMillis);
-        AbstractCommitLogService.SyncRunnable syncRunnable = commitLogService.new SyncRunnable(clock);
+        SyncRunnable syncRunnable = commitLogService.new SyncRunnable(clock);
         FakeCommitLog commitLog = (FakeCommitLog) commitLogService.commitLog;
 
         // at time 0
@@ -172,5 +173,51 @@ public class AbstractCommitLogServiceTest
             else
                 markCount.incrementAndGet();
         }
+    }
+
+    @Test
+    public void maybeLogFlushLag_MustLog()
+    {
+        long syncTimeMillis = 10;
+        SyncRunnable syncRunnable = new FakeCommitLogService(syncTimeMillis).new SyncRunnable(new FreeRunningClock());
+        long pollStarted = 1;
+        long now = pollStarted + (syncTimeMillis * 2);
+        Assert.assertTrue(syncRunnable.maybeLogFlushLag(pollStarted, now));
+        Assert.assertEquals(now - pollStarted, syncRunnable.getTotalSyncDuration());
+    }
+
+    @Test
+    public void maybeLogFlushLag_NoLog()
+    {
+        long syncTimeMillis = 10;
+        SyncRunnable syncRunnable = new FakeCommitLogService(syncTimeMillis).new SyncRunnable(new FreeRunningClock());
+        long pollStarted = 1;
+        long now = pollStarted + (syncTimeMillis - 1);
+        Assert.assertFalse(syncRunnable.maybeLogFlushLag(pollStarted, now));
+        Assert.assertEquals(now - pollStarted, syncRunnable.getTotalSyncDuration());
+    }
+
+    /**
+     * Mostly tests that {@link SyncRunnable#totalSyncDuration} is handled correctly
+     */
+    @Test
+    public void maybeLogFlushLag_MultipleOperations()
+    {
+        long syncTimeMillis = 10;
+        SyncRunnable syncRunnable = new FakeCommitLogService(syncTimeMillis).new SyncRunnable(new FreeRunningClock());
+
+        long pollStarted = 1;
+        long now = pollStarted + (syncTimeMillis - 1);
+
+        int runCount = 12;
+        for (int i = 1; i <= runCount; i++)
+        {
+            Assert.assertFalse(syncRunnable.maybeLogFlushLag(pollStarted, now));
+            Assert.assertEquals(i * (now - pollStarted), syncRunnable.getTotalSyncDuration());
+        }
+
+        now = pollStarted + (syncTimeMillis * 2);
+        Assert.assertTrue(syncRunnable.maybeLogFlushLag(pollStarted, now));
+        Assert.assertEquals(now - pollStarted, syncRunnable.getTotalSyncDuration());
     }
 }
