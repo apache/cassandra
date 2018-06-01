@@ -65,6 +65,12 @@
 # NB: Developers should be aware that this script should remain compatible with
 # POSIX sh and Solaris sh. This means, in particular, no $(( )) and no $( ).
 
+# Unset any grep options that may include `--color=always` per say.
+# Using `unset GREP_OPTIONS` will also work on the non-deprecated use case
+# of setting a new grep alias.
+# See CASSANDRA-14487 for more details.
+unset GREP_OPTIONS
+
 # If an include wasn't specified in the environment, then search for one...
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     # Locations (in order) to use when searching for an include file.
