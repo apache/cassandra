@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Unset GREP_OPTIONS (CASSANDRA-14487)
  * Added streaming documentation (CASSANDRA-15477)
  * Update to Python driver 3.21 for cqlsh (CASSANDRA-14872)
  * Added bulk loading documentation (CASSANDRA-15480)
