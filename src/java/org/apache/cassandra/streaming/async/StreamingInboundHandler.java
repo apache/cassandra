@@ -180,13 +180,16 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
                     // wrt session lifecycle, due to races), just log that we received the message and carry on
                     if (message instanceof KeepAliveMessage)
                     {
-                        logger.debug("{} Received {}", createLogTag(session, channel), message);
+                        if (logger.isDebugEnabled())
+                            logger.debug("{} Received {}", createLogTag(session, channel), message);
                         continue;
                     }
 
                     if (session == null)
                         session = deriveSession(message);
-                    logger.debug("{} Received {}", createLogTag(session, channel), message);
+
+                    if (logger.isDebugEnabled())
+                        logger.debug("{} Received {}", createLogTag(session, channel), message);
                     session.messageReceived(message);
                 }
             }

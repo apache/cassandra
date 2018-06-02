@@ -428,7 +428,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
 
         long fileLength = new File(descriptor.filenameFor(Component.DATA)).length();
-        logger.debug("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
+        if (logger.isDebugEnabled())
+            logger.debug("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
         SSTableReader sstable = internalOpen(descriptor,
                                              components,
                                              metadata,
@@ -518,7 +519,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
 
         long fileLength = new File(descriptor.filenameFor(Component.DATA)).length();
-        logger.debug("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
+        if (logger.isDebugEnabled())
+            logger.debug("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
         SSTableReader sstable = internalOpen(descriptor,
                                              components,
                                              metadata,

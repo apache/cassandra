@@ -54,7 +54,8 @@ public class TokenSerializer
             int size = in.readInt();
             if (size < 1)
                 break;
-            logger.trace("Reading token of {}", FBUtilities.prettyPrintMemory(size));
+            if (logger.isTraceEnabled())
+                logger.trace("Reading token of {}", FBUtilities.prettyPrintMemory(size));
             byte[] bintoken = new byte[size];
             in.readFully(bintoken);
             tokens.add(partitioner.getTokenFactory().fromByteArray(ByteBuffer.wrap(bintoken)));
