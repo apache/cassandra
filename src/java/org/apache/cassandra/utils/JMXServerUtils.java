@@ -248,7 +248,8 @@ public class JMXServerUtils
 
     private static void logJmxSslConfig(SslRMIServerSocketFactory serverFactory)
     {
-        logger.debug("JMX SSL configuration. { protocols: [{}], cipher_suites: [{}], require_client_auth: {} }",
+    	if (logger.isDebugEnabled())
+    		logger.debug("JMX SSL configuration. { protocols: [{}], cipher_suites: [{}], require_client_auth: {} }",
                      serverFactory.getEnabledProtocols() == null
                      ? "'JVM defaults'"
                      : Arrays.stream(serverFactory.getEnabledProtocols()).collect(Collectors.joining("','", "'", "'")),
