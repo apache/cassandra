@@ -30,3 +30,4 @@ Contributing to Cassandra
    documentation
    ci
    dependencies
+   release_process
