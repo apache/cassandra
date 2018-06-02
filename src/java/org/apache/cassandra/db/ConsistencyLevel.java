@@ -293,7 +293,8 @@ public enum ConsistencyLevel
                 int live = Iterables.size(liveEndpoints);
                 if (live < blockFor)
                 {
-                    logger.trace("Live nodes {} do not satisfy ConsistencyLevel ({} required)", Iterables.toString(liveEndpoints), blockFor);
+                    if (logger.isTraceEnabled())
+                        logger.trace("Live nodes {} do not satisfy ConsistencyLevel ({} required)", Iterables.toString(liveEndpoints), blockFor);
                     throw new UnavailableException(this, blockFor, live);
                 }
                 break;

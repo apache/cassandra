@@ -135,7 +135,8 @@ public class StreamCoordinator
         if (sessionsToConnect.hasNext())
         {
             StreamSession next = sessionsToConnect.next();
-            logger.debug("Connecting next session {} with {}.", next.planId(), next.peer.toString());
+            if (logger.isDebugEnabled())
+                logger.debug("Connecting next session {} with {}.", next.planId(), next.peer.toString());
             startSession(next);
         }
         else

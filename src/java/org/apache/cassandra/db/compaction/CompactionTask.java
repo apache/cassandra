@@ -254,23 +254,28 @@ public class CompactionTask extends AbstractCompactionTask
                     totalSourceRows += mergedRowCounts[i] * (i + 1);
 
                 String mergeSummary = updateCompactionHistory(cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize);
-                logger.debug(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
-                                           taskId,
-                                           transaction.originals().size(),
-                                           newSSTableNames.toString(),
-                                           getLevel(),
-                                           FBUtilities.prettyPrintMemory(startsize),
-                                           FBUtilities.prettyPrintMemory(endsize),
-                                           (int) (ratio * 100),
-                                           dTime,
-                                           FBUtilities.prettyPrintMemoryPerSecond(startsize, durationInNano),
-                                           FBUtilities.prettyPrintMemoryPerSecond(endsize, durationInNano),
-                                           (int) totalSourceCQLRows / (TimeUnit.NANOSECONDS.toSeconds(durationInNano) + 1),
-                                           totalSourceRows,
-                                           totalKeysWritten,
-                                           mergeSummary));
-                logger.trace("CF Total Bytes Compacted: {}", FBUtilities.prettyPrintMemory(CompactionTask.addToTotalBytesCompacted(endsize)));
-                logger.trace("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedKeys, ((double)(totalKeysWritten - estimatedKeys)/totalKeysWritten));
+
+                if (logger.isDebugEnabled())
+                    logger.debug(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
+                                               taskId,
+                                               transaction.originals().size(),
+                                               newSSTableNames.toString(),
+                                               getLevel(),
+                                               FBUtilities.prettyPrintMemory(startsize),
+                                               FBUtilities.prettyPrintMemory(endsize),
+                                               (int) (ratio * 100),
+                                               dTime,
+                                               FBUtilities.prettyPrintMemoryPerSecond(startsize, durationInNano),
+                                               FBUtilities.prettyPrintMemoryPerSecond(endsize, durationInNano),
+                                               (int) totalSourceCQLRows / (TimeUnit.NANOSECONDS.toSeconds(durationInNano) + 1),
+                                               totalSourceRows,
+                                               totalKeysWritten,
+                                               mergeSummary));
+                if (logger.isTraceEnabled())
+                {
+                    logger.trace("CF Total Bytes Compacted: {}", FBUtilities.prettyPrintMemory(CompactionTask.addToTotalBytesCompacted(endsize)));
+                    logger.trace("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedKeys, ((double)(totalKeysWritten - estimatedKeys)/totalKeysWritten));
+                }
                 cfs.getCompactionStrategyManager().compactionLogger.compaction(startTime, transaction.originals(), System.currentTimeMillis(), newSStables);
 
                 // update the metrics

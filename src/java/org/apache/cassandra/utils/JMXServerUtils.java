@@ -248,14 +248,15 @@ public class JMXServerUtils
 
     private static void logJmxSslConfig(SslRMIServerSocketFactory serverFactory)
     {
-        logger.debug("JMX SSL configuration. { protocols: [{}], cipher_suites: [{}], require_client_auth: {} }",
-                     serverFactory.getEnabledProtocols() == null
-                     ? "'JVM defaults'"
-                     : Arrays.stream(serverFactory.getEnabledProtocols()).collect(Collectors.joining("','", "'", "'")),
-                     serverFactory.getEnabledCipherSuites() == null
-                     ? "'JVM defaults'"
-                     : Arrays.stream(serverFactory.getEnabledCipherSuites()).collect(Collectors.joining("','", "'", "'")),
-                     serverFactory.getNeedClientAuth());
+        if (logger.isDebugEnabled())
+            logger.debug("JMX SSL configuration. { protocols: [{}], cipher_suites: [{}], require_client_auth: {} }",
+                         serverFactory.getEnabledProtocols() == null
+                         ? "'JVM defaults'"
+                         : Arrays.stream(serverFactory.getEnabledProtocols()).collect(Collectors.joining("','", "'", "'")),
+                         serverFactory.getEnabledCipherSuites() == null
+                         ? "'JVM defaults'"
+                         : Arrays.stream(serverFactory.getEnabledCipherSuites()).collect(Collectors.joining("','", "'", "'")),
+                         serverFactory.getNeedClientAuth());
     }
 
     private static class JMXPluggableAuthenticatorWrapper implements JMXAuthenticator

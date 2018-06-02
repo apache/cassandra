@@ -125,7 +125,8 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         total = 0;
         for (SSTableReader sstable : Iterables.concat(compacting, newSSTables))
             total += sstable.getIndexSummaryOffHeapSize();
-        logger.trace("Completed resizing of index summaries; current approximate memory used: {}",
+        if (logger.isTraceEnabled())
+            logger.trace("Completed resizing of index summaries; current approximate memory used: {}",
                      FBUtilities.prettyPrintMemory(total));
 
         return newSSTables;
@@ -177,12 +178,13 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             int numEntriesAtNewSamplingLevel = IndexSummaryBuilder.entriesAtSamplingLevel(newSamplingLevel, maxSummarySize);
             double effectiveIndexInterval = sstable.getEffectiveIndexInterval();
 
-            logger.trace("{} has {} reads/sec; ideal space for index summary: {} ({} entries); considering moving " +
-                    "from level {} ({} entries, {}) " +
-                    "to level {} ({} entries, {})",
-                    sstable.getFilename(), readsPerSec, FBUtilities.prettyPrintMemory(idealSpace), targetNumEntries,
-                    currentSamplingLevel, currentNumEntries, FBUtilities.prettyPrintMemory((long) (currentNumEntries * avgEntrySize)),
-                    newSamplingLevel, numEntriesAtNewSamplingLevel, FBUtilities.prettyPrintMemory((long) (numEntriesAtNewSamplingLevel * avgEntrySize)));
+            if (logger.isTraceEnabled())
+                logger.trace("{} has {} reads/sec; ideal space for index summary: {} ({} entries); considering moving " +
+                             "from level {} ({} entries, {}) " +
+                             "to level {} ({} entries, {})",
+                             sstable.getFilename(), readsPerSec, FBUtilities.prettyPrintMemory(idealSpace), targetNumEntries,
+                             currentSamplingLevel, currentNumEntries, FBUtilities.prettyPrintMemory((long) (currentNumEntries * avgEntrySize)),
+                             newSamplingLevel, numEntriesAtNewSamplingLevel, FBUtilities.prettyPrintMemory((long) (numEntriesAtNewSamplingLevel * avgEntrySize)));
 
             if (effectiveIndexInterval < minIndexInterval)
             {

@@ -1,4 +1,5 @@
 4.0
+ * Avoid unneeded memory allocations / cpu for disabled log levels (CASSANDRA-14488)
  * Implement virtual keyspace interface (CASSANDRA-7622)
  * nodetool import cleanup and improvements (CASSANDRA-14417)
  * Bump jackson version to >= 2.9.5 (CASSANDRA-14427)
