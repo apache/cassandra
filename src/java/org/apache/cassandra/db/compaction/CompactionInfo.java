@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.apache.cassandra.schema.TableMetadata;
@@ -28,6 +29,16 @@ import org.apache.cassandra.schema.TableMetadata;
 public final class CompactionInfo implements Serializable
 {
     private static final long serialVersionUID = 3695381572726744816L;
+
+    public static final String ID = "id";
+    public static final String KEYSPACE = "keyspace";
+    public static final String COLUMNFAMILY = "columnfamily";
+    public static final String COMPLETED = "completed";
+    public static final String TOTAL = "total";
+    public static final String TASK_TYPE = "taskType";
+    public static final String UNIT = "unit";
+    public static final String COMPACTION_ID = "compactionId";
+
     private final TableMetadata metadata;
     private final OperationType tasktype;
     private final long completed;
@@ -89,14 +100,14 @@ public final class CompactionInfo implements Serializable
         return metadata != null ? metadata.id.asUUID() : null;
     }
 
-    public String getKeyspace()
+    public Optional<String> getKeyspace()
     {
-        return metadata != null ? metadata.keyspace : null;
+        return Optional.of(metadata != null ? metadata.keyspace : null);
     }
 
-    public String getColumnFamily()
+    public Optional<String> getColumnFamily()
     {
-        return metadata != null ? metadata.name : null;
+        return Optional.of(metadata != null ? metadata.name : null);
     }
 
     public TableMetadata getTableMetadata()
@@ -124,6 +135,11 @@ public final class CompactionInfo implements Serializable
         return compactionId;
     }
 
+    public Unit getUnit()
+    {
+        return unit;
+    }
+
     public String toString()
     {
         StringBuilder buff = new StringBuilder();
@@ -131,7 +147,7 @@ public final class CompactionInfo implements Serializable
         if (metadata != null)
         {
             buff.append('@').append(getId()).append('(');
-            buff.append(getKeyspace()).append(", ").append(getColumnFamily()).append(", ");
+            buff.append(getKeyspace().get()).append(", ").append(getColumnFamily().get()).append(", ");
         }
         else
         {
@@ -144,14 +160,14 @@ public final class CompactionInfo implements Serializable
     public Map<String, String> asMap()
     {
         Map<String, String> ret = new HashMap<String, String>();
-        ret.put("id", getId() == null ? "" : getId().toString());
-        ret.put("keyspace", getKeyspace());
-        ret.put("columnfamily", getColumnFamily());
-        ret.put("completed", Long.toString(completed));
-        ret.put("total", Long.toString(total));
-        ret.put("taskType", tasktype.toString());
-        ret.put("unit", unit.toString());
-        ret.put("compactionId", compactionId == null ? "" : compactionId.toString());
+        ret.put(ID, getId() == null ? "" : getId().toString());
+        ret.put(KEYSPACE, getKeyspace().get());
+        ret.put(COLUMNFAMILY, getColumnFamily().get());
+        ret.put(COMPLETED, Long.toString(completed));
+        ret.put(TOTAL, Long.toString(total));
+        ret.put(TASK_TYPE, tasktype.toString());
+        ret.put(UNIT, unit.toString());
+        ret.put(COMPACTION_ID, compactionId == null ? "" : compactionId.toString());
         return ret;
     }
 
