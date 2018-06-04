@@ -29,7 +29,7 @@ import org.apache.cassandra.schema.TableMetadata;
 
 final class SSTableTasksTable extends AbstractVirtualTable
 {
-    private final static String COMPACTION_ID = "compaction_id";
+    private final static String COMPACTION_ID = "task_id";
     private final static String KIND = "kind";
     private final static String KEYSPACE = "keyspace_name";
     private final static String TABLE = "table_name";
