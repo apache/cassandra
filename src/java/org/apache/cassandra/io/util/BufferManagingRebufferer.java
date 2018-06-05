@@ -42,7 +42,13 @@ public abstract class BufferManagingRebufferer implements Rebufferer, Rebufferer
     protected BufferManagingRebufferer(ChunkReader wrapped)
     {
         this.source = wrapped;
-        buffer = BufferPool.get(wrapped.chunkSize(), wrapped.preferredBufferType()).order(ByteOrder.BIG_ENDIAN);
+
+        // direct_io requires that we allocate one more additional block to take care of possible non-aligned reads.
+        if (source.useDirectIO())
+            buffer = BufferPool.get(wrapped.chunkSize() + DirectIOUtils.BLOCK_SIZE, wrapped.preferredBufferType(), true).order(ByteOrder.BIG_ENDIAN);
+        else
+            buffer = BufferPool.get(wrapped.chunkSize(), wrapped.preferredBufferType()).order(ByteOrder.BIG_ENDIAN);
+
         buffer.limit(0);
     }
 
@@ -126,16 +132,18 @@ public abstract class BufferManagingRebufferer implements Rebufferer, Rebufferer
 
     public static class Aligned extends BufferManagingRebufferer
     {
+        ChunkReader wrapped;
         public Aligned(ChunkReader wrapped)
         {
             super(wrapped);
+            this.wrapped = wrapped;
             assert Integer.bitCount(wrapped.chunkSize()) == 1;
         }
 
         @Override
         long alignedPosition(long position)
         {
-            return position & -buffer.capacity();
+            return position & -wrapped.chunkSize();
         }
     }
 }

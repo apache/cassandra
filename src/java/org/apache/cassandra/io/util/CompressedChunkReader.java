@@ -29,18 +29,26 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.ChecksumType;
+import org.joda.time.DateTime;
 
 public abstract class CompressedChunkReader extends AbstractReaderFileProxy implements ChunkReader
 {
     final CompressionMetadata metadata;
     final int maxCompressedLength;
+    final boolean useDirectIO;
 
-    protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata)
+    protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata, boolean useDirectIO)
     {
         super(channel, metadata.dataLength);
         this.metadata = metadata;
         this.maxCompressedLength = metadata.maxCompressedLength();
+        this.useDirectIO = useDirectIO;
         assert Integer.bitCount(metadata.chunkLength()) == 1; //must be a power of two
+    }
+
+    protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata)
+    {
+        this(channel, metadata, false);
     }
 
     @VisibleForTesting
@@ -87,11 +95,18 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     {
         // we read the raw compressed bytes into this buffer, then uncompressed them into the provided one.
         private final ThreadLocal<ByteBuffer> compressedHolder;
+        private boolean useDirectIO;
+
+        public Standard(ChannelProxy channel, CompressionMetadata metadata, boolean useDirectIO)
+        {
+            super(channel, metadata, useDirectIO);
+            compressedHolder = ThreadLocal.withInitial(this::allocateBuffer);
+            this.useDirectIO = useDirectIO;
+        }
 
         public Standard(ChannelProxy channel, CompressionMetadata metadata)
         {
-            super(channel, metadata);
-            compressedHolder = ThreadLocal.withInitial(this::allocateBuffer);
+            this(channel, metadata, false);
         }
 
         public ByteBuffer allocateBuffer()
@@ -106,7 +121,16 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
         public ByteBuffer allocateBuffer(int size)
         {
-            return metadata.compressor().preferredBufferType().allocate(size);
+            // for direct_io, we need an additional block for possible alignment issues.
+            return useDirectIO ?
+                   metadata.compressor().preferredBufferType().allocate(size + DirectIOUtils.BLOCK_SIZE, true) :
+                   metadata.compressor().preferredBufferType().allocate(size);
+        }
+
+        @Override
+        public boolean useDirectIO()
+        {
+            return useDirectIO;
         }
 
         @Override
@@ -115,7 +139,6 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
             try
             {
                 // accesses must always be aligned
-                assert (position & -uncompressed.capacity()) == position;
                 assert position <= fileLength;
 
                 CompressionMetadata.Chunk chunk = metadata.chunkFor(position);
@@ -169,7 +192,6 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
                         ByteBuffer scratch = compressedHolder.get();
                         scratch.clear().limit(Integer.BYTES);
-
                         if (channel.read(scratch, chunk.offset + chunk.length) != Integer.BYTES
                                 || scratch.getInt(0) != checksum)
                             throw new CorruptBlockException(channel.filePath(), chunk);
@@ -194,6 +216,12 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         {
             super(channel, metadata);
             this.regions = regions;
+        }
+
+        @Override
+        public boolean useDirectIO()
+        {
+            return useDirectIO;
         }
 
         @Override

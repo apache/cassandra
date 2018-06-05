@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.io.File;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -27,6 +28,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
@@ -242,16 +245,47 @@ public class FileHandle extends SharedCloseableImpl
 
         private boolean mmapped = false;
         private boolean compressed = false;
+        private boolean useDirectIO = false;
 
         public Builder(String path)
         {
+            this(path, false);
+        }
+
+        public Builder(String path, boolean useDirectIO)
+        {
             this.path = path;
+            if (useDirectIO && canUseDirectIO(path))
+            {
+                this.bufferType = BufferType.OFF_HEAP;
+                this.useDirectIO = useDirectIO;
+            }
         }
 
         public Builder(ChannelProxy channel)
         {
+            this(channel, false);
+        }
+
+        public Builder(ChannelProxy channel, boolean useDirectIO)
+        {
             this.channel = channel;
             this.path = channel.filePath();
+            if (useDirectIO && canUseDirectIO(path))
+            {
+                this.bufferType = BufferType.OFF_HEAP;
+                this.useDirectIO = useDirectIO;
+            }
+        }
+
+        private boolean canUseDirectIO(String path)
+        {
+            final String[] path_parts = path.split(Character.toString(File.separatorChar));
+            final String keyspace = path_parts[path_parts.length - 3];
+            final String filename = path_parts[path_parts.length - 1];
+            return filename.endsWith(Component.DATA.name) &&
+                   !SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspace.toLowerCase()) &&
+                   !SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(keyspace.toLowerCase());
         }
 
         public Builder compressed(boolean compressed)
@@ -286,14 +320,14 @@ public class FileHandle extends SharedCloseableImpl
         }
 
         /**
-         * Set whether to use mmap for reading
+         * Set whether to use mmap for reading. For Direct_IO, we will force a non-memory-mapped read.
          *
          * @param mmapped true if using mmap
          * @return this instance
          */
         public Builder mmapped(boolean mmapped)
         {
-            this.mmapped = mmapped;
+            this.mmapped = useDirectIO ? false : mmapped;
             return this;
         }
 
@@ -343,7 +377,7 @@ public class FileHandle extends SharedCloseableImpl
         {
             if (channel == null)
             {
-                channel = new ChannelProxy(path);
+                channel = new ChannelProxy(path, useDirectIO);
             }
 
             ChannelProxy channelCopy = channel.sharedCopy();
@@ -374,12 +408,12 @@ public class FileHandle extends SharedCloseableImpl
                     regions = null;
                     if (compressed)
                     {
-                        rebuffererFactory = maybeCached(new CompressedChunkReader.Standard(channelCopy, compressionMetadata));
+                        rebuffererFactory = maybeCached(new CompressedChunkReader.Standard(channelCopy, compressionMetadata, useDirectIO));
                     }
                     else
                     {
                         int chunkSize = DiskOptimizationStrategy.roundForCaching(bufferSize, ChunkCache.roundUp);
-                        rebuffererFactory = maybeCached(new SimpleChunkReader(channelCopy, length, bufferType, chunkSize));
+                        rebuffererFactory = maybeCached(new SimpleChunkReader(channelCopy, length, bufferType, chunkSize, useDirectIO));
                     }
                 }
                 Cleanup cleanup = new Cleanup(channelCopy, rebuffererFactory, compressionMetadata, chunkCache);

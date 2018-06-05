@@ -1201,3 +1201,6 @@ audit_logging_options:
 # validate tombstones on reads and compaction
 # can be either "disabled", "warn" or "exception"
 # corrupted_tombstone_strategy: disabled
+
+# enables direct_io for read path of data files.
+enable_direct_io_for_read_path: false
