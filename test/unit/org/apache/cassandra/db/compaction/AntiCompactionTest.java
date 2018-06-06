@@ -199,18 +199,7 @@ public class AntiCompactionTest
     }
 
     @Test
-    public void antiCompactTenSTC() throws InterruptedException, IOException
-    {
-        antiCompactTen("SizeTieredCompactionStrategy");
-    }
-
-    @Test
-    public void antiCompactTenLC() throws InterruptedException, IOException
-    {
-        antiCompactTen("LeveledCompactionStrategy");
-    }
-
-    public void antiCompactTen(String compactionStrategy) throws InterruptedException, IOException
+    public void antiCompactTen() throws InterruptedException, IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
