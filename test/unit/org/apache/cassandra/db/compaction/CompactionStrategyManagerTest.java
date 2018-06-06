@@ -81,7 +81,7 @@ public class CompactionStrategyManagerTest
         SchemaLoader.createKeyspace(KS_PREFIX,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KS_PREFIX, TABLE_PREFIX)
-                                                .compaction(CompactionParams.scts(Collections.emptyMap())));
+                                                .compaction(CompactionParams.stcs(Collections.emptyMap())));
     }
 
     @AfterClass

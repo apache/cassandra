@@ -107,7 +107,7 @@ public final class CompactionParams
         return new CompactionParams(klass, allOptions, isEnabled, tombstoneOption);
     }
 
-    public static CompactionParams scts(Map<String, String> options)
+    public static CompactionParams stcs(Map<String, String> options)
     {
         return create(SizeTieredCompactionStrategy.class, options);
     }
