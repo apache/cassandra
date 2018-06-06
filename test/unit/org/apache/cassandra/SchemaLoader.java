@@ -126,7 +126,7 @@ public class SchemaLoader
                 KeyspaceParams.simple(1),
                 Tables.of(
                 // Column Families
-                standardCFMD(ks1, "Standard1").compaction(CompactionParams.scts(compactionOptions)).build(),
+                standardCFMD(ks1, "Standard1").compaction(CompactionParams.stcs(compactionOptions)).build(),
                 standardCFMD(ks1, "Standard2").build(),
                 standardCFMD(ks1, "Standard3").build(),
                 standardCFMD(ks1, "Standard4").build(),

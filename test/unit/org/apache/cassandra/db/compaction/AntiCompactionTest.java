@@ -35,7 +35,6 @@ import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.After;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -64,6 +63,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
+import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
@@ -71,8 +71,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-
-import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 
 
 public class AntiCompactionTest
@@ -176,7 +174,6 @@ public class AntiCompactionTest
         antiCompactOne(UNREPAIRED_SSTABLE, UUIDGen.getTimeUUID());
     }
 
-    @Ignore
     @Test
     public void antiCompactionSizeTest() throws InterruptedException, IOException
     {
@@ -186,12 +183,14 @@ public class AntiCompactionTest
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
         Range<Token> range = new Range<Token>(new BytesToken(ByteBufferUtil.bytes(0)), new BytesToken(ByteBufferUtil.bytes(500)));
+        List<Range<Token>> ranges = Arrays.asList(range);
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         UUID parentRepairSession = UUID.randomUUID();
+        registerParentRepairSession(parentRepairSession, ranges, UNREPAIRED_SSTABLE, UUIDGen.getTimeUUID());
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
-            CompactionManager.instance.performAnticompaction(cfs, Arrays.asList(range), refs, txn, 12345, NO_PENDING_REPAIR, parentRepairSession);
+            CompactionManager.instance.performAnticompaction(cfs, ranges, refs, txn, 12345, NO_PENDING_REPAIR, parentRepairSession);
         }
         long sum = 0;
         long rows = 0;
@@ -241,18 +240,7 @@ public class AntiCompactionTest
     }
 
     @Test
-    public void antiCompactTenSTC() throws InterruptedException, IOException
-    {
-        antiCompactTen("SizeTieredCompactionStrategy");
-    }
-
-    @Test
-    public void antiCompactTenLC() throws InterruptedException, IOException
-    {
-        antiCompactTen("LeveledCompactionStrategy");
-    }
-
-    public void antiCompactTen(String compactionStrategy) throws InterruptedException, IOException
+    public void antiCompactTen() throws InterruptedException, IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);

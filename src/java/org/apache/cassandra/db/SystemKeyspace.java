@@ -113,15 +113,15 @@ public final class SystemKeyspace
 
     public static final TableMetadata Batches =
         parse(BATCHES,
-                "batches awaiting replay",
-                "CREATE TABLE %s ("
-                + "id timeuuid,"
-                + "mutations list<blob>,"
-                + "version int,"
-                + "PRIMARY KEY ((id)))")
-                .partitioner(new LocalPartitioner(TimeUUIDType.instance))
-                .compaction(CompactionParams.scts(singletonMap("min_threshold", "2")))
-                .build();
+              "batches awaiting replay",
+              "CREATE TABLE %s ("
+              + "id timeuuid,"
+              + "mutations list<blob>,"
+              + "version int,"
+              + "PRIMARY KEY ((id)))")
+              .partitioner(new LocalPartitioner(TimeUUIDType.instance))
+              .compaction(CompactionParams.stcs(singletonMap("min_threshold", "2")))
+              .build();
 
     private static final TableMetadata Paxos =
         parse(PAXOS,
