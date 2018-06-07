@@ -81,7 +81,7 @@ public class Dump implements Runnable
             {
                 int protocolVersion = wireIn.read("protocol-version").int32();
                 sb.append("Protocol version: ").append(protocolVersion).append(System.lineSeparator());
-                QueryOptions options = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read("query-options").bytesStore().toTemporaryDirectByteBuffer()), ProtocolVersion.decode(protocolVersion));
+                QueryOptions options = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read("query-options").bytes()), ProtocolVersion.decode(protocolVersion));
                 sb.append("Query time: ").append(wireIn.read("query-time").int64()).append(System.lineSeparator());
 
                 if (type.equals("single"))
@@ -126,7 +126,7 @@ public class Dump implements Runnable
 
         //Backoff strategy for spinning on the queue, not aggressive at all as this doesn't need to be low latency
         Pauser pauser = Pauser.millis(100);
-        List<ChronicleQueue> queues = arguments.stream().distinct().map(path -> ChronicleQueueBuilder.single(new File(path)).rollCycle(RollCycles.valueOf(rollCycle)).build()).collect(Collectors.toList());
+        List<ChronicleQueue> queues = arguments.stream().distinct().map(path -> ChronicleQueueBuilder.single(new File(path)).readOnly(true).rollCycle(RollCycles.valueOf(rollCycle)).build()).collect(Collectors.toList());
         List<ExcerptTailer> tailers = queues.stream().map(ChronicleQueue::createTailer).collect(Collectors.toList());
         boolean hadWork = true;
         while (hadWork)
