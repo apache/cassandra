@@ -336,8 +336,8 @@ public class CompactionsTest
         {
             RowUpdateBuilder deletedRowUpdateBuilder = new RowUpdateBuilder(table, 1, Util.dk(Integer.toString(dk)));
             deletedRowUpdateBuilder.clustering("01").add("val", "a"); //Range tombstone covers this (timestamp 2 > 1)
-            Clustering startClustering = new Clustering(ByteBufferUtil.bytes("0"));
-            Clustering endClustering = new Clustering(ByteBufferUtil.bytes("b"));
+            Clustering startClustering = Clustering.make(ByteBufferUtil.bytes("0"));
+            Clustering endClustering = Clustering.make(ByteBufferUtil.bytes("b"));
             deletedRowUpdateBuilder.addRangeTombstone(new RangeTombstone(Slice.make(startClustering, endClustering), new DeletionTime(2, (int) (System.currentTimeMillis() / 1000))));
             deletedRowUpdateBuilder.build().applyUnsafe();
 
@@ -389,8 +389,8 @@ public class CompactionsTest
         {
             k.add(p.partitionKey());
             final SinglePartitionReadCommand command = SinglePartitionReadCommand.create(cfs.metadata, FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata), RowFilter.NONE, DataLimits.NONE, p.partitionKey(), new ClusteringIndexSliceFilter(Slices.ALL, false));
-            try (ReadOrderGroup orderGroup = command.startOrderGroup();
-                 PartitionIterator iterator = command.executeInternal(orderGroup))
+            try (ReadExecutionController executionController = command.executionController();
+                 PartitionIterator iterator = command.executeInternal(executionController))
             {
                 try (RowIterator rowIterator = iterator.next())
                 {
