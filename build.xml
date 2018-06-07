@@ -141,12 +141,12 @@
     </condition>
     <property name="java11-jvmargs" value=""/>
 
-    <!-- https://mvnrepository.com/artifact/net.openhft/chronicle-bom/1.15.6 -->
-    <property name="chronicle-queue.version" value="4.6.55" />
-    <property name="chronicle-core.version" value="1.9.21" />
-    <property name="chronicle-bytes.version" value="1.10.1" />
-    <property name="chronicle-wire.version" value="1.10.1" />
-    <property name="chronicle-threads.version" value="1.9.1" />
+    <!-- https://mvnrepository.com/artifact/net.openhft/chronicle-bom/1.16.23 -->
+    <property name="chronicle-queue.version" value="4.16.3" />
+    <property name="chronicle-core.version" value="1.16.3-SNAPSHOT" />
+    <property name="chronicle-bytes.version" value="1.16.3" />
+    <property name="chronicle-wire.version" value="1.16.1" />
+    <property name="chronicle-threads.version" value="1.16.0" />
 
     <condition property="maven-ant-tasks.jar.exists">
       <available file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
