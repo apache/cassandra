@@ -271,6 +271,14 @@ public class DatabaseDescriptor
             Config.log(config);
         }
 
+        if (config.enable_direct_io_for_read_path)
+        {
+            String version = System.getProperty("java.version");
+            int dot = version.indexOf('.');
+            int major = Integer.parseInt(version.substring(0, dot != -1 ? dot : version.length()));
+            assert major >= 10 : "direct_io requires JDK 10 or above, you have " + version;
+        }
+
         return config;
     }
 
@@ -2543,5 +2551,10 @@ public class DatabaseDescriptor
     public static int getBlockForPeersTimeoutInSeconds()
     {
         return conf.block_for_peers_timeout_in_secs;
+    }
+
+    public static boolean useDirectIO()
+    {
+        return conf.enable_direct_io_for_read_path;
     }
 }
