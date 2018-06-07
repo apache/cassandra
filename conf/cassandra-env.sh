@@ -102,6 +102,44 @@ if [ "$JVM_VERSION" \< "1.8" ] && [ "$JVM_PATCH_VERSION" -lt 40 ] ; then
     exit 1;
 fi
 
+readJvmOps()
+{
+    # Read user-defined JVM options from jvm.options file
+    JVM_OPTS_FILE=$CASSANDRA_CONF/$1
+    for opt in `grep "^-" $JVM_OPTS_FILE`
+    do
+      JVM_OPTS="$JVM_OPTS $opt"
+    done
+}
+
+JVM_SPECIFIC_OPTS_FILE=$CASSANDRA_CONF/jvm8.options
+if [ "$JVM_VERSION" \> "1.8.9" ] ; then
+    # Java 9+
+    # See 'java -Xlog:help' and description of https://bugs.openjdk.java.net/browse/JDK-8046148 for details about the syntax
+    # The following is the equivalent to -XX:+PrintGCDetails -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=10M
+    if ! grep -q "^-[X]log:gc" $CASSANDRA_CONF/jvm9.options ; then # [X] to prevent ccm from replacing this line
+        # only add -Xlog:gc if it's not mentioned in jvm9.options file
+        mkdir -p ${CASSANDRA_HOME}/logs
+        JVM_OPTS="$JVM_OPTS -Xlog:gc=info,heap=trace,age=debug,safepoint=info,promotion=trace:file=${CASSANDRA_HOME}/logs/gc.log:time,uptime,pid,tid,level:filecount=10,filesize=10M"
+    fi
+    readJvmOps "jvm9.options"
+    JVM9_OPTS="$JVM9_OPTS -Djdk.attach.allowAttachSelf=true"
+    JVM9_OPTS="$JVM9_OPTS --add-exports java.base/jdk.internal.ref=ALL-UNNAMED"
+    JVM9_OPTS="$JVM9_OPTS --add-exports java.base/sun.nio.ch=ALL-UNNAMED"
+    JVM9_OPTS="$JVM9_OPTS --add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED"
+    JVM9_OPTS="$JVM9_OPTS --add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED"
+    JVM9_OPTS="$JVM9_OPTS --add-exports java.rmi/sun.rmi.server=ALL-UNNAMED"
+    JVM_OPTS="$JVM_OPTS $JVM9_OPTS"
+else
+    # Java 8
+    if ! grep -q "^-[X]loggc" $CASSANDRA_CONF/jvm8.options ; then # [X] to prevent ccm from replacing this line
+        # only add -Xlog:gc if it's not mentioned in jvm9.options file
+        mkdir -p ${CASSANDRA_HOME}/logs
+        JVM_OPTS="$JVM_OPTS -Xloggc:${CASSANDRA_HOME}/logs/gc.log"
+    fi
+    readJvmOps "jvm8.options"
+fi
+
 jvm=`echo "$java_ver_output" | grep -A 1 'java version' | awk 'NR==2 {print $1}'`
 case "$jvm" in
     OpenJDK)
@@ -121,18 +159,11 @@ case "$jvm" in
         ;;
 esac
 
-#GC log path has to be defined here because it needs to access CASSANDRA_HOME
-JVM_OPTS="$JVM_OPTS -Xloggc:${CASSANDRA_HOME}/logs/gc.log"
-
 # Here we create the arguments that will get passed to the jvm when
 # starting cassandra.
 
 # Read user-defined JVM options from jvm.options file
-JVM_OPTS_FILE=$CASSANDRA_CONF/jvm.options
-for opt in `grep "^-" $JVM_OPTS_FILE`
-do
-  JVM_OPTS="$JVM_OPTS $opt"
-done
+readJvmOps "jvm.options"
 
 # Check what parameters were defined on jvm.options file to avoid conflicts
 echo $JVM_OPTS | grep -q Xmn
@@ -207,7 +238,7 @@ fi
 JVM_OPTS="$JVM_OPTS -XX:CompileCommandFile=$CASSANDRA_CONF/hotspot_compiler"
 
 # add the jamm javaagent
-JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.3.0.jar"
+JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.3.2.jar"
 
 # set jvm HeapDumpPath with CASSANDRA_HEAPDUMP_DIR
 if [ "x$CASSANDRA_HEAPDUMP_DIR" != "x" ]; then

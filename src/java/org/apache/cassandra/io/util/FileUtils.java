@@ -18,6 +18,9 @@
 package org.apache.cassandra.io.util;
 
 import java.io.*;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
@@ -67,13 +70,20 @@ public final class FileUtils
     public static final boolean isCleanerAvailable;
     private static final AtomicReference<Optional<FSErrorHandler>> fsErrorHandler = new AtomicReference<>(Optional.empty());
 
+    private static MethodHandle mhDirectBufferCleaner;
+    private static MethodHandle mhCleanerClean;
+
     static
     {
         boolean canClean = false;
         try
         {
+            Method mDirectBufferCleaner = DirectBuffer.class.getMethod("cleaner");
+            mhDirectBufferCleaner = MethodHandles.lookup().unreflect(mDirectBufferCleaner);
+            Method mCleanerClean = mDirectBufferCleaner.getReturnType().getMethod("clean");
+            mhCleanerClean = MethodHandles.lookup().unreflect(mCleanerClean);
             ByteBuffer buf = ByteBuffer.allocateDirect(1);
-            ((DirectBuffer) buf).cleaner().clean();
+            cleanerClean(buf);
             canClean = true;
         }
         catch (Throwable t)
@@ -82,6 +92,24 @@ public final class FileUtils
             logger.info("Cannot initialize un-mmaper.  (Are you using a non-Oracle JVM?)  Compacted data files will not be removed promptly.  Consider using an Oracle JVM or using standard disk access mode");
         }
         isCleanerAvailable = canClean;
+    }
+
+    public static void cleanerClean(ByteBuffer buf)
+    {
+        try
+        {
+            Object cleaner = buf instanceof DirectBuffer ? mhDirectBufferCleaner.bindTo(buf).invoke() : null;
+            if (cleaner != null)
+                mhCleanerClean.bindTo(cleaner).invoke();
+        }
+        catch (RuntimeException e)
+        {
+            throw e;
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public static void createHardLink(String from, String to)
@@ -354,9 +382,7 @@ public final class FileUtils
             return;
         if (isCleanerAvailable && buffer.isDirect())
         {
-            DirectBuffer db = (DirectBuffer) buffer;
-            if (db.cleaner() != null)
-                db.cleaner().clean();
+                cleanerClean(buffer);
         }
     }
 

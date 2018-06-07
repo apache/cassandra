@@ -22,7 +22,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.concurrent.locks.LockSupport;
 
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -36,7 +38,6 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
-import org.apache.cassandra.utils.concurrent.Locks;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
@@ -110,6 +111,34 @@ public class AtomicBTreePartition extends AbstractBTreePartition
         return true;
     }
 
+    // Replacement for Unsafe.monitorEnter/monitorExit. Uses the thread-ID to indicate a lock
+    // using a CAS operation on the primitive instance field.
+    private volatile long lock;
+    private static final AtomicLongFieldUpdater<AtomicBTreePartition> lockFieldUpdater =
+        AtomicLongFieldUpdater.newUpdater(AtomicBTreePartition.class, "lock");
+
+    private void acquireLock()
+    {
+        long t = Thread.currentThread().getId();
+
+        while (true)
+        {
+            if (lockFieldUpdater.compareAndSet(this, 0L, t))
+                return;
+
+            // "sleep" for 25us - operations performed while the lock's being held
+            // may include "expensive" operations (secondary indexes for example).
+            LockSupport.parkNanos(25000L);
+        }
+    }
+
+    private void releaseLock()
+    {
+        long t = Thread.currentThread().getId();
+        boolean r = lockFieldUpdater.compareAndSet(this, t, 0L);
+        assert r;
+    }
+
     /**
      * Adds a given update to this in-memtable partition.
      *
@@ -125,7 +154,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
         {
             if (usePessimisticLocking())
             {
-                Locks.monitorEnterUnsafe(this);
+                acquireLock();
                 monitorOwned = true;
             }
 
@@ -179,7 +208,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
                     }
                     if (shouldLock)
                     {
-                        Locks.monitorEnterUnsafe(this);
+                        acquireLock();
                         monitorOwned = true;
                     }
                 }
@@ -189,7 +218,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
         {
             indexer.commit();
             if (monitorOwned)
-                Locks.monitorExitUnsafe(this);
+                releaseLock();
         }
     }
 

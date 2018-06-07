@@ -94,11 +94,6 @@
 # a lower priority to avoid interfering with client workload
 -XX:+UseThreadPriorities
 
-# allows lowering thread priority without being root on linux - probably
-# not necessary on Windows but doesn't harm anything.
-# see http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workaround.html
--XX:ThreadPriorityPolicy=42
-
 # Enable heap-dump if there's an OOM
 -XX:+HeapDumpOnOutOfMemoryError
 
@@ -198,23 +193,24 @@
 
 ### CMS Settings
 
--XX:+UseParNewGC
--XX:+UseConcMarkSweepGC
--XX:+CMSParallelRemarkEnabled
--XX:SurvivorRatio=8
--XX:MaxTenuringThreshold=1
--XX:CMSInitiatingOccupancyFraction=75
--XX:+UseCMSInitiatingOccupancyOnly
--XX:CMSWaitDuration=10000
--XX:+CMSParallelInitialMarkEnabled
--XX:+CMSEdenChunksRecordAlways
+#-XX:+UseParNewGC
+#-XX:+UseConcMarkSweepGC
+#-XX:+CMSParallelRemarkEnabled
+#-XX:SurvivorRatio=8
+#-XX:MaxTenuringThreshold=1
+#-XX:CMSInitiatingOccupancyFraction=75
+#-XX:+UseCMSInitiatingOccupancyOnly
+#-XX:CMSWaitDuration=10000
+#-XX:+CMSParallelInitialMarkEnabled
+#-XX:+CMSEdenChunksRecordAlways
 # some JVMs will fill up their heap when accessed via JMX, see CASSANDRA-6541
--XX:+CMSClassUnloadingEnabled
+#-XX:+CMSClassUnloadingEnabled
 
 ### G1 Settings (experimental, comment previous section and uncomment section below to enable)
 
 ## Use the Hotspot garbage-first collector.
-#-XX:+UseG1GC
+-XX:+UseG1GC
+
 #
 ## Have the JVM do less remembered set work during STW, instead
 ## preferring concurrent GC. Reduces p99.9 latency.
@@ -240,15 +236,16 @@
 #-XX:ConcGCThreads=16
 
 ### GC logging options -- uncomment to enable
+-Xlog:gc*:gc.log
 
--XX:+PrintGCDetails
--XX:+PrintGCDateStamps
--XX:+PrintHeapAtGC
--XX:+PrintTenuringDistribution
--XX:+PrintGCApplicationStoppedTime
--XX:+PrintPromotionFailure
+#-XX:+PrintGCDetails
+#-XX:+PrintGCDateStamps
+#-XX:+PrintHeapAtGC
+#-XX:+PrintTenuringDistribution
+#-XX:+PrintGCApplicationStoppedTime
+#-XX:+PrintPromotionFailure
 #-XX:PrintFLSStatistics=1
 #-Xloggc:/var/log/cassandra/gc.log
--XX:+UseGCLogFileRotation
--XX:NumberOfGCLogFiles=10
--XX:GCLogFileSize=10M
+#-XX:+UseGCLogFileRotation
+#-XX:NumberOfGCLogFiles=10
+#-XX:GCLogFileSize=10M

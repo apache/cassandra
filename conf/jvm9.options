@@ -1,0 +1,30 @@
+###########################################################################
+#                             jvm.options                                 #
+#                           Java 9 specific                               #
+#                                                                         #
+# - all flags defined here will be used by cassandra to startup the JVM   #
+# - one flag should be specified per line                                 #
+# - lines that do not start with '-' will be ignored                      #
+# - only static flags are accepted (no variables or parameters)           #
+# - dynamic flags will be appended to these on cassandra-env              #
+###########################################################################
+
+#################
+#  GC SETTINGS  #
+#################
+
+# Java 9 GC logging options:
+# See description of https://bugs.openjdk.java.net/browse/JDK-8046148 for details about the syntax
+# The following is the equivalent to -XX:+PrintGCDetails -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=10M
+#-Xlog:gc=info,heap=trace,age=debug,safepoint=info,promotion=trace:file=/var/log/cassandra/gc.log:time,uptime,pid,tid,level:filecount=10,filesize=10M
+
+# Notes for Java 8 migration:
+#
+# -XX:+PrintGCDetails                   maps to -Xlog:gc*:... - i.e. add a '*' after "gc"
+# -XX:+PrintGCDateStamps                maps to decorator 'time'
+#
+# -XX:+PrintHeapAtGC                    maps to 'heap' with level 'trace'
+# -XX:+PrintTenuringDistribution        maps to 'age' with level 'debug'
+# -XX:+PrintGCApplicationStoppedTime    maps to 'safepoint' with level 'info'
+# -XX:+PrintPromotionFailure            maps to 'promotion' with level 'trace'
+# -XX:PrintFLSStatistics=1              maps to 'freelist' with level 'trace'

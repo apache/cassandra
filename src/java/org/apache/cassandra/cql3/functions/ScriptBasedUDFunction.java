@@ -73,6 +73,14 @@ final class ScriptBasedUDFunction extends UDFunction
     "jdk.internal.org.objectweb.asm.commons",
     "jdk.nashorn.internal.runtime",
     "jdk.nashorn.internal.runtime.linker",
+    // Nashorn / Java9 - TODO this is not the optimal thing (i.e. allow access to internal packages from JavaScript)
+    "java.lang.ref",
+    "java.io",
+    "java.util.function",
+    "jdk.dynalink.linker",
+    "jdk.internal.org.objectweb.asm",
+    "jdk.internal.reflect",
+    "jdk.nashorn.internal.scripts",
     // following required by Java Driver
     "java.math",
     "java.nio",

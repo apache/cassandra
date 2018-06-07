@@ -102,6 +102,7 @@ public class SSTableExport
      * @throws ConfigurationException
      *             on configuration failure (wrong params given)
      */
+    @SuppressWarnings("resource")
     public static void main(String[] args) throws ConfigurationException
     {
         CommandLineParser parser = new PosixParser();

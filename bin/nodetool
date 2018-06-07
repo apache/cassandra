@@ -61,7 +61,7 @@ if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
     MAX_HEAP_SIZE_SAVE=$MAX_HEAP_SIZE
     . "$CASSANDRA_CONF/cassandra-env.sh"
     MAX_HEAP_SIZE=$MAX_HEAP_SIZE_SAVE
-    JVM_OPTS=$JVM_OPTS_SAVE
+    JVM_OPTS="$JVM_OPTS_SAVE $JVM9_OPTS"
 fi
 
 # JMX Port passed via cmd line args (-p 9999 / --port 9999 / --port=9999)

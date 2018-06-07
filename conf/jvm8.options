@@ -1,0 +1,37 @@
+###########################################################################
+#                             jvm.options                                 #
+#                           Java 8 specific                               #
+#                                                                         #
+# - all flags defined here will be used by cassandra to startup the JVM   #
+# - one flag should be specified per line                                 #
+# - lines that do not start with '-' will be ignored                      #
+# - only static flags are accepted (no variables or parameters)           #
+# - dynamic flags will be appended to these on cassandra-env              #
+###########################################################################
+
+########################
+# GENERAL JVM SETTINGS #
+########################
+
+# allows lowering thread priority without being root on linux - probably
+# not necessary on Windows but doesn't harm anything.
+# see http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workaround.html
+-XX:ThreadPriorityPolicy=42
+
+#################
+#  GC SETTINGS  #
+#################
+
+### GC logging options -- uncomment to enable
+
+-XX:+PrintGCDetails
+-XX:+PrintGCDateStamps
+-XX:+PrintHeapAtGC
+-XX:+PrintTenuringDistribution
+-XX:+PrintGCApplicationStoppedTime
+-XX:+PrintPromotionFailure
+#-XX:PrintFLSStatistics=1
+#-Xloggc:/var/log/cassandra/gc.log
+-XX:+UseGCLogFileRotation
+-XX:NumberOfGCLogFiles=10
+-XX:GCLogFileSize=10M
