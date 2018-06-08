@@ -420,12 +420,12 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
             if (blockIdx >= 0 && blockIdx < indexes.size())
             {
                 reader.seekToPosition(columnOffset(blockIdx));
+                mark = reader.file.mark();
                 reader.deserializer.clearState();
             }
 
             currentIndexIdx = blockIdx;
             reader.openMarker = blockIdx > 0 ? indexes.get(blockIdx - 1).endOpenMarker : null;
-            mark = reader.file.mark();
 
             // If we're reading an old format file and we move to the first block in the index (i.e. the
             // head of the partition), we skip the static row as it's already been read when we first opened
