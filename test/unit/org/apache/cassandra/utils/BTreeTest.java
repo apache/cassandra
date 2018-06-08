@@ -261,6 +261,32 @@ public class BTreeTest
         }
     }
 
+    @Test
+    public void testBuilderReuse()
+    {
+        List<Integer> sorted = seq(20);
+        BTree.Builder<Integer> builder = BTree.builder(Comparator.naturalOrder());
+        builder.auto(false);
+        for (int i : sorted)
+            builder.add(i);
+        checkResult(20, builder.build());
+
+        builder.reuse();
+        assertTrue(builder.build() == BTree.empty());
+        for (int i = 0; i < 12; i++)
+            builder.add(sorted.get(i));
+        checkResult(12, builder.build());
+
+        builder.auto(true);
+        builder.reuse(Comparator.reverseOrder());
+        for (int i = 0; i < 12; i++)
+            builder.add(sorted.get(i));
+        checkResult(12, builder.build(), BTree.Dir.DESC);
+
+        builder.reuse();
+        assertTrue(builder.build() == BTree.empty());
+    }
+
     private static class Accumulator extends Number implements Comparable<Accumulator>
     {
         final int base;
@@ -385,7 +411,12 @@ public class BTreeTest
 
     private static void checkResult(int count, Object[] btree)
     {
-        Iterator<Integer> iter = BTree.slice(btree, CMP, BTree.Dir.ASC);
+        checkResult(count, btree, BTree.Dir.ASC);
+    }
+
+    private static void checkResult(int count, Object[] btree, BTree.Dir dir)
+    {
+        Iterator<Integer> iter = BTree.slice(btree, CMP, dir);
         int i = 0;
         while (iter.hasNext())
             assertEquals(iter.next(), ints[i++]);
