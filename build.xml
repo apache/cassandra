@@ -420,8 +420,8 @@
           <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" version="${byteman.version}"/>
 
 
-          <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.19"/>
-          <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.19"/>
+          <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.21"/>
+          <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.21"/>
 
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.5" />

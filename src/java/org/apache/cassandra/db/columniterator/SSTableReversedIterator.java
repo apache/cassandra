@@ -402,7 +402,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         public void reset()
         {
             built = null;
-            rowBuilder = BTree.builder(metadata.comparator);
+            rowBuilder.reuse();
             deletionBuilder = MutableDeletionInfo.builder(partitionLevelDeletion, metadata().comparator, false);
         }
 
