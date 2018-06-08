@@ -52,7 +52,7 @@ public class AsyncOneResponse<T> extends AbstractFuture<T> implements IAsyncCall
         }
         try
         {
-            return super.get(timeout, TimeUnit.NANOSECONDS);
+            return super.get(adjustedTimeout, TimeUnit.NANOSECONDS);
         }
         catch (InterruptedException | ExecutionException e)
         {
