@@ -45,9 +45,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
 import org.apache.cassandra.service.StorageService;
 
-import static org.apache.cassandra.locator.Replica.full;
-import static org.apache.cassandra.locator.Replica.trans;
-
 public class NetworkTopologyStrategyTest
 {
     private String keyspaceName = "Keyspace1";
@@ -419,15 +416,15 @@ public class NetworkTopologyStrategyTest
 
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
 
-        Assert.assertEquals(ReplicaList.of(full(endpoints.get(0), range(400, 100)),
-                                           full(endpoints.get(1), range(400, 100)),
-                                           trans(endpoints.get(2), range(400, 100))),
+        Assert.assertEquals(ReplicaList.of(Replica.full(endpoints.get(0), range(400, 100)),
+                                           Replica.full(endpoints.get(1), range(400, 100)),
+                                           Replica.trans(endpoints.get(2), range(400, 100))),
                             strategy.getNaturalReplicas(tk(99)));
 
 
-        Assert.assertEquals(ReplicaList.of(full(endpoints.get(1), range(100, 200)),
-                                           full(endpoints.get(2), range(100, 200)),
-                                           trans(endpoints.get(3), range(100, 200))),
+        Assert.assertEquals(ReplicaList.of(Replica.full(endpoints.get(1), range(100, 200)),
+                                           Replica.full(endpoints.get(2), range(100, 200)),
+                                           Replica.trans(endpoints.get(3), range(100, 200))),
                             strategy.getNaturalReplicas(tk(101)));
     }
 }

@@ -274,7 +274,7 @@ public class ReplicaList extends Replicas
      * For allocating ReplicaLists where the final size is unknown, but
      * should be less than the given size. Prevents overallocations in cases
      * where there are less than the default ArrayList size, and defers to the
-     * ArrayList algorithem where there might be more
+     * ArrayList algorithm where there might be more
      */
     public static ReplicaList withMaxSize(int size)
     {

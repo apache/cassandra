@@ -91,11 +91,13 @@ public class ReplicaSet extends Replicas
     @Override
     public void removeEndpoint(InetAddressAndPort endpoint)
     {
-        for (Replica replica: replicaSet)
+        Iterator<Replica> iterator = replicaSet.iterator();
+        while (iterator.hasNext())
         {
-            if (replica.getEndpoint().equals(endpoint))
+            Replica next = iterator.next();
+            if (next.getEndpoint().equals(endpoint))
             {
-                replicaSet.remove(replica);
+                iterator.remove();
             }
         }
     }
