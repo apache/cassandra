@@ -84,10 +84,9 @@ public class DataResolver extends ResponseResolver
             Replica replica = replicaMap.get(msg.from);
             if (replica == null)
                 replica = command.decorateEndpoint(msg.from);
-            if (replica == null)
-                replica = Replica.fullStandin(msg.from);
 
-            sources[i] = replica != null ? replica : Replica.fullStandin(msg.from);
+            assert replica != null;
+            sources[i] = replica;
         }
 
         /*

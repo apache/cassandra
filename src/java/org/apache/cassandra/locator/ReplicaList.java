@@ -237,26 +237,6 @@ public class ReplicaList extends Replicas
         return new ReplicaList();
     }
 
-    public static ReplicaList fullStandIns(Collection<InetAddressAndPort> endpoints)
-    {
-        ReplicaList replicaList = new ReplicaList(endpoints.size());
-        for (InetAddressAndPort endpoint: endpoints)
-        {
-            replicaList.add(Replica.fullStandin(endpoint));
-        }
-        return replicaList;
-    }
-
-    public static ReplicaList fullStandIns(Iterable<InetAddressAndPort> endpoints)
-    {
-        ReplicaList replicaList = new ReplicaList();
-        for (InetAddressAndPort endpoint: endpoints)
-        {
-            replicaList.add(Replica.fullStandin(endpoint));
-        }
-        return replicaList;
-    }
-
     /**
      * For allocating ReplicaLists where the final size is unknown, but
      * should be less than the given size. Prevents overallocations in cases

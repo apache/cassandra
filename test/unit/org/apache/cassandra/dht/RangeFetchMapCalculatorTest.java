@@ -36,6 +36,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.locator.ReplicaMultimap;
+import org.apache.cassandra.locator.ReplicaUtils;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -370,7 +371,7 @@ public class RangeFetchMapCalculatorTest
         for (InetAddressAndPort endpoint : makeAddrs(hosts))
         {
             Range<Token> range = generateNonTrivialRange(left, right);
-            rangesWithSources.put(range, Replica.full(endpoint, range));
+            rangesWithSources.put(range, ReplicaUtils.full(endpoint, range));
         }
     }
 
@@ -379,7 +380,7 @@ public class RangeFetchMapCalculatorTest
         for (InetAddressAndPort endpoint : makeAddrs(hosts))
         {
             Range<Token> range = generateTrivialRange(left, right);
-            rangesWithSources.put(range, Replica.full(endpoint, range));
+            rangesWithSources.put(range, ReplicaUtils.full(endpoint, range));
         }
     }
 

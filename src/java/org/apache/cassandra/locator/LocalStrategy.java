@@ -37,9 +37,10 @@ public class LocalStrategy extends AbstractReplicationStrategy
         super(keyspaceName, tokenMetadata, snitch, configOptions);
 
         replicas = new ReplicaList(1);
-        replicas.add(Replica.full(FBUtilities.getBroadcastAddressAndPort(),
-                                  DatabaseDescriptor.getPartitioner().getMinimumToken(),
-                                  DatabaseDescriptor.getPartitioner().getMinimumToken()));
+        replicas.add(new Replica(FBUtilities.getBroadcastAddressAndPort(),
+                                 DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                                 DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                                 true));
     }
 
     /**

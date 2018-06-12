@@ -29,6 +29,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.PendingRangeMaps;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -74,7 +75,7 @@ public class PendingRangesBench
             for (int j = 0; j < ThreadLocalRandom.current().nextInt(2); j ++)
             {
                 Range<Token> range = genRange(Integer.toString(i * 10 + 5), Integer.toString(i * 10 + 15));
-                Replica replica = Replica.full(endpoints.get(j), range);
+                Replica replica = ReplicaUtils.full(endpoints.get(j), range);
                 pendingRangeMaps.addPendingRange(range, replica);
                 oldPendingRanges.put(range, replica);
             }
@@ -84,7 +85,7 @@ public class PendingRangesBench
         for (int j = 0; j < ThreadLocalRandom.current().nextInt(2); j ++)
         {
             Range<Token> range = genRange(Integer.toString(maxToken * 10 + 5), Integer.toString(5));
-            Replica replica = Replica.full(endpoints.get(j), range);
+            Replica replica = ReplicaUtils.full(endpoints.get(j), range);
             pendingRangeMaps.addPendingRange(range, replica);
             oldPendingRanges.put(range, replica);
         }

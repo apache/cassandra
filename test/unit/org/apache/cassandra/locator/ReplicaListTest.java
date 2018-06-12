@@ -28,9 +28,9 @@ public class ReplicaListTest extends ReplicaCollectionTest
     public void removeEndpoint()
     {
         ReplicaList rlist = new ReplicaList();
-        rlist.add(Replica.full(EP1, range(0, 100)));
-        rlist.add(Replica.full(EP2, range(0, 100)));
-        rlist.add(Replica.full(EP3, range(0, 100)));
+        rlist.add(ReplicaUtils.full(EP1, range(0, 100)));
+        rlist.add(ReplicaUtils.full(EP2, range(0, 100)));
+        rlist.add(ReplicaUtils.full(EP3, range(0, 100)));
 
         Assert.assertTrue(rlist.containsEndpoint(EP1));
         Assert.assertEquals(3, rlist.size());

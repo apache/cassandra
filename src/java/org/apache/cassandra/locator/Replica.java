@@ -161,41 +161,5 @@ public class Replica
         Preconditions.checkArgument(range.contains(subrange));
         return new Replica(getEndpoint(), subrange, isFull());
     }
-
-    public static Replica full(InetAddressAndPort endpoint, Range<Token> range)
-    {
-        return new Replica(endpoint, range, true);
-    }
-
-    /**
-     * We need to assume an endpoint is a full replica in a with unknown ranges in a
-     * few cases, so this returns one that throw an exception if you try to get it's range
-     */
-    public static Replica fullStandin(InetAddressAndPort endpoint)
-    {
-        return new Replica(endpoint, null, true)
-        {
-            @Override
-            public Range<Token> getRange()
-            {
-                throw new UnsupportedOperationException("Can't get range on standin replicas");
-            }
-        };
-    }
-
-    public static Replica full(InetAddressAndPort endpoint, Token start, Token end)
-    {
-        return full(endpoint, new Range<>(start, end));
-    }
-
-    public static Replica trans(InetAddressAndPort endpoint, Range<Token> range)
-    {
-        return new Replica(endpoint, range, false);
-    }
-
-    public static Replica trans(InetAddressAndPort endpoint, Token start, Token end)
-    {
-        return trans(endpoint, new Range<>(start, end));
-    }
 }
 

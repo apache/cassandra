@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -1063,7 +1064,7 @@ public class StorageProxy implements StorageProxyMBean
     private static void syncWriteToBatchlog(Collection<Mutation> mutations, Collection<InetAddressAndPort> endpoints, UUID uuid, long queryStartNanoTime)
     throws WriteTimeoutException, WriteFailureException
     {
-        Replicas replicas = ReplicaList.fullStandIns(endpoints);
+        Replicas replicas = SystemReplicas.getSystemReplicas(endpoints);
         WriteResponseHandler<?> handler = new WriteResponseHandler<>(replicas,
                                                                      ReplicaList.empty(),
                                                                      replicas.size() == 1 ? ConsistencyLevel.ONE : ConsistencyLevel.TWO,
@@ -1095,7 +1096,7 @@ public class StorageProxy implements StorageProxyMBean
                 logger.trace("Sending batchlog remove request {} to {}", uuid, target);
 
             if (canDoLocalRequest(target))
-                performLocally(Stage.MUTATION, Replica.fullStandin(target), () -> BatchlogManager.remove(uuid));
+                performLocally(Stage.MUTATION, SystemReplicas.getSystemReplica(target), () -> BatchlogManager.remove(uuid));
             else
                 MessagingService.instance().sendOneWay(message, target);
         }

@@ -18,24 +18,26 @@
 
 package org.apache.cassandra.locator;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 
-public class ReplicaSetTest extends ReplicaCollectionTest
+public class ReplicaUtils
 {
+    private static final Range<Token> FULL_RANGE = new Range<>(Murmur3Partitioner.MINIMUM, Murmur3Partitioner.MINIMUM);
 
-    @Test
-    public void removeEndpoint()
+    public static Replica full(InetAddressAndPort endpoint, Range<Token> range)
     {
-        ReplicaSet rset = new ReplicaSet();
-        rset.add(ReplicaUtils.full(EP1, range(0, 100)));
-        rset.add(ReplicaUtils.full(EP2, range(0, 100)));
-        rset.add(ReplicaUtils.full(EP3, range(0, 100)));
+        return new Replica(endpoint, range, true);
+    }
 
-        Assert.assertTrue(rset.containsEndpoint(EP1));
-        Assert.assertEquals(3, rset.size());
-        rset.removeEndpoint(EP1);
-        Assert.assertFalse(rset.containsEndpoint(EP1));
-        Assert.assertEquals(2, rset.size());
+    public static Replica full(InetAddressAndPort endpoint)
+    {
+        return full(endpoint, FULL_RANGE);
+    }
+
+    public static Replica trans(InetAddressAndPort endpoint, Range<Token> range)
+    {
+        return new Replica(endpoint, range, false);
     }
 }

@@ -4092,6 +4092,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return HintsService.instance.transferHints(this::getPreferredHintsStreamTarget);
     }
 
+    private static ReplicaList getStreamCandidates(Collection<InetAddressAndPort> endpoints)
+    {
+        ReplicaList candidates = new ReplicaList(endpoints.size());
+        for (InetAddressAndPort endpoint: endpoints)
+        {
+            if (FailureDetector.instance.isAlive(endpoint) && !FBUtilities.getBroadcastAddressAndPort().equals(endpoint))
+            {
+                candidates.add(SystemReplicas.getSystemReplica(endpoint));
+            }
+        }
+        return candidates;
+    }
     /**
      * Find the best target to stream hints to. Currently the closest peer according to the snitch
      */
@@ -4099,9 +4111,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Set<InetAddressAndPort> endpoints = StorageService.instance.getTokenMetadata().cloneAfterAllLeft().getAllEndpoints();
 
-        ReplicaList candidates = ReplicaList.fullStandIns(Iterables.filter(endpoints,
-                                                                           e -> FailureDetector.instance.isAlive(e) &&
-                                                                                !FBUtilities.getBroadcastAddressAndPort().equals(e)));
+        ReplicaList candidates = getStreamCandidates(endpoints);
 
         if (candidates.isEmpty())
         {

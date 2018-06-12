@@ -26,7 +26,6 @@ import org.apache.cassandra.dht.Token;
 import org.junit.Test;
 
 import java.net.UnknownHostException;
-import java.util.Collection;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -42,7 +41,7 @@ public class PendingRangeMapsTest {
     {
         try
         {
-            pendingRangeMaps.addPendingRange(range, Replica.full(InetAddressAndPort.getByName(endpoint), range));
+            pendingRangeMaps.addPendingRange(range, ReplicaUtils.full(InetAddressAndPort.getByName(endpoint), range));
         }
         catch (UnknownHostException e)
         {

@@ -18,10 +18,8 @@
 
 package org.apache.cassandra.service.reads;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.ImmutableList;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -36,12 +34,11 @@ import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaList;
+import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.reads.AbstractReadExecutor;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -59,9 +56,9 @@ public class ReadExecutorTest
         SchemaLoader.createKeyspace("Foo", KeyspaceParams.simple(3), SchemaLoader.standardCFMD("Foo", "Bar"));
         ks = Keyspace.open("Foo");
         cfs = ks.getColumnFamilyStore("Bar");
-        targets = ReplicaList.immutableCopyOf(Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.255")),
-                                              Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.254")),
-                                              Replica.fullStandin(InetAddressAndPort.getByName("127.0.0.253")));
+        targets = ReplicaList.immutableCopyOf(ReplicaUtils.full(InetAddressAndPort.getByName("127.0.0.255")),
+                                              ReplicaUtils.full(InetAddressAndPort.getByName("127.0.0.254")),
+                                              ReplicaUtils.full(InetAddressAndPort.getByName("127.0.0.253")));
         cfs.sampleLatencyNanos = 0;
     }
 

@@ -19,7 +19,6 @@ package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -49,8 +48,6 @@ import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageServiceAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.locator.Replica.full;
-import static org.apache.cassandra.locator.Replica.trans;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -224,15 +221,15 @@ public class SimpleStrategyTest
 
         SimpleStrategy strategy = new SimpleStrategy("ks", metadata, snitch, configOptions);
 
-        Assert.assertEquals(ReplicaList.of(full(endpoints.get(0), range(400, 100)),
-                                           full(endpoints.get(1), range(400, 100)),
-                                           trans(endpoints.get(2), range(400, 100))),
+        Assert.assertEquals(ReplicaList.of(ReplicaUtils.full(endpoints.get(0), range(400, 100)),
+                                           ReplicaUtils.full(endpoints.get(1), range(400, 100)),
+                                           ReplicaUtils.trans(endpoints.get(2), range(400, 100))),
                             strategy.getNaturalReplicas(tk(99)));
 
 
-        Assert.assertEquals(ReplicaList.of(full(endpoints.get(1), range(100, 200)),
-                                           full(endpoints.get(2), range(100, 200)),
-                                           trans(endpoints.get(3), range(100, 200))),
+        Assert.assertEquals(ReplicaList.of(ReplicaUtils.full(endpoints.get(1), range(100, 200)),
+                                           ReplicaUtils.full(endpoints.get(2), range(100, 200)),
+                                           ReplicaUtils.trans(endpoints.get(3), range(100, 200))),
                             strategy.getNaturalReplicas(tk(101)));
     }
 

@@ -55,7 +55,7 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
         Token primaryToken = iter.next();
         Token previousToken = metadata.getPredecessor(primaryToken);
         assert rf.trans == 0: "support transient replicas";
-        replicas.add(Replica.full(metadata.getEndpoint(primaryToken), previousToken, primaryToken));
+        replicas.add(new Replica(metadata.getEndpoint(primaryToken), previousToken, primaryToken, true));
 
         boolean bDataCenter = false;
         boolean bOtherRack = false;
@@ -68,7 +68,7 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
                 // If we have already found something in a diff datacenter no need to find another
                 if (!bDataCenter)
                 {
-                    replicas.add(Replica.full(metadata.getEndpoint(t), previousToken, primaryToken));
+                    replicas.add(new Replica(metadata.getEndpoint(t), previousToken, primaryToken, true));
                     bDataCenter = true;
                 }
                 continue;
@@ -80,7 +80,7 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
                 // If we have already found something in a diff rack no need to find another
                 if (!bOtherRack)
                 {
-                    replicas.add(Replica.full(metadata.getEndpoint(t), previousToken, primaryToken));
+                    replicas.add(new Replica(metadata.getEndpoint(t), previousToken, primaryToken, true));
                     bOtherRack = true;
                 }
             }
@@ -95,7 +95,7 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
             while (replicas.size() < rf.replicas && iter.hasNext())
             {
                 Token t = iter.next();
-                Replica replica = Replica.full(metadata.getEndpoint(t), previousToken, primaryToken);
+                Replica replica = new Replica(metadata.getEndpoint(t), previousToken, primaryToken, true);
                 if (!replicas.containsEndpoint(replica.getEndpoint()))
                     replicas.add(replica);
             }

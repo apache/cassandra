@@ -34,6 +34,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.locator.ReplicaMultimap;
 import org.apache.cassandra.locator.ReplicaSet;
+import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.TableMetadata;
@@ -960,7 +961,7 @@ public class MoveTest
     {
         ReplicaList replicas = new ReplicaList(hosts.length);
         for (String host : hosts)
-            replicas.add(Replica.full(InetAddressAndPort.getByName(host), range));
+            replicas.add(ReplicaUtils.full(InetAddressAndPort.getByName(host), range));
         return replicas;
     }
 
