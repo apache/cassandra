@@ -740,7 +740,7 @@ public class TokenMetadata
 
         if (pendingRangeMaps != null)
         {
-            for (Map.Entry<Range<Token>, List<Replica>> entry : pendingRangeMaps)
+            for (Map.Entry<Range<Token>, ReplicaList> entry : pendingRangeMaps)
             {
                 Range<Token> range = entry.getKey();
                 for (Replica replica : entry.getValue())

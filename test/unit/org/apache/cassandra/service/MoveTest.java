@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.locator.ReplicaMultimap;
 import org.apache.cassandra.locator.ReplicaSet;
 import org.apache.cassandra.locator.Replicas;
@@ -496,25 +497,25 @@ public class MoveTest
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(token)), host);
     }
 
-    private Map.Entry<Range<Token>, Collection<Replica>> generatePendingMapEntry(int start, int end, String... endpoints) throws UnknownHostException
+    private Map.Entry<Range<Token>, ReplicaList> generatePendingMapEntry(int start, int end, String... endpoints) throws UnknownHostException
     {
-        Map<Range<Token>, Collection<Replica>> pendingRanges = new HashMap<>();
+        Map<Range<Token>, ReplicaList> pendingRanges = new HashMap<>();
         Range<Token> range = generateRange(start, end);
         pendingRanges.put(range, makeReplicas(range, endpoints));
         return pendingRanges.entrySet().iterator().next();
     }
 
-    private Map<Range<Token>, Collection<Replica>> generatePendingRanges(Map.Entry<Range<Token>, Collection<Replica>>... entries)
+    private Map<Range<Token>, ReplicaList> generatePendingRanges(Map.Entry<Range<Token>, ReplicaList>... entries)
     {
-        Map<Range<Token>, Collection<Replica>> pendingRanges = new HashMap<>();
-        for(Map.Entry<Range<Token>, Collection<Replica>> entry : entries)
+        Map<Range<Token>, ReplicaList> pendingRanges = new HashMap<>();
+        for(Map.Entry<Range<Token>, ReplicaList> entry : entries)
         {
             pendingRanges.put(entry.getKey(), entry.getValue());
         }
         return pendingRanges;
     }
 
-    private void assertPendingRanges(TokenMetadata tmd, Map<Range<Token>,  Collection<Replica>> pendingRanges, String keyspaceName) throws ConfigurationException
+    private void assertPendingRanges(TokenMetadata tmd, Map<Range<Token>, ReplicaList> pendingRanges, String keyspaceName) throws ConfigurationException
     {
         boolean keyspaceFound = false;
         for (String nonSystemKeyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
@@ -528,15 +529,15 @@ public class MoveTest
         assert keyspaceFound;
     }
 
-    private void assertMaps(Map<Range<Token>, Collection<Replica>> expected, PendingRangeMaps actual)
+    private void assertMaps(Map<Range<Token>, ReplicaList> expected, PendingRangeMaps actual)
     {
         int sizeOfActual = 0;
-        Iterator<Map.Entry<Range<Token>, List<Replica>>> iterator = actual.iterator();
+        Iterator<Map.Entry<Range<Token>, ReplicaList>> iterator = actual.iterator();
         while(iterator.hasNext())
         {
-            Map.Entry<Range<Token>, List<Replica>> actualEntry = iterator.next();
+            Map.Entry<Range<Token>, ReplicaList> actualEntry = iterator.next();
             assertNotNull(expected.get(actualEntry.getKey()));
-            assertEquals(new HashSet<>(expected.get(actualEntry.getKey())), new HashSet<>(actualEntry.getValue()));
+            assertEquals(new ReplicaSet(expected.get(actualEntry.getKey())), new ReplicaSet(actualEntry.getValue()));
             sizeOfActual++;
         }
 
@@ -955,9 +956,9 @@ public class MoveTest
         return addrs;
     }
 
-    private static Collection<Replica> makeReplicas(Range<Token> range, String... hosts) throws UnknownHostException
+    private static ReplicaList makeReplicas(Range<Token> range, String... hosts) throws UnknownHostException
     {
-        ArrayList<Replica> replicas = new ArrayList<>(hosts.length);
+        ReplicaList replicas = new ReplicaList(hosts.length);
         for (String host : hosts)
             replicas.add(Replica.full(InetAddressAndPort.getByName(host), range));
         return replicas;
