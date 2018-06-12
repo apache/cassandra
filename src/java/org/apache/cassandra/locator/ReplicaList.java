@@ -68,19 +68,6 @@ public class ReplicaList extends Replicas
         this.replicaList = replicaList;
     }
 
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ReplicaList that = (ReplicaList) o;
-        return Objects.equals(replicaList, that.replicaList);
-    }
-
-    public int hashCode()
-    {
-        return replicaList.hashCode();
-    }
-
     @Override
     public String toString()
     {

@@ -57,19 +57,6 @@ public class ReplicaSet extends Replicas
         this.replicaSet = replicaSet;
     }
 
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ReplicaSet that = (ReplicaSet) o;
-        return Objects.equals(replicaSet, that.replicaSet);
-    }
-
-    public int hashCode()
-    {
-        return replicaSet.hashCode();
-    }
-
     @Override
     public String toString()
     {
