@@ -105,23 +105,24 @@ public abstract class AbstractReadExecutor
         }
     }
 
-    protected void makeDataRequests(Iterable<InetAddressAndPort> endpoints)
+    protected void makeDataRequests(Iterable<Replica> replicas)
     {
-        makeRequests(command, endpoints);
+        makeRequests(command, replicas);
 
     }
 
-    protected void makeDigestRequests(Iterable<InetAddressAndPort> endpoints)
+    protected void makeDigestRequests(Iterable<Replica> replicas)
     {
-        makeRequests(command.copyAsDigestQuery(), endpoints);
+        makeRequests(command.copyAsDigestQuery(), replicas);
     }
 
-    private void makeRequests(ReadCommand readCommand, Iterable<InetAddressAndPort> endpoints)
+    private void makeRequests(ReadCommand readCommand, Iterable<Replica> replicas)
     {
         boolean hasLocalEndpoint = false;
 
-        for (InetAddressAndPort endpoint : endpoints)
+        for (Replica replica: replicas)
         {
+            InetAddressAndPort endpoint = replica.getEndpoint();
             if (StorageProxy.canDoLocalRequest(endpoint))
             {
                 hasLocalEndpoint = true;
@@ -235,9 +236,9 @@ public abstract class AbstractReadExecutor
         public void executeAsync()
         {
             Replicas.checkFull(targetReplicas);
-            makeDataRequests(targetReplicas.subList(0, 1).asEndpoints());
+            makeDataRequests(targetReplicas.subList(0, 1));
             if (targetReplicas.size() > 1)
-                makeDigestRequests(targetReplicas.subList(1, targetReplicas.size()).asEndpoints());
+                makeDigestRequests(targetReplicas.subList(1, targetReplicas.size()));
         }
 
         public void maybeTryAdditionalReplicas()
@@ -281,17 +282,17 @@ public abstract class AbstractReadExecutor
                 // We're hitting additional targets for read repair.  Since our "extra" replica is the least-
                 // preferred by the snitch, we do an extra data read to start with against a replica more
                 // likely to reply; better to let RR fail than the entire query.
-                makeDataRequests(initialReplicas.subList(0, 2).asEndpoints());
+                makeDataRequests(initialReplicas.subList(0, 2));
                 if (initialReplicas.size() > 2)
-                    makeDigestRequests(initialReplicas.subList(2, initialReplicas.size()).asEndpoints());
+                    makeDigestRequests(initialReplicas.subList(2, initialReplicas.size()));
             }
             else
             {
                 // not doing read repair; all replies are important, so it doesn't matter which nodes we
                 // perform data reads against vs digest.
-                makeDataRequests(initialReplicas.subList(0, 1).asEndpoints());
+                makeDataRequests(initialReplicas.subList(0, 1));
                 if (initialReplicas.size() > 1)
-                    makeDigestRequests(initialReplicas.subList(1, initialReplicas.size()).asEndpoints());
+                    makeDigestRequests(initialReplicas.subList(1, initialReplicas.size()));
             }
         }
 
@@ -360,9 +361,9 @@ public abstract class AbstractReadExecutor
         public void executeAsync()
         {
             Replicas.checkFull(targetReplicas);
-            makeDataRequests(targetReplicas.subList(0, targetReplicas.size() > 1 ? 2 : 1).asEndpoints());
+            makeDataRequests(targetReplicas.subList(0, targetReplicas.size() > 1 ? 2 : 1));
             if (targetReplicas.size() > 2)
-                makeDigestRequests(targetReplicas.subList(2, targetReplicas.size()).asEndpoints());
+                makeDigestRequests(targetReplicas.subList(2, targetReplicas.size()));
             cfs.metric.speculativeRetries.inc();
         }
 
