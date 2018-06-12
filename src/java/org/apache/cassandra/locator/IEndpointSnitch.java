@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.locator;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -47,7 +45,7 @@ public interface IEndpointSnitch
     /**
      * returns a new <tt>List</tt> sorted by proximity to the given endpoint
      */
-    public ReplicaList getSortedListByProximity(InetAddressAndPort address, Replicas unsortedAddress);
+    public ReplicaList getSortedListByProximity(InetAddressAndPort address, ReplicaCollection unsortedAddress);
 
     /**
      * This method will sort the <tt>List</tt> by proximity to the given address.

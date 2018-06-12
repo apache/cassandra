@@ -23,163 +23,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 import com.google.common.base.Predicate;
-import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
 
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.FBUtilities;
 
-/**
- * A collection like class for Replica objects. Since the Replica class contains inetaddress, range, and
- * transient replication status, basic contains and remove methods can be ambiguous. Replicas forces you
- * to be explicit about what you're checking the container for, or removing from it.
- */
-public abstract class Replicas implements Iterable<Replica>
+public class Replicas
 {
-
-    public abstract boolean add(Replica replica);
-    public abstract void addAll(Iterable<Replica> replicas);
-    public abstract void removeEndpoint(InetAddressAndPort endpoint);
-    public abstract void removeReplica(Replica replica);
-    public abstract int size();
-    protected abstract Collection<Replica> getUnmodifiableCollection();
-
-
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (!(o instanceof Replicas))
-            return false;
-
-        Replicas that = (Replicas) o;
-        if (this.size() != that.size())
-            return false;
-        return Iterables.elementsEqual(this, that);
-    }
-
-
-    public int hashCode()
-    {
-        int result = 17;
-        for (Replica replica: this)
-        {
-            result = 31 * result + replica.hashCode();
-        }
-        return result;
-    }
-
-    public Iterable<InetAddressAndPort> asEndpoints()
-    {
-        return Iterables.transform(this, Replica::getEndpoint);
-    }
-
-    public Set<InetAddressAndPort> asEndpointSet()
-    {
-        Set<InetAddressAndPort> result = Sets.newHashSetWithExpectedSize(size());
-        for (Replica replica: this)
-        {
-            result.add(replica.getEndpoint());
-        }
-        return result;
-    }
-
-    public List<InetAddressAndPort> asEndpointList()
-    {
-        List<InetAddressAndPort> result = new ArrayList<>(size());
-        for (Replica replica: this)
-        {
-            result.add(replica.getEndpoint());
-        }
-        return result;
-    }
-
-    public Collection<InetAddressAndPort> asUnmodifiableEndpointCollection()
-    {
-        return Collections2.transform(getUnmodifiableCollection(), Replica::getEndpoint);
-    }
-
-    public Iterable<Range<Token>> asRanges()
-    {
-        return Iterables.transform(this, Replica::getRange);
-    }
-
-    public Set<Range<Token>> asRangeSet()
-    {
-        Set<Range<Token>> result = Sets.newHashSetWithExpectedSize(size());
-        for (Replica replica: this)
-        {
-            result.add(replica.getRange());
-        }
-        return result;
-    }
-
-    public Collection<Range<Token>> asUnmodifiableRangeCollection()
-    {
-        return Collections2.transform(getUnmodifiableCollection(), Replica::getRange);
-    }
-
-    public Iterable<Range<Token>> fullRanges()
-    {
-        return Iterables.transform(Iterables.filter(this, Replica::isFull), Replica::getRange);
-    }
-
-    public boolean containsEndpoint(InetAddressAndPort endpoint)
-    {
-        for (Replica replica: this)
-        {
-            if (replica.getEndpoint().equals(endpoint))
-                return true;
-        }
-        return false;
-    }
-
-    /**
-     * Remove by endpoint. Ranges are ignored when determining what to remove
-     */
-    public void removeEndpoints(Replicas toRemove)
-    {
-        if (Iterables.all(this, Replica::isFull) && Iterables.all(toRemove, Replica::isFull))
-        {
-            for (Replica remove: toRemove)
-            {
-                removeEndpoint(remove.getEndpoint());
-            }
-        }
-        else
-        {
-            // FIXME: add support for transient replicas
-            throw new UnsupportedOperationException("transient replicas are currently unsupported");
-        }
-    }
-
-    public void removeReplicas(Replicas toRemove)
-    {
-        if (Iterables.all(this, Replica::isFull) && Iterables.all(toRemove, Replica::isFull))
-        {
-            for (Replica remove: toRemove)
-            {
-                removeReplica(remove);
-            }
-        }
-        else
-        {
-            // FIXME: add support for transient replicas
-            throw new UnsupportedOperationException("transient replicas are currently unsupported");
-        }
-    }
-
-    public boolean isEmpty()
-    {
-        return size() == 0;
-    }
-
-    private static abstract class ImmutableReplicaContainer extends Replicas
+    private static abstract class ImmutableReplicaContainer extends ReplicaCollection
     {
         @Override
         public boolean add(Replica replica)
@@ -206,7 +59,7 @@ public abstract class Replicas implements Iterable<Replica>
         }
     }
 
-    public static Replicas filter(Replicas source, Predicate<Replica> predicate)
+    public static ReplicaCollection filter(ReplicaCollection source, Predicate<Replica> predicate)
     {
         Iterable<Replica> iterable = Iterables.filter(source, predicate);
         return new ImmutableReplicaContainer()
@@ -229,7 +82,7 @@ public abstract class Replicas implements Iterable<Replica>
         };
     }
 
-    public static Replicas filterOnEndpoints(Replicas source, Predicate<InetAddressAndPort> predicate)
+    public static ReplicaCollection filterOnEndpoints(ReplicaCollection source, Predicate<InetAddressAndPort> predicate)
     {
         Iterable<Replica> iterable = Iterables.filter(source, r -> predicate.apply(r.getEndpoint()));
         return new ImmutableReplicaContainer()
@@ -252,13 +105,13 @@ public abstract class Replicas implements Iterable<Replica>
         };
     }
 
-    public static Replicas filterLocalEndpoint(Replicas replicas)
+    public static ReplicaCollection filterLocalEndpoint(ReplicaCollection replicas)
     {
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         return filterOnEndpoints(replicas, e -> !e.equals(local));
     }
 
-    public static Replicas concatNaturalAndPending(Replicas natural, Replicas pending)
+    public static ReplicaCollection concatNaturalAndPending(ReplicaCollection natural, ReplicaCollection pending)
     {
         Iterable<Replica> iterable;
         if (Iterables.all(natural, Replica::isFull) && Iterables.all(pending, Replica::isFull))
@@ -291,7 +144,7 @@ public abstract class Replicas implements Iterable<Replica>
         };
     }
 
-    public static Replicas concat(Iterable<Replicas> replicasIterable)
+    public static ReplicaCollection concat(Iterable<ReplicaCollection> replicasIterable)
     {
         Iterable<Replica> iterable = Iterables.concat(replicasIterable);
         return new ImmutableReplicaContainer()
@@ -314,7 +167,7 @@ public abstract class Replicas implements Iterable<Replica>
         };
     }
 
-    public static Replicas of(Replica replica)
+    public static ReplicaCollection of(Replica replica)
     {
         return new ImmutableReplicaContainer()
         {
@@ -335,7 +188,7 @@ public abstract class Replicas implements Iterable<Replica>
         };
     }
 
-    public static Replicas of(Collection<Replica> replicas)
+    public static ReplicaCollection of(Collection<Replica> replicas)
     {
         return new ImmutableReplicaContainer()
         {
@@ -357,7 +210,7 @@ public abstract class Replicas implements Iterable<Replica>
         };
     }
 
-    private static Replicas EMPTY = new ImmutableReplicaContainer()
+    private static ReplicaCollection EMPTY = new ImmutableReplicaContainer()
     {
         public int size()
         {
@@ -375,12 +228,12 @@ public abstract class Replicas implements Iterable<Replica>
         }
     };
 
-    public static Replicas empty()
+    public static ReplicaCollection empty()
     {
         return EMPTY;
     }
 
-    public static Replicas singleton(Replica replica)
+    public static ReplicaCollection singleton(Replica replica)
     {
         return of(replica);
     }
@@ -409,7 +262,7 @@ public abstract class Replicas implements Iterable<Replica>
         }
     }
 
-    public static List<String> stringify(Replicas replicas, boolean withPort)
+    public static List<String> stringify(ReplicaCollection replicas, boolean withPort)
     {
         List<String> stringEndpoints = new ArrayList<>(replicas.size());
         for (Replica replica: replicas)

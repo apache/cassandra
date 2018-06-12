@@ -32,6 +32,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
@@ -45,10 +46,10 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     private AtomicInteger responsesAndExpirations;
     private final SimpleCondition condition = new SimpleCondition();
     protected final Keyspace keyspace;
-    protected final Replicas naturalReplicas;
+    protected final ReplicaCollection naturalReplicas;
     public final ConsistencyLevel consistencyLevel;
     protected final Runnable callback;
-    protected final Replicas pendingReplicas;
+    protected final ReplicaCollection pendingReplicas;
     protected final WriteType writeType;
     private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> failuresUpdater
     = AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
@@ -70,8 +71,8 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
      * @param queryStartNanoTime
      */
     protected AbstractWriteResponseHandler(Keyspace keyspace,
-                                           Replicas naturalReplicas,
-                                           Replicas pendingReplicas,
+                                           ReplicaCollection naturalReplicas,
+                                           ReplicaCollection pendingReplicas,
                                            ConsistencyLevel consistencyLevel,
                                            Runnable callback,
                                            WriteType writeType,

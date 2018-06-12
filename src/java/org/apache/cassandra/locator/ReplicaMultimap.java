@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public abstract class ReplicaMultimap<K, V extends Replicas>
+public abstract class ReplicaMultimap<K, V extends ReplicaCollection>
 {
     Map<K, V> map = new HashMap<>();
 
@@ -56,7 +56,7 @@ public abstract class ReplicaMultimap<K, V extends Replicas>
         return map.computeIfAbsent(key, this::createEmpty).add(replica);
     }
 
-    public boolean putAll(K key, Replicas replicas)
+    public boolean putAll(K key, ReplicaCollection replicas)
     {
         boolean result = false;
         for (Replica replica: replicas)
@@ -79,9 +79,9 @@ public abstract class ReplicaMultimap<K, V extends Replicas>
         return map;
     }
 
-    public Replicas values()
+    public ReplicaCollection values()
     {
-        return Replicas.concat((Iterable<Replicas>) map.values());
+        return Replicas.concat((Iterable<ReplicaCollection>) map.values());
     }
 
     public Iterable<Map.Entry<K, Replica>> entries()

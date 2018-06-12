@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.locator;
 
-import java.util.*;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 public abstract class AbstractEndpointSnitch implements IEndpointSnitch
@@ -31,7 +29,7 @@ public abstract class AbstractEndpointSnitch implements IEndpointSnitch
      * @param unsortedAddress the nodes to sort
      * @return a new sorted <tt>List</tt>
      */
-    public ReplicaList getSortedListByProximity(InetAddressAndPort address, Replicas unsortedAddress)
+    public ReplicaList getSortedListByProximity(InetAddressAndPort address, ReplicaCollection unsortedAddress)
     {
         ReplicaList preferred = new ReplicaList(unsortedAddress);
         sortByProximity(address, preferred);

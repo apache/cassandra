@@ -41,6 +41,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.locator.ReplicaMultimap;
 import org.apache.cassandra.locator.ReplicaSet;
+import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -181,7 +182,7 @@ public class RangeStreamer
      * @param keyspaceName keyspace name
      * @param replicas ranges to be streamed
      */
-    public void addRanges(String keyspaceName, Replicas replicas)
+    public void addRanges(String keyspaceName, ReplicaCollection replicas)
     {
         if(Keyspace.open(keyspaceName).getReplicationStrategy() instanceof LocalStrategy)
         {

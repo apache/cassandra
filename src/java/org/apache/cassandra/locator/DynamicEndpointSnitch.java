@@ -186,7 +186,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     }
 
     @Override
-    public ReplicaList getSortedListByProximity(final InetAddressAndPort address, Replicas replicas)
+    public ReplicaList getSortedListByProximity(final InetAddressAndPort address, ReplicaCollection replicas)
     {
         ReplicaList list = new ReplicaList(replicas);
         sortByProximity(address, list);

@@ -2724,7 +2724,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // find alive sources for our new ranges
         for (Range<Token> range : ranges)
         {
-            Replicas possibleRanges = rangeReplicas.get(range);
+            ReplicaCollection possibleRanges = rangeReplicas.get(range);
             IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
             ReplicaList replicas = snitch.getSortedListByProximity(myAddress, possibleRanges);
 
@@ -2864,7 +2864,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // range.
         for (Range<Token> range : ranges)
         {
-            Replicas newReplicaEndpoints = Keyspace.open(keyspaceName).getReplicationStrategy().calculateNaturalReplicas(range.right, temp);
+            ReplicaCollection newReplicaEndpoints = Keyspace.open(keyspaceName).getReplicationStrategy().calculateNaturalReplicas(range.right, temp);
             newReplicaEndpoints.removeEndpoints(currentReplicaEndpoints.get(range));
             if (logger.isDebugEnabled())
                 if (newReplicaEndpoints.isEmpty())
@@ -3839,7 +3839,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /**
      * Returns the endpoints currently responsible for storing the token plus pending ones
      */
-    public Replicas getNaturalAndPendingReplicas(String keyspaceName, Token token)
+    public ReplicaCollection getNaturalAndPendingReplicas(String keyspaceName, Token token)
     {
         return Replicas.concatNaturalAndPending(getNaturalReplicas(keyspaceName, token), tokenMetadata.pendingEndpointsFor(token, keyspaceName));
     }
@@ -4261,7 +4261,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                 if (useStrictConsistency)
                                 {
                                     ReplicaSet oldEndpoints = new ReplicaSet(rangeAddresses.get(range));
-                                    Replicas newEndpoints = strategy.calculateNaturalReplicas(toFetch.right, tokenMetaCloneAllSettled);
+                                    ReplicaCollection newEndpoints = strategy.calculateNaturalReplicas(toFetch.right, tokenMetaCloneAllSettled);
 
                                     //Due to CASSANDRA-5953 we can have a higher RF then we have endpoints.
                                     //So we need to be careful to only be strict when endpoints == RF

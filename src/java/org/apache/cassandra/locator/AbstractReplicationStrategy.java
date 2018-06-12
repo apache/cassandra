@@ -22,10 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -131,8 +128,8 @@ public abstract class AbstractReplicationStrategy
      */
     public abstract ReplicaList calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata);
 
-    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Replicas naturalEndpoints,
-                                                                       Replicas pendingEndpoints,
+    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(ReplicaCollection naturalEndpoints,
+                                                                       ReplicaCollection pendingEndpoints,
                                                                        ConsistencyLevel consistency_level,
                                                                        Runnable callback,
                                                                        WriteType writeType,
@@ -141,8 +138,8 @@ public abstract class AbstractReplicationStrategy
         return getWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, callback, writeType, queryStartNanoTime, DatabaseDescriptor.getIdealConsistencyLevel());
     }
 
-    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Replicas naturalEndpoints,
-                                                                       Replicas pendingEndpoints,
+    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(ReplicaCollection naturalEndpoints,
+                                                                       ReplicaCollection pendingEndpoints,
                                                                        ConsistencyLevel consistency_level,
                                                                        Runnable callback,
                                                                        WriteType writeType,

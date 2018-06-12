@@ -24,14 +24,13 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Predicate;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
-public class ReplicaList extends Replicas
+public class ReplicaList extends ReplicaCollection
 {
     static final ReplicaList EMPTY = new ReplicaList(ImmutableList.of());
 
@@ -52,7 +51,7 @@ public class ReplicaList extends Replicas
         this(new ArrayList<>(from.replicaList));
     }
 
-    public ReplicaList(Replicas from)
+    public ReplicaList(ReplicaCollection from)
     {
         this(new ArrayList<>(from.size()));
         addAll(from);
@@ -217,7 +216,7 @@ public class ReplicaList extends Replicas
         }
     }
 
-    public static ReplicaList immutableCopyOf(Replicas replicas)
+    public static ReplicaList immutableCopyOf(ReplicaCollection replicas)
     {
         return new ReplicaList(ImmutableList.<Replica>builder().addAll(replicas).build());
     }

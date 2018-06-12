@@ -31,11 +31,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaList;
 import org.apache.cassandra.locator.ReplicaMultimap;
 import org.apache.cassandra.locator.ReplicaSet;
 import org.apache.cassandra.locator.ReplicaUtils;
-import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -832,7 +832,7 @@ public class MoveTest
             if (strategy.getReplicationFactor().replicas != 3)
                 continue;
 
-            Replicas replicas = null;
+            ReplicaCollection replicas = null;
             // tokens 5, 15 and 25 should go three nodes
             for (int i = 0; i < 3; i++)
             {

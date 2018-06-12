@@ -118,7 +118,7 @@ public class Replica
      * returning a set of replicas with the endpoint and transient information of
      * this replica, and the ranges resulting from the subtraction.
      */
-    public ReplicaSet subtractByRange(Replicas toSubtract)
+    public ReplicaSet subtractByRange(ReplicaCollection toSubtract)
     {
         if (isFull() && Iterables.all(toSubtract, Replica::isFull))
         {

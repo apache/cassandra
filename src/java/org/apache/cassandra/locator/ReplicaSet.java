@@ -23,14 +23,13 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
-import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
-public class ReplicaSet extends Replicas
+public class ReplicaSet extends ReplicaCollection
 {
     static final ReplicaSet EMPTY = new ReplicaSet(ImmutableSet.of());
 
@@ -46,7 +45,7 @@ public class ReplicaSet extends Replicas
         this(Sets.newHashSetWithExpectedSize(expectedSize));
     }
 
-    public ReplicaSet(Replicas replicas)
+    public ReplicaSet(ReplicaCollection replicas)
     {
         this(Sets.newHashSetWithExpectedSize(replicas.size()));
         Iterables.addAll(replicaSet, replicas);
@@ -113,7 +112,7 @@ public class ReplicaSet extends Replicas
         return replicaSet.iterator();
     }
 
-    public ReplicaSet differenceOnEndpoint(Replicas differenceOn)
+    public ReplicaSet differenceOnEndpoint(ReplicaCollection differenceOn)
     {
         if (Iterables.all(this, Replica::isFull) && Iterables.all(differenceOn, Replica::isFull))
         {
@@ -133,7 +132,7 @@ public class ReplicaSet extends Replicas
         return new ReplicaSet(ImmutableSet.copyOf(from.replicaSet));
     }
 
-    public static ReplicaSet immutableCopyOf(Replicas from)
+    public static ReplicaSet immutableCopyOf(ReplicaCollection from)
     {
         return new ReplicaSet(ImmutableSet.<Replica>builder().addAll(from).build());
     }
