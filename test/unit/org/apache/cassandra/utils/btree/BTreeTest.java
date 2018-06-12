@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.utils.btree;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -25,10 +25,13 @@ import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import org.junit.Assert;
-import org.apache.cassandra.utils.btree.BTree;
-import org.apache.cassandra.utils.btree.UpdateFunction;
 
+import static org.apache.cassandra.utils.btree.BTree.EMPTY_LEAF;
+import static org.apache.cassandra.utils.btree.BTree.FAN_FACTOR;
+import static org.apache.cassandra.utils.btree.BTree.FAN_SHIFT;
+import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
 import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class BTreeTest
 {
@@ -499,5 +502,107 @@ public class BTreeTest
         {
             Arrays.fill(numberOfCalls, 0);
         }
-    };
+    }
+
+    @Test
+    public void testTransformAndFilter()
+    {
+        List<Integer> r = seq(100);
+
+        Object[] b1 = BTree.build(r, UpdateFunction.noOp());
+
+        // replace all values
+        Object[] b2 = BTree.transformAndFilter(b1, (x) -> (Integer) x * 2);
+        assertEquals(BTree.size(b1), BTree.size(b2));
+
+        // remove odd numbers
+        Object[] b3 = BTree.transformAndFilter(b1, (x) -> (Integer) x % 2 == 1 ? x : null);
+        assertEquals(BTree.size(b1) / 2, BTree.size(b3));
+
+        // remove all values
+        Object[] b4 = BTree.transformAndFilter(b1, (x) -> null);
+        assertEquals(0, BTree.size(b4));
+    }
+
+    private <C, K extends C, V extends C> Object[] buildBTreeLegacy(Iterable<K> source, UpdateFunction<K, V> updateF, int size)
+    {
+        assert updateF != null;
+        NodeBuilder current = new NodeBuilder();
+
+        while ((size >>= FAN_SHIFT) > 0)
+            current = current.ensureChild();
+
+        current.reset(EMPTY_LEAF, POSITIVE_INFINITY, updateF, null);
+        for (K key : source)
+            current.addNewKey(key);
+
+        current = current.ascendToRoot();
+
+        Object[] r = current.toNode();
+        current.clear();
+        return r;
+    }
+
+    // Basic BTree validation to check the values and sizeOffsets. Return tree size.
+    private int validateBTree(Object[] tree, int[] startingPos, boolean isRoot)
+    {
+        if (BTree.isLeaf(tree))
+        {
+            int size = BTree.size(tree);
+            if (!isRoot)
+            {
+                assertTrue(size >= FAN_FACTOR / 2);
+                assertTrue(size <= FAN_FACTOR);
+            }
+            for (int i = 0; i < size; i++)
+            {
+                assertEquals((int)tree[i], startingPos[0]);
+                startingPos[0]++;
+            }
+            return size;
+        }
+
+        int childNum = BTree.getChildCount(tree);
+        assertTrue(childNum >= FAN_FACTOR / 2);
+        assertTrue(childNum <= FAN_FACTOR + 1);
+
+        int childStart = BTree.getChildStart(tree);
+        int[] sizeOffsets = BTree.getSizeMap(tree);
+        int pos = 0;
+        for (int i = 0; i < childNum; i++)
+        {
+            int childSize = validateBTree((Object[])tree[i + childStart], startingPos, false);
+
+            pos += childSize;
+            assertEquals(sizeOffsets[i], pos);
+            if (i != childNum - 1)
+            {
+                assertEquals((int)tree[i], startingPos[0]);
+                pos++;
+                startingPos[0]++;
+            }
+
+        }
+        return BTree.size(tree);
+    }
+
+    @Test
+    public void testBuildTree()
+    {
+        int maxCount = 1000;
+
+        for (int count = 0; count < maxCount; count++)
+        {
+            List<Integer> r = seq(count);
+            Object[] b1 = BTree.build(r, UpdateFunction.noOp());
+            Object[] b2 = buildBTreeLegacy(r, UpdateFunction.noOp(), count);
+            assertTrue(BTree.equals(b1, b2));
+
+            int[] startingPos = new int[1];
+            startingPos[0] = 0;
+            assertEquals(count, validateBTree(b1, startingPos, true));
+            startingPos[0] = 0;
+            assertEquals(count, validateBTree(b2, startingPos, true));
+        }
+    }
 }

@@ -34,6 +34,7 @@ import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static java.util.Comparator.naturalOrder;
 
 public class BTree
 {
@@ -57,18 +58,42 @@ public class BTree
 
     // The maximum fan factor used for B-Trees
     static final int FAN_SHIFT;
+
+    // The maximun tree size for certain heigth of tree
+    static final int[] TREE_SIZE;
+
+    // NB we encode Path indexes as Bytes, so this needs to be less than Byte.MAX_VALUE / 2
+    static final int FAN_FACTOR;
+
+    static final int MAX_TREE_SIZE = Integer.MAX_VALUE;
+
     static
     {
-        int fanfactor = 32;
-        if (System.getProperty("cassandra.btree.fanfactor") != null)
-            fanfactor = Integer.parseInt(System.getProperty("cassandra.btree.fanfactor"));
+        int fanfactor = Integer.parseInt(System.getProperty("cassandra.btree.fanfactor", "32"));
+        assert fanfactor >= 2 : "the minimal btree fanfactor is 2";
         int shift = 1;
         while (1 << shift < fanfactor)
             shift += 1;
+
         FAN_SHIFT = shift;
+        FAN_FACTOR = 1 << FAN_SHIFT;
+
+        // For current FAN_FACTOR, calculate the maximum height of the tree we could build
+        int maxHeight = 0;
+        for (long maxSize = 0; maxSize < MAX_TREE_SIZE; maxHeight++)
+            // each tree node could have (FAN_FACTOR + 1) children,
+            // plus current node could have FAN_FACTOR number of values
+            maxSize = maxSize * (FAN_FACTOR + 1) + FAN_FACTOR;
+
+        TREE_SIZE = new int[maxHeight];
+
+        TREE_SIZE[0] = FAN_FACTOR;
+        for (int i = 1; i < maxHeight - 1; i++)
+            TREE_SIZE[i] = TREE_SIZE[i - 1] * (FAN_FACTOR + 1) + FAN_FACTOR;
+
+        TREE_SIZE[maxHeight - 1] = MAX_TREE_SIZE;
     }
-    // NB we encode Path indexes as Bytes, so this needs to be less than Byte.MAX_VALUE / 2
-    static final int FAN_FACTOR = 1 << FAN_SHIFT;
+
 
     static final int MINIMAL_NODE_SIZE = FAN_FACTOR >> 1;
 
@@ -102,11 +127,6 @@ public class BTree
         return buildInternal(source, source.size(), updateF);
     }
 
-    public static <C, K extends C, V extends C> Object[] build(Iterable<K> source, UpdateFunction<K, V> updateF)
-    {
-        return buildInternal(source, -1, updateF);
-    }
-
     /**
      * Creates a BTree containing all of the objects in the provided collection
      *
@@ -121,32 +141,73 @@ public class BTree
         return buildInternal(source, size, updateF);
     }
 
-    /**
-     * As build(), except:
-     * @param size    < 0 if size is unknown
-     */
-    private static <C, K extends C, V extends C> Object[] buildInternal(Iterable<K> source, int size, UpdateFunction<K, V> updateF)
+    private static <C, K extends C, V extends C> Object[] buildLeaf(Iterator<K> it, int size, UpdateFunction<K, V> updateF)
     {
-        if ((size >= 0) & (size < FAN_FACTOR))
+        V[] values = (V[]) new Object[size | 1];
+
+        for (int i = 0; i < size; i++)
         {
-            if (size == 0)
-                return EMPTY_LEAF;
-            // pad to odd length to match contract that all leaf nodes are odd
-            V[] values = (V[]) new Object[size | 1];
-            {
-                int i = 0;
-                for (K k : source)
-                    values[i++] = updateF.apply(k);
-            }
-            if (updateF != UpdateFunction.noOp())
-                updateF.allocated(ObjectSizes.sizeOfArray(values));
-            return values;
+            K k = it.next();
+            values[i] = updateF.apply(k);
+        }
+        if (updateF != UpdateFunction.noOp())
+            updateF.allocated(ObjectSizes.sizeOfArray(values));
+        return values;
+    }
+
+    private static <C, K extends C, V extends C> Object[] buildInternal(Iterator<K> it, int size, int level, UpdateFunction<K, V> updateF)
+    {
+        assert size > 0;
+        assert level >= 0;
+        if (level == 0)
+            return buildLeaf(it, size, updateF);
+
+        // calcuate child num: (size - (childNum - 1)) / maxChildSize <= childNum
+        int childNum = size / (TREE_SIZE[level - 1] + 1) + 1;
+
+        V[] values = (V[]) new Object[childNum * 2];
+        if (updateF != UpdateFunction.noOp())
+            updateF.allocated(ObjectSizes.sizeOfArray(values));
+
+        int[] indexOffsets = new int[childNum];
+        int childPos = childNum - 1;
+
+        int index = 0;
+        for (int i = 0; i < childNum - 1; i++)
+        {
+            // Calculate the next childSize by splitting the remaining values to the remaining child nodes.
+            // The performance could be improved by pre-compute the childSize (see #9989 comments).
+            int childSize = (size - index) / (childNum - i);
+            // Build the tree with inorder traversal
+            values[childPos + i] = (V) buildInternal(it, childSize, level - 1, updateF);
+            index += childSize;
+            indexOffsets[i] = index;
+
+            K k = it.next();
+            values[i] = updateF.apply(k);
+            index++;
         }
 
-        TreeBuilder builder = TreeBuilder.newInstance();
-        Object[] btree = builder.build(source, updateF, size);
+        values[childPos + childNum - 1] = (V) buildInternal(it, size - index, level - 1, updateF);
+        indexOffsets[childNum - 1] = size;
 
-        return btree;
+        values[childPos + childNum] = (V) indexOffsets;
+
+        return values;
+    }
+
+    private static <C, K extends C, V extends C> Object[] buildInternal(Iterable<K> source, int size, UpdateFunction<K, V> updateF)
+    {
+        assert size >= 0;
+        if (size == 0)
+            return EMPTY_LEAF;
+
+        // find out the height of the tree
+        int level = 0;
+        while (size > TREE_SIZE[level])
+            level++;
+        Iterator<K> it = source.iterator();
+        return buildInternal(it, size, level, updateF);
     }
 
     public static <C, K extends C, V extends C> Object[] update(Object[] btree,
@@ -692,7 +753,11 @@ public class BTree
         remainder = filter(transform(remainder, function), (x) -> x != null);
         Iterable<V> build = concat(head, remainder);
 
-        return buildInternal(build, -1, UpdateFunction.<V>noOp());
+        Builder<V> builder = builder((Comparator<? super V>) naturalOrder());
+        builder.auto(false);
+        for (V v : build)
+            builder.add(v);
+        return builder.build();
     }
 
     private static <V> Object[] transformAndFilter(Object[] btree, FiltrationTracker<V> function)

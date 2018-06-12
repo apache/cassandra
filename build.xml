@@ -102,7 +102,7 @@
 
     <property name="test.timeout" value="240000" />
     <property name="test.long.timeout" value="600000" />
-    <property name="test.burn.timeout" value="600000" />
+    <property name="test.burn.timeout" value="60000000" />
 
     <!-- default for cql tests. Can be override by -Dcassandra.test.use_prepared=false -->
     <property name="cassandra.test.use_prepared" value="true" />
