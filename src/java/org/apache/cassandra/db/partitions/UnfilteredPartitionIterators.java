@@ -111,6 +111,7 @@ public abstract class UnfilteredPartitionIterators
         return FilteredPartitions.filter(iterator, nowInSec);
     }
 
+    @SuppressWarnings("resource")
     public static UnfilteredPartitionIterator merge(final List<? extends UnfilteredPartitionIterator> iterators, final int nowInSec, final MergeListener listener)
     {
         assert listener != null;
@@ -135,6 +136,7 @@ public abstract class UnfilteredPartitionIterators
                 toMerge.set(idx, current);
             }
 
+            @SuppressWarnings("resource")
             protected UnfilteredRowIterator getReduced()
             {
                 UnfilteredRowIterators.MergeListener rowListener = listener.getRowMergeListener(partitionKey, toMerge);
@@ -190,6 +192,7 @@ public abstract class UnfilteredPartitionIterators
         };
     }
 
+    @SuppressWarnings("resource")
     public static UnfilteredPartitionIterator mergeLazily(final List<? extends UnfilteredPartitionIterator> iterators, final int nowInSec)
     {
         assert !iterators.isEmpty();

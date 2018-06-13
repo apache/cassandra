@@ -39,6 +39,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
  */
 public class ShortReadProtection
 {
+    @SuppressWarnings("resource")
     public static UnfilteredPartitionIterator extend(InetAddressAndPort source, UnfilteredPartitionIterator partitions,
                                                      ReadCommand command, DataLimits.Counter mergedResultCounter,
                                                      long queryStartNanoTime, boolean enforceStrictLiveness)

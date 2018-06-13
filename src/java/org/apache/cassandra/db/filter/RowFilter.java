@@ -279,6 +279,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             class IsSatisfiedFilter extends Transformation<UnfilteredRowIterator>
             {
                 DecoratedKey pk;
+
+                @SuppressWarnings("resource")
                 public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
                 {
                     pk = partition.partitionKey();
