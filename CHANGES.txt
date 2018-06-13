@@ -1,6 +1,5 @@
 2.2.13
  * Incorrect counting of pending messages in OutboundTcpConnection (CASSANDRA-11551)
- * CqlRecordReader no longer quotes the keyspace when connecting, as the java driver will (CASSANDRA-10751)
  * Fix compaction failure caused by reading un-flushed data (CASSANDRA-12743)
  * Use Bounds instead of Range for sstables in anticompaction (CASSANDRA-14411)
  * Fix JSON queries with IN restrictions and ORDER BY clause (CASSANDRA-14286)
