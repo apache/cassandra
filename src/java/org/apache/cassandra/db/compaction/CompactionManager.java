@@ -460,6 +460,16 @@ public class CompactionManager implements CompactionManagerMBean
         }, jobs, OperationType.CLEANUP);
     }
 
+    /**
+     * Submit anti-compactions for a collection of SSTables over a set of repaired ranges and marks corresponding SSTables
+     * as repaired.
+     *
+     * @param cfs Column family for anti-compaction
+     * @param ranges Repaired ranges to be anti-compacted into separate SSTables.
+     * @param sstables {@link Refs} of SSTables within CF to anti-compact.
+     * @param repairedAt Unix timestamp of when repair was completed.
+     * @return Futures executing anti-compaction.
+     */
     public ListenableFuture<?> submitAntiCompaction(final ColumnFamilyStore cfs,
                                           final Collection<Range<Token>> ranges,
                                           final Refs<SSTableReader> sstables,
@@ -475,6 +485,8 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     for (SSTableReader compactingSSTable : cfs.getTracker().getCompacting())
                         sstables.releaseIfHolds(compactingSSTable);
+                    // We don't anti-compact any SSTable that has been compacted during repair as it may have been compacted
+                    // with unrepaired data.
                     Set<SSTableReader> compactedSSTables = new HashSet<>();
                     for (SSTableReader sstable : sstables)
                         if (sstable.isMarkedCompacted())
@@ -504,9 +516,17 @@ public class CompactionManager implements CompactionManagerMBean
      *
      * Caller must reference the validatedForRepair sstables (via ParentRepairSession.getActiveRepairedSSTableRefs(..)).
      *
+     * NOTE: Repairs can take place on both unrepaired (incremental + full) and repaired (full) data.
+     * Although anti-compaction could work on repaired sstables as well and would result in having more accurate
+     * repairedAt values for these, we avoid anti-compacting already repaired sstables, as we currently don't
+     * make use of any actual repairedAt value and splitting up sstables just for that is not worth it. However, we will
+     * still update repairedAt if the SSTable is fully contained within the repaired ranges, as this does not require
+     * anticompaction.
+     *
      * @param cfs
      * @param ranges Ranges that the repair was carried out on
      * @param validatedForRepair SSTables containing the repaired ranges. Should be referenced before passing them.
+     * @param txn Transaction across all SSTables that were repaired.
      * @throws InterruptedException
      * @throws IOException
      */
@@ -519,13 +539,7 @@ public class CompactionManager implements CompactionManagerMBean
         logger.info("Starting anticompaction for {}.{} on {}/{} sstables", cfs.keyspace.getName(), cfs.getColumnFamilyName(), validatedForRepair.size(), cfs.getSSTables().size());
         logger.trace("Starting anticompaction for ranges {}", ranges);
         Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
-        Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();
-        // we should only notify that repair status changed if it actually did:
-        Set<SSTableReader> mutatedRepairStatusToNotify = new HashSet<>();
-        Map<SSTableReader, Boolean> wasRepairedBefore = new HashMap<>();
-        for (SSTableReader sstable : sstables)
-            wasRepairedBefore.put(sstable, sstable.isRepaired());
-
+        Set<SSTableReader> mutatedRepairStatuses = new HashSet<>(); // SSTables that were completely repaired only
         Set<SSTableReader> nonAnticompacting = new HashSet<>();
 
         Iterator<SSTableReader> sstableIterator = sstables.iterator();
@@ -536,6 +550,11 @@ public class CompactionManager implements CompactionManagerMBean
             while (sstableIterator.hasNext())
             {
                 SSTableReader sstable = sstableIterator.next();
+                List<String> anticompactRanges = new ArrayList<>();
+                // We don't anti-compact SSTables already marked repaired. See CASSANDRA-13153
+                // and CASSANDRA-14423.
+                if (sstable.isRepaired()) // We never anti-compact already repaired SSTables
+                    nonAnticompacting.add(sstable);
 
                 Bounds<Token> sstableBounds = new Bounds<>(sstable.first.getToken(), sstable.last.getToken());
 
@@ -548,28 +567,30 @@ public class CompactionManager implements CompactionManagerMBean
                         logger.info("SSTable {} fully contained in range {}, mutating repairedAt instead of anticompacting", sstable, r);
                         sstable.descriptor.getMetadataSerializer().mutateRepairedAt(sstable.descriptor, repairedAt);
                         sstable.reloadSSTableMetadata();
-                        mutatedRepairStatuses.add(sstable);
-                        if (!wasRepairedBefore.get(sstable))
-                            mutatedRepairStatusToNotify.add(sstable);
+                        if (!nonAnticompacting.contains(sstable)) // don't notify if the SSTable was already repaired
+                            mutatedRepairStatuses.add(sstable);
                         sstableIterator.remove();
                         shouldAnticompact = true;
                         break;
                     }
-                    else if (r.intersects(sstableBounds))
+                    else if (r.intersects(sstableBounds) && !nonAnticompacting.contains(sstable))
                     {
-                        logger.info("SSTable {} ({}) will be anticompacted on range {}", sstable, sstableBounds, r);
+                        anticompactRanges.add(r.toString());
                         shouldAnticompact = true;
                     }
                 }
 
+                if (!anticompactRanges.isEmpty())
+                    logger.info("SSTable {} ({}) will be anticompacted on ranges: {}", sstable, sstableBounds, String.join(", ", anticompactRanges));
+
                 if (!shouldAnticompact)
                 {
-                    logger.info("SSTable {} ({}) does not intersect repaired ranges {}, not touching repairedAt.", sstable, sstableBounds, normalizedRanges);
+                    logger.info("SSTable {} ({}) not subject to anticompaction of repaired ranges {}, not touching repairedAt.", sstable, sstableBounds, normalizedRanges);
                     nonAnticompacting.add(sstable);
                     sstableIterator.remove();
                 }
             }
-            cfs.getTracker().notifySSTableRepairedStatusChanged(mutatedRepairStatusToNotify);
+            cfs.getTracker().notifySSTableRepairedStatusChanged(mutatedRepairStatuses);
             txn.cancel(Sets.union(nonAnticompacting, mutatedRepairStatuses));
             validatedForRepair.release(Sets.union(nonAnticompacting, mutatedRepairStatuses));
             assert txn.originals().equals(sstables);
@@ -1223,24 +1244,11 @@ public class CompactionManager implements CompactionManagerMBean
      */
     private void doAntiCompaction(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, LifecycleTransaction repaired, long repairedAt)
     {
-        logger.info("Performing anticompaction on {} sstables", repaired.originals().size());
+        int numAnticompact = repaired.originals().size();
+        logger.info("Performing anticompaction on {} sstables", numAnticompact);
 
         //Group SSTables
-        Set<SSTableReader> sstables = repaired.originals();
-
-        // Repairs can take place on both unrepaired (incremental + full) and repaired (full) data.
-        // Although anti-compaction could work on repaired sstables as well and would result in having more accurate
-        // repairedAt values for these, we still avoid anti-compacting already repaired sstables, as we currently don't
-        // make use of any actual repairedAt value and splitting up sstables just for that is not worth it at this point.
-        Set<SSTableReader> unrepairedSSTables = ImmutableSet.copyOf(Iterables.filter(sstables, new Predicate<SSTableReader>()
-        {
-            public boolean apply(SSTableReader input)
-            {
-                return !input.isRepaired();
-            }
-        }));
-
-        Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategy().groupSSTablesForAntiCompaction(unrepairedSSTables);
+        Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategy().groupSSTablesForAntiCompaction(repaired.originals());
         // iterate over sstables to check if the repaired / unrepaired ranges intersect them.
         int antiCompactedSSTableCount = 0;
         for (Collection<SSTableReader> sstableGroup : groupedSSTables)
@@ -1253,7 +1261,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         String format = "Anticompaction completed successfully, anticompacted from {} to {} sstable(s).";
-        logger.info(format, repaired.originals().size(), antiCompactedSSTableCount);
+        logger.info(format, numAnticompact, antiCompactedSSTableCount);
     }
 
     private int antiCompactGroup(ColumnFamilyStore cfs, Collection<Range<Token>> ranges,
