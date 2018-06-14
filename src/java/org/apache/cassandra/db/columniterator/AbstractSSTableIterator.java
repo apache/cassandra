@@ -450,12 +450,12 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
             if (blockIdx >= 0 && blockIdx < indexEntry.columnsIndexCount())
             {
                 reader.seekToPosition(columnOffset(blockIdx));
+                mark = reader.file.mark();
                 reader.deserializer.clearState();
             }
 
             currentIndexIdx = blockIdx;
             reader.openMarker = blockIdx > 0 ? index(blockIdx - 1).endOpenMarker : null;
-            mark = reader.file.mark();
         }
 
         private long columnOffset(int i) throws IOException

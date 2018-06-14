@@ -292,6 +292,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             if (startIdx < 0)
             {
                 iterator = Collections.emptyIterator();
+                indexState.setToBlock(startIdx);
                 return;
             }
 
