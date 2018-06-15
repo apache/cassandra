@@ -9,6 +9,7 @@
 
 
 2.2.13
+ * Don't enable client transports when bootstrap is pending (CASSANDRA-14525)
  * Fix bug that prevented compaction of SSTables after full repairs (CASSANDRA-14423)
  * Incorrect counting of pending messages in OutboundTcpConnection (CASSANDRA-11551)
  * Fix compaction failure caused by reading un-flushed data (CASSANDRA-12743)
