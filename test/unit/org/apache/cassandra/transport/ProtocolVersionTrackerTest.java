@@ -20,14 +20,13 @@ package org.apache.cassandra.transport;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 
-import static org.apache.cassandra.transport.ProtocolVersionTracker.ClientIPAndTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -45,17 +44,17 @@ public class ProtocolVersionTrackerTest
             pvt.addConnection(addr, ProtocolVersion.V4);
         }
 
-        ImmutableSet<ClientIPAndTime> clientIPAndTimes1 = pvt.getAll().get(ProtocolVersion.V4);
+        Collection<ClientStat> clientIPAndTimes1 = pvt.getAll(ProtocolVersion.V4);
         assertEquals(10, clientIPAndTimes1.size());
 
         Thread.sleep(10);
 
         pvt.addConnection(client, ProtocolVersion.V4);
-        ImmutableSet<ClientIPAndTime> clientIPAndTimes2 = pvt.getAll().get(ProtocolVersion.V4);
+        Collection<ClientStat> clientIPAndTimes2 = pvt.getAll(ProtocolVersion.V4);
         assertEquals(10, clientIPAndTimes2.size());
 
-        long ls1 = clientIPAndTimes1.stream().filter(c -> c.inetAddress.equals(client)).findFirst().get().lastSeen;
-        long ls2 = clientIPAndTimes2.stream().filter(c -> c.inetAddress.equals(client)).findFirst().get().lastSeen;
+        long ls1 = clientIPAndTimes1.stream().filter(c -> c.remoteAddress.equals(client)).findFirst().get().lastSeenTime;
+        long ls2 = clientIPAndTimes2.stream().filter(c -> c.remoteAddress.equals(client)).findFirst().get().lastSeenTime;
 
         assertTrue(ls2 > ls1);
     }
@@ -75,10 +74,10 @@ public class ProtocolVersionTrackerTest
             pvt.addConnection(addr, ProtocolVersion.V3);
         }
 
-        assertEquals(5, pvt.getAll().size());
-        assertEquals(0, pvt.getAll().get(ProtocolVersion.V2).size());
-        assertEquals(7, pvt.getAll().get(ProtocolVersion.V3).size());
-        assertEquals(10, pvt.getAll().get(ProtocolVersion.V4).size());
+        assertEquals(17, pvt.getAll().size());
+        assertEquals(0, pvt.getAll(ProtocolVersion.V2).size());
+        assertEquals(7, pvt.getAll(ProtocolVersion.V3).size());
+        assertEquals(10, pvt.getAll(ProtocolVersion.V4).size());
     }
 
     @Test
@@ -91,10 +90,10 @@ public class ProtocolVersionTrackerTest
             pvt.addConnection(addr, ProtocolVersion.V3);
         }
 
-        assertEquals(7, pvt.getAll().get(ProtocolVersion.V3).size());
+        assertEquals(7, pvt.getAll(ProtocolVersion.V3).size());
         pvt.clear();
 
-        assertEquals(0, pvt.getAll().get(ProtocolVersion.V3).size());
+        assertEquals(0, pvt.getAll(ProtocolVersion.V3).size());
     }
 
     /* Helper */

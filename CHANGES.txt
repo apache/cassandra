@@ -1,4 +1,5 @@
 4.0
+ * Clean up and refactor client metrics (CASSANDRA-14524)
  * Nodetool import row cache invalidation races with adding sstables to tracker (CASSANDRA-14529)
  * Fix assertions in LWTs after TableMetadata was made immutable (CASSANDRA-14356)
  * Abort compactions quicker (CASSANDRA-14397)

@@ -15,19 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.transport;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.List;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
-
+import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import org.apache.cassandra.utils.Clock;
@@ -37,17 +32,16 @@ import org.apache.cassandra.utils.Clock;
  */
 public class ProtocolVersionTracker
 {
-    public static final int DEFAULT_MAX_CAPACITY = 100;
+    private static final int DEFAULT_MAX_CAPACITY = 100;
 
-    @VisibleForTesting
-    final EnumMap<ProtocolVersion, LoadingCache<InetAddress, Long>> clientsByProtocolVersion;
+    private final EnumMap<ProtocolVersion, LoadingCache<InetAddress, Long>> clientsByProtocolVersion;
 
-    public ProtocolVersionTracker()
+    ProtocolVersionTracker()
     {
         this(DEFAULT_MAX_CAPACITY);
     }
 
-    public ProtocolVersionTracker(final int capacity)
+    private ProtocolVersionTracker(int capacity)
     {
         clientsByProtocolVersion = new EnumMap<>(ProtocolVersion.class);
 
@@ -58,54 +52,33 @@ public class ProtocolVersionTracker
         }
     }
 
-    void addConnection(final InetAddress addr, final ProtocolVersion version)
+    void addConnection(InetAddress addr, ProtocolVersion version)
     {
-        if (addr == null || version == null) return;
-
-        LoadingCache<InetAddress, Long> clients = clientsByProtocolVersion.get(version);
-        clients.put(addr, Clock.instance.currentTimeMillis());
+        clientsByProtocolVersion.get(version).put(addr, Clock.instance.currentTimeMillis());
     }
 
-    public LinkedHashMap<ProtocolVersion, ImmutableSet<ClientIPAndTime>> getAll()
+    List<ClientStat> getAll()
     {
-        LinkedHashMap<ProtocolVersion, ImmutableSet<ClientIPAndTime>> result = new LinkedHashMap<>();
-        for (ProtocolVersion version : ProtocolVersion.values())
-        {
-            ImmutableSet.Builder<ClientIPAndTime> ips = ImmutableSet.builder();
-            for (Map.Entry<InetAddress, Long> e : clientsByProtocolVersion.get(version).asMap().entrySet())
-                ips.add(new ClientIPAndTime(e.getKey(), e.getValue()));
-            result.put(version, ips.build());
-        }
+        List<ClientStat> result = new ArrayList<>();
+
+        clientsByProtocolVersion.forEach((version, cache) ->
+            cache.asMap().forEach((address, lastSeenTime) -> result.add(new ClientStat(address, version, lastSeenTime))));
+
+        return result;
+    }
+
+    List<ClientStat> getAll(ProtocolVersion version)
+    {
+        List<ClientStat> result = new ArrayList<>();
+
+        clientsByProtocolVersion.get(version).asMap().forEach((address, lastSeenTime) ->
+            result.add(new ClientStat(address, version, lastSeenTime)));
+
         return result;
     }
 
     public void clear()
     {
-        for (Map.Entry<ProtocolVersion, LoadingCache<InetAddress, Long>> entry : clientsByProtocolVersion.entrySet())
-        {
-            entry.getValue().invalidateAll();
-        }
-    }
-
-    public static class ClientIPAndTime
-    {
-        final InetAddress inetAddress;
-        final long lastSeen;
-
-        public ClientIPAndTime(final InetAddress inetAddress, final long lastSeen)
-        {
-            Preconditions.checkNotNull(inetAddress);
-            this.inetAddress = inetAddress;
-            this.lastSeen = lastSeen;
-        }
-
-        @Override
-        public String toString()
-        {
-            return "ClientIPAndTime{" +
-                   "inetAddress=" + inetAddress +
-                   ", lastSeen=" + lastSeen +
-                   '}';
-        }
+        clientsByProtocolVersion.values().forEach(Cache::invalidateAll);
     }
 }
