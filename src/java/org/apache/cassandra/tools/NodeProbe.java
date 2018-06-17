@@ -1517,7 +1517,7 @@ public class NodeProbe implements AutoCloseable
 
     /**
      * Retrieve Proxy metrics
-     * @param connections, connectedNativeClients, connectedNativeClientsByUser
+     * @param connections, connectedNativeClients, connectedNativeClientsByUser, clientsByProtocolVersion
      */
     public Object getClientMetric(String metricName)
     {

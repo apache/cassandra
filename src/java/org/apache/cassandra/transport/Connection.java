@@ -17,16 +17,19 @@
  */
 package org.apache.cassandra.transport;
 
+import java.net.InetSocketAddress;
+import java.util.Optional;
+
 import io.netty.channel.Channel;
 import io.netty.util.AttributeKey;
 
-public class Connection
+public abstract class Connection
 {
     static final AttributeKey<Connection> attributeKey = AttributeKey.valueOf("CONN");
 
-    private final Channel channel;
-    private final ProtocolVersion version;
-    private final Tracker tracker;
+    protected final Channel channel;
+    protected final ProtocolVersion version;
+    protected final Tracker tracker;
 
     private volatile FrameCompressor frameCompressor;
 
@@ -64,6 +67,8 @@ public class Connection
         return channel;
     }
 
+    public abstract View view();
+
     public interface Factory
     {
         Connection newConnection(Channel channel, ProtocolVersion version);
@@ -72,5 +77,18 @@ public class Connection
     public interface Tracker
     {
         void addConnection(Channel ch, Connection connection);
+    }
+
+    public interface View {
+        public String getUser();
+        public InetSocketAddress getAddress();
+        public int getVersion();
+        public long getRequests();
+        public boolean sslEnabled();
+        public Optional<String> getDriverName();
+        public Optional<String> getDriverVersion();
+        public Optional<String> getSSLCipher();
+        public Optional<String> getSSLProtocol();
+        public Optional<String> getKeyspace();
     }
 }

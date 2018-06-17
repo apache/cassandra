@@ -259,7 +259,13 @@ public class SimpleClient implements Closeable
     {
         protected void initChannel(Channel channel) throws Exception
         {
-            connection = new Connection(channel, version, tracker);
+            connection = new Connection(channel, version, tracker)
+            {
+                public View view()
+                {
+                    return null;
+                }
+            };
             channel.attr(Connection.attributeKey).set(connection);
 
             ChannelPipeline pipeline = channel.pipeline();
