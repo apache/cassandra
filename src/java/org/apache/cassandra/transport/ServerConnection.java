@@ -21,20 +21,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import io.netty.channel.Channel;
+import com.codahale.metrics.Counter;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 
-import com.codahale.metrics.Counter;
-
 public class ServerConnection extends Connection
 {
-    private enum State { UNINITIALIZED, AUTHENTICATION, READY }
 
     private volatile IAuthenticator.SaslNegotiator saslNegotiator;
     private final ClientState clientState;
-    private volatile State state;
+    private volatile ConnectionStage stage;
     public final Counter requests = new Counter();
 
     private final ConcurrentMap<Integer, QueryState> queryStates = new ConcurrentHashMap<>();
@@ -43,7 +41,7 @@ public class ServerConnection extends Connection
     {
         super(channel, version, tracker);
         this.clientState = ClientState.forExternalCalls(channel.remoteAddress());
-        this.state = State.UNINITIALIZED;
+        this.stage = ConnectionStage.ESTABLISHED;
     }
 
     private QueryState getQueryState(int streamId)
@@ -64,15 +62,20 @@ public class ServerConnection extends Connection
         return clientState;
     }
 
+    ConnectionStage stage()
+    {
+        return stage;
+    }
+
     public QueryState validateNewMessage(Message.Type type, ProtocolVersion version, int streamId)
     {
-        switch (state)
+        switch (stage)
         {
-            case UNINITIALIZED:
+            case ESTABLISHED:
                 if (type != Message.Type.STARTUP && type != Message.Type.OPTIONS)
                     throw new ProtocolException(String.format("Unexpected message %s, expecting STARTUP or OPTIONS", type));
                 break;
-            case AUTHENTICATION:
+            case AUTHENTICATING:
                 // Support both SASL auth from protocol v2 and the older style Credentials auth from v1
                 if (type != Message.Type.AUTH_RESPONSE && type != Message.Type.CREDENTIALS)
                     throw new ProtocolException(String.format("Unexpected message %s, expecting %s", type, version == ProtocolVersion.V1 ? "CREDENTIALS" : "SASL_RESPONSE"));
@@ -89,24 +92,24 @@ public class ServerConnection extends Connection
 
     public void applyStateTransition(Message.Type requestType, Message.Type responseType)
     {
-        switch (state)
+        switch (stage)
         {
-            case UNINITIALIZED:
+            case ESTABLISHED:
                 if (requestType == Message.Type.STARTUP)
                 {
                     if (responseType == Message.Type.AUTHENTICATE)
-                        state = State.AUTHENTICATION;
+                        stage = ConnectionStage.AUTHENTICATING;
                     else if (responseType == Message.Type.READY)
-                        state = State.READY;
+                        stage = ConnectionStage.READY;
                 }
                 break;
-            case AUTHENTICATION:
+            case AUTHENTICATING:
                 // Support both SASL auth from protocol v2 and the older style Credentials auth from v1
                 assert requestType == Message.Type.AUTH_RESPONSE || requestType == Message.Type.CREDENTIALS;
 
                 if (responseType == Message.Type.READY || responseType == Message.Type.AUTH_SUCCESS)
                 {
-                    state = State.READY;
+                    stage = ConnectionStage.READY;
                     // we won't use the authenticator again, null it so that it can be GC'd
                     saslNegotiator = null;
                 }

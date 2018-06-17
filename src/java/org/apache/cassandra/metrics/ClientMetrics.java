@@ -18,38 +18,113 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.concurrent.Callable;
+import java.util.*;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
+import org.apache.cassandra.transport.ClientStat;
+import org.apache.cassandra.transport.ConnectedClient;
+import org.apache.cassandra.transport.Server;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-
-public class ClientMetrics
+public final class ClientMetrics
 {
-    private static final MetricNameFactory factory = new DefaultNameFactory("Client");
-    
     public static final ClientMetrics instance = new ClientMetrics();
-    
+
+    private static final MetricNameFactory factory = new DefaultNameFactory("Client");
+
+    private volatile boolean initialized = false;
+    private Collection<Server> servers = Collections.emptyList();
+
+    private Meter authSuccess;
+    private Meter authFailure;
+
     private ClientMetrics()
     {
     }
 
-    public <T> void addGauge(String name, final Callable<T> provider)
+    public void markAuthSuccess()
     {
-        Metrics.register(factory.createMetricName(name), (Gauge<T>) () -> {
-            try
-            {
-                return provider.call();
-            } catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        });
+        authSuccess.mark();
     }
 
-    public Meter addMeter(String name)
+    public void markAuthFailure()
+    {
+        authFailure.mark();
+    }
+
+    public synchronized void init(Collection<Server> servers)
+    {
+        if (initialized)
+            return;
+
+        this.servers = servers;
+
+        registerGauge("connectedNativeClients",       this::countConnectedClients);
+        registerGauge("connectedNativeClientsByUser", this::countConnectedClientsByUser);
+        registerGauge("connections",                  this::connectedClients);
+        registerGauge("clientsByProtocolVersion",     this::recentClientStats);
+
+        authSuccess = registerMeter("AuthSuccess");
+        authFailure = registerMeter("AuthFailure");
+
+        initialized = true;
+    }
+
+    private int countConnectedClients()
+    {
+        int count = 0;
+
+        for (Server server : servers)
+            count += server.countConnectedClients();
+
+        return count;
+    }
+
+    private Map<String, Integer> countConnectedClientsByUser()
+    {
+        Map<String, Integer> counts = new HashMap<>();
+
+        for (Server server : servers)
+        {
+            server.countConnectedClientsByUser()
+                  .forEach((username, count) -> counts.put(username, counts.getOrDefault(username, 0) + count));
+        }
+
+        return counts;
+    }
+
+    private List<Map<String, String>> connectedClients()
+    {
+        List<Map<String, String>> clients = new ArrayList<>();
+
+        for (Server server : servers)
+            for (ConnectedClient client : server.getConnectedClients())
+                clients.add(client.asMap());
+
+        return clients;
+    }
+
+    private List<Map<String, String>> recentClientStats()
+    {
+        List<Map<String, String>> stats = new ArrayList<>();
+
+        for (Server server : servers)
+            for (ClientStat stat : server.recentClientStats())
+                stats.add(stat.asMap());
+
+        stats.sort(Comparator.comparing(map -> map.get(ClientStat.PROTOCOL_VERSION)));
+
+        return stats;
+    }
+
+    private <T> Gauge<T> registerGauge(String name, Gauge<T> gauge)
+    {
+        return Metrics.register(factory.createMetricName(name), gauge);
+    }
+
+    private Meter registerMeter(String name)
     {
         return Metrics.meter(factory.createMetricName(name));
     }
