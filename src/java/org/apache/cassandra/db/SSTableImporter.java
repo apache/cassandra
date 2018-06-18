@@ -134,8 +134,7 @@ public class SSTableImporter
                     Descriptor oldDescriptor = entry.getKey();
                     if (currentDescriptors.contains(oldDescriptor))
                         continue;
-                    if (options.invalidateCaches && cfs.isRowCacheEnabled())
-                        invalidateCachesForSSTable(oldDescriptor);
+
                     File targetDir = getTargetDirectory(dir, oldDescriptor, entry.getValue());
                     Descriptor newDescriptor = cfs.getUniqueDescriptorFor(entry.getKey(), targetDir);
                     maybeMutateMetadata(entry.getKey(), options);
@@ -176,6 +175,12 @@ public class SSTableImporter
         try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
         {
             cfs.getTracker().addSSTables(newSSTables);
+            for (SSTableReader reader : newSSTables)
+            {
+                if (options.invalidateCaches && cfs.isRowCacheEnabled())
+                    invalidateCachesForSSTable(reader.descriptor);
+            }
+
         }
 
         logger.info("Done loading load new SSTables for {}/{}", cfs.keyspace.getName(), cfs.getTableName());
