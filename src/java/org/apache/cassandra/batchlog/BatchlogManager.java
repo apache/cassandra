@@ -252,6 +252,8 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         Set<InetAddressAndPort> hintedNodes = new HashSet<>();
         Set<UUID> replayedBatches = new HashSet<>();
+        Exception caughtException = null;
+        int skipped = 0;
 
         // Sending out batches for replay without waiting for them, so that one stuck batch doesn't affect others
         for (UntypedResultSet.Row row : batches)
@@ -274,7 +276,9 @@ public class BatchlogManager implements BatchlogManagerMBean
             catch (IOException e)
             {
                 logger.warn("Skipped batch replay of {} due to {}", id, e.getMessage());
+                caughtException = e;
                 remove(id);
+                ++skipped;
             }
 
             if (++positionInPage == pageSize)
@@ -287,6 +291,9 @@ public class BatchlogManager implements BatchlogManagerMBean
         }
 
         finishAndClearBatches(unfinishedBatches, hintedNodes, replayedBatches);
+
+        if (caughtException != null)
+            logger.warn(String.format("Encountered %d unexpected exceptions while sending out batches", skipped), caughtException);
 
         // to preserve batch guarantees, we must ensure that hints (if any) have made it to disk, before deleting the batches
         HintsService.instance.flushAndFsyncBlockingly(transform(hintedNodes, StorageService.instance::getHostIdForEndpoint));
