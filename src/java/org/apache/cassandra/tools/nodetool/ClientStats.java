@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
@@ -87,8 +88,16 @@ public class ClientStats extends NodeToolCmd
                 table.add("Address", "SSL", "Cipher", "Protocol", "Version", "User", "Keyspace", "Requests", "Driver-Name", "Driver-Version");
                 for (Map<String, String> conn : clients)
                 {
-                    table.add(conn.get("address"), conn.get("ssl"), conn.get("cipher"), conn.get("protocol"), conn.get("version"),
-                              conn.get("user"), conn.get("keyspace"), conn.get("requests"), conn.get("driverName"), conn.get("driverVersion"));
+                    table.add(conn.get(ClientMetrics.ADDRESS),
+                              conn.get(ClientMetrics.SSL),
+                              conn.get(ClientMetrics.CIPHER),
+                              conn.get(ClientMetrics.PROTOCOL),
+                              conn.get(ClientMetrics.VERSION),
+                              conn.get(ClientMetrics.USER),
+                              conn.get(ClientMetrics.KEYSPACE),
+                              conn.get(ClientMetrics.REQUESTS),
+                              conn.get(ClientMetrics.DRIVER_NAME),
+                              conn.get(ClientMetrics.DRIVER_VERSION));
                 }
                 table.printTo(System.out);
                 System.out.println();

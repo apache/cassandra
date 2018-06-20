@@ -24,6 +24,8 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -179,30 +181,14 @@ public class Server implements CassandraDaemon.Server
         return connectionTracker.getConnectedClientsByUser();
     }
 
-    public List<Map<String, String>> getConnectionStates()
+    public List<Connection.View> getConnectionStates()
     {
-        List<Map<String, String>> result = new ArrayList<>();
-        for(Channel c : connectionTracker.allChannels)
+        List<Connection.View> result = new ArrayList<>();
+        for (Channel c : connectionTracker.allChannels)
         {
-            Connection connection = c.attr(Connection.attributeKey).get();
-            if (connection instanceof ServerConnection)
-            {
-                ServerConnection conn = (ServerConnection) connection;
-                SslHandler sslHandler = conn.channel().pipeline().get(SslHandler.class);
-
-                result.add(new ImmutableMap.Builder<String, String>()
-                        .put("user", conn.getClientState().getUser().getName())
-                        .put("keyspace", conn.getClientState().getRawKeyspace() == null ? "" : conn.getClientState().getRawKeyspace())
-                        .put("address", conn.getClientState().getRemoteAddress().toString())
-                        .put("version", String.valueOf(conn.getVersion().asInt()))
-                        .put("requests", String.valueOf(conn.requests.getCount()))
-                        .put("ssl", Boolean.toString(sslHandler == null))
-                        .put("cipher", sslHandler != null ? sslHandler.engine().getSession().getCipherSuite() : "undefined")
-                        .put("protocol", sslHandler != null ? sslHandler.engine().getSession().getProtocol() : "undefined")
-                        .put("driverName", conn.getClientState().getDriverName().orElse("undefined"))
-                        .put("driverVersion", conn.getClientState().getDriverVersion().orElse("undefined"))
-                        .build());
-            }
+            Connection conn = c.attr(Connection.attributeKey).get();
+            if (conn != null)
+                result.add(conn.view());
         }
         return result;
     }

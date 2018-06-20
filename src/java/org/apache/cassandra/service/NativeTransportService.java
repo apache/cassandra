@@ -115,50 +115,7 @@ public class NativeTransportService
         }
 
         // register metrics
-        ClientMetrics.instance.addGauge("connectedNativeClients", () ->
-        {
-            int ret = 0;
-            for (Server server : servers)
-                ret += server.getConnectedClients();
-            return ret;
-        });
-        ClientMetrics.instance.addGauge("connectedNativeClientsByUser", () ->
-        {
-            Map<String, Integer> result = new HashMap<>();
-            for (Server server : servers)
-            {
-                for (Entry<String, Integer> e : server.getConnectedClientsByUser().entrySet())
-                {
-                    String user = e.getKey();
-                    result.put(user, result.getOrDefault(user, 0) + e.getValue());
-                }
-            }
-            return result;
-        });
-
-        ClientMetrics.instance.addGauge("connections", () ->
-        {
-            List<Map<String, String>> result = new ArrayList<>();
-            for (Server server : servers)
-            {
-                for (Map<String, String> e : server.getConnectionStates())
-                {
-                    result.add(e);
-                }
-            }
-            return result;
-        });
-
-        ClientMetrics.instance.addGauge("clientsByProtocolVersion", () ->
-        {
-            List<Map<String, String>> result = new ArrayList<>();
-            for (Server server : servers)
-            {
-                result.addAll(server.getClientsByProtocolVersion());
-            }
-            return result;
-        });
-
+        ClientMetrics.instance.init(servers);
         AuthMetrics.init();
 
         initialized = true;

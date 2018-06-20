@@ -17,10 +17,14 @@
  */
 package org.apache.cassandra.transport;
 
+import java.net.InetSocketAddress;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import io.netty.channel.Channel;
+import io.netty.handler.ssl.SslHandler;
+
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
@@ -123,5 +127,63 @@ public class ServerConnection extends Connection
         if (saslNegotiator == null)
             saslNegotiator = DatabaseDescriptor.getAuthenticator().newSaslNegotiator(queryState.getClientAddress());
         return saslNegotiator;
+    }
+
+    public View view()
+    {
+        return new View()
+        {
+            public String getUser()
+            {
+                return getClientState().getUser().getName();
+            }
+
+            public InetSocketAddress getAddress()
+            {
+                return getClientState().getRemoteAddress();
+            }
+
+            public int getVersion()
+            {
+                return version.asInt();
+            }
+
+            public long getRequests()
+            {
+                return requests.getCount();
+            }
+
+            public boolean sslEnabled()
+            {
+                return channel().pipeline().get(SslHandler.class) != null;
+            }
+
+            public Optional<String> getDriverName()
+            {
+                return getClientState().getDriverName();
+            }
+
+            public Optional<String> getDriverVersion()
+            {
+                return getClientState().getDriverVersion();
+            }
+
+            public Optional<String> getSSLCipher()
+            {
+                SslHandler sslHandler = channel().pipeline().get(SslHandler.class);
+                return Optional.ofNullable(sslHandler != null ? sslHandler.engine().getSession().getCipherSuite() : null);
+            }
+
+            public Optional<String> getSSLProtocol()
+            {
+                SslHandler sslHandler = channel().pipeline().get(SslHandler.class);
+                return  Optional.ofNullable(sslHandler != null ? sslHandler.engine().getSession().getProtocol() : null);
+            }
+
+            public Optional<String> getKeyspace()
+            {
+                return Optional.ofNullable(getClientState().getRawKeyspace());
+            }
+        };
     }
 }
