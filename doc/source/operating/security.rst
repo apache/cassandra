@@ -379,6 +379,10 @@ jconsole or jmc in read-only mode would be defined as:
     GRANT EXECUTE ON MBEAN 'java.lang:type=Threading' TO jmx;
     GRANT EXECUTE ON MBEAN 'com.sun.management:type=HotSpotDiagnostic' TO jmx;
 
+    # Grant the role with necessary permissions to use nodetool commands (including nodetool status) in read-only mode
+    GRANT EXECUTE ON MBEAN 'org.apache.cassandra.db:type=EndpointSnitchInfo' TO jmx;
+    GRANT EXECUTE ON MBEAN 'org.apache.cassandra.db:type=StorageService' TO jmx;
+
     # Grant the jmx role to one with login permissions so that it can access the JMX tooling
     CREATE ROLE ks_user WITH PASSWORD = 'password' AND LOGIN = true AND SUPERUSER = false;
     GRANT jmx TO ks_user;
