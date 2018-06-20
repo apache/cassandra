@@ -30,6 +30,8 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.transform.RTBoundCloser;
+import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.db.transform.StoppingTransformation;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.UnknownIndexException;
@@ -214,6 +216,10 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     public ReadResponse createResponse(UnfilteredPartitionIterator iterator)
     {
+        // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
+        // ends equal, and there are no dangling RT bound in any partition.
+        iterator = Transformation.apply(iterator, new RTBoundValidator(true));
+
         return isDigestQuery()
              ? ReadResponse.createDigestResponse(iterator, this)
              : ReadResponse.createDataResponse(iterator, this);
@@ -285,30 +291,38 @@ public abstract class ReadCommand extends AbstractReadQuery
             Tracing.trace("Executing read on {}.{} using index {}", cfs.metadata.keyspace, cfs.metadata.name, index.getIndexMetadata().name);
         }
 
-        UnfilteredPartitionIterator resultIterator = searcher == null
-                                         ? queryStorage(cfs, executionController)
-                                         : searcher.search(executionController);
+        UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
 
         try
         {
-            resultIterator = withStateTracking(resultIterator);
-            resultIterator = withMetricsRecording(withoutPurgeableTombstones(resultIterator, cfs), cfs.metric, startTimeNanos);
+            iterator = withStateTracking(iterator);
+            iterator = withoutPurgeableTombstones(iterator, cfs);
+            iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
 
             // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
             // no point in checking it again.
-            RowFilter updatedFilter = searcher == null
-                                    ? rowFilter()
-                                    : index.getPostIndexQueryFilter(rowFilter());
+            RowFilter filter = (null == searcher) ? rowFilter() : index.getPostIndexQueryFilter(rowFilter());
 
-            // TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
-            // we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
-            // would be more efficient (the sooner we discard stuff we know we don't care, the less useless
-            // processing we do on it).
-            return limits().filter(updatedFilter.filter(resultIterator, nowInSec()), nowInSec(), selectsFullPartition());
+            /*
+             * TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
+             * we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
+             * would be more efficient (the sooner we discard stuff we know we don't care, the less useless
+             * processing we do on it).
+             */
+            iterator = filter.filter(iterator, nowInSec());
+
+            // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
+            // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
+            iterator = limits().filter(iterator, nowInSec(), selectsFullPartition());
+
+            // because of the above, we need to append an aritifical end bound if the source iterator was stopped short by a counter.
+            iterator = Transformation.apply(iterator, new RTBoundCloser());
+
+            return iterator;
         }
         catch (RuntimeException | Error e)
         {
-            resultIterator.close();
+            iterator.close();
             throw e;
         }
     }
