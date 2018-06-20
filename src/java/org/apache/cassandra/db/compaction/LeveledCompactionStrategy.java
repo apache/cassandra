@@ -596,9 +596,6 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         uncheckedOptions.remove(CompactionParams.Option.MIN_THRESHOLD.toString());
         uncheckedOptions.remove(CompactionParams.Option.MAX_THRESHOLD.toString());
 
-        uncheckedOptions.remove(CompactionParams.Option.MIN_THRESHOLD.toString());
-        uncheckedOptions.remove(CompactionParams.Option.MAX_THRESHOLD.toString());
-
         uncheckedOptions = SizeTieredCompactionStrategyOptions.validateOptions(options, uncheckedOptions);
 
         return uncheckedOptions;
