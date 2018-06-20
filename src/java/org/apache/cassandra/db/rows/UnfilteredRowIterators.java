@@ -140,6 +140,32 @@ public abstract class UnfilteredRowIterators
         return EmptyIterators.unfilteredRow(cfm, partitionKey, isReverseOrder, staticRow, partitionDeletion);
     }
 
+    public static UnfilteredRowIterator singleton(Unfiltered unfiltered,
+                                                  CFMetaData metadata,
+                                                  DecoratedKey partitionKey,
+                                                  DeletionTime partitionLevelDeletion,
+                                                  PartitionColumns columns,
+                                                  Row staticRow,
+                                                  boolean isReverseOrder,
+                                                  EncodingStats encodingStats)
+    {
+        return new AbstractUnfilteredRowIterator(metadata, partitionKey, partitionLevelDeletion, columns, staticRow, isReverseOrder, encodingStats)
+        {
+            boolean isDone = false;
+
+            protected Unfiltered computeNext()
+            {
+                if (!isDone)
+                {
+                    isDone = true;
+                    return unfiltered;
+                }
+
+                return endOfData();
+            }
+        };
+    }
+
     /**
      * Digests the partition represented by the provided iterator.
      *
