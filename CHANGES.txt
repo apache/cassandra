@@ -270,6 +270,7 @@
  * RateBasedBackPressure unnecessarily invokes a lock on the Guava RateLimiter (CASSANDRA-14163)
  * Fix wildcard GROUP BY queries (CASSANDRA-14209)
 Merged from 3.0:
+ * Always close RT markers returned by ReadCommand#executeLocally() (CASSANDRA-14515)
  * Reverse order queries with range tombstones can cause data loss (CASSANDRA-14513)
  * Fix regression of lagging commitlog flush log message (CASSANDRA-14451)
  * Add Missing dependencies in pom-all (CASSANDRA-14422)
