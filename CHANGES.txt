@@ -1,4 +1,5 @@
 4.0
+ * Add a virtual table to expose active client connections (CASSANDRA-14458)
  * Clean up and refactor client metrics (CASSANDRA-14524)
  * Nodetool import row cache invalidation races with adding sstables to tracker (CASSANDRA-14529)
  * Fix assertions in LWTs after TableMetadata was made immutable (CASSANDRA-14356)

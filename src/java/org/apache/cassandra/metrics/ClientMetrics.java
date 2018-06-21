@@ -54,6 +54,16 @@ public final class ClientMetrics
         authFailure.mark();
     }
 
+    public List<ConnectedClient> allConnectedClients()
+    {
+        List<ConnectedClient> clients = new ArrayList<>();
+
+        for (Server server : servers)
+            clients.addAll(server.getConnectedClients());
+
+        return clients;
+    }
+
     public synchronized void init(Collection<Server> servers)
     {
         if (initialized)

@@ -93,7 +93,7 @@ public final class ConnectedClient
         return Optional.ofNullable(state().getRawKeyspace());
     }
 
-    public boolean isEncrypted()
+    public boolean sslEnabled()
     {
         return null != sslHandler();
     }
@@ -136,7 +136,7 @@ public final class ConnectedClient
                            .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED))
                            .put(REQUESTS, String.valueOf(requestCount()))
                            .put(KEYSPACE, keyspace().orElse(""))
-                           .put(SSL, Boolean.toString(isEncrypted()))
+                           .put(SSL, Boolean.toString(sslEnabled()))
                            .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
                            .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
                            .build();
