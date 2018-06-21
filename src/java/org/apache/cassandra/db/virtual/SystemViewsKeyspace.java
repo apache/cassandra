@@ -27,6 +27,6 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
 
     private SystemViewsKeyspace()
     {
-        super(NAME, ImmutableList.of(new SSTableTasksTable(NAME)));
+        super(NAME, ImmutableList.of(new SSTableTasksTable(NAME), new ClientsTable(NAME)));
     }
 }
