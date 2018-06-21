@@ -95,6 +95,15 @@ public final class ClientMetrics
         return counts;
     }
 
+    public List<ConnectedClient> getClients()
+    {
+        List<ConnectedClient> clients = new ArrayList<>();
+        for (Server server : servers)
+            clients.addAll(server.getConnectedClients());
+
+        return clients;
+    }
+
     private List<Map<String, String>> connectedClients()
     {
         List<Map<String, String>> clients = new ArrayList<>();
