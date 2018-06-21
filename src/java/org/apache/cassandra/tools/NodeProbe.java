@@ -2176,7 +2176,7 @@ public class NodeProbe implements AutoCloseable
 
     public boolean isBadQueryTracingEnabled()
     {
-        return DatabaseDescriptor.isBadQueryTracingEnabled();
+        return monitoringProxy.isBadQueryTracingEnabled();
     }
 
     public double getBadQueryTracingFraction()

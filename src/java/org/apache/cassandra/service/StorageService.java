@@ -1418,6 +1418,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("enable badquery tracing");
             BadQuery.setup();
         }
+        MonitoringService.instance.setBadQueryTracingStatus(DatabaseDescriptor.isBadQueryTracingEnabled());
     }
 
     @VisibleForTesting

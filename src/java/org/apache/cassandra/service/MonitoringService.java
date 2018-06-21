@@ -27,6 +27,7 @@ public class MonitoringService implements MonitoringServiceMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=MonitoringService";
 
+    public boolean badQueryTracingStatus;
     private int badQueryMaxSamplesInSyslog;
     private double badQueryTracingFraction;
     private long badQueryReadMaxPartitionSizeInbytes;
@@ -47,6 +48,21 @@ public class MonitoringService implements MonitoringServiceMBean
     static
     {
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
+    }
+
+    public void stopBadQueryReporter()
+    {
+        this.badQueryTracingFraction = 0.0;
+    }
+
+    public boolean isBadQueryTracingEnabled()
+    {
+        return badQueryTracingStatus;
+    }
+
+    public void setBadQueryTracingStatus(boolean badQueryTracingStatus)
+    {
+        this.badQueryTracingStatus = badQueryTracingStatus;
     }
 
     public int getBadQueryMaxSamplesInSyslog()

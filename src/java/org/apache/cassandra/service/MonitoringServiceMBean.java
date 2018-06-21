@@ -19,6 +19,10 @@ package org.apache.cassandra.service;
 
 public interface MonitoringServiceMBean
 {
+    public boolean isBadQueryTracingEnabled();
+
+    public void stopBadQueryReporter();
+
     public int getBadQueryMaxSamplesInSyslog();
 
     public void setBadQueryMaxSamplesInSyslog(int badQueryMaxSamplesInSyslog);
