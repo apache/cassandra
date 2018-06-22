@@ -56,38 +56,38 @@ public class SEPMetrics
     public SEPMetrics(final SEPExecutor executor, String path, String poolName)
     {
         this.factory = new ThreadPoolMetricNameFactory("ThreadPools", path, poolName);
-        activeTasks = Metrics.register(factory.createMetricName("ActiveTasks"), new Gauge<Integer>()
+        activeTasks = Metrics.register(factory.createMetricName(ThreadPoolMetrics.ACTIVE_TASKS), new Gauge<Integer>()
         {
             public Integer getValue()
             {
                 return executor.getActiveCount();
             }
         });
-        pendingTasks = Metrics.register(factory.createMetricName("PendingTasks"), new Gauge<Long>()
+        pendingTasks = Metrics.register(factory.createMetricName(ThreadPoolMetrics.PENDING_TASKS), new Gauge<Long>()
         {
             public Long getValue()
             {
                 return executor.getPendingTasks();
             }
         });
-        totalBlocked = Metrics.counter(factory.createMetricName("TotalBlockedTasks"));
-        currentBlocked = Metrics.counter(factory.createMetricName("CurrentlyBlockedTasks"));
+        totalBlocked = Metrics.counter(factory.createMetricName(ThreadPoolMetrics.TOTAL_BLOCKED_TASKS));
+        currentBlocked = Metrics.counter(factory.createMetricName(ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS));
 
-        completedTasks = Metrics.register(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
+        completedTasks = Metrics.register(factory.createMetricName(ThreadPoolMetrics.COMPLETED_TASKS), new Gauge<Long>()
         {
             public Long getValue()
             {
                 return executor.getCompletedTasks();
             }
         });
-        maxPoolSize =  Metrics.register(factory.createMetricName("MaxPoolSize"), new Gauge<Integer>()
+        maxPoolSize =  Metrics.register(factory.createMetricName(ThreadPoolMetrics.MAX_POOL_SIZE), new Gauge<Integer>()
         {
             public Integer getValue()
             {
                 return executor.maxWorkers;
             }
         });
-        maxTasksQueued =  Metrics.register(factory.createMetricName("MaxTasksQueued"), new Gauge<Integer>()
+        maxTasksQueued =  Metrics.register(factory.createMetricName(ThreadPoolMetrics.MAX_TASKS_QUEUED), new Gauge<Integer>()
         {
             public Integer getValue()
             {
@@ -98,12 +98,12 @@ public class SEPMetrics
 
     public void release()
     {
-        Metrics.remove(factory.createMetricName("ActiveTasks"));
-        Metrics.remove(factory.createMetricName("PendingTasks"));
-        Metrics.remove(factory.createMetricName("CompletedTasks"));
-        Metrics.remove(factory.createMetricName("TotalBlockedTasks"));
-        Metrics.remove(factory.createMetricName("CurrentlyBlockedTasks"));
-        Metrics.remove(factory.createMetricName("MaxPoolSize"));
-        Metrics.remove(factory.createMetricName("MaxTasksQueued"));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.ACTIVE_TASKS));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.PENDING_TASKS));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.COMPLETED_TASKS));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.TOTAL_BLOCKED_TASKS));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.MAX_POOL_SIZE));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.MAX_TASKS_QUEUED));
     }
 }
