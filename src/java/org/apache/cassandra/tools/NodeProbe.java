@@ -87,8 +87,10 @@ import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 
+import com.codahale.metrics.JmxReporter;
 import com.google.common.base.Function;
 import com.google.common.base.Strings;
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
@@ -1349,9 +1351,64 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    private static Multimap<String, String> getJmxThreadPools(MBeanServerConnection mbeanServerConn)
+    {
+        try
+        {
+            Multimap<String, String> threadPools = HashMultimap.create();
+
+            Set<ObjectName> threadPoolObjectNames = mbeanServerConn.queryNames(
+                    new ObjectName("org.apache.cassandra.metrics:type=ThreadPools,*"),
+                    null);
+
+            for (ObjectName oName : threadPoolObjectNames)
+            {
+                threadPools.put(oName.getKeyProperty("path"), oName.getKeyProperty("scope"));
+            }
+
+            return threadPools;
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException("Bad query to JMX server: ", e);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Error getting threadpool names from JMX", e);
+        }
+    }
+
     public Object getThreadPoolMetric(String pathName, String poolName, String metricName)
     {
-        return ThreadPoolMetrics.getJmxMetric(mbeanServerConn, pathName, poolName, metricName);
+      String name = String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s",
+              pathName, poolName, metricName);
+
+      try
+      {
+          ObjectName oName = new ObjectName(name);
+          if (!mbeanServerConn.isRegistered(oName))
+          {
+              return "N/A";
+          }
+
+          switch (metricName)
+          {
+              case ThreadPoolMetrics.ACTIVE_TASKS:
+              case ThreadPoolMetrics.PENDING_TASKS:
+              case ThreadPoolMetrics.COMPLETED_TASKS:
+              case ThreadPoolMetrics.MAX_POOL_SIZE:
+                  return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxGaugeMBean.class).getValue();
+              case ThreadPoolMetrics.TOTAL_BLOCKED_TASKS:
+              case ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS:
+                  return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxCounterMBean.class).getCount();
+              default:
+                  throw new AssertionError("Unknown metric name " + metricName);
+          }
+      }
+      catch (Exception e)
+      {
+          throw new RuntimeException("Error reading: " + name, e);
+      }
     }
 
     /**
@@ -1360,7 +1417,7 @@ public class NodeProbe implements AutoCloseable
      */
     public Multimap<String, String> getThreadPools()
     {
-        return ThreadPoolMetrics.getJmxThreadPools(mbeanServerConn);
+        return getJmxThreadPools(mbeanServerConn);
     }
 
     public int getNumberOfTables()
