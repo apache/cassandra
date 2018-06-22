@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.cassandra.metrics.SEPMetrics;
+import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
@@ -36,7 +36,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
     public final int maxWorkers;
     public final String name;
     public final int maxTasksQueued;
-    private final SEPMetrics metrics;
+    private final ThreadPoolMetrics metrics;
 
     // stores both a set of work permits and task permits:
     //  bottom 32 bits are number of queued tasks, in the range [0..maxTasksQueued]   (initially 0)
@@ -60,12 +60,18 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
         this.maxWorkers = maxWorkers;
         this.maxTasksQueued = maxTasksQueued;
         this.permits.set(combine(0, maxWorkers));
-        this.metrics = new SEPMetrics(this, jmxPath, name);
+        this.metrics = new ThreadPoolMetrics(this, jmxPath, name).register();
     }
 
     protected void onCompletion()
     {
         completedTasks.incrementAndGet();
+    }
+
+    @Override
+    public int getMaxTasksQueued()
+    {
+        return maxTasksQueued;
     }
 
     // schedules another worker for this pool if there is work outstanding and there are no spinning threads that
@@ -208,7 +214,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
     {
         shuttingDown = true;
         pool.executors.remove(this);
-        if (getActiveCount() == 0)
+        if (getActiveTaskCount() == 0)
             shutdown.signalAll();
 
         // release metrics
@@ -240,19 +246,27 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
         return isTerminated();
     }
 
-    public long getPendingTasks()
+    @Override
+    public int getPendingTaskCount()
     {
         return taskPermits(permits.get());
     }
 
-    public long getCompletedTasks()
+    @Override
+    public long getCompletedTaskCount()
     {
         return completedTasks.get();
     }
 
-    public int getActiveCount()
+    public int getActiveTaskCount()
     {
         return maxWorkers - workPermits(permits.get());
+    }
+
+    @Override
+    public int getMaximumPoolSize()
+    {
+        return maxWorkers;
     }
 
     private static int taskPermits(long both)

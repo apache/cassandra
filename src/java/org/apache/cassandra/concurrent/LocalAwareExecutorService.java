@@ -27,8 +27,50 @@ public interface LocalAwareExecutorService extends ExecutorService
 {
     // we need a way to inject a TraceState directly into the Executor context without going through
     // the global Tracing sessions; see CASSANDRA-5668
-    public void execute(Runnable command, ExecutorLocals locals);
+    void execute(Runnable command, ExecutorLocals locals);
 
     // permits executing in the context of the submitting thread
-    public void maybeExecuteImmediately(Runnable command);
+    void maybeExecuteImmediately(Runnable command);
+
+    /**
+     * Returns the approximate number of threads that are actively
+     * executing tasks.
+     *
+     * @return the number of threads
+     */
+    int getActiveTaskCount();
+
+    /**
+     * Returns the approximate total number of tasks that have
+     * completed execution. Because the states of tasks and threads
+     * may change dynamically during computation, the returned value
+     * is only an approximation, but one that does not ever decrease
+     * across successive calls.
+     *
+     * @return the number of tasks
+     */
+    long getCompletedTaskCount();
+
+    /**
+     * Returns the approximate total of tasks waiting to be executed.
+     * Because the states of tasks and threads
+     * may change dynamically during computation, the returned value
+     * is only an approximation, but one that does not ever decrease
+     * across successive calls.
+     *
+     * @return the number of tasks
+     */
+    int getPendingTaskCount();
+
+    /**
+     * Returns the maximum allowed number of threads.
+     *
+     * @return the maximum allowed number of threads
+     */
+    int getMaximumPoolSize();
+
+    default int getMaxTasksQueued()
+    {
+        return -1;
+    }
 }

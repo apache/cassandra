@@ -118,7 +118,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
 
                 // return our work permit, and maybe signal shutdown
                 assigned.returnWorkPermit();
-                if (shutdown && assigned.getActiveCount() == 0)
+                if (shutdown && assigned.getActiveTaskCount() == 0)
                     assigned.shutdown.signalAll();
                 assigned = null;
 

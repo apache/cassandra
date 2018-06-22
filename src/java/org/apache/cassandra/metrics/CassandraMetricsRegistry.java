@@ -19,13 +19,20 @@ package org.apache.cassandra.metrics;
 
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+
+import javax.management.MBeanServer;
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
 
 import com.codahale.metrics.*;
 import com.google.common.annotations.VisibleForTesting;
-
-import javax.management.*;
 
 /**
  * Makes integrating 3.0 metrics API with 2.0.
@@ -36,6 +43,7 @@ import javax.management.*;
 public class CassandraMetricsRegistry extends MetricRegistry
 {
     public static final CassandraMetricsRegistry Metrics = new CassandraMetricsRegistry();
+    private final Map<String, ThreadPoolMetrics> threadPoolMetrics = new ConcurrentHashMap<>();
 
     private final MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
 
@@ -117,6 +125,27 @@ public class CassandraMetricsRegistry extends MetricRegistry
             Metric existing = Metrics.getMetrics().get(name.getMetricName());
             return (T)existing;
         }
+    }
+
+    public Collection<ThreadPoolMetrics> allThreadPoolMetrics()
+    {
+        return Collections.unmodifiableCollection(threadPoolMetrics.values());
+    }
+
+    public Optional<ThreadPoolMetrics> getThreadPoolMetrics(String poolName)
+    {
+        return Optional.ofNullable(threadPoolMetrics.get(poolName));
+    }
+
+    ThreadPoolMetrics register(ThreadPoolMetrics metrics)
+    {
+        threadPoolMetrics.put(metrics.poolName, metrics);
+        return metrics;
+    }
+
+    void remove(ThreadPoolMetrics metrics)
+    {
+        threadPoolMetrics.remove(metrics.poolName, metrics);
     }
 
     public <T extends Metric> T register(MetricName name, MetricName aliasName, T metric)
