@@ -56,7 +56,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
 
 public class CDCManager implements CDCManagerMBean
 {
@@ -69,12 +68,21 @@ public class CDCManager implements CDCManagerMBean
 
     @VisibleForTesting
     static FilenameFilter idxFilesFilter = (dir, name) -> CommitLogDescriptor.isIdxValid(name);
+    static FilenameFilter filesFilter = (dir, name) -> CommitLogDescriptor.isValid(name);
 
     static Predicate<File> idxFilesPredicate = new Predicate<File>()
     {
         public boolean test(File file)
         {
             return CommitLogDescriptor.isIdxValid(file.name());
+        }
+    };
+
+    static Predicate<File> filesPredicate = new Predicate<File>()
+    {
+        public boolean test(File file)
+        {
+            return CommitLogDescriptor.isValid(file.name());
         }
     };
 
@@ -516,16 +524,30 @@ public class CDCManager implements CDCManagerMBean
     {
         logger.info("Truncating CDC data...");
 
+        // the idx file for the currently allocating commitlog, if any
+        String indexFilename = null;
+
         try
         {
-            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).list())
+            // delete logs
+            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).list(filesPredicate))
             {
                 CommitLogDescriptor commitLog = CommitLogDescriptor.fromFileName(f.name());
                 // delete all CDC commitlog hard links except the one that is the currently allocating
                 if (commitLog.id != CommitLog.instance.getCurrentPosition().segmentId)
-                    FileUtils.deleteWithConfirm(f, null);
+                    FileUtils.deleteWithConfirm(f);
                 else
+                {
                     logger.info("Not deleting CDC hard link {} because it's currently allocating.", f.name());
+                    indexFilename = commitLog.cdcIndexFileName();
+                }
+            }
+
+            // delete idx files
+            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).list(idxFilesPredicate))
+            {
+                if (indexFilename != null && !f.name().equals(indexFilename))
+                    FileUtils.deleteWithConfirm(f);
             }
         } catch (Exception e) {
             logger.error("truncateCDCData Exception");
