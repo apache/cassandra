@@ -51,4 +51,10 @@ public class NoOpAnalyzer extends AbstractAnalyzer
         this.input = input;
         this.hasNext = true;
     }
+
+    @Override
+    public boolean isCompatibleWith(AbstractType<?> validator)
+    {
+        return true;
+    }
 }

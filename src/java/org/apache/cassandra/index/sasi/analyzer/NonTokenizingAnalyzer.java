@@ -123,4 +123,10 @@ public class NonTokenizingAnalyzer extends AbstractAnalyzer
             builder = builder.add("to_lower", new BasicResultFilters.LowerCase());
         return builder.build();
     }
+
+    @Override
+    public boolean isCompatibleWith(AbstractType<?> validator)
+    {
+        return VALID_ANALYZABLE_TYPES.contains(validator);
+    }
 }

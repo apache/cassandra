@@ -255,6 +255,7 @@
 
 
 3.11.3
+ * Validate supported column type with SASI analyzer (CASSANDRA-13669)
  * Remove BTree.Builder Recycler to reduce memory usage (CASSANDRA-13929)
  * Reduce nodetool GC thread count (CASSANDRA-14475)
  * Fix New SASI view creation during Index Redistribution (CASSANDRA-14055)
