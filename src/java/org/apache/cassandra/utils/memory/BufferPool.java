@@ -85,13 +85,18 @@ public class BufferPool
             return takeFromPool(size, ALLOCATE_ON_HEAP_WHEN_EXAHUSTED);
     }
 
-    public static ByteBuffer get(int size, BufferType bufferType)
+    public static ByteBuffer get(int size, BufferType bufferType, boolean useDirectIO)
     {
         boolean direct = bufferType == BufferType.OFF_HEAP;
         if (DISABLED || !direct)
-            return allocate(size, !direct);
+            return allocate(size, !direct, useDirectIO);
         else
-            return takeFromPool(size, !direct);
+            return takeFromPool(size, !direct, useDirectIO);
+    }
+
+    public static ByteBuffer get(int size, BufferType bufferType)
+    {
+        return get(size, bufferType, false);
     }
 
     /** Unlike the get methods, this will return null if the pool is exhausted */
@@ -103,26 +108,50 @@ public class BufferPool
             return maybeTakeFromPool(size, ALLOCATE_ON_HEAP_WHEN_EXAHUSTED);
     }
 
-    private static ByteBuffer allocate(int size, boolean onHeap)
+    private static ByteBuffer allocate(int size, boolean onHeap, boolean useDirectIO)
     {
-        return onHeap
-               ? ByteBuffer.allocate(size)
-               : ByteBuffer.allocateDirect(size);
+        if (useDirectIO)
+            return BufferType.OFF_HEAP.allocate(size, true);
+
+        return onHeap ? ByteBuffer.allocate(size) : ByteBuffer.allocateDirect(size);
     }
 
-    private static ByteBuffer takeFromPool(int size, boolean allocateOnHeapWhenExhausted)
+    private static ByteBuffer allocate(int size, boolean onHeap)
     {
-        ByteBuffer ret = maybeTakeFromPool(size, allocateOnHeapWhenExhausted);
+        return allocate(size, onHeap, false);
+    }
+
+
+    private static ByteBuffer takeFromPool(int size, boolean allocateOnHeapWhenExhausted, boolean useDirectIO)
+    {
+        ByteBuffer ret = maybeTakeFromPool(size, allocateOnHeapWhenExhausted, useDirectIO);
         if (ret != null)
             return ret;
 
         if (logger.isTraceEnabled())
             logger.trace("Requested buffer size {} has been allocated directly due to lack of capacity", FBUtilities.prettyPrintMemory(size));
 
-        return localPool.get().allocate(size, allocateOnHeapWhenExhausted);
+        return localPool.get().allocate(size, allocateOnHeapWhenExhausted, useDirectIO);
     }
 
-    private static ByteBuffer maybeTakeFromPool(int size, boolean allocateOnHeapWhenExhausted)
+    private static ByteBuffer takeFromPool(int size, boolean allocateOnHeapWhenExhausted)
+    {
+        return takeFromPool(size, allocateOnHeapWhenExhausted, false);
+    }
+
+    private static ByteBuffer takeFromPool(int size, BufferType bufferType)
+    {
+        ByteBuffer ret = maybeTakeFromPool(size, bufferType);
+        if (ret != null)
+            return ret;
+
+        if (logger.isTraceEnabled())
+            logger.trace("Requested buffer size {} has been allocated directly due to lack of capacity", FBUtilities.prettyPrintMemory(size));
+
+        return localPool.get().allocate(size, bufferType);
+    }
+
+    private static ByteBuffer maybeTakeFromPool(int size, boolean allocateOnHeapWhenExhausted, boolean useDirectIO)
     {
         if (size < 0)
             throw new IllegalArgumentException("Size must be positive (" + size + ")");
@@ -137,7 +166,33 @@ public class BufferPool
                              FBUtilities.prettyPrintMemory(size),
                              FBUtilities.prettyPrintMemory(CHUNK_SIZE));
 
-            return localPool.get().allocate(size, allocateOnHeapWhenExhausted);
+            return localPool.get().allocate(size, allocateOnHeapWhenExhausted, useDirectIO);
+        }
+
+        return localPool.get().get(size);
+    }
+
+    private static ByteBuffer maybeTakeFromPool(int size, boolean allocateOnHeapWhenExhausted)
+    {
+        return maybeTakeFromPool(size, allocateOnHeapWhenExhausted, false);
+    }
+
+    private static ByteBuffer maybeTakeFromPool(int size, BufferType bufferType)
+    {
+        if (size < 0)
+            throw new IllegalArgumentException("Size must be positive (" + size + ")");
+
+        if (size == 0)
+            return EMPTY_BUFFER;
+
+        if (size > CHUNK_SIZE)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Requested buffer size {} is bigger than {}, allocating directly",
+                             FBUtilities.prettyPrintMemory(size),
+                             FBUtilities.prettyPrintMemory(CHUNK_SIZE));
+
+            return localPool.get().allocate(size, bufferType);
         }
 
         return localPool.get().get(size);
@@ -398,10 +453,20 @@ public class BufferPool
            return null;
         }
 
-        private ByteBuffer allocate(int size, boolean onHeap)
+        private ByteBuffer allocate(int size, boolean onHeap, boolean useDirectIO)
         {
             metrics.misses.mark();
-            return BufferPool.allocate(size, onHeap);
+            return BufferPool.allocate(size, onHeap, useDirectIO);
+        }
+
+        private ByteBuffer allocate(int size, boolean onHeap)
+        {
+            return allocate(size, onHeap, false);
+        }
+
+        private ByteBuffer allocate(final int size, final BufferType bufferType) {
+            LocalPool.metrics.misses.mark();
+            return bufferType.allocate(size);
         }
 
         public void put(ByteBuffer buffer)

@@ -153,7 +153,14 @@ public class ChunkCache
         metrics.misses.mark();
         try (Timer.Context ctx = metrics.missLatency.time())
         {
-            ByteBuffer buffer = BufferPool.get(key.file.chunkSize(), key.file.preferredBufferType());
+            ByteBuffer buffer;
+
+            // direct_io requires that we allocate one more additional block to take care of possible non-aligned reads.
+            if (key.file.useDirectIO())
+                buffer = BufferPool.get(key.file.chunkSize() + DirectIOUtils.BLOCK_SIZE, key.file.preferredBufferType(), true);
+            else
+                buffer = BufferPool.get(key.file.chunkSize(), key.file.preferredBufferType());
+
             assert buffer != null;
             rebufferer.readChunk(key.position, buffer);
             return new Buffer(buffer, key.position);

@@ -23,6 +23,7 @@ import java.nio.ByteOrder;
 
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
 

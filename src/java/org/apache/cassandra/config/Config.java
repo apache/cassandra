@@ -337,6 +337,11 @@ public class Config
     public boolean enable_materialized_views = true;
 
     /**
+     * Enables direct_io for data file reads. This flag does not affect the read of meta-data or index files.
+     */
+    public boolean enable_direct_io_for_read_path = false;
+
+    /**
      * Optionally disable asynchronous UDF execution.
      * Disabling asynchronous UDF execution also implicitly disables the security-manager!
      * By default, async UDF execution is enabled to be able to detect UDFs that run too long / forever and be
