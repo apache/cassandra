@@ -44,9 +44,10 @@ public class SetLoggingLevel extends NodeToolCmd
         String level = args.size() == 2 ? args.get(1) : EMPTY;
 
         List<String> classQualifiers = Collections.singletonList(target);
-        if (target.equals("bootstrap"))
+        switch(target)
         {
-            classQualifiers = Lists.newArrayList(
+            case "bootstrap" :
+                classQualifiers = Lists.newArrayList(
                     "org.apache.cassandra.gms",
                     "org.apache.cassandra.hints",
                     "org.apache.cassandra.schema",
@@ -54,30 +55,26 @@ public class SetLoggingLevel extends NodeToolCmd
                     "org.apache.cassandra.db.SystemKeyspace",
                     "org.apache.cassandra.batchlog.BatchlogManager",
                     "org.apache.cassandra.net.MessagingService");
-        }
-        else if (target.equals("repair"))
-        {
-            classQualifiers = Lists.newArrayList(
+                break;
+            case "repair" :
+                classQualifiers = Lists.newArrayList(
                     "org.apache.cassandra.repair",
                     "org.apache.cassandra.db.compaction.CompactionManager",
                     "org.apache.cassandra.service.SnapshotVerbHandler");
-        }
-        else if (target.equals("streaming"))
-        {
-            classQualifiers = Lists.newArrayList(
+                break;
+            case "streaming" :
+                classQualifiers = Lists.newArrayList(
                     "org.apache.cassandra.streaming",
                     "org.apache.cassandra.dht.RangeStreamer");
-        }
-        else if (target.equals("compaction"))
-        {
-            classQualifiers = Lists.newArrayList(
+                break;
+            case "compaction" :
+                classQualifiers = Lists.newArrayList(
                     "org.apache.cassandra.db.compaction",
                     "org.apache.cassandra.db.ColumnFamilyStore",
                     "org.apache.cassandra.io.sstable.IndexSummaryRedistribution");
-        }
-        else if (target.equals("cql"))
-        {
-            classQualifiers = Lists.newArrayList(
+                break;
+            case "cql" :
+                classQualifiers = Lists.newArrayList(
                     "org.apache.cassandra.cql3",
                     "org.apache.cassandra.auth",
                     "org.apache.cassandra.batchlog",
@@ -87,14 +84,14 @@ public class SetLoggingLevel extends NodeToolCmd
                     "org.apache.cassandra.service.paxos",
                     "org.apache.cassandra.service.ReadCallback",
                     "org.apache.cassandra.service.ResponseResolver");
-        }
-        else if (target.equals("ring"))
-        {
-            classQualifiers = Lists.newArrayList(
+                break;
+            case "ring" :
+                 classQualifiers = Lists.newArrayList(
                     "org.apache.cassandra.gms",
                     "org.apache.cassandra.service.PendingRangeCalculatorService",
                     "org.apache.cassandra.service.LoadBroadcaster",
                     "org.apache.cassandra.transport.Server");
+                break;
         }
 
         for (String classQualifier : classQualifiers)
