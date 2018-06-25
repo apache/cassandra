@@ -124,6 +124,9 @@ public class SASIIndex implements Index, INotificationConsumer
         CompactionManager.instance.submitIndexBuild(new SASIIndexBuilder(baseCfs, toRebuild));
     }
 
+    /**
+     * Called via reflection at {@link IndexMetadata#validateCustomIndexOptions}
+     */
     public static Map<String, String> validateOptions(Map<String, String> options, TableMetadata metadata)
     {
         if (!(metadata.partitioner instanceof Murmur3Partitioner))
@@ -143,7 +146,7 @@ public class SASIIndex implements Index, INotificationConsumer
         if (target.left.isPartitionKey())
             throw new ConfigurationException("partition key columns are not yet supported by SASI");
 
-        IndexMode.validateAnalyzer(options);
+        IndexMode.validateAnalyzer(options, target.left);
 
         IndexMode mode = IndexMode.getMode(target.left, options);
         if (mode.mode == Mode.SPARSE)
