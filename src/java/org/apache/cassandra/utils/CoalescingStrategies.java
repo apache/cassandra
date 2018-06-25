@@ -146,7 +146,7 @@ public class CoalescingStrategies
                 {
                     File outFile = File.createTempFile("coalescing_" + this.displayName + "_", ".log", new File(DEBUG_COALESCING_PATH));
                     rasTemp = new RandomAccessFile(outFile, "rw");
-                    logBufferTemp = ras.getChannel().map(MapMode.READ_WRITE, 0, Integer.MAX_VALUE);
+                    logBufferTemp = rasTemp.getChannel().map(MapMode.READ_WRITE, 0, Integer.MAX_VALUE);
                     logBufferTemp.putLong(0);
                 }
                 catch (Exception e)

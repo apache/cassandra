@@ -79,7 +79,9 @@ public class ChunkCache
                 return true;
             if (obj == null)
                 return false;
-
+            if (!(obj instanceof Key))
+                return false;
+            
             Key other = (Key) obj;
             return (position == other.position)
                     && file.getClass() == other.file.getClass()

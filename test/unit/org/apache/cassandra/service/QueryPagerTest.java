@@ -430,7 +430,7 @@ public class QueryPagerTest
     }
 
     @Test
-    public void SliceQueryWithTombstoneTest() throws Exception
+    public void sliceQueryWithTombstoneTest() throws Exception
     {
         // Testing for the bug of #6748
         String keyspace = "cql_keyspace";

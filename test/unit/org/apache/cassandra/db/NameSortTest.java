@@ -98,7 +98,7 @@ public class NameSortTest
                 {
                     if (r.getCell(cd) == null)
                         continue;
-                    int cellVal = Integer.valueOf(cd.name.toString().substring(cd.name.toString().length() - 1));
+                    int cellVal = Integer.parseInt(cd.name.toString().substring(cd.name.toString().length() - 1));
                     String expected = cellVal % 2 == 0 ? "a" : "b";
                     assertEquals(expected, ByteBufferUtil.string(r.getCell(cd).value()));
                 }

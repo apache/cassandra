@@ -37,7 +37,7 @@ import static org.junit.Assert.assertEquals;
 public class DataTypeTest
 {
     @Test
-    public void TestSimpleDataTypeSerialization()
+    public void testSimpleDataTypeSerialization()
     {
         for (DataType type : DataType.values())
         {
@@ -51,7 +51,7 @@ public class DataTypeTest
     }
 
     @Test
-    public void TestListDataTypeSerialization()
+    public void testListDataTypeSerialization()
     {
         DataType type = DataType.LIST;
         Pair<DataType, Object> options = Pair.create(type, (Object)LongType.instance);
@@ -60,7 +60,7 @@ public class DataTypeTest
     }
 
     @Test
-    public void TestMapDataTypeSerialization()
+    public void testMapDataTypeSerialization()
     {
         DataType type = DataType.MAP;
         List<AbstractType> value = new ArrayList<>();

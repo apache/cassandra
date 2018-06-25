@@ -73,11 +73,11 @@ public enum Stage
 
     public String getJmxName()
     {
-        String name = "";
+        StringBuilder name = new StringBuilder();
         for (String word : toString().split("_"))
         {
-            name += word.substring(0, 1) + word.substring(1).toLowerCase();
+            name.append(word.substring(0, 1)).append(word.substring(1).toLowerCase());
         }
-        return name + "Stage";
+        return name.toString() + "Stage";
     }
 }
