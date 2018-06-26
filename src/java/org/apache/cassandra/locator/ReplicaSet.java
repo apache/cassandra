@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
@@ -54,6 +55,19 @@ public class ReplicaSet extends ReplicaCollection
     private ReplicaSet(Set<Replica> replicaSet)
     {
         this.replicaSet = replicaSet;
+    }
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReplicaSet that = (ReplicaSet) o;
+        return Objects.equals(replicaSet, that.replicaSet);
+    }
+
+    public int hashCode()
+    {
+        return replicaSet.hashCode();
     }
 
     @Override

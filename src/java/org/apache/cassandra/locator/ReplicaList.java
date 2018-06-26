@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 import com.google.common.base.Preconditions;
@@ -65,6 +66,19 @@ public class ReplicaList extends ReplicaCollection
     private ReplicaList(List<Replica> replicaList)
     {
         this.replicaList = replicaList;
+    }
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReplicaList that = (ReplicaList) o;
+        return Objects.equals(replicaList, that.replicaList);
+    }
+
+    public int hashCode()
+    {
+        return replicaList.hashCode();
     }
 
     @Override

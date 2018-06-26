@@ -45,30 +45,6 @@ public abstract class ReplicaCollection implements Iterable<Replica>
     public abstract int size();
     protected abstract Collection<Replica> getUnmodifiableCollection();
 
-
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (!(o instanceof ReplicaCollection))
-            return false;
-
-        ReplicaCollection that = (ReplicaCollection) o;
-        if (this.size() != that.size())
-            return false;
-        return Iterables.elementsEqual(this, that);
-    }
-
-
-    public int hashCode()
-    {
-        int result = 17;
-        for (Replica replica: this)
-        {
-            result = 31 * result + replica.hashCode();
-        }
-        return result;
-    }
-
     public Iterable<InetAddressAndPort> asEndpoints()
     {
         return Iterables.transform(this, Replica::getEndpoint);
