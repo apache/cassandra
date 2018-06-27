@@ -5630,6 +5630,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // Interrupt ongoing compactions and shutdown CM to prevent further compactions.
             CompactionManager.instance.forceShutdown();
 
+            if (DatabaseDescriptor.isCDCEnabled())
+                CDCManager.instance.stopCDCReader();
+
             // whilst we've flushed all the CFs, which will have recycled all completed segments, we want to ensure
             // there are no segments to replay, so we force the recycling of any remaining (should be at most one)
             CommitLog.instance.forceRecycleAllSegments();
