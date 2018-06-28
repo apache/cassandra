@@ -132,5 +132,11 @@ public class StageManager
         {
             execute(command);
         }
+
+        @Override
+        public long getPendingTaskCount()
+        {
+            return getQueue().size();
+        }
     }
 }

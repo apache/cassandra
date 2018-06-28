@@ -17,37 +17,19 @@
  */
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 
 import org.apache.cassandra.concurrent.SEPExecutor;
 
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-
-public class SEPMetrics
+public class SEPMetrics extends ThreadPoolMetrics
 {
-    /** Number of active tasks. */
-    public final Gauge<Integer> activeTasks;
-    /** Number of tasks that had blocked before being accepted (or rejected). */
-    public final Counter totalBlocked;
-    /**
-     * Number of tasks currently blocked, waiting to be accepted by
-     * the executor (because all threads are busy and the backing queue is full).
-     */
-    public final Counter currentBlocked;
-    /** Number of completed tasks. */
-    public final Gauge<Long> completedTasks;
-    /** Number of tasks waiting to be executed. */
-    public final Gauge<Long> pendingTasks;
-    /** Maximum number of threads before it will start queuing tasks */
-    public final Gauge<Integer> maxPoolSize;
+    public static final String MAX_TASKS_QUEUED = "MaxTasksQueued";
+
     /** Maximum number of tasks queued before a task get blocked */
     public final Gauge<Integer> maxTasksQueued;
 
-    private MetricNameFactory factory;
-
     /**
-     * Create metrics for the given LowSignalExecutor.
+     * Create metrics for the given SEPExecutor.
      *
      * @param executor Thread pool
      * @param path Type of thread pool
@@ -55,55 +37,13 @@ public class SEPMetrics
      */
     public SEPMetrics(final SEPExecutor executor, String path, String poolName)
     {
-        this.factory = new ThreadPoolMetricNameFactory("ThreadPools", path, poolName);
-        activeTasks = Metrics.register(factory.createMetricName(ThreadPoolMetrics.ACTIVE_TASKS), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return executor.getActiveCount();
-            }
-        });
-        pendingTasks = Metrics.register(factory.createMetricName(ThreadPoolMetrics.PENDING_TASKS), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return executor.getPendingTasks();
-            }
-        });
-        totalBlocked = Metrics.counter(factory.createMetricName(ThreadPoolMetrics.TOTAL_BLOCKED_TASKS));
-        currentBlocked = Metrics.counter(factory.createMetricName(ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS));
-
-        completedTasks = Metrics.register(factory.createMetricName(ThreadPoolMetrics.COMPLETED_TASKS), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return executor.getCompletedTasks();
-            }
-        });
-        maxPoolSize =  Metrics.register(factory.createMetricName(ThreadPoolMetrics.MAX_POOL_SIZE), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return executor.maxWorkers;
-            }
-        });
-        maxTasksQueued =  Metrics.register(factory.createMetricName(ThreadPoolMetrics.MAX_TASKS_QUEUED), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return executor.maxTasksQueued;
-            }
-        });
+        super(executor, path, poolName);
+        maxTasksQueued =  register(MAX_TASKS_QUEUED, () -> executor.maxTasksQueued);
     }
 
     public void release()
     {
-        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.ACTIVE_TASKS));
-        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.PENDING_TASKS));
-        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.COMPLETED_TASKS));
-        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.TOTAL_BLOCKED_TASKS));
-        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS));
-        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.MAX_POOL_SIZE));
-        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.MAX_TASKS_QUEUED));
+        super.release();
+        remove(MAX_TASKS_QUEUED);
     }
 }

@@ -33,6 +33,8 @@ import javax.management.ObjectName;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
+import org.apache.cassandra.concurrent.LocalAwareExecutorService;
+
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 
@@ -44,7 +46,6 @@ public class ThreadPoolMetrics
     public static final String CURRENTLY_BLOCKED_TASKS = "CurrentlyBlockedTasks";
     public static final String TOTAL_BLOCKED_TASKS = "TotalBlockedTasks";
     public static final String MAX_POOL_SIZE = "MaxPoolSize";
-    public static final String MAX_TASKS_QUEUED = "MaxTasksQueued";
     public static final String COMPLETED_TASKS = "CompletedTasks";
     public static final String PENDING_TASKS = "PendingTasks";
     public static final String ACTIVE_TASKS = "ActiveTasks";
@@ -65,7 +66,7 @@ public class ThreadPoolMetrics
     /** Maximum number of threads before it will start queuing tasks */
     public final Gauge<Integer> maxPoolSize;
 
-    private MetricNameFactory factory;
+    private final MetricNameFactory factory;
 
     /**
      * Create metrics for given ThreadPoolExecutor.
@@ -74,55 +75,31 @@ public class ThreadPoolMetrics
      * @param path Type of thread pool
      * @param poolName Name of thread pool to identify metrics
      */
-    public ThreadPoolMetrics(final ThreadPoolExecutor executor, String path, String poolName)
+    public ThreadPoolMetrics(final LocalAwareExecutorService executor, String path, String poolName)
     {
-        this.factory = new ThreadPoolMetricNameFactory("ThreadPools", path, poolName);
+        this.factory = newMetricNameFactory(path, poolName);
 
-        activeTasks = Metrics.register(factory.createMetricName(ACTIVE_TASKS), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return executor.getActiveCount();
-            }
-        });
-        totalBlocked = Metrics.counter(factory.createMetricName(TOTAL_BLOCKED_TASKS));
-        currentBlocked = Metrics.counter(factory.createMetricName(CURRENTLY_BLOCKED_TASKS));
-        completedTasks = Metrics.register(factory.createMetricName(COMPLETED_TASKS), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return executor.getCompletedTaskCount();
-            }
-        });
-        pendingTasks = Metrics.register(factory.createMetricName(PENDING_TASKS), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return executor.getTaskCount() - executor.getCompletedTaskCount();
-            }
-        });
-        maxPoolSize = Metrics.register(factory.createMetricName(MAX_POOL_SIZE), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return executor.getMaximumPoolSize();
-            }
-        });
+        activeTasks = register(ACTIVE_TASKS, () -> executor.getActiveCount());
+        totalBlocked = counter(TOTAL_BLOCKED_TASKS);
+        currentBlocked = counter(CURRENTLY_BLOCKED_TASKS);
+        completedTasks = register(COMPLETED_TASKS, () -> executor.getCompletedTaskCount());
+        pendingTasks = register(PENDING_TASKS, () -> executor.getPendingTaskCount());
+        maxPoolSize = register(MAX_POOL_SIZE, () -> executor.getMaximumPoolSize());
     }
 
     public void release()
     {
-        Metrics.remove(factory.createMetricName(ACTIVE_TASKS));
-        Metrics.remove(factory.createMetricName(PENDING_TASKS));
-        Metrics.remove(factory.createMetricName(COMPLETED_TASKS));
-        Metrics.remove(factory.createMetricName(TOTAL_BLOCKED_TASKS));
-        Metrics.remove(factory.createMetricName(CURRENTLY_BLOCKED_TASKS));
-        Metrics.remove(factory.createMetricName(MAX_POOL_SIZE));
+        remove(ACTIVE_TASKS);
+        remove(PENDING_TASKS);
+        remove(COMPLETED_TASKS);
+        remove(TOTAL_BLOCKED_TASKS);
+        remove(CURRENTLY_BLOCKED_TASKS);
+        remove(MAX_POOL_SIZE);
     }
 
     public static Object getJmxMetric(MBeanServerConnection mbeanServerConn, String jmxPath, String poolName, String metricName)
     {
-        String name = String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s", jmxPath, poolName, metricName);
+        String name = mbeanName(jmxPath, poolName, metricName);
 
         try
         {
@@ -152,6 +129,11 @@ public class ThreadPoolMetrics
         }
     }
 
+    private static String mbeanName(String jmxPath, String poolName, String metricName)
+    {
+        return String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s", jmxPath, poolName, metricName);
+    }
+
     public static Multimap<String, String> getJmxThreadPools(MBeanServerConnection mbeanServerConn)
     {
         try
@@ -176,4 +158,33 @@ public class ThreadPoolMetrics
         }
     }
 
+    private MetricNameFactory newMetricNameFactory(String path, String poolName)
+    {
+        return new MetricNameFactory()
+        {
+            public CassandraMetricsRegistry.MetricName createMetricName(String metricName)
+            {
+                String mbeanName = mbeanName(path, poolName, metricName);
+                return new CassandraMetricsRegistry.MetricName("org.apache.cassandra.metrics", 
+                                                               "ThreadPools",
+                                                               metricName, path + "." + poolName,
+                                                               mbeanName);
+            }
+        };
+    }
+
+    protected final Counter counter(String name)
+    {
+        return Metrics.counter(factory.createMetricName(name));
+    }
+
+    protected final <T> Gauge<T> register(String name, Gauge<T> gauge)
+    {
+        return Metrics.register(factory.createMetricName(name), gauge);
+    }
+
+    protected final void remove(String name)
+    {
+        Metrics.remove(factory.createMetricName(name));
+    }
 }
