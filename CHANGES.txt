@@ -1,4 +1,5 @@
 4.0
+ * OffsetAwareConfigurationLoader doesn't set ssl storage port causing bind errors in CircleCI (CASSANDRA-14546)
  * Report why native_transport_port fails to bind (CASSANDRA-14544)
  * Optimize internode messaging protocol (CASSANDRA-14485)
  * Internode messaging handshake sends wrong messaging version number (CASSANDRA-14540)
