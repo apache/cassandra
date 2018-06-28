@@ -58,6 +58,7 @@ public class OffsetAwareConfigurationLoader extends YamlConfigurationLoader
 
         config.native_transport_port += offset;
         config.storage_port += offset;
+        config.ssl_storage_port += offset;
 
         //Rewrite the seed ports string
         String[] hosts = config.seed_provider.parameters.get("seeds").split(",", -1);
