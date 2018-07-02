@@ -29,9 +29,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.MessagingService;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotSame;
+import static junit.framework.Assert.assertTrue;
 import static junit.framework.Assert.fail;
 
 public class HintsDescriptorTest
@@ -113,6 +115,17 @@ public class HintsDescriptorTest
         {
             directory.deleteOnExit();
         }
+    }
+
+    @Test
+    public void testMessagingVersion()
+    {
+        String errorMsg = "Please update the current Hints messaging version to match the current messaging version";
+        int messageVersion = HintsDescriptor.messagingVersion(HintsDescriptor.CURRENT_VERSION);
+        assertEquals(errorMsg, messageVersion, MessagingService.current_version);
+
+        HintsDescriptor descriptor = new HintsDescriptor(UUID.randomUUID(), HintsDescriptor.CURRENT_VERSION, System.currentTimeMillis(), ImmutableMap.of());
+        assertEquals(errorMsg, descriptor.messagingVersion(), MessagingService.current_version);
     }
 
     private static void testSerializeDeserializeLoop(HintsDescriptor descriptor) throws IOException
