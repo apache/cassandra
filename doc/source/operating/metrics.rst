@@ -16,6 +16,8 @@
 
 .. highlight:: none
 
+.. _monitoring-metrics:
+
 Monitoring
 ----------
 
@@ -54,6 +56,8 @@ All metrics reported by cassandra fit into one of the following types.
 ``Meter``
     A meter metric which measures mean throughput and one-, five-, and fifteen-minute exponentially-weighted moving
     average throughputs.
+
+.. _table-metrics:
 
 Table Metrics
 ^^^^^^^^^^^^^
@@ -397,6 +401,7 @@ RegularStatementsExecuted  Counter        Number of **non** prepared statements 
 PreparedStatementsRatio    Gauge<Double>  Percentage of statements that are prepared vs unprepared.
 ========================== ============== ===========
 
+.. _dropped-metrics:
 
 DroppedMessage Metrics
 ^^^^^^^^^^^^^^^^^^^^^^
