@@ -37,7 +37,6 @@
     <property name="build.src.antlr" value="${basedir}/src/antlr"/>
     <property name="build.src.java8" value="${basedir}/src/java8"/>
     <property name="build.src.java11" value="${basedir}/src/java11"/>
-    <property name="build.src.jdkoverride" value="${basedir}/src/jdkoverride" />
     <property name="build.src.resources" value="${basedir}/src/resources"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
@@ -122,24 +121,7 @@
     <property name="jamm.version" value="0.3.2"/>
     <property name="ecj.version" value="4.6.1"/>
     <property name="ohc.version" value="0.5.1"/>
-
-    <!--
-    Build instructions for release builds / builds that support both Java 8 and 11:
-    - requires JDK 11 in JAVA_HOME
-    - requires JDK 8 in JAVA8_HOME
-
-    Build instructions for development buils that only support Java 8:
-    - requires JDK 8 in JAVA_HOME
-    -->
-    <condition property="java.version.8">
-        <equals arg1="${ant.java.version}" arg2="1.8"/>
-    </condition>
-    <condition property="java11-jvmargs" value="-Djdk.attach.allowAttachSelf=true --add-exports java.sql/java.sql=ALL-UNNAMED --add-exports java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/jdk.internal.module=ALL-UNNAMED --add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-exports java.base/sun.nio.ch=ALL-UNNAMED --add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED --add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.server=ALL-UNNAMED --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED">
-        <not>
-            <equals arg1="${ant.java.version}" arg2="1.8"/>
-        </not>
-    </condition>
-    <property name="java11-jvmargs" value=""/>
+    <property name="asm.version" value="6.2"/>
 
     <!-- https://mvnrepository.com/artifact/net.openhft/chronicle-bom/1.16.23 -->
     <property name="chronicle-queue.version" value="4.16.3" />
@@ -177,6 +159,24 @@
                 project.setProperty("cassandra.keepBriefBrief", "false");
         }
     </script>
+
+    <!--
+    Build instructions for release builds / builds that support both Java 8 and 11:
+    - requires JDK 11 in JAVA_HOME
+    - requires JDK 8 in JAVA8_HOME
+
+    Build instructions for development buils that only support Java 8:
+    - requires JDK 8 in JAVA_HOME
+    -->
+    <condition property="java.version.8">
+        <equals arg1="${ant.java.version}" arg2="1.8"/>
+    </condition>
+    <condition property="java11-jvmargs" value="-Djdk.attach.allowAttachSelf=true --add-exports java.sql/java.sql=ALL-UNNAMED --add-exports java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/jdk.internal.module=ALL-UNNAMED --add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-exports java.base/sun.nio.ch=ALL-UNNAMED --add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED --add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.server=ALL-UNNAMED --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED">
+        <not>
+            <equals arg1="${ant.java.version}" arg2="1.8"/>
+        </not>
+    </condition>
+    <property name="java11-jvmargs" value=""/>
 
     <!--
          Add all the dependencies.
@@ -501,9 +501,9 @@
           <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
           <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" version="2.3.5" />
           <dependency groupId="org.jctools" artifactId="jctools-core" version="1.2.1"/>
-          <dependency groupId="org.ow2.asm" artifactId="asm" version="6.2" />
-          <dependency groupId="org.ow2.asm" artifactId="asm-tree" version="6.2" />
-          <dependency groupId="org.ow2.asm" artifactId="asm-commons" version="6.2" />
+          <dependency groupId="org.ow2.asm" artifactId="asm" version="${asm.version}" />
+          <dependency groupId="org.ow2.asm" artifactId="asm-tree" version="${asm.version}" />
+          <dependency groupId="org.ow2.asm" artifactId="asm-commons" version="${asm.version}" />
         </dependencyManagement>
         <developer id="adelapena" name="Andres de la Peña"/>
         <developer id="alakshman" name="Avinash Lakshman"/>
@@ -745,9 +745,10 @@
         <mapper type="flatten"/>
       </unzip>
 
+      <!-- Need to delete some dependencies from build/lib/jars as non-matching versions may get in there
+      due to transitive dependencies -->
       <delete>
           <fileset dir="${build.dir.lib}/jars">
-              <include name="netty-*" />
               <include name="asm-*" />
           </fileset>
       </delete>

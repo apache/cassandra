@@ -70,7 +70,7 @@ public final class JavaBasedUDFunction extends UDFunction
 
     private static final Pattern JAVA_LANG_PREFIX = Pattern.compile("\\bjava\\.lang\\.");
 
-    static final Logger logger = LoggerFactory.getLogger(JavaBasedUDFunction.class);
+    private static final Logger logger = LoggerFactory.getLogger(JavaBasedUDFunction.class);
 
     private static final AtomicInteger classSequence = new AtomicInteger();
 
@@ -99,9 +99,6 @@ public final class JavaBasedUDFunction extends UDFunction
      * each string at an odd index is an 'instruction'.
      */
     private static final String[] javaSourceTemplate;
-
-    private static final MethodHandle methodClassGetModule;
-    private static final MethodHandle methodModuleGetResourceAsStream;
 
     static
     {
@@ -186,23 +183,6 @@ public final class JavaBasedUDFunction extends UDFunction
         }
 
         protectionDomain = new ProtectionDomain(codeSource, ThreadAwareSecurityManager.noPermissions, targetClassLoader, null);
-
-        // Java 11
-        MethodHandle mhClassGetModule = null;
-        MethodHandle mhModuleGetResourceAsStream = null;
-        try
-        {
-            Method mClassGetModule = Class.class.getDeclaredMethod("getModule");
-            Method mModuleGetResourceAsStream = mClassGetModule.getReturnType().getDeclaredMethod("getResourceAsStream", String.class);
-            mhClassGetModule = MethodHandles.lookup().unreflect(mClassGetModule);
-            mhModuleGetResourceAsStream = MethodHandles.lookup().unreflect(mModuleGetResourceAsStream);
-        }
-        catch (IllegalAccessException | NoSuchMethodException e)
-        {
-            // probably not Java 11 or newer
-        }
-        methodClassGetModule = mhClassGetModule;
-        methodModuleGetResourceAsStream = mhModuleGetResourceAsStream;
     }
 
     private final JavaUDF javaUDF;
@@ -612,36 +592,10 @@ public final class JavaBasedUDFunction extends UDFunction
 
             String resourceName = className.replace('.', '/') + ".class";
 
-            // up to Java 8:
-            //      returns a non-null InputStream for class files
-            // since Java 11:
-            //      returns a non-null InputStream for class files for application classes
-            //      returns null for class files for system modules (e.g. java.base)
             try
             {
-                InputStream is = UDFunction.udfClassLoader.getResourceAsStream(resourceName);
-                try
+                try (InputStream is = UDFunction.udfClassLoader.getResourceAsStream(resourceName))
                 {
-                    if (is == null)
-                    {
-                        // For Java 11 try to see whether the class actually exists and read the
-                        // class file data via the class' module. (This is necessary at least
-                        // for 9-ea build 123)
-                        try
-                        {
-                            Class c = Class.forName(className, false, UDFunction.udfClassLoader);
-                            if (c != null)
-                            {
-                                Object module = methodClassGetModule.bindTo(c).invokeWithArguments();
-                                is = (InputStream) methodModuleGetResourceAsStream.bindTo(module).invokeWithArguments(resourceName);
-                            }
-                        }
-                        catch (Throwable e)
-                        {
-                            // ignore this
-                        }
-                    }
-
                     if (is != null)
                     {
                         byte[] classBytes = ByteStreams.toByteArray(is);
@@ -649,11 +603,6 @@ public final class JavaBasedUDFunction extends UDFunction
                         ClassFileReader classFileReader = new ClassFileReader(classBytes, fileName, true);
                         return new NameEnvironmentAnswer(classFileReader, null);
                     }
-                }
-                finally
-                {
-                    if (is != null)
-                        is.close();
                 }
             }
             catch (IOException | ClassFormatException exc)

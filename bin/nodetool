@@ -38,8 +38,6 @@ elif [ -r "$CASSANDRA_INCLUDE" ]; then
     . "$CASSANDRA_INCLUDE"
 fi
 
-. $CASSANDRA_HOME/bin/clients.in.sh
-
 if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
     echo "You must set the CASSANDRA_CONF and CLASSPATH vars" >&2
     exit 1

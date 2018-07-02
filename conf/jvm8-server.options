@@ -1,14 +1,21 @@
 ###########################################################################
-#                            jvm11.options                                #
+#                          jvm8-server.options                            #
 #                                                                         #
-# See jvm.options. This file is specific for Java 11 and newer.           #
+# See jvm-server.options. This file is specific for Java 8 and newer.     #
 ###########################################################################
+
+########################
+# GENERAL JVM SETTINGS #
+########################
+
+# allows lowering thread priority without being root on linux - probably
+# not necessary on Windows but doesn't harm anything.
+# see http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workaround.html
+-XX:ThreadPriorityPolicy=42
 
 #################
 #  GC SETTINGS  #
 #################
-
-
 
 ### CMS Settings
 #-XX:+UseParNewGC
@@ -23,8 +30,6 @@
 #-XX:+CMSEdenChunksRecordAlways
 ## some JVMs will fill up their heap when accessed via JMX, see CASSANDRA-6541
 #-XX:+CMSClassUnloadingEnabled
-
-
 
 ### G1 Settings
 ## Use the Hotspot garbage-first collector.
@@ -54,36 +59,18 @@
 # Setting both to the same value can reduce STW durations.
 #-XX:ConcGCThreads=16
 
-
-### JPMS
-
--Djdk.attach.allowAttachSelf=true
---add-exports java.base/jdk.internal.misc=ALL-UNNAMED
---add-opens java.base/jdk.internal.module=ALL-UNNAMED
---add-exports java.base/jdk.internal.ref=ALL-UNNAMED
---add-exports java.base/sun.nio.ch=ALL-UNNAMED
---add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED
---add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED
---add-exports java.rmi/sun.rmi.server=ALL-UNNAMED
---add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED
-
-
 ### GC logging options -- uncomment to enable
 
-# Java 11 (and newer) GC logging options:
-# See description of https://bugs.openjdk.java.net/browse/JDK-8046148 for details about the syntax
-# The following is the equivalent to -XX:+PrintGCDetails -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=10M
-#-Xlog:gc=info,heap*=trace,age*=debug,safepoint=info,promotion*=trace:file=/var/log/cassandra/gc.log:time,uptime,pid,tid,level:filecount=10,filesize=10240
-
-# Notes for Java 8 migration:
-#
-# -XX:+PrintGCDetails                   maps to -Xlog:gc*:... - i.e. add a '*' after "gc"
-# -XX:+PrintGCDateStamps                maps to decorator 'time'
-#
-# -XX:+PrintHeapAtGC                    maps to 'heap' with level 'trace'
-# -XX:+PrintTenuringDistribution        maps to 'age' with level 'debug'
-# -XX:+PrintGCApplicationStoppedTime    maps to 'safepoint' with level 'info'
-# -XX:+PrintPromotionFailure            maps to 'promotion' with level 'trace'
-# -XX:PrintFLSStatistics=1              maps to 'freelist' with level 'trace'
+-XX:+PrintGCDetails
+-XX:+PrintGCDateStamps
+-XX:+PrintHeapAtGC
+-XX:+PrintTenuringDistribution
+-XX:+PrintGCApplicationStoppedTime
+-XX:+PrintPromotionFailure
+#-XX:PrintFLSStatistics=1
+#-Xloggc:/var/log/cassandra/gc.log
+-XX:+UseGCLogFileRotation
+-XX:NumberOfGCLogFiles=10
+-XX:GCLogFileSize=10M
 
 # The newline in the end of file is intentional

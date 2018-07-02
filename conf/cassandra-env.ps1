@@ -399,9 +399,10 @@ Function SetCassandraEnvironment
     # print an heap histogram on OutOfMemoryError
     # $env:JVM_OPTS="$env:JVM_OPTS -Dcassandra.printHeapHistogramOnOutOfMemoryError=true"
 
-    if ($env:JVM_VERSION.CompareTo("1.8.0") -eq -1 -or [convert]::ToInt32($env:JVM_PATCH_VERSION) -lt 40)
+    $env:JAVA_VERSION=11
+    if ($env:JVM_VERSION.CompareTo("1.8.0") -eq -1 -or [convert]::ToInt32($env:JVM_PATCH_VERSION) -lt 151)
     {
-        echo "Cassandra 3.0 and later require Java 8u40 or later."
+        echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer). Java $env:JVM_VERSION is not supported."
         exit
     }
 

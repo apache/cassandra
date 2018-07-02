@@ -53,6 +53,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.memory.MemoryUtil;
+import sun.nio.ch.DirectBuffer;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
@@ -74,7 +75,6 @@ public final class FileUtils
     private static Class clsDirectBuffer;
     private static MethodHandle mhDirectBufferCleaner;
     private static MethodHandle mhCleanerClean;
-    private static MethodHandle mhDirectBufferAddress;
 
     static
     {
@@ -86,8 +86,6 @@ public final class FileUtils
             mhDirectBufferCleaner = MethodHandles.lookup().unreflect(mDirectBufferCleaner);
             Method mCleanerClean = mDirectBufferCleaner.getReturnType().getMethod("clean");
             mhCleanerClean = MethodHandles.lookup().unreflect(mCleanerClean);
-            Method mDirectBufferAddress = clsDirectBuffer.getMethod("address");
-            mhDirectBufferAddress = MethodHandles.lookup().unreflect(mDirectBufferAddress);
 
             ByteBuffer buf = ByteBuffer.allocateDirect(1);
             cleanerClean(buf);
@@ -95,23 +93,13 @@ public final class FileUtils
         }
         catch (Throwable t)
         {
-            logger.info("Cannot initialize un-mmaper. Compacted data files will not be removed promptly.", t);
+            logger.info("Cannot initialize optimized memory deallocator. Some data, both in-memory and on-disk, may live longer due to garbage collection.");
             JVMStabilityInspector.inspectThrowable(t);
         }
         isCleanerAvailable = canClean;
     }
 
-    public static boolean isDirectBuffer(ByteBuffer buf)
-    {
-        return clsDirectBuffer.isInstance(buf);
-    }
-
     public static void cleanerClean(ByteBuffer buf)
-    {
-        cleanerClean(buf, false);
-    }
-
-    public static void cleanerClean(ByteBuffer buf, boolean cleanAttachment)
     {
         // TODO Once we can get rid of Java 8, it's simpler to call sun.misc.Unsafe.invokeCleaner(ByteBuffer),
         // but need to take care of the attachment handling (i.e. whether 'buf' is a duplicate or slice) - that
@@ -119,22 +107,18 @@ public final class FileUtils
 
         try
         {
-            Object cleaner = isDirectBuffer(buf) ? mhDirectBufferCleaner.bindTo(buf).invoke() : null;
-            if (cleaner != null)
+            if (buf.isDirect())
             {
-                // ((DirectBuffer) buf).cleaner().clean();
-                mhCleanerClean.bindTo(cleaner).invoke();
-            }
-            else
-            {
-                // When dealing with sliced buffers we
-                // attach the root buffer we used to align
-                // so we can properly free it
-                if (cleanAttachment && buf.isDirect())
+                Object cleaner = mhDirectBufferCleaner.bindTo(buf).invoke();
+                if (cleaner != null)
                 {
-
+                    // ((DirectBuffer) buf).cleaner().clean();
+                    mhCleanerClean.bindTo(cleaner).invoke();
+                }
+                else
+                {
                     Object attach = MemoryUtil.getAttachment(buf);
-                    if (attach != null && attach instanceof ByteBuffer && attach != buf)
+                    if (attach instanceof ByteBuffer && attach != buf)
                         clean((ByteBuffer) attach);
                 }
             }
@@ -200,18 +184,7 @@ public final class FileUtils
                 // the same file name again. We do that here in a very simple way,
                 // that probably doesn't cover all edge cases. Just rely on system
                 // wall clock and return strictly increasing values from that.
-                long num = Math.max(System.currentTimeMillis(), tempFileNum.get() + 1);
-                while (true)
-                {
-                    long prev = tempFileNum.get();
-                    if (num > prev)
-                    {
-                        if (tempFileNum.compareAndSet(prev, num))
-                            break;
-                        continue;
-                    }
-                    num++;
-                }
+                long num = tempFileNum.getAndIncrement();
 
                 // We have a positive long here, which is safe to use for example
                 // for CommitLogTest.

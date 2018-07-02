@@ -15,15 +15,24 @@
 # limitations under the License.
 
 # Use JAVA_HOME if set, otherwise look for java in PATH
-if [ -x "$JAVA_HOME/bin/java" ]; then
-    JAVA="$JAVA_HOME/bin/java"
+if [ -n "$JAVA_HOME" ]; then
+    # Why we can't have nice things: Solaris combines x86 and x86_64
+    # installations in the same tree, using an unconventional path for the
+    # 64bit JVM.  Since we prefer 64bit, search the alternate path first,
+    # (see https://issues.apache.org/jira/browse/CASSANDRA-4638).
+    for java in "$JAVA_HOME"/bin/amd64/java "$JAVA_HOME"/bin/java; do
+        if [ -x "$java" ]; then
+            JAVA="$java"
+            break
+        fi
+    done
 else
-    JAVA="`which java`"
+    JAVA=java
 fi
 
-if [ "x$JAVA" = "x" ]; then
-    echo "Java executable not found (hint: set JAVA_HOME)" >&2
-    exit 1
+if [ -z $JAVA ] ; then
+    echo Unable to find java executable. Check JAVA_HOME and PATH environment variables. >&2
+    exit 1;
 fi
 
 # Determine the sort of JVM we'll be running on.
@@ -67,12 +76,12 @@ case "$jvm" in
         ;;
 esac
 
-# Read user-defined JVM options from jvm.options file
-JVM_OPTS_FILE=$CASSANDRA_CONF/jvm-clients.options
+# Read user-defined JVM options from jvm-server.options file
+JVM_OPTS_FILE=$CASSANDRA_CONF/jvm${jvmoptions_variant:--clients}.options
 if [ $JAVA_VERSION -ge 11 ] ; then
-    JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm11-clients.options
+    JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm11${jvmoptions_variant:--clients}.options
 else
-    JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm8-clients.options
+    JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm8${jvmoptions_variant:--clients}.options
 fi
 
 for opt in `grep "^-" $JVM_OPTS_FILE` `grep "^-" $JVM_DEP_OPTS_FILE`
