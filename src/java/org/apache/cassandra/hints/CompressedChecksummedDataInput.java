@@ -29,7 +29,8 @@ import org.apache.cassandra.utils.memory.BufferPool;
 public final class CompressedChecksummedDataInput extends ChecksummedDataInput
 {
     private final ICompressor compressor;
-    private volatile long filePosition = 0;
+    private volatile long filePosition = 0;     // Current position in file, advanced when reading chunk.
+    private volatile long sourcePosition = 0;   // Current position in file to report, advanced after consuming chunk.
     private volatile ByteBuffer compressedBuffer = null;
     private final ByteBuffer metadataBuffer = ByteBuffer.allocate(CompressedHintsWriter.METADATA_SIZE);
 
@@ -39,7 +40,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         assert regions == null;  //mmapped regions are not supported
 
         compressor = builder.compressor;
-        filePosition = builder.position;
+        sourcePosition =  filePosition = builder.position;
     }
 
     /**
@@ -51,8 +52,56 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         return filePosition == channel.size() && buffer.remaining() == 0;
     }
 
+    public long getSourcePosition()
+    {
+        return sourcePosition;
+    }
+
+    static class Position extends ChecksummedDataInput.Position
+    {
+        final long bufferStart;
+        final int bufferPosition;
+
+        public Position(long sourcePosition, long bufferStart, int bufferPosition)
+        {
+            super(sourcePosition);
+            this.bufferStart = bufferStart;
+            this.bufferPosition = bufferPosition;
+        }
+
+        @Override
+        public long subtract(InputPosition o)
+        {
+            Position other = (Position) o;
+            return bufferStart - other.bufferStart + bufferPosition - other.bufferPosition;
+        }
+    }
+
+    public InputPosition getSeekPosition()
+    {
+        return new Position(sourcePosition, bufferOffset, buffer.position());
+    }
+
+    public void seek(InputPosition p)
+    {
+        Position pos = (Position) p;
+        bufferOffset = pos.bufferStart;
+        filePosition = pos.sourcePosition;
+        buffer.position(0).limit(0);
+        resetCrc();
+        reBuffer();
+        buffer.position(pos.bufferPosition);
+        assert sourcePosition == pos.sourcePosition;
+        assert bufferOffset == pos.bufferStart;
+        assert buffer.position() == pos.bufferPosition;
+    }
+
     protected void reBufferStandard()
     {
+        sourcePosition = filePosition;
+        if (isEOF())
+            return;
+
         metadataBuffer.clear();
         channel.read(metadataBuffer, filePosition);
         filePosition += CompressedHintsWriter.METADATA_SIZE;

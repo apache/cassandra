@@ -25,17 +25,18 @@ import java.util.zip.CRC32;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.utils.NativeLibrary;
 
 /**
- * A {@link RandomAccessReader} wrapper that calctulates the CRC in place.
+ * A {@link RandomAccessReader} wrapper that calculates the CRC in place.
  *
  * Useful for {@link org.apache.cassandra.hints.HintsReader}, for example, where we must verify the CRC, yet don't want
  * to allocate an extra byte array just that purpose. The CRC can be embedded in the input stream and checked via checkCrc().
  *
- * In addition to calculating the CRC, it allows to enforce a maximim known size. This is needed
+ * In addition to calculating the CRC, it allows to enforce a maximum known size. This is needed
  * so that {@link org.apache.cassandra.db.Mutation.MutationSerializer} doesn't blow up the heap when deserializing a
  * corrupted sequence by reading a huge corrupted length of bytes via
- * via {@link org.apache.cassandra.utils.ByteBufferUtil#readWithLength(java.io.DataInput)}.
+ * {@link org.apache.cassandra.utils.ByteBufferUtil#readWithLength(java.io.DataInput)}.
  */
 public class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderWithOwnChannel
 {
@@ -63,9 +64,37 @@ public class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderW
         return new Builder(new ChannelProxy(file)).build();
     }
 
-    protected void releaseBuffer()
+    static class Position implements InputPosition
     {
-        super.releaseBuffer();
+        final long sourcePosition;
+
+        public Position(long sourcePosition)
+        {
+            super();
+            this.sourcePosition = sourcePosition;
+        }
+
+        @Override
+        public long subtract(InputPosition other)
+        {
+            return sourcePosition - ((Position)other).sourcePosition;
+        }
+    }
+
+    /**
+     * Return a seekable representation of the current position. For compressed files this is chunk position
+     * in file and offset within chunk.
+     */
+    public InputPosition getSeekPosition()
+    {
+        return new Position(getPosition());
+    }
+
+    public void seek(InputPosition pos)
+    {
+        updateCrc();
+        bufferOffset = ((Position) pos).sourcePosition;
+        buffer.position(0).limit(0);
     }
 
     public void resetCrc()
@@ -78,6 +107,15 @@ public class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderW
     {
         limit = newLimit;
         limitMark = mark();
+    }
+
+    /**
+     * Returns the position in the source file, which is different for getPosition() for compressed/encrypted files
+     * and may be imprecise.
+     */
+    protected long getSourcePosition()
+    {
+        return bufferOffset;
     }
 
     public void resetLimit()
@@ -139,6 +177,11 @@ public class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderW
         updateCrc();
         super.reBuffer();
         crcPosition = buffer.position();
+    }
+
+    public void tryUncacheRead()
+    {
+        NativeLibrary.trySkipCache(getChannel().getFileDescriptor(), 0, getSourcePosition(), getPath());
     }
 
     private void updateCrc()
