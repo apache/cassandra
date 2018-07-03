@@ -714,6 +714,15 @@ public class DatabaseDescriptor
                                             "server_encryption_options.internode_encryption = " + conf.server_encryption_options.internode_encryption, false);
         }
 
+        if (conf.stream_entire_sstables)
+        {
+            if (conf.server_encryption_options.enabled || conf.server_encryption_options.optional)
+            {
+                logger.warn("Internode encryption enabled. Disabling zero copy SSTable transfers for streaming.");
+                conf.stream_entire_sstables = false;
+            }
+        }
+
         if (conf.max_value_size_in_mb <= 0)
             throw new ConfigurationException("max_value_size_in_mb must be positive", false);
         else if (conf.max_value_size_in_mb >= 2048)
@@ -2272,6 +2281,11 @@ public class DatabaseDescriptor
     public static int getStreamingConnectionsPerHost()
     {
         return conf.streaming_connections_per_host;
+    }
+
+    public static boolean streamEntireSSTables()
+    {
+        return conf.stream_entire_sstables;
     }
 
     public static String getLocalDataCenter()

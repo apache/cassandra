@@ -63,6 +63,5 @@ public class SerializationUtils
     public static <T> void assertSerializationCycle(T src, IVersionedSerializer<T> serializer)
     {
         assertSerializationCycle(src, serializer, MessagingService.current_version);
-
     }
 }

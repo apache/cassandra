@@ -33,6 +33,10 @@ public class Component
 
     final static EnumSet<Type> TYPES = EnumSet.allOf(Type.class);
 
+    /**
+     * WARNING: Be careful while changing the names or string representation of the enum
+     * members. Streaming code depends on the names during streaming (Ref: CASSANDRA-14556).
+     */
     public enum Type
     {
         // the base data for an sstable: the remaining components can be regenerated
@@ -60,6 +64,7 @@ public class Component
         CUSTOM(null);
 
         final String repr;
+
         Type(String repr)
         {
             this.repr = repr;
@@ -120,7 +125,7 @@ public class Component
      * @return the component corresponding to {@code name}. Note that this always return a component as an unrecognized
      * name is parsed into a CUSTOM component.
      */
-    static Component parse(String name)
+    public static Component parse(String name)
     {
         Type type = Type.fromRepresentation(name);
 

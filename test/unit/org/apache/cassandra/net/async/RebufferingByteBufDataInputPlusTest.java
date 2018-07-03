@@ -21,6 +21,7 @@ package org.apache.cassandra.net.async;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -28,7 +29,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 
 public class RebufferingByteBufDataInputPlusTest
 {
@@ -151,4 +154,99 @@ public class RebufferingByteBufDataInputPlusTest
         inputPlus.markClose();
         Assert.assertEquals(size, inputPlus.available());
     }
+
+    @Test
+    public void consumeUntil_SingleBuffer_Partial_HappyPath() throws IOException
+    {
+        consumeUntilTestCycle(1, 8, 0, 4);
+    }
+
+    @Test
+    public void consumeUntil_SingleBuffer_AllBytes_HappyPath() throws IOException
+    {
+        consumeUntilTestCycle(1, 8, 0, 8);
+    }
+
+    @Test
+    public void consumeUntil_MultipleBufferr_Partial_HappyPath() throws IOException
+    {
+        consumeUntilTestCycle(2, 8, 0, 13);
+    }
+
+    @Test
+    public void consumeUntil_MultipleBuffer_AllBytes_HappyPath() throws IOException
+    {
+        consumeUntilTestCycle(2, 8, 0, 16);
+    }
+
+    @Test(expected = EOFException.class)
+    public void consumeUntil_SingleBuffer_Fails() throws IOException
+    {
+        consumeUntilTestCycle(1, 8, 0, 9);
+    }
+
+    @Test(expected = EOFException.class)
+    public void consumeUntil_MultipleBuffer_Fails() throws IOException
+    {
+        consumeUntilTestCycle(2, 8, 0, 17);
+    }
+
+    private void consumeUntilTestCycle(int nBuffs, int buffSize, int startOffset, int len) throws IOException
+    {
+        byte[] expectedBytes = new byte[len];
+        int count = 0;
+        for (int j=0; j < nBuffs; j++)
+        {
+            ByteBuf buf = channel.alloc().buffer(buffSize);
+            for (int i = 0; i < buf.capacity(); i++)
+            {
+                buf.writeByte(j);
+                if (count >= startOffset && (count - startOffset) < len)
+                    expectedBytes[count - startOffset] = (byte)j;
+                count++;
+            }
+
+            inputPlus.append(buf);
+        }
+        inputPlus.append(channel.alloc().buffer(0));
+
+        TestableWritableByteChannel wbc = new TestableWritableByteChannel(len);
+
+        inputPlus.skipBytesFully(startOffset);
+        BufferedDataOutputStreamPlus writer = new BufferedDataOutputStreamPlus(wbc);
+        inputPlus.consumeUntil(writer, len);
+
+        Assert.assertEquals(String.format("Test with {} buffers starting at {} consuming {} bytes", nBuffs, startOffset,
+                                          len), len, wbc.writtenBytes.readableBytes());
+
+        Assert.assertArrayEquals(expectedBytes, wbc.writtenBytes.array());
+    }
+
+    private static class TestableWritableByteChannel implements WritableByteChannel
+    {
+        private boolean isOpen = true;
+        public ByteBuf writtenBytes;
+
+        public TestableWritableByteChannel(int initialCapacity)
+        {
+             writtenBytes = Unpooled.buffer(initialCapacity);
+        }
+
+        public int write(ByteBuffer src) throws IOException
+        {
+            int size = src.remaining();
+            writtenBytes.writeBytes(src);
+            return size;
+        }
+
+        public boolean isOpen()
+        {
+            return isOpen;
+        }
+
+        public void close() throws IOException
+        {
+            isOpen = false;
+        }
+    };
 }

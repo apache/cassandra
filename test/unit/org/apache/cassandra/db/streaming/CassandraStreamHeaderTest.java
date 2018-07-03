@@ -15,20 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db.streaming;
 
-import java.util.ArrayList;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.db.streaming.CassandraStreamHeader.CassandraStreamHeaderSerializer;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.SerializationUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CassandraStreamHeaderTest
 {
@@ -37,14 +42,51 @@ public class CassandraStreamHeaderTest
     {
         String ddl = "CREATE TABLE tbl (k INT PRIMARY KEY, v INT)";
         TableMetadata metadata = CreateTableStatement.parse(ddl, "ks").build();
-        CassandraStreamHeader header = new CassandraStreamHeader(BigFormat.latestVersion,
-                                                                 SSTableFormat.Type.BIG,
-                                                                 0,
-                                                                 new ArrayList<>(),
-                                                                 ((CompressionMetadata) null),
-                                                                 0,
-                                                                 SerializationHeader.makeWithoutStats(metadata).toComponent());
+        CassandraStreamHeader header =
+            CassandraStreamHeader.builder()
+                                 .withSSTableFormat(SSTableFormat.Type.BIG)
+                                 .withSSTableVersion(BigFormat.latestVersion)
+                                 .withSSTableLevel(0)
+                                 .withEstimatedKeys(0)
+                                 .withSections(Collections.emptyList())
+                                 .withSerializationHeader(SerializationHeader.makeWithoutStats(metadata).toComponent())
+                                 .withTableId(metadata.id)
+                                 .build();
 
         SerializationUtils.assertSerializationCycle(header, CassandraStreamHeader.serializer);
+    }
+
+    @Test
+    public void serializerTest_EntireSSTableTransfer()
+    {
+        String ddl = "CREATE TABLE tbl (k INT PRIMARY KEY, v INT)";
+        TableMetadata metadata = CreateTableStatement.parse(ddl, "ks").build();
+
+        ComponentManifest manifest = new ComponentManifest(new LinkedHashMap<Component, Long>() {{ put(Component.DATA, 100L); }});
+
+        CassandraStreamHeader header =
+            CassandraStreamHeader.builder()
+                                 .withSSTableFormat(SSTableFormat.Type.BIG)
+                                 .withSSTableVersion(BigFormat.latestVersion)
+                                 .withSSTableLevel(0)
+                                 .withEstimatedKeys(0)
+                                 .withSections(Collections.emptyList())
+                                 .withSerializationHeader(SerializationHeader.makeWithoutStats(metadata).toComponent())
+                                 .withComponentManifest(manifest)
+                                 .isEntireSSTable(true)
+                                 .withFirstKey(Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER))
+                                 .withTableId(metadata.id)
+                                 .build();
+
+        SerializationUtils.assertSerializationCycle(header, new TestableCassandraStreamHeaderSerializer());
+    }
+
+    private static class TestableCassandraStreamHeaderSerializer extends CassandraStreamHeaderSerializer
+    {
+        @Override
+        public CassandraStreamHeader deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return deserialize(in, version, tableId -> Murmur3Partitioner.instance);
+        }
     }
 }

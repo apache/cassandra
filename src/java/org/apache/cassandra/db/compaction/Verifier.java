@@ -180,7 +180,7 @@ public class Verifier implements Closeable
                 while (iter.hasNext())
                 {
                     DecoratedKey key = iter.next();
-                    rangeOwnHelper.check(key);
+                    rangeOwnHelper.validate(key);
                 }
             }
             catch (Throwable t)
@@ -262,7 +262,7 @@ public class Verifier implements Closeable
                 {
                     try
                     {
-                        rangeOwnHelper.check(key);
+                        rangeOwnHelper.validate(key);
                     }
                     catch (Throwable t)
                     {
@@ -360,13 +360,27 @@ public class Verifier implements Closeable
          * @param key the key
          * @throws RuntimeException if the key is not contained
          */
-        public void check(DecoratedKey key)
+        public void validate(DecoratedKey key)
+        {
+            if (!check(key))
+                throw new RuntimeException("Key " + key + " is not contained in the given ranges");
+        }
+
+        /**
+         * check if the given key is contained in any of the given ranges
+         *
+         * Must be called in sorted order - key should be increasing
+         *
+         * @param key the key
+         * @return boolean
+         */
+        public boolean check(DecoratedKey key)
         {
             assert lastKey == null || key.compareTo(lastKey) > 0;
             lastKey = key;
 
             if (normalizedRanges.isEmpty()) // handle tests etc where we don't have any ranges
-                return;
+                return true;
 
             if (rangeIndex > normalizedRanges.size() - 1)
                 throw new IllegalStateException("RangeOwnHelper can only be used to find the first out-of-range-token");
@@ -375,8 +389,10 @@ public class Verifier implements Closeable
             {
                 rangeIndex++;
                 if (rangeIndex > normalizedRanges.size() - 1)
-                    throw new RuntimeException("Key "+key+" is not contained in the given ranges");
+                    return false;
             }
+
+            return true;
         }
     }
 

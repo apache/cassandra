@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
-import com.google.common.base.Function;
-
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 /**
@@ -41,7 +39,7 @@ public interface DataOutputPlus extends DataOutput
      * Safe way to operate against the underlying channel. Impossible to stash a reference to the channel
      * and forget to flush
      */
-    <R> R applyToChannel(Function<WritableByteChannel, R> c) throws IOException;
+    <R> R applyToChannel(CheckedFunction<WritableByteChannel, R, IOException> c) throws IOException;
 
     default void writeVInt(long i) throws IOException
     {

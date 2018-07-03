@@ -60,7 +60,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
     private long bufferOffset = 0;
 
     /**
-     * The current {@link CompressedCassandraStreamReader#sections} offset in the stream.
+     * The current {@link CassandraCompressedStreamReader#sections} offset in the stream.
      */
     private long current = 0;
 
@@ -98,7 +98,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
     }
 
     /**
-     * Invoked when crossing into the next stream boundary in {@link CompressedCassandraStreamReader#sections}.
+     * Invoked when crossing into the next stream boundary in {@link CassandraCompressedStreamReader#sections}.
      */
     public void position(long position) throws IOException
     {

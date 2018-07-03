@@ -40,13 +40,13 @@ import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
 /**
  * CassandraStreamReader that reads from streamed compressed SSTable
  */
-public class CompressedCassandraStreamReader extends CassandraStreamReader
+public class CassandraCompressedStreamReader extends CassandraStreamReader
 {
-    private static final Logger logger = LoggerFactory.getLogger(CompressedCassandraStreamReader.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraCompressedStreamReader.class);
 
     protected final CompressionInfo compressionInfo;
 
-    public CompressedCassandraStreamReader(StreamMessageHeader header, CassandraStreamHeader streamHeader, StreamSession session)
+    public CassandraCompressedStreamReader(StreamMessageHeader header, CassandraStreamHeader streamHeader, StreamSession session)
     {
         super(header, streamHeader, session);
         this.compressionInfo = streamHeader.compressionInfo;
