@@ -381,6 +381,7 @@ public class Config
     public int block_for_peers_timeout_in_secs = 10;
     public volatile boolean automatic_sstable_upgrade = false;
     public volatile int max_concurrent_automatic_sstable_upgrades = 1;
+    public boolean stream_entire_sstables = true;
 
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
 

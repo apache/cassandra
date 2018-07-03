@@ -278,6 +278,7 @@ public class StreamingTransferTest
             streams.add(new CassandraOutgoingFile(operation,
                                                   sstables.get(sstable),
                                                   sstable.getPositionsForRanges(ranges),
+                                                  ranges,
                                                   sstable.estimatedKeysForRanges(ranges)));
         }
         return streams;

@@ -791,7 +791,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return newSSTableDescriptor(directory, format.info.getLatestVersion(), format);
     }
 
-    private Descriptor newSSTableDescriptor(File directory, Version version, SSTableFormat.Type format)
+    public Descriptor newSSTableDescriptor(File directory, Version version, SSTableFormat.Type format)
     {
         return new Descriptor(version,
                               directory,

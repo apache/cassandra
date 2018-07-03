@@ -62,7 +62,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     static final Function<SessionIdentifier, StreamSession> DEFAULT_SESSION_PROVIDER = sid -> StreamManager.instance.findSession(sid.from, sid.planId, sid.sessionIndex);
 
     private static final int AUTO_READ_LOW_WATER_MARK = 1 << 15;
-    private static final int AUTO_READ_HIGH_WATER_MARK = 1 << 16;
+    private static final int AUTO_READ_HIGH_WATER_MARK = 1 << 20;
 
     private final InetAddressAndPort remoteAddress;
     private final int protocolVersion;
