@@ -153,29 +153,38 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
         final long length = f.size();
         long bytesTransferred = 0;
 
-        while (bytesTransferred < length)
+        try
         {
-            int toRead = (int) Math.min(bufferSize, length - bytesTransferred);
-            NonClosingDefaultFileRegion fileRegion = new NonClosingDefaultFileRegion(f, bytesTransferred, toRead);
+            while (bytesTransferred < length)
+            {
+                int toRead = (int) Math.min(bufferSize, length - bytesTransferred);
+                NonClosingDefaultFileRegion fileRegion = new NonClosingDefaultFileRegion(f, bytesTransferred, toRead);
 
-            if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, toRead, 5, TimeUnit.MINUTES))
-                throw new IOException(String.format("outbound channel was not writable. Failed to acquire sufficient permits %d", toRead));
+                if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, toRead, 5, TimeUnit.MINUTES))
+                    throw new IOException(String.format("outbound channel was not writable. Failed to acquire sufficient permits %d", toRead));
 
-            limiter.acquire(toRead);
+                limiter.acquire(toRead);
 
-            bytesTransferred += toRead;
-            final boolean shouldClose = (bytesTransferred == length); // this is the last buffer, can safely close channel
+                bytesTransferred += toRead;
+                final boolean shouldClose = (bytesTransferred == length); // this is the last buffer, can safely close channel
 
-            channel.writeAndFlush(fileRegion).addListener(future -> {
-                handleBuffer(future, toRead);
+                channel.writeAndFlush(fileRegion).addListener(future -> {
+                    handleBuffer(future, toRead);
 
-                if ((shouldClose || !future.isSuccess()) && f.isOpen())
-                    f.close();
-            });
-            logger.trace("{} of {} (toRead {} cs {})", bytesTransferred, length, toRead, f.isOpen());
+                    if ((shouldClose || !future.isSuccess()) && f.isOpen())
+                        f.close();
+                });
+                logger.trace("{} of {} (toRead {} cs {})", bytesTransferred, length, toRead, f.isOpen());
+            }
+
+            return bytesTransferred;
+        } catch (Exception e)
+        {
+            if (f.isOpen())
+                f.close();
+
+            throw e;
         }
-
-        return bytesTransferred;
     }
 
     @Override

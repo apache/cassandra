@@ -76,6 +76,7 @@ public class CassandraBlockStreamWriter implements IStreamWriter
 
         for (ComponentInfo info : components)
         {
+            @SuppressWarnings("resource") // this is closed after the file is transferred by ByteBufDataOutputStreamPlus
             FileChannel in = new RandomAccessFile(sstable.descriptor.filenameFor(Component.parse(info.type.repr)), "r").getChannel();
 
             // Total Length to transmit for this file
