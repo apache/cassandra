@@ -53,7 +53,7 @@ import org.apache.cassandra.utils.FBUtilities;
 /**
  * CassandraStreamReader reads from stream and writes to SSTable.
  */
-public class CassandraStreamReader
+public class CassandraStreamReader implements IStreamReader
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraStreamReader.class);
     protected final TableId tableId;
@@ -95,6 +95,7 @@ public class CassandraStreamReader
      * @throws IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
      */
     @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
+    @Override
     public SSTableMultiWriter read(DataInputPlus inputPlus) throws IOException
     {
         long totalSize = totalSize();

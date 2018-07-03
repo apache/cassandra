@@ -49,6 +49,7 @@ public class StreamReceiveTask extends StreamTask
     private volatile boolean done = false;
 
     private int remoteStreamsReceived = 0;
+    private long bytesReceived = 0;
 
     public StreamReceiveTask(StreamSession session, TableId tableId, int totalStreams, long totalSize)
     {
@@ -76,8 +77,10 @@ public class StreamReceiveTask extends StreamTask
         }
 
         remoteStreamsReceived++;
+        bytesReceived += stream.getSize();
         Preconditions.checkArgument(tableId.equals(stream.getTableId()));
-        logger.debug("recevied {} of {} total files", remoteStreamsReceived, totalStreams);
+        logger.debug("received {} of {} total files {} of total bytes {}", remoteStreamsReceived, totalStreams,
+                     bytesReceived, totalSize);
 
         receiver.received(stream);
 

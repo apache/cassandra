@@ -26,6 +26,7 @@ import com.google.common.base.Function;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
+import org.apache.cassandra.io.util.CheckedFunction;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.UnbufferedDataOutputStreamPlus;
@@ -82,7 +83,7 @@ public class ByteBufDataOutputPlus extends ByteBufOutputStream implements DataOu
     }
 
     @Override
-    public <R> R applyToChannel(Function<WritableByteChannel, R> c) throws IOException
+    public <R> R applyToChannel(CheckedFunction<WritableByteChannel, R, IOException> c) throws IOException
     {
         throw new UnsupportedOperationException();
     }

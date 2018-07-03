@@ -31,7 +31,11 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelConfig;
 import io.netty.util.ReferenceCountUtil;
+import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.RebufferingInputStream;
+import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FastByteOperations;
 
 public class RebufferingByteBufDataInputPlus extends RebufferingInputStream implements ReadableByteChannel
 {
@@ -248,5 +252,54 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
     public ByteBufAllocator getAllocator()
     {
         return channelConfig.getAllocator();
+    }
+
+    /**
+     * Consumes bytes in the stream until the given length
+     *
+     * @param writer
+     * @param len
+     * @return
+     * @throws IOException
+     */
+    public long consumeUntil(BufferedDataOutputStreamPlus writer, long len) throws IOException
+    {
+        long copied = 0; // number of bytes copied
+        while (copied < len)
+        {
+            int position = buffer.position();
+            int remaining = buffer.remaining();
+            if (remaining == 0)
+            {
+                try
+                {
+                    reBuffer();
+                } catch (EOFException e)
+                {
+                    throw new EOFException("EOF after " + copied + " bytes out of " + len);
+                }
+                position = buffer.position();
+                remaining = buffer.remaining();
+                if (remaining == 0)
+                    return copied == 0 ? -1 : copied;
+            }
+
+            int toCopy = (int) Math.min(len - copied, remaining);
+
+            ByteBuffer dup = buffer.duplicate();
+
+            if (toCopy < remaining)
+                dup.limit(dup.position() + toCopy);
+
+            int result = writer.applyToChannel(c -> c.write(dup));
+
+            if (result == -1)
+                throw new IOException(String.format("Failed to write to Channel {}", writer));
+
+            buffer.position(position + result);
+            copied += result;
+        }
+
+        return copied;
     }
 }

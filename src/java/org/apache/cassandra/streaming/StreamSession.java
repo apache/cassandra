@@ -202,7 +202,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
 
-        logger.debug("Creating stream session peer={} preferredPeerInetAddressAndPort={}", peer, preferredPeerInetAddressAndPort);
+        logger.debug("Creating stream session peer={} preferredPeerInetAddressAndPort={}", peer,
+                     preferredPeerInetAddressAndPort);
     }
 
     public UUID planId()
@@ -777,7 +778,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         FBUtilities.waitOnFutures(flushes);
     }
 
-    private synchronized void prepareReceiving(StreamSummary summary)
+    @VisibleForTesting
+    public synchronized void prepareReceiving(StreamSummary summary)
     {
         failIfFinished();
         if (summary.files > 0)

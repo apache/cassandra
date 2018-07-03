@@ -114,7 +114,7 @@ public class StreamingTransferTest
     @Test
     public void testEmptyStreamPlan() throws Exception
     {
-        StreamResultFuture futureResult = new StreamPlan(StreamOperation.OTHER).execute();
+        StreamResultFuture futureResult = new StreamPlan(StreamOperation.OTHER, false).execute();
         final UUID planId = futureResult.planId;
         Futures.addCallback(futureResult, new FutureCallback<StreamState>()
         {
@@ -143,7 +143,7 @@ public class StreamingTransferTest
         ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
 
-        StreamResultFuture futureResult = new StreamPlan(StreamOperation.OTHER)
+        StreamResultFuture futureResult = new StreamPlan(StreamOperation.OTHER, false)
                                                   .requestRanges(LOCAL, KEYSPACE2, ranges)
                                                   .execute();
 
@@ -238,7 +238,7 @@ public class StreamingTransferTest
         List<Range<Token>> ranges = new ArrayList<>();
         // wrapped range
         ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key0"))));
-        StreamPlan streamPlan = new StreamPlan(StreamOperation.OTHER).transferRanges(LOCAL, cfs.keyspace.getName(), ranges, cfs.getTableName());
+        StreamPlan streamPlan = new StreamPlan(StreamOperation.OTHER, false).transferRanges(LOCAL, cfs.keyspace.getName(), ranges, cfs.getTableName());
         streamPlan.execute().get();
 
         //cannot add ranges after stream session is finished
@@ -255,7 +255,7 @@ public class StreamingTransferTest
 
     private void transfer(SSTableReader sstable, List<Range<Token>> ranges) throws Exception
     {
-        StreamPlan streamPlan = new StreamPlan(StreamOperation.OTHER).transferStreams(LOCAL, makeOutgoingStreams(ranges, Refs.tryRef(Arrays.asList(sstable))));
+        StreamPlan streamPlan = new StreamPlan(StreamOperation.OTHER, false).transferStreams(LOCAL, makeOutgoingStreams(ranges, Refs.tryRef(Arrays.asList(sstable))));
         streamPlan.execute().get();
 
         //cannot add files after stream session is finished
@@ -278,6 +278,7 @@ public class StreamingTransferTest
             streams.add(new CassandraOutgoingFile(operation,
                                                   sstables.get(sstable),
                                                   sstable.getPositionsForRanges(ranges),
+                                                  ranges,
                                                   sstable.estimatedKeysForRanges(ranges)));
         }
         return streams;

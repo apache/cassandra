@@ -341,7 +341,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     }
 
     @Override
-    public <R> R applyToChannel(Function<WritableByteChannel, R> f) throws IOException
+    public <R> R applyToChannel(CheckedFunction<WritableByteChannel, R, IOException> f) throws IOException
     {
         if (strictFlushing)
             throw new UnsupportedOperationException();

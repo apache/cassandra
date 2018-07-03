@@ -152,7 +152,8 @@ public class CassandraStreamManager implements TableStreamManager
                     ref.release();
                     continue;
                 }
-                streams.add(new CassandraOutgoingFile(session.getStreamOperation(), ref, sections, sstable.estimatedKeysForRanges(ranges)));
+                streams.add(new CassandraOutgoingFile(session.getStreamOperation(), ref, sections, ranges,
+                                                      sstable.estimatedKeysForRanges(ranges)));
             }
 
             return streams;

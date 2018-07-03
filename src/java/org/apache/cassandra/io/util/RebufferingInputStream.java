@@ -26,7 +26,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
+import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.utils.FastByteOperations;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import com.google.common.base.Preconditions;
@@ -85,7 +87,13 @@ public abstract class RebufferingInputStream extends InputStream implements Data
             int remaining = buffer.limit() - position;
             if (remaining == 0)
             {
-                reBuffer();
+                try
+                {
+                    reBuffer();
+                } catch (EOFException e)
+                {
+                    throw new EOFException("EOF after " + copied + " bytes out of " + len);
+                }
                 position = buffer.position();
                 remaining = buffer.limit() - position;
                 if (remaining == 0)

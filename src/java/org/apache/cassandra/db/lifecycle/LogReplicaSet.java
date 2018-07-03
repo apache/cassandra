@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -45,7 +46,7 @@ public class LogReplicaSet implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(LogReplicaSet.class);
 
-    private final Map<File, LogReplica> replicasByFile = new LinkedHashMap<>();
+    private final Map<File, LogReplica> replicasByFile = new ConcurrentHashMap<>(); // TODO: Hack until we fix CASSANDRA-14554
 
     private Collection<LogReplica> replicas()
     {

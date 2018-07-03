@@ -2816,7 +2816,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
 
-        StreamPlan stream = new StreamPlan(StreamOperation.RESTORE_REPLICA_COUNT);
+        StreamPlan stream = new StreamPlan(StreamOperation.RESTORE_REPLICA_COUNT, false);
         for (String keyspaceName : rangesToFetch.keySet())
         {
             for (Map.Entry<InetAddressAndPort, Collection<Range<Token>>> entry : rangesToFetch.get(keyspaceName))
@@ -4236,7 +4236,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private class RangeRelocator
     {
-        private final StreamPlan streamPlan = new StreamPlan(StreamOperation.RELOCATION);
+        private final StreamPlan streamPlan = new StreamPlan(StreamOperation.RELOCATION, false);
 
         private RangeRelocator(Collection<Token> tokens, List<String> keyspaceNames)
         {
@@ -5116,7 +5116,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             sessionsToStreamByKeyspace.put(keyspace, rangesPerEndpoint);
         }
 
-        StreamPlan streamPlan = new StreamPlan(StreamOperation.DECOMMISSION);
+        StreamPlan streamPlan = new StreamPlan(StreamOperation.DECOMMISSION, false);
 
         // Vinculate StreamStateStore to current StreamPlan to update transferred ranges per StreamSession
         streamPlan.listeners(streamStateStore);
