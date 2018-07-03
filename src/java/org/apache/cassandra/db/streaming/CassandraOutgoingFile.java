@@ -41,7 +41,6 @@ import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
@@ -52,6 +51,11 @@ import org.apache.cassandra.utils.concurrent.Ref;
  */
 public class CassandraOutgoingFile implements OutgoingStream
 {
+    private static final boolean isFullSSTableTransfersEnabled = DatabaseDescriptor.isFullSSTableTransfersEnabled();
+    public static final List<Component> STREAM_COMPONENTS = ImmutableList.of(Component.DATA, Component.PRIMARY_INDEX, Component.STATS,
+                                                                             Component.COMPRESSION_INFO, Component.FILTER, Component.SUMMARY,
+                                                                             Component.DIGEST, Component.CRC);
+
     private final Ref<SSTableReader> ref;
     private final long estimatedKeys;
     private final List<SSTableReader.PartitionPositionBounds> sections;
@@ -61,12 +65,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final List<ComponentInfo> components;
     private final boolean isFullyContained;
 
-    public static final List<Component> STREAM_COMPONENTS = ImmutableList.of(Component.DATA, Component.PRIMARY_INDEX, Component.STATS,
-                                                                              Component.COMPRESSION_INFO, Component.FILTER, Component.SUMMARY,
-                                                                              Component.DIGEST, Component.CRC);
     private final List<Range<Token>> ranges;
-    private static final Logger logger = LoggerFactory.getLogger(CassandraOutgoingFile.class);
-    private static final boolean isFullSSTableTransfersEnabled = DatabaseDescriptor.isFullSSTableTransfersEnabled();
 
     public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
                                  List<SSTableReader.PartitionPositionBounds> sections, Collection<Range<Token>> ranges,
@@ -183,10 +182,6 @@ public class CassandraOutgoingFile implements OutgoingStream
             return false;
         try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
         {
-            List<Range<Token>> ownedRanges = Range.normalize(StorageService.instance.getLocalAndPendingRanges(sstable.getKeyspaceName()));
-            if (ownedRanges.isEmpty())
-                return false;
-
             while (iter.hasNext())
             {
                 DecoratedKey key = iter.next();

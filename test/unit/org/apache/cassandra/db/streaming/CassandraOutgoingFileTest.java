@@ -25,6 +25,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -84,7 +85,7 @@ public class CassandraOutgoingFileTest
     @Test
     public void testCompleteRangeTriggersFullStreaming()
     {
-        Token minToken = sstable.first.getToken();
+        Token minToken = sstable.first.getToken().minValue();
         Token maxToken = sstable.last.getToken();
 
         Range<Token> requestedRange = new Range<>(minToken, maxToken);

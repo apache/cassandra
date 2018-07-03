@@ -87,13 +87,7 @@ public abstract class RebufferingInputStream extends InputStream implements Data
             int remaining = buffer.limit() - position;
             if (remaining == 0)
             {
-                try
-                {
-                    reBuffer();
-                } catch (EOFException e)
-                {
-                    throw new EOFException("EOF after " + copied + " bytes out of " + len);
-                }
+                reBuffer();
                 position = buffer.position();
                 remaining = buffer.limit() - position;
                 if (remaining == 0)

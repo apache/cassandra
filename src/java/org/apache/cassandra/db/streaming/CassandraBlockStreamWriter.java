@@ -47,13 +47,14 @@ public class CassandraBlockStreamWriter implements IStreamWriter
     protected final SSTableReader sstable;
     protected final List<ComponentInfo> components;
     protected final StreamSession session;
-
+    private final StreamRateLimiter limiter;
 
     public CassandraBlockStreamWriter(SSTableReader sstable, StreamSession session, List<ComponentInfo> components)
     {
         this.session = session;
         this.sstable = sstable;
         this.components = components;
+        this.limiter =  StreamManager.getRateLimiter(session.peer);
     }
 
     /**
@@ -85,7 +86,7 @@ public class CassandraBlockStreamWriter implements IStreamWriter
             logger.debug("[Stream #{}] Block streaming {}.{} gen {} component {} size {}", session.planId(),
                         sstable.getKeyspaceName(), sstable.getColumnFamilyName(), sstable.descriptor.generation, info.type, length);
 
-            bytesRead += byteBufDataOutputStreamPlus.writeToChannel(in);
+            bytesRead += byteBufDataOutputStreamPlus.writeToChannel(in, limiter);
             progress += bytesRead;
 
             session.progress(sstable.descriptor.filenameFor(Component.parse(info.type.repr)), ProgressInfo.Direction.OUT, bytesRead,

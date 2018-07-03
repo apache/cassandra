@@ -293,9 +293,6 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
 
             int result = writer.applyToChannel(c -> c.write(dup));
 
-            if (result == -1)
-                throw new IOException(String.format("Failed to write to Channel {}", writer));
-
             buffer.position(position + result);
             copied += result;
         }

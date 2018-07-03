@@ -321,7 +321,7 @@ public class LegacySSTableTest
                                                                                     sstable.getPositionsForRanges(ranges),
                                                                                     ranges,
                                                                                     sstable.estimatedKeysForRanges(ranges)));
-        new StreamPlan(StreamOperation.OTHER, false).transferStreams(FBUtilities.getBroadcastAddressAndPort(), streams).execute().get();
+        new StreamPlan(StreamOperation.OTHER).transferStreams(FBUtilities.getBroadcastAddressAndPort(), streams).execute().get();
     }
 
     private static void truncateLegacyTables(String legacyVersion) throws Exception

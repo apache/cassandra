@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.net.async;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -35,11 +34,11 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.DefaultFileRegion;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import org.apache.cassandra.streaming.StreamSession;
 
 /**
@@ -149,7 +148,7 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
      * @return number of bytes transferred
      * @throws IOException
      */
-    public long writeToChannel(FileChannel f) throws IOException
+    public long writeToChannel(FileChannel f, StreamRateLimiter limiter) throws IOException
     {
         final long length = f.size();
         long bytesTransferred = 0;
@@ -161,6 +160,8 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
 
             if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, toRead, 5, TimeUnit.MINUTES))
                 throw new IOException(String.format("outbound channel was not writable. Failed to acquire sufficient permits %d", toRead));
+
+            limiter.acquire(toRead);
 
             bytesTransferred += toRead;
             final boolean shouldClose = (bytesTransferred == length); // this is the last buffer, can safely close channel
