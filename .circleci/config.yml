@@ -65,9 +65,9 @@ env_vars: &env_vars
     <<: *high_capacity_env_vars
 workflows:
     version: 2
-    build_and_run_tests: *default_jobs
+    #build_and_run_tests: *default_jobs
     #build_and_run_tests: *with_dtest_jobs_only
-    #build_and_run_tests: *with_dtest_jobs
+    build_and_run_tests: *with_dtest_jobs
 docker_image: &docker_image kjellman/cassandra-test:0.4.3
 version: 2
 jobs:
