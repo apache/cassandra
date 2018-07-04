@@ -692,6 +692,9 @@ public class CounterContext
      */
     public void updateDigest(Hasher hasher, ByteBuffer context)
     {
+        // context can be empty due to the optimization from CASSANDRA-10657
+        if (!context.hasRemaining())
+            return;
         ByteBuffer dup = context.duplicate();
         dup.position(context.position() + headerLength(context));
         HashingUtils.updateBytes(hasher, dup);
