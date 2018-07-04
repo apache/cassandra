@@ -29,12 +29,15 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Cells;
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.serializers.AsciiSerializer;
 import org.apache.cassandra.utils.*;
 
 import static org.junit.Assert.*;
@@ -280,4 +283,24 @@ public class CounterCellTest
 
         assert Arrays.equals(digest1.digest(), digest2.digest());
     }
+
+    @Test
+    public void testDigestWithEmptyCells() throws Exception
+    {
+        // For DB-1881
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
+
+        ColumnDefinition emptyColDef = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("val2"));
+        BufferCell emptyCell = BufferCell.live(emptyColDef, 0, ByteBuffer.allocate(0));
+
+        Row.Builder builder = BTreeRow.unsortedBuilder(0);
+        builder.newRow(Clustering.make(AsciiSerializer.instance.serialize("test")));
+        builder.addCell(emptyCell);
+        Row row = builder.build();
+
+        MessageDigest digest = MessageDigest.getInstance("md5");
+        row.digest(digest);
+        assertNotNull(digest.digest());
+    }
+
 }
