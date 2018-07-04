@@ -138,7 +138,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
      */
     public SequentialWriter(File file, SequentialWriterOption option)
     {
-        this(file, option, false);
+        this(file, option, true);
     }
 
     /**
