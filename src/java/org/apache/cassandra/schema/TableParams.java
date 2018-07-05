@@ -51,6 +51,7 @@ public final class TableParams
         MEMTABLE_FLUSH_PERIOD_IN_MS,
         MIN_INDEX_INTERVAL,
         SPECULATIVE_RETRY,
+        SPECULATIVE_WRITE_THRESHOLD,
         CRC_CHECK_CHANCE,
         CDC,
         READ_REPAIR;
@@ -71,6 +72,7 @@ public final class TableParams
     public final int minIndexInterval;
     public final int maxIndexInterval;
     public final SpeculativeRetryPolicy speculativeRetry;
+    public final SpeculativeRetryPolicy speculativeWriteThreshold;
     public final CachingParams caching;
     public final CompactionParams compaction;
     public final CompressionParams compression;
@@ -91,6 +93,7 @@ public final class TableParams
         minIndexInterval = builder.minIndexInterval;
         maxIndexInterval = builder.maxIndexInterval;
         speculativeRetry = builder.speculativeRetry;
+        speculativeWriteThreshold = builder.speculativeWriteThreshold;
         caching = builder.caching;
         compaction = builder.compaction;
         compression = builder.compression;
@@ -118,6 +121,7 @@ public final class TableParams
                             .memtableFlushPeriodInMs(params.memtableFlushPeriodInMs)
                             .minIndexInterval(params.minIndexInterval)
                             .speculativeRetry(params.speculativeRetry)
+                            .speculativeWriteThreshold(params.speculativeWriteThreshold)
                             .extensions(params.extensions)
                             .cdc(params.cdc)
                             .readRepair(params.readRepair);
@@ -260,6 +264,7 @@ public final class TableParams
         private int minIndexInterval = 128;
         private int maxIndexInterval = 2048;
         private SpeculativeRetryPolicy speculativeRetry = PercentileSpeculativeRetryPolicy.NINETY_NINE_P;
+        private SpeculativeRetryPolicy speculativeWriteThreshold = PercentileSpeculativeRetryPolicy.NINETY_NINE_P;
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
         private CompressionParams compression = CompressionParams.DEFAULT;
@@ -327,6 +332,12 @@ public final class TableParams
         public Builder speculativeRetry(SpeculativeRetryPolicy val)
         {
             speculativeRetry = val;
+            return this;
+        }
+
+        public Builder speculativeWriteThreshold(SpeculativeRetryPolicy val)
+        {
+            speculativeWriteThreshold = val;
             return this;
         }
 

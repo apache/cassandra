@@ -128,6 +128,9 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(Option.SPECULATIVE_RETRY))
             builder.speculativeRetry(SpeculativeRetryPolicy.fromString(getString(Option.SPECULATIVE_RETRY)));
 
+        if (hasOption(Option.SPECULATIVE_WRITE_THRESHOLD))
+            builder.speculativeWriteThreshold(SpeculativeRetryPolicy.fromString(getString(Option.SPECULATIVE_WRITE_THRESHOLD)));
+
         if (hasOption(Option.CRC_CHECK_CHANCE))
             builder.crcCheckChance(getDouble(Option.CRC_CHECK_CHANCE));
 

@@ -19,14 +19,22 @@ package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -53,6 +61,7 @@ public class SimpleStrategyTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1));
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
 
     @Test
@@ -107,12 +116,12 @@ public class SimpleStrategyTest
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                List<InetAddressAndPort> endpoints = strategy.getNaturalEndpoints(keyTokens[i]);
-                assertEquals(strategy.getReplicationFactor(), endpoints.size());
+                EndpointsForToken replicas = strategy.getNaturalReplicasForToken(keyTokens[i]);
+                assertEquals(strategy.getReplicationFactor().allReplicas, replicas.size());
                 List<InetAddressAndPort> correctEndpoints = new ArrayList<>();
-                for (int j = 0; j < endpoints.size(); j++)
+                for (int j = 0; j < replicas.size(); j++)
                     correctEndpoints.add(hosts.get((i + j + 1) % hosts.size()));
-                assertEquals(new HashSet<>(correctEndpoints), new HashSet<>(endpoints));
+                assertEquals(new HashSet<>(correctEndpoints), replicas.endpoints());
             }
         }
     }
@@ -154,28 +163,78 @@ public class SimpleStrategyTest
 
             PendingRangeCalculatorService.calculatePendingRanges(strategy, keyspaceName);
 
-            int replicationFactor = strategy.getReplicationFactor();
+            int replicationFactor = strategy.getReplicationFactor().allReplicas;
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                Collection<InetAddressAndPort> endpoints = tmd.getWriteEndpoints(keyTokens[i], keyspaceName, strategy.getNaturalEndpoints(keyTokens[i]));
-                assertTrue(endpoints.size() >= replicationFactor);
+                EndpointsForToken replicas = tmd.getWriteEndpoints(keyTokens[i], keyspaceName, strategy.getNaturalReplicasForToken(keyTokens[i]));
+                assertTrue(replicas.size() >= replicationFactor);
 
                 for (int j = 0; j < replicationFactor; j++)
                 {
                     //Check that the old nodes are definitely included
-                    assertTrue(endpoints.contains(hosts.get((i + j + 1) % hosts.size())));
+                   assertTrue(replicas.endpoints().contains(hosts.get((i + j + 1) % hosts.size())));
                 }
 
                 // bootstrapEndpoint should be in the endpoints for i in MAX-RF to MAX, but not in any earlier ep.
                 if (i < RING_SIZE - replicationFactor)
-                    assertFalse(endpoints.contains(bootstrapEndpoint));
+                    assertFalse(replicas.endpoints().contains(bootstrapEndpoint));
                 else
-                    assertTrue(endpoints.contains(bootstrapEndpoint));
+                    assertTrue(replicas.endpoints().contains(bootstrapEndpoint));
             }
         }
 
         StorageServiceAccessor.setTokenMetadata(oldTmd);
+    }
+
+    private static Token tk(long t)
+    {
+        return new Murmur3Partitioner.LongToken(t);
+    }
+
+    private static Range<Token> range(long l, long r)
+    {
+        return new Range<>(tk(l), tk(r));
+    }
+
+    @Test
+    public void transientReplica() throws Exception
+    {
+        IEndpointSnitch snitch = new SimpleSnitch();
+        DatabaseDescriptor.setEndpointSnitch(snitch);
+
+        List<InetAddressAndPort> endpoints = Lists.newArrayList(InetAddressAndPort.getByName("127.0.0.1"),
+                                                                InetAddressAndPort.getByName("127.0.0.2"),
+                                                                InetAddressAndPort.getByName("127.0.0.3"),
+                                                                InetAddressAndPort.getByName("127.0.0.4"));
+
+        Multimap<InetAddressAndPort, Token> tokens = HashMultimap.create();
+        tokens.put(endpoints.get(0), tk(100));
+        tokens.put(endpoints.get(1), tk(200));
+        tokens.put(endpoints.get(2), tk(300));
+        tokens.put(endpoints.get(3), tk(400));
+        TokenMetadata metadata = new TokenMetadata();
+        metadata.updateNormalTokens(tokens);
+
+        Map<String, String> configOptions = new HashMap<String, String>();
+        configOptions.put("replication_factor", "3/1");
+
+        SimpleStrategy strategy = new SimpleStrategy("ks", metadata, snitch, configOptions);
+
+        Range<Token> range1 = range(400, 100);
+        Assert.assertEquals(EndpointsForToken.of(range1.right,
+                                                 Replica.fullReplica(endpoints.get(0), range1),
+                                                 Replica.fullReplica(endpoints.get(1), range1),
+                                                 Replica.transientReplica(endpoints.get(2), range1)),
+                            strategy.getNaturalReplicasForToken(tk(99)));
+
+
+        Range<Token> range2 = range(100, 200);
+        Assert.assertEquals(EndpointsForToken.of(range2.right,
+                                                 Replica.fullReplica(endpoints.get(1), range2),
+                                                 Replica.fullReplica(endpoints.get(2), range2),
+                                                 Replica.transientReplica(endpoints.get(3), range2)),
+                            strategy.getNaturalReplicasForToken(tk(101)));
     }
 
     private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd)

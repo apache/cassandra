@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Collection;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,9 +79,12 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
         StreamPlan sp = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                .listeners(this)
                .flushBeforeTransfer(pendingRepair == null) // sstables are isolated at the beginning of an incremental repair session, so flushing isn't neccessary
-               .requestRanges(dest, desc.keyspace, ranges, desc.columnFamily); // request ranges from the remote node
+               // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
+               .requestRanges(dest, desc.keyspace, RangesAtEndpoint.toDummyList(ranges),
+                       RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily); // request ranges from the remote node
         if (!asymmetric)
-            sp.transferRanges(dest, desc.keyspace, ranges, desc.columnFamily); // send ranges to the remote node
+            // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
+            sp.transferRanges(dest, desc.keyspace, RangesAtEndpoint.toDummyList(ranges), desc.columnFamily); // send ranges to the remote node
         return sp;
     }
 

@@ -64,7 +64,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     public RepairJob(RepairSession session, String columnFamily, boolean isIncremental, PreviewKind previewKind, boolean optimiseStreams)
     {
         this.session = session;
-        this.desc = new RepairJobDesc(session.parentRepairSession, session.getId(), session.keyspace, columnFamily, session.getRanges());
+        this.desc = new RepairJobDesc(session.parentRepairSession, session.getId(), session.keyspace, columnFamily, session.commonRange.ranges);
         this.taskExecutor = session.taskExecutor;
         this.parallelismDegree = session.parallelismDegree;
         this.isIncremental = isIncremental;
@@ -83,7 +83,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         Keyspace ks = Keyspace.open(desc.keyspace);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(desc.columnFamily);
         cfs.metric.repairsStarted.inc();
-        List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.endpoints);
+        List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.commonRange.endpoints);
         allEndpoints.add(FBUtilities.getBroadcastAddressAndPort());
 
         ListenableFuture<List<TreeResponse>> validations;
@@ -160,13 +160,18 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         }, taskExecutor);
     }
 
+    private boolean isTransient(InetAddressAndPort ep)
+    {
+        return session.commonRange.transEndpoints.contains(ep);
+    }
+
     private AsyncFunction<List<TreeResponse>, List<SyncStat>> standardSyncing()
     {
         return trees ->
         {
             InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
 
-            List<SyncTask> syncTasks = new ArrayList<>();
+            List<AbstractSyncTask> syncTasks = new ArrayList<>();
             // We need to difference all trees one against another
             for (int i = 0; i < trees.size() - 1; ++i)
             {
@@ -174,17 +179,29 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 for (int j = i + 1; j < trees.size(); ++j)
                 {
                     TreeResponse r2 = trees.get(j);
-                    SyncTask task;
+
+                    if (isTransient(r1.endpoint) && isTransient(r2.endpoint))
+                        continue;
+
+                    AbstractSyncTask task;
                     if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
                     {
-                        task = new LocalSyncTask(desc, r1, r2, isIncremental ? desc.parentSessionId : null, session.pullRepair, session.previewKind);
+                        InetAddressAndPort remote = r1.endpoint.equals(local) ? r2.endpoint : r1.endpoint;
+                        task = new SymmetricLocalSyncTask(desc, r1, r2, isTransient(remote), isIncremental ? desc.parentSessionId : null, session.pullRepair, session.previewKind);
+                    }
+                    else if (isTransient(r1.endpoint) || isTransient(r2.endpoint))
+                    {
+                        TreeResponse streamFrom = isTransient(r1.endpoint) ? r1 : r2;
+                        TreeResponse streamTo = isTransient(r1.endpoint) ? r2: r1;
+                        task = new AsymmetricRemoteSyncTask(desc, streamTo, streamFrom, previewKind);
+                        session.waitForSync(Pair.create(desc, new NodePair(streamTo.endpoint, streamFrom.endpoint)), (AsymmetricRemoteSyncTask) task);
                     }
                     else
                     {
-                        task = new RemoteSyncTask(desc, r1, r2, session.previewKind);
-                        // RemoteSyncTask expects SyncComplete message sent back.
+                        task = new SymmetricRemoteSyncTask(desc, r1, r2, session.previewKind);
+                        // SymmetricRemoteSyncTask expects SyncComplete message sent back.
                         // Register task to RepairSession to receive response.
-                        session.waitForSync(Pair.create(desc, new NodePair(r1.endpoint, r2.endpoint)), (RemoteSyncTask) task);
+                        session.waitForSync(Pair.create(desc, new NodePair(r1.endpoint, r2.endpoint)), (SymmetricRemoteSyncTask) task);
                     }
                     syncTasks.add(task);
                     taskExecutor.submit(task);
@@ -200,7 +217,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         {
             InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
 
-            List<AsymmetricSyncTask> syncTasks = new ArrayList<>();
+            List<AbstractSyncTask> syncTasks = new ArrayList<>();
             // We need to difference all trees one against another
             DifferenceHolder diffHolder = new DifferenceHolder(trees);
 
@@ -215,6 +232,11 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             for (int i = 0; i < trees.size(); i++)
             {
                 InetAddressAndPort address = trees.get(i).endpoint;
+
+                // we don't stream to transient replicas
+                if (isTransient(address))
+                    continue;
+
                 HostDifferences streamsFor = reducedDifferences.get(address);
                 if (streamsFor != null)
                 {

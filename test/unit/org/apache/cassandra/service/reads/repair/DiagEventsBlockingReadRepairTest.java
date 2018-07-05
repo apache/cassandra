@@ -26,20 +26,23 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.OverrideConfigurationLoader;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.diag.DiagnosticEventService;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepairEvent.ReadRepairEventType;
@@ -72,12 +75,13 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         Mutation repair2 = mutation(cell1);
 
         // check that the correct repairs are calculated
-        Map<InetAddressAndPort, Mutation> repairs = new HashMap<>();
-        repairs.put(target1, repair1);
-        repairs.put(target2, repair2);
+        Map<Replica, Mutation> repairs = new HashMap<>();
+        repairs.put(replica1, repair1);
+        repairs.put(replica2, repair2);
 
 
-        DiagnosticPartitionReadRepairHandler handler = createRepairHandler(repairs, 2);
+        ReplicaLayout.ForRange replicaLayout = replicaLayout(replicas, EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet())));
+        DiagnosticPartitionReadRepairHandler handler = createRepairHandler(repairs, 2, replicaLayout);
 
         Assert.assertTrue(handler.updatesByEp.isEmpty());
 
@@ -102,17 +106,20 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         Assert.assertTrue(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
     }
 
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaLayout<?, ?> replicaLayout, long queryStartNanoTime)
     {
-        return new DiagnosticBlockingRepairHandler(command, queryStartNanoTime, consistency);
+        return new DiagnosticBlockingRepairHandler(command, replicaLayout, queryStartNanoTime);
     }
 
-    private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<InetAddressAndPort, Mutation> repairs, int maxBlockFor)
+    private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, ReplicaLayout<?, ?> replicaLayout)
     {
-        Set<InetAddressAndPort> participants = repairs.keySet();
-        InetAddressAndPort[] participantArray = new InetAddressAndPort[participants.size()];
-        participants.toArray(participantArray);
-        return new DiagnosticPartitionReadRepairHandler(ks, key, ConsistencyLevel.LOCAL_QUORUM, repairs, maxBlockFor, participantArray);
+        return new DiagnosticPartitionReadRepairHandler(key, repairs, maxBlockFor, replicaLayout);
+    }
+
+    private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor)
+    {
+        EndpointsForRange replicas = EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet()));
+        return createRepairHandler(repairs, maxBlockFor, replicaLayout(replicas, replicas));
     }
 
     private static class DiagnosticBlockingRepairHandler extends BlockingReadRepair implements InstrumentedReadRepair
@@ -120,9 +127,9 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         private Set<InetAddressAndPort> recipients = Collections.emptySet();
         private ReadCallback readCallback = null;
 
-        DiagnosticBlockingRepairHandler(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency)
+        DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaLayout<?, ?> replicaLayout, long queryStartNanoTime)
         {
-            super(command, queryStartNanoTime, consistency);
+            super(command, replicaLayout, queryStartNanoTime);
             DiagnosticEventService.instance().subscribe(ReadRepairEvent.class, this::onRepairEvent);
         }
 
@@ -130,7 +137,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         {
             if (e.getType() == ReadRepairEventType.START_REPAIR) recipients = new HashSet<>(e.destinations);
             else if (e.getType() == ReadRepairEventType.SPECULATED_READ) recipients.addAll(e.destinations);
-            Assert.assertEquals(targets, e.allEndpoints);
+            Assert.assertEquals(new HashSet<>(targets), new HashSet<>(e.allEndpoints));
             Assert.assertNotNull(e.toMap());
         }
 
@@ -156,13 +163,13 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         }
     }
 
-    private static class DiagnosticPartitionReadRepairHandler extends BlockingPartitionRepair
+    private static class DiagnosticPartitionReadRepairHandler<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends BlockingPartitionRepair<E, L>
     {
         private final Map<InetAddressAndPort, String> updatesByEp = new HashMap<>();
 
-        DiagnosticPartitionReadRepairHandler(Keyspace keyspace, DecoratedKey key, ConsistencyLevel consistency, Map<InetAddressAndPort, Mutation> repairs, int maxBlockFor, InetAddressAndPort[] participants)
+        DiagnosticPartitionReadRepairHandler(DecoratedKey key, Map<Replica, Mutation> repairs, int maxBlockFor, L replicaLayout)
         {
-            super(keyspace, key, consistency, repairs, maxBlockFor, participants);
+            super(key, repairs, maxBlockFor, replicaLayout);
             DiagnosticEventService.instance().subscribe(PartitionRepairEvent.class, this::onRepairEvent);
         }
 

@@ -62,7 +62,7 @@ public class PendingRangeCalculatorServiceTest
     @BMRule(name = "Block pending range calculation",
             targetClass = "TokenMetadata",
             targetMethod = "calculatePendingRanges",
-            targetLocation = "AT INVOKE org.apache.cassandra.locator.AbstractReplicationStrategy.getAddressRanges",
+            targetLocation = "AT INVOKE org.apache.cassandra.locator.AbstractReplicationStrategy.getAddressReplicas",
             action = "org.apache.cassandra.gms.PendingRangeCalculatorServiceTest.calculationLock.lock()")
     public void testDelayedResponse() throws UnknownHostException, InterruptedException
     {

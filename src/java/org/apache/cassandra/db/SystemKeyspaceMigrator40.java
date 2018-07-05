@@ -18,6 +18,11 @@
 
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.Set;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +50,9 @@ public class SystemKeyspaceMigrator40
     static final String peerEventsName = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.PEER_EVENTS_V2);
     static final String legacyTransferredRangesName = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_TRANSFERRED_RANGES);
     static final String transferredRangesName = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.TRANSFERRED_RANGES_V2);
+    static final String legacyAvailableRangesName = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_AVAILABLE_RANGES);
+    static final String availableRangesName = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.AVAILABLE_RANGES_V2);
+
 
     private static final Logger logger = LoggerFactory.getLogger(SystemKeyspaceMigrator40.class);
 
@@ -55,6 +63,7 @@ public class SystemKeyspaceMigrator40
         migratePeers();
         migratePeerEvents();
         migrateTransferredRanges();
+        migrateAvailableRanges();
     }
 
     private static void migratePeers()
@@ -179,6 +188,42 @@ public class SystemKeyspaceMigrator40
         }
 
         logger.info("Migrated {} rows from legacy {} to {}", transferred, legacyTransferredRangesName, transferredRangesName);
+    }
+
+    static void migrateAvailableRanges()
+    {
+        ColumnFamilyStore newAvailableRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.AVAILABLE_RANGES_V2);
+
+        if (!newAvailableRanges.isEmpty())
+            return;
+
+        logger.info("{} table was empty, migrating legacy {} to {}", availableRangesName, legacyAvailableRangesName, availableRangesName);
+
+        String query = String.format("SELECT * FROM %s",
+                                     legacyAvailableRangesName);
+
+        String insert = String.format("INSERT INTO %s ("
+                                      + "keyspace_name, "
+                                      + "full_ranges, "
+                                      + "transient_ranges) "
+                                      + " values ( ?, ?, ? )",
+                                      availableRangesName);
+
+        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, 1000);
+        int transferred = 0;
+        for (UntypedResultSet.Row row : rows)
+        {
+            logger.debug("Transferring row {}", transferred);
+            String keyspace = row.getString("keyspace_name");
+            Set<ByteBuffer> ranges = Optional.ofNullable(row.getSet("ranges", BytesType.instance)).orElse(Collections.emptySet());
+            QueryProcessor.executeInternal(insert,
+                                           keyspace,
+                                           ranges,
+                                           Collections.emptySet());
+            transferred++;
+        }
+
+        logger.info("Migrated {} rows from legacy {} to {}", transferred, legacyAvailableRangesName, availableRangesName);
     }
 
 }

@@ -816,6 +816,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getNaturalEndpoints(keyspace, cf, key);
     }
 
+    public List<String> getReplicas(String keyspace, String cf, String key)
+    {
+        return ssProxy.getReplicas(keyspace, cf, key);
+    }
+
     public List<String> getSSTables(String keyspace, String cf, String key, boolean hexFormat)
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(keyspace, cf);

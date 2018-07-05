@@ -28,6 +28,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -358,6 +359,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                           "undelivered updates. Setting gc_grace_seconds too low might " +
                           "cause undelivered updates to expire " +
                           "before being replayed.");
+            }
+
+            if (keyspace.createReplicationStrategy().hasTransientReplicas()
+                && params.readRepair != ReadRepairStrategy.NONE)
+            {
+                throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
             }
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(params)));

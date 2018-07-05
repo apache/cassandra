@@ -32,9 +32,11 @@ import java.util.function.Supplier;
 
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.StringUtils;
 
+import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,6 +75,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class Util
@@ -446,6 +449,14 @@ public class Util
         }
     }
 
+    public static void consume(UnfilteredPartitionIterator iterator)
+    {
+        while (iterator.hasNext())
+        {
+            consume(iterator.next());
+        }
+    }
+
     public static int size(PartitionIterator iter)
     {
         int size = 0;
@@ -476,6 +487,15 @@ public class Util
             && Objects.equals(a.partitionLevelDeletion(), b.partitionLevelDeletion())
             && Objects.equals(a.staticRow(), b.staticRow())
             && Iterators.elementsEqual(a, b);
+    }
+
+    public static boolean sameContent(RowIterator a, RowIterator b)
+    {
+        return Objects.equals(a.metadata(), b.metadata())
+               && Objects.equals(a.isReverseOrder(), b.isReverseOrder())
+               && Objects.equals(a.partitionKey(), b.partitionKey())
+               && Objects.equals(a.staticRow(), b.staticRow())
+               && Iterators.elementsEqual(a, b);
     }
 
     public static boolean sameContent(Mutation a, Mutation b)

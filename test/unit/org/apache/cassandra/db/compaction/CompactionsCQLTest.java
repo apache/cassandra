@@ -411,7 +411,7 @@ public class CompactionsCQLTest extends CQLTester
             cfs.forceBlockingFlush();
         }
         assertEquals(50, cfs.getLiveSSTables().size());
-        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepaired().get(0);
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
         AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
         // we should be compacting all 50 sstables:
         assertEquals(50, act.transaction.originals().size());
@@ -445,7 +445,7 @@ public class CompactionsCQLTest extends CQLTester
 
         // mark the L1 sstable as compacting to make sure we trigger STCS in L0:
         LifecycleTransaction txn = cfs.getTracker().tryModify(l1sstable, OperationType.COMPACTION);
-        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepaired().get(0);
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
         AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
         // note that max_threshold is 60 (more than the amount of L0 sstables), but MAX_COMPACTING_L0 is 32, which means we will trigger STCS with at most max_threshold sstables
         assertEquals(50, act.transaction.originals().size());

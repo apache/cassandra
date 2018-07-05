@@ -24,7 +24,6 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.*;
@@ -61,6 +60,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
 
     private PartitionRangeReadCommand(boolean isDigest,
                                      int digestVersion,
+                                     boolean acceptsTransient,
                                      TableMetadata metadata,
                                      int nowInSec,
                                      ColumnFilter columnFilter,
@@ -69,7 +69,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                      DataRange dataRange,
                                      IndexMetadata index)
     {
-        super(Kind.PARTITION_RANGE, isDigest, digestVersion, metadata, nowInSec, columnFilter, rowFilter, limits, index);
+        super(Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index);
         this.dataRange = dataRange;
     }
 
@@ -82,6 +82,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     {
         return new PartitionRangeReadCommand(false,
                                              0,
+                                             false,
                                              metadata,
                                              nowInSec,
                                              columnFilter,
@@ -103,6 +104,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     {
         return new PartitionRangeReadCommand(false,
                                              0,
+                                             false,
                                              metadata,
                                              nowInSec,
                                              ColumnFilter.all(metadata),
@@ -151,6 +153,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         // on the ring.
         return new PartitionRangeReadCommand(isDigestQuery(),
                                              digestVersion(),
+                                             acceptsTransient(),
                                              metadata(),
                                              nowInSec(),
                                              columnFilter(),
@@ -164,6 +167,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     {
         return new PartitionRangeReadCommand(isDigestQuery(),
                                              digestVersion(),
+                                             acceptsTransient(),
                                              metadata(),
                                              nowInSec(),
                                              columnFilter(),
@@ -177,6 +181,21 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     {
         return new PartitionRangeReadCommand(true,
                                              digestVersion(),
+                                             false,
+                                             metadata(),
+                                             nowInSec(),
+                                             columnFilter(),
+                                             rowFilter(),
+                                             limits(),
+                                             dataRange(),
+                                             indexMetadata());
+    }
+
+    public PartitionRangeReadCommand copyAsTransientQuery()
+    {
+        return new PartitionRangeReadCommand(false,
+                                             0,
+                                             true,
                                              metadata(),
                                              nowInSec(),
                                              columnFilter(),
@@ -191,6 +210,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     {
         return new PartitionRangeReadCommand(isDigestQuery(),
                                              digestVersion(),
+                                             acceptsTransient(),
                                              metadata(),
                                              nowInSec(),
                                              columnFilter(),
@@ -205,6 +225,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     {
         return new PartitionRangeReadCommand(isDigestQuery(),
                                              digestVersion(),
+                                             acceptsTransient(),
                                              metadata(),
                                              nowInSec(),
                                              columnFilter(),
@@ -406,6 +427,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                        int version,
                                        boolean isDigest,
                                        int digestVersion,
+                                       boolean acceptsTransient,
                                        TableMetadata metadata,
                                        int nowInSec,
                                        ColumnFilter columnFilter,
@@ -415,7 +437,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         throws IOException
         {
             DataRange range = DataRange.serializer.deserialize(in, version, metadata);
-            return new PartitionRangeReadCommand(isDigest, digestVersion, metadata, nowInSec, columnFilter, rowFilter, limits, range, index);
+            return new PartitionRangeReadCommand(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, range, index);
         }
     }
 }

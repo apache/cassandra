@@ -26,6 +26,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 
 /**
  * We have a potential short read if the result from a given node contains the requested number of rows
@@ -40,7 +41,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 public class ShortReadProtection
 {
     @SuppressWarnings("resource")
-    public static UnfilteredPartitionIterator extend(InetAddressAndPort source, UnfilteredPartitionIterator partitions,
+    public static UnfilteredPartitionIterator extend(Replica source, UnfilteredPartitionIterator partitions,
                                                      ReadCommand command, DataLimits.Counter mergedResultCounter,
                                                      long queryStartNanoTime, boolean enforceStrictLiveness)
     {

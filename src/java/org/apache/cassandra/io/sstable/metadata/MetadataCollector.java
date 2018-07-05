@@ -83,7 +83,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                  -1,
                                  -1,
-                                 null);
+                                 null,
+                                 false);
     }
 
     protected EstimatedHistogram estimatedPartitionSize = defaultPartitionSizeHistogram();
@@ -272,7 +273,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         this.hasLegacyCounterShards = this.hasLegacyCounterShards || hasLegacyCounterShards;
     }
 
-    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, UUID pendingRepair, SerializationHeader header)
+    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, UUID pendingRepair, boolean isTransient, SerializationHeader header)
     {
         Map<MetadataType, MetadataComponent> components = new EnumMap<>(MetadataType.class);
         components.put(MetadataType.VALIDATION, new ValidationMetadata(partitioner, bloomFilterFPChance));
@@ -294,7 +295,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              repairedAt,
                                                              totalColumnsSet,
                                                              totalRows,
-                                                             pendingRepair));
+                                                             pendingRepair,
+                                                             isTransient));
         components.put(MetadataType.COMPACTION, new CompactionMetadata(cardinality));
         components.put(MetadataType.HEADER, header.toComponent());
         return components;

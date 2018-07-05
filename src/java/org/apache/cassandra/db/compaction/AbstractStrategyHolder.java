@@ -158,11 +158,11 @@ public abstract class AbstractStrategyHolder
      * groups they deal with. IOW, if one holder returns true for a given isRepaired/isPendingRepair combo,
      * none of the others should.
      */
-    public abstract boolean managesRepairedGroup(boolean isRepaired, boolean isPendingRepair);
+    public abstract boolean managesRepairedGroup(boolean isRepaired, boolean isPendingRepair, boolean isTransient);
 
     public boolean managesSSTable(SSTableReader sstable)
     {
-        return managesRepairedGroup(sstable.isRepaired(), sstable.isPendingRepair());
+        return managesRepairedGroup(sstable.isRepaired(), sstable.isPendingRepair(), sstable.isTransient());
     }
 
     public abstract AbstractCompactionStrategy getStrategyFor(SSTableReader sstable);
@@ -193,6 +193,7 @@ public abstract class AbstractStrategyHolder
                                                                 long keyCount,
                                                                 long repairedAt,
                                                                 UUID pendingRepair,
+                                                                boolean isTransient,
                                                                 MetadataCollector collector,
                                                                 SerializationHeader header,
                                                                 Collection<Index> indexes,
@@ -203,4 +204,6 @@ public abstract class AbstractStrategyHolder
      * if it's not held by this holder
      */
     public abstract int getStrategyIndex(AbstractCompactionStrategy strategy);
+
+    public abstract boolean containsSSTable(SSTableReader sstable);
 }

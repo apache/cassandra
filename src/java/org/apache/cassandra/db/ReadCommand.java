@@ -34,7 +34,6 @@ import org.apache.cassandra.db.transform.RTBoundCloser;
 import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.db.transform.StoppingTransformation;
 import org.apache.cassandra.db.transform.Transformation;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexNotAvailableException;
@@ -68,6 +67,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     private final Kind kind;
 
     private final boolean isDigestQuery;
+    private final boolean acceptsTransient;
     // if a digest query, the version for which the digest is expected. Ignored if not a digest.
     private int digestVersion;
 
@@ -80,6 +80,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 int version,
                                                 boolean isDigest,
                                                 int digestVersion,
+                                                boolean acceptsTransient,
                                                 TableMetadata metadata,
                                                 int nowInSec,
                                                 ColumnFilter columnFilter,
@@ -104,6 +105,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     protected ReadCommand(Kind kind,
                           boolean isDigestQuery,
                           int digestVersion,
+                          boolean acceptsTransient,
                           TableMetadata metadata,
                           int nowInSec,
                           ColumnFilter columnFilter,
@@ -115,6 +117,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.kind = kind;
         this.isDigestQuery = isDigestQuery;
         this.digestVersion = digestVersion;
+        this.acceptsTransient = acceptsTransient;
         this.index = index;
     }
 
@@ -176,6 +179,14 @@ public abstract class ReadCommand extends AbstractReadQuery
     }
 
     /**
+     * @return Whether this query expects only a transient data response, or a full response
+     */
+    public boolean acceptsTransient()
+    {
+        return acceptsTransient;
+    }
+
+    /**
      * Index (metadata) chosen for this query. Can be null.
      *
      * @return index (metadata) chosen for this query
@@ -210,6 +221,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      * Returns a copy of this command with isDigestQuery set to true.
      */
     public abstract ReadCommand copyAsDigestQuery();
+    public abstract ReadCommand copyAsTransientQuery();
 
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadExecutionController executionController);
 
@@ -569,6 +581,16 @@ public abstract class ReadCommand extends AbstractReadQuery
             return (flags & 0x01) != 0;
         }
 
+        private static boolean acceptsTransient(int flags)
+        {
+            return (flags & 0x08) != 0;
+        }
+
+        private static int acceptsTransientFlag(boolean acceptsTransient)
+        {
+            return acceptsTransient ? 0x08 : 0;
+        }
+
         // We don't set this flag anymore, but still look if we receive a
         // command with it set in case someone is using thrift a mixed 3.0/4.0+
         // cluster (which is unsupported). This is also a reminder for not
@@ -592,7 +614,11 @@ public abstract class ReadCommand extends AbstractReadQuery
         public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
         {
             out.writeByte(command.kind.ordinal());
-            out.writeByte(digestFlag(command.isDigestQuery()) | indexFlag(null != command.indexMetadata()));
+            out.writeByte(
+                    digestFlag(command.isDigestQuery())
+                    | indexFlag(null != command.indexMetadata())
+                    | acceptsTransientFlag(command.acceptsTransient())
+            );
             if (command.isDigestQuery())
                 out.writeUnsignedVInt(command.digestVersion());
             command.metadata().id.serialize(out);
@@ -611,6 +637,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             Kind kind = Kind.values()[in.readByte()];
             int flags = in.readByte();
             boolean isDigest = isDigest(flags);
+            boolean acceptsTransient = acceptsTransient(flags);
             // Shouldn't happen or it's a user error (see comment above) but
             // better complain loudly than doing the wrong thing.
             if (isForThrift(flags))
@@ -628,7 +655,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             DataLimits limits = DataLimits.serializer.deserialize(in, version,  metadata.comparator);
             IndexMetadata index = hasIndex ? deserializeIndexMetadata(in, version, metadata) : null;
 
-            return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, metadata, nowInSec, columnFilter, rowFilter, limits, index);
+            return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index);
         }
 
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException

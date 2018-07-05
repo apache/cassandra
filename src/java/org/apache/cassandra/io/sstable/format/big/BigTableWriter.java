@@ -68,13 +68,14 @@ public class BigTableWriter extends SSTableWriter
                           long keyCount,
                           long repairedAt,
                           UUID pendingRepair,
+                          boolean isTransient,
                           TableMetadataRef metadata,
                           MetadataCollector metadataCollector, 
                           SerializationHeader header,
                           Collection<SSTableFlushObserver> observers,
                           LifecycleTransaction txn)
     {
-        super(descriptor, keyCount, repairedAt, pendingRepair, metadata, metadataCollector, header, observers);
+        super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers);
         txn.trackNew(this); // must track before any files are created
 
         if (compression)

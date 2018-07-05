@@ -60,6 +60,11 @@ public class TableViews extends AbstractCollection<View>
         baseTableMetadata = Schema.instance.getTableMetadataRef(id);
     }
 
+    public boolean hasViews()
+    {
+        return !views.isEmpty();
+    }
+
     public int size()
     {
         return views.size();

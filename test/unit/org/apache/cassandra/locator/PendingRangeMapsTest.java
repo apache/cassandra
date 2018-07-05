@@ -26,7 +26,6 @@ import org.apache.cassandra.dht.Token;
 import org.junit.Test;
 
 import java.net.UnknownHostException;
-import java.util.Collection;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -38,17 +37,29 @@ public class PendingRangeMapsTest {
         return new Range<Token>(new BigIntegerToken(left), new BigIntegerToken(right));
     }
 
+    private static void addPendingRange(PendingRangeMaps pendingRangeMaps, Range<Token> range, String endpoint)
+    {
+        try
+        {
+            pendingRangeMaps.addPendingRange(range, Replica.fullReplica(InetAddressAndPort.getByName(endpoint), range));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new AssertionError(e);
+        }
+    }
+
     @Test
     public void testPendingEndpoints() throws UnknownHostException
     {
         PendingRangeMaps pendingRangeMaps = new PendingRangeMaps();
 
-        pendingRangeMaps.addPendingRange(genRange("5", "15"), InetAddressAndPort.getByName("127.0.0.1"));
-        pendingRangeMaps.addPendingRange(genRange("15", "25"), InetAddressAndPort.getByName("127.0.0.2"));
-        pendingRangeMaps.addPendingRange(genRange("25", "35"), InetAddressAndPort.getByName("127.0.0.3"));
-        pendingRangeMaps.addPendingRange(genRange("35", "45"), InetAddressAndPort.getByName("127.0.0.4"));
-        pendingRangeMaps.addPendingRange(genRange("45", "55"), InetAddressAndPort.getByName("127.0.0.5"));
-        pendingRangeMaps.addPendingRange(genRange("45", "65"), InetAddressAndPort.getByName("127.0.0.6"));
+        addPendingRange(pendingRangeMaps, genRange("5", "15"), "127.0.0.1");
+        addPendingRange(pendingRangeMaps, genRange("15", "25"), "127.0.0.2");
+        addPendingRange(pendingRangeMaps, genRange("25", "35"), "127.0.0.3");
+        addPendingRange(pendingRangeMaps, genRange("35", "45"), "127.0.0.4");
+        addPendingRange(pendingRangeMaps, genRange("45", "55"), "127.0.0.5");
+        addPendingRange(pendingRangeMaps, genRange("45", "65"), "127.0.0.6");
 
         assertEquals(0, pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("0")).size());
         assertEquals(0, pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("5")).size());
@@ -61,8 +72,8 @@ public class PendingRangeMapsTest {
         assertEquals(2, pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("55")).size());
         assertEquals(1, pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("65")).size());
 
-        Collection<InetAddressAndPort> endpoints = pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("15"));
-        assertTrue(endpoints.contains(InetAddressAndPort.getByName("127.0.0.1")));
+        EndpointsForToken replicas = pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("15"));
+        assertTrue(replicas.endpoints().contains(InetAddressAndPort.getByName("127.0.0.1")));
     }
 
     @Test
@@ -70,13 +81,13 @@ public class PendingRangeMapsTest {
     {
         PendingRangeMaps pendingRangeMaps = new PendingRangeMaps();
 
-        pendingRangeMaps.addPendingRange(genRange("5", "15"), InetAddressAndPort.getByName("127.0.0.1"));
-        pendingRangeMaps.addPendingRange(genRange("15", "25"), InetAddressAndPort.getByName("127.0.0.2"));
-        pendingRangeMaps.addPendingRange(genRange("25", "35"), InetAddressAndPort.getByName("127.0.0.3"));
-        pendingRangeMaps.addPendingRange(genRange("35", "45"), InetAddressAndPort.getByName("127.0.0.4"));
-        pendingRangeMaps.addPendingRange(genRange("45", "55"), InetAddressAndPort.getByName("127.0.0.5"));
-        pendingRangeMaps.addPendingRange(genRange("45", "65"), InetAddressAndPort.getByName("127.0.0.6"));
-        pendingRangeMaps.addPendingRange(genRange("65", "7"), InetAddressAndPort.getByName("127.0.0.7"));
+        addPendingRange(pendingRangeMaps, genRange("5", "15"), "127.0.0.1");
+        addPendingRange(pendingRangeMaps, genRange("15", "25"), "127.0.0.2");
+        addPendingRange(pendingRangeMaps, genRange("25", "35"), "127.0.0.3");
+        addPendingRange(pendingRangeMaps, genRange("35", "45"), "127.0.0.4");
+        addPendingRange(pendingRangeMaps, genRange("45", "55"), "127.0.0.5");
+        addPendingRange(pendingRangeMaps, genRange("45", "65"), "127.0.0.6");
+        addPendingRange(pendingRangeMaps, genRange("65", "7"), "127.0.0.7");
 
         assertEquals(1, pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("0")).size());
         assertEquals(1, pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("5")).size());
@@ -90,8 +101,8 @@ public class PendingRangeMapsTest {
         assertEquals(2, pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("55")).size());
         assertEquals(1, pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("65")).size());
 
-        Collection<InetAddressAndPort> endpoints = pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("6"));
-        assertTrue(endpoints.contains(InetAddressAndPort.getByName("127.0.0.1")));
-        assertTrue(endpoints.contains(InetAddressAndPort.getByName("127.0.0.7")));
+        EndpointsForToken replicas = pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("6"));
+        assertTrue(replicas.endpoints().contains(InetAddressAndPort.getByName("127.0.0.1")));
+        assertTrue(replicas.endpoints().contains(InetAddressAndPort.getByName("127.0.0.7")));
     }
 }

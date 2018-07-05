@@ -21,8 +21,6 @@ package org.apache.cassandra.repair;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.util.concurrent.AbstractFuture;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +31,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
 
-public abstract class AsymmetricSyncTask extends AbstractFuture<SyncStat> implements Runnable
+public abstract class AsymmetricSyncTask extends AbstractSyncTask
 {
     private static Logger logger = LoggerFactory.getLogger(AsymmetricSyncTask.class);
     protected final RepairJobDesc desc;
@@ -44,9 +42,9 @@ public abstract class AsymmetricSyncTask extends AbstractFuture<SyncStat> implem
     private long startTime = Long.MIN_VALUE;
     protected volatile SyncStat stat;
 
-
     public AsymmetricSyncTask(RepairJobDesc desc, InetAddressAndPort fetchingNode, InetAddressAndPort fetchFrom, List<Range<Token>> rangesToFetch, PreviewKind previewKind)
     {
+        assert !fetchFrom.equals(fetchingNode) : "Fetching from self " + fetchFrom;
         this.desc = desc;
         this.fetchFrom = fetchFrom;
         this.fetchingNode = fetchingNode;
@@ -55,6 +53,7 @@ public abstract class AsymmetricSyncTask extends AbstractFuture<SyncStat> implem
         stat = new SyncStat(new NodePair(fetchingNode, fetchFrom), rangesToFetch.size());
         this.previewKind = previewKind;
     }
+
     public void run()
     {
         startTime = System.currentTimeMillis();
@@ -79,7 +78,4 @@ public abstract class AsymmetricSyncTask extends AbstractFuture<SyncStat> implem
         if (startTime != Long.MIN_VALUE)
             Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).metric.syncTime.update(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
     }
-
-
-    public abstract void startSync(List<Range<Token>> rangesToFetch);
 }

@@ -33,6 +33,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -118,10 +120,10 @@ public class CassandraStreamManagerTest
         return Iterables.getOnlyElement(diff);
     }
 
-    private static void mutateRepaired(SSTableReader sstable, long repairedAt, UUID pendingRepair) throws IOException
+    private static void mutateRepaired(SSTableReader sstable, long repairedAt, UUID pendingRepair, boolean isTransient) throws IOException
     {
         Descriptor descriptor = sstable.descriptor;
-        descriptor.getMetadataSerializer().mutateRepaired(descriptor, repairedAt, pendingRepair);
+        descriptor.getMetadataSerializer().mutateRepairMetadata(descriptor, repairedAt, pendingRepair, isTransient);
         sstable.reloadSSTableMetadata();
 
     }
@@ -141,7 +143,7 @@ public class CassandraStreamManagerTest
     private Set<SSTableReader> getReadersForRange(Range<Token> range)
     {
         Collection<OutgoingStream> streams = cfs.getStreamManager().createOutgoingStreams(session(NO_PENDING_REPAIR),
-                                                                                          Collections.singleton(range),
+                                                                                          RangesAtEndpoint.toDummyList(Collections.singleton(range)),
                                                                                           NO_PENDING_REPAIR,
                                                                                           PreviewKind.NONE);
         return sstablesFromStreams(streams);
@@ -151,7 +153,7 @@ public class CassandraStreamManagerTest
     {
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Collection<Range<Token>> ranges = Lists.newArrayList(new Range<Token>(partitioner.getMinimumToken(), partitioner.getMinimumToken()));
-        Collection<OutgoingStream> streams = cfs.getStreamManager().createOutgoingStreams(session(pendingRepair), ranges, pendingRepair, PreviewKind.NONE);
+        Collection<OutgoingStream> streams = cfs.getStreamManager().createOutgoingStreams(session(pendingRepair), RangesAtEndpoint.toDummyList(ranges), pendingRepair, PreviewKind.NONE);
         return sstablesFromStreams(streams);
     }
 
@@ -167,9 +169,9 @@ public class CassandraStreamManagerTest
 
         UUID pendingRepair = UUIDGen.getTimeUUID();
         long repairedAt = System.currentTimeMillis();
-        mutateRepaired(sstable2, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair);
-        mutateRepaired(sstable3, ActiveRepairService.UNREPAIRED_SSTABLE, UUIDGen.getTimeUUID());
-        mutateRepaired(sstable4, repairedAt, NO_PENDING_REPAIR);
+        mutateRepaired(sstable2, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, false);
+        mutateRepaired(sstable3, ActiveRepairService.UNREPAIRED_SSTABLE, UUIDGen.getTimeUUID(), false);
+        mutateRepaired(sstable4, repairedAt, NO_PENDING_REPAIR, false);
 
 
 

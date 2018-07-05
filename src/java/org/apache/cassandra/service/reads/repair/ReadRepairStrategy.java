@@ -18,26 +18,25 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.ReplicaLayout;
 
 public enum ReadRepairStrategy implements ReadRepair.Factory
 {
     NONE
     {
-        @Override
-        public ReadRepair create(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency)
+        public <E extends Endpoints<E>, L extends ReplicaLayout<E, L>> ReadRepair<E, L> create(ReadCommand command, L replicaLayout, long queryStartNanoTime)
         {
-            return new ReadOnlyReadRepair(command, queryStartNanoTime, consistency);
+            return new ReadOnlyReadRepair<>(command, replicaLayout, queryStartNanoTime);
         }
     },
 
     BLOCKING
     {
-        @Override
-        public ReadRepair create(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency)
+        public <E extends Endpoints<E>, L extends ReplicaLayout<E, L>> ReadRepair<E, L> create(ReadCommand command, L replicaLayout, long queryStartNanoTime)
         {
-            return new BlockingReadRepair(command, queryStartNanoTime, consistency);
+            return new BlockingReadRepair<>(command, replicaLayout, queryStartNanoTime);
         }
     };
 

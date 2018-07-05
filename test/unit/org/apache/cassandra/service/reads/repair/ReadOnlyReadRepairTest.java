@@ -26,20 +26,20 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.service.reads.ReadCallback;
 
 public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
 {
-    private static class InstrumentedReadOnlyReadRepair extends ReadOnlyReadRepair implements InstrumentedReadRepair
+    private static class InstrumentedReadOnlyReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends ReadOnlyReadRepair implements InstrumentedReadRepair
     {
-        public InstrumentedReadOnlyReadRepair(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency)
+        public InstrumentedReadOnlyReadRepair(ReadCommand command, L replicaLayout, long queryStartNanoTime)
         {
-            super(command, queryStartNanoTime, consistency);
+            super(command, replicaLayout, queryStartNanoTime);
         }
 
         Set<InetAddressAndPort> readCommandRecipients = new HashSet<>();
@@ -51,12 +51,6 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
             assert readCallback == null || readCallback == callback;
             readCommandRecipients.add(to);
             readCallback = callback;
-        }
-
-        @Override
-        Iterable<InetAddressAndPort> getCandidatesForToken(Token token)
-        {
-            return targets;
         }
 
         @Override
@@ -79,22 +73,24 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     }
 
     @Override
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaLayout<?, ?> replicaLayout, long queryStartNanoTime)
     {
-        return new InstrumentedReadOnlyReadRepair(command, queryStartNanoTime, consistency);
+        return new InstrumentedReadOnlyReadRepair(command, replicaLayout, queryStartNanoTime);
     }
 
     @Test
     public void getMergeListener()
     {
-        InstrumentedReadRepair repair = createInstrumentedReadRepair();
-        Assert.assertSame(UnfilteredPartitionIterators.MergeListener.NOOP, repair.getMergeListener(new InetAddressAndPort[]{}));
+        ReplicaLayout<?, ?> replicaLayout = replicaLayout(replicas, replicas);
+        InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaLayout);
+        Assert.assertSame(UnfilteredPartitionIterators.MergeListener.NOOP, repair.getMergeListener(replicaLayout));
     }
 
     @Test(expected = UnsupportedOperationException.class)
     public void repairPartitionFailure()
     {
-        InstrumentedReadRepair repair = createInstrumentedReadRepair();
-        repair.repairPartition(dk(1), Collections.emptyMap(), new InetAddressAndPort[]{});
+        ReplicaLayout<?, ?> replicaLayout = replicaLayout(replicas, replicas);
+        InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaLayout);
+        repair.repairPartition(null, Collections.emptyMap(), replicaLayout);
     }
 }

@@ -114,6 +114,7 @@ public class CassandraOutgoingFileTest
         List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(store.getPartitioner().getMinimumToken(), getTokenAtIndex(4)),
                                                          new Range<>(getTokenAtIndex(2), getTokenAtIndex(6)),
                                                          new Range<>(getTokenAtIndex(5), sstable.last.getToken()));
+        requestedRanges = Range.normalize(requestedRanges);
 
         CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(),
                                                               sstable.getPositionsForRanges(requestedRanges),

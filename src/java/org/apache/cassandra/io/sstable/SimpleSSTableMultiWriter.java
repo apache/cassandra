@@ -111,13 +111,14 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             long keyCount,
                                             long repairedAt,
                                             UUID pendingRepair,
+                                            boolean isTransient,
                                             TableMetadataRef metadata,
                                             MetadataCollector metadataCollector,
                                             SerializationHeader header,
                                             Collection<Index> indexes,
                                             LifecycleTransaction txn)
     {
-        SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, pendingRepair, metadata, metadataCollector, header, indexes, txn);
+        SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, indexes, txn);
         return new SimpleSSTableMultiWriter(writer, txn);
     }
 }

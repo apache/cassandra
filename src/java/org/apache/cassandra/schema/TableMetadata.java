@@ -834,6 +834,12 @@ public final class TableMetadata
             return this;
         }
 
+        public Builder speculativeWriteThreshold(SpeculativeRetryPolicy val)
+        {
+            params.speculativeWriteThreshold(val);
+            return this;
+        }
+
         public Builder extensions(Map<String, ByteBuffer> val)
         {
             params.extensions(val);

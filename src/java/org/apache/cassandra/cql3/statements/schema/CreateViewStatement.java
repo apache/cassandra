@@ -31,9 +31,11 @@ import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.RawSelector;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.statements.StatementType;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -106,6 +108,9 @@ public final class CreateViewStatement extends AlterSchemaStatement
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);
+
+        if (keyspace.createReplicationStrategy().hasTransientReplicas())
+            throw new InvalidRequestException("Materialized views are not supported on transiently replicated keyspaces");
 
         TableMetadata table = keyspace.tables.getNullable(tableName);
         if (null == table)

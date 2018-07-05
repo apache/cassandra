@@ -74,6 +74,11 @@ public final class KeyspaceParams
         return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor));
     }
 
+    public static KeyspaceParams simple(String replicationFactor)
+    {
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor));
+    }
+
     public static KeyspaceParams simpleTransient(int replicationFactor)
     {
         return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor));

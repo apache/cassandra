@@ -18,10 +18,6 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import java.util.List;
-
-import com.google.common.collect.Iterables;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,13 +27,10 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tracing.Tracing;
 
 public class BlockingReadRepairs
@@ -46,18 +39,6 @@ public class BlockingReadRepairs
 
     private static final boolean DROP_OVERSIZED_READ_REPAIR_MUTATIONS =
         Boolean.getBoolean("cassandra.drop_oversized_readrepair_mutations");
-
-    /**
-     * Returns all of the endpoints that are replicas for the given key. If the consistency level is datacenter
-     * local, only the endpoints in the local dc will be returned.
-     */
-    static Iterable<InetAddressAndPort> getCandidateEndpoints(Keyspace keyspace, Token token, ConsistencyLevel consistency)
-    {
-        List<InetAddressAndPort> endpoints = StorageProxy.getLiveSortedEndpoints(keyspace, token);
-        return consistency.isDatacenterLocal() && keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy
-               ? Iterables.filter(endpoints, ConsistencyLevel::isLocal)
-               : endpoints;
-    }
 
     /**
      * Create a read repair mutation from the given update, if the mutation is not larger than the maximum

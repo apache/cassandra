@@ -108,6 +108,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                 keysPerSSTable,
                 minRepairedAt,
                 pendingRepair,
+                isTransient,
                 cfs.metadata,
                 new MetadataCollector(txn.originals(), cfs.metadata().comparator, currentLevel),
                 SerializationHeader.make(cfs.metadata(), txn.originals()),

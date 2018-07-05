@@ -33,14 +33,14 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.MoreRows;
 import org.apache.cassandra.db.transform.Transformation;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
 
 class ShortReadRowsProtection extends Transformation implements MoreRows<UnfilteredRowIterator>
 {
     private final ReadCommand command;
-    private final InetAddressAndPort source;
+    private final Replica source;
     private final DataLimits.Counter singleResultCounter; // unmerged per-source counter
     private final DataLimits.Counter mergedResultCounter; // merged end-result counter
     private final Function<ReadCommand, UnfilteredPartitionIterator> commandExecutor;
@@ -53,7 +53,7 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
     private int lastFetched = 0; // # rows returned by last attempt to get more (or by the original read command)
     private int lastQueried = 0; // # extra rows requested from the replica last time
 
-    ShortReadRowsProtection(DecoratedKey partitionKey, ReadCommand command, InetAddressAndPort source,
+    ShortReadRowsProtection(DecoratedKey partitionKey, ReadCommand command, Replica source,
                             Function<ReadCommand, UnfilteredPartitionIterator> commandExecutor,
                             DataLimits.Counter singleResultCounter, DataLimits.Counter mergedResultCounter)
     {

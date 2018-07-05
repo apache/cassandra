@@ -92,7 +92,7 @@ public class PendingRangeCalculatorService
     {
         int jobs = updateJobs.incrementAndGet();
         PendingRangeCalculatorServiceDiagnostics.taskCountChanged(instance, jobs);
-        executor.submit(new PendingRangeTask(updateJobs));
+        executor.execute(new PendingRangeTask(updateJobs));
     }
 
     public void blockUntilFinished()

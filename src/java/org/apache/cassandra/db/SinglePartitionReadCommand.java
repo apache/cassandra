@@ -36,7 +36,6 @@ import org.apache.cassandra.db.lifecycle.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
@@ -71,6 +70,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     @VisibleForTesting
     protected SinglePartitionReadCommand(boolean isDigest,
                                          int digestVersion,
+                                         boolean acceptsTransient,
                                          TableMetadata metadata,
                                          int nowInSec,
                                          ColumnFilter columnFilter,
@@ -80,7 +80,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          ClusteringIndexFilter clusteringIndexFilter,
                                          IndexMetadata index)
     {
-        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, metadata, nowInSec, columnFilter, rowFilter, limits, index);
+        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
@@ -111,6 +111,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     {
         return new SinglePartitionReadCommand(false,
                                               0,
+                                              false,
                                               metadata,
                                               nowInSec,
                                               columnFilter,
@@ -286,6 +287,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     {
         return new SinglePartitionReadCommand(isDigestQuery(),
                                               digestVersion(),
+                                              acceptsTransient(),
                                               metadata(),
                                               nowInSec(),
                                               columnFilter(),
@@ -300,6 +302,22 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     {
         return new SinglePartitionReadCommand(true,
                                               digestVersion(),
+                                              acceptsTransient(),
+                                              metadata(),
+                                              nowInSec(),
+                                              columnFilter(),
+                                              rowFilter(),
+                                              limits(),
+                                              partitionKey(),
+                                              clusteringIndexFilter(),
+                                              indexMetadata());
+    }
+
+    public SinglePartitionReadCommand copyAsTransientQuery()
+    {
+        return new SinglePartitionReadCommand(false,
+                                              0,
+                                              true,
                                               metadata(),
                                               nowInSec(),
                                               columnFilter(),
@@ -315,6 +333,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     {
         return new SinglePartitionReadCommand(isDigestQuery(),
                                               digestVersion(),
+                                              acceptsTransient(),
                                               metadata(),
                                               nowInSec(),
                                               columnFilter(),
@@ -1064,6 +1083,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                        int version,
                                        boolean isDigest,
                                        int digestVersion,
+                                       boolean acceptsTransient,
                                        TableMetadata metadata,
                                        int nowInSec,
                                        ColumnFilter columnFilter,
@@ -1074,7 +1094,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         {
             DecoratedKey key = metadata.partitioner.decorateKey(metadata.partitionKeyType.readValue(in, DatabaseDescriptor.getMaxValueSize()));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
-            return new SinglePartitionReadCommand(isDigest, digestVersion, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, index);
+            return new SinglePartitionReadCommand(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, index);
         }
     }
 

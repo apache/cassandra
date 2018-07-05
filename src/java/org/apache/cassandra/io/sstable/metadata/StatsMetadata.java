@@ -64,6 +64,7 @@ public class StatsMetadata extends MetadataComponent
     public final long totalColumnsSet;
     public final long totalRows;
     public final UUID pendingRepair;
+    public final boolean isTransient;
 
     public StatsMetadata(EstimatedHistogram estimatedPartitionSize,
                          EstimatedHistogram estimatedColumnCount,
@@ -83,7 +84,8 @@ public class StatsMetadata extends MetadataComponent
                          long repairedAt,
                          long totalColumnsSet,
                          long totalRows,
-                         UUID pendingRepair)
+                         UUID pendingRepair,
+                         boolean isTransient)
     {
         this.estimatedPartitionSize = estimatedPartitionSize;
         this.estimatedColumnCount = estimatedColumnCount;
@@ -104,6 +106,7 @@ public class StatsMetadata extends MetadataComponent
         this.totalColumnsSet = totalColumnsSet;
         this.totalRows = totalRows;
         this.pendingRepair = pendingRepair;
+        this.isTransient = isTransient;
     }
 
     public MetadataType getType()
@@ -155,10 +158,11 @@ public class StatsMetadata extends MetadataComponent
                                  repairedAt,
                                  totalColumnsSet,
                                  totalRows,
-                                 pendingRepair);
+                                 pendingRepair,
+                                 isTransient);
     }
 
-    public StatsMetadata mutateRepairedAt(long newRepairedAt)
+    public StatsMetadata mutateRepairedMetadata(long newRepairedAt, UUID newPendingRepair, boolean newIsTransient)
     {
         return new StatsMetadata(estimatedPartitionSize,
                                  estimatedColumnCount,
@@ -178,30 +182,8 @@ public class StatsMetadata extends MetadataComponent
                                  newRepairedAt,
                                  totalColumnsSet,
                                  totalRows,
-                                 pendingRepair);
-    }
-
-    public StatsMetadata mutatePendingRepair(UUID newPendingRepair)
-    {
-        return new StatsMetadata(estimatedPartitionSize,
-                                 estimatedColumnCount,
-                                 commitLogIntervals,
-                                 minTimestamp,
-                                 maxTimestamp,
-                                 minLocalDeletionTime,
-                                 maxLocalDeletionTime,
-                                 minTTL,
-                                 maxTTL,
-                                 compressionRatio,
-                                 estimatedTombstoneDropTime,
-                                 sstableLevel,
-                                 minClusteringValues,
-                                 maxClusteringValues,
-                                 hasLegacyCounterShards,
-                                 repairedAt,
-                                 totalColumnsSet,
-                                 totalRows,
-                                 newPendingRepair);
+                                 newPendingRepair,
+                                 newIsTransient);
     }
 
     @Override
@@ -292,6 +274,12 @@ public class StatsMetadata extends MetadataComponent
                 if (component.pendingRepair != null)
                     size += UUIDSerializer.serializer.serializedSize(component.pendingRepair, 0);
             }
+
+            if (version.hasIsTransient())
+            {
+                size += TypeSizes.sizeof(component.isTransient);
+            }
+
             return size;
         }
 
@@ -337,6 +325,11 @@ public class StatsMetadata extends MetadataComponent
                 {
                     out.writeByte(0);
                 }
+            }
+
+            if (version.hasIsTransient())
+            {
+                out.writeBoolean(component.isTransient);
             }
         }
 
@@ -386,6 +379,8 @@ public class StatsMetadata extends MetadataComponent
                 pendingRepair = UUIDSerializer.serializer.deserialize(in, 0);
             }
 
+            boolean isTransient = version.hasIsTransient() && in.readBoolean();
+
             return new StatsMetadata(partitionSizes,
                                      columnCounts,
                                      commitLogIntervals,
@@ -404,7 +399,8 @@ public class StatsMetadata extends MetadataComponent
                                      repairedAt,
                                      totalColumnsSet,
                                      totalRows,
-                                     pendingRepair);
+                                     pendingRepair,
+                                     isTransient);
         }
     }
 }

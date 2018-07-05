@@ -28,18 +28,18 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaLayout;
 
 public class PartitionIteratorMergeListener implements UnfilteredPartitionIterators.MergeListener
 {
-    private final InetAddressAndPort[] sources;
+    private final ReplicaLayout replicaLayout;
     private final ReadCommand command;
     private final ConsistencyLevel consistency;
     private final ReadRepair readRepair;
 
-    public PartitionIteratorMergeListener(InetAddressAndPort[] sources, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
+    public PartitionIteratorMergeListener(ReplicaLayout replicaLayout, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
     {
-        this.sources = sources;
+        this.replicaLayout = replicaLayout;
         this.command = command;
         this.consistency = consistency;
         this.readRepair = readRepair;
@@ -47,10 +47,10 @@ public class PartitionIteratorMergeListener implements UnfilteredPartitionIterat
 
     public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
     {
-        return new RowIteratorMergeListener(partitionKey, columns(versions), isReversed(versions), sources, command, consistency, readRepair);
+        return new RowIteratorMergeListener(partitionKey, columns(versions), isReversed(versions), replicaLayout, command, consistency, readRepair);
     }
 
-    private RegularAndStaticColumns columns(List<UnfilteredRowIterator> versions)
+    protected RegularAndStaticColumns columns(List<UnfilteredRowIterator> versions)
     {
         Columns statics = Columns.NONE;
         Columns regulars = Columns.NONE;
@@ -66,7 +66,7 @@ public class PartitionIteratorMergeListener implements UnfilteredPartitionIterat
         return new RegularAndStaticColumns(statics, regulars);
     }
 
-    private boolean isReversed(List<UnfilteredRowIterator> versions)
+    protected boolean isReversed(List<UnfilteredRowIterator> versions)
     {
         for (UnfilteredRowIterator iter : versions)
         {

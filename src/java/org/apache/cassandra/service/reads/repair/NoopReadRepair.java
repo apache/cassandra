@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -27,24 +26,28 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.reads.DigestResolver;
 
 /**
  * Bypasses the read repair path for short read protection and testing
  */
-public class NoopReadRepair implements ReadRepair
+public class NoopReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> implements ReadRepair<E, L>
 {
     public static final NoopReadRepair instance = new NoopReadRepair();
 
     private NoopReadRepair() {}
 
-    public UnfilteredPartitionIterators.MergeListener getMergeListener(InetAddressAndPort[] endpoints)
+    @Override
+    public UnfilteredPartitionIterators.MergeListener getMergeListener(L replicas)
     {
         return UnfilteredPartitionIterators.MergeListener.NOOP;
     }
 
-    public void startRepair(DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints, List<InetAddressAndPort> contactedEndpoints, Consumer<PartitionIterator> resultConsumer)
+    @Override
+    public void startRepair(DigestResolver<E, L> digestResolver, Consumer<PartitionIterator> resultConsumer)
     {
         resultConsumer.accept(digestResolver.getData());
     }
@@ -72,7 +75,7 @@ public class NoopReadRepair implements ReadRepair
     }
 
     @Override
-    public void repairPartition(DecoratedKey key, Map<InetAddressAndPort, Mutation> mutations, InetAddressAndPort[] destinations)
+    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, L replicaLayout)
     {
 
     }

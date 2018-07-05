@@ -18,7 +18,6 @@
 package org.apache.cassandra.repair;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -29,8 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
+import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -38,8 +36,9 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.*;
+import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.Replica;
 import org.apache.commons.lang3.time.DurationFormatUtils;
-import org.junit.internal.runners.statements.Fail;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,7 +73,6 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -141,46 +139,6 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         recordFailure(message, completionMessage);
     }
 
-    @VisibleForTesting
-    static class CommonRange
-    {
-        public final Set<InetAddressAndPort> endpoints;
-        public final Collection<Range<Token>> ranges;
-
-        public CommonRange(Set<InetAddressAndPort> endpoints, Collection<Range<Token>> ranges)
-        {
-            Preconditions.checkArgument(endpoints != null && !endpoints.isEmpty());
-            Preconditions.checkArgument(ranges != null && !ranges.isEmpty());
-            this.endpoints = endpoints;
-            this.ranges = ranges;
-        }
-
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            CommonRange that = (CommonRange) o;
-
-            if (!endpoints.equals(that.endpoints)) return false;
-            return ranges.equals(that.ranges);
-        }
-
-        public int hashCode()
-        {
-            int result = endpoints.hashCode();
-            result = 31 * result + ranges.hashCode();
-            return result;
-        }
-
-        public String toString()
-        {
-            return "CommonRange{" +
-                   "endpoints=" + endpoints +
-                   ", ranges=" + ranges +
-                   '}';
-        }
-    }
 
     protected void runMayThrow() throws Exception
     {
@@ -238,20 +196,24 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
         List<CommonRange> commonRanges = new ArrayList<>();
 
-        //pre-calculate output of getLocalRanges and pass it to getNeighbors to increase performance and prevent
+        //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
         //calculation multiple times
-        Collection<Range<Token>> keyspaceLocalRanges = storageService.getLocalRanges(keyspace);
+        // we arbitrarily limit ourselves to only full replicas, in lieu of ensuring it is safe to coordinate from a transient replica
+        Iterable<Range<Token>> keyspaceLocalRanges = storageService
+                .getLocalReplicas(keyspace)
+                .filter(Replica::isFull)
+                .ranges();
 
         try
         {
             for (Range<Token> range : options.getRanges())
             {
-                Set<InetAddressAndPort> neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range,
-                                                                                     options.getDataCenters(),
-                                                                                     options.getHosts());
+                EndpointsForRange neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range,
+                                                                        options.getDataCenters(),
+                                                                        options.getHosts());
 
                 addRangeToNeighbors(commonRanges, range, neighbors);
-                allNeighbors.addAll(neighbors);
+                allNeighbors.addAll(neighbors.endpoints());
             }
 
             progress.incrementAndGet();
@@ -387,11 +349,13 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             for (CommonRange commonRange: commonRanges)
             {
                 Set<InetAddressAndPort> endpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.endpoints, liveEndpoints::contains));
+                Set<InetAddressAndPort> transEndpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.transEndpoints, liveEndpoints::contains));
+                Preconditions.checkState(endpoints.containsAll(transEndpoints), "transEndpoints must be a subset of endpoints");
 
                 // this node is implicitly a participant in this repair, so a single endpoint is ok here
                 if (!endpoints.isEmpty())
                 {
-                    filtered.add(new CommonRange(endpoints, commonRange.ranges));
+                    filtered.add(new CommonRange(endpoints, transEndpoints, commonRange.ranges));
                 }
             }
             Preconditions.checkState(!filtered.isEmpty(), "Not enough live endpoints for a repair");
@@ -514,14 +478,13 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         // we do endpoint filtering at the start of an incremental repair,
         // so repair sessions shouldn't also be checking liveness
         boolean force = options.isForcedRepair() && !isIncremental;
-        for (CommonRange cr : commonRanges)
+        for (CommonRange commonRange : commonRanges)
         {
-            logger.info("Starting RepairSession for {}", cr);
+            logger.info("Starting RepairSession for {}", commonRange);
             RepairSession session = ActiveRepairService.instance.submitRepairSession(parentSession,
-                                                                                     cr.ranges,
+                                                                                     commonRange,
                                                                                      keyspace,
                                                                                      options.getParallelism(),
-                                                                                     cr.endpoints,
                                                                                      isIncremental,
                                                                                      options.isPullRepair(),
                                                                                      force,
@@ -559,7 +522,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         public void onSuccess(RepairSessionResult result)
         {
             String message = String.format("Repair session %s for range %s finished", session.getId(),
-                                           session.getRanges().toString());
+                                           session.ranges().toString());
             logger.info(message);
             fireProgressEvent(new ProgressEvent(ProgressEventType.PROGRESS,
                                                 progress.incrementAndGet(),
@@ -572,7 +535,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             StorageMetrics.repairExceptions.inc();
 
             String message = String.format("Repair session %s for range %s failed with error %s",
-                                           session.getId(), session.getRanges().toString(), t.getMessage());
+                                           session.getId(), session.ranges().toString(), t.getMessage());
             logger.error(message, t);
             fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR,
                                                 progress.incrementAndGet(),
@@ -684,13 +647,15 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                                                ImmutableList.of(failureMessage, completionMessage));
     }
 
-    private void addRangeToNeighbors(List<CommonRange> neighborRangeList, Range<Token> range, Set<InetAddressAndPort> neighbors)
+    private void addRangeToNeighbors(List<CommonRange> neighborRangeList, Range<Token> range, EndpointsForRange neighbors)
     {
+        Set<InetAddressAndPort> endpoints = neighbors.endpoints();
+        Set<InetAddressAndPort> transEndpoints = neighbors.filter(Replica::isTransient).endpoints();
         for (int i = 0; i < neighborRangeList.size(); i++)
         {
             CommonRange cr = neighborRangeList.get(i);
 
-            if (cr.endpoints.containsAll(neighbors))
+            if (cr.endpoints.containsAll(endpoints) && cr.transEndpoints.containsAll(transEndpoints))
             {
                 cr.ranges.add(range);
                 return;
@@ -699,7 +664,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(range);
-        neighborRangeList.add(new CommonRange(neighbors, ranges));
+        neighborRangeList.add(new CommonRange(endpoints, transEndpoints, ranges));
     }
 
     private Thread createQueryThread(final int cmd, final UUID sessionId)

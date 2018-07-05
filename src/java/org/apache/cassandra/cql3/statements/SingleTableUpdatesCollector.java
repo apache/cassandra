@@ -82,7 +82,7 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
      * Returns a collection containing all the mutations.
      * @return a collection containing all the mutations.
      */
-    public Collection<IMutation> toMutations()
+    public List<IMutation> toMutations()
     {
         List<IMutation> ms = new ArrayList<>();
         for (PartitionUpdate.Builder builder : puBuilders.values())

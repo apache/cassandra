@@ -68,17 +68,18 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final ComponentManifest manifest;
     private Boolean isFullyContained;
 
-    private final List<Range<Token>> ranges;
+    private final List<Range<Token>> normalizedRanges;
 
     public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
-                                 List<SSTableReader.PartitionPositionBounds> sections, Collection<Range<Token>> ranges,
+                                 List<SSTableReader.PartitionPositionBounds> sections, List<Range<Token>> normalizedRanges,
                                  long estimatedKeys)
     {
         Preconditions.checkNotNull(ref.get());
+        Range.assertNormalized(normalizedRanges);
         this.ref = ref;
         this.estimatedKeys = estimatedKeys;
         this.sections = sections;
-        this.ranges = ImmutableList.copyOf(ranges);
+        this.normalizedRanges = ImmutableList.copyOf(normalizedRanges);
         this.filename = ref.get().getFilename();
         this.manifest = getComponentManifest(ref.get());
 
@@ -194,7 +195,7 @@ public class CassandraOutgoingFile implements OutgoingStream
                                                            .getCompactionStrategyFor(ref.get());
 
         if (compactionStrategy instanceof LeveledCompactionStrategy)
-            return contained(ranges, ref.get());
+            return contained(normalizedRanges, ref.get());
 
         return false;
     }
@@ -251,6 +252,6 @@ public class CassandraOutgoingFile implements OutgoingStream
     @Override
     public String toString()
     {
-        return "CassandraOutgoingFile{" + ref.get().getFilename() + '}';
+        return "CassandraOutgoingFile{" + filename + '}';
     }
 }

@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.repair;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamEvent;
@@ -54,8 +56,9 @@ public class AsymmetricLocalSyncTask extends AsymmetricSyncTask implements Strea
                                          previewKind)
                           .listeners(this)
                           .flushBeforeTransfer(pendingRepair == null)
-                          // request ranges from the remote node
-                          .requestRanges(fetchFrom, desc.keyspace, rangesToFetch, desc.columnFamily);
+                          // request ranges from the remote node, see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
+                          .requestRanges(fetchFrom, desc.keyspace, RangesAtEndpoint.toDummyList(rangesToFetch),
+                                  RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily);
         plan.execute();
 
     }

@@ -161,7 +161,7 @@ public abstract class TraceState implements ProgressEventNotifier
         trace(MessageFormatter.format(format, arg1, arg2).getMessage());
     }
 
-    public void trace(String format, Object[] args)
+    public void trace(String format, Object... args)
     {
         trace(MessageFormatter.arrayFormat(format, args).getMessage());
     }

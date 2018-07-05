@@ -73,7 +73,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
         Map<Unit, UnitInfo<Unit>> unitInfos = createUnitInfos(groups);
         if (groups.size() < replicas)
         {
-            // We need at least replicas groups to do allocation correctly. If there aren't enough, 
+            // We need at least replicas groups to do allocation correctly. If there aren't enough,
             // use random allocation.
             // This part of the code should only be reached via the RATATest. StrategyAdapter should disallow
             // token allocation in this case as the algorithm is not able to cover the behavior of NetworkTopologyStrategy.

@@ -37,6 +37,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.schema.*;
@@ -527,7 +528,7 @@ public class CreateTest extends CQLTester
             public String getDatacenter(InetAddressAndPort endpoint) { return "us-east-1"; }
 
             @Override
-            public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2) { return 0; }
+            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2) { return 0; }
         });
 
         // this forces the dc above to be added to the list of known datacenters (fixes static init problem

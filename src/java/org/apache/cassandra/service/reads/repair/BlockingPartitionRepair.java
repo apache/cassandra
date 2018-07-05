@@ -20,16 +20,14 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.AbstractFuture;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -38,7 +36,11 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
@@ -47,33 +49,29 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tracing.Tracing;
 
-public class BlockingPartitionRepair extends AbstractFuture<Object> implements IAsyncCallback<Object>
+public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends AbstractFuture<Object> implements IAsyncCallback<Object>
 {
-    private final Keyspace keyspace;
     private final DecoratedKey key;
-    private final ConsistencyLevel consistency;
-    private final InetAddressAndPort[] participants;
-    private final ConcurrentMap<InetAddressAndPort, Mutation> pendingRepairs;
+    private final L replicaLayout;
+    private final Map<Replica, Mutation> pendingRepairs;
     private final CountDownLatch latch;
 
     private volatile long mutationsSentTime;
 
-    public BlockingPartitionRepair(Keyspace keyspace, DecoratedKey key, ConsistencyLevel consistency, Map<InetAddressAndPort, Mutation> repairs, int maxBlockFor, InetAddressAndPort[] participants)
+    public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, int maxBlockFor, L replicaLayout)
     {
-        this.keyspace = keyspace;
         this.key = key;
-        this.consistency = consistency;
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
-        this.participants = participants;
+        this.replicaLayout = replicaLayout;
 
         // here we remove empty repair mutations from the block for total, since
         // we're not sending them mutations
         int blockFor = maxBlockFor;
-        for (InetAddressAndPort participant: participants)
+        for (Replica participant: replicaLayout.selected())
         {
             // remote dcs can sometimes get involved in dc-local reads. We want to repair
             // them if they do, but they shouldn't interfere with blocking the client read.
-            if (!repairs.containsKey(participant) && shouldBlockOn(participant))
+            if (!repairs.containsKey(participant) && shouldBlockOn(participant.endpoint()))
                 blockFor--;
         }
 
@@ -99,7 +97,7 @@ public class BlockingPartitionRepair extends AbstractFuture<Object> implements I
 
     private boolean shouldBlockOn(InetAddressAndPort endpoint)
     {
-        return !consistency.isDatacenterLocal() || isLocal(endpoint);
+        return !replicaLayout.consistencyLevel().isDatacenterLocal() || isLocal(endpoint);
     }
 
     @VisibleForTesting
@@ -107,7 +105,7 @@ public class BlockingPartitionRepair extends AbstractFuture<Object> implements I
     {
         if (shouldBlockOn(from))
         {
-            pendingRepairs.remove(from);
+            pendingRepairs.remove(replicaLayout.getReplicaFor(from));
             latch.countDown();
         }
     }
@@ -148,20 +146,23 @@ public class BlockingPartitionRepair extends AbstractFuture<Object> implements I
     public void sendInitialRepairs()
     {
         mutationsSentTime = System.nanoTime();
-        for (Map.Entry<InetAddressAndPort, Mutation> entry: pendingRepairs.entrySet())
+        Replicas.assertFull(pendingRepairs.keySet());
+
+        for (Map.Entry<Replica, Mutation> entry: pendingRepairs.entrySet())
         {
-            InetAddressAndPort destination = entry.getKey();
+            Replica destination = entry.getKey();
+            Preconditions.checkArgument(destination.isFull(), "Can't send repairs to transient replicas: %s", destination);
             Mutation mutation = entry.getValue();
             TableId tableId = extractUpdate(mutation).metadata().id;
 
             Tracing.trace("Sending read-repair-mutation to {}", destination);
             // use a separate verb here to avoid writing hints on timeouts
-            sendRR(mutation.createMessage(MessagingService.Verb.READ_REPAIR), destination);
+            sendRR(mutation.createMessage(MessagingService.Verb.READ_REPAIR), destination.endpoint());
             ColumnFamilyStore.metricsFor(tableId).readRepairRequests.mark();
 
-            if (!shouldBlockOn(destination))
+            if (!shouldBlockOn(destination.endpoint()))
                 pendingRepairs.remove(destination);
-            ReadRepairDiagnostics.sendInitialRepair(this, destination, mutation);
+            ReadRepairDiagnostics.sendInitialRepair(this, destination.endpoint(), mutation);
         }
     }
 
@@ -197,9 +198,8 @@ public class BlockingPartitionRepair extends AbstractFuture<Object> implements I
         if (awaitRepairs(timeout, timeoutUnit))
             return;
 
-        Set<InetAddressAndPort> exclude = Sets.newHashSet(participants);
-        Iterable<InetAddressAndPort> candidates = Iterables.filter(getCandidateEndpoints(), e -> !exclude.contains(e));
-        if (Iterables.isEmpty(candidates))
+        L newCandidates = replicaLayout.forNaturalUncontacted();
+        if (newCandidates.selected().isEmpty())
             return;
 
         PartitionUpdate update = mergeUnackedUpdates();
@@ -212,34 +212,34 @@ public class BlockingPartitionRepair extends AbstractFuture<Object> implements I
 
         Mutation[] versionedMutations = new Mutation[msgVersionIdx(MessagingService.current_version) + 1];
 
-        for (InetAddressAndPort endpoint: candidates)
+        for (Replica replica : newCandidates.selected())
         {
-            int versionIdx = msgVersionIdx(MessagingService.instance().getVersion(endpoint));
+            int versionIdx = msgVersionIdx(MessagingService.instance().getVersion(replica.endpoint()));
 
             Mutation mutation = versionedMutations[versionIdx];
 
             if (mutation == null)
             {
-                mutation = BlockingReadRepairs.createRepairMutation(update, consistency, endpoint, true);
+                mutation = BlockingReadRepairs.createRepairMutation(update, replicaLayout.consistencyLevel(), replica.endpoint(), true);
                 versionedMutations[versionIdx] = mutation;
             }
 
             if (mutation == null)
             {
                 // the mutation is too large to send.
-                ReadRepairDiagnostics.speculatedWriteOversized(this, endpoint);
+                ReadRepairDiagnostics.speculatedWriteOversized(this, replica.endpoint());
                 continue;
             }
 
-            Tracing.trace("Sending speculative read-repair-mutation to {}", endpoint);
-            sendRR(mutation.createMessage(MessagingService.Verb.READ_REPAIR), endpoint);
-            ReadRepairDiagnostics.speculatedWrite(this, endpoint, mutation);
+            Tracing.trace("Sending speculative read-repair-mutation to {}", replica);
+            sendRR(mutation.createMessage(MessagingService.Verb.READ_REPAIR), replica.endpoint());
+            ReadRepairDiagnostics.speculatedWrite(this, replica.endpoint(), mutation);
         }
     }
 
     Keyspace getKeyspace()
     {
-        return keyspace;
+        return replicaLayout.keyspace();
     }
 
     DecoratedKey getKey()
@@ -249,13 +249,6 @@ public class BlockingPartitionRepair extends AbstractFuture<Object> implements I
 
     ConsistencyLevel getConsistency()
     {
-        return consistency;
+        return replicaLayout.consistencyLevel();
     }
-
-    @VisibleForTesting
-    protected Iterable<InetAddressAndPort> getCandidateEndpoints()
-    {
-        return BlockingReadRepairs.getCandidateEndpoints(keyspace, key.getToken(), consistency);
-    }
-
 }

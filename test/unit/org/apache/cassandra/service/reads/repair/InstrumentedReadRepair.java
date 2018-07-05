@@ -20,10 +20,12 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.Set;
 
+import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.service.reads.ReadCallback;
 
-public interface InstrumentedReadRepair extends ReadRepair
+public interface InstrumentedReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends ReadRepair<E, L>
 {
     Set<InetAddressAndPort> getReadRecipients();
 

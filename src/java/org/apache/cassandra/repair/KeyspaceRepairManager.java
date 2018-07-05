@@ -25,8 +25,7 @@ import java.util.concurrent.ExecutorService;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 
 /**
  * Keyspace level hook for repair.
@@ -38,5 +37,8 @@ public interface KeyspaceRepairManager
      * been notified that the repair session has been completed, the data associated with the given session id must
      * not be combined with repaired or unrepaired data, or data from other repair sessions.
      */
-    ListenableFuture prepareIncrementalRepair(UUID sessionID, Collection<ColumnFamilyStore> tables, Collection<Range<Token>> ranges, ExecutorService executor);
+    ListenableFuture prepareIncrementalRepair(UUID sessionID,
+                                              Collection<ColumnFamilyStore> tables,
+                                              RangesAtEndpoint tokenRanges,
+                                              ExecutorService executor);
 }

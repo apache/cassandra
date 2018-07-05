@@ -26,14 +26,20 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.RateLimiter;
+
+import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
@@ -419,7 +425,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                 if (handler != null)
                 {
                     hintedNodes.addAll(handler.undelivered);
-                    HintsService.instance.write(transform(handler.undelivered, StorageService.instance::getHostIdForEndpoint),
+                    HintsService.instance.write(Collections2.transform(handler.undelivered, StorageService.instance::getHostIdForEndpoint),
                                                 Hint.create(undeliveredMutation, writtenAt));
                 }
             }
@@ -449,35 +455,41 @@ public class BatchlogManager implements BatchlogManagerMBean
                                                                                      long writtenAt,
                                                                                      Set<InetAddressAndPort> hintedNodes)
         {
-            Set<InetAddressAndPort> liveEndpoints = new HashSet<>();
             String ks = mutation.getKeyspaceName();
+            Keyspace keyspace = Keyspace.open(ks);
             Token tk = mutation.key().getToken();
 
-            for (InetAddressAndPort endpoint : StorageService.instance.getNaturalAndPendingEndpoints(ks, tk))
+            EndpointsForToken replicas = StorageService.instance.getNaturalAndPendingReplicasForToken(ks, tk);
+            Replicas.temporaryAssertFull(replicas); // TODO in CASSANDRA-14549
+
+            EndpointsForToken.Builder liveReplicasBuilder = EndpointsForToken.builder(tk);
+            for (Replica replica : replicas)
             {
-                if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+                if (replica.isLocal())
                 {
                     mutation.apply();
                 }
-                else if (FailureDetector.instance.isAlive(endpoint))
+                else if (FailureDetector.instance.isAlive(replica.endpoint()))
                 {
-                    liveEndpoints.add(endpoint); // will try delivering directly instead of writing a hint.
+                    liveReplicasBuilder.add(replica); // will try delivering directly instead of writing a hint.
                 }
                 else
                 {
-                    hintedNodes.add(endpoint);
-                    HintsService.instance.write(StorageService.instance.getHostIdForEndpoint(endpoint),
+                    hintedNodes.add(replica.endpoint());
+                    HintsService.instance.write(StorageService.instance.getHostIdForEndpoint(replica.endpoint()),
                                                 Hint.create(mutation, writtenAt));
                 }
             }
 
-            if (liveEndpoints.isEmpty())
+            EndpointsForToken liveReplicas = liveReplicasBuilder.build();
+            if (liveReplicas.isEmpty())
                 return null;
 
-            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(liveEndpoints, System.nanoTime());
+            Replicas.temporaryAssertFull(liveReplicas);
+            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(keyspace, liveReplicas, System.nanoTime());
             MessageOut<Mutation> message = mutation.createMessage();
-            for (InetAddressAndPort endpoint : liveEndpoints)
-                MessagingService.instance().sendRR(message, endpoint, handler, false);
+            for (Replica replica : liveReplicas)
+                MessagingService.instance().sendWriteRR(message, replica, handler, false);
             return handler;
         }
 
@@ -497,16 +509,17 @@ public class BatchlogManager implements BatchlogManagerMBean
         {
             private final Set<InetAddressAndPort> undelivered = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-            ReplayWriteResponseHandler(Collection<InetAddressAndPort> writeEndpoints, long queryStartNanoTime)
+            ReplayWriteResponseHandler(Keyspace keyspace, EndpointsForToken writeReplicas, long queryStartNanoTime)
             {
-                super(writeEndpoints, Collections.<InetAddressAndPort>emptySet(), null, null, null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
-                undelivered.addAll(writeEndpoints);
+                super(ReplicaLayout.forWriteWithDownNodes(keyspace, null, writeReplicas.token(), writeReplicas, EndpointsForToken.empty(writeReplicas.token())),
+                      null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
+                Iterables.addAll(undelivered, writeReplicas.endpoints());
             }
 
             @Override
             protected int totalBlockFor()
             {
-                return this.naturalEndpoints.size();
+                return this.replicaLayout.selected().size();
             }
 
             @Override

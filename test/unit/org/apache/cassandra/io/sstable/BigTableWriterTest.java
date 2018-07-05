@@ -69,7 +69,7 @@ public class BigTableWriterTest extends AbstractTransactionalTest
 
         private TestableBTW(Descriptor desc)
         {
-            this(desc, SSTableTxnWriter.create(cfs, desc, 0, 0, null,
+            this(desc, SSTableTxnWriter.create(cfs, desc, 0, 0, null, false,
                                                new SerializationHeader(true, cfs.metadata(),
                                                                        cfs.metadata().regularAndStaticColumns(),
                                                                        EncodingStats.NO_STATS)));
