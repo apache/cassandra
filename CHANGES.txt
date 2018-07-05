@@ -19,7 +19,6 @@
  * Handle all exceptions when opening sstables (CASSANDRA-14202)
  * Handle incompletely written hint descriptors during startup (CASSANDRA-14080)
  * Handle repeat open bound from SRP in read repair (CASSANDRA-14330)
- * Use zero as default score in DynamicEndpointSnitch (CASSANDRA-14252)
  * Respect max hint window when hinting for LWT (CASSANDRA-14215)
  * Adding missing WriteType enum values to v3, v4, and v5 spec (CASSANDRA-13697)
  * Don't regenerate bloomfilter and summaries on startup (CASSANDRA-11163)
