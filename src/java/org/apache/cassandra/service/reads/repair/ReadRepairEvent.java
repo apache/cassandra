@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.reads.repair;
 
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -48,9 +49,9 @@ final class ReadRepairEvent extends DiagnosticEvent
     private final ConsistencyLevel consistency;
     private final SpeculativeRetryPolicy.Kind speculativeRetry;
     @VisibleForTesting
-    final List<InetAddressAndPort> destinations;
+    final Collection<InetAddressAndPort> destinations;
     @VisibleForTesting
-    final List<InetAddressAndPort> allEndpoints;
+    final Collection<InetAddressAndPort> allEndpoints;
     @Nullable
     private final DigestResolverDebugResult[] digestsByEndpoint;
 
@@ -60,13 +61,13 @@ final class ReadRepairEvent extends DiagnosticEvent
         SPECULATED_READ
     }
 
-    ReadRepairEvent(ReadRepairEventType type, AbstractReadRepair readRepair, List<InetAddressAndPort> destinations,
-                    List<InetAddressAndPort> allEndpoints, DigestResolver digestResolver)
+    ReadRepairEvent(ReadRepairEventType type, AbstractReadRepair readRepair, Collection<InetAddressAndPort> destinations,
+                    Collection<InetAddressAndPort> allEndpoints, DigestResolver digestResolver)
     {
         this.keyspace = readRepair.cfs.keyspace;
         this.tableName = readRepair.cfs.getTableName();
         this.cqlCommand = readRepair.command.toCQLString();
-        this.consistency = readRepair.consistency;
+        this.consistency = readRepair.replicaLayout.consistencyLevel();
         this.speculativeRetry = readRepair.cfs.metadata().params.speculativeRetry.kind();
         this.destinations = destinations;
         this.allEndpoints = allEndpoints;

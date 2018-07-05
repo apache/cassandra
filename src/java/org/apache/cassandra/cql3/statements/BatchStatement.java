@@ -261,7 +261,7 @@ public class BatchStatement implements CQLStatement
         return statements;
     }
 
-    private Collection<? extends IMutation> getMutations(BatchQueryOptions options,
+    private List<? extends IMutation> getMutations(BatchQueryOptions options,
                                                          boolean local,
                                                          long batchTimestamp,
                                                          int nowInSeconds,
@@ -401,7 +401,7 @@ public class BatchStatement implements CQLStatement
         return new ResultMessage.Void();
     }
 
-    private void executeWithoutConditions(Collection<? extends IMutation> mutations, ConsistencyLevel cl, long queryStartNanoTime) throws RequestExecutionException, RequestValidationException
+    private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, long queryStartNanoTime) throws RequestExecutionException, RequestValidationException
     {
         if (mutations.isEmpty())
             return;

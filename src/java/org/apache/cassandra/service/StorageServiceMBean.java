@@ -217,6 +217,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key);
     public List<String> getNaturalEndpointsWithPort(String keysapceName, ByteBuffer key);
 
+    public List<String> getReplicas(String keyspaceName, String cf, String key);
+
     /**
      * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead.
      */

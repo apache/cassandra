@@ -465,7 +465,7 @@ public abstract class ModificationStatement implements CQLStatement
         else
             cl.validateForWrite(metadata.keyspace);
 
-        Collection<? extends IMutation> mutations =
+        List<? extends IMutation> mutations =
             getMutations(options,
                          false,
                          options.getTimestamp(queryState),
@@ -676,7 +676,7 @@ public abstract class ModificationStatement implements CQLStatement
      *
      * @return list of the mutations
      */
-    private Collection<? extends IMutation> getMutations(QueryOptions options,
+    private List<? extends IMutation> getMutations(QueryOptions options,
                                                          boolean local,
                                                          long timestamp,
                                                          int nowInSeconds,

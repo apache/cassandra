@@ -104,7 +104,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
      * Returns a collection containing all the mutations.
      * @return a collection containing all the mutations.
      */
-    public Collection<IMutation> toMutations()
+    public List<IMutation> toMutations()
     {
         //TODO: The case where all statement where on the same keyspace is pretty common, optimize for that?
         List<IMutation> ms = new ArrayList<>();

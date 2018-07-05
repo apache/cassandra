@@ -17,27 +17,34 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.stream.Collectors;
 
-import com.google.common.collect.Iterables;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.locator.ReplicaLayout;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.exceptions.WriteFailureException;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
+
 
 public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackWithFailure<T>
 {
@@ -46,11 +53,9 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     //Count down until all responses and expirations have occured before deciding whether the ideal CL was reached.
     private AtomicInteger responsesAndExpirations;
     private final SimpleCondition condition = new SimpleCondition();
-    protected final Keyspace keyspace;
-    protected final Collection<InetAddressAndPort> naturalEndpoints;
-    public final ConsistencyLevel consistencyLevel;
+    protected final ReplicaLayout.ForToken replicaLayout;
+
     protected final Runnable callback;
-    protected final Collection<InetAddressAndPort> pendingEndpoints;
     protected final WriteType writeType;
     private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> failuresUpdater
     = AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
@@ -60,7 +65,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     private volatile boolean supportsBackPressure = true;
 
     /**
-      * Delegate to another WriteReponseHandler or possibly this one to track if the ideal consistency level was reached.
+      * Delegate to another WriteResponseHandler or possibly this one to track if the ideal consistency level was reached.
       * Will be set to null if ideal CL was not configured
       * Will be set to an AWRH delegate if ideal CL was configured
       * Will be same as "this" if this AWRH is the ideal consistency level
@@ -71,18 +76,12 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
      * @param callback           A callback to be called when the write is successful.
      * @param queryStartNanoTime
      */
-    protected AbstractWriteResponseHandler(Keyspace keyspace,
-                                           Collection<InetAddressAndPort> naturalEndpoints,
-                                           Collection<InetAddressAndPort> pendingEndpoints,
-                                           ConsistencyLevel consistencyLevel,
+    protected AbstractWriteResponseHandler(ReplicaLayout.ForToken replicaLayout,
                                            Runnable callback,
                                            WriteType writeType,
                                            long queryStartNanoTime)
     {
-        this.keyspace = keyspace;
-        this.pendingEndpoints = pendingEndpoints;
-        this.consistencyLevel = consistencyLevel;
-        this.naturalEndpoints = naturalEndpoints;
+        this.replicaLayout = replicaLayout;
         this.callback = callback;
         this.writeType = writeType;
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
@@ -112,12 +111,12 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
             // avoid sending confusing info to the user (see CASSANDRA-6491).
             if (acks >= blockedFor)
                 acks = blockedFor - 1;
-            throw new WriteTimeoutException(writeType, consistencyLevel, acks, blockedFor);
+            throw new WriteTimeoutException(writeType, replicaLayout.consistencyLevel(), acks, blockedFor);
         }
 
         if (totalBlockFor() + failures > totalEndpoints())
         {
-            throw new WriteFailureException(consistencyLevel, ackCount(), totalBlockFor(), writeType, failureReasonByEndpoint);
+            throw new WriteFailureException(replicaLayout.consistencyLevel(), ackCount(), totalBlockFor(), writeType, failureReasonByEndpoint);
         }
     }
 
@@ -136,7 +135,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     public void setIdealCLResponseHandler(AbstractWriteResponseHandler handler)
     {
         this.idealCLDelegate = handler;
-        idealCLDelegate.responsesAndExpirations = new AtomicInteger(naturalEndpoints.size() + pendingEndpoints.size());
+        idealCLDelegate.responsesAndExpirations = new AtomicInteger(replicaLayout.selected().size());
     }
 
     /**
@@ -194,15 +193,20 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     {
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
-        return consistencyLevel.blockFor(keyspace) + pendingEndpoints.size();
+        return replicaLayout.consistencyLevel().blockForWrite(replicaLayout.keyspace(), replicaLayout.pending());
     }
 
     /**
-     * @return the total number of endpoints the request has been sent to.
+     * @return the total number of endpoints the request can been sent to.
      */
     protected int totalEndpoints()
     {
-        return naturalEndpoints.size() + pendingEndpoints.size();
+        return replicaLayout.all().size();
+    }
+
+    public ConsistencyLevel consistencyLevel()
+    {
+        return replicaLayout.consistencyLevel();
     }
 
     /**
@@ -225,7 +229,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
 
     public void assureSufficientLiveNodes() throws UnavailableException
     {
-        consistencyLevel.assureSufficientLiveNodes(keyspace, Iterables.filter(Iterables.concat(naturalEndpoints, pendingEndpoints), isAlive));
+        replicaLayout.consistencyLevel().assureSufficientLiveNodesForWrite(replicaLayout.keyspace(), replicaLayout.all().filter(isReplicaAlive), replicaLayout.pending());
     }
 
     protected void signal()
@@ -274,12 +278,49 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
             //The condition being signaled is a valid proxy for the CL being achieved
             if (!condition.isSignaled())
             {
-                keyspace.metric.writeFailedIdealCL.inc();
+                replicaLayout.keyspace().metric.writeFailedIdealCL.inc();
             }
             else
             {
-                keyspace.metric.idealCLWriteLatency.addNano(System.nanoTime() - queryStartNanoTime);
+                replicaLayout.keyspace().metric.idealCLWriteLatency.addNano(System.nanoTime() - queryStartNanoTime);
             }
+        }
+    }
+
+    /**
+     * Cheap Quorum backup.  If we failed to reach quorum with our initial (full) nodes, reach out to other nodes.
+     */
+    public void maybeTryAdditionalReplicas(IMutation mutation, StorageProxy.WritePerformer writePerformer, String localDC)
+    {
+        if (replicaLayout.all().size() == replicaLayout.selected().size())
+            return;
+
+        long timeout = Long.MAX_VALUE;
+        List<ColumnFamilyStore> cfs = mutation.getTableIds().stream()
+                                              .map(Schema.instance::getColumnFamilyStoreInstance)
+                                              .collect(Collectors.toList());
+        for (ColumnFamilyStore cf : cfs)
+            timeout = Math.min(timeout, cf.transientWriteLatencyNanos);
+
+        // no latency information, or we're overloaded
+        if (timeout > TimeUnit.MILLISECONDS.toNanos(mutation.getTimeout()))
+            return;
+
+        try
+        {
+            if (!condition.await(timeout, TimeUnit.NANOSECONDS))
+            {
+                for (ColumnFamilyStore cf : cfs)
+                    cf.metric.speculativeWrites.inc();
+
+                writePerformer.apply(mutation, replicaLayout.forNaturalUncontacted(),
+                                     (AbstractWriteResponseHandler<IMutation>) this,
+                                     localDC);
+            }
+        }
+        catch (InterruptedException ex)
+        {
+            throw new AssertionError(ex);
         }
     }
 }

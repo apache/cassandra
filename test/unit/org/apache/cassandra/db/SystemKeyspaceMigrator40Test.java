@@ -34,6 +34,8 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.junit.Assert.assertEquals;
@@ -186,6 +188,30 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
         for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.transferredRangesName)))
         {
             rowCount++;
+        }
+        assertEquals(1, rowCount);
+    }
+
+    @Test
+    public void testMigrateAvailableRanges() throws Throwable
+    {
+        Range<Token> testRange = new Range<>(DatabaseDescriptor.getPartitioner().getRandomToken(), DatabaseDescriptor.getPartitioner().getRandomToken());
+        String insert = String.format("INSERT INTO %s ("
+                                      + "keyspace_name, "
+                                      + "ranges) "
+                                      + " values ( ?, ? )",
+                                      SystemKeyspaceMigrator40.legacyAvailableRangesName);
+        execute(insert,
+                "foo",
+                ImmutableSet.of(SystemKeyspace.rangeToBytes(testRange)));
+        SystemKeyspaceMigrator40.migrate();
+
+        int rowCount = 0;
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.availableRangesName)))
+        {
+            rowCount++;
+            assertEquals("foo", row.getString("keyspace_name"));
+            assertEquals(ImmutableSet.of(testRange), SystemKeyspace.rawRangesToRangeSet(row.getSet("full_ranges", BytesType.instance), DatabaseDescriptor.getPartitioner()));
         }
         assertEquals(1, rowCount);
     }

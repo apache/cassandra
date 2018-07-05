@@ -642,7 +642,7 @@ public class RangeTest
             Range.OrderedRangeContainmentChecker checker = new Range.OrderedRangeContainmentChecker(ranges);
             for (Token t : tokensToTest)
             {
-                if (checker.contains(t) != Range.isInRanges(t, ranges)) // avoid running Joiner.on(..) every iteration
+                if (checker.test(t) != Range.isInRanges(t, ranges)) // avoid running Joiner.on(..) every iteration
                     fail(String.format("This should never flap! If it does, it is a bug (ranges = %s, token = %s)", Joiner.on(",").join(ranges), t));
             }
         }
@@ -653,11 +653,11 @@ public class RangeTest
     {
         List<Range<Token>> ranges = asList(r(Long.MIN_VALUE, Long.MIN_VALUE + 1), r(Long.MAX_VALUE - 1, Long.MAX_VALUE));
         Range.OrderedRangeContainmentChecker checker = new Range.OrderedRangeContainmentChecker(ranges);
-        assertFalse(checker.contains(t(Long.MIN_VALUE)));
-        assertTrue(checker.contains(t(Long.MIN_VALUE + 1)));
-        assertFalse(checker.contains(t(0)));
-        assertFalse(checker.contains(t(Long.MAX_VALUE - 1)));
-        assertTrue(checker.contains(t(Long.MAX_VALUE)));
+        assertFalse(checker.test(t(Long.MIN_VALUE)));
+        assertTrue(checker.test(t(Long.MIN_VALUE + 1)));
+        assertFalse(checker.test(t(0)));
+        assertFalse(checker.test(t(Long.MAX_VALUE - 1)));
+        assertTrue(checker.test(t(Long.MAX_VALUE)));
     }
 
     private static Range<Token> r(long left, long right)

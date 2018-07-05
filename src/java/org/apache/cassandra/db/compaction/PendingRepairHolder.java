@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,10 +44,12 @@ import org.apache.cassandra.service.ActiveRepairService;
 public class PendingRepairHolder extends AbstractStrategyHolder
 {
     private final List<PendingRepairManager> managers = new ArrayList<>();
+    private final boolean isTransient;
 
-    public PendingRepairHolder(ColumnFamilyStore cfs, DestinationRouter router)
+    public PendingRepairHolder(ColumnFamilyStore cfs, DestinationRouter router, boolean isTransient)
     {
         super(cfs, router);
+        this.isTransient = isTransient;
     }
 
     @Override
@@ -66,15 +69,15 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     {
         managers.clear();
         for (int i = 0; i < numTokenPartitions; i++)
-            managers.add(new PendingRepairManager(cfs, params));
+            managers.add(new PendingRepairManager(cfs, params, isTransient));
     }
 
     @Override
-    public boolean managesRepairedGroup(boolean isRepaired, boolean isPendingRepair)
+    public boolean managesRepairedGroup(boolean isRepaired, boolean isPendingRepair, boolean isTransient)
     {
         Preconditions.checkArgument(!isPendingRepair || !isRepaired,
                                     "SSTables cannot be both repaired and pending repair");
-        return isPendingRepair;
+        return isPendingRepair && (this.isTransient == isTransient);
     }
 
     @Override
@@ -145,7 +148,23 @@ public class PendingRepairHolder extends AbstractStrategyHolder
         return tasks;
     }
 
-    public ArrayList<TaskSupplier> getRepairFinishedTaskSuppliers()
+    AbstractCompactionTask getNextRepairFinishedTask()
+    {
+        List<TaskSupplier> repairFinishedSuppliers = getRepairFinishedTaskSuppliers();
+        if (!repairFinishedSuppliers.isEmpty())
+        {
+            Collections.sort(repairFinishedSuppliers);
+            for (TaskSupplier supplier : repairFinishedSuppliers)
+            {
+                AbstractCompactionTask task = supplier.getTask();
+                if (task != null)
+                    return task;
+            }
+        }
+        return null;
+    }
+
+    private ArrayList<TaskSupplier> getRepairFinishedTaskSuppliers()
     {
         ArrayList<TaskSupplier> suppliers = new ArrayList<>(managers.size());
         for (PendingRepairManager manager : managers)
@@ -218,6 +237,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
                                                        long keyCount,
                                                        long repairedAt,
                                                        UUID pendingRepair,
+                                                       boolean isTransient,
                                                        MetadataCollector collector,
                                                        SerializationHeader header,
                                                        Collection<Index> indexes,
@@ -233,6 +253,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
                                                  keyCount,
                                                  repairedAt,
                                                  pendingRepair,
+                                                 isTransient,
                                                  collector,
                                                  header,
                                                  indexes,
@@ -248,5 +269,16 @@ public class PendingRepairHolder extends AbstractStrategyHolder
                 return i;
         }
         return -1;
+    }
+
+    public boolean hasDataForSession(UUID sessionID)
+    {
+        return Iterables.any(managers, prm -> prm.hasDataForSession(sessionID));
+    }
+
+    @Override
+    public boolean containsSSTable(SSTableReader sstable)
+    {
+        return Iterables.any(managers, prm -> prm.containsSSTable(sstable));
     }
 }

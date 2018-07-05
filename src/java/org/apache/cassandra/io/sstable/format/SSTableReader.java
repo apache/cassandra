@@ -1852,6 +1852,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.repairedAt;
     }
 
+    public boolean isTransient()
+    {
+        return sstableMetadata.isTransient;
+    }
+
     public boolean intersects(Collection<Range<Token>> ranges)
     {
         Bounds<Token> range = new Bounds<>(first.getToken(), last.getToken());

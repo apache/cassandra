@@ -27,11 +27,14 @@ import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -97,6 +100,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         TableMetadata table = builder(keyspace.types).build();
         table.validate();
+
+        if (keyspace.createReplicationStrategy().hasTransientReplicas()
+            && table.params.readRepair != ReadRepairStrategy.NONE)
+        {
+            throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
+        }
 
         return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.tables.with(table)));
     }

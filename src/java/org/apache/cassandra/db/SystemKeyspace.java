@@ -29,13 +29,15 @@ import java.util.stream.StreamSupport;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.ListenableFuture;
+import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.locator.Replica;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,6 +73,8 @@ import static java.util.Collections.singletonMap;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
+import static org.apache.cassandra.locator.Replica.fullReplica;
+import static org.apache.cassandra.locator.Replica.transientReplica;
 
 public final class SystemKeyspace
 {
@@ -95,12 +99,10 @@ public final class SystemKeyspace
     public static final String LOCAL = "local";
     public static final String PEERS_V2 = "peers_v2";
     public static final String PEER_EVENTS_V2 = "peer_events_v2";
-    public static final String RANGE_XFERS = "range_xfers";
     public static final String COMPACTION_HISTORY = "compaction_history";
     public static final String SSTABLE_ACTIVITY = "sstable_activity";
     public static final String SIZE_ESTIMATES = "size_estimates";
-    public static final String AVAILABLE_RANGES = "available_ranges";
-    public static final String TRANSFERRED_RANGES = "transferred_ranges";
+    public static final String AVAILABLE_RANGES_V2 = "available_ranges_v2";
     public static final String TRANSFERRED_RANGES_V2 = "transferred_ranges_v2";
     public static final String VIEW_BUILDS_IN_PROGRESS = "view_builds_in_progress";
     public static final String BUILT_VIEWS = "built_views";
@@ -110,6 +112,8 @@ public final class SystemKeyspace
     @Deprecated public static final String LEGACY_PEERS = "peers";
     @Deprecated public static final String LEGACY_PEER_EVENTS = "peer_events";
     @Deprecated public static final String LEGACY_TRANSFERRED_RANGES = "transferred_ranges";
+    @Deprecated public static final String LEGACY_AVAILABLE_RANGES = "available_ranges";
+
 
     public static final TableMetadata Batches =
         parse(BATCHES,
@@ -207,15 +211,6 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((peer), peer_port))")
                 .build();
 
-    private static final TableMetadata RangeXfers =
-        parse(RANGE_XFERS,
-                "ranges requested for transfer",
-                "CREATE TABLE %s ("
-                + "token_bytes blob,"
-                + "requested_at timestamp,"
-                + "PRIMARY KEY ((token_bytes)))")
-                .build();
-
     private static final TableMetadata CompactionHistory =
         parse(COMPACTION_HISTORY,
                 "week-long compaction history",
@@ -256,14 +251,15 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((keyspace_name), table_name, range_start, range_end))")
                 .build();
 
-    private static final TableMetadata AvailableRanges =
-        parse(AVAILABLE_RANGES,
-                "available keyspace/ranges during bootstrap/replace that are ready to be served",
-                "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "ranges set<blob>,"
-                + "PRIMARY KEY ((keyspace_name)))")
-                .build();
+    private static final TableMetadata AvailableRangesV2 =
+    parse(AVAILABLE_RANGES_V2,
+          "available keyspace/ranges during bootstrap/replace that are ready to be served",
+          "CREATE TABLE %s ("
+          + "keyspace_name text,"
+          + "full_ranges set<blob>,"
+          + "transient_ranges set<blob>,"
+          + "PRIMARY KEY ((keyspace_name)))")
+    .build();
 
     private static final TableMetadata TransferredRangesV2 =
         parse(TRANSFERRED_RANGES_V2,
@@ -366,6 +362,16 @@ public final class SystemKeyspace
             + "PRIMARY KEY ((operation, keyspace_name), peer))")
             .build();
 
+    @Deprecated
+    private static final TableMetadata LegacyAvailableRanges =
+        parse(LEGACY_AVAILABLE_RANGES,
+              "available keyspace/ranges during bootstrap/replace that are ready to be served",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "ranges set<blob>,"
+              + "PRIMARY KEY ((keyspace_name)))")
+        .build();
+
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.SYSTEM_KEYSPACE_NAME)
@@ -390,11 +396,11 @@ public final class SystemKeyspace
                          LegacyPeers,
                          PeerEventsV2,
                          LegacyPeerEvents,
-                         RangeXfers,
                          CompactionHistory,
                          SSTableActivity,
                          SizeEstimates,
-                         AvailableRanges,
+                         AvailableRangesV2,
+                         LegacyAvailableRanges,
                          TransferredRangesV2,
                          LegacyTransferredRanges,
                          ViewBuildsInProgress,
@@ -1270,36 +1276,38 @@ public final class SystemKeyspace
         executeInternal(cql, keyspace, table);
     }
 
-    public static synchronized void updateAvailableRanges(String keyspace, Collection<Range<Token>> completedRanges)
+    public static synchronized void updateAvailableRanges(String keyspace, Collection<Range<Token>> completedFullRanges, Collection<Range<Token>> completedTransientRanges)
     {
-        String cql = "UPDATE system.%s SET ranges = ranges + ? WHERE keyspace_name = ?";
-        Set<ByteBuffer> rangesToUpdate = new HashSet<>(completedRanges.size());
-        for (Range<Token> range : completedRanges)
-        {
-            rangesToUpdate.add(rangeToBytes(range));
-        }
-        executeInternal(format(cql, AVAILABLE_RANGES), rangesToUpdate, keyspace);
+        String cql = "UPDATE system.%s SET full_ranges = full_ranges + ?, transient_ranges = transient_ranges + ? WHERE keyspace_name = ?";
+        executeInternal(format(cql, AVAILABLE_RANGES_V2),
+                        completedFullRanges.stream().map(SystemKeyspace::rangeToBytes).collect(Collectors.toSet()),
+                        completedTransientRanges.stream().map(SystemKeyspace::rangeToBytes).collect(Collectors.toSet()),
+                        keyspace);
     }
 
-    public static synchronized Set<Range<Token>> getAvailableRanges(String keyspace, IPartitioner partitioner)
+    public static synchronized RangesAtEndpoint getAvailableRanges(String keyspace, IPartitioner partitioner)
     {
-        Set<Range<Token>> result = new HashSet<>();
         String query = "SELECT * FROM system.%s WHERE keyspace_name=?";
-        UntypedResultSet rs = executeInternal(format(query, AVAILABLE_RANGES), keyspace);
+        UntypedResultSet rs = executeInternal(format(query, AVAILABLE_RANGES_V2), keyspace);
+        InetAddressAndPort endpoint = InetAddressAndPort.getLocalHost();
+        RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(endpoint);
         for (UntypedResultSet.Row row : rs)
         {
-            Set<ByteBuffer> rawRanges = row.getSet("ranges", BytesType.instance);
-            for (ByteBuffer rawRange : rawRanges)
-            {
-                result.add(byteBufferToRange(rawRange, partitioner));
-            }
+            Optional.ofNullable(row.getSet("full_ranges", BytesType.instance))
+                    .ifPresent(full_ranges -> full_ranges.stream()
+                            .map(buf -> byteBufferToRange(buf, partitioner))
+                            .forEach(range -> builder.add(fullReplica(endpoint, range))));
+            Optional.ofNullable(row.getSet("transient_ranges", BytesType.instance))
+                    .ifPresent(transient_ranges -> transient_ranges.stream()
+                            .map(buf -> byteBufferToRange(buf, partitioner))
+                            .forEach(range -> builder.add(transientReplica(endpoint, range))));
         }
-        return ImmutableSet.copyOf(result);
+        return builder.build();
     }
 
     public static void resetAvailableRanges()
     {
-        ColumnFamilyStore availableRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(AVAILABLE_RANGES);
+        ColumnFamilyStore availableRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(AVAILABLE_RANGES_V2);
         availableRanges.truncateBlocking();
     }
 
@@ -1405,7 +1413,13 @@ public final class SystemKeyspace
         return result.one().getString("release_version");
     }
 
-    private static ByteBuffer rangeToBytes(Range<Token> range)
+    @VisibleForTesting
+    public static Set<Range<Token>> rawRangesToRangeSet(Set<ByteBuffer> rawRanges, IPartitioner partitioner)
+    {
+        return rawRanges.stream().map(buf -> byteBufferToRange(buf, partitioner)).collect(Collectors.toSet());
+    }
+
+    static ByteBuffer rangeToBytes(Range<Token> range)
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {

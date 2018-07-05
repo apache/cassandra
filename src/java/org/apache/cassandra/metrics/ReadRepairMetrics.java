@@ -37,6 +37,7 @@ public class ReadRepairMetrics
     @Deprecated
     public static final Meter attempted = Metrics.meter(factory.createMetricName("Attempted"));
 
+    // Incremented when additional requests were sent during blocking read repair due to unavailable or slow nodes
     public static final Meter speculatedRead = Metrics.meter(factory.createMetricName("SpeculatedRead"));
     public static final Meter speculatedWrite = Metrics.meter(factory.createMetricName("SpeculatedWrite"));
 

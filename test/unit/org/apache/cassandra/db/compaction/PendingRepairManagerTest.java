@@ -45,7 +45,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
-        mutateRepaired(sstable, repairID);
+        mutateRepaired(sstable, repairID, false);
         prm.addSSTable(sstable);
         Assert.assertNotNull(prm.get(repairID));
 
@@ -63,7 +63,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
-        mutateRepaired(sstable, repairID);
+        mutateRepaired(sstable, repairID, false);
         prm.addSSTable(sstable);
         Assert.assertNotNull(prm.get(repairID));
         LocalSessionAccessor.finalizeUnsafe(repairID);
@@ -82,7 +82,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
-        mutateRepaired(sstable, repairID);
+        mutateRepaired(sstable, repairID, false);
         prm.addSSTable(sstable);
         Assert.assertNotNull(prm.get(repairID));
         LocalSessionAccessor.failUnsafe(repairID);
@@ -94,7 +94,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
     public void needsCleanupNoSession()
     {
         UUID fakeID = UUIDGen.getTimeUUID();
-        PendingRepairManager prm = new PendingRepairManager(cfs, null);
+        PendingRepairManager prm = new PendingRepairManager(cfs, null, false);
         Assert.assertTrue(prm.canCleanup(fakeID));
     }
 
@@ -106,7 +106,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
-        mutateRepaired(sstable, repairID);
+        mutateRepaired(sstable, repairID, false);
         prm.addSSTable(sstable);
         Assert.assertNotNull(prm.get(repairID));
 
@@ -122,7 +122,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
-        mutateRepaired(sstable, repairID);
+        mutateRepaired(sstable, repairID, false);
         prm.addSSTable(sstable);
         Assert.assertNotNull(prm.get(repairID));
         Assert.assertNotNull(prm.get(repairID));
@@ -140,13 +140,13 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
-        mutateRepaired(sstable, repairID);
+        mutateRepaired(sstable, repairID, false);
         prm.addSSTable(sstable);
 
         repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         sstable = makeSSTable(true);
-        mutateRepaired(sstable, repairID);
+        mutateRepaired(sstable, repairID, false);
         prm.addSSTable(sstable);
         LocalSessionAccessor.finalizeUnsafe(repairID);
 
@@ -184,7 +184,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
 
         SSTableReader sstable = makeSSTable(true);
-        mutateRepaired(sstable, repairID);
+        mutateRepaired(sstable, repairID, false);
         prm.addSSTable(sstable);
         Assert.assertNotNull(prm.get(repairID));
         Assert.assertNotNull(prm.get(repairID));
@@ -202,7 +202,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
-        mutateRepaired(sstable, repairID);
+        mutateRepaired(sstable, repairID, false);
         prm.addSSTable(sstable);
         Assert.assertNotNull(prm.get(repairID));
         Assert.assertNotNull(prm.get(repairID));
@@ -225,7 +225,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
         UUID repairId = registerSession(cfs, true, true);
         SSTableReader sstable = makeSSTable(true);
-        mutateRepaired(sstable, repairId);
+        mutateRepaired(sstable, repairId, false);
         prm.addSSTable(sstable);
         List<AbstractCompactionTask> tasks = csm.getUserDefinedTasks(Collections.singleton(sstable), 100);
         try
@@ -247,8 +247,8 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         SSTableReader sstable = makeSSTable(true);
         SSTableReader sstable2 = makeSSTable(true);
 
-        mutateRepaired(sstable, repairId);
-        mutateRepaired(sstable2, repairId2);
+        mutateRepaired(sstable, repairId, false);
+        mutateRepaired(sstable2, repairId2, false);
         prm.addSSTable(sstable);
         prm.addSSTable(sstable2);
         List<AbstractCompactionTask> tasks = csm.getUserDefinedTasks(Lists.newArrayList(sstable, sstable2), 100);
@@ -296,7 +296,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
 
         Assert.assertFalse(prm.hasDataForSession(repairID));
         SSTableReader sstable = makeSSTable(true);
-        mutateRepaired(sstable, repairID);
+        mutateRepaired(sstable, repairID, false);
         prm.addSSTable(sstable);
         Assert.assertTrue(prm.hasDataForSession(repairID));
     }

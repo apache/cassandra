@@ -107,7 +107,6 @@ public class CleanupTest
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE2, CF_INDEXED2, true));
     }
 
-    /*
     @Test
     public void testCleanup() throws ExecutionException, InterruptedException
     {
@@ -116,7 +115,6 @@ public class CleanupTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
 
-        UnfilteredPartitionIterator iter;
 
         // insert data and verify we get it back w/ range query
         fillCF(cfs, "val", LOOPS);
@@ -124,8 +122,7 @@ public class CleanupTest
         // record max timestamps of the sstables pre-cleanup
         List<Long> expectedMaxTimestamps = getMaxTimestampList(cfs);
 
-        iter = Util.getRangeSlice(cfs);
-        assertEquals(LOOPS, Iterators.size(iter));
+        assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
 
         // with one token in the ring, owned by the local node, cleanup should be a no-op
         CompactionManager.instance.performCleanup(cfs, 2);
@@ -134,10 +131,8 @@ public class CleanupTest
         assert expectedMaxTimestamps.equals(getMaxTimestampList(cfs));
 
         // check data is still there
-        iter = Util.getRangeSlice(cfs);
-        assertEquals(LOOPS, Iterators.size(iter));
+        assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
     }
-    */
 
     @Test
     public void testCleanupWithIndexes() throws IOException, ExecutionException, InterruptedException

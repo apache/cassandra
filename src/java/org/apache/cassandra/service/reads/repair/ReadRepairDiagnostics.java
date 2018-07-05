@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.reads.repair;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -38,8 +39,8 @@ final class ReadRepairDiagnostics
     {
     }
 
-    static void startRepair(AbstractReadRepair readRepair, List<InetAddressAndPort> endpointDestinations,
-                            DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints)
+    static void startRepair(AbstractReadRepair readRepair, Collection<InetAddressAndPort> endpointDestinations,
+                            DigestResolver digestResolver, Collection<InetAddressAndPort> allEndpoints)
     {
         if (service.isEnabled(ReadRepairEvent.class, ReadRepairEventType.START_REPAIR))
             service.publish(new ReadRepairEvent(ReadRepairEventType.START_REPAIR,

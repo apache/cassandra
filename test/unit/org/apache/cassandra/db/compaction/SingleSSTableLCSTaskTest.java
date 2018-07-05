@@ -56,7 +56,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         assertEquals(1, cfs.getLiveSSTables().size());
         cfs.getLiveSSTables().forEach(s -> assertEquals(2, s.getSSTableLevel()));
         // make sure compaction strategy is notified:
-        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepaired().iterator().next();
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
         for (int i = 0; i < lcs.manifest.getLevelCount(); i++)
         {
             if (i == 2)
@@ -98,7 +98,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
                 cfs.forceBlockingFlush();
         }
         // now we have a bunch of data in L0, first compaction will be a normal one, containing all sstables:
-        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepaired().get(0);
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
         AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
         act.execute(null);
 
@@ -148,7 +148,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         assertEquals(1, cfs.getLiveSSTables().size());
         for (SSTableReader sst : cfs.getLiveSSTables())
             assertEquals(0, sst.getSSTableMetadata().sstableLevel);
-        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepaired().iterator().next();
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
         assertEquals(1, lcs.getLevelSize(0));
         assertTrue(cfs.getTracker().getCompacting().isEmpty());
     }

@@ -28,7 +28,9 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget.Type;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -87,6 +89,9 @@ public final class CreateIndexStatement extends AlterSchemaStatement
 
         if (table.isView())
             throw ire("Secondary indexes on materialized views aren't supported");
+
+        if (Keyspace.open(table.keyspace).getReplicationStrategy().hasTransientReplicas())
+            throw new InvalidRequestException("Secondary indexes are not supported on transiently replicated keyspaces");
 
         List<IndexTarget> indexTargets = Lists.newArrayList(transform(rawIndexTargets, t -> t.prepare(table)));
 

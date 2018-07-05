@@ -62,13 +62,54 @@ public class SplitterTest
         randomSplitTestVNodes(new Murmur3Partitioner());
     }
 
+    @Test
+    public void testWithWeight()
+    {
+        List<Splitter.WeightedRange> ranges = new ArrayList<>();
+        ranges.add(new Splitter.WeightedRange(1.0, t(0, 10)));
+        ranges.add(new Splitter.WeightedRange(1.0, t(20, 30)));
+        ranges.add(new Splitter.WeightedRange(0.5, t(40, 60)));
+
+        List<Splitter.WeightedRange> ranges2 = new ArrayList<>();
+        ranges2.add(new Splitter.WeightedRange(1.0, t(0, 10)));
+        ranges2.add(new Splitter.WeightedRange(1.0, t(20, 30)));
+        ranges2.add(new Splitter.WeightedRange(1.0, t(40, 50)));
+        IPartitioner partitioner = Murmur3Partitioner.instance;
+        Splitter splitter = partitioner.splitter().get();
+
+        assertEquals(splitter.splitOwnedRanges(2, ranges, false), splitter.splitOwnedRanges(2, ranges2, false));
+    }
+
+    @Test
+    public void testWithWeight2()
+    {
+        List<Splitter.WeightedRange> ranges = new ArrayList<>();
+        ranges.add(new Splitter.WeightedRange(0.2, t(0, 10)));
+        ranges.add(new Splitter.WeightedRange(1.0, t(20, 30)));
+        ranges.add(new Splitter.WeightedRange(1.0, t(40, 50)));
+
+        List<Splitter.WeightedRange> ranges2 = new ArrayList<>();
+        ranges2.add(new Splitter.WeightedRange(1.0, t(0, 2)));
+        ranges2.add(new Splitter.WeightedRange(1.0, t(20, 30)));
+        ranges2.add(new Splitter.WeightedRange(1.0, t(40, 50)));
+        IPartitioner partitioner = Murmur3Partitioner.instance;
+        Splitter splitter = partitioner.splitter().get();
+
+        assertEquals(splitter.splitOwnedRanges(2, ranges, false), splitter.splitOwnedRanges(2, ranges2, false));
+    }
+
+    private Range<Token> t(long left, long right)
+    {
+        return new Range<>(new Murmur3Partitioner.LongToken(left), new Murmur3Partitioner.LongToken(right));
+    }
+
     private static void randomSplitTestNoVNodes(IPartitioner partitioner)
     {
         Splitter splitter = getSplitter(partitioner);
         Random r = new Random();
         for (int i = 0; i < 10000; i++)
         {
-            List<Range<Token>> localRanges = generateLocalRanges(1, r.nextInt(4) + 1, splitter, r, partitioner instanceof RandomPartitioner);
+            List<Splitter.WeightedRange> localRanges = generateLocalRanges(1, r.nextInt(4) + 1, splitter, r, partitioner instanceof RandomPartitioner);
             List<Token> boundaries = splitter.splitOwnedRanges(r.nextInt(9) + 1, localRanges, false);
             assertTrue("boundaries = " + boundaries + " ranges = " + localRanges, assertRangeSizeEqual(localRanges, boundaries, partitioner, splitter, true));
         }
@@ -84,14 +125,14 @@ public class SplitterTest
             int numTokens = 172 + r.nextInt(128);
             int rf = r.nextInt(4) + 2;
             int parts = r.nextInt(5) + 1;
-            List<Range<Token>> localRanges = generateLocalRanges(numTokens, rf, splitter, r, partitioner instanceof RandomPartitioner);
+            List<Splitter.WeightedRange> localRanges = generateLocalRanges(numTokens, rf, splitter, r, partitioner instanceof RandomPartitioner);
             List<Token> boundaries = splitter.splitOwnedRanges(parts, localRanges, true);
             if (!assertRangeSizeEqual(localRanges, boundaries, partitioner, splitter, false))
                 fail(String.format("Could not split %d tokens with rf=%d into %d parts (localRanges=%s, boundaries=%s)", numTokens, rf, parts, localRanges, boundaries));
         }
     }
 
-    private static boolean assertRangeSizeEqual(List<Range<Token>> localRanges, List<Token> tokens, IPartitioner partitioner, Splitter splitter, boolean splitIndividualRanges)
+    private static boolean assertRangeSizeEqual(List<Splitter.WeightedRange> localRanges, List<Token> tokens, IPartitioner partitioner, Splitter splitter, boolean splitIndividualRanges)
     {
         Token start = partitioner.getMinimumToken();
         List<BigInteger> splits = new ArrayList<>();
@@ -119,27 +160,27 @@ public class SplitterTest
         return allBalanced;
     }
 
-    private static BigInteger sumOwnedBetween(List<Range<Token>> localRanges, Token start, Token end, Splitter splitter, boolean splitIndividualRanges)
+    private static BigInteger sumOwnedBetween(List<Splitter.WeightedRange> localRanges, Token start, Token end, Splitter splitter, boolean splitIndividualRanges)
     {
         BigInteger sum = BigInteger.ZERO;
-        for (Range<Token> range : localRanges)
+        for (Splitter.WeightedRange range : localRanges)
         {
             if (splitIndividualRanges)
             {
-                Set<Range<Token>> intersections = new Range<>(start, end).intersectionWith(range);
+                Set<Range<Token>> intersections = new Range<>(start, end).intersectionWith(range.range());
                 for (Range<Token> intersection : intersections)
                     sum = sum.add(splitter.valueForToken(intersection.right).subtract(splitter.valueForToken(intersection.left)));
             }
             else
             {
-                if (new Range<>(start, end).contains(range.left))
-                    sum = sum.add(splitter.valueForToken(range.right).subtract(splitter.valueForToken(range.left)));
+                if (new Range<>(start, end).contains(range.left()))
+                    sum = sum.add(splitter.valueForToken(range.right()).subtract(splitter.valueForToken(range.left())));
             }
         }
         return sum;
     }
 
-    private static List<Range<Token>> generateLocalRanges(int numTokens, int rf, Splitter splitter, Random r, boolean randomPartitioner)
+    private static List<Splitter.WeightedRange> generateLocalRanges(int numTokens, int rf, Splitter splitter, Random r, boolean randomPartitioner)
     {
         int localTokens = numTokens * rf;
         List<Token> randomTokens = new ArrayList<>();
@@ -152,11 +193,11 @@ public class SplitterTest
 
         Collections.sort(randomTokens);
 
-        List<Range<Token>> localRanges = new ArrayList<>(localTokens);
+        List<Splitter.WeightedRange> localRanges = new ArrayList<>(localTokens);
         for (int i = 0; i < randomTokens.size() - 1; i++)
         {
             assert randomTokens.get(i).compareTo(randomTokens.get(i + 1)) < 0;
-            localRanges.add(new Range<>(randomTokens.get(i), randomTokens.get(i + 1)));
+            localRanges.add(new Splitter.WeightedRange(1.0, new Range<>(randomTokens.get(i), randomTokens.get(i + 1))));
             i++;
         }
         return localRanges;

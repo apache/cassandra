@@ -68,7 +68,7 @@ public class ErrorMessage extends Message.Response
                         ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
                         int required = body.readInt();
                         int alive = body.readInt();
-                        te = new UnavailableException(cl, required, alive);
+                        te = UnavailableException.create(cl, required, alive);
                     }
                     break;
                 case OVERLOADED:

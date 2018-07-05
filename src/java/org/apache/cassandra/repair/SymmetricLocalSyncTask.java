@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.repair;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,36 +25,38 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamState;
-import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * LocalSyncTask performs streaming between local(coordinator) node and remote replica.
+ * SymmetricLocalSyncTask performs streaming between local(coordinator) node and remote replica.
  */
-public class LocalSyncTask extends SyncTask implements StreamEventHandler
+public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamEventHandler
 {
     private final TraceState state = Tracing.instance.get();
 
-    private static final Logger logger = LoggerFactory.getLogger(LocalSyncTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(SymmetricLocalSyncTask.class);
 
+    private final boolean remoteIsTransient;
     private final UUID pendingRepair;
     private final boolean pullRepair;
 
-    public LocalSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, UUID pendingRepair, boolean pullRepair, PreviewKind previewKind)
+    public SymmetricLocalSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, boolean remoteIsTransient, UUID pendingRepair, boolean pullRepair, PreviewKind previewKind)
     {
         super(desc, r1, r2, previewKind);
+        this.remoteIsTransient = remoteIsTransient;
         this.pendingRepair = pendingRepair;
         this.pullRepair = pullRepair;
     }
@@ -64,11 +67,15 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                           .listeners(this)
                           .flushBeforeTransfer(pendingRepair == null)
-                          .requestRanges(dst, desc.keyspace, differences, desc.columnFamily);  // request ranges from the remote node
-        if (!pullRepair)
+                          // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
+                          .requestRanges(dst, desc.keyspace, RangesAtEndpoint.toDummyList(differences),
+                                  RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily);  // request ranges from the remote node
+
+        if (!pullRepair && !remoteIsTransient)
         {
             // send ranges to the remote node if we are not performing a pull repair
-            plan.transferRanges(dst, desc.keyspace, differences, desc.columnFamily);
+            // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
+            plan.transferRanges(dst, desc.keyspace, RangesAtEndpoint.toDummyList(differences), desc.columnFamily);
         }
 
         return plan;

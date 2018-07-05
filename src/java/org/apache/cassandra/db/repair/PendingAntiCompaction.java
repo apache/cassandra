@@ -43,6 +43,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
@@ -126,17 +127,17 @@ public class PendingAntiCompaction
     static class AcquisitionCallback implements AsyncFunction<List<AcquireResult>, Object>
     {
         private final UUID parentRepairSession;
-        private final Collection<Range<Token>> ranges;
+        private final RangesAtEndpoint tokenRanges;
 
-        public AcquisitionCallback(UUID parentRepairSession, Collection<Range<Token>> ranges)
+        public AcquisitionCallback(UUID parentRepairSession, RangesAtEndpoint tokenRanges)
         {
             this.parentRepairSession = parentRepairSession;
-            this.ranges = ranges;
+            this.tokenRanges = tokenRanges;
         }
 
         ListenableFuture<?> submitPendingAntiCompaction(AcquireResult result)
         {
-            return CompactionManager.instance.submitPendingAntiCompaction(result.cfs, ranges, result.refs, result.txn, parentRepairSession);
+            return CompactionManager.instance.submitPendingAntiCompaction(result.cfs, tokenRanges, result.refs, result.txn, parentRepairSession);
         }
 
         public ListenableFuture apply(List<AcquireResult> results) throws Exception
@@ -177,14 +178,17 @@ public class PendingAntiCompaction
 
     private final UUID prsId;
     private final Collection<ColumnFamilyStore> tables;
-    private final Collection<Range<Token>> ranges;
+    private final RangesAtEndpoint tokenRanges;
     private final ExecutorService executor;
 
-    public PendingAntiCompaction(UUID prsId, Collection<ColumnFamilyStore> tables, Collection<Range<Token>> ranges, ExecutorService executor)
+    public PendingAntiCompaction(UUID prsId,
+                                 Collection<ColumnFamilyStore> tables,
+                                 RangesAtEndpoint tokenRanges,
+                                 ExecutorService executor)
     {
         this.prsId = prsId;
         this.tables = tables;
-        this.ranges = ranges;
+        this.tokenRanges = tokenRanges;
         this.executor = executor;
     }
 
@@ -194,12 +198,12 @@ public class PendingAntiCompaction
         for (ColumnFamilyStore cfs : tables)
         {
             cfs.forceBlockingFlush();
-            ListenableFutureTask<AcquireResult> task = ListenableFutureTask.create(new AcquisitionCallable(cfs, ranges, prsId));
+            ListenableFutureTask<AcquireResult> task = ListenableFutureTask.create(new AcquisitionCallable(cfs, tokenRanges.ranges(), prsId));
             executor.submit(task);
             tasks.add(task);
         }
         ListenableFuture<List<AcquireResult>> acquisitionResults = Futures.successfulAsList(tasks);
-        ListenableFuture compactionResult = Futures.transformAsync(acquisitionResults, new AcquisitionCallback(prsId, ranges), MoreExecutors.directExecutor());
+        ListenableFuture compactionResult = Futures.transformAsync(acquisitionResults, new AcquisitionCallback(prsId, tokenRanges), MoreExecutors.directExecutor());
         return compactionResult;
     }
 }

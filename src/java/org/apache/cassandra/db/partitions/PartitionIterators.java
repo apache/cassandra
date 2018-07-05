@@ -82,18 +82,6 @@ public abstract class PartitionIterators
         return new SingletonPartitionIterator(iterator);
     }
 
-    public static void consume(PartitionIterator iterator)
-    {
-        while (iterator.hasNext())
-        {
-            try (RowIterator partition = iterator.next())
-            {
-                while (partition.hasNext())
-                    partition.next();
-            }
-        }
-    }
-
     /**
      * Wraps the provided iterator so it logs the returned rows for debugging purposes.
      * <p>

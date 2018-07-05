@@ -649,7 +649,7 @@ public class CQLSSTableWriterTest
             public void init(String keyspace)
             {
                 this.keyspace = keyspace;
-                for (Range<Token> range : StorageService.instance.getLocalRanges(ks))
+                for (Range<Token> range : StorageService.instance.getLocalReplicas(ks).ranges())
                     addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
             }
 

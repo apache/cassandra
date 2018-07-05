@@ -18,7 +18,9 @@
 package org.apache.cassandra.repair;
 
 import java.util.List;
+import java.util.function.Predicate;
 
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +29,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.repair.messages.AsymmetricSyncRequest;
+import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
@@ -34,29 +38,35 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * RemoteSyncTask sends {@link SyncRequest} to remote(non-coordinator) node
+ * SymmetricRemoteSyncTask sends {@link SyncRequest} to remote(non-coordinator) node
  * to repair(stream) data with other replica.
  *
- * When RemoteSyncTask receives SyncComplete from remote node, task completes.
+ * When SymmetricRemoteSyncTask receives SyncComplete from remote node, task completes.
  */
-public class RemoteSyncTask extends SyncTask implements CompletableRemoteSyncTask
+public class SymmetricRemoteSyncTask extends SymmetricSyncTask implements CompletableRemoteSyncTask
 {
-    private static final Logger logger = LoggerFactory.getLogger(RemoteSyncTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(SymmetricRemoteSyncTask.class);
 
-    public RemoteSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, PreviewKind previewKind)
+    public SymmetricRemoteSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, PreviewKind previewKind)
     {
         super(desc, r1, r2, previewKind);
+    }
+
+    void sendRequest(RepairMessage request, InetAddressAndPort to)
+    {
+        MessagingService.instance().sendOneWay(request.createMessage(), to);
     }
 
     @Override
     protected void startSync(List<Range<Token>> differences)
     {
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+
         SyncRequest request = new SyncRequest(desc, local, r1.endpoint, r2.endpoint, differences, previewKind);
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
-        MessagingService.instance().sendOneWay(request.createMessage(), request.src);
+        sendRequest(request, request.src);
     }
 
     public void syncComplete(boolean success, List<SessionSummary> summaries)

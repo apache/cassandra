@@ -30,7 +30,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 
 import org.slf4j.Logger;
@@ -62,6 +64,7 @@ class PendingRepairManager
 
     private final ColumnFamilyStore cfs;
     private final CompactionParams params;
+    private final boolean isTransient;
     private volatile ImmutableMap<UUID, AbstractCompactionStrategy> strategies = ImmutableMap.of();
 
     /**
@@ -75,10 +78,11 @@ class PendingRepairManager
         }
     }
 
-    PendingRepairManager(ColumnFamilyStore cfs, CompactionParams params)
+    PendingRepairManager(ColumnFamilyStore cfs, CompactionParams params, boolean isTransient)
     {
         this.cfs = cfs;
         this.params = params;
+        this.isTransient = isTransient;
     }
 
     private ImmutableMap.Builder<UUID, AbstractCompactionStrategy> mapBuilder()
@@ -156,6 +160,7 @@ class PendingRepairManager
 
     synchronized void addSSTable(SSTableReader sstable)
     {
+        Preconditions.checkArgument(sstable.isTransient() == isTransient);
         getOrCreate(sstable).addSSTable(sstable);
     }
 
@@ -389,6 +394,15 @@ class PendingRepairManager
         return strategies.keySet().contains(sessionID);
     }
 
+    boolean containsSSTable(SSTableReader sstable)
+    {
+        if (!sstable.isPendingRepair())
+            return false;
+
+        AbstractCompactionStrategy strategy = strategies.get(sstable.getPendingRepair());
+        return strategy != null && strategy.getSSTables().contains(sstable);
+    }
+
     public Collection<AbstractCompactionTask> createUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
     {
         Map<UUID, List<SSTableReader>> group = sstables.stream().collect(Collectors.groupingBy(s -> s.getSSTableMetadata().pendingRepair));
@@ -419,18 +433,35 @@ class PendingRepairManager
         protected void runMayThrow() throws Exception
         {
             boolean completed = false;
+            boolean obsoleteSSTables = isTransient && repairedAt > 0;
             try
             {
-                logger.debug("Setting repairedAt to {} on {} for {}", repairedAt, transaction.originals(), sessionID);
-                cfs.getCompactionStrategyManager().mutateRepaired(transaction.originals(), repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
+                if (obsoleteSSTables)
+                {
+                    logger.info("Obsoleting transient repaired ssatbles");
+                    Preconditions.checkState(Iterables.all(transaction.originals(), SSTableReader::isTransient));
+                    transaction.obsoleteOriginals();
+                }
+                else
+                {
+                    logger.debug("Setting repairedAt to {} on {} for {}", repairedAt, transaction.originals(), sessionID);
+                    cfs.getCompactionStrategyManager().mutateRepaired(transaction.originals(), repairedAt, ActiveRepairService.NO_PENDING_REPAIR, false);
+                }
                 completed = true;
             }
             finally
             {
-                // we always abort because mutating metadata isn't guarded by LifecycleTransaction, so this won't roll
-                // anything back. Also, we don't want to obsolete the originals. We're only using it to prevent other
-                // compactions from marking these sstables compacting, and unmarking them when we're done
-                transaction.abort();
+                if (obsoleteSSTables)
+                {
+                    transaction.finish();
+                }
+                else
+                {
+                    // we abort here because mutating metadata isn't guarded by LifecycleTransaction, so this won't roll
+                    // anything back. Also, we don't want to obsolete the originals. We're only using it to prevent other
+                    // compactions from marking these sstables compacting, and unmarking them when we're done
+                    transaction.abort();
+                }
                 if (completed)
                 {
                     removeSession(sessionID);

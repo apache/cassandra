@@ -349,9 +349,9 @@ public class SSTableImporter
             }
             if (options.clearRepaired)
             {
-                descriptor.getMetadataSerializer().mutateRepaired(descriptor,
-                                                                  ActiveRepairService.UNREPAIRED_SSTABLE,
-                                                                  null);
+                descriptor.getMetadataSerializer().mutateRepairMetadata(descriptor, ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                                        null,
+                                                                        false);
             }
         }
     }

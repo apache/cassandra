@@ -38,6 +38,10 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - *Experimental* support for Transient Replication and Cheap Quorums introduced by CASSANDRA-14404
+     The intended audience for this functionality is expert users of Cassandra who are prepared
+     to validate every aspect of the database for their application and deployment practices. Future
+     releases of Cassandra will make this feature suitable for a wider audience.
    - *Experimental* support for Java 11 has been added. JVM options that differ between or are
      specific for Java 8 and 11 have been moved from jvm.options into jvm8.options and jvm11.options.
      IMPORTANT: Running C* on Java 11 is *experimental* and do it at your own risk.

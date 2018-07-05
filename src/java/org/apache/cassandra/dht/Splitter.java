@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -117,32 +118,31 @@ public abstract class Splitter
         return new BigDecimal(elapsedTokens(token, range)).divide(new BigDecimal(tokensInRange(range)), 3, BigDecimal.ROUND_HALF_EVEN).doubleValue();
     }
 
-    public List<Token> splitOwnedRanges(int parts, List<Range<Token>> localRanges, boolean dontSplitRanges)
+    public List<Token> splitOwnedRanges(int parts, List<WeightedRange> weightedRanges, boolean dontSplitRanges)
     {
-        if (localRanges.isEmpty() || parts == 1)
+        if (weightedRanges.isEmpty() || parts == 1)
             return Collections.singletonList(partitioner.getMaximumToken());
 
         BigInteger totalTokens = BigInteger.ZERO;
-        for (Range<Token> r : localRanges)
+        for (WeightedRange weightedRange : weightedRanges)
         {
-            BigInteger right = valueForToken(token(r.right));
-            totalTokens = totalTokens.add(right.subtract(valueForToken(r.left)));
+            totalTokens = totalTokens.add(weightedRange.totalTokens(this));
         }
+
         BigInteger perPart = totalTokens.divide(BigInteger.valueOf(parts));
         // the range owned is so tiny we can't split it:
         if (perPart.equals(BigInteger.ZERO))
             return Collections.singletonList(partitioner.getMaximumToken());
 
         if (dontSplitRanges)
-            return splitOwnedRangesNoPartialRanges(localRanges, perPart, parts);
+            return splitOwnedRangesNoPartialRanges(weightedRanges, perPart, parts);
 
         List<Token> boundaries = new ArrayList<>();
         BigInteger sum = BigInteger.ZERO;
-        for (Range<Token> r : localRanges)
+        for (WeightedRange weightedRange : weightedRanges)
         {
-            Token right = token(r.right);
-            BigInteger currentRangeWidth = valueForToken(right).subtract(valueForToken(r.left)).abs();
-            BigInteger left = valueForToken(r.left);
+            BigInteger currentRangeWidth = weightedRange.totalTokens(this);
+            BigInteger left = valueForToken(weightedRange.left());
             while (sum.add(currentRangeWidth).compareTo(perPart) >= 0)
             {
                 BigInteger withinRangeBoundary = perPart.subtract(sum);
@@ -155,26 +155,24 @@ public abstract class Splitter
         }
         boundaries.set(boundaries.size() - 1, partitioner.getMaximumToken());
 
-        assert boundaries.size() == parts : boundaries.size() + "!=" + parts + " " + boundaries + ":" + localRanges;
+        assert boundaries.size() == parts : boundaries.size() + "!=" + parts + " " + boundaries + ":" + weightedRanges;
         return boundaries;
     }
 
-    private List<Token> splitOwnedRangesNoPartialRanges(List<Range<Token>> localRanges, BigInteger perPart, int parts)
+    private List<Token> splitOwnedRangesNoPartialRanges(List<WeightedRange> weightedRanges, BigInteger perPart, int parts)
     {
         List<Token> boundaries = new ArrayList<>(parts);
         BigInteger sum = BigInteger.ZERO;
 
         int i = 0;
-        final int rangesCount = localRanges.size();
+        final int rangesCount = weightedRanges.size();
         while (boundaries.size() < parts - 1 && i < rangesCount - 1)
         {
-            Range<Token> r = localRanges.get(i);
-            Range<Token> nextRange = localRanges.get(i + 1);
-            Token right = token(r.right);
-            Token nextRight = token(nextRange.right);
+            WeightedRange r = weightedRanges.get(i);
+            WeightedRange nextRange = weightedRanges.get(i + 1);
 
-            BigInteger currentRangeWidth = valueForToken(right).subtract(valueForToken(r.left));
-            BigInteger nextRangeWidth = valueForToken(nextRight).subtract(valueForToken(nextRange.left));
+            BigInteger currentRangeWidth = r.totalTokens(this);
+            BigInteger nextRangeWidth = nextRange.totalTokens(this);
             sum = sum.add(currentRangeWidth);
 
             // does this or next range take us beyond the per part limit?
@@ -187,7 +185,7 @@ public abstract class Splitter
                 if (diffNext.compareTo(diffCurrent) >= 0)
                 {
                     sum = BigInteger.ZERO;
-                    boundaries.add(right);
+                    boundaries.add(token(r.right()));
                 }
             }
             i++;
@@ -255,5 +253,62 @@ public abstract class Splitter
             left = right;
         }
         return subranges;
+    }
+
+    public static class WeightedRange
+    {
+        private final double weight;
+        private final Range<Token> range;
+
+        public WeightedRange(double weight, Range<Token> range)
+        {
+            this.weight = weight;
+            this.range = range;
+        }
+
+        public BigInteger totalTokens(Splitter splitter)
+        {
+            BigInteger right = splitter.valueForToken(splitter.token(range.right));
+            BigInteger left = splitter.valueForToken(range.left);
+            BigInteger factor = BigInteger.valueOf(Math.max(1, (long) (1 / weight)));
+            BigInteger size = right.subtract(left);
+            return size.abs().divide(factor);
+        }
+
+        public Token left()
+        {
+            return range.left;
+        }
+
+        public Token right()
+        {
+            return range.right;
+        }
+
+        public Range<Token> range()
+        {
+            return range;
+        }
+
+        public String toString()
+        {
+            return "WeightedRange{" +
+                   "weight=" + weight +
+                   ", range=" + range +
+                   '}';
+        }
+
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (!(o instanceof WeightedRange)) return false;
+            WeightedRange that = (WeightedRange) o;
+            return Objects.equals(range, that.range);
+        }
+
+        public int hashCode()
+        {
+            return Objects.hash(weight, range);
+        }
     }
 }

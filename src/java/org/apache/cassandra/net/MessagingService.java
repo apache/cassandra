@@ -90,6 +90,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.metrics.DroppedMessageMetrics;
@@ -604,8 +605,9 @@ public final class MessagingService implements MessagingServiceMBean
 
                 if (expiredCallbackInfo.shouldHint())
                 {
-                    Mutation mutation = ((WriteCallbackInfo) expiredCallbackInfo).mutation();
-                    return StorageProxy.submitHint(mutation, expiredCallbackInfo.target, null);
+                    WriteCallbackInfo writeCallbackInfo = ((WriteCallbackInfo) expiredCallbackInfo);
+                    Mutation mutation = writeCallbackInfo.mutation();
+                    return StorageProxy.submitHint(mutation, writeCallbackInfo.getReplica(), null);
                 }
 
                 return null;
@@ -961,7 +963,7 @@ public final class MessagingService implements MessagingServiceMBean
         return verbHandlers.get(type);
     }
 
-    public int addCallback(IAsyncCallback cb, MessageOut message, InetAddressAndPort to, long timeout, boolean failureCallback)
+    public int addWriteCallback(IAsyncCallback cb, MessageOut message, InetAddressAndPort to, long timeout, boolean failureCallback)
     {
         assert message.verb != Verb.MUTATION; // mutations need to call the overload with a ConsistencyLevel
         int messageId = nextId();
@@ -970,12 +972,12 @@ public final class MessagingService implements MessagingServiceMBean
         return messageId;
     }
 
-    public int addCallback(IAsyncCallback cb,
-                           MessageOut<?> message,
-                           InetAddressAndPort to,
-                           long timeout,
-                           ConsistencyLevel consistencyLevel,
-                           boolean allowHints)
+    public int addWriteCallback(IAsyncCallback cb,
+                                MessageOut<?> message,
+                                Replica to,
+                                long timeout,
+                                ConsistencyLevel consistencyLevel,
+                                boolean allowHints)
     {
         assert message.verb == Verb.MUTATION
             || message.verb == Verb.COUNTER_MUTATION
@@ -1024,7 +1026,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public int sendRR(MessageOut message, InetAddressAndPort to, IAsyncCallback cb, long timeout, boolean failureCallback)
     {
-        int id = addCallback(cb, message, to, timeout, failureCallback);
+        int id = addWriteCallback(cb, message, to, timeout, failureCallback);
         updateBackPressureOnSend(to, cb, message);
         sendOneWay(failureCallback ? message.withParameter(ParameterType.FAILURE_CALLBACK, ONE_BYTE) : message, id, to);
         return id;
@@ -1042,14 +1044,14 @@ public final class MessagingService implements MessagingServiceMBean
      *                suggest that a timeout occurred to the invoker of the send().
      * @return an reference to message id used to match with the result
      */
-    public int sendRR(MessageOut<?> message,
-                      InetAddressAndPort to,
-                      AbstractWriteResponseHandler<?> handler,
-                      boolean allowHints)
+    public int sendWriteRR(MessageOut<?> message,
+                           Replica to,
+                           AbstractWriteResponseHandler<?> handler,
+                           boolean allowHints)
     {
-        int id = addCallback(handler, message, to, message.getTimeout(), handler.consistencyLevel, allowHints);
-        updateBackPressureOnSend(to, handler, message);
-        sendOneWay(message.withParameter(ParameterType.FAILURE_CALLBACK, ONE_BYTE), id, to);
+        int id = addWriteCallback(handler, message, to, message.getTimeout(), handler.consistencyLevel(), allowHints);
+        updateBackPressureOnSend(to.endpoint(), handler, message);
+        sendOneWay(message.withParameter(ParameterType.FAILURE_CALLBACK, ONE_BYTE), id, to.endpoint());
         return id;
     }
 

@@ -20,37 +20,49 @@ package org.apache.cassandra.service.reads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 
-public abstract class ResponseResolver
+public abstract class ResponseResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
 {
     protected static final Logger logger = LoggerFactory.getLogger(ResponseResolver.class);
 
-    protected final Keyspace keyspace;
     protected final ReadCommand command;
-    protected final ConsistencyLevel consistency;
-    protected final ReadRepair readRepair;
+    protected final L replicaLayout;
+    protected final ReadRepair<E, L> readRepair;
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
     protected final Accumulator<MessageIn<ReadResponse>> responses;
+    protected final long queryStartNanoTime;
 
-    public ResponseResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair, int maxResponseCount)
+    public ResponseResolver(ReadCommand command, L replicaLayout, ReadRepair<E, L> readRepair, long queryStartNanoTime)
     {
-        this.keyspace = keyspace;
         this.command = command;
-        this.consistency = consistency;
+        this.replicaLayout = replicaLayout;
         this.readRepair = readRepair;
-        this.responses = new Accumulator<>(maxResponseCount);
+        // TODO: calculate max possible replicas for the query (e.g. local dc queries won't contact remotes)
+        this.responses = new Accumulator<>(replicaLayout.all().size());
+        this.queryStartNanoTime = queryStartNanoTime;
     }
 
     public abstract boolean isDataPresent();
 
     public void preprocess(MessageIn<ReadResponse> message)
     {
-        responses.add(message);
+        try
+        {
+            responses.add(message);
+        }
+        catch (IllegalStateException e)
+        {
+            logger.error("Encountered error while trying to preprocess the message {}: %s in command {}, replicas: {}", message, command, readRepair, replicaLayout.consistencyLevel(), replicaLayout.selected());
+            throw e;
+        }
     }
 
     public Accumulator<MessageIn<ReadResponse>> getMessages()

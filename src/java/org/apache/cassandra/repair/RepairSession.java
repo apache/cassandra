@@ -55,8 +55,8 @@ import org.apache.cassandra.utils.Pair;
  *      validationComplete()).
  *   </li>
  *   <li>Synchronization phase: once all trees are received, the job compares each tree with
- *      all the other using a so-called {@link SyncTask}. If there is difference between 2 trees, the
- *      concerned SyncTask will start a streaming of the difference between the 2 endpoint concerned.
+ *      all the other using a so-called {@link SymmetricSyncTask}. If there is difference between 2 trees, the
+ *      concerned SymmetricSyncTask will start a streaming of the difference between the 2 endpoint concerned.
  *   </li>
  * </ol>
  * The job is done once all its SyncTasks are done (i.e. have either computed no differences
@@ -74,7 +74,7 @@ import org.apache.cassandra.utils.Pair;
  * we still first send a message to each node to flush and snapshot data so each merkle tree
  * creation is still done on similar data, even if the actual creation is not
  * done simulatneously). If not sequential, all merkle tree are requested in parallel.
- * Similarly, if a job is sequential, it will handle one SyncTask at a time, but will handle
+ * Similarly, if a job is sequential, it will handle one SymmetricSyncTask at a time, but will handle
  * all of them in parallel otherwise.
  */
 public class RepairSession extends AbstractFuture<RepairSessionResult> implements IEndpointStateChangeSubscriber,
@@ -94,8 +94,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     public final boolean skippedReplicas;
 
     /** Range to repair */
-    public final Collection<Range<Token>> ranges;
-    public final Set<InetAddressAndPort> endpoints;
+    public final CommonRange commonRange;
     public final boolean isIncremental;
     public final PreviewKind previewKind;
 
@@ -114,23 +113,20 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
     /**
      * Create new repair session.
-     *
      * @param parentRepairSession the parent sessions id
      * @param id this sessions id
-     * @param ranges ranges to repair
+     * @param commonRange ranges to repair
      * @param keyspace name of keyspace
      * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
-     * @param endpoints the data centers that should be part of the repair; null for all DCs
      * @param pullRepair true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
      * @param force true if the repair should ignore dead endpoints (instead of failing)
      * @param cfnames names of columnfamilies
      */
     public RepairSession(UUID parentRepairSession,
                          UUID id,
-                         Collection<Range<Token>> ranges,
+                         CommonRange commonRange,
                          String keyspace,
                          RepairParallelism parallelismDegree,
-                         Set<InetAddressAndPort> endpoints,
                          boolean isIncremental,
                          boolean pullRepair,
                          boolean force,
@@ -145,7 +141,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.parallelismDegree = parallelismDegree;
         this.keyspace = keyspace;
         this.cfnames = cfnames;
-        this.ranges = ranges;
 
         //If force then filter out dead endpoints
         boolean forceSkippedReplicas = false;
@@ -153,7 +148,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         {
             logger.debug("force flag set, removing dead endpoints");
             final Set<InetAddressAndPort> removeCandidates = new HashSet<>();
-            for (final InetAddressAndPort endpoint : endpoints)
+            for (final InetAddressAndPort endpoint : commonRange.endpoints)
             {
                 if (!FailureDetector.instance.isAlive(endpoint))
                 {
@@ -166,12 +161,13 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                 // we shouldn't be recording a successful repair if
                 // any replicas are excluded from the repair
                 forceSkippedReplicas = true;
-                endpoints = new HashSet<>(endpoints);
-                endpoints.removeAll(removeCandidates);
+                Set<InetAddressAndPort> filteredEndpoints = new HashSet<>(commonRange.endpoints);
+                filteredEndpoints.removeAll(removeCandidates);
+                commonRange = new CommonRange(filteredEndpoints, commonRange.transEndpoints, commonRange.ranges);
             }
         }
 
-        this.endpoints = endpoints;
+        this.commonRange = commonRange;
         this.isIncremental = isIncremental;
         this.previewKind = previewKind;
         this.pullRepair = pullRepair;
@@ -184,9 +180,14 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         return id;
     }
 
-    public Collection<Range<Token>> getRanges()
+    public Collection<Range<Token>> ranges()
     {
-        return ranges;
+        return commonRange.ranges;
+    }
+
+    public Collection<InetAddressAndPort> endpoints()
+    {
+        return commonRange.endpoints;
     }
 
     public void waitForValidation(Pair<RepairJobDesc, InetAddressAndPort> key, ValidationTask task)
@@ -247,7 +248,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     {
         StringBuilder sb = new StringBuilder();
         sb.append(FBUtilities.getBroadcastAddressAndPort());
-        for (InetAddressAndPort ep : endpoints)
+        for (InetAddressAndPort ep : commonRange.endpoints)
             sb.append(", ").append(ep);
         return sb.toString();
     }
@@ -266,18 +267,18 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         if (terminated)
             return;
 
-        logger.info("{} new session: will sync {} on range {} for {}.{}", previewKind.logPrefix(getId()), repairedNodes(), ranges, keyspace, Arrays.toString(cfnames));
-        Tracing.traceRepair("Syncing range {}", ranges);
+        logger.info("{} new session: will sync {} on range {} for {}.{}", previewKind.logPrefix(getId()), repairedNodes(), commonRange, keyspace, Arrays.toString(cfnames));
+        Tracing.traceRepair("Syncing range {}", commonRange);
         if (!previewKind.isPreview())
         {
-            SystemDistributedKeyspace.startRepairs(getId(), parentRepairSession, keyspace, cfnames, ranges, endpoints);
+            SystemDistributedKeyspace.startRepairs(getId(), parentRepairSession, keyspace, cfnames, commonRange);
         }
 
-        if (endpoints.isEmpty())
+        if (commonRange.endpoints.isEmpty())
         {
-            logger.info("{} {}", previewKind.logPrefix(getId()), message = String.format("No neighbors to repair with on range %s: session completed", ranges));
+            logger.info("{} {}", previewKind.logPrefix(getId()), message = String.format("No neighbors to repair with on range %s: session completed", commonRange));
             Tracing.traceRepair(message);
-            set(new RepairSessionResult(id, keyspace, ranges, Lists.<RepairResult>newArrayList(), skippedReplicas));
+            set(new RepairSessionResult(id, keyspace, commonRange.ranges, Lists.<RepairResult>newArrayList(), skippedReplicas));
             if (!previewKind.isPreview())
             {
                 SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, new RuntimeException(message));
@@ -286,7 +287,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         }
 
         // Checking all nodes are live
-        for (InetAddressAndPort endpoint : endpoints)
+        for (InetAddressAndPort endpoint : commonRange.endpoints)
         {
             if (!FailureDetector.instance.isAlive(endpoint) && !skippedReplicas)
             {
@@ -318,8 +319,8 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             {
                 // this repair session is completed
                 logger.info("{} {}", previewKind.logPrefix(getId()), "Session completed successfully");
-                Tracing.traceRepair("Completed sync of range {}", ranges);
-                set(new RepairSessionResult(id, keyspace, ranges, results, skippedReplicas));
+                Tracing.traceRepair("Completed sync of range {}", commonRange);
+                set(new RepairSessionResult(id, keyspace, commonRange.ranges, results, skippedReplicas));
 
                 taskExecutor.shutdown();
                 // mark this session as terminated
@@ -372,7 +373,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
     public void convict(InetAddressAndPort endpoint, double phi)
     {
-        if (!endpoints.contains(endpoint))
+        if (!commonRange.endpoints.contains(endpoint))
             return;
 
         // We want a higher confidence in the failure detection than usual because failing a repair wrongly has a high cost.
