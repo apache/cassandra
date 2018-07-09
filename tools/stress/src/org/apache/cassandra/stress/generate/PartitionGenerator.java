@@ -83,6 +83,16 @@ public class PartitionGenerator
         return !(index < 0 || index < clusteringComponents.size());
     }
 
+    public List<Generator> getPartitionKey()
+    {
+        return Collections.unmodifiableList(partitionKey);
+    }
+
+    public List<Generator> getClusteringComponents()
+    {
+        return Collections.unmodifiableList(clusteringComponents);
+    }
+
     public int indexOf(String name)
     {
         Integer i = indexMap.get(name);

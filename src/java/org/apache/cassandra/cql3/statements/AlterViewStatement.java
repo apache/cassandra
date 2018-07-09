@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.db.view.View;
@@ -92,5 +93,11 @@ public class AlterViewStatement extends SchemaAlteringStatement
     public String toString()
     {
         return String.format("AlterViewStatement(name=%s)", cfName);
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.ALTER_VIEW, keyspace(), cfName.getColumnFamily());
     }
 }

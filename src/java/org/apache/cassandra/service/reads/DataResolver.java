@@ -17,27 +17,26 @@
  */
 package org.apache.cassandra.service.reads;
 
-import java.net.InetAddress;
 import java.util.*;
 
-import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Joiner;
+import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.transform.*;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.*;
-import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.repair.ReadRepair;
 
 public class DataResolver extends ResponseResolver
 {
-    private static final boolean DROP_OVERSIZED_READ_REPAIR_MUTATIONS =
-        Boolean.getBoolean("cassandra.drop_oversized_readrepair_mutations");
-
-    @VisibleForTesting
-    final List<AsyncOneResponse> repairResults = Collections.synchronizedList(new ArrayList<>());
     private final long queryStartNanoTime;
     private final boolean enforceStrictLiveness;
 
@@ -88,7 +87,7 @@ public class DataResolver extends ResponseResolver
          */
 
         DataLimits.Counter mergedResultCounter =
-        command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
+            command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
 
         UnfilteredPartitionIterator merged = mergeWithShortReadProtection(iters, sources, mergedResultCounter);
         FilteredPartitions filtered = FilteredPartitions.filter(merged, new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness()));
@@ -110,24 +109,106 @@ public class DataResolver extends ResponseResolver
          */
         if (!command.limits().isUnlimited())
             for (int i = 0; i < results.size(); i++)
-            {
                 results.set(i, ShortReadProtection.extend(sources[i], results.get(i), command, mergedResultCounter, queryStartNanoTime, enforceStrictLiveness));
+
+        return UnfilteredPartitionIterators.merge(results, command.nowInSec(), wrapMergeListener(readRepair.getMergeListener(sources), sources));
+    }
+
+    private String makeResponsesDebugString(DecoratedKey partitionKey)
+    {
+        return Joiner.on(",\n").join(Iterables.transform(getMessages(), m -> m.from + " => " + m.payload.toDebugString(command, partitionKey)));
+    }
+
+    private UnfilteredPartitionIterators.MergeListener wrapMergeListener(UnfilteredPartitionIterators.MergeListener partitionListener, InetAddressAndPort[] sources)
+    {
+        return new UnfilteredPartitionIterators.MergeListener()
+        {
+            public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
+            {
+                UnfilteredRowIterators.MergeListener rowListener = partitionListener.getRowMergeListener(partitionKey, versions);
+
+                return new UnfilteredRowIterators.MergeListener()
+                {
+                    public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions)
+                    {
+                        try
+                        {
+                            rowListener.onMergedPartitionLevelDeletion(mergedDeletion, versions);
+                        }
+                        catch (AssertionError e)
+                        {
+                            // The following can be pretty verbose, but it's really only triggered if a bug happen, so we'd
+                            // rather get more info to debug than not.
+                            TableMetadata table = command.metadata();
+                            String details = String.format("Error merging partition level deletion on %s: merged=%s, versions=%s, sources={%s}, debug info:%n %s",
+                                                           table,
+                                                           mergedDeletion == null ? "null" : mergedDeletion.toString(),
+                                                           '[' + Joiner.on(", ").join(Iterables.transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString())) + ']',
+                                                           Arrays.toString(sources),
+                                                           makeResponsesDebugString(partitionKey));
+                            throw new AssertionError(details, e);
+                        }
+                    }
+
+                    public void onMergedRows(Row merged, Row[] versions)
+                    {
+                        try
+                        {
+                            rowListener.onMergedRows(merged, versions);
+                        }
+                        catch (AssertionError e)
+                        {
+                            // The following can be pretty verbose, but it's really only triggered if a bug happen, so we'd
+                            // rather get more info to debug than not.
+                            TableMetadata table = command.metadata();
+                            String details = String.format("Error merging rows on %s: merged=%s, versions=%s, sources={%s}, debug info:%n %s",
+                                                           table,
+                                                           merged == null ? "null" : merged.toString(table),
+                                                           '[' + Joiner.on(", ").join(Iterables.transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString(table))) + ']',
+                                                           Arrays.toString(sources),
+                                                           makeResponsesDebugString(partitionKey));
+                            throw new AssertionError(details, e);
+                        }
+                    }
+
+                    public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions)
+                    {
+                        try
+                        {
+                            // The code for merging range tombstones is a tad complex and we had the assertions there triggered
+                            // unexpectedly in a few occasions (CASSANDRA-13237, CASSANDRA-13719). It's hard to get insights
+                            // when that happen without more context that what the assertion errors give us however, hence the
+                            // catch here that basically gather as much as context as reasonable.
+                            rowListener.onMergedRangeTombstoneMarkers(merged, versions);
+                        }
+                        catch (AssertionError e)
+                        {
+
+                            // The following can be pretty verbose, but it's really only triggered if a bug happen, so we'd
+                            // rather get more info to debug than not.
+                            TableMetadata table = command.metadata();
+                            String details = String.format("Error merging RTs on %s: merged=%s, versions=%s, sources={%s}, debug info:%n %s",
+                                                           table,
+                                                           merged == null ? "null" : merged.toString(table),
+                                                           '[' + Joiner.on(", ").join(Iterables.transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString(table))) + ']',
+                                                           Arrays.toString(sources),
+                                                           makeResponsesDebugString(partitionKey));
+                            throw new AssertionError(details, e);
+                        }
+
+                    }
+
+                    public void close()
+                    {
+                        rowListener.close();
+                    }
+                };
             }
 
-        return UnfilteredPartitionIterators.merge(results, command.nowInSec(), readRepair.getMergeListener(sources));
-    }
-
-    public void evaluateAllResponses()
-    {
-        // We need to fully consume the results to trigger read repairs if appropriate
-        try (PartitionIterator iterator = resolve())
-        {
-            PartitionIterators.consume(iterator);
-        }
-    }
-
-    public void evaluateAllResponses(TraceState traceState)
-    {
-        evaluateAllResponses();
+            public void close()
+            {
+                partitionListener.close();
+            }
+        };
     }
 }

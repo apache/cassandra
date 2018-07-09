@@ -37,10 +37,10 @@ import org.apache.cassandra.utils.AbstractIterator;
 public class DelimiterAnalyzer extends AbstractAnalyzer
 {
 
-    private static final Map<AbstractType<?>,Charset> VALID_ANALYZABLE_TYPES = new HashMap<AbstractType<?>,Charset>()
+    private static final Map<AbstractType<?>, Charset> VALID_ANALYZABLE_TYPES = new HashMap<AbstractType<?>, Charset>()
     {{
-            put(UTF8Type.instance, StandardCharsets.UTF_8);
-            put(AsciiType.instance, StandardCharsets.US_ASCII);
+        put(UTF8Type.instance, StandardCharsets.UTF_8);
+        put(AsciiType.instance, StandardCharsets.US_ASCII);
     }};
 
     private char delimiter;
@@ -85,12 +85,17 @@ public class DelimiterAnalyzer extends AbstractAnalyzer
 
                 CharBuffer readahead = cb.duplicate();
                 // loop until we see the next delimiter character, or reach end of data
-                while (readahead.hasRemaining() && readahead.get() != delimiter);
+                boolean readaheadRemaining;
+                while ((readaheadRemaining = readahead.hasRemaining()) && readahead.get() != delimiter);
 
-                char[] chars = new char[readahead.position() - cb.position() - (readahead.hasRemaining() ? 1 : 0)];
+                char[] chars = new char[readahead.position() - cb.position() - (readaheadRemaining ? 1 : 0)];
                 cb.get(chars);
                 Preconditions.checkState(!cb.hasRemaining() || cb.get() == delimiter);
-                return charset.encode(CharBuffer.wrap(chars));
+
+                return 0 < chars.length
+                        ? charset.encode(CharBuffer.wrap(chars))
+                        // blank partition keys not permitted, ref ConcurrentRadixTree.putIfAbsent(..)
+                        : computeNext();
             }
         };
     }
@@ -99,5 +104,11 @@ public class DelimiterAnalyzer extends AbstractAnalyzer
     public boolean isTokenizing()
     {
         return true;
+    }
+
+    @Override
+    public boolean isCompatibleWith(AbstractType<?> validator)
+    {
+        return VALID_ANALYZABLE_TYPES.containsKey(validator);
     }
 }

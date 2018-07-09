@@ -111,6 +111,8 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                     this.staticRow = Rows.EMPTY_STATIC_ROW;
                     this.reader = createReader(indexEntry, file, shouldCloseFile);
                 }
+                if (!partitionLevelDeletion.validate())
+                    UnfilteredValidation.handleInvalid(metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
 
                 if (reader != null && !slices.isEmpty())
                     reader.setForSlice(nextSlice());
@@ -448,12 +450,12 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
             if (blockIdx >= 0 && blockIdx < indexEntry.columnsIndexCount())
             {
                 reader.seekToPosition(columnOffset(blockIdx));
+                mark = reader.file.mark();
                 reader.deserializer.clearState();
             }
 
             currentIndexIdx = blockIdx;
             reader.openMarker = blockIdx > 0 ? index(blockIdx - 1).endOpenMarker : null;
-            mark = reader.file.mark();
         }
 
         private long columnOffset(int i) throws IOException

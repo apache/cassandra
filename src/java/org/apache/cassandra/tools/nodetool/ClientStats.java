@@ -17,16 +17,19 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
-
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import org.apache.cassandra.transport.ClientStat;
+import org.apache.cassandra.transport.ConnectedClient;
 
 @Command(name = "clientstats", description = "Print information about connected clients")
 public class ClientStats extends NodeToolCmd
@@ -34,9 +37,50 @@ public class ClientStats extends NodeToolCmd
     @Option(title = "list_connections", name = "--all", description = "Lists all connections")
     private boolean listConnections = false;
 
+    @Option(title = "by_protocol", name = "--by-protocol", description = "Lists most recent client connections by protocol version")
+    private boolean connectionsByProtocolVersion = false;
+
+    @Option(title = "clear_history", name = "--clear-history", description = "Clear the history of connected clients")
+    private boolean clearConnectionHistory = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
+        if (clearConnectionHistory)
+        {
+            System.out.println("Clearing connection history");
+            probe.clearConnectionHistory();
+            return;
+        }
+
+        if (connectionsByProtocolVersion)
+        {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy HH:mm:ss");
+
+            System.out.println("Clients by protocol version");
+            System.out.println();
+
+            List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("clientsByProtocolVersion");
+
+            if (!clients.isEmpty())
+            {
+                TableBuilder table = new TableBuilder();
+                table.add("Protocol-Version", "IP-Address", "Last-Seen");
+
+                for (Map<String, String> client : clients)
+                {
+                    table.add(client.get(ClientStat.PROTOCOL_VERSION),
+                              client.get(ClientStat.INET_ADDRESS),
+                              sdf.format(new Date(Long.valueOf(client.get(ClientStat.LAST_SEEN_TIME)))));
+                }
+
+                table.printTo(System.out);
+                System.out.println();
+            }
+
+            return;
+        }
+
         if (listConnections)
         {
             List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("connections");
@@ -46,8 +90,16 @@ public class ClientStats extends NodeToolCmd
                 table.add("Address", "SSL", "Cipher", "Protocol", "Version", "User", "Keyspace", "Requests", "Driver-Name", "Driver-Version");
                 for (Map<String, String> conn : clients)
                 {
-                    table.add(conn.get("address"), conn.get("ssl"), conn.get("cipher"), conn.get("protocol"), conn.get("version"),
-                              conn.get("user"), conn.get("keyspace"), conn.get("requests"), conn.get("driverName"), conn.get("driverVersion"));
+                    table.add(conn.get(ConnectedClient.ADDRESS),
+                              conn.get(ConnectedClient.SSL),
+                              conn.get(ConnectedClient.CIPHER),
+                              conn.get(ConnectedClient.PROTOCOL),
+                              conn.get(ConnectedClient.VERSION),
+                              conn.get(ConnectedClient.USER),
+                              conn.get(ConnectedClient.KEYSPACE),
+                              conn.get(ConnectedClient.REQUESTS),
+                              conn.get(ConnectedClient.DRIVER_NAME),
+                              conn.get(ConnectedClient.DRIVER_VERSION));
                 }
                 table.printTo(System.out);
                 System.out.println();

@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
@@ -60,7 +61,8 @@ final class HintsDescriptor
     private static final Logger logger = LoggerFactory.getLogger(HintsDescriptor.class);
 
     static final int VERSION_30 = 1;
-    static final int CURRENT_VERSION = VERSION_30;
+    static final int VERSION_40 = 2;
+    static final int CURRENT_VERSION = VERSION_40;
 
     static final String COMPRESSION = "compression";
     static final String ENCRYPTION = "encryption";
@@ -214,6 +216,8 @@ final class HintsDescriptor
         {
             case VERSION_30:
                 return MessagingService.VERSION_30;
+            case VERSION_40:
+                return MessagingService.VERSION_40;
             default:
                 throw new AssertionError();
         }
@@ -222,6 +226,23 @@ final class HintsDescriptor
     static boolean isHintFileName(Path path)
     {
         return pattern.matcher(path.getFileName().toString()).matches();
+    }
+
+    static Optional<HintsDescriptor> readFromFileQuietly(Path path)
+    {
+        try (RandomAccessFile raf = new RandomAccessFile(path.toFile(), "r"))
+        {
+            return Optional.of(deserialize(raf));
+        }
+        catch (ChecksumMismatchException e)
+        {
+            throw new FSReadError(e, path.toFile());
+        }
+        catch (IOException e)
+        {
+            logger.error("Failed to deserialize hints descriptor {}", path.toString(), e);
+            return Optional.empty();
+        }
     }
 
     static HintsDescriptor readFromFile(Path path)
@@ -381,6 +402,6 @@ final class HintsDescriptor
     private static void validateCRC(int expected, int actual) throws IOException
     {
         if (expected != actual)
-            throw new IOException("Hints Descriptor CRC Mismatch");
+            throw new ChecksumMismatchException("Hints Descriptor CRC Mismatch");
     }
 }

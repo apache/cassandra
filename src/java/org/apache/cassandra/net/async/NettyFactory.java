@@ -122,7 +122,7 @@ public final class NettyFactory
     NettyFactory(boolean useEpoll)
     {
         this.useEpoll = useEpoll;
-        acceptGroup = getEventLoopGroup(useEpoll, determineAcceptGroupSize(DatabaseDescriptor.getServerEncryptionOptions()),
+        acceptGroup = getEventLoopGroup(useEpoll, determineAcceptGroupSize(DatabaseDescriptor.getInternodeMessagingEncyptionOptions()),
                                         "MessagingService-NettyAcceptor-Thread", false);
         inboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyInbound-Thread", false);
         outboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyOutbound-Thread", true);
@@ -287,7 +287,7 @@ public final class NettyFactory
                 }
                 else
                 {
-                    SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, true, true);
+                    SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, true, SSLFactory.ConnectionType.INTERNODE_MESSAGING, SSLFactory.SocketType.SERVER);
                     InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? channel.remoteAddress() : null;
                     SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
                     logger.trace("creating inbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
@@ -334,7 +334,6 @@ public final class NettyFactory
                               .option(ChannelOption.TCP_NODELAY, params.tcpNoDelay)
                               .option(ChannelOption.WRITE_BUFFER_WATER_MARK, params.waterMark)
                               .handler(new OutboundInitializer(params));
-        bootstrap.localAddress(params.connectionId.local().address, 0);
         InetAddressAndPort remoteAddress = params.connectionId.connectionAddress();
         bootstrap.remoteAddress(new InetSocketAddress(remoteAddress.address, remoteAddress.port));
         return bootstrap;
@@ -362,7 +361,7 @@ public final class NettyFactory
             // order of handlers: ssl -> logger -> handshakeHandler
             if (params.encryptionOptions != null)
             {
-                SslContext sslContext = SSLFactory.getSslContext(params.encryptionOptions, true, false);
+                SslContext sslContext = SSLFactory.getSslContext(params.encryptionOptions, true, SSLFactory.ConnectionType.INTERNODE_MESSAGING, SSLFactory.SocketType.CLIENT);
                 // for some reason channel.remoteAddress() will return null
                 InetAddressAndPort address = params.connectionId.remote();
                 InetSocketAddress peer = params.encryptionOptions.require_endpoint_verification ? new InetSocketAddress(address.address, address.port) : null;

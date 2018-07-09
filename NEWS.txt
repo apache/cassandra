@@ -38,6 +38,16 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - LCS now respects the max_threshold parameter when compacting - this was hard coded to 32
+     before, but now it is possible to do bigger compactions when compacting from L0 to L1.
+     This also applies to STCS-compactions in L0 - if there are more than 32 sstables in L0
+     we will compact at most max_threshold sstables in an L0 STCS compaction. See CASSANDRA-14388
+     for more information.
+   - There is now an option to automatically upgrade sstables after Cassandra upgrade, enable
+     either in `cassandra.yaml:automatic_sstable_upgrade` or via JMX during runtime. See
+     CASSANDRA-14197.
+   - `nodetool refresh` has been deprecated in favour of `nodetool import` - see CASSANDRA-6719
+     for details
    - An experimental option to compare all merkle trees together has been added - for example, in
      a 3 node cluster with 2 replicas identical and 1 out-of-date, with this option enabled, the
      out-of-date replica will only stream a single copy from up-to-date replica. Enable it by adding
@@ -68,6 +78,14 @@ New features
      See nodetool and fqltool help text for more information.
    - SSTableDump now supports the -l option to output each partition as it's own json object
      See CASSANDRA-13848 for more detail
+   - Metric for coordinator writes per table has been added. See CASSANDRA-14232
+   - Nodetool cfstats now has options to sort by various metrics as well as limit results.
+   - Operators can restrict login user activity to one or more datacenters. See `network_authorizer`
+     in cassandra.yaml, and the docs for create and alter role statements. CASSANDRA-13985
+   - Roles altered from login=true to login=false will prevent existing connections from executing any
+     statements after the cache has been refreshed. CASSANDRA-13985
+   - Support for audit logging of database activity. If enabled, logs every incoming
+     CQL command request, Authentication (successful as well as unsuccessful login) to a node.
 
 Upgrading
 ---------
@@ -139,6 +157,13 @@ Upgrading
       storage port or native port at nodes you must first upgrade the entire cluster
       and clients to 4.0 so they can handle the port not being consistent across
       the cluster.
+    - Names of AWS regions/availability zones have been cleaned up to more correctly
+      match the Amazon names. There is now a new option in conf/cassandra-rackdc.properties
+      that lets users enable the correct names for new clusters, or use the legacy
+      names for existing clusters. See conf/cassandra-rackdc.properties for details.
+    - Background repair has been removed. dclocal_read_repair_chance and
+      read_repair_chance table options have been removed and are now rejected.
+      See CASSANDRA-13910 for details.
 
 Materialized Views
 -------------------

@@ -122,6 +122,16 @@ authorizer: AllowAllAuthorizer
 #   increase system_auth keyspace replication factor if you use this role manager.
 role_manager: CassandraRoleManager
 
+# Network authorization backend, implementing INetworkAuthorizer; used to restrict user
+# access to certain DCs
+# Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllNetworkAuthorizer,
+# CassandraNetworkAuthorizer}.
+#
+# - AllowAllNetworkAuthorizer allows access to any DC to any user - set it to disable authorization.
+# - CassandraNetworkAuthorizer stores permissions in system_auth.network_permissions table. Please
+#   increase system_auth keyspace replication factor if you use this authorizer.
+network_authorizer: AllowAllNetworkAuthorizer
+
 # Validity period for roles cache (fetching granted roles can be an expensive
 # operation depending on the role manager, CassandraRoleManager is one example)
 # Granted roles are cached for authenticated sessions in AuthenticatedUser and
@@ -183,9 +193,9 @@ credentials_validity_in_ms: 2000
 #
 partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 
-# Directories where Cassandra should store data on disk.  Cassandra
-# will spread data evenly across them, subject to the granularity of
-# the configured compaction strategy.
+# Directories where Cassandra should store data on disk. If multiple
+# directories are specified, Cassandra will spread data evenly across 
+# them by partitioning the token ranges.
 # If not set, the default directory is $CASSANDRA_HOME/data/data.
 # data_file_directories:
 #     - /var/lib/cassandra/data
@@ -917,7 +927,7 @@ dynamic_snitch_update_interval_in_ms: 100
 # controls how often to reset all host scores, allowing a bad host to
 # possibly recover
 dynamic_snitch_reset_interval_in_ms: 600000
-# if set greater than zero and read_repair_chance is < 1.0, this will allow
+# if set greater than zero, this will allow
 # 'pinning' of replicas to hosts in order to increase cache capacity.
 # The badness threshold will control how much worse the pinned host has to be
 # before the dynamic snitch will prefer other replicas over it.  This is
@@ -1168,3 +1178,26 @@ back_pressure_strategy:
 # The full query log will recrusively delete the contents of this path at
 # times. Don't place links in this directory to other parts of the filesystem.
 #full_query_log_dir: /tmp/cassandrafullquerylog
+
+# Automatically upgrade sstables after upgrade - if there is no ordinary compaction to do, the
+# oldest non-upgraded sstable will get upgraded to the latest version
+# automatic_sstable_upgrade: false
+# Limit the number of concurrent sstable upgrades
+# max_concurrent_automatic_sstable_upgrades: 1
+
+# Audit logging - Logs every incoming CQL command request, authentication to a node. See the docs
+# on audit_logging for full details about the various configuration options.
+audit_logging_options:
+    enabled: false
+    logger: BinAuditLogger
+    # audit_logs_dir:
+    # included_keyspaces: 
+    # excluded_keyspaces:
+    # included_categories:
+    # excluded_categories:
+    # included_users:
+    # excluded_users:
+
+# validate tombstones on reads and compaction
+# can be either "disabled", "warn" or "exception"
+# corrupted_tombstone_strategy: disabled

@@ -24,13 +24,9 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.ImmutableMap;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
@@ -50,6 +46,7 @@ import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -140,7 +137,7 @@ public class Server implements CassandraDaemon.Server
 
         if (this.useSSL)
         {
-            final EncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
+            final EncryptionOptions clientEnc = DatabaseDescriptor.getNativeProtocolEncryptionOptions();
 
             if (clientEnc.optional)
             {
@@ -164,48 +161,44 @@ public class Server implements CassandraDaemon.Server
 
         ChannelFuture bindFuture = bootstrap.bind(socket);
         if (!bindFuture.awaitUninterruptibly().isSuccess())
-            throw new IllegalStateException(String.format("Failed to bind port %d on %s.", socket.getPort(), socket.getAddress().getHostAddress()));
+            throw new IllegalStateException(String.format("Failed to bind port %d on %s.", socket.getPort(), socket.getAddress().getHostAddress()),
+                                            bindFuture.cause());
 
         connectionTracker.allChannels.add(bindFuture.channel());
         isRunning.set(true);
     }
 
-    public int getConnectedClients()
+    public int countConnectedClients()
     {
-        return connectionTracker.getConnectedClients();
+        return connectionTracker.countConnectedClients();
     }
 
-    public Map<String, Integer> getConnectedClientsByUser()
+    public Map<String, Integer> countConnectedClientsByUser()
     {
-        return connectionTracker.getConnectedClientsByUser();
+        return connectionTracker.countConnectedClientsByUser();
     }
 
-    public List<Map<String, String>> getConnectionStates()
+    public List<ConnectedClient> getConnectedClients()
     {
-        List<Map<String, String>> result = new ArrayList<>();
-        for(Channel c : connectionTracker.allChannels)
+        List<ConnectedClient> result = new ArrayList<>();
+        for (Channel c : connectionTracker.allChannels)
         {
-            Connection connection = c.attr(Connection.attributeKey).get();
-            if (connection instanceof ServerConnection)
-            {
-                ServerConnection conn = (ServerConnection) connection;
-                SslHandler sslHandler = conn.channel().pipeline().get(SslHandler.class);
-
-                result.add(new ImmutableMap.Builder<String, String>()
-                        .put("user", conn.getClientState().getUser().getName())
-                        .put("keyspace", conn.getClientState().getRawKeyspace() == null ? "" : conn.getClientState().getRawKeyspace())
-                        .put("address", conn.getClientState().getRemoteAddress().toString())
-                        .put("version", String.valueOf(conn.getVersion().asInt()))
-                        .put("requests", String.valueOf(conn.requests.getCount()))
-                        .put("ssl", Boolean.toString(sslHandler == null))
-                        .put("cipher", sslHandler != null ? sslHandler.engine().getSession().getCipherSuite() : "undefined")
-                        .put("protocol", sslHandler != null ? sslHandler.engine().getSession().getProtocol() : "undefined")
-                        .put("driverName", conn.getClientState().getDriverName().orElse("undefined"))
-                        .put("driverVersion", conn.getClientState().getDriverVersion().orElse("undefined"))
-                        .build());
-            }
+            Connection conn = c.attr(Connection.attributeKey).get();
+            if (conn instanceof ServerConnection)
+                result.add(new ConnectedClient((ServerConnection) conn));
         }
         return result;
+    }
+
+    public List<ClientStat> recentClientStats()
+    {
+        return connectionTracker.protocolVersionTracker.getAll();
+    }
+
+    @Override
+    public void clearConnectionHistory()
+    {
+        connectionTracker.protocolVersionTracker.clear();
     }
 
     private void close()
@@ -284,6 +277,7 @@ public class Server implements CassandraDaemon.Server
         // TODO: should we be using the GlobalEventExecutor or defining our own?
         public final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
         private final EnumMap<Event.Type, ChannelGroup> groups = new EnumMap<>(Event.Type.class);
+        private final ProtocolVersionTracker protocolVersionTracker = new ProtocolVersionTracker();
 
         public ConnectionTracker()
         {
@@ -294,6 +288,9 @@ public class Server implements CassandraDaemon.Server
         public void addConnection(Channel ch, Connection connection)
         {
             allChannels.add(ch);
+
+            if (ch.remoteAddress() instanceof InetSocketAddress)
+                protocolVersionTracker.addConnection(((InetSocketAddress) ch.remoteAddress()).getAddress(), connection.getVersion());
         }
 
         public void register(Event.Type type, Channel ch)
@@ -306,12 +303,12 @@ public class Server implements CassandraDaemon.Server
             groups.get(event.type).writeAndFlush(new EventMessage(event));
         }
 
-        public void closeAll()
+        void closeAll()
         {
             allChannels.close().awaitUninterruptibly();
         }
 
-        public int getConnectedClients()
+        int countConnectedClients()
         {
             /*
               - When server is running: allChannels contains all clients' connections (channels)
@@ -321,21 +318,23 @@ public class Server implements CassandraDaemon.Server
             return allChannels.size() != 0 ? allChannels.size() - 1 : 0;
         }
 
-        public Map<String, Integer> getConnectedClientsByUser()
+        Map<String, Integer> countConnectedClientsByUser()
         {
             Map<String, Integer> result = new HashMap<>();
-            for(Channel c : allChannels)
+            for (Channel c : allChannels)
             {
                 Connection connection = c.attr(Connection.attributeKey).get();
                 if (connection instanceof ServerConnection)
                 {
                     ServerConnection conn = (ServerConnection) connection;
-                    String name = conn.getClientState().getUser().getName();
+                    AuthenticatedUser user = conn.getClientState().getUser();
+                    String name = (null != user) ? user.getName() : null;
                     result.put(name, result.getOrDefault(name, 0) + 1);
                 }
             }
             return result;
         }
+
     }
 
     private static class Initializer extends ChannelInitializer<Channel>
@@ -407,7 +406,8 @@ public class Server implements CassandraDaemon.Server
 
         protected final SslHandler createSslHandler(ByteBufAllocator allocator) throws IOException
         {
-            SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, encryptionOptions.require_client_auth, true);
+            SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, encryptionOptions.require_client_auth,
+                                                             SSLFactory.ConnectionType.NATIVE_TRANSPORT, SSLFactory.SocketType.SERVER);
             return sslContext.newHandler(allocator);
         }
     }

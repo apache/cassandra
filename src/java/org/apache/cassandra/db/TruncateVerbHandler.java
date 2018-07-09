@@ -50,7 +50,7 @@ public class TruncateVerbHandler implements IVerbHandler<Truncation>
         Tracing.trace("Enqueuing response to truncate operation to {}", message.from);
 
         TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, true);
-        logger.trace("{} applied.  Enqueuing response to {}@{} ", new Object[]{ t, id, message.from });
+        logger.trace("{} applied.  Enqueuing response to {}@{} ", t, id, message.from );
         MessagingService.instance().sendReply(response.createMessage(), id, message.from);
     }
 

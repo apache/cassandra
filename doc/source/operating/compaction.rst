@@ -432,8 +432,7 @@ order, with new data and old data in the same SSTable. Out of order data can app
 
 While TWCS tries to minimize the impact of comingled data, users should attempt to avoid this behavior.  Specifically,
 users should avoid queries that explicitly set the timestamp via CQL ``USING TIMESTAMP``. Additionally, users should run
-frequent repairs (which streams data in such a way that it does not become comingled), and disable background read
-repair by setting the table's ``read_repair_chance`` and ``dclocal_read_repair_chance`` to 0.
+frequent repairs (which streams data in such a way that it does not become comingled).
 
 Changing TimeWindowCompactionStrategy Options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

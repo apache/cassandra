@@ -116,6 +116,11 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
         return true;
     }
 
+    public boolean hasInvalidDeletions()
+    {
+        return !startDeletion.validate() || !endDeletion.validate();
+    }
+
     public RangeTombstoneBoundaryMarker copy(AbstractAllocator allocator)
     {
         return new RangeTombstoneBoundaryMarker(clustering().copy(allocator), endDeletion, startDeletion);
@@ -154,7 +159,10 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
 
     public String toString(TableMetadata metadata)
     {
-        return String.format("Marker %s@%d-%d", bound.toString(metadata), endDeletion.markedForDeleteAt(), startDeletion.markedForDeleteAt());
+        return String.format("Marker %s@%d/%d-%d/%d",
+                             bound.toString(metadata),
+                             endDeletion.markedForDeleteAt(), endDeletion.localDeletionTime(),
+                             startDeletion.markedForDeleteAt(), startDeletion.localDeletionTime());
     }
 
     @Override

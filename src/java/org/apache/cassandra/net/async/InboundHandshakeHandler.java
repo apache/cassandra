@@ -247,7 +247,8 @@ class InboundHandshakeHandler extends ByteToMessageDecoder
         // record the (true) version of the endpoint
         InetAddressAndPort from = msg.address;
         MessagingService.instance().setVersion(from, maxVersion);
-        logger.trace("Set version for {} to {} (will use {})", from, maxVersion, MessagingService.instance().getVersion(from));
+        if (logger.isTraceEnabled())
+            logger.trace("Set version for {} to {} (will use {})", from, maxVersion, MessagingService.instance().getVersion(from));
 
         setupMessagingPipeline(ctx.pipeline(), from, compressed, version);
         return State.HANDSHAKE_COMPLETE;
@@ -259,7 +260,11 @@ class InboundHandshakeHandler extends ByteToMessageDecoder
         if (compressed)
             pipeline.addLast(NettyFactory.INBOUND_COMPRESSOR_HANDLER_NAME, NettyFactory.createLz4Decoder(messagingVersion));
 
-        pipeline.addLast("messageInHandler", new MessageInHandler(peer, messagingVersion));
+        BaseMessageInHandler messageInHandler = messagingVersion >= MessagingService.VERSION_40
+                                                ? new MessageInHandler(peer, messagingVersion)
+                                                : new MessageInHandlerPre40(peer, messagingVersion);
+
+        pipeline.addLast("messageInHandler", messageInHandler);
         pipeline.remove(this);
     }
 

@@ -100,7 +100,7 @@ public class StubIndex implements Index
     public Indexer indexerFor(final DecoratedKey key,
                               RegularAndStaticColumns columns,
                               int nowInSec,
-                              OpOrder.Group opGroup,
+                              WriteContext ctx,
                               IndexTransaction.Type transactionType)
     {
         return new Indexer()

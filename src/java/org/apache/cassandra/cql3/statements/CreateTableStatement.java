@@ -20,10 +20,12 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.regex.Pattern;
+
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
@@ -34,6 +36,8 @@ import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 /** A {@code CREATE TABLE} parsed from a CQL query statement. */
 public class CreateTableStatement extends SchemaAlteringStatement
@@ -131,7 +135,6 @@ public class CreateTableStatement extends SchemaAlteringStatement
                .isCompound(isCompound)
                .isCounter(hasCounters)
                .isSuper(false)
-               .isView(false)
                .params(params);
 
         for (int i = 0; i < keyAliases.size(); i++)
@@ -210,6 +213,9 @@ public class CreateTableStatement extends SchemaAlteringStatement
             KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace());
             if (ksm == null)
                 throw new ConfigurationException(String.format("Keyspace %s doesn't exist", keyspace()));
+            if (ksm.isVirtual())
+                throw new InvalidRequestException("Cannot create tables in virtual keyspaces");
+
             return prepare(ksm.types);
         }
 
@@ -410,5 +416,16 @@ public class CreateTableStatement extends SchemaAlteringStatement
         {
             columnAliases.add(alias);
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.CREATE_TABLE, keyspace(), cfName.getColumnFamily());
     }
 }

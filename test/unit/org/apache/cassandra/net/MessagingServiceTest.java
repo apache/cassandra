@@ -22,7 +22,6 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,9 +47,6 @@ import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService.ServerChannel;
 import org.apache.cassandra.net.async.NettyFactory;
@@ -96,7 +92,7 @@ public class MessagingServiceTest
         DatabaseDescriptor.setBackPressureStrategy(new MockBackPressureStrategy(Collections.emptyMap()));
         DatabaseDescriptor.setBroadcastAddress(InetAddress.getByName("127.0.0.1"));
         originalAuthenticator = DatabaseDescriptor.getInternodeAuthenticator();
-        originalServerEncryptionOptions = DatabaseDescriptor.getServerEncryptionOptions();
+        originalServerEncryptionOptions = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
         originalListenAddress = InetAddressAndPort.getByAddressOverrideDefaults(DatabaseDescriptor.getListenAddress(), DatabaseDescriptor.getStoragePort());
     }
 
@@ -115,7 +111,7 @@ public class MessagingServiceTest
     public void tearDown()
     {
         DatabaseDescriptor.setInternodeAuthenticator(originalAuthenticator);
-        DatabaseDescriptor.setServerEncryptionOptions(originalServerEncryptionOptions);
+        DatabaseDescriptor.setInternodeMessagingEncyptionOptions(originalServerEncryptionOptions);
         DatabaseDescriptor.setShouldListenOnBroadcastAddress(false);
         DatabaseDescriptor.setListenAddress(originalListenAddress.address);
         FBUtilities.reset();
@@ -313,7 +309,7 @@ public class MessagingServiceTest
 
     private static void addDCLatency(long sentAt, long nowTime) throws IOException
     {
-        MessageIn.deriveConstructionTime(InetAddressAndPort.getLocalHost(), (int)sentAt, nowTime);
+        MessageIn.deriveConstructionTime(InetAddressAndPort.getLocalHost(), (int) sentAt, nowTime);
     }
 
     public static class MockBackPressureStrategy implements BackPressureStrategy<MockBackPressureStrategy.MockBackPressureState>
@@ -426,6 +422,7 @@ public class MessagingServiceTest
     /**
      * Make sure that if internode authenticatino fails for an outbound connection that all the code that relies
      * on getting the connection pool handles the null return
+     *
      * @throws Exception
      */
     @Test
@@ -663,5 +660,53 @@ public class MessagingServiceTest
             messagingService.clearServerChannels();
             Assert.assertEquals(0, messagingService.serverChannels.size());
         }
+    }
+
+
+    @Test
+    public void getPreferredRemoteAddrUsesPrivateIp() throws UnknownHostException
+    {
+        MessagingService ms = MessagingService.instance();
+        InetAddressAndPort local = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.4", 7000);
+        InetAddressAndPort remote = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.151", 7000);
+        InetAddressAndPort privateIp = InetAddressAndPort.getByName("127.0.0.6");
+
+        OutboundMessagingPool pool = new OutboundMessagingPool(privateIp, local, null,
+                                                               new MockBackPressureStrategy(null).newState(remote),
+                                                               ALLOW_NOTHING_AUTHENTICATOR);
+        ms.channelManagers.put(remote, pool);
+
+        Assert.assertEquals(privateIp, ms.getPreferredRemoteAddr(remote));
+    }
+
+    @Test
+    public void getPreferredRemoteAddrUsesPreferredIp() throws UnknownHostException
+    {
+        MessagingService ms = MessagingService.instance();
+        InetAddressAndPort remote = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.115", 7000);
+
+        InetAddressAndPort preferredIp = InetAddressAndPort.getByName("127.0.0.16");
+        SystemKeyspace.updatePreferredIP(remote, preferredIp);
+
+        Assert.assertEquals(preferredIp, ms.getPreferredRemoteAddr(remote));
+    }
+
+    @Test
+    public void getPreferredRemoteAddrUsesPrivateIpOverridesPreferredIp() throws UnknownHostException
+    {
+        MessagingService ms = MessagingService.instance();
+        InetAddressAndPort local = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.4", 7000);
+        InetAddressAndPort remote = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.105", 7000);
+        InetAddressAndPort privateIp = InetAddressAndPort.getByName("127.0.0.6");
+
+        OutboundMessagingPool pool = new OutboundMessagingPool(privateIp, local, null,
+                                                               new MockBackPressureStrategy(null).newState(remote),
+                                                               ALLOW_NOTHING_AUTHENTICATOR);
+        ms.channelManagers.put(remote, pool);
+
+        InetAddressAndPort preferredIp = InetAddressAndPort.getByName("127.0.0.16");
+        SystemKeyspace.updatePreferredIP(remote, preferredIp);
+
+        Assert.assertEquals(privateIp, ms.getPreferredRemoteAddr(remote));
     }
 }

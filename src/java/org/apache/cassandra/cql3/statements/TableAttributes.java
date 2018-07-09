@@ -26,6 +26,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.TableParams.Option;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 
 import static java.lang.String.format;
 
@@ -103,9 +104,6 @@ public final class TableAttributes extends PropertyDefinitions
             builder.compression(CompressionParams.fromMap(getMap(Option.COMPRESSION)));
         }
 
-        if (hasOption(Option.DCLOCAL_READ_REPAIR_CHANCE))
-            builder.dcLocalReadRepairChance(getDouble(Option.DCLOCAL_READ_REPAIR_CHANCE));
-
         if (hasOption(Option.DEFAULT_TIME_TO_LIVE))
             builder.defaultTimeToLive(getInt(Option.DEFAULT_TIME_TO_LIVE));
 
@@ -121,11 +119,8 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(Option.MIN_INDEX_INTERVAL))
             builder.minIndexInterval(getInt(Option.MIN_INDEX_INTERVAL));
 
-        if (hasOption(Option.READ_REPAIR_CHANCE))
-            builder.readRepairChance(getDouble(Option.READ_REPAIR_CHANCE));
-
         if (hasOption(Option.SPECULATIVE_RETRY))
-            builder.speculativeRetry(SpeculativeRetryParam.fromString(getString(Option.SPECULATIVE_RETRY)));
+            builder.speculativeRetry(SpeculativeRetryPolicy.fromString(getString(Option.SPECULATIVE_RETRY)));
 
         if (hasOption(Option.CRC_CHECK_CHANCE))
             builder.crcCheckChance(getDouble(Option.CRC_CHECK_CHANCE));

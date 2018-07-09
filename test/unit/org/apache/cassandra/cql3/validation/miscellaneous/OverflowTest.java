@@ -107,8 +107,6 @@ public class OverflowTest extends CQLTester
     {
         createTable("CREATE TABLE %s ( k int PRIMARY KEY, c int ) WITH "
                     + "comment = 'My comment' "
-                    + "AND read_repair_chance = 0.5 "
-                    + "AND dclocal_read_repair_chance = 0.5 "
                     + "AND gc_grace_seconds = 4 "
                     + "AND bloom_filter_fp_chance = 0.01 "
                     + "AND compaction = { 'class' : 'LeveledCompactionStrategy', 'sstable_size_in_mb' : 10, 'fanout_size' : 5 } "
@@ -117,8 +115,6 @@ public class OverflowTest extends CQLTester
 
         execute("ALTER TABLE %s WITH "
                 + "comment = 'other comment' "
-                + "AND read_repair_chance = 0.3 "
-                + "AND dclocal_read_repair_chance = 0.3 "
                 + "AND gc_grace_seconds = 100 "
                 + "AND bloom_filter_fp_chance = 0.1 "
                 + "AND compaction = { 'class': 'SizeTieredCompactionStrategy', 'min_sstable_size' : 42 } "

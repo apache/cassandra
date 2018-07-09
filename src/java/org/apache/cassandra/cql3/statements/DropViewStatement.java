@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.db.view.View;
@@ -29,6 +30,8 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class DropViewStatement extends SchemaAlteringStatement
 {
@@ -65,5 +68,17 @@ public class DropViewStatement extends SchemaAlteringStatement
                 return null;
             throw e;
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.DROP_VIEW, keyspace(), cfName.getColumnFamily());
     }
 }

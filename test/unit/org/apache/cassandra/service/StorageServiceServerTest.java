@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.InetAddress;
 import java.util.*;
 
 import com.google.common.collect.HashMultimap;
@@ -33,7 +34,11 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -591,5 +596,54 @@ public class StorageServiceServerTest
 
         repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "2000");
         assert repairRangeFrom.size() == 0;
+    }
+
+    /**
+     * Test that StorageService.getNativeAddress returns the correct value based on available yaml and gossip state
+     * @throws Exception
+     */
+    @Test
+    public void testGetNativeAddress() throws Exception
+    {
+        String internalAddressString = "127.0.0.2:666";
+        InetAddressAndPort internalAddress = InetAddressAndPort.getByName(internalAddressString);
+        Gossiper.instance.addSavedEndpoint(internalAddress);
+        //Default to using the provided address with the configured port
+        assertEquals("127.0.0.2:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddress, true));
+
+        VersionedValue.VersionedValueFactory valueFactory =  new VersionedValue.VersionedValueFactory(Murmur3Partitioner.instance);
+        //If we don't have the port use the gossip address, but with the configured port
+        Gossiper.instance.getEndpointStateForEndpoint(internalAddress).addApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(InetAddress.getByName("127.0.0.3")));
+        assertEquals("127.0.0.3:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddress, true));
+        //If we have the address and port in gossip use that
+        Gossiper.instance.getEndpointStateForEndpoint(internalAddress).addApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT, valueFactory.nativeaddressAndPort(InetAddressAndPort.getByName("127.0.0.3:666")));
+        assertEquals("127.0.0.3:666", StorageService.instance.getNativeaddress(internalAddress, true));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testAuditLogEnableLoggerNotFound() throws Exception
+    {
+        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
+        assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
+        StorageService.instance.enableAuditLog("foobar", null, null, null, null, null, null);
+    }
+
+    @Test
+    public void testAuditLogEnableLoggerTransitions() throws Exception
+    {
+        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
+        assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
+
+        try
+        {
+            StorageService.instance.enableAuditLog("foobar", null, null, null, null, null, null);
+        }
+        catch (ConfigurationException | IllegalStateException e)
+        {
+            e.printStackTrace();
+        }
+
+        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
+        assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
     }
 }

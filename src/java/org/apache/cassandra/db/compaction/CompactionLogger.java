@@ -37,13 +37,13 @@ import com.google.common.collect.MapMaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.NoSpamLogger;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.node.ArrayNode;
-import org.codehaus.jackson.node.JsonNodeFactory;
-import org.codehaus.jackson.node.ObjectNode;
 
 public class CompactionLogger
 {
@@ -170,7 +170,7 @@ public class CompactionLogger
         node.put("size", sstable.onDiskLength());
         JsonNode logResult = strategy.strategyLogger().sstable(sstable);
         if (logResult != null)
-            node.put("details", logResult);
+            node.set("details", logResult);
         return node;
     }
 
@@ -182,7 +182,7 @@ public class CompactionLogger
             return node;
         node.put("strategyId", getId(strategy));
         node.put("type", strategy.getName());
-        node.put("tables", formatSSTables(strategy));
+        node.set("tables", formatSSTables(strategy));
         node.put("repaired", csm.isRepaired(strategy));
         List<String> folders = csm.getStrategyFolders(strategy);
         ArrayNode folderNode = json.arrayNode();
@@ -190,11 +190,11 @@ public class CompactionLogger
         {
             folderNode.add(folder);
         }
-        node.put("folders", folderNode);
+        node.set("folders", folderNode);
 
         JsonNode logResult = strategy.strategyLogger().options();
         if (logResult != null)
-            node.put("options", logResult);
+            node.set("options", logResult);
         return node;
     }
 
@@ -209,7 +209,7 @@ public class CompactionLogger
     {
         ObjectNode node = json.objectNode();
         node.put("strategyId", getId(strategy));
-        node.put("table", formatSSTable(strategy, sstable));
+        node.set("table", formatSSTable(strategy, sstable));
         return node;
     }
 
@@ -228,7 +228,7 @@ public class CompactionLogger
         ObjectNode node = json.objectNode();
         node.put("type", "enable");
         describeStrategy(node);
-        node.put("strategies", compactionStrategyMap(this::startStrategy));
+        node.set("strategies", compactionStrategyMap(this::startStrategy));
         return node;
     }
 
@@ -247,7 +247,7 @@ public class CompactionLogger
             ObjectNode node = json.objectNode();
             node.put("type", "disable");
             describeStrategy(node);
-            node.put("strategies", compactionStrategyMap(this::shutdownStrategy));
+            node.set("strategies", compactionStrategyMap(this::shutdownStrategy));
             serializer.write(node, this::startStrategies, this);
         }
     }
@@ -259,7 +259,7 @@ public class CompactionLogger
             ObjectNode node = json.objectNode();
             node.put("type", "flush");
             describeStrategy(node);
-            node.put("tables", sstableMap(sstables, this::describeSSTable));
+            node.set("tables", sstableMap(sstables, this::describeSSTable));
             serializer.write(node, this::startStrategies, this);
         }
     }
@@ -273,8 +273,8 @@ public class CompactionLogger
             describeStrategy(node);
             node.put("start", String.valueOf(startTime));
             node.put("end", String.valueOf(endTime));
-            node.put("input", sstableMap(input, this::describeSSTable));
-            node.put("output", sstableMap(output, this::describeSSTable));
+            node.set("input", sstableMap(input, this::describeSSTable));
+            node.set("output", sstableMap(output, this::describeSSTable));
             serializer.write(node, this::startStrategies, this);
         }
     }

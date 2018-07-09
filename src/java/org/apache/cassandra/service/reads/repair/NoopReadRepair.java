@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import java.net.InetAddress;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -27,8 +26,6 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.reads.DigestResolver;
-import org.apache.cassandra.service.reads.ResponseResolver;
-import org.apache.cassandra.tracing.TraceState;
 
 public class NoopReadRepair implements ReadRepair
 {
@@ -41,23 +38,12 @@ public class NoopReadRepair implements ReadRepair
         return UnfilteredPartitionIterators.MergeListener.NOOP;
     }
 
-    public void startForegroundRepair(DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints, List<InetAddressAndPort> contactedEndpoints, Consumer<PartitionIterator> resultConsumer)
+    public void startRepair(DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints, List<InetAddressAndPort> contactedEndpoints, Consumer<PartitionIterator> resultConsumer)
     {
         resultConsumer.accept(digestResolver.getData());
     }
 
-    public void awaitForegroundRepairFinish() throws ReadTimeoutException
+    public void awaitRepair() throws ReadTimeoutException
     {
-
-    }
-
-    public void maybeStartBackgroundRepair(ResponseResolver resolver)
-    {
-
-    }
-
-    public void backgroundDigestRepair(TraceState traceState)
-    {
-
     }
 }

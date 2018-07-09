@@ -400,6 +400,45 @@ public final class FileUtils
         ScheduledExecutors.nonPeriodicTasks.execute(runnable);
     }
 
+    public static long parseFileSize(String value)
+    {
+        long result;
+        if (!value.matches("\\d+(\\.\\d+)? (GiB|KiB|MiB|TiB|bytes)"))
+        {
+            throw new IllegalArgumentException(
+                String.format("value %s is not a valid human-readable file size", value));
+        }
+        if (value.endsWith(" TiB"))
+        {
+            result = Math.round(Double.valueOf(value.replace(" TiB", "")) * ONE_TB);
+            return result;
+        }
+        else if (value.endsWith(" GiB"))
+        {
+            result = Math.round(Double.valueOf(value.replace(" GiB", "")) * ONE_GB);
+            return result;
+        }
+        else if (value.endsWith(" KiB"))
+        {
+            result = Math.round(Double.valueOf(value.replace(" KiB", "")) * ONE_KB);
+            return result;
+        }
+        else if (value.endsWith(" MiB"))
+        {
+            result = Math.round(Double.valueOf(value.replace(" MiB", "")) * ONE_MB);
+            return result;
+        }
+        else if (value.endsWith(" bytes"))
+        {
+            result = Math.round(Double.valueOf(value.replace(" bytes", "")));
+            return result;
+        }
+        else
+        {
+            throw new IllegalStateException(String.format("FileUtils.parseFileSize() reached an illegal state parsing %s", value));
+        }
+    }
+
     public static String stringifyFileSize(double value)
     {
         double d;

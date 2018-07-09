@@ -32,6 +32,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.HashingUtils;
 
@@ -80,11 +81,30 @@ public abstract class ReadResponse
                 try (UnfilteredRowIterator partition = iter.next())
                 {
                     if (partition.partitionKey().equals(key))
-                        return ImmutableBTreePartition.create(partition).toString();
+                        return toDebugString(partition, command.metadata());
                 }
             }
         }
         return "<key " + key + " not found>";
+    }
+
+    private String toDebugString(UnfilteredRowIterator partition, TableMetadata metadata)
+    {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(String.format("[%s] key=%s partition_deletion=%s columns=%s",
+                                metadata,
+                                metadata.partitionKeyType.getString(partition.partitionKey().getKey()),
+                                partition.partitionLevelDeletion(),
+                                partition.columns()));
+
+        if (partition.staticRow() != Rows.EMPTY_STATIC_ROW)
+            sb.append("\n    ").append(partition.staticRow().toString(metadata, true));
+
+        while (partition.hasNext())
+            sb.append("\n    ").append(partition.next().toString(metadata, true));
+
+        return sb.toString();
     }
 
     protected static ByteBuffer makeDigest(UnfilteredPartitionIterator iterator, ReadCommand command)

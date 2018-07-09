@@ -254,16 +254,26 @@ public final class MessagingService implements MessagingServiceMBean
                 return DatabaseDescriptor.getRangeRpcTimeout();
             }
         },
-        PING(),
+        PING
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getPingTimeout();
+            }
+        },
 
-        // add new verbs after the existing verbs, but *before* the UNUSED verbs, since we serialize by ordinal.
-        // UNUSED verbs serve as padding for backwards compatability where a previous version needs to validate a verb from the future.
-        UNUSED_1,
+        // UNUSED verbs were used as padding for backward/forward compatability before 4.0,
+        // but it wasn't quite as bullet/future proof as needed. We still need to keep these entries
+        // around, at least for a major rev or two (post-4.0). see CASSANDRA-13993 for a discussion.
+        // For now, though, the UNUSED are legacy values (placeholders, basically) that should only be used
+        // for correctly adding VERBs that need to be emergency additions to 3.0/3.11.
+        // We can reclaim them (their id's, to be correct) in future versions, if desireed, though.
         UNUSED_2,
         UNUSED_3,
         UNUSED_4,
         UNUSED_5,
         ;
+        // add new verbs after the existing verbs, since we serialize by ordinal.
 
         private final int id;
         Verb()
@@ -294,9 +304,9 @@ public final class MessagingService implements MessagingServiceMBean
         {
             for (Verb v : values())
             {
-                if (idToVerbMap.containsKey(v.getId()))
-                    throw new IllegalArgumentException("cannot have two verbs that map to the same id: " + v + " and " + v.getId());
-                idToVerbMap.put(v.getId(), v);
+                Verb existing = idToVerbMap.put(v.getId(), v);
+                if (existing != null)
+                    throw new IllegalArgumentException("cannot have two verbs that map to the same id: " + v + " and " + existing);
             }
         }
 
@@ -350,9 +360,10 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.SNAPSHOT, Stage.MISC);
         put(Verb.ECHO, Stage.GOSSIP);
 
-        put(Verb.UNUSED_1, Stage.INTERNAL_RESPONSE);
         put(Verb.UNUSED_2, Stage.INTERNAL_RESPONSE);
         put(Verb.UNUSED_3, Stage.INTERNAL_RESPONSE);
+        put(Verb.UNUSED_4, Stage.INTERNAL_RESPONSE);
+        put(Verb.UNUSED_5, Stage.INTERNAL_RESPONSE);
 
         put(Verb.PING, Stage.READ);
     }};
@@ -393,7 +404,6 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.HINT, HintMessage.serializer);
         put(Verb.BATCH_STORE, Batch.serializer);
         put(Verb.BATCH_REMOVE, UUIDSerializer.serializer);
-
         put(Verb.PING, PingMessage.serializer);
     }};
 
@@ -737,7 +747,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void listen()
     {
-        listen(DatabaseDescriptor.getServerEncryptionOptions());
+        listen(DatabaseDescriptor.getInternodeMessagingEncyptionOptions());
     }
 
     public void listen(ServerEncryptionOptions serverEncryptionOptions)
@@ -926,6 +936,14 @@ public final class MessagingService implements MessagingServiceMBean
     {
         assert !verbHandlers.containsKey(verb);
         verbHandlers.put(verb, verbHandler);
+    }
+
+    /**
+     * SHOULD ONLY BE USED FOR TESTING!!
+     */
+    public void removeVerbHandler(Verb verb)
+    {
+        verbHandlers.remove(verb);
     }
 
     /**
@@ -1594,6 +1612,16 @@ public final class MessagingService implements MessagingServiceMBean
                                                    bounds.left.getPartitioner().getClass().getName()));
     }
 
+    /**
+     * This method is used to determine the preferred IP & Port of a peer using the
+     * {@link OutboundMessagingPool} and SystemKeyspace.
+     */
+    public InetAddressAndPort getPreferredRemoteAddr(InetAddressAndPort to)
+    {
+        OutboundMessagingPool pool = channelManagers.get(to);
+        return pool != null ? pool.getPreferredRemoteAddr() : SystemKeyspace.getPreferredIP(to);
+    }
+
     private OutboundMessagingPool getMessagingConnection(InetAddressAndPort to)
     {
         OutboundMessagingPool pool = channelManagers.get(to);
@@ -1606,7 +1634,7 @@ public final class MessagingService implements MessagingServiceMBean
 
             InetAddressAndPort preferredRemote = SystemKeyspace.getPreferredIP(to);
             InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
-            ServerEncryptionOptions encryptionOptions = secure ? DatabaseDescriptor.getServerEncryptionOptions() : null;
+            ServerEncryptionOptions encryptionOptions = secure ? DatabaseDescriptor.getInternodeMessagingEncyptionOptions() : null;
             IInternodeAuthenticator authenticator = DatabaseDescriptor.getInternodeAuthenticator();
 
             pool = new OutboundMessagingPool(preferredRemote, local, encryptionOptions, backPressure.newState(to), authenticator);
@@ -1656,7 +1684,7 @@ public final class MessagingService implements MessagingServiceMBean
     public static boolean isEncryptedConnection(InetAddressAndPort address)
     {
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        switch (DatabaseDescriptor.getServerEncryptionOptions().internode_encryption)
+        switch (DatabaseDescriptor.getInternodeMessagingEncyptionOptions().internode_encryption)
         {
             case none:
                 return false; // if nothing needs to be encrypted then return immediately.

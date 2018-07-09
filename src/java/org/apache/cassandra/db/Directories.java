@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -333,6 +334,41 @@ public class Directories
     }
 
     /**
+     * Returns a data directory to load the file {@code sourceFile}. If the sourceFile is on same disk partition as any
+     * data directory then use that one as data directory otherwise use {@link #getWriteableLocationAsFile(long)} to
+     * find suitable data directory.
+     *
+     * Also makes sure returned directory is non-blacklisted.
+     *
+     * @throws FSWriteError if all directories are blacklisted
+     */
+    public File getWriteableLocationToLoadFile(final File sourceFile)
+    {
+        try
+        {
+            final FileStore srcFileStore = Files.getFileStore(sourceFile.toPath());
+            for (final File dataPath : dataPaths)
+            {
+                if (BlacklistedDirectories.isUnwritable(dataPath))
+                {
+                    continue;
+                }
+
+                if (Files.getFileStore(dataPath.toPath()).equals(srcFileStore))
+                {
+                    return dataPath;
+                }
+            }
+        }
+        catch (final IOException e)
+        {
+            // pass exceptions in finding filestore. This is best effort anyway. Fall back on getWriteableLocationAsFile()
+        }
+
+        return getWriteableLocationAsFile(sourceFile.length());
+    }
+
+    /**
      * Returns a temporary subdirectory on non-blacklisted data directory
      * that _currently_ has {@code writeSize} bytes as usable space.
      * This method does not create the temporary directory.
@@ -642,10 +678,15 @@ public class Directories
 
     public SSTableLister sstableLister(OnTxnErr onTxnErr)
     {
-        return new SSTableLister(onTxnErr);
+        return new SSTableLister(this.dataPaths, this.metadata, onTxnErr);
     }
 
-    public class SSTableLister
+    public SSTableLister sstableLister(File directory, OnTxnErr onTxnErr)
+    {
+        return new SSTableLister(new File[]{directory}, metadata, onTxnErr);
+    }
+
+    public static class SSTableLister
     {
         private final OnTxnErr onTxnErr;
         private boolean skipTemporary;
@@ -655,9 +696,13 @@ public class Directories
         private final Map<Descriptor, Set<Component>> components = new HashMap<>();
         private boolean filtered;
         private String snapshotName;
+        private final File[] dataPaths;
+        private final TableMetadata metadata;
 
-        private SSTableLister(OnTxnErr onTxnErr)
+        private SSTableLister(File[] dataPaths, TableMetadata metadata, OnTxnErr onTxnErr)
         {
+            this.dataPaths = dataPaths;
+            this.metadata = metadata;
             this.onTxnErr = onTxnErr;
         }
 
@@ -784,19 +829,19 @@ public class Directories
      * @return  Return a map of all snapshots to space being used
      * The pair for a snapshot has size on disk and true size.
      */
-    public Map<String, Pair<Long, Long>> getSnapshotDetails()
+    public Map<String, SnapshotSizeDetails> getSnapshotDetails()
     {
         List<File> snapshots = listSnapshots();
-        final Map<String, Pair<Long, Long>> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
+        final Map<String, SnapshotSizeDetails> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
         for (File snapshot : snapshots)
         {
             final long sizeOnDisk = FileUtils.folderSize(snapshot);
             final long trueSize = getTrueAllocatedSizeIn(snapshot);
-            Pair<Long, Long> spaceUsed = snapshotSpaceMap.get(snapshot.getName());
+            SnapshotSizeDetails spaceUsed = snapshotSpaceMap.get(snapshot.getName());
             if (spaceUsed == null)
-                spaceUsed =  Pair.create(sizeOnDisk,trueSize);
+                spaceUsed =  new SnapshotSizeDetails(sizeOnDisk,trueSize);
             else
-                spaceUsed = Pair.create(spaceUsed.left + sizeOnDisk, spaceUsed.right + trueSize);
+                spaceUsed = new SnapshotSizeDetails(spaceUsed.sizeOnDiskBytes + sizeOnDisk, spaceUsed.dataSizeBytes + trueSize);
             snapshotSpaceMap.put(snapshot.getName(), spaceUsed);
         }
         return snapshotSpaceMap;
@@ -1030,6 +1075,34 @@ public class Directories
                 && desc.ksname.equals(metadata.keyspace)
                 && desc.cfname.equals(metadata.name)
                 && !toSkip.contains(file);
+        }
+    }
+
+    public static class SnapshotSizeDetails
+    {
+        final long sizeOnDiskBytes;
+        final long dataSizeBytes;
+
+        private SnapshotSizeDetails(long sizeOnDiskBytes, long dataSizeBytes)
+        {
+            this.sizeOnDiskBytes = sizeOnDiskBytes;
+            this.dataSizeBytes = dataSizeBytes;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = (int) sizeOnDiskBytes ^ (int) (sizeOnDiskBytes >>> 32);
+            return 31 * (hashCode ^ (int) ((int) dataSizeBytes ^ (dataSizeBytes >>> 32)));
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof SnapshotSizeDetails))
+                return false;
+            SnapshotSizeDetails that = (SnapshotSizeDetails)o;
+            return sizeOnDiskBytes == that.sizeOnDiskBytes && dataSizeBytes == that.dataSizeBytes;
         }
     }
 }

@@ -30,9 +30,9 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
@@ -54,33 +54,47 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
 import io.netty.handler.ssl.SupportedCipherSuiteFilter;
+import io.netty.util.ReferenceCountUtil;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.EncryptionOptions;
 
 /**
  * A Factory for providing and setting up client {@link SSLSocket}s. Also provides
  * methods for creating both JSSE {@link SSLContext} instances as well as netty {@link SslContext} instances.
- *
+ * <p>
  * Netty {@link SslContext} instances are expensive to create (as well as to destroy) and consume a lof of resources
  * (especially direct memory), but instances can be reused across connections (assuming the SSL params are the same).
- * Hence we cache created instances in {@link #clientSslContext} and {@link #serverSslContext}.
+ * Hence we cache created instances in {@link #cachedSslContexts}.
  */
 public final class SSLFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(SSLFactory.class);
 
+    /**
+     * Indicator if a connection is shared with a client application ({@link ConnectionType#NATIVE_TRANSPORT})
+     * or another cassandra node  ({@link ConnectionType#INTERNODE_MESSAGING}).
+     */
+    public enum ConnectionType
+    {
+        NATIVE_TRANSPORT, INTERNODE_MESSAGING
+    }
+
+    /**
+     * Indicates if the process holds the inbound/listening end of the socket ({@link SocketType#SERVER})), or the
+     * outbound side ({@link SocketType#CLIENT}).
+     */
+    public enum SocketType
+    {
+        SERVER, CLIENT
+    }
+
     @VisibleForTesting
     static volatile boolean checkedExpiry = false;
 
     /**
-     * A cached reference of the {@link SslContext} for client-facing connections.
+     * Cached references of SSL Contexts
      */
-    private static final AtomicReference<SslContext> clientSslContext = new AtomicReference<>();
-
-    /**
-     * A cached reference of the {@link SslContext} for peer-to-peer, internode messaging connections.
-     */
-    private static final AtomicReference<SslContext> serverSslContext = new AtomicReference<>();
+    private static final ConcurrentHashMap<CacheKey, SslContext> cachedSslContexts = new ConcurrentHashMap<>();
 
     /**
      * List of files that trigger hot reloading of SSL certificates
@@ -107,21 +121,13 @@ public final class SSLFactory
      */
     private static class HotReloadableFile
     {
-        enum Type
-        {
-            SERVER,
-            CLIENT
-        }
-
         private final File file;
         private volatile long lastModTime;
-        private final Type certType;
 
-        HotReloadableFile(String path, Type type)
+        HotReloadableFile(String path)
         {
             file = new File(path);
             lastModTime = file.lastModified();
-            certType = type;
         }
 
         boolean shouldReload()
@@ -130,16 +136,6 @@ public final class SSLFactory
             boolean result = curModTime != lastModTime;
             lastModTime = curModTime;
             return result;
-        }
-
-        public boolean isServer()
-        {
-            return certType == Type.SERVER;
-        }
-
-        public boolean isClient()
-        {
-            return certType == Type.CLIENT;
         }
     }
 
@@ -172,7 +168,7 @@ public final class SSLFactory
         try (InputStream tsf = Files.newInputStream(Paths.get(options.truststore)))
         {
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(
-                options.algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : options.algorithm);
+            options.algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : options.algorithm);
             KeyStore ts = KeyStore.getInstance(options.store_type);
             ts.load(tsf, options.truststore_password.toCharArray());
             tmf.init(ts);
@@ -189,7 +185,7 @@ public final class SSLFactory
         try (InputStream ksf = Files.newInputStream(Paths.get(options.keystore)))
         {
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(
-                options.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : options.algorithm);
+            options.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : options.algorithm);
             KeyStore ks = KeyStore.getInstance(options.store_type);
             ks.load(ksf, options.keystore_password.toCharArray());
             if (!checkedExpiry)
@@ -233,26 +229,41 @@ public final class SSLFactory
     /**
      * get a netty {@link SslContext} instance
      */
-    public static SslContext getSslContext(EncryptionOptions options, boolean buildTruststore, boolean forServer) throws IOException
+    public static SslContext getSslContext(EncryptionOptions options, boolean buildTruststore, ConnectionType connectionType,
+                                           SocketType socketType) throws IOException
     {
-        return getSslContext(options, buildTruststore, forServer, OpenSsl.isAvailable());
+        return getSslContext(options, buildTruststore, connectionType, socketType, OpenSsl.isAvailable());
     }
 
     /**
      * Get a netty {@link SslContext} instance.
      */
     @VisibleForTesting
-    static SslContext getSslContext(EncryptionOptions options, boolean buildTruststore, boolean forServer, boolean useOpenSsl) throws IOException
+    static SslContext getSslContext(EncryptionOptions options, boolean buildTruststore, ConnectionType connectionType,
+                                    SocketType socketType, boolean useOpenSsl) throws IOException
     {
-
+        CacheKey key = new CacheKey(options, connectionType, socketType);
         SslContext sslContext;
 
-        if (forServer && (sslContext = serverSslContext.get()) != null)
+        sslContext = cachedSslContexts.get(key);
+        if (sslContext != null)
             return sslContext;
 
-        if (!forServer && (sslContext = clientSslContext.get()) != null)
+        sslContext = createNettySslContext(options, buildTruststore, connectionType, socketType, useOpenSsl);
+        SslContext previous = cachedSslContexts.putIfAbsent(key, sslContext);
+        if (previous == null)
             return sslContext;
 
+        ReferenceCountUtil.release(sslContext);
+        return previous;
+    }
+
+    /**
+     * Create a Netty {@link SslContext}
+     */
+    static SslContext createNettySslContext(EncryptionOptions options, boolean buildTruststore, ConnectionType connectionType,
+                                            SocketType socketType, boolean useOpenSsl) throws IOException
+    {
         /*
             There is a case where the netty/openssl combo might not support using KeyManagerFactory. specifically,
             I've seen this with the netty-tcnative dynamic openssl implementation. using the netty-tcnative static-boringssl
@@ -261,12 +272,9 @@ public final class SSLFactory
             {@link SslContextBuilder#forServer(File, File, String)}). However, we are not supporting that now to keep
             the config/yaml API simple.
          */
-        KeyManagerFactory kmf = null;
-        if (forServer || options.require_client_auth)
-            kmf = buildKeyManagerFactory(options);
-
+        KeyManagerFactory kmf = buildKeyManagerFactory(options);
         SslContextBuilder builder;
-        if (forServer)
+        if (socketType == SocketType.SERVER)
         {
             builder = SslContextBuilder.forServer(kmf);
             builder.clientAuth(options.require_client_auth ? ClientAuth.REQUIRE : ClientAuth.NONE);
@@ -286,19 +294,14 @@ public final class SSLFactory
         if (buildTruststore)
             builder.trustManager(buildTrustManagerFactory(options));
 
-        SslContext ctx = builder.build();
-        AtomicReference<SslContext> ref = forServer ? serverSslContext : clientSslContext;
-        if (ref.compareAndSet(null, ctx))
-            return ctx;
-
-        return ref.get();
+        return builder.build();
     }
 
     /**
      * Performs a lightweight check whether the certificate files have been refreshed.
      *
      * @throws IllegalStateException if {@link #initHotReloading(EncryptionOptions.ServerEncryptionOptions, EncryptionOptions, boolean)}
-     * is not called first
+     *                               is not called first
      */
     public static void checkCertFilesForHotReloading()
     {
@@ -307,16 +310,10 @@ public final class SSLFactory
 
         logger.trace("Checking whether certificates have been updated");
 
-        if (hotReloadableFiles.stream().anyMatch(f -> f.isServer() && f.shouldReload()))
+        if (hotReloadableFiles.stream().anyMatch(HotReloadableFile::shouldReload))
         {
-            logger.info("Server ssl certificates have been updated. Reseting the context for new peer connections.");
-            serverSslContext.set(null);
-        }
-
-        if (hotReloadableFiles.stream().anyMatch(f -> f.isClient() && f.shouldReload()))
-        {
-            logger.info("Client ssl certificates have been updated. Reseting the context for new client connections.");
-            clientSslContext.set(null);
+            logger.info("SSL certificates have been updated. Reseting the ssl contexts for new connections.");
+            cachedSslContexts.clear();
         }
     }
 
@@ -339,14 +336,14 @@ public final class SSLFactory
 
         if (serverEncryptionOptions.enabled)
         {
-            fileList.add(new HotReloadableFile(serverEncryptionOptions.keystore, HotReloadableFile.Type.SERVER));
-            fileList.add(new HotReloadableFile(serverEncryptionOptions.truststore, HotReloadableFile.Type.SERVER));
+            fileList.add(new HotReloadableFile(serverEncryptionOptions.keystore));
+            fileList.add(new HotReloadableFile(serverEncryptionOptions.truststore));
         }
 
         if (clientEncryptionOptions.enabled)
         {
-            fileList.add(new HotReloadableFile(clientEncryptionOptions.keystore, HotReloadableFile.Type.CLIENT));
-            fileList.add(new HotReloadableFile(clientEncryptionOptions.truststore, HotReloadableFile.Type.CLIENT));
+            fileList.add(new HotReloadableFile(clientEncryptionOptions.keystore));
+            fileList.add(new HotReloadableFile(clientEncryptionOptions.truststore));
         }
 
         hotReloadableFiles = ImmutableList.copyOf(fileList);
@@ -359,5 +356,38 @@ public final class SSLFactory
         }
 
         isHotReloadingInitialized = true;
+    }
+
+    static class CacheKey
+    {
+        private final EncryptionOptions encryptionOptions;
+        private final ConnectionType connectionType;
+        private final SocketType socketType;
+
+        public CacheKey(EncryptionOptions encryptionOptions, ConnectionType connectionType, SocketType socketType)
+        {
+            this.encryptionOptions = encryptionOptions;
+            this.connectionType = connectionType;
+            this.socketType = socketType;
+        }
+
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            CacheKey cacheKey = (CacheKey) o;
+            return (connectionType == cacheKey.connectionType &&
+                    socketType == cacheKey.socketType &&
+                    Objects.equals(encryptionOptions, cacheKey.encryptionOptions));
+        }
+
+        public int hashCode()
+        {
+            int result = 0;
+            result += 31 * connectionType.hashCode();
+            result += 31 * socketType.hashCode();
+            result += 31 * encryptionOptions.hashCode();
+            return result;
+        }
     }
 }

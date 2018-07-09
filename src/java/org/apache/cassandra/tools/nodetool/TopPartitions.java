@@ -19,9 +19,6 @@ package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.commons.lang3.StringUtils.join;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,14 +34,20 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.TableMetrics.Sampler;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 
-@Command(name = "toppartitions", description = "Sample and print the most active partitions for a given column family")
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
+
+@Command(name = "toppartitions", description = "Sample and print the most active partitions")
 public class TopPartitions extends NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> <cfname> <duration>", description = "The keyspace, column family name, and duration in milliseconds")
+    @Arguments(usage = "[keyspace table] [duration]", description = "The keyspace, table name, and duration in milliseconds")
     private List<String> args = new ArrayList<>();
     @Option(name = "-s", description = "Capacity of stream summary, closer to the actual cardinality of partitions will yield more accurate results (Default: 256)")
     private int size = 256;
@@ -55,63 +58,86 @@ public class TopPartitions extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(args.size() == 3, "toppartitions requires keyspace, column family name, and duration");
+        checkArgument(args.size() == 3 || args.size() == 1 || args.size() == 0, "Invalid arguments, either [keyspace table duration] or [duration] or no args");
         checkArgument(topCount < size, "TopK count (-k) option must be smaller then the summary capacity (-s)");
-        String keyspace = args.get(0);
-        String cfname = args.get(1);
-        Integer duration = Integer.valueOf(args.get(2));
+        String keyspace = null;
+        String table = null;
+        Integer duration = 10000;
+        if(args.size() == 3)
+        {
+            keyspace = args.get(0);
+            table = args.get(1);
+            duration = Integer.valueOf(args.get(2));
+        }
+        else if (args.size() == 1)
+        {
+            duration = Integer.valueOf(args.get(0));
+        }
         // generate the list of samplers
-        List<Sampler> targets = Lists.newArrayList();
+        List<String> targets = Lists.newArrayList();
         for (String s : samplers.split(","))
         {
             try
             {
-                targets.add(Sampler.valueOf(s.toUpperCase()));
+                targets.add(Sampler.valueOf(s.toUpperCase()).toString());
             } catch (Exception e)
             {
                 throw new IllegalArgumentException(s + " is not a valid sampler, choose one of: " + join(Sampler.values(), ", "));
             }
         }
 
-        Map<Sampler, CompositeData> results;
+        Map<String, Map<String, CompositeData>> results;
         try
         {
-            results = probe.getPartitionSample(keyspace, cfname, size, duration, topCount, targets);
+            if (keyspace == null)
+            {
+                results = probe.getPartitionSample(size, duration, topCount, targets);
+            }
+            else
+            {
+                results = probe.getPartitionSample(keyspace, table, size, duration, topCount, targets);
+            }
         } catch (OpenDataException e)
         {
             throw new RuntimeException(e);
         }
         boolean first = true;
-        for(Entry<Sampler, CompositeData> result : results.entrySet())
+        for(String sampler : targets)
         {
-            CompositeData sampling = result.getValue();
-            // weird casting for http://bugs.sun.com/view_bug.do?bug_id=6548436
-            List<CompositeData> topk = (List<CompositeData>) (Object) Lists.newArrayList(((TabularDataSupport) sampling.get("partitions")).values());
-            Collections.sort(topk, new Ordering<CompositeData>()
-            {
-                public int compare(CompositeData left, CompositeData right)
-                {
-                    return Long.compare((long) right.get("count"), (long) left.get("count"));
-                }
-            });
             if(!first)
                 System.out.println();
-            System.out.println(result.getKey().toString()+ " Sampler:");
-            System.out.printf("  Cardinality: ~%d (%d capacity)%n", sampling.get("cardinality"), size);
-            System.out.printf("  Top %d partitions:%n", topCount);
+            first = false;
+            System.out.printf(sampler + " Sampler Top %d partitions:%n", topCount);
+            TableBuilder out = new TableBuilder();
+            out.add("\t", "Table", "Partition", "Count", "+/-");
+            List<Pair<String, CompositeData>> topk = new ArrayList<>(topCount);
+            for (Entry<String, Map<String, CompositeData>> tableResult : results.entrySet())
+            {
+                String tableName = tableResult.getKey();
+                CompositeData sampling = tableResult.getValue().get(sampler);
+                // weird casting for http://bugs.sun.com/view_bug.do?bug_id=6548436
+                for(CompositeData cd : (List<CompositeData>) (Object) Lists.newArrayList(((TabularDataSupport) sampling.get("partitions")).values()))
+                {
+                    topk.add(Pair.create(tableName, cd));
+                }
+            }
+            Collections.sort(topk, new Ordering<Pair<String, CompositeData>>()
+            {
+                public int compare(Pair<String, CompositeData> left, Pair<String, CompositeData> right)
+                {
+                    return Long.compare((long) right.right.get("count"), (long) left.right.get("count"));
+                }
+            });
+            for (Pair<String, CompositeData> entry : topk.subList(0, Math.min(topk.size(), 10)))
+            {
+                CompositeData cd = entry.right;
+                out.add("\t", entry.left, cd.get("string").toString(), cd.get("count").toString(), cd.get("error").toString());
+            }
+            out.printTo(System.out);
             if (topk.size() == 0)
             {
-                System.out.println("\tNothing recorded during sampling period...");
-            } else
-            {
-                int offset = 0;
-                for (CompositeData entry : topk)
-                    offset = Math.max(offset, entry.get("string").toString().length());
-                System.out.printf("\t%-" + offset + "s%10s%10s%n", "Partition", "Count", "+/-");
-                for (CompositeData entry : topk)
-                    System.out.printf("\t%-" + offset + "s%10d%10d%n", entry.get("string").toString(), entry.get("count"), entry.get("error"));
+                System.out.println("\t Nothing recorded during sampling period...");
             }
-            first = false;
         }
     }
 }

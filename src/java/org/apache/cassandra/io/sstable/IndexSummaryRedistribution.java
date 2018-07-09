@@ -29,14 +29,15 @@ import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableId;
@@ -124,7 +125,8 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         total = 0;
         for (SSTableReader sstable : Iterables.concat(compacting, newSSTables))
             total += sstable.getIndexSummaryOffHeapSize();
-        logger.trace("Completed resizing of index summaries; current approximate memory used: {}",
+        if (logger.isTraceEnabled())
+            logger.trace("Completed resizing of index summaries; current approximate memory used: {}",
                      FBUtilities.prettyPrintMemory(total));
 
         return newSSTables;
@@ -176,12 +178,13 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             int numEntriesAtNewSamplingLevel = IndexSummaryBuilder.entriesAtSamplingLevel(newSamplingLevel, maxSummarySize);
             double effectiveIndexInterval = sstable.getEffectiveIndexInterval();
 
-            logger.trace("{} has {} reads/sec; ideal space for index summary: {} ({} entries); considering moving " +
-                    "from level {} ({} entries, {}) " +
-                    "to level {} ({} entries, {})",
-                    sstable.getFilename(), readsPerSec, FBUtilities.prettyPrintMemory(idealSpace), targetNumEntries,
-                    currentSamplingLevel, currentNumEntries, FBUtilities.prettyPrintMemory((long) (currentNumEntries * avgEntrySize)),
-                    newSamplingLevel, numEntriesAtNewSamplingLevel, FBUtilities.prettyPrintMemory((long) (numEntriesAtNewSamplingLevel * avgEntrySize)));
+            if (logger.isTraceEnabled())
+                logger.trace("{} has {} reads/sec; ideal space for index summary: {} ({} entries); considering moving " +
+                             "from level {} ({} entries, {}) " +
+                             "to level {} ({} entries, {})",
+                             sstable.getFilename(), readsPerSec, FBUtilities.prettyPrintMemory(idealSpace), targetNumEntries,
+                             currentSamplingLevel, currentNumEntries, FBUtilities.prettyPrintMemory((long) (currentNumEntries * avgEntrySize)),
+                             newSamplingLevel, numEntriesAtNewSamplingLevel, FBUtilities.prettyPrintMemory((long) (numEntriesAtNewSamplingLevel * avgEntrySize)));
 
             if (effectiveIndexInterval < minIndexInterval)
             {
@@ -298,7 +301,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
 
     public CompactionInfo getCompactionInfo()
     {
-        return new CompactionInfo(OperationType.INDEX_SUMMARY, (memoryPoolBytes - remainingSpace), memoryPoolBytes, "bytes", compactionId);
+        return new CompactionInfo(OperationType.INDEX_SUMMARY, (memoryPoolBytes - remainingSpace), memoryPoolBytes, Unit.BYTES, compactionId);
     }
 
     /** Utility class for sorting sstables by their read rates. */

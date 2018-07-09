@@ -19,14 +19,10 @@ package org.apache.cassandra.repair;
 
 import java.util.*;
 
-import com.google.common.base.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
@@ -103,21 +99,14 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     }
 
                     ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId);
+                    TableRepairManager repairManager = cfs.getRepairManager();
                     if (prs.isGlobal)
                     {
-                        prs.maybeSnapshot(cfs.metadata.id, desc.parentSessionId);
+                        repairManager.snapshot(desc.parentSessionId.toString(), prs.getRanges(), false);
                     }
                     else
                     {
-                        cfs.snapshot(desc.sessionId.toString(), new Predicate<SSTableReader>()
-                        {
-                            public boolean apply(SSTableReader sstable)
-                            {
-                                return sstable != null &&
-                                       !sstable.metadata().isIndex() && // exclude SSTables from 2i
-                                       new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(desc.ranges);
-                            }
-                        }, true, false); //ephemeral snapshot, if repair fails, it will be cleaned next startup
+                        repairManager.snapshot(desc.parentSessionId.toString(), desc.ranges, true);
                     }
                     logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from);
                     MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
@@ -138,7 +127,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     ActiveRepairService.instance.consistent.local.maybeSetRepairing(desc.parentSessionId);
                     Validator validator = new Validator(desc, message.from, validationRequest.nowInSec,
                                                         isIncremental(desc.parentSessionId), previewKind(desc.parentSessionId));
-                    CompactionManager.instance.submitValidation(store, validator);
+                    ValidationManager.instance.submitValidation(store, validator);
                     break;
 
                 case SYNC_REQUEST:

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,8 +30,6 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.reads.DigestResolver;
-import org.apache.cassandra.service.reads.ResponseResolver;
-import org.apache.cassandra.tracing.TraceState;
 
 public class TestableReadRepair implements ReadRepair, RepairListener
 {
@@ -67,25 +64,13 @@ public class TestableReadRepair implements ReadRepair, RepairListener
     }
 
     @Override
-    public void startForegroundRepair(DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints, List<InetAddressAndPort> contactedEndpoints, Consumer<PartitionIterator> resultConsumer)
+    public void startRepair(DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints, List<InetAddressAndPort> contactedEndpoints, Consumer<PartitionIterator> resultConsumer)
     {
 
     }
 
     @Override
-    public void awaitForegroundRepairFinish() throws ReadTimeoutException
-    {
-
-    }
-
-    @Override
-    public void maybeStartBackgroundRepair(ResponseResolver resolver)
-    {
-
-    }
-
-    @Override
-    public void backgroundDigestRepair(TraceState traceState)
+    public void awaitRepair() throws ReadTimeoutException
     {
 
     }

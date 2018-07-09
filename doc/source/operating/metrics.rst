@@ -95,6 +95,7 @@ ReadLatency                             Latency        Local read latency for th
 RangeLatency                            Latency        Local range scan latency for this table.
 WriteLatency                            Latency        Local write latency for this table.
 CoordinatorReadLatency                  Timer          Coordinator read latency for this table.
+CoordinatorWriteLatency                 Timer          Coordinator write latency for this table.
 CoordinatorScanLatency                  Timer          Coordinator range scan latency for this table.
 PendingFlushes                          Counter        Estimated number of flush tasks pending for this table.
 BytesFlushed                            Counter        Total number of bytes flushed since server [re]start.

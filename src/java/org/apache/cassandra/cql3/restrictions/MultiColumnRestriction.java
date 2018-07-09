@@ -28,7 +28,9 @@ import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.index.IndexRegistry;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
@@ -109,9 +111,9 @@ public abstract class MultiColumnRestriction implements SingleRestriction
     }
 
     @Override
-    public final boolean hasSupportingIndex(SecondaryIndexManager indexManager)
+    public final boolean hasSupportingIndex(IndexRegistry indexRegistry)
     {
-        for (Index index : indexManager.listIndexes())
+        for (Index index : indexRegistry.listIndexes())
            if (isSupportedBy(index))
                return true;
         return false;
@@ -184,7 +186,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public final void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexMananger, QueryOptions options)
+        public final void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             Tuples.Value t = ((Tuples.Value) value.bind(options));
             List<ByteBuffer> values = t.getElements();
@@ -242,7 +244,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
 
         @Override
         public final void addRowFilterTo(RowFilter filter,
-                                         SecondaryIndexManager indexManager,
+                                         IndexRegistry indexRegistry,
                                          QueryOptions options)
         {
             throw  invalidRequest("IN restrictions are not supported on indexed columns");
@@ -471,7 +473,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
 
         @Override
         public final void addRowFilterTo(RowFilter filter,
-                                         SecondaryIndexManager indexManager,
+                                         IndexRegistry indexRegistry,
                                          QueryOptions options)
         {
             throw invalidRequest("Multi-column slice restrictions cannot be used for filtering.");
@@ -559,9 +561,15 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public final void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexMananger, QueryOptions options)
+        public final void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             throw new UnsupportedOperationException("Secondary indexes do not support IS NOT NULL restrictions");
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

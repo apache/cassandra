@@ -235,7 +235,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         {
             Double score = scores.get(inet);
             if (score == null)
-                continue;
+                score = 0.0;
             subsnitchOrderedScores.add(score);
         }
 
@@ -447,5 +447,10 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
                 maxScore = score;
         }
         return maxScore;
+    }
+
+    public boolean validate(Set<String> datacenters, Set<String> racks)
+    {
+        return subsnitch.validate(datacenters, racks);
     }
 }

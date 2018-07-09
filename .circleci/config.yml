@@ -126,6 +126,14 @@ jobs:
                 exit ${RETURN}
             fi
           no_output_timeout: 15m
+      - run:
+          name: Run eclipse-warnings
+          command: |
+            export LANG=en_US.UTF-8
+            export JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF8"
+            export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+            cd ~/cassandra
+            ant eclipse-warnings
       - persist_to_workspace:
             root: /home/cassandra
             paths:

@@ -138,6 +138,16 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
             cell.digest(hasher);
     }
 
+    public boolean hasInvalidDeletions()
+    {
+        if (!complexDeletion.validate())
+            return true;
+        for (Cell cell : this)
+            if (cell.hasInvalidDeletions())
+                return true;
+        return false;
+    }
+
     public ComplexColumnData markCounterLocalToBeCleared()
     {
         return transformAndFilter(complexDeletion, Cell::markCounterLocalToBeCleared);
@@ -242,7 +252,10 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
         {
             this.column = column;
             this.complexDeletion = DeletionTime.LIVE; // default if writeComplexDeletion is not called
-            this.builder = BTree.builder(column.cellComparator());
+            if (builder == null)
+                builder = BTree.builder(column.cellComparator());
+            else
+                builder.reuse(column.cellComparator());
         }
 
         public void addComplexDeletion(DeletionTime complexDeletion)

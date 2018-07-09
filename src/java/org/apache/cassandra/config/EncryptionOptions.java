@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.config;
 
+import java.util.Arrays;
+import java.util.Objects;
+
 public class EncryptionOptions
 {
     public String keystore = "conf/.keystore";
@@ -52,6 +55,38 @@ public class EncryptionOptions
         require_endpoint_verification = options.require_endpoint_verification;
         enabled = options.enabled;
         optional = options.optional;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (o == this)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        EncryptionOptions opt = (EncryptionOptions)o;
+        return Objects.equals(keystore, opt.keystore) &&
+               Objects.equals(truststore, opt.truststore) &&
+               Objects.equals(algorithm, opt.algorithm) &&
+               Objects.equals(protocol, opt.protocol) &&
+               Arrays.equals(cipher_suites, opt.cipher_suites) &&
+               require_client_auth == opt.require_client_auth &&
+               require_endpoint_verification == opt.require_endpoint_verification;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result = 0;
+        result += 31 * (keystore == null ? 0 : keystore.hashCode());
+        result += 31 * (truststore == null ? 0 : truststore.hashCode());
+        result += 31 * (algorithm == null ? 0 : algorithm.hashCode());
+        result += 31 * (protocol == null ? 0 : protocol.hashCode());
+        result += 31 * Arrays.hashCode(cipher_suites);
+        result += 31 * Boolean.hashCode(require_client_auth);
+        result += 31 * Boolean.hashCode(require_endpoint_verification);
+        return result;
     }
 
     public static class ServerEncryptionOptions extends EncryptionOptions

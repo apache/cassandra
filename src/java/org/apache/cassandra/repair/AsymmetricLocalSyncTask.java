@@ -21,7 +21,6 @@ package org.apache.cassandra.repair;
 import java.util.List;
 import java.util.UUID;
 
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -49,7 +48,6 @@ public class AsymmetricLocalSyncTask extends AsymmetricSyncTask implements Strea
 
     public void startSync(List<Range<Token>> rangesToFetch)
     {
-        InetAddressAndPort preferred = SystemKeyspace.getPreferredIP(fetchFrom);
         StreamPlan plan = new StreamPlan(StreamOperation.REPAIR,
                                          1, false,
                                          pendingRepair,
@@ -57,7 +55,7 @@ public class AsymmetricLocalSyncTask extends AsymmetricSyncTask implements Strea
                           .listeners(this)
                           .flushBeforeTransfer(pendingRepair == null)
                           // request ranges from the remote node
-                          .requestRanges(fetchFrom, preferred, desc.keyspace, rangesToFetch, desc.columnFamily);
+                          .requestRanges(fetchFrom, desc.keyspace, rangesToFetch, desc.columnFamily);
         plan.execute();
 
     }

@@ -123,7 +123,6 @@ public final class SystemDistributedKeyspace
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
                                    .id(TableId.forSystemTable(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, table))
-                                   .dcLocalReadRepairChance(0.0)
                                    .comment(description)
                                    .build();
     }
