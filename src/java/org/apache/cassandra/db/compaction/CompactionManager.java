@@ -27,6 +27,7 @@ import javax.management.ObjectName;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
+import org.apache.commons.lang3.StringUtils;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
@@ -581,7 +582,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
 
                 if (!anticompactRanges.isEmpty())
-                    logger.info("SSTable {} ({}) will be anticompacted on ranges: {}", sstable, sstableBounds, String.join(", ", anticompactRanges));
+                    logger.info("SSTable {} ({}) will be anticompacted on ranges: {}", sstable, sstableBounds, StringUtils.join(anticompactRanges, ", "));
 
                 if (!shouldAnticompact)
                 {
