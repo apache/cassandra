@@ -33,9 +33,6 @@ import io.netty.channel.ChannelConfig;
 import io.netty.util.ReferenceCountUtil;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.RebufferingInputStream;
-import org.apache.cassandra.io.util.SequentialWriter;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FastByteOperations;
 
 public class RebufferingByteBufDataInputPlus extends RebufferingInputStream implements ReadableByteChannel
 {
@@ -267,9 +264,7 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
         long copied = 0; // number of bytes copied
         while (copied < len)
         {
-            int position = buffer.position();
-            int remaining = buffer.remaining();
-            if (remaining == 0)
+            if (buffer.remaining() == 0)
             {
                 try
                 {
@@ -279,23 +274,16 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
                 {
                     throw new EOFException("EOF after " + copied + " bytes out of " + len);
                 }
-                position = buffer.position();
-                remaining = buffer.remaining();
-                if (remaining == 0)
+                if (buffer.remaining() == 0)
                     return copied == 0 ? -1 : copied;
             }
 
-            int toCopy = (int) Math.min(len - copied, remaining);
-
-            ByteBuffer dup = buffer.duplicate();
-
-            if (toCopy < remaining)
-                dup.limit(dup.position() + toCopy);
-
-            int result = writer.applyToChannel(c -> c.write(dup));
-
-            buffer.position(position + result);
-            copied += result;
+            int originalLimit = buffer.limit();
+            int toCopy = (int) Math.min(len - copied, buffer.remaining());
+            buffer.limit(buffer.position() + toCopy);
+            int written = writer.applyToChannel(c -> c.write(buffer));
+            buffer.limit(originalLimit);
+            copied += written;
         }
 
         return copied;
