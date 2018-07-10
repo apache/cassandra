@@ -87,7 +87,8 @@ public class Component
             return idToType.getOrDefault(id, CUSTOM);
         }
 
-        static {
+        static
+        {
             Type[] values = Type.values();
             Map<Byte, Type> result = new HashMap<>(values.length);
             for (Type t : values)

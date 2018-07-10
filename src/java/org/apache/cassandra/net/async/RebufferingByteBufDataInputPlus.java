@@ -274,7 +274,8 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
                 try
                 {
                     reBuffer();
-                } catch (EOFException e)
+                }
+                catch (EOFException e)
                 {
                     throw new EOFException("EOF after " + copied + " bytes out of " + len);
                 }
