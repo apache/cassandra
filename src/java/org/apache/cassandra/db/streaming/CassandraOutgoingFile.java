@@ -29,8 +29,6 @@ import java.util.UUID;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -88,7 +86,9 @@ public class CassandraOutgoingFile implements OutgoingStream
                                                 sections,
                                                 sstable.compression ? sstable.getCompressionMetadata() : null,
                                                 keepSSTableLevel ? sstable.getSSTableLevel() : 0,
-                                                sstable.header.toComponent(), components, shouldStreamFullSSTable());
+                                                sstable.header.toComponent(), components, shouldStreamFullSSTable(),
+                                                sstable.first,
+                                                sstable.metadata().id);
     }
 
     private static List<ComponentInfo> getComponents(SSTableReader sstable)

@@ -50,7 +50,6 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.async.ByteBufDataInputPlus;
 import org.apache.cassandra.net.async.ByteBufDataOutputStreamPlus;
 import org.apache.cassandra.net.async.NonClosingDefaultFileRegion;
 import org.apache.cassandra.net.async.RebufferingByteBufDataInputPlus;
@@ -65,7 +64,6 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamSummary;
-import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -177,7 +175,12 @@ public class ZeroCopyStreamingBenchmark
 
         session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, serializedFile.readableBytes()));
 
-        CassandraStreamHeader header = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType, sstable.estimatedKeys(), Collections.emptyList(), (CompressionInfo) null, 0, sstable.header.toComponent(), getStreamableComponents(sstable), true);
+        CassandraStreamHeader header = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType,
+                                                                 sstable.estimatedKeys(), Collections.emptyList(),
+                                                                 (CompressionInfo) null, 0, sstable.header.toComponent(),
+                                                                 getStreamableComponents(sstable), true, sstable.first,
+                                                                 sstable.metadata().id);
+
 
         CassandraBlockStreamReader reader = new CassandraBlockStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), 0, 0, 0, null), header, session);
 

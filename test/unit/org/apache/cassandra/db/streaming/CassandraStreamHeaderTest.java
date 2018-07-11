@@ -46,7 +46,8 @@ public class CassandraStreamHeaderTest
                                                                  new ArrayList<>(),
                                                                  ((CompressionMetadata) null),
                                                                  0,
-                                                                 SerializationHeader.makeWithoutStats(metadata).toComponent());
+                                                                 SerializationHeader.makeWithoutStats(metadata).toComponent(),
+                                                                 metadata.id);
 
         SerializationUtils.assertSerializationCycle(header, CassandraStreamHeader.serializer);
     }
@@ -66,7 +67,7 @@ public class CassandraStreamHeaderTest
                                                                  ((CompressionMetadata) null),
                                                                  0,
                                                                  SerializationHeader.makeWithoutStats(metadata).toComponent(),
-                                                                 ci, true);
+                                                                 ci, true, null, metadata.id);
 
         SerializationUtils.assertSerializationCycle(header, CassandraStreamHeader.serializer);
     }

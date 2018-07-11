@@ -129,4 +129,19 @@ public class DiskBoundaries
     {
         return directories.get(getDiskIndex(sstable));
     }
+
+    public Directories.DataDirectory getCorrectDiskForKey(DecoratedKey key)
+    {
+        if (positions == null)
+            return null;
+
+        return directories.get(getDiskIndex(key));
+    }
+
+    private int getDiskIndex(DecoratedKey key)
+    {
+        int pos = Collections.binarySearch(positions, key);
+        assert pos < 0;
+        return -pos - 1;
+    }
 }

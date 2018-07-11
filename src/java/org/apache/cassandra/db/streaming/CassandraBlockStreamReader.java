@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -60,6 +61,7 @@ public class CassandraBlockStreamReader implements IStreamReader
     private final List<ComponentInfo> components;
     private final SSTableFormat.Type format;
     private final Version version;
+    private final DecoratedKey firstKey;
 
     public CassandraBlockStreamReader(StreamMessageHeader header, CassandraStreamHeader streamHeader, StreamSession session)
     {
@@ -79,6 +81,7 @@ public class CassandraBlockStreamReader implements IStreamReader
         this.format = streamHeader.format;
         this.fileSeqNum = header.sequenceNumber;
         this.version = streamHeader.version;
+        this.firstKey = streamHeader.firstKey;
     }
 
     /**
@@ -94,6 +97,7 @@ public class CassandraBlockStreamReader implements IStreamReader
         long totalSize = totalSize();
 
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
+
         if (cfs == null)
         {
             // schema was dropped during streaming
@@ -140,22 +144,33 @@ public class CassandraBlockStreamReader implements IStreamReader
         }
     }
 
-    @SuppressWarnings("resource")
-    protected BigTableBlockWriter createWriter(ColumnFamilyStore cfs, long totalSize, Set<Component> componentsToWrite) throws IOException
+    private File getDataDir(ColumnFamilyStore cfs, long totalSize) throws IOException
     {
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)
             throw new IOException(String.format("Insufficient disk space to store %s", FBUtilities.prettyPrintMemory(totalSize)));
 
-        StreamReceiver streamReceiver = session.getAggregator(tableId);
+        Directories.DataDirectory dataDir = cfs.getDiskBoundaries().getCorrectDiskForKey(firstKey);
 
+        File dir = cfs.getDirectories().getDirectoryForNewSSTables();
+
+        if (dataDir != null)
+            dir = dataDir.location;
+
+        return dir;
+    }
+
+    @SuppressWarnings("resource")
+    protected BigTableBlockWriter createWriter(ColumnFamilyStore cfs, long totalSize, Set<Component> componentsToWrite) throws IOException
+    {
+        File dataDir = getDataDir(cfs, totalSize);
+
+        StreamReceiver streamReceiver = session.getAggregator(tableId);
         assert streamReceiver instanceof CassandraStreamReceiver;
 
         LifecycleTransaction txn = CassandraStreamReceiver.fromReceiver(session.getAggregator(tableId)).getTransaction();
 
-        // TODO: Is this the correct directory?
-        File dir = cfs.getDirectories().getDirectoryForNewSSTables();
-        Descriptor desc = cfs.newSSTableDescriptor(dir, version, format);
+        Descriptor desc = cfs.newSSTableDescriptor(dataDir, version, format);
 
         logger.debug("[Table #{}] {} Components to write - {}", tableId, desc.filenameFor(Component.DATA), componentsToWrite);
         BigTableBlockWriter writer = new BigTableBlockWriter(desc, cfs.metadata, txn, componentsToWrite);
