@@ -150,12 +150,10 @@ public class CassandraBlockStreamReader implements IStreamReader
         if (localDir == null)
             throw new IOException(String.format("Insufficient disk space to store %s", FBUtilities.prettyPrintMemory(totalSize)));
 
-        Directories.DataDirectory dataDir = cfs.getDiskBoundaries().getCorrectDiskForKey(firstKey);
+        File dir = cfs.getDirectories().getLocationForDisk(cfs.getDiskBoundaries().getCorrectDiskForKey(firstKey));
 
-        File dir = cfs.getDirectories().getDirectoryForNewSSTables();
-
-//        if (dataDir != null)
-//            dir = dataDir.location;
+        if (dir == null)
+            return cfs.getDirectories().getDirectoryForNewSSTables();
 
         return dir;
     }
