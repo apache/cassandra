@@ -82,7 +82,7 @@ public class CassandraStreamHeaderTest
         @Override
         public CassandraStreamHeader deserialize(DataInputPlus in, int version) throws IOException
         {
-            return deserialize(in, version, Murmur3Partitioner.instance);
+            return deserialize(in, version, tableId -> Murmur3Partitioner.instance);
         }
     }
 }

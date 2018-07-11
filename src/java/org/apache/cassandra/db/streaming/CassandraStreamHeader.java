@@ -23,10 +23,11 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
@@ -248,11 +249,17 @@ public class CassandraStreamHeader
 
         public CassandraStreamHeader deserialize(DataInputPlus in, int version) throws IOException
         {
-            return deserialize(in, version, DatabaseDescriptor.getPartitioner());
+            return deserialize(in, version, tableId -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
+                if (cfs != null)
+                    return cfs.getPartitioner();
+
+                return null;
+            });
         }
 
         @VisibleForTesting
-        public CassandraStreamHeader deserialize(DataInputPlus in, int version, IPartitioner partitioner) throws IOException
+        public CassandraStreamHeader deserialize(DataInputPlus in, int version, Function<TableId, IPartitioner> partitionerMapper) throws IOException
         {
             Version sstableVersion = SSTableFormat.Type.current().info.getVersion(in.readUTF());
             SSTableFormat.Type format = SSTableFormat.Type.validate(in.readUTF());
@@ -281,6 +288,10 @@ public class CassandraStreamHeader
                     components.add(ComponentInfo.serializer.deserialize(in, version));
 
                 ByteBuffer keyBuf = ByteBufferUtil.readWithShortLength(in);
+
+                IPartitioner partitioner = partitionerMapper.apply(tableId);
+                if (partitioner == null)
+                    throw new IllegalArgumentException(String.format("Could not determine partitioner for tableId {}", tableId));
                 firstKey = partitioner.decorateKey(keyBuf);
             }
 
