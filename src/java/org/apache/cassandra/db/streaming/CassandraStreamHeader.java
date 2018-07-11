@@ -300,6 +300,7 @@ public class CassandraStreamHeader
 
             size += SerializationHeader.serializer.serializedSize(header.version, header.header);
 
+            size += header.tableId.serializedSize();
             size += TypeSizes.sizeof(header.fullStream);
 
             if (header.fullStream)
