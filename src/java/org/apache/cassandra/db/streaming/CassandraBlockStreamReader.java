@@ -154,8 +154,8 @@ public class CassandraBlockStreamReader implements IStreamReader
 
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
 
-        if (dataDir != null)
-            dir = dataDir.location;
+//        if (dataDir != null)
+//            dir = dataDir.location;
 
         return dir;
     }
