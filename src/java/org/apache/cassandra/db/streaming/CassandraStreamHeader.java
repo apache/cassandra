@@ -24,10 +24,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -208,7 +211,9 @@ public class CassandraStreamHeader
                             fullStream, firstKey, tableId);
     }
 
-    public static final IVersionedSerializer<CassandraStreamHeader> serializer = new IVersionedSerializer<CassandraStreamHeader>()
+    public static final IVersionedSerializer<CassandraStreamHeader> serializer = new CassandraStreamHeaderSerializer();
+
+    public static class CassandraStreamHeaderSerializer implements IVersionedSerializer<CassandraStreamHeader>
     {
         public void serialize(CassandraStreamHeader header, DataOutputPlus out, int version) throws IOException
         {
@@ -243,6 +248,12 @@ public class CassandraStreamHeader
 
         public CassandraStreamHeader deserialize(DataInputPlus in, int version) throws IOException
         {
+            return deserialize(in, version, DatabaseDescriptor.getPartitioner());
+        }
+
+        @VisibleForTesting
+        public CassandraStreamHeader deserialize(DataInputPlus in, int version, IPartitioner partitioner) throws IOException
+        {
             Version sstableVersion = SSTableFormat.Type.current().info.getVersion(in.readUTF());
             SSTableFormat.Type format = SSTableFormat.Type.validate(in.readUTF());
 
@@ -269,13 +280,8 @@ public class CassandraStreamHeader
                 for (int i=0; i < ncomp; i++)
                     components.add(ComponentInfo.serializer.deserialize(in, version));
 
-                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
-
-                if (cfs == null)
-                    throw new IllegalStateException(String.format("ColumnFamily for tableId {} does not exist", tableId));
-
                 ByteBuffer keyBuf = ByteBufferUtil.readWithShortLength(in);
-                firstKey = cfs.getPartitioner().decorateKey(keyBuf);
+                firstKey = partitioner.decorateKey(keyBuf);
             }
 
             return new CassandraStreamHeader(sstableVersion, format, estimatedKeys, sections, compressionInfo,
