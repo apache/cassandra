@@ -53,7 +53,13 @@ public class StreamReceiveTask extends StreamTask
     public StreamReceiveTask(StreamSession session, TableId tableId, int totalStreams, long totalSize)
     {
         super(session, tableId);
-        this.receiver = ColumnFamilyStore.getIfExists(tableId).getStreamManager().createStreamReceiver(session, totalStreams);
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
+        if (cfs != null) {
+        	this.receiver = cfs.getStreamManager().createStreamReceiver(session, 
+        			totalStreams);
+        }else {
+        	this.receiver = null;
+        }
         this.totalStreams = totalStreams;
         this.totalSize = totalSize;
     }
