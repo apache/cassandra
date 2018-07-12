@@ -213,7 +213,7 @@ public class ZeroCopyStreamingBenchmark
 
             public int write(ByteBuffer src) throws IOException
             {
-                int size = src.limit();
+                int size = src.remaining();
                 serializedFile.writeBytes(src);
                 return size;
             }
