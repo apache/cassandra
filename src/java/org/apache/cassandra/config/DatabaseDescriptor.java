@@ -2269,8 +2269,8 @@ public class DatabaseDescriptor
         }
         else
         {
-            return Boolean.valueOf(System.getProperty(Config.PROPERTY_PREFIX + "streaming.enableFullSSTableTransfers",
-                                                      Boolean.toString(conf.streaming_full_sstable_transfers_enabled)));
+            return Boolean.valueOf(System.getProperty(Config.PROPERTY_PREFIX + "streaming.enableZeroCopySSTableTransfers",
+                                                      Boolean.toString(conf.streaming_zerocopy_sstables_enabled)));
         }
     }
 

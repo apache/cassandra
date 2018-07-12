@@ -784,6 +784,15 @@ compaction_throughput_mb_per_sec: 16
 # between the sstables, reducing page cache churn and keeping hot rows hot
 sstable_preemptive_open_interval_in_mb: 50
 
+# When enabled, permits Cassandra to zero copy eligible SSTables between
+# nodes. This speeds up the network transfer significantly subject to
+# throttling specified by stream_throughput_outbound_megabits_per_sec.
+# Enabling this will reduce the GC pressure on sending and receiving node.
+# When unset, the default is enabled. While this feature tries to keep the
+# disks balanced, it cannot guarantee it. This feature will be automatically
+# disabled if internode encryption is enabled.
+# streaming_zerocopy_sstables_enabled: false
+
 # Throttles all outbound streaming file transfers on this node to the
 # given total throughput in Mbps. This is necessary because Cassandra does
 # mostly sequential IO when streaming data during bootstrap or repair, which
