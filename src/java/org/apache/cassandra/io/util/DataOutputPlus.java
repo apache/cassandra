@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
-import com.google.common.base.Function;
-
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 /**

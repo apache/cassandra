@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
