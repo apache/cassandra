@@ -19,58 +19,51 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.ByteArrayInputStream;
-import java.io.DataInput;
-import java.io.DataInputStream;
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
-import javax.xml.crypto.Data;
-
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import io.netty.buffer.Unpooled;
+import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.lifecycle.Tracker;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.net.async.RebufferingByteBufDataInputPlus;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.io.util.DataInputPlus.*;
-import static org.junit.Assert.*;
+import static org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 public class BigTableBlockWriterTest
 {
@@ -80,7 +73,9 @@ public class BigTableBlockWriterTest
     public static final String CF_INDEXED = "Indexed1";
     public static final String CF_STANDARDLOWINDEXINTERVAL = "StandardLowIndexInterval";
 
-    private static ColumnFamilyStore cfs;
+    public static SSTableReader sstable;
+    public static ColumnFamilyStore store;
+    private static int expectedRowCount;
 
     @BeforeClass
     public static void defineSchema() throws Exception
@@ -95,17 +90,13 @@ public class BigTableBlockWriterTest
                                                 .minIndexInterval(8)
                                                 .maxIndexInterval(256)
                                                 .caching(CachingParams.CACHE_NOTHING));
-    }
 
-    @Test
-    public void writeDataFile()
-    {
         String ks = KEYSPACE1;
         String cf = "Standard1";
 
         // clear and create just one sstable for this test
         Keyspace keyspace = Keyspace.open(ks);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore(cf);
+        store = keyspace.getColumnFamilyStore(cf);
         store.clearUnsafe();
         store.disableAutoCompaction();
 
@@ -126,10 +117,33 @@ public class BigTableBlockWriterTest
             .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
             .applyUnsafe();
+            expectedRowCount++;
         }
         store.forceBlockingFlush();
 
-        SSTableReader sstable = store.getLiveSSTables().iterator().next();
+        sstable = store.getLiveSSTables().iterator().next();
+    }
+
+    @Test
+    public void writeDataFile_DataInputPlus()
+    {
+        writeDataTestCycle(buffer -> new DataInputStreamPlus(new ByteArrayInputStream(buffer.array())));
+    }
+
+    @Test
+    public void writeDataFile_RebufferingByteBufDataInputPlus()
+    {
+        writeDataTestCycle(buffer -> {
+            EmbeddedChannel channel = new EmbeddedChannel();
+            RebufferingByteBufDataInputPlus inputPlus = new RebufferingByteBufDataInputPlus(1 << 10, 1 << 20, channel.config());
+            inputPlus.append(Unpooled.wrappedBuffer(buffer));
+            return inputPlus;
+        });
+    }
+
+
+    private void writeDataTestCycle(Function<ByteBuffer, DataInputPlus> bufferMapper)
+    {
         File dir = store.getDirectories().getDirectoryForNewSSTables();
         Descriptor desc = store.newSSTableDescriptor(dir);
         TableMetadataRef metadata = Schema.instance.getTableMetadataRef(desc);
@@ -144,53 +158,54 @@ public class BigTableBlockWriterTest
         {
             if (Files.exists(Paths.get(desc.filenameFor(component))))
             {
-                Pair<DataInputStreamPlus, Long> pair = getSSTableComponentData(sstable, component);
+                Pair<DataInputPlus, Long> pair = getSSTableComponentData(sstable, component, bufferMapper);
+
                 btbw.writeComponent(component.type, pair.left, pair.right);
             }
         }
 
         Collection<SSTableReader> readers = btbw.finish(true);
 
-        for (SSTableReader reader : readers)
-        {
-            System.out.printf("File: %s Generation: %s\n", reader.descriptor.filenameFor(Component.DATA),
-                              reader.descriptor.generation);
-        }
-
         SSTableReader reader = readers.toArray(new SSTableReader[0])[0];
 
         assertNotEquals(sstable.getFilename(), reader.getFilename());
         assertEquals(sstable.estimatedKeys(), reader.estimatedKeys());
         assertEquals(sstable.isPendingRepair(), reader.isPendingRepair());
+
+        assertRowCount(expectedRowCount);
     }
 
-    private Pair<DataInputStreamPlus, Long> getSSTableComponentData(SSTableReader sstable, Component component)
+    private void assertRowCount(int expected)
+    {
+        int count = 0;
+        for (int i = 0; i < store.metadata().params.minIndexInterval; i++)
+        {
+            DecoratedKey dk = Util.dk(String.valueOf(i));
+            UnfilteredRowIterator rowIter = sstable.iterator(dk,
+                                                             Slices.ALL,
+                                                             ColumnFilter.all(store.metadata()),
+                                                             false,
+                                                             SSTableReadsListener.NOOP_LISTENER);
+            while (rowIter.hasNext())
+            {
+                rowIter.next();
+                count++;
+            }
+        }
+        assertEquals(expected, count);
+    }
+
+    private Pair<DataInputPlus, Long> getSSTableComponentData(SSTableReader sstable, Component component,
+                                                              Function<ByteBuffer, DataInputPlus> bufferMapper)
     {
         FileHandle componentFile = new FileHandle.Builder(sstable.descriptor.filenameFor(component))
-                               .bufferSize(1024).complete();
-
+                                   .bufferSize(1024).complete();
         ByteBuffer buffer = ByteBuffer.allocate((int) componentFile.channel.size());
         componentFile.channel.read(buffer, 0);
-        DataInputStreamPlus is = new DataInputStreamPlus(new ByteArrayInputStream(buffer.array()));
+        buffer.flip();
 
-        return Pair.create(is, componentFile.channel.size());
-    }
+        DataInputPlus inputPlus = bufferMapper.apply(buffer);
 
-    public static ByteBuffer random(int i, int size)
-    {
-        byte[] bytes = new byte[size + 4];
-        ThreadLocalRandom.current().nextBytes(bytes);
-        ByteBuffer r = ByteBuffer.wrap(bytes);
-        r.putInt(0, i);
-        return r;
-    }
-
-    public static void truncate(ColumnFamilyStore cfs)
-    {
-        cfs.truncateBlocking();
-        LifecycleTransaction.waitForDeletions();
-        Uninterruptibles.sleepUninterruptibly(10L, TimeUnit.MILLISECONDS);
-        assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
-        assertEquals(0, cfs.metric.totalDiskSpaceUsed.getCount());
+        return Pair.create(inputPlus, componentFile.channel.size());
     }
 }
