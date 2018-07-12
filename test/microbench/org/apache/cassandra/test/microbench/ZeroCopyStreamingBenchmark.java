@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -30,10 +31,10 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.DefaultFileRegion;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -44,14 +45,17 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.streaming.CassandraBlockStreamReader;
 import org.apache.cassandra.db.streaming.CassandraBlockStreamWriter;
 import org.apache.cassandra.db.streaming.CassandraStreamHeader;
+import org.apache.cassandra.db.streaming.CassandraStreamReader;
+import org.apache.cassandra.db.streaming.CassandraStreamWriter;
 import org.apache.cassandra.db.streaming.ComponentInfo;
 import org.apache.cassandra.db.streaming.CompressionInfo;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.async.ByteBufDataOutputStreamPlus;
-import org.apache.cassandra.net.async.NonClosingDefaultFileRegion;
 import org.apache.cassandra.net.async.RebufferingByteBufDataInputPlus;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -81,12 +85,18 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import static org.apache.cassandra.db.streaming.CassandraOutgoingFile.STREAM_COMPONENTS;
 
+/**
+ * Please ensure that this benchmark is run with stream_throughput_outbound_megabits_per_sec set to a
+ * really high value otherwise, throttling will kick in and the results will not be meaningful.
+ */
 @Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 10, time = 1, timeUnit = TimeUnit.SECONDS)
 @Fork(value = 1)
 @Threads(1)
 public class ZeroCopyStreamingBenchmark
 {
+    static final int STREAM_SIZE = 50 * 1024 * 1024;
+
     @State(Scope.Thread)
     public static class BenchmarkState
     {
@@ -98,9 +108,69 @@ public class ZeroCopyStreamingBenchmark
         private static SSTableReader sstable;
         private static ColumnFamilyStore store;
         private StreamSession session;
+        private CassandraBlockStreamWriter blockStreamWriter;
+        private ByteBuf serializedBlockStream;
+        private InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
+        private CassandraBlockStreamReader blockStreamReader;
+        private CassandraStreamWriter partialStreamWriter;
+        private CassandraStreamReader partialStreamReader;
+        private ByteBuf serializedPartialStream;
 
         @Setup
-        public void defineSchemaAndPrepareSSTable()
+        public void setupBenchmark() throws IOException
+        {
+            Keyspace keyspace = setupSchemaAndKeySpace();
+            store = keyspace.getColumnFamilyStore("Standard1");
+            generateData();
+
+            sstable = store.getLiveSSTables().iterator().next();
+            session = setupStreamingSessionForTest();
+            blockStreamWriter = new CassandraBlockStreamWriter(sstable, session, getStreamableComponents(sstable));
+
+            generateSerializedBlockStream();
+
+            CapturingNettyChannel blockStreamCaptureChannel = new CapturingNettyChannel(STREAM_SIZE);
+            ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(session, blockStreamCaptureChannel, 1024 * 1024);
+            blockStreamWriter.write(out);
+            serializedBlockStream = blockStreamCaptureChannel.getSerializedStream();
+            out.close();
+
+
+            session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, serializedBlockStream.readableBytes()));
+
+            CassandraStreamHeader blockStreamHeader = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType,
+                                                                                sstable.estimatedKeys(), Collections.emptyList(),
+                                                                                (CompressionInfo) null, 0, sstable.header.toComponent(),
+                                                                                getStreamableComponents(sstable), true, sstable.first,
+                                                                                sstable.metadata().id);
+
+
+            blockStreamReader = new CassandraBlockStreamReader(new StreamMessageHeader(sstable.metadata().id,
+                                                                                       peer, session.planId(),
+                                                                                       0, 0, 0,
+                                                                                       null), blockStreamHeader, session);
+
+            List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(sstable.first.minValue().getToken(), sstable.last.getToken()));
+            partialStreamWriter = new CassandraStreamWriter(sstable, sstable.getPositionsForRanges(requestedRanges), session);
+
+            CapturingNettyChannel partialStreamChannel = new CapturingNettyChannel(STREAM_SIZE);
+            partialStreamWriter.write(ByteBufDataOutputStreamPlus.create(session, partialStreamChannel, 1024 * 1024));
+            serializedPartialStream = partialStreamChannel.getSerializedStream();
+
+            CassandraStreamHeader partialStreamHeader = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType,
+                                                                                  sstable.estimatedKeys(), sstable.getPositionsForRanges(requestedRanges),
+                                                                                  (CompressionInfo) null, 0, sstable.header.toComponent(),
+                                                                                  getStreamableComponents(sstable), false, sstable.first,
+                                                                                  sstable.metadata().id);
+
+            partialStreamReader = new CassandraStreamReader(new StreamMessageHeader(sstable.metadata().id,
+                                                                                    peer, session.planId(),
+                                                                                    0, 0, 0,
+                                                                                    null),
+                                                            partialStreamHeader, session);
+        }
+
+        private Keyspace setupSchemaAndKeySpace()
         {
             SchemaLoader.prepareServer();
             SchemaLoader.createKeyspace(KEYSPACE,
@@ -112,9 +182,11 @@ public class ZeroCopyStreamingBenchmark
                                                     .maxIndexInterval(256)
                                                     .caching(CachingParams.CACHE_NOTHING));
 
-            Keyspace keyspace = Keyspace.open(KEYSPACE);
-            store = keyspace.getColumnFamilyStore("Standard1");
+            return Keyspace.open(KEYSPACE);
+        }
 
+        private void generateData()
+        {
             // insert data and compact to a single sstable
             CompactionManager.instance.disableAutoCompaction();
             for (int j = 0; j < 1_000_000; j++)
@@ -127,9 +199,10 @@ public class ZeroCopyStreamingBenchmark
             }
             store.forceBlockingFlush();
             CompactionManager.instance.performMaximal(store, false);
+        }
 
-            sstable = store.getLiveSSTables().iterator().next();
-            session = setupStreamingSessionForTest();
+        private void generateSerializedBlockStream() throws IOException
+        {
         }
 
         @TearDown
@@ -153,41 +226,52 @@ public class ZeroCopyStreamingBenchmark
         }
     }
 
-    static final int STREAM_SIZE = 80 * 1024 * 1024;
-
+    @Benchmark
+    @BenchmarkMode(Mode.Throughput)
+    public void blockStreamWriter(BenchmarkState state) throws Exception
+    {
+        EmbeddedChannel channel = createMockNettyChannel();
+        ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(state.session, channel, 1024 * 1024);
+        state.blockStreamWriter.write(out);
+        out.close();
+        channel.finishAndReleaseAll();
+    }
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
-    public void stream(BenchmarkState state) throws Exception
+    public void blockStreamReader(BenchmarkState state) throws Exception
     {
-        StreamSession session = state.session;
-        SSTableReader sstable = state.sstable;
-        InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
-
-        CassandraBlockStreamWriter writer = new CassandraBlockStreamWriter(sstable, session, getStreamableComponents(sstable));
-
-        // This is needed as Netty releases the ByteBuffers as soon as the channel is flushed
-        ByteBuf serializedFile = Unpooled.buffer(STREAM_SIZE);
-        EmbeddedChannel channel = createMockNettyChannel(serializedFile);
-        ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(session, channel, 1024 * 1024);
-
-        writer.write(out);
-
-        session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, serializedFile.readableBytes()));
-
-        CassandraStreamHeader header = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType,
-                                                                 sstable.estimatedKeys(), Collections.emptyList(),
-                                                                 (CompressionInfo) null, 0, sstable.header.toComponent(),
-                                                                 getStreamableComponents(sstable), true, sstable.first,
-                                                                 sstable.metadata().id);
-
-
-        CassandraBlockStreamReader reader = new CassandraBlockStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), 0, 0, 0, null), header, session);
-
+        EmbeddedChannel channel = createMockNettyChannel();
         RebufferingByteBufDataInputPlus in = new RebufferingByteBufDataInputPlus(STREAM_SIZE, STREAM_SIZE, channel.config());
-        in.append(serializedFile);
-        SSTableMultiWriter sstableWriter = reader.read(in);
+        in.append(state.serializedBlockStream.retainedDuplicate());
+        SSTableMultiWriter sstableWriter = state.blockStreamReader.read(in);
         Collection<SSTableReader> newSstables = sstableWriter.finished();
+        in.close();
+        channel.finishAndReleaseAll();
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.Throughput)
+    public void partialStreamWriter(BenchmarkState state) throws Exception
+    {
+        EmbeddedChannel channel = createMockNettyChannel();
+        ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(state.session, channel, 1024 * 1024);
+        state.partialStreamWriter.write(out);
+        out.close();
+        channel.finishAndReleaseAll();
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.Throughput)
+    public void partialStreamReader(BenchmarkState state) throws Exception
+    {
+        EmbeddedChannel channel = createMockNettyChannel();
+        RebufferingByteBufDataInputPlus in = new RebufferingByteBufDataInputPlus(STREAM_SIZE, STREAM_SIZE, channel.config());
+        in.append(state.serializedPartialStream.retainedDuplicate());
+        SSTableMultiWriter sstableWriter = state.partialStreamReader.read(in);
+        Collection<SSTableReader> newSstables = sstableWriter.finished();
+        in.close();
+        channel.finishAndReleaseAll();
     }
 
     private static List<ComponentInfo> getStreamableComponents(SSTableReader sstable)
@@ -205,42 +289,57 @@ public class ZeroCopyStreamingBenchmark
         return result;
     }
 
-    private EmbeddedChannel createMockNettyChannel(ByteBuf serializedFile) throws Exception
+    private EmbeddedChannel createMockNettyChannel()
     {
-        WritableByteChannel wbc = new WritableByteChannel()
-        {
-            private boolean isOpen = true;
+        EmbeddedChannel channel = new EmbeddedChannel();
+        channel.config().setWriteBufferHighWaterMark(STREAM_SIZE); // avoid blocking
+        return channel;
+    }
 
+    private static class CapturingNettyChannel extends EmbeddedChannel
+    {
+        private final ByteBuf serializedStream;
+        private final WritableByteChannel proxyWBC = new WritableByteChannel()
+        {
             public int write(ByteBuffer src) throws IOException
             {
-                int size = src.remaining();
-                serializedFile.writeBytes(src);
-                return size;
+                int rem = src.remaining();
+                serializedStream.writeBytes(src);
+                return rem;
             }
 
             public boolean isOpen()
             {
-                return isOpen;
+                return true;
             }
 
             public void close() throws IOException
             {
-                isOpen = false;
             }
         };
 
-        EmbeddedChannel channel = new EmbeddedChannel(new ChannelOutboundHandlerAdapter()
+        public CapturingNettyChannel(int capacity)
         {
-            @Override
-            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
+            this.serializedStream = alloc().buffer(capacity);
+            this.pipeline().addLast(new ChannelOutboundHandlerAdapter()
             {
-                ((NonClosingDefaultFileRegion) msg).transferTo(wbc, 0);
-                super.write(ctx, msg, promise);
-            }
-        });
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
+                {
+                    if (msg instanceof ByteBuf)
+                        serializedStream.writeBytes((ByteBuf) msg);
+                    else if (msg instanceof ByteBuffer)
+                        serializedStream.writeBytes((ByteBuffer) msg);
+                    else if (msg instanceof DefaultFileRegion)
+                        ((DefaultFileRegion) msg).transferTo(proxyWBC, 0);
+                }
+            });
+            config().setWriteBufferHighWaterMark(capacity);
+        }
 
-        channel.config().setWriteBufferHighWaterMark(STREAM_SIZE); // avoid rate limiting
-
-        return channel;
+        public ByteBuf getSerializedStream()
+        {
+            return serializedStream.copy();
+        }
     }
 }
