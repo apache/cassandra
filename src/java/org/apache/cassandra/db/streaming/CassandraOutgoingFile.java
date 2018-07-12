@@ -154,7 +154,6 @@ public class CassandraOutgoingFile implements OutgoingStream
         out.flush();
 
         IStreamWriter writer;
-
         if (shouldStreamFullSSTable())
         {
             writer = new CassandraBlockStreamWriter(sstable, session, components);
@@ -166,7 +165,6 @@ public class CassandraOutgoingFile implements OutgoingStream
                      new CompressedCassandraStreamWriter(sstable, header.sections,
                                                          header.compressionInfo, session);
         }
-
         writer.write(out);
     }
 

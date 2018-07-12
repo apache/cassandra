@@ -60,11 +60,9 @@ public class CassandraIncomingFile implements IncomingStream
     public synchronized void read(DataInputPlus in, int version) throws IOException
     {
         CassandraStreamHeader streamHeader = CassandraStreamHeader.serializer.deserialize(in, version);
-
         logger.debug("Incoming stream fullStream={} components={}", streamHeader.fullStream, streamHeader.components);
 
         IStreamReader reader;
-
         if (streamHeader.fullStream)
         {
             reader = new CassandraBlockStreamReader(header, streamHeader, session);
@@ -75,7 +73,6 @@ public class CassandraIncomingFile implements IncomingStream
                      ? new CassandraStreamReader(header, streamHeader, session)
                      : new CompressedCassandraStreamReader(header, streamHeader, session);
         }
-
         size = streamHeader.size();
         sstable = reader.read(in);
     }

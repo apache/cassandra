@@ -89,7 +89,6 @@ public class CassandraBlockStreamReader implements IStreamReader
      * @return SSTable transferred
      * @throws IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
      */
-
     @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
     @Override
     public SSTableMultiWriter read(DataInputPlus inputPlus) throws IOException

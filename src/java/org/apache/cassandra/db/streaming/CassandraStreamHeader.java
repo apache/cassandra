@@ -66,7 +66,6 @@ public class CassandraStreamHeader
     /* first token of the sstable required for faster streaming */
     public final DecoratedKey firstKey;
     public final TableId tableId;
-
     public final List<ComponentInfo> components;
 
     /* cached size value */
@@ -184,6 +183,8 @@ public class CassandraStreamHeader
                ", sstableLevel=" + sstableLevel +
                ", header=" + header +
                ", fullStream=" + fullStream +
+               ", firstKey=" + firstKey +
+               ", tableId=" + tableId +
                ", components=" + components +
                '}';
     }

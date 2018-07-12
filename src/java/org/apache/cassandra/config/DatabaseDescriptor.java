@@ -2264,7 +2264,7 @@ public class DatabaseDescriptor
     {
         if (conf.server_encryption_options.enabled || conf.server_encryption_options.optional)
         {
-            logger.debug("Internode encryption enabled. Disabling zero copy ssl table transfers for streaming.");
+            logger.debug("Internode encryption enabled. Disabling zero copy SSTable transfers for streaming.");
             return false;
         }
         else
