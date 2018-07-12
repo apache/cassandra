@@ -25,8 +25,10 @@ import io.netty.channel.DefaultFileRegion;
 
 /**
  * Netty's DefaultFileRegion closes the underlying FileChannel as soon as
- * the refCnt() for the region closes, this is an implementation of the DFR
- * that doesn't close the FileChannel.
+ * the refCnt() for the region drops to zero, this is an implementation of
+ * the DefaultFileRegion that doesn't close the FileChannel.
+ *
+ * See {@link ByteBufDataOutputStreamPlus} for its usage.
  */
 public class NonClosingDefaultFileRegion extends DefaultFileRegion
 {
