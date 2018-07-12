@@ -176,7 +176,8 @@ public class CassandraOutgoingFile implements OutgoingStream
         return isFullSSTableTransfersEnabled && isFullyContained;
     }
 
-    private boolean fullyContainedIn(List<Range<Token>> requestedRanges, SSTableReader sstable)
+    @VisibleForTesting
+    public boolean fullyContainedIn(List<Range<Token>> requestedRanges, SSTableReader sstable)
     {
         if (requestedRanges == null)
             return false;
@@ -185,10 +186,6 @@ public class CassandraOutgoingFile implements OutgoingStream
             while (iter.hasNext())
             {
                 DecoratedKey key = iter.next();
-                // todo: this can be made more efficient by sorting and normalizing the ranges (they might already be?)
-                // todo: then we can use the fact that the tokens we get from the sstable are always increasing, se we don't need
-                // todo: to compare all tokens to all ranges. (see Verifier.RangeOwnHelper in current trunk for example)
-
                 boolean foundFlag = false;
                 for (Range<Token> r : requestedRanges)
                 {

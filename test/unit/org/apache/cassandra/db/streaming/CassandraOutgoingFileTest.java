@@ -25,20 +25,21 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class CassandraOutgoingFileTest
@@ -49,6 +50,7 @@ public class CassandraOutgoingFileTest
     public static final String CF_STANDARDLOWINDEXINTERVAL = "StandardLowIndexInterval";
 
     private static SSTableReader sstable;
+    private static ColumnFamilyStore store;
 
     @BeforeClass
     public static void defineSchemaAndPrepareSSTable()
@@ -64,7 +66,7 @@ public class CassandraOutgoingFileTest
                                                 .caching(CachingParams.CACHE_NOTHING));
 
         Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
+        store = keyspace.getColumnFamilyStore("Standard1");
 
         // insert data and compact to a single sstable
         CompactionManager.instance.disableAutoCompaction();
@@ -83,20 +85,61 @@ public class CassandraOutgoingFileTest
     }
 
     @Test
-    public void testCompleteRangeTriggersFullStreaming()
+    public void validateFullyContainedIn_SingleContiguousRange_Succeeds()
     {
-        Token minToken = sstable.first.getToken().minValue();
-        Token maxToken = sstable.last.getToken();
+        List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(store.getPartitioner().getMinimumToken(), sstable.last.getToken()));
 
-        Range<Token> requestedRange = new Range<>(minToken, maxToken);
+        CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(),
+                                                              sstable.getPositionsForRanges(requestedRanges),
+                                                              requestedRanges, sstable.estimatedKeys());
 
-        Range.normalize(Arrays.asList(requestedRange));
+        assertTrue(cof.fullyContainedIn(requestedRanges, sstable));
+    }
 
-        List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(Arrays.asList(requestedRange));
+    @Test
+    public void validateFullyContainedIn_PartialOverlap_Fails()
+    {
+        List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(store.getPartitioner().getMinimumToken(), getTokenAtIndex(2)));
 
-        CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(), sections,
-                                                              Arrays.asList(requestedRange), sstable.estimatedKeys());
+        CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(),
+                                                              sstable.getPositionsForRanges(requestedRanges),
+                                                              requestedRanges, sstable.estimatedKeys());
 
-        assertTrue(cof.shouldStreamFullSSTable());
+        assertFalse(cof.fullyContainedIn(requestedRanges, sstable));
+    }
+
+    @Test
+    public void validateFullyContainedIn_SplitRange_Succeeds()
+    {
+        List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(store.getPartitioner().getMinimumToken(), getTokenAtIndex(4)),
+                                                         new Range<>(getTokenAtIndex(2), getTokenAtIndex(6)),
+                                                         new Range<>(getTokenAtIndex(5), sstable.last.getToken()));
+
+        CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(),
+                                                              sstable.getPositionsForRanges(requestedRanges),
+                                                              requestedRanges, sstable.estimatedKeys());
+
+        assertTrue(cof.fullyContainedIn(requestedRanges, sstable));
+    }
+
+    private DecoratedKey getKeyAtIndex(int i)
+    {
+        int count = 0;
+        DecoratedKey key;
+
+        try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
+        {
+            do
+            {
+                key = iter.next();
+                count++;
+            } while (iter.hasNext() && count < i);
+        }
+        return key;
+    }
+
+    private Token getTokenAtIndex(int i)
+    {
+        return getKeyAtIndex(i).getToken();
     }
 }
