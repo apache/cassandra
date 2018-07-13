@@ -44,6 +44,8 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.concurrent.Ref;
 
+import static org.apache.cassandra.db.compaction.Verifier.RangeOwnHelper;
+
 /**
  * used to transfer the part(or whole) of a SSTable data file
  */
@@ -175,27 +177,24 @@ public class CassandraOutgoingFile implements OutgoingStream
     }
 
     @VisibleForTesting
-    public boolean fullyContainedIn(List<Range<Token>> requestedRanges, SSTableReader sstable)
+    public boolean fullyContainedIn(List<Range<Token>> normalizedRanges, SSTableReader sstable)
     {
-        if (requestedRanges == null)
+        if (normalizedRanges == null)
             return false;
+
+        RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(normalizedRanges);
         try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
         {
             while (iter.hasNext())
             {
                 DecoratedKey key = iter.next();
-                boolean foundFlag = false;
-                for (Range<Token> r : requestedRanges)
+                try
                 {
-                    if (r.contains(key.getToken()))
-                    {
-                        foundFlag = true;
-                        break;
-                    }
-                }
-
-                if (foundFlag == false)
+                    rangeOwnHelper.check(key);
+                } catch(RuntimeException e)
+                {
                     return false;
+                }
             }
         }
         return true;
