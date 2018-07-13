@@ -127,14 +127,11 @@ public class ZeroCopyStreamingBenchmark
             session = setupStreamingSessionForTest();
             blockStreamWriter = new CassandraBlockStreamWriter(sstable, session, getStreamableComponents(sstable));
 
-            generateSerializedBlockStream();
-
             CapturingNettyChannel blockStreamCaptureChannel = new CapturingNettyChannel(STREAM_SIZE);
             ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(session, blockStreamCaptureChannel, 1024 * 1024);
             blockStreamWriter.write(out);
             serializedBlockStream = blockStreamCaptureChannel.getSerializedStream();
             out.close();
-
 
             session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, serializedBlockStream.readableBytes()));
 
@@ -143,7 +140,6 @@ public class ZeroCopyStreamingBenchmark
                                                                                 (CompressionInfo) null, 0, sstable.header.toComponent(),
                                                                                 getStreamableComponents(sstable), true, sstable.first,
                                                                                 sstable.metadata().id);
-
 
             blockStreamReader = new CassandraBlockStreamReader(new StreamMessageHeader(sstable.metadata().id,
                                                                                        peer, session.planId(),
@@ -199,10 +195,6 @@ public class ZeroCopyStreamingBenchmark
             }
             store.forceBlockingFlush();
             CompactionManager.instance.performMaximal(store, false);
-        }
-
-        private void generateSerializedBlockStream() throws IOException
-        {
         }
 
         @TearDown
