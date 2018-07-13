@@ -790,7 +790,10 @@ sstable_preemptive_open_interval_in_mb: 50
 # Enabling this will reduce the GC pressure on sending and receiving node.
 # When unset, the default is enabled. While this feature tries to keep the
 # disks balanced, it cannot guarantee it. This feature will be automatically
-# disabled if internode encryption is enabled.
+# disabled if internode encryption is enabled. Compaction strategies such as
+# LeveledCompaction will benefit the most while SizeTieredCompaction will
+# see gains only in very limited cases. Most strategies will benefit if used
+# in combination with CASSANDRA-6696
 # streaming_zerocopy_sstables_enabled: false
 
 # Throttles all outbound streaming file transfers on this node to the
