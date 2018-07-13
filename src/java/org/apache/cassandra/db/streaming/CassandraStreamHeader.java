@@ -244,7 +244,7 @@ public class CassandraStreamHeader
                 for (ComponentInfo info : header.components)
                     ComponentInfo.serializer.serialize(info, out, version);
 
-                ByteBufferUtil.writeWithShortLength(header.firstKey.getKey(), out);
+                ByteBufferUtil.writeWithVIntLength(header.firstKey.getKey(), out);
             }
         }
 
@@ -288,7 +288,7 @@ public class CassandraStreamHeader
                 for (int i=0; i < ncomp; i++)
                     components.add(ComponentInfo.serializer.deserialize(in, version));
 
-                ByteBuffer keyBuf = ByteBufferUtil.readWithShortLength(in);
+                ByteBuffer keyBuf = ByteBufferUtil.readWithVIntLength(in);
 
                 IPartitioner partitioner = partitionerMapper.apply(tableId);
                 if (partitioner == null)
@@ -327,7 +327,7 @@ public class CassandraStreamHeader
                 for (ComponentInfo info : header.components)
                     size += ComponentInfo.serializer.serializedSize(info, version);
 
-                size += ByteBufferUtil.serializedSizeWithShortLength(header.firstKey.getKey());
+                size += ByteBufferUtil.serializedSizeWithVIntLength(header.firstKey.getKey());
             }
 
             return size;
