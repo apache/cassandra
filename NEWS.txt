@@ -86,6 +86,9 @@ New features
      statements after the cache has been refreshed. CASSANDRA-13985
    - Support for audit logging of database activity. If enabled, logs every incoming
      CQL command request, Authentication (successful as well as unsuccessful login) to a node.
+   - Faster Streaming using ZeroCopy APIs. If enabled, Cassandra will use ZeroCopy for eligible
+     SSTables significantly speeding up transfers. Any streaming related operations will see
+     corresponding improvement. See CASSANDRA-14556.
 
 Upgrading
 ---------
