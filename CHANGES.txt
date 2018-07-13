@@ -1,4 +1,5 @@
 4.0
+ * Optimize streaming path in Cassandra (CASSANDRA-14556)
  * Bump the hints messaging version to match the current one (CASSANDRA-14536)
  * OffsetAwareConfigurationLoader doesn't set ssl storage port causing bind errors in CircleCI (CASSANDRA-14546)
  * Report why native_transport_port fails to bind (CASSANDRA-14544)
