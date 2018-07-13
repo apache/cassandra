@@ -274,8 +274,8 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
                 {
                     throw new EOFException("EOF after " + copied + " bytes out of " + len);
                 }
-                if (buffer.remaining() == 0)
-                    return copied == 0 ? -1 : copied;
+                if (buffer.remaining() == 0 && copied < len)
+                    throw new AssertionError("reBuffer() failed to return data");
             }
 
             int originalLimit = buffer.limit();
