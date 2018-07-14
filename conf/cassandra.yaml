@@ -1111,6 +1111,13 @@ compaction_large_partition_warning_threshold_mb: 100
 # as corrupted. This should be positive and less than 2048.
 # max_value_size_in_mb: 256
 
+# If replication factor is not mentioned as part of keyspace creation, default_keyspace_rf would apply.
+# This would also apply for any system keyspaces that need replication factor.
+#default_keyspace_rf: 1
+
+# Indicates the minimum replication factor that a keyspace should have.
+#minimum_keyspace_rf: 0
+
 # Back-pressure settings #
 # If enabled, the coordinator will apply the back-pressure strategy specified below to each mutation
 # sent to replicas, with the aim of reducing pressure on overloaded replicas.

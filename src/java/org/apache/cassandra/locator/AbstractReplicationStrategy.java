@@ -351,6 +351,11 @@ public abstract class AbstractReplicationStrategy
     {
         try
         {
+            if (Integer.parseInt(rf) < DatabaseDescriptor.getMinimumKeyspaceRF())
+            {
+                throw new ConfigurationException(String.format("Replication factor %s cannot be less than minimum_keyspace_rf (%d)", rf, DatabaseDescriptor.getMinimumKeyspaceRF()));
+            }
+
             if (Integer.parseInt(rf) < 0)
             {
                 throw new ConfigurationException("Replication factor must be non-negative; found " + rf);

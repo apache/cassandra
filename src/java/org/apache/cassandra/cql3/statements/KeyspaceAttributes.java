@@ -21,7 +21,9 @@ import java.util.*;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
 import org.apache.cassandra.schema.ReplicationParams;

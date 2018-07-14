@@ -384,6 +384,11 @@ public class Config
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
 
     public CorruptedTombstoneStrategy corrupted_tombstone_strategy = CorruptedTombstoneStrategy.disabled;
+
+    //parameters for default and minimum keyspace replication factor
+    public int default_keyspace_rf = 1;
+    public int minimum_keyspace_rf = 0;
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
