@@ -339,6 +339,11 @@ public class CompositeType extends AbstractCompositeType
         return new Builder(this);
     }
 
+    public Builder builder(boolean isStatic)
+    {
+        return new Builder(this, isStatic);
+    }
+
     public static ByteBuffer build(ByteBuffer... buffers)
     {
         return build(false, buffers);
@@ -378,12 +383,12 @@ public class CompositeType extends AbstractCompositeType
 
         public Builder(CompositeType composite)
         {
-            this(composite, new ArrayList<ByteBuffer>(composite.types.size()), new byte[composite.types.size()], false);
+            this(composite, false);
         }
 
-        public static Builder staticBuilder(CompositeType composite)
+        public Builder(CompositeType composite, boolean isStatic)
         {
-            return new Builder(composite, new ArrayList<ByteBuffer>(composite.types.size()), new byte[composite.types.size()], true);
+            this(composite, new ArrayList<>(composite.types.size()), new byte[composite.types.size()], isStatic);
         }
 
         private Builder(CompositeType composite, List<ByteBuffer> components, byte[] endOfComponents, boolean isStatic)
@@ -400,7 +405,7 @@ public class CompositeType extends AbstractCompositeType
 
         private Builder(Builder b)
         {
-            this(b.composite, new ArrayList<ByteBuffer>(b.components), Arrays.copyOf(b.endOfComponents, b.endOfComponents.length), b.isStatic);
+            this(b.composite, new ArrayList<>(b.components), Arrays.copyOf(b.endOfComponents, b.endOfComponents.length), b.isStatic);
             this.serializedSize = b.serializedSize;
         }
 

@@ -157,23 +157,39 @@ public class PartitionUpdate extends AbstractBTreePartition
      *
      * @param metadata the metadata for the created update.
      * @param key the partition key for the partition to update.
-     * @param row the row for the update.
+     * @param row the row for the update (may be null).
+     * @param row the static row for the update (may be null).
+     *
+     * @return the newly created partition update containing only {@code row}.
+     */
+    public static PartitionUpdate singleRowUpdate(CFMetaData metadata, DecoratedKey key, Row row, Row staticRow)
+    {
+        MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
+        Holder holder = new Holder(
+            new PartitionColumns(
+                staticRow == null ? Columns.NONE : Columns.from(staticRow.columns()),
+                row == null ? Columns.NONE : Columns.from(row.columns())
+            ),
+            row == null ? BTree.empty() : BTree.singleton(row),
+            deletionInfo,
+            staticRow == null ? Rows.EMPTY_STATIC_ROW : staticRow,
+            EncodingStats.NO_STATS
+        );
+        return new PartitionUpdate(metadata, key, holder, deletionInfo, false);
+    }
+
+    /**
+     * Creates an immutable partition update that contains a single row update.
+     *
+     * @param metadata the metadata for the created update.
+     * @param key the partition key for the partition to update.
+     * @param row the row for the update (may be static).
      *
      * @return the newly created partition update containing only {@code row}.
      */
     public static PartitionUpdate singleRowUpdate(CFMetaData metadata, DecoratedKey key, Row row)
     {
-        MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
-        if (row.isStatic())
-        {
-            Holder holder = new Holder(new PartitionColumns(Columns.from(row.columns()), Columns.NONE), BTree.empty(), deletionInfo, row, EncodingStats.NO_STATS);
-            return new PartitionUpdate(metadata, key, holder, deletionInfo, false);
-        }
-        else
-        {
-            Holder holder = new Holder(new PartitionColumns(Columns.NONE, Columns.from(row.columns())), BTree.singleton(row), deletionInfo, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
-            return new PartitionUpdate(metadata, key, holder, deletionInfo, false);
-        }
+        return singleRowUpdate(metadata, key, row.isStatic() ? null : row, row.isStatic() ? row : null);
     }
 
     /**
