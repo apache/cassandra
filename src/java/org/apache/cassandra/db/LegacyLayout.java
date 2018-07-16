@@ -197,6 +197,7 @@ public abstract class LegacyLayout
 
         int clusteringSize = metadata.comparator.size();
 
+        boolean isStatic = metadata.isCompound() && CompositeType.isStaticName(bound);
         List<ByteBuffer> components = CompositeType.splitName(bound);
         byte eoc = CompositeType.lastEOC(bound);
 
@@ -206,8 +207,12 @@ public abstract class LegacyLayout
         assert components.size() <= clusteringSize || (!metadata.isCompactTable() && components.size() == clusteringSize + 1);
 
         ColumnDefinition collectionName = null;
-        if (components.size() > clusteringSize)
-            collectionName = metadata.getColumnDefinition(components.remove(clusteringSize));
+        if (components.size() > (isStatic ? 0 : clusteringSize))
+        {
+            // pop the collection name from the back of the list of clusterings
+            ByteBuffer collectionNameBytes = components.remove(isStatic ? 0 : clusteringSize);
+            collectionName = metadata.getColumnDefinition(collectionNameBytes);
+        }
 
         boolean isInclusive;
         if (isStart)
@@ -231,7 +236,7 @@ public abstract class LegacyLayout
 
         Slice.Bound.Kind boundKind = Slice.Bound.boundKind(isStart, isInclusive);
         Slice.Bound sb = Slice.Bound.create(boundKind, components.toArray(new ByteBuffer[components.size()]));
-        return new LegacyBound(sb, metadata.isCompound() && CompositeType.isStaticName(bound), collectionName);
+        return new LegacyBound(sb, isStatic, collectionName);
     }
 
     public static ByteBuffer encodeBound(CFMetaData metadata, Slice.Bound bound, boolean isStart)
@@ -2386,8 +2391,8 @@ public abstract class LegacyLayout
                 LegacyBound start = starts[i];
                 LegacyBound end = ends[i];
 
-                CompositeType.Builder startBuilder = type.builder();
-                CompositeType.Builder endBuilder = type.builder();
+                CompositeType.Builder startBuilder = type.builder(start.isStatic);
+                CompositeType.Builder endBuilder = type.builder(end.isStatic);
                 for (int j = 0; j < start.bound.clustering().size(); j++)
                 {
                     startBuilder.add(start.bound.get(j));
