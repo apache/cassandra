@@ -18,11 +18,28 @@
 
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.SerializationHelper;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer;
+import org.apache.cassandra.db.transform.FilteredRows;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.serializers.Int32Serializer;
+import org.apache.cassandra.serializers.UTF8Serializer;
+import org.apache.cassandra.utils.FBUtilities;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -45,6 +62,16 @@ import static org.junit.Assert.*;
 
 public class LegacyLayoutTest
 {
+    static final String KEYSPACE = "Keyspace1";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        SchemaLoader.loadSchema();
+        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1));
+    }
+
     @Test
     public void testFromUnfilteredRowIterator() throws Throwable
     {
@@ -113,11 +140,6 @@ public class LegacyLayoutTest
     @Test
     public void testRTBetweenColumns() throws Throwable
     {
-        String KEYSPACE = "Keyspace1";
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-
-        SchemaLoader.loadSchema();
-        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1));
         QueryProcessor.executeInternal(String.format("CREATE TABLE \"%s\".legacy_ka_repeated_rt (k1 int, c1 int, c2 int, val1 text, val2 text, val3 text, primary key (k1, c1, c2))", KEYSPACE));
 
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -151,4 +173,84 @@ public class LegacyLayoutTest
         }
 
     }
+
+
+    private static UnfilteredRowIterator roundTripVia21(UnfilteredRowIterator partition) throws IOException
+    {
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            LegacyLayout.serializeAsLegacyPartition(null, partition, out, MessagingService.VERSION_21);
+            try (DataInputBuffer in = new DataInputBuffer(out.buffer(), false))
+            {
+                return LegacyLayout.deserializeLegacyPartition(in, MessagingService.VERSION_21, SerializationHelper.Flag.LOCAL, partition.partitionKey().getKey());
+            }
+        }
+    }
+
+
+    @Test
+    public void testStaticRangeTombstoneRoundTripUnexpectedDeletion() throws Throwable
+    {
+        // this variant of the bug deletes a row with the same clustering key value as the name of the static collection
+        QueryProcessor.executeInternal(String.format("CREATE TABLE \"%s\".legacy_static_rt_rt_1 (pk int, ck1 text, ck2 text, v int, s set<text> static, primary key (pk, ck1, ck2))", KEYSPACE));
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        CFMetaData table = keyspace.getColumnFamilyStore("legacy_static_rt_rt_1").metadata;
+        ColumnDefinition v = table.getColumnDefinition(new ColumnIdentifier("v", false));
+        ColumnDefinition bug = table.getColumnDefinition(new ColumnIdentifier("s", false));
+
+        Row.Builder builder;
+        builder = BTreeRow.unsortedBuilder(0);
+        builder.newRow(Clustering.STATIC_CLUSTERING);
+        builder.addComplexDeletion(bug, new DeletionTime(1L, 1));
+        Row staticRow = builder.build();
+
+        builder = BTreeRow.unsortedBuilder(0);
+        builder.newRow(new Clustering(UTF8Serializer.instance.serialize("s"), UTF8Serializer.instance.serialize("anything")));
+        builder.addCell(new BufferCell(v, 1L, Cell.NO_TTL, Cell.NO_DELETION_TIME, Int32Serializer.instance.serialize(1), null));
+        Row row = builder.build();
+
+        DecoratedKey pk = table.decorateKey(ByteBufferUtil.bytes(1));
+        PartitionUpdate upd = PartitionUpdate.singleRowUpdate(table, pk, row, staticRow);
+
+        try (RowIterator before = FilteredRows.filter(upd.unfilteredIterator(), FBUtilities.nowInSeconds());
+             RowIterator after = FilteredRows.filter(roundTripVia21(upd.unfilteredIterator()), FBUtilities.nowInSeconds()))
+        {
+            while (before.hasNext() || after.hasNext())
+                assertEquals(before.hasNext() ? before.next() : null, after.hasNext() ? after.next() : null);
+        }
+    }
+
+    @Test
+    public void testStaticRangeTombstoneRoundTripCorruptRead() throws Throwable
+    {
+        // this variant of the bug corrupts the byte stream of the partition, so that a sequential read starting before
+        // this partition will fail with a CorruptSSTableException, and possible yield junk results
+        QueryProcessor.executeInternal(String.format("CREATE TABLE \"%s\".legacy_static_rt_rt_2 (pk int, ck int, nameWithLengthGreaterThan4 set<int> static, primary key (pk, ck))", KEYSPACE));
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        CFMetaData table = keyspace.getColumnFamilyStore("legacy_static_rt_rt_2").metadata;
+
+        ColumnDefinition bug = table.getColumnDefinition(new ColumnIdentifier("nameWithLengthGreaterThan4", false));
+
+        Row.Builder builder = BTreeRow.unsortedBuilder(0);
+        builder.newRow(Clustering.STATIC_CLUSTERING);
+        builder.addComplexDeletion(bug, new DeletionTime(1L, 1));
+        Row row = builder.build();
+
+        DecoratedKey pk = table.decorateKey(ByteBufferUtil.bytes(1));
+        PartitionUpdate upd = PartitionUpdate.singleRowUpdate(table, pk, row);
+
+        UnfilteredRowIterator afterRoundTripVia32 = roundTripVia21(upd.unfilteredIterator());
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            // we only encounter a corruption/serialization error after writing this to a 3.0 format and reading it back
+            UnfilteredRowIteratorSerializer.serializer.serialize(afterRoundTripVia32, ColumnFilter.all(table), out, MessagingService.current_version);
+            try (DataInputBuffer in = new DataInputBuffer(out.buffer(), false);
+                 UnfilteredRowIterator afterSerialization = UnfilteredRowIteratorSerializer.serializer.deserialize(in, MessagingService.current_version, table, ColumnFilter.all(table), SerializationHelper.Flag.LOCAL))
+            {
+                while (afterSerialization.hasNext())
+                    afterSerialization.next();
+            }
+        }
+    }
+
 }
