@@ -1,4 +1,5 @@
 4.0
+ * Incomplete handling of exceptions when decoding incoming messages (CASSANDRA-14574)
  * Add diagnostic events for user audit logging (CASSANDRA-13668)
  * Allow retrieving diagnostic events via JMX (CASSANDRA-14435)
  * Add base classes for diagnostic events (CASSANDRA-13457)

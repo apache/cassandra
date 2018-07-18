@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 
@@ -148,7 +149,7 @@ public class MessageInHandlerTest
         MessageOut msgOut = new MessageOut<>(addr, MessagingService.Verb.ECHO, null, null, ImmutableList.of(), SMALL_MESSAGE);
         for (Map.Entry<ParameterType, Object> param : parameters.entrySet())
             msgOut = msgOut.withParameter(param.getKey(), param.getValue());
-        serialize(msgOut);
+        serialize(msgOut, MSG_ID);
 
         MessageInWrapper wrapper = new MessageInWrapper();
         BaseMessageInHandler handler = getHandler(addr, messagingVersion, wrapper.messageConsumer);
@@ -164,11 +165,12 @@ public class MessageInHandlerTest
         return wrapper;
     }
 
-    private void serialize(MessageOut msgOut) throws IOException
+    private void serialize(MessageOut msgOut, int id) throws IOException
     {
-        buf = Unpooled.buffer(1024, 1024); // 1k should be enough for everybody!
+        if (buf == null)
+            buf = Unpooled.buffer(1024, 1024); // 1k should be enough for everybody!
         buf.writeInt(MessagingService.PROTOCOL_MAGIC);
-        buf.writeInt(MSG_ID); // this is the id
+        buf.writeInt(id); // this is the id
         buf.writeInt((int) NanoTimeToCurrentTimeMillis.convert(System.nanoTime()));
 
         msgOut.serialize(new ByteBufDataOutputPlus(buf), messagingVersion);
@@ -181,7 +183,7 @@ public class MessageInHandlerTest
         UUID uuid = UUIDGen.getTimeUUID();
         msgOut = msgOut.withParameter(ParameterType.TRACE_SESSION, uuid);
 
-        serialize(msgOut);
+        serialize(msgOut, MSG_ID);
 
         // move the write index pointer back a few bytes to simulate like the full bytes are not present.
         // yeah, it's lame, but it tests the basics of what is happening during the deserialiization
@@ -270,6 +272,52 @@ public class MessageInHandlerTest
         Assert.assertFalse(channel.isOpen());
     }
 
+    /**
+     * this is for handling the bug uncovered by CASSANDRA-14574.
+     *
+     * TL;DR if we run into a problem processing a message out an incoming buffer (and we close the channel, etc),
+     * do not attempt to process anymore messages from the buffer (force the channel closed and
+     * reject any more read attempts from the buffer).
+     *
+     * The idea here is to put several messages into a ByteBuf, pass that to the channel/handler, and make sure that
+     * only the initial, correct messages in the buffer are processed. After one messages fails the rest of the buffer
+     * should be ignored.
+     */
+    @Test
+    public void exceptionHandled_14574() throws IOException
+    {
+        Map<ParameterType, Object> parameters = new EnumMap<>(ParameterType.class);
+        parameters.put(ParameterType.FAILURE_RESPONSE, MessagingService.ONE_BYTE);
+        parameters.put(ParameterType.FAILURE_REASON, Shorts.checkedCast(RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code));
+        MessageOut msgOut = new MessageOut<>(addr, MessagingService.Verb.ECHO, null, null, ImmutableList.of(), SMALL_MESSAGE);
+        for (Map.Entry<ParameterType, Object> param : parameters.entrySet())
+            msgOut = msgOut.withParameter(param.getKey(), param.getValue());
+
+        // put one complete, correct message into the buffer
+        serialize(msgOut, 1);
+
+        // add a second message, but intentionally corrupt it by manipulating a byte in it's range
+        int startPosition = buf.writerIndex();
+        serialize(msgOut, 2);
+        int positionToHack = startPosition + 2;
+        buf.setByte(positionToHack, buf.getByte(positionToHack) - 1);
+
+        // add one more complete, correct message into the buffer
+        serialize(msgOut, 3);
+
+        MessageIdsWrapper wrapper = new MessageIdsWrapper();
+        BaseMessageInHandler handler = getHandler(addr, messagingVersion, wrapper.messageConsumer);
+        EmbeddedChannel channel = new EmbeddedChannel(handler);
+        Assert.assertTrue(channel.isOpen());
+        channel.writeOneInbound(buf);
+
+        Assert.assertFalse(buf.isReadable());
+        Assert.assertEquals(BaseMessageInHandler.State.CLOSED, handler.getState());
+        Assert.assertFalse(channel.isOpen());
+        Assert.assertEquals(1, wrapper.ids.size());
+        Assert.assertEquals(Integer.valueOf(1), wrapper.ids.get(0));
+    }
+
     private static class MessageInWrapper
     {
         MessageIn messageIn;
@@ -280,5 +328,12 @@ public class MessageInHandlerTest
             this.messageIn = messageIn;
             this.id = integer;
         };
+    }
+
+    private static class MessageIdsWrapper
+    {
+        private final ArrayList<Integer> ids = new ArrayList<>();
+
+        final BiConsumer<MessageIn, Integer> messageConsumer = (messageIn, integer) -> ids.add(integer);
     }
 }

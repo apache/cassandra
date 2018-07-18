@@ -39,6 +39,9 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParameterType;
 
+/**
+ * Parses incoming messages as per the pre-4.0 internode messaging protocol.
+ */
 public class MessageInHandlerPre40 extends BaseMessageInHandler
 {
     public static final Logger logger = LoggerFactory.getLogger(MessageInHandlerPre40.class);
@@ -47,7 +50,6 @@ public class MessageInHandlerPre40 extends BaseMessageInHandler
     static final int PARAMETERS_VALUE_SIZE_LENGTH = Integer.BYTES;
     static final int PAYLOAD_SIZE_LENGTH = Integer.BYTES;
 
-    private State state;
     private MessageHeader messageHeader;
 
     MessageInHandlerPre40(InetAddressAndPort peer, int messagingVersion)
@@ -70,82 +72,75 @@ public class MessageInHandlerPre40 extends BaseMessageInHandler
      * maintains a trivial state machine to remember progress across invocations.
      */
     @SuppressWarnings("resource")
-    public void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out)
+    public void handleDecode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception
     {
         ByteBufDataInputPlus inputPlus = new ByteBufDataInputPlus(in);
-        try
+        while (true)
         {
-            while (true)
+            switch (state)
             {
-                switch (state)
-                {
-                    case READ_FIRST_CHUNK:
-                        MessageHeader header = readFirstChunk(in);
-                        if (header == null)
+                case READ_FIRST_CHUNK:
+                    MessageHeader header = readFirstChunk(in);
+                    if (header == null)
+                        return;
+                    messageHeader = header;
+                    state = State.READ_IP_ADDRESS;
+                    // fall-through
+                case READ_IP_ADDRESS:
+                    // unfortunately, this assumes knowledge of how CompactEndpointSerializationHelper serializes data (the first byte is the size).
+                    // first, check that we can actually read the size byte, then check if we can read that number of bytes.
+                    // the "+ 1" is to make sure we have the size byte in addition to the serialized IP addr count of bytes in the buffer.
+                    int readableBytes = in.readableBytes();
+                    if (readableBytes < 1 || readableBytes < in.getByte(in.readerIndex()) + 1)
+                        return;
+                    messageHeader.from = CompactEndpointSerializationHelper.instance.deserialize(inputPlus, messagingVersion);
+                    state = State.READ_VERB;
+                    // fall-through
+                case READ_VERB:
+                    if (in.readableBytes() < VERB_LENGTH)
+                        return;
+                    messageHeader.verb = MessagingService.Verb.fromId(in.readInt());
+                    state = State.READ_PARAMETERS_SIZE;
+                    // fall-through
+                case READ_PARAMETERS_SIZE:
+                    if (in.readableBytes() < PARAMETERS_SIZE_LENGTH)
+                        return;
+                    messageHeader.parameterLength = in.readInt();
+                    messageHeader.parameters = messageHeader.parameterLength == 0 ? Collections.emptyMap() : new EnumMap<>(ParameterType.class);
+                    state = State.READ_PARAMETERS_DATA;
+                    // fall-through
+                case READ_PARAMETERS_DATA:
+                    if (messageHeader.parameterLength > 0)
+                    {
+                        if (!readParameters(in, inputPlus, messageHeader.parameterLength, messageHeader.parameters))
                             return;
-                        messageHeader = header;
-                        state = State.READ_IP_ADDRESS;
-                        // fall-through
-                    case READ_IP_ADDRESS:
-                        // unfortunately, this assumes knowledge of how CompactEndpointSerializationHelper serializes data (the first byte is the size).
-                        // first, check that we can actually read the size byte, then check if we can read that number of bytes.
-                        // the "+ 1" is to make sure we have the size byte in addition to the serialized IP addr count of bytes in the buffer.
-                        int readableBytes = in.readableBytes();
-                        if (readableBytes < 1 || readableBytes < in.getByte(in.readerIndex()) + 1)
-                            return;
-                        messageHeader.from = CompactEndpointSerializationHelper.instance.deserialize(inputPlus, messagingVersion);
-                        state = State.READ_VERB;
-                        // fall-through
-                    case READ_VERB:
-                        if (in.readableBytes() < VERB_LENGTH)
-                            return;
-                        messageHeader.verb = MessagingService.Verb.fromId(in.readInt());
-                        state = State.READ_PARAMETERS_SIZE;
-                        // fall-through
-                    case READ_PARAMETERS_SIZE:
-                        if (in.readableBytes() < PARAMETERS_SIZE_LENGTH)
-                            return;
-                        messageHeader.parameterLength = in.readInt();
-                        messageHeader.parameters = messageHeader.parameterLength == 0 ? Collections.emptyMap() : new EnumMap<>(ParameterType.class);
-                        state = State.READ_PARAMETERS_DATA;
-                        // fall-through
-                    case READ_PARAMETERS_DATA:
-                        if (messageHeader.parameterLength > 0)
-                        {
-                            if (!readParameters(in, inputPlus, messageHeader.parameterLength, messageHeader.parameters))
-                                return;
-                        }
-                        state = State.READ_PAYLOAD_SIZE;
-                        // fall-through
-                    case READ_PAYLOAD_SIZE:
-                        if (in.readableBytes() < PAYLOAD_SIZE_LENGTH)
-                            return;
-                        messageHeader.payloadSize = in.readInt();
-                        state = State.READ_PAYLOAD;
-                        // fall-through
-                    case READ_PAYLOAD:
-                        if (in.readableBytes() < messageHeader.payloadSize)
-                            return;
+                    }
+                    state = State.READ_PAYLOAD_SIZE;
+                    // fall-through
+                case READ_PAYLOAD_SIZE:
+                    if (in.readableBytes() < PAYLOAD_SIZE_LENGTH)
+                        return;
+                    messageHeader.payloadSize = in.readInt();
+                    state = State.READ_PAYLOAD;
+                    // fall-through
+                case READ_PAYLOAD:
+                    if (in.readableBytes() < messageHeader.payloadSize)
+                        return;
 
-                        // TODO consider deserailizing the messge not on the event loop
-                        MessageIn<Object> messageIn = MessageIn.read(inputPlus, messagingVersion,
-                                                                     messageHeader.messageId, messageHeader.constructionTime, messageHeader.from,
-                                                                     messageHeader.payloadSize, messageHeader.verb, messageHeader.parameters);
+                    // TODO consider deserailizing the messge not on the event loop
+                    MessageIn<Object> messageIn = MessageIn.read(inputPlus, messagingVersion,
+                                                                 messageHeader.messageId, messageHeader.constructionTime, messageHeader.from,
+                                                                 messageHeader.payloadSize, messageHeader.verb, messageHeader.parameters);
 
-                        if (messageIn != null)
-                            messageConsumer.accept(messageIn, messageHeader.messageId);
+                    if (messageIn != null)
+                        messageConsumer.accept(messageIn, messageHeader.messageId);
 
-                        state = State.READ_FIRST_CHUNK;
-                        messageHeader = null;
-                        break;
-                    default:
-                        throw new IllegalStateException("unknown/unhandled state: " + state);
-                }
+                    state = State.READ_FIRST_CHUNK;
+                    messageHeader = null;
+                    break;
+                default:
+                    throw new IllegalStateException("unknown/unhandled state: " + state);
             }
-        }
-        catch (Exception e)
-        {
-            exceptionCaught(ctx, e);
         }
     }
 
