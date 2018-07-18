@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -1833,4 +1834,50 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.info("No gossip backlog; proceeding");
     }
 
+    /**
+     * Blockingly wait for all live nodes to agree on the current schema version.
+     *
+     * @param maxWait maximum time to wait for schema agreement
+     * @param unit TimeUnit of maxWait
+     * @return true if agreement was reached, false if not
+     */
+    public boolean waitForSchemaAgreement(long maxWait, TimeUnit unit, BooleanSupplier abortCondition)
+    {
+        int waited = 0;
+        int toWait = 50;
+
+        Set<InetAddressAndPort> members = getLiveTokenOwners();
+
+        while (true)
+        {
+            if (nodesAgreeOnSchema(members))
+                return true;
+
+            if (waited >= unit.toMillis(maxWait) || abortCondition.getAsBoolean())
+                return false;
+
+            Uninterruptibles.sleepUninterruptibly(toWait, TimeUnit.MILLISECONDS);
+            waited += toWait;
+            toWait = Math.min(1000, toWait * 2);
+        }
+    }
+
+    private boolean nodesAgreeOnSchema(Collection<InetAddressAndPort> nodes)
+    {
+        UUID expectedVersion = null;
+
+        for (InetAddressAndPort node : nodes)
+        {
+            EndpointState state = getEndpointStateForEndpoint(node);
+            UUID remoteVersion = state.getSchemaVersion();
+
+            if (null == expectedVersion)
+                expectedVersion = remoteVersion;
+
+            if (null == expectedVersion || !expectedVersion.equals(remoteVersion))
+                return false;
+        }
+
+        return true;
+    }
 }
