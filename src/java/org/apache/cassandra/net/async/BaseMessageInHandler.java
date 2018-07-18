@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +39,14 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParameterType;
 
+/**
+ * Parses out individual messages from the incoming buffers. Each message, both header and payload, is incrementally built up
+ * from the available input data, then passed to the {@link #messageConsumer}.
+ *
+ * Note: this class derives from {@link ByteToMessageDecoder} to take advantage of the {@link ByteToMessageDecoder.Cumulator}
+ * behavior across {@link #decode(ChannelHandlerContext, ByteBuf, List)} invocations. That way we don't have to maintain
+ * the not-fully consumed {@link ByteBuf}s.
+ */
 public abstract class BaseMessageInHandler extends ByteToMessageDecoder
 {
     public static final Logger logger = LoggerFactory.getLogger(BaseMessageInHandler.class);
@@ -52,7 +59,8 @@ public abstract class BaseMessageInHandler extends ByteToMessageDecoder
         READ_PARAMETERS_SIZE,
         READ_PARAMETERS_DATA,
         READ_PAYLOAD_SIZE,
-        READ_PAYLOAD
+        READ_PAYLOAD,
+        CLOSED
     }
 
     /**
@@ -77,6 +85,8 @@ public abstract class BaseMessageInHandler extends ByteToMessageDecoder
     final InetAddressAndPort peer;
     final int messagingVersion;
 
+    protected State state;
+
     public BaseMessageInHandler(InetAddressAndPort peer, int messagingVersion, BiConsumer<MessageIn, Integer> messageConsumer)
     {
         this.peer = peer;
@@ -84,7 +94,36 @@ public abstract class BaseMessageInHandler extends ByteToMessageDecoder
         this.messageConsumer = messageConsumer;
     }
 
-    public abstract void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out);
+    // redeclared here to make the method public (for testing)
+    @VisibleForTesting
+    public void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception
+    {
+        if (state == State.CLOSED)
+        {
+            in.skipBytes(in.readableBytes());
+            return;
+        }
+
+        try
+        {
+            handleDecode(ctx, in, out);
+        }
+        catch (Exception e)
+        {
+            // prevent any future attempts at reading messages from any inbound buffers, as we're already in a bad state
+            state = State.CLOSED;
+
+            // force the buffer to appear to be consumed, thereby exiting the ByteToMessageDecoder.callDecode() loop,
+            // and other paths in that class, more efficiently
+            in.skipBytes(in.readableBytes());
+
+            // throwing the exception up causes the ByteToMessageDecoder.callDecode() loop to exit. if we don't do that,
+            // we'll keep trying to process data out of the last received buffer (and it'll be really, really wrong)
+            throw e;
+        }
+    }
+
+    public abstract void handleDecode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception;
 
     MessageHeader readFirstChunk(ByteBuf in) throws IOException
     {
@@ -105,11 +144,13 @@ public abstract class BaseMessageInHandler extends ByteToMessageDecoder
         if (cause instanceof EOFException)
             logger.trace("eof reading from socket; closing", cause);
         else if (cause instanceof UnknownTableException)
-            logger.warn("Got message from unknown table while reading from socket; closing", cause);
+            logger.warn(" Got message from unknown table while reading from socket {}[{}]; closing",
+                        ctx.channel().remoteAddress(), ctx.channel().id(), cause);
         else if (cause instanceof IOException)
             logger.trace("IOException reading from socket; closing", cause);
         else
-            logger.warn("Unexpected exception caught in inbound channel pipeline from " + ctx.channel().remoteAddress(), cause);
+            logger.warn("Unexpected exception caught in inbound channel pipeline from {}[{}]",
+                        ctx.channel().remoteAddress(), ctx.channel().id(), cause);
 
         ctx.close();
     }
@@ -118,6 +159,7 @@ public abstract class BaseMessageInHandler extends ByteToMessageDecoder
     public void channelInactive(ChannelHandlerContext ctx)
     {
         logger.trace("received channel closed message for peer {} on local addr {}", ctx.channel().remoteAddress(), ctx.channel().localAddress());
+        state = State.CLOSED;
         ctx.fireChannelInactive();
     }
 
@@ -128,7 +170,7 @@ public abstract class BaseMessageInHandler extends ByteToMessageDecoder
     /**
      * A simple struct to hold the message header data as it is being built up.
      */
-    protected static class MessageHeader
+    static class MessageHeader
     {
         int messageId;
         long constructionTime;
@@ -144,5 +186,12 @@ public abstract class BaseMessageInHandler extends ByteToMessageDecoder
          * key/value entries in the header.
          */
         int parameterLength;
+    }
+
+    // for testing purposes only!!!
+    @VisibleForTesting
+    public State getState()
+    {
+        return state;
     }
 }

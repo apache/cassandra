@@ -32,8 +32,6 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.ByteToMessageDecoder;
-import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageIn;
@@ -42,18 +40,12 @@ import org.apache.cassandra.net.ParameterType;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 /**
- * Parses out individual messages from the incoming buffers. Each message, both header and payload, is incrementally built up
- * from the available input data, then passed to the {@link #messageConsumer}.
- *
- * Note: this class derives from {@link ByteToMessageDecoder} to take advantage of the {@link ByteToMessageDecoder.Cumulator}
- * behavior across {@link #decode(ChannelHandlerContext, ByteBuf, List)} invocations. That way we don't have to maintain
- * the not-fully consumed {@link ByteBuf}s.
+ * Parses incoming messages as per the 4.0 internode messaging protocol.
  */
 public class MessageInHandler extends BaseMessageInHandler
 {
     public static final Logger logger = LoggerFactory.getLogger(MessageInHandler.class);
 
-    private State state;
     private MessageHeader messageHeader;
 
     MessageInHandler(InetAddressAndPort peer, int messagingVersion)
@@ -76,76 +68,69 @@ public class MessageInHandler extends BaseMessageInHandler
      * maintains a trivial state machine to remember progress across invocations.
      */
     @SuppressWarnings("resource")
-    public void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out)
+    public void handleDecode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception
     {
         ByteBufDataInputPlus inputPlus = new ByteBufDataInputPlus(in);
-        try
+        while (true)
         {
-            while (true)
+            switch (state)
             {
-                switch (state)
-                {
-                    case READ_FIRST_CHUNK:
-                        MessageHeader header = readFirstChunk(in);
-                        if (header == null)
+                case READ_FIRST_CHUNK:
+                    MessageHeader header = readFirstChunk(in);
+                    if (header == null)
+                        return;
+                    header.from = peer;
+                    messageHeader = header;
+                    state = State.READ_VERB;
+                    // fall-through
+                case READ_VERB:
+                    if (in.readableBytes() < VERB_LENGTH)
+                        return;
+                    messageHeader.verb = MessagingService.Verb.fromId(in.readInt());
+                    state = State.READ_PARAMETERS_SIZE;
+                    // fall-through
+                case READ_PARAMETERS_SIZE:
+                    long length = VIntCoding.readUnsignedVInt(in);
+                    if (length < 0)
+                        return;
+                    messageHeader.parameterLength = (int) length;
+                    messageHeader.parameters = messageHeader.parameterLength == 0 ? Collections.emptyMap() : new EnumMap<>(ParameterType.class);
+                    state = State.READ_PARAMETERS_DATA;
+                    // fall-through
+                case READ_PARAMETERS_DATA:
+                    if (messageHeader.parameterLength > 0)
+                    {
+                        if (in.readableBytes() < messageHeader.parameterLength)
                             return;
-                        header.from = peer;
-                        messageHeader = header;
-                        state = State.READ_VERB;
-                        // fall-through
-                    case READ_VERB:
-                        if (in.readableBytes() < VERB_LENGTH)
-                            return;
-                        messageHeader.verb = MessagingService.Verb.fromId(in.readInt());
-                        state = State.READ_PARAMETERS_SIZE;
-                        // fall-through
-                    case READ_PARAMETERS_SIZE:
-                        long length = VIntCoding.readUnsignedVInt(in);
-                        if (length < 0)
-                            return;
-                        messageHeader.parameterLength = (int) length;
-                        messageHeader.parameters = messageHeader.parameterLength == 0 ? Collections.emptyMap() : new EnumMap<>(ParameterType.class);
-                        state = State.READ_PARAMETERS_DATA;
-                        // fall-through
-                    case READ_PARAMETERS_DATA:
-                        if (messageHeader.parameterLength > 0)
-                        {
-                            if (in.readableBytes() < messageHeader.parameterLength)
-                                return;
-                            readParameters(in, inputPlus, messageHeader.parameterLength, messageHeader.parameters);
-                        }
-                        state = State.READ_PAYLOAD_SIZE;
-                        // fall-through
-                    case READ_PAYLOAD_SIZE:
-                        length = VIntCoding.readUnsignedVInt(in);
-                        if (length < 0)
-                            return;
-                        messageHeader.payloadSize = (int) length;
-                        state = State.READ_PAYLOAD;
-                        // fall-through
-                    case READ_PAYLOAD:
-                        if (in.readableBytes() < messageHeader.payloadSize)
-                            return;
+                        readParameters(in, inputPlus, messageHeader.parameterLength, messageHeader.parameters);
+                    }
+                    state = State.READ_PAYLOAD_SIZE;
+                    // fall-through
+                case READ_PAYLOAD_SIZE:
+                    length = VIntCoding.readUnsignedVInt(in);
+                    if (length < 0)
+                        return;
+                    messageHeader.payloadSize = (int) length;
+                    state = State.READ_PAYLOAD;
+                    // fall-through
+                case READ_PAYLOAD:
+                    if (in.readableBytes() < messageHeader.payloadSize)
+                        return;
 
-                        // TODO consider deserializing the message not on the event loop
-                        MessageIn<Object> messageIn = MessageIn.read(inputPlus, messagingVersion,
+                    // TODO consider deserializing the message not on the event loop
+                    MessageIn<Object> messageIn = MessageIn.read(inputPlus, messagingVersion,
                                                                      messageHeader.messageId, messageHeader.constructionTime, messageHeader.from,
                                                                      messageHeader.payloadSize, messageHeader.verb, messageHeader.parameters);
 
-                        if (messageIn != null)
-                            messageConsumer.accept(messageIn, messageHeader.messageId);
+                    if (messageIn != null)
+                        messageConsumer.accept(messageIn, messageHeader.messageId);
 
-                        state = State.READ_FIRST_CHUNK;
-                        messageHeader = null;
-                        break;
-                    default:
-                        throw new IllegalStateException("unknown/unhandled state: " + state);
-                }
+                    state = State.READ_FIRST_CHUNK;
+                    messageHeader = null;
+                    break;
+                default:
+                    throw new IllegalStateException("unknown/unhandled state: " + state);
             }
-        }
-        catch (Exception e)
-        {
-            exceptionCaught(ctx, e);
         }
     }
 

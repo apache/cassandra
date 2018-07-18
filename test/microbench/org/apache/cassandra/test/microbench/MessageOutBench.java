@@ -99,12 +99,12 @@ public class MessageOutBench
     }
 
     @Benchmark
-    public int serialize40() throws IOException
+    public int serialize40() throws Exception
     {
         return serialize(MessagingService.VERSION_40, handler40);
     }
 
-    private int serialize(int messagingVersion, BaseMessageInHandler handler) throws IOException
+    private int serialize(int messagingVersion, BaseMessageInHandler handler) throws Exception
     {
         buf.resetReaderIndex();
         buf.resetWriterIndex();
@@ -118,7 +118,7 @@ public class MessageOutBench
     }
 
     @Benchmark
-    public int serializePre40() throws IOException
+    public int serializePre40() throws Exception
     {
         return serialize(MessagingService.VERSION_30, handlerPre40);
     }
