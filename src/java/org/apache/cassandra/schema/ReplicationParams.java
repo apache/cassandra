@@ -80,8 +80,8 @@ public final class ReplicationParams
         String className = options.remove(CLASS);
         Class<? extends AbstractReplicationStrategy> klass = AbstractReplicationStrategy.getClass(className);
 
-        //add default replication factor if missing
-        //CASSANDRA-14303 will address NetworkTopologyStrategy by adding data centers with default replication factor
+        // add default replication factor if missing
+        // CASSANDRA-14303 will address NetworkTopologyStrategy by adding data centers with default replication factor
         if (klass == SimpleStrategy.class)
         {
             options.putIfAbsent("replication_factor", Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF()));

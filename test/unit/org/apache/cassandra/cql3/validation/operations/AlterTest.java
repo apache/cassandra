@@ -304,6 +304,8 @@ public class AlterTest extends CQLTester
 
         // Try to alter the created keyspace without any option
         assertInvalidThrow(ConfigurationException.class, "ALTER KEYSPACE testABC WITH replication={ 'class' : 'NetworkTopologyStrategy' }");
+
+        //omitting replication_factor for SimpleStrategy is valid since default_keyspace_rf gets applied.
         schemaChange("ALTER KEYSPACE testXYZ WITH replication={ 'class' : 'SimpleStrategy' }");
 
         // Make sure that the alter works as expected

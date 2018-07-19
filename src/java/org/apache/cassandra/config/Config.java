@@ -385,7 +385,8 @@ public class Config
 
     public CorruptedTombstoneStrategy corrupted_tombstone_strategy = CorruptedTombstoneStrategy.disabled;
 
-    //parameters for default and minimum keyspace replication factor
+    // Default and minimum keyspace replication factors allow validation of newly created keyspaces
+    // and good defaults if no replication factor is provided by the user
     public int default_keyspace_rf = 1;
     public int minimum_keyspace_rf = 0;
 
