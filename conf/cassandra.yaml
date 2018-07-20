@@ -389,6 +389,10 @@ counter_cache_save_period: 7200
 commitlog_sync: periodic
 commitlog_sync_period_in_ms: 10000
 
+# When in periodic commitlog mode, the number of milliseconds to block writes
+# while waiting for a slow disk flush to complete.
+# periodic_commitlog_sync_lag_block_in_ms: 
+
 # The size of the individual commitlog file segments.  A commitlog
 # segment may be archived, deleted, or recycled once all the data
 # in it (potentially from each columnfamily in the system) has been
