@@ -92,11 +92,19 @@ public class MessageInHandlerTest
 
     private BaseMessageInHandler getHandler(InetAddressAndPort addr, int messagingVersion, BiConsumer<MessageIn, Integer> messageConsumer)
     {
-        if (messagingVersion >= MessagingService.VERSION_40)
-            return new MessageInHandler(addr, messagingVersion, messageConsumer);
-        return new MessageInHandlerPre40(addr, messagingVersion, messageConsumer);
+        return messagingVersion >= MessagingService.VERSION_40 ?
+               new MessageInHandler(addr, messagingVersion, messageConsumer) :
+               new MessageInHandlerPre40(addr, messagingVersion, messageConsumer);
     }
 
+    @Test(expected = AssertionError.class)
+    public void testBadVersionForHandler()
+    {
+        if (messagingVersion < MessagingService.VERSION_40)
+           new MessageInHandler(addr, messagingVersion, null);
+        else
+           new MessageInHandlerPre40(addr, messagingVersion, null);
+    }
 
     @Test
     public void decode_BadMagic()

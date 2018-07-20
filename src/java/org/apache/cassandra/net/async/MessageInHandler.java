@@ -65,9 +65,8 @@ public class MessageInHandler extends BaseMessageInHandler
     {
         super(peer, messagingVersion, messageConsumer);
 
-        if (messagingVersion < MessagingService.VERSION_40)
-            throw new IllegalArgumentException(String.format("wrong messaging version for this handler", messagingVersion));
-
+        assert messagingVersion >= MessagingService.VERSION_40 : String.format("wrong messaging version for this handler: got %d, but expect %d or higher",
+                                                                              messagingVersion, MessagingService.VERSION_40);
         state = State.READ_FIRST_CHUNK;
     }
 
