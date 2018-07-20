@@ -1633,7 +1633,7 @@ public final class MessagingService implements MessagingServiceMBean
                 return null;
 
             InetAddressAndPort preferredRemote = SystemKeyspace.getPreferredIP(to);
-            InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
+            InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
             ServerEncryptionOptions encryptionOptions = secure ? DatabaseDescriptor.getInternodeMessagingEncyptionOptions() : null;
             IInternodeAuthenticator authenticator = DatabaseDescriptor.getInternodeAuthenticator();
 
