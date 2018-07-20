@@ -116,7 +116,7 @@ public class SlabAllocator extends MemtableBufferAllocator
     public void setDiscarded()
     {
         for (Region region : offHeapRegions)
-            FileUtils.cleanerClean(region.data);
+            FileUtils.clean(region.data);
         super.setDiscarded();
     }
 

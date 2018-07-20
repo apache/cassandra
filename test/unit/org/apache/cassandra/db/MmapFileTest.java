@@ -88,7 +88,7 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
                 
-                FileUtils.cleanerClean(buffer);
+                FileUtils.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");
@@ -115,7 +115,7 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
 
-                FileUtils.cleanerClean(buffer);
+                FileUtils.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");
@@ -140,7 +140,7 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
 
-                FileUtils.cleanerClean(buffer);
+                FileUtils.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");

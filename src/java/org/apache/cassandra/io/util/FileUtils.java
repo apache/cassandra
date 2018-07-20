@@ -53,7 +53,6 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.memory.MemoryUtil;
-import sun.nio.ch.DirectBuffer;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
@@ -69,7 +68,6 @@ public final class FileUtils
     public static final long ONE_TB = 1024 * ONE_GB;
 
     private static final DecimalFormat df = new DecimalFormat("#.##");
-    public static final boolean isCleanerAvailable;
     private static final AtomicReference<Optional<FSErrorHandler>> fsErrorHandler = new AtomicReference<>(Optional.empty());
 
     private static Class clsDirectBuffer;
@@ -78,7 +76,6 @@ public final class FileUtils
 
     static
     {
-        boolean canClean = false;
         try
         {
             clsDirectBuffer = Class.forName("sun.nio.ch.DirectBuffer");
@@ -88,48 +85,13 @@ public final class FileUtils
             mhCleanerClean = MethodHandles.lookup().unreflect(mCleanerClean);
 
             ByteBuffer buf = ByteBuffer.allocateDirect(1);
-            cleanerClean(buf);
-            canClean = true;
+            clean(buf);
         }
         catch (Throwable t)
         {
             logger.info("Cannot initialize optimized memory deallocator. Some data, both in-memory and on-disk, may live longer due to garbage collection.");
             JVMStabilityInspector.inspectThrowable(t);
-        }
-        isCleanerAvailable = canClean;
-    }
-
-    public static void cleanerClean(ByteBuffer buf)
-    {
-        // TODO Once we can get rid of Java 8, it's simpler to call sun.misc.Unsafe.invokeCleaner(ByteBuffer),
-        // but need to take care of the attachment handling (i.e. whether 'buf' is a duplicate or slice) - that
-        // is different in sun.misc.Unsafe.invokeCleaner and this implementation.
-
-        try
-        {
-            if (buf.isDirect())
-            {
-                Object cleaner = mhDirectBufferCleaner.bindTo(buf).invoke();
-                if (cleaner != null)
-                {
-                    // ((DirectBuffer) buf).cleaner().clean();
-                    mhCleanerClean.bindTo(cleaner).invoke();
-                }
-                else
-                {
-                    Object attach = MemoryUtil.getAttachment(buf);
-                    if (attach instanceof ByteBuffer && attach != buf)
-                        clean((ByteBuffer) attach);
-                }
-            }
-        }
-        catch (RuntimeException e)
-        {
-            throw e;
-        }
-        catch (Throwable e)
-        {
-            throw new RuntimeException(e);
+            throw new RuntimeException(t);
         }
     }
 
@@ -434,11 +396,38 @@ public final class FileUtils
 
     public static void clean(ByteBuffer buffer)
     {
-        if (buffer == null)
+        if (buffer == null || !buffer.isDirect())
             return;
-        if (isCleanerAvailable && buffer.isDirect())
+
+        // TODO Once we can get rid of Java 8, it's simpler to call sun.misc.Unsafe.invokeCleaner(ByteBuffer),
+        // but need to take care of the attachment handling (i.e. whether 'buf' is a duplicate or slice) - that
+        // is different in sun.misc.Unsafe.invokeCleaner and this implementation.
+
+        try
         {
-            cleanerClean(buffer);
+            if (buffer.isDirect())
+            {
+                Object cleaner = mhDirectBufferCleaner.bindTo(buffer).invoke();
+                if (cleaner != null)
+                {
+                    // ((DirectBuffer) buf).cleaner().clean();
+                    mhCleanerClean.bindTo(cleaner).invoke();
+                }
+                else
+                {
+                    Object attach = MemoryUtil.getAttachment(buffer);
+                    if (attach instanceof ByteBuffer && attach != buffer)
+                        clean((ByteBuffer) attach);
+                }
+            }
+        }
+        catch (RuntimeException e)
+        {
+            throw e;
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
         }
     }
 
