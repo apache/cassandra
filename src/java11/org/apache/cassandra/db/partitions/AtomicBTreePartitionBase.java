@@ -33,7 +33,7 @@ import org.apache.cassandra.db.DecoratedKey;
 public abstract class AtomicBTreePartitionBase extends AbstractBTreePartition
 {
     private static final Logger logger = LoggerFactory.getLogger(AtomicBTreePartitionBase.class);
-    private static final long ACQUIRE_LOG_SPIN_SLEEP = Long.getLong(Config.PROPERTY_PREFIX + ".btreepartition.spin.sleep.nanos", 5000L);
+    private static final long ACQUIRE_LOCK_SPIN_SLEEP = Long.getLong(Config.PROPERTY_PREFIX + ".btreepartition.spin.sleep.nanos", 5000L);
 
     protected AtomicBTreePartitionBase(DecoratedKey partitionKey)
     {
@@ -62,9 +62,9 @@ public abstract class AtomicBTreePartitionBase extends AbstractBTreePartition
             if (lockFieldUpdater.compareAndSet(this, 0L, t))
                 return;
 
-            // "sleep" for 25us - operations performed while the lock's being held
+            // "sleep" a bit - operations performed while the lock's being held
             // may include "expensive" operations (secondary indexes for example).
-            LockSupport.parkNanos(ACQUIRE_LOG_SPIN_SLEEP);
+            LockSupport.parkNanos(ACQUIRE_LOCK_SPIN_SLEEP);
         }
     }
 
