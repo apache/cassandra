@@ -18,14 +18,14 @@
 
 package org.apache.cassandra.db.partitions;
 
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
-import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.concurrent.locks.Condition;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 /**
  * Java 11 version for the partition-locks in {@link AtomicBTreePartition}.
@@ -33,17 +33,15 @@ import org.apache.cassandra.db.DecoratedKey;
 public abstract class AtomicBTreePartitionBase extends AbstractBTreePartition
 {
     private static final Logger logger = LoggerFactory.getLogger(AtomicBTreePartitionBase.class);
-    private static final long ACQUIRE_LOCK_SPIN_SLEEP = Long.getLong(Config.PROPERTY_PREFIX + ".btreepartition.spin.sleep.nanos", 5000L);
 
     protected AtomicBTreePartitionBase(DecoratedKey partitionKey)
     {
         super(partitionKey);
     }
 
-    // Replacement for Unsafe.monitorEnter/monitorExit. Uses the thread-ID to indicate a lock
-    // using a CAS operation on the primitive instance field.
-    private volatile long lock;
-    private static final AtomicLongFieldUpdater<AtomicBTreePartitionBase> lockFieldUpdater = AtomicLongFieldUpdater.newUpdater(AtomicBTreePartitionBase.class, "lock");
+    // Replacement for Unsafe.monitorEnter/monitorExit.
+    private volatile Condition lock;
+    private static final AtomicReferenceFieldUpdater<AtomicBTreePartitionBase, Condition> lockFieldUpdater = AtomicReferenceFieldUpdater.newUpdater(AtomicBTreePartitionBase.class, Condition.class, "lock");
 
     static
     {
@@ -53,25 +51,47 @@ public abstract class AtomicBTreePartitionBase extends AbstractBTreePartition
             throw new RuntimeException("Java 11 required, but found " + Runtime.version());
     }
 
-    protected final void acquireLock()
+    protected final boolean acquireLock()
     {
-        long t = Thread.currentThread().getId();
-
         while (true)
         {
-            if (lockFieldUpdater.compareAndSet(this, 0L, t))
-                return;
+            Condition c = lockFieldUpdater.get(this);
+            if (c == null)
+            {
+                // If there is no "lock" in place yet, try to set in ours.
 
-            // "sleep" a bit - operations performed while the lock's being held
-            // may include "expensive" operations (secondary indexes for example).
-            LockSupport.parkNanos(ACQUIRE_LOCK_SPIN_SLEEP);
+                if (lockFieldUpdater.compareAndSet(this, null, new SimpleCondition()))
+                    // Our lock's in place, go ahead.
+                    return true;
+
+                // Some other thread succeeded, spin and try again.
+                Thread.onSpinWait();
+                continue;
+            }
+
+            // A lock's already in place, wait for it.
+            try
+            {
+                c.await();
+            }
+            catch (InterruptedException e)
+            {
+                // Continue updating the partition, but return the fact, that we do _not_ own the lock.
+                Thread.currentThread().interrupt();
+                return false;
+            }
         }
     }
 
     protected final void releaseLock()
     {
-        long t = Thread.currentThread().getId();
-        boolean r = lockFieldUpdater.compareAndSet(this, t, 0L);
-        assert r;
+        // acquireLock() returned true - and only the thread "owning" the lock calls this method.
+
+        // free the lock
+        lockFieldUpdater.set(this, null);
+
+        Condition c = lockFieldUpdater.get(this);
+        // Tell waiters that we've finished
+        c.signalAll();
     }
 }
