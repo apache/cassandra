@@ -592,17 +592,14 @@ public final class JavaBasedUDFunction extends UDFunction
 
             String resourceName = className.replace('.', '/') + ".class";
 
-            try
+            try (InputStream is = UDFunction.udfClassLoader.getResourceAsStream(resourceName))
             {
-                try (InputStream is = UDFunction.udfClassLoader.getResourceAsStream(resourceName))
+                if (is != null)
                 {
-                    if (is != null)
-                    {
-                        byte[] classBytes = ByteStreams.toByteArray(is);
-                        char[] fileName = className.toCharArray();
-                        ClassFileReader classFileReader = new ClassFileReader(classBytes, fileName, true);
-                        return new NameEnvironmentAnswer(classFileReader, null);
-                    }
+                    byte[] classBytes = ByteStreams.toByteArray(is);
+                    char[] fileName = className.toCharArray();
+                    ClassFileReader classFileReader = new ClassFileReader(classBytes, fileName, true);
+                    return new NameEnvironmentAnswer(classFileReader, null);
                 }
             }
             catch (IOException | ClassFormatException exc)

@@ -89,7 +89,7 @@ public final class FileUtils
         }
         catch (Throwable t)
         {
-            logger.info("Cannot initialize optimized memory deallocator. Some data, both in-memory and on-disk, may live longer due to garbage collection.");
+            logger.error("FATAL: Cannot initialize optimized memory deallocator. Some data, both in-memory and on-disk, may live longer due to garbage collection.");
             JVMStabilityInspector.inspectThrowable(t);
             throw new RuntimeException(t);
         }
@@ -150,9 +150,7 @@ public final class FileUtils
 
                 // We have a positive long here, which is safe to use for example
                 // for CommitLogTest.
-                String timePart = Long.toString(num);
-
-                String fileName = prefix + timePart + suffix;
+                String fileName = prefix + Long.toString(num) + suffix;
                 File candidate = new File(directory, fileName);
                 if (candidate.createNewFile())
                     return candidate;
@@ -405,20 +403,11 @@ public final class FileUtils
 
         try
         {
-            if (buffer.isDirect())
+            Object cleaner = mhDirectBufferCleaner.bindTo(buffer).invoke();
+            if (cleaner != null)
             {
-                Object cleaner = mhDirectBufferCleaner.bindTo(buffer).invoke();
-                if (cleaner != null)
-                {
-                    // ((DirectBuffer) buf).cleaner().clean();
-                    mhCleanerClean.bindTo(cleaner).invoke();
-                }
-                else
-                {
-                    Object attach = MemoryUtil.getAttachment(buffer);
-                    if (attach instanceof ByteBuffer && attach != buffer)
-                        clean((ByteBuffer) attach);
-                }
+                // ((DirectBuffer) buf).cleaner().clean();
+                mhCleanerClean.bindTo(cleaner).invoke();
             }
         }
         catch (RuntimeException e)

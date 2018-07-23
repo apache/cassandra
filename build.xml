@@ -68,7 +68,7 @@
     <property name="doc.dir" value="${basedir}/doc"/>
 
     <!--
-    We specific '8' instead of '1.8' in source.version to indicate that that this build requires Java 11 _and_ Java 8.
+    We specify '8' instead of '1.8' in source.version to indicate that that this build requires Java 11 _and_ Java 8.
     Builds that only run against Java 8, _have to_ specify '1.8' for source version. This makes it possible to let
     CI scripts distinguish between "pure Java 8" releases and "hybrid" releases.
     -->
@@ -1763,7 +1763,7 @@
     <echo message="Mem size : ${mem.size}"/>
   </target>
 
-  <target name="test" depends="build-test" description="Parallel Test Runner">
+  <target name="test" depends="build-test,get-cores,get-mem" description="Parallel Test Runner">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
