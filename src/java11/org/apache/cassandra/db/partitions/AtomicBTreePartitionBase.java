@@ -18,14 +18,12 @@
 
 package org.apache.cassandra.db.partitions;
 
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 /**
  * Java 11 version for the partition-locks in {@link AtomicBTreePartition}.
@@ -40,8 +38,7 @@ public abstract class AtomicBTreePartitionBase extends AbstractBTreePartition
     }
 
     // Replacement for Unsafe.monitorEnter/monitorExit.
-    private volatile Condition lock;
-    private static final AtomicReferenceFieldUpdater<AtomicBTreePartitionBase, Condition> lockFieldUpdater = AtomicReferenceFieldUpdater.newUpdater(AtomicBTreePartitionBase.class, Condition.class, "lock");
+    private final ReentrantLock lock = new ReentrantLock();
 
     static
     {
@@ -51,47 +48,13 @@ public abstract class AtomicBTreePartitionBase extends AbstractBTreePartition
             throw new RuntimeException("Java 11 required, but found " + Runtime.version());
     }
 
-    protected final boolean acquireLock()
+    protected final void acquireLock()
     {
-        while (true)
-        {
-            Condition c = lockFieldUpdater.get(this);
-            if (c == null)
-            {
-                // If there is no "lock" in place yet, try to set in ours.
-
-                if (lockFieldUpdater.compareAndSet(this, null, new SimpleCondition()))
-                    // Our lock's in place, go ahead.
-                    return true;
-
-                // Some other thread succeeded, spin and try again.
-                Thread.onSpinWait();
-                continue;
-            }
-
-            // A lock's already in place, wait for it.
-            try
-            {
-                c.await();
-            }
-            catch (InterruptedException e)
-            {
-                // Continue updating the partition, but return the fact, that we do _not_ own the lock.
-                Thread.currentThread().interrupt();
-                return false;
-            }
-        }
+        lock.lock();
     }
 
     protected final void releaseLock()
     {
-        // acquireLock() returned true - and only the thread "owning" the lock calls this method.
-
-        // free the lock
-        lockFieldUpdater.set(this, null);
-
-        Condition c = lockFieldUpdater.get(this);
-        // Tell waiters that we've finished
-        c.signalAll();
+        lock.unlock();
     }
 }

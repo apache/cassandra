@@ -67,11 +67,10 @@ public abstract class AtomicBTreePartitionBase extends AbstractBTreePartition
         super(partitionKey);
     }
 
-    protected final boolean acquireLock()
+    protected final void acquireLock()
     {
         if (unsafe != null)
             unsafe.monitorEnter(this);
-        return true;
     }
 
     protected final void releaseLock()

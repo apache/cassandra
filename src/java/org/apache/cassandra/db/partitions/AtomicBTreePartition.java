@@ -124,7 +124,8 @@ public final class AtomicBTreePartition extends AtomicBTreePartitionBase
         {
             if (usePessimisticLocking())
             {
-                monitorOwned = acquireLock();
+                acquireLock();
+                monitorOwned = true;
             }
 
             indexer.start();
@@ -177,7 +178,8 @@ public final class AtomicBTreePartition extends AtomicBTreePartitionBase
                     }
                     if (shouldLock)
                     {
-                        monitorOwned = acquireLock();
+                        acquireLock();
+                        monitorOwned = true;
                     }
                 }
             }
