@@ -86,6 +86,8 @@ public class VIntCoding
      * Note this method is the same as {@link #readUnsignedVInt(DataInput)},
      * except that we do *not* block if there are not enough bytes in the buffer
      * to reconstruct the value.
+     *
+     * @return -1 if there are not enough bytes in the input to read the value; else, the vint unsigned value.
      */
     public static long readUnsignedVInt(ByteBuf input)
     {

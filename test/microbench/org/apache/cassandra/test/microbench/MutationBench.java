@@ -25,7 +25,7 @@ import java.util.Collection;
 import java.util.concurrent.*;
 
 import org.apache.cassandra.UpdateBuilder;
-import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;

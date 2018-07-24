@@ -59,7 +59,7 @@ public class CassandraNetworkAuthorizerTest
     {
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
-            return statement.executeInternal(QueryState.forInternalCalls(), options);
+            return statement.executeLocally(QueryState.forInternalCalls(), options);
         }
 
         UntypedResultSet process(String query) throws RequestExecutionException
@@ -70,7 +70,7 @@ public class CassandraNetworkAuthorizerTest
         @Override
         void processBatch(BatchStatement statement)
         {
-            statement.executeInternal(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
+            statement.executeLocally(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
         }
     }
 
@@ -78,7 +78,7 @@ public class CassandraNetworkAuthorizerTest
     {
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
-            return statement.executeInternal(QueryState.forInternalCalls(), options);
+            return statement.executeLocally(QueryState.forInternalCalls(), options);
         }
 
         UntypedResultSet process(String query, ConsistencyLevel consistencyLevel) throws RequestValidationException, RequestExecutionException
@@ -91,7 +91,7 @@ public class CassandraNetworkAuthorizerTest
     {
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
-            return statement.executeInternal(QueryState.forInternalCalls(), options);
+            return statement.executeLocally(QueryState.forInternalCalls(), options);
         }
 
         void process(String query)
@@ -170,7 +170,7 @@ public class CassandraNetworkAuthorizerTest
 
     private static void auth(String query, Object... args)
     {
-        CQLStatement statement = QueryProcessor.parseStatement(String.format(query, args)).prepare().statement;
+        CQLStatement statement = QueryProcessor.parseStatement(String.format(query, args)).prepare(ClientState.forInternalCalls());
         assert statement instanceof CreateRoleStatement
                || statement instanceof AlterRoleStatement
                || statement instanceof DropRoleStatement;

@@ -245,7 +245,7 @@ public final class TableParams
     {
         private String comment = "";
         private Double bloomFilterFpChance;
-        public Double crcCheckChance = 1.0;
+        private double crcCheckChance = 1.0;
         private int gcGraceSeconds = 864000; // 10 days
         private int defaultTimeToLive = 0;
         private int memtableFlushPeriodInMs = 0;

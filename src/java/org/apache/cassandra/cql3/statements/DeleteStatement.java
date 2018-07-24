@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.List;
 
+import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
@@ -42,14 +43,14 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
  */
 public class DeleteStatement extends ModificationStatement
 {
-    private DeleteStatement(int boundTerms,
+    private DeleteStatement(VariableSpecifications bindVariables,
                             TableMetadata cfm,
                             Operations operations,
                             StatementRestrictions restrictions,
                             Conditions conditions,
                             Attributes attrs)
     {
-        super(StatementType.DELETE, boundTerms, cfm, operations, restrictions, conditions, attrs);
+        super(StatementType.DELETE, bindVariables, cfm, operations, restrictions, conditions, attrs);
     }
 
     @Override
@@ -125,7 +126,7 @@ public class DeleteStatement extends ModificationStatement
         private final List<Operation.RawDeletion> deletions;
         private final WhereClause whereClause;
 
-        public Parsed(CFName name,
+        public Parsed(QualifiedName name,
                       Attributes.Raw attrs,
                       List<Operation.RawDeletion> deletions,
                       WhereClause whereClause,
@@ -140,7 +141,7 @@ public class DeleteStatement extends ModificationStatement
 
         @Override
         protected ModificationStatement prepareInternal(TableMetadata metadata,
-                                                        VariableSpecifications boundNames,
+                                                        VariableSpecifications bindVariables,
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
@@ -157,17 +158,17 @@ public class DeleteStatement extends ModificationStatement
                 checkFalse(def.isPrimaryKeyColumn(), "Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", def.name);
 
                 Operation op = deletion.prepare(metadata.keyspace, def, metadata);
-                op.collectMarkerSpecification(boundNames);
+                op.collectMarkerSpecification(bindVariables);
                 operations.add(op);
             }
 
             StatementRestrictions restrictions = newRestrictions(metadata,
-                                                                 boundNames,
+                                                                 bindVariables,
                                                                  operations,
                                                                  whereClause,
                                                                  conditions);
 
-            DeleteStatement stmt = new DeleteStatement(boundNames.size(),
+            DeleteStatement stmt = new DeleteStatement(bindVariables,
                                                        metadata,
                                                        operations,
                                                        restrictions,

@@ -672,7 +672,7 @@ public class ViewSchemaTest extends CQLTester
         executeNet(protocolVersion, "USE " + keyspace());
 
         createView(keyspace() + ".mv1",
-                   "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, b, c)");
+                   "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, b, c)");
 
         try
         {
@@ -681,7 +681,7 @@ public class ViewSchemaTest extends CQLTester
         }
         catch (InvalidQueryException e)
         {
-            Assert.assertEquals("Cannot use DROP TABLE on Materialized View", e.getMessage());
+            Assert.assertEquals("Cannot use DROP TABLE on a materialized view. Please use DROP MATERIALIZED VIEW instead.", e.getMessage());
         }
     }
 
@@ -694,7 +694,7 @@ public class ViewSchemaTest extends CQLTester
 
         executeNet(protocolVersion, "USE " + keyspace());
 
-        assertInvalidMessage("Non-primary key columns cannot be restricted in the SELECT statement used for materialized view creation",
+        assertInvalidMessage("Non-primary key columns can only be restricted with 'IS NOT NULL'",
                              "CREATE MATERIALIZED VIEW " + keyspace() + ".mv AS SELECT * FROM %s "
                                      + "WHERE b IS NOT NULL AND c IS NOT NULL AND a IS NOT NULL "
                                      + "AND d = 1 PRIMARY KEY (c, b, a)");

@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Joiner;
@@ -141,6 +142,25 @@ public final class TokenRelation extends Relation
     public String toString()
     {
         return String.format("token%s %s %s", Tuples.tupleToString(entities), relationType, value);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(relationType, entities, value);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof TokenRelation))
+            return false;
+
+        TokenRelation tr = (TokenRelation) o;
+        return entities.equals(tr.entities) && value.equals(tr.value);
     }
 
     /**

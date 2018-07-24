@@ -32,7 +32,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.*;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.statements.*;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.index.sasi.*;
@@ -406,7 +406,7 @@ public class TableCQLHelperTest extends CQLTester
         String tableName = createTable("CREATE TABLE IF NOT EXISTS %s (" +
                                        "pk1 varint," +
                                        "ck1 varint," +
-                                       "reg1 " + typeB + "," +
+                                       "reg1 frozen<" + typeB + ">," +
                                        "reg2 varint," +
                                        "PRIMARY KEY (pk1, ck1));");
 

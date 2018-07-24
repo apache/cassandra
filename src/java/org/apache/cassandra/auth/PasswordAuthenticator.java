@@ -160,7 +160,7 @@ public class PasswordAuthenticator implements IAuthenticator
 
     private static SelectStatement prepare(String query)
     {
-        return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls()).statement;
+        return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls());
     }
 
     private class PlainTextSaslAuthenticator implements SaslNegotiator

@@ -1866,6 +1866,14 @@ public class DatabaseDescriptor
         return conf.commitlog_sync_period_in_ms;
     }
 
+    public static long getPeriodicCommitLogSyncBlock()
+    {
+        Integer blockMillis = conf.periodic_commitlog_sync_lag_block_in_ms;
+        return blockMillis == null
+               ? (long)(getCommitLogSyncPeriod() * 1.5)
+               : blockMillis;
+    }
+
     public static void setCommitLogSyncPeriod(int periodMillis)
     {
         conf.commitlog_sync_period_in_ms = periodMillis;

@@ -27,9 +27,21 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.schema.Functions.FunctionsDiff;
+import org.apache.cassandra.schema.Tables.TablesDiff;
+import org.apache.cassandra.schema.Types.TypesDiff;
+import org.apache.cassandra.schema.Views.ViewsDiff;
+import org.apache.cassandra.service.StorageService;
 
 import static java.lang.String.format;
+
+import static com.google.common.collect.Iterables.any;
 
 /**
  * An immutable representation of keyspace metadata (name, params, tables, types, and functions).
@@ -110,9 +122,24 @@ public final class KeyspaceMetadata
         return kind == Kind.VIRTUAL;
     }
 
+    /**
+     * Returns a new KeyspaceMetadata with all instances of old UDT replaced with the updated version.
+     * Replaces all instances in tables, views, types, and functions.
+     */
+    public KeyspaceMetadata withUpdatedUserType(UserType udt)
+    {
+        return new KeyspaceMetadata(name,
+                                    kind,
+                                    params,
+                                    tables.withUpdatedUserType(udt),
+                                    views.withUpdatedUserTypes(udt),
+                                    types.withUpdatedUserType(udt),
+                                    functions.withUpdatedUserType(udt));
+    }
+
     public Iterable<TableMetadata> tablesAndViews()
     {
-        return Iterables.concat(tables, views.metadatas());
+        return Iterables.concat(tables, views.allTableMetadata());
     }
 
     @Nullable
@@ -124,14 +151,34 @@ public final class KeyspaceMetadata
              : view.metadata;
     }
 
-    public Set<String> existingIndexNames(String cfToExclude)
+    public boolean hasTable(String tableName)
     {
-        Set<String> indexNames = new HashSet<>();
-        for (TableMetadata table : tables)
-            if (cfToExclude == null || !table.name.equals(cfToExclude))
-                for (IndexMetadata index : table.indexes)
-                    indexNames.add(index.name);
-        return indexNames;
+        return tables.get(tableName).isPresent();
+    }
+
+    public boolean hasView(String viewName)
+    {
+        return views.get(viewName).isPresent();
+    }
+
+    public boolean hasIndex(String indexName)
+    {
+        return any(tables, t -> t.indexes.has(indexName));
+    }
+
+    public String findAvailableIndexName(String baseName)
+    {
+        if (!hasIndex(baseName))
+            return baseName;
+
+        int i = 1;
+        do
+        {
+            String name = baseName + '_' + i++;
+            if (!hasIndex(name))
+                return name;
+        }
+        while (true);
     }
 
     public Optional<TableMetadata> findIndexedTable(String indexName)
@@ -207,6 +254,79 @@ public final class KeyspaceMetadata
 
                 indexNames.add(index.name);
             }
+        }
+    }
+
+    public AbstractReplicationStrategy createReplicationStrategy()
+    {
+        return AbstractReplicationStrategy.createReplicationStrategy(name,
+                                                                     params.replication.klass,
+                                                                     StorageService.instance.getTokenMetadata(),
+                                                                     DatabaseDescriptor.getEndpointSnitch(),
+                                                                     params.replication.options);
+    }
+
+    static Optional<KeyspaceDiff> diff(KeyspaceMetadata before, KeyspaceMetadata after)
+    {
+        return KeyspaceDiff.diff(before, after);
+    }
+
+    public static final class KeyspaceDiff
+    {
+        public final KeyspaceMetadata before;
+        public final KeyspaceMetadata after;
+
+        public final TablesDiff tables;
+        public final ViewsDiff views;
+        public final TypesDiff types;
+
+        public final FunctionsDiff<UDFunction> udfs;
+        public final FunctionsDiff<UDAggregate> udas;
+
+        private KeyspaceDiff(KeyspaceMetadata before,
+                             KeyspaceMetadata after,
+                             TablesDiff tables,
+                             ViewsDiff views,
+                             TypesDiff types,
+                             FunctionsDiff<UDFunction> udfs,
+                             FunctionsDiff<UDAggregate> udas)
+        {
+            this.before = before;
+            this.after = after;
+            this.tables = tables;
+            this.views = views;
+            this.types = types;
+            this.udfs = udfs;
+            this.udas = udas;
+        }
+
+        private static Optional<KeyspaceDiff> diff(KeyspaceMetadata before, KeyspaceMetadata after)
+        {
+            if (before == after)
+                return Optional.empty();
+
+            if (!before.name.equals(after.name))
+            {
+                String msg = String.format("Attempting to diff two keyspaces with different names ('%s' and '%s')", before.name, after.name);
+                throw new IllegalArgumentException(msg);
+            }
+
+            TablesDiff tables = Tables.diff(before.tables, after.tables);
+            ViewsDiff views = Views.diff(before.views, after.views);
+            TypesDiff types = Types.diff(before.types, after.types);
+
+            @SuppressWarnings("unchecked") FunctionsDiff<UDFunction>  udfs = FunctionsDiff.NONE;
+            @SuppressWarnings("unchecked") FunctionsDiff<UDAggregate> udas = FunctionsDiff.NONE;
+            if (before.functions != after.functions)
+            {
+                udfs = Functions.udfsDiff(before.functions, after.functions);
+                udas = Functions.udasDiff(before.functions, after.functions);
+            }
+
+            if (before.params.equals(after.params) && tables.isEmpty() && views.isEmpty() && types.isEmpty() && udfs.isEmpty() && udas.isEmpty())
+                return Optional.empty();
+
+            return Optional.of(new KeyspaceDiff(before, after, tables, views, types, udfs, udas));
         }
     }
 }

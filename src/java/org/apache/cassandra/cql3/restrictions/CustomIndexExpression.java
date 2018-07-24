@@ -15,26 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.cql3.restrictions;
 
-import org.apache.cassandra.schema.TableMetadata;
+import java.util.Objects;
+
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
+import org.apache.cassandra.schema.TableMetadata;
 
 public class CustomIndexExpression
 {
     private final ColumnIdentifier valueColId = new ColumnIdentifier("custom index expression", false);
 
-    public final IndexName targetIndex;
+    public final QualifiedName targetIndex;
     public final Term.Raw valueRaw;
 
     private Term value;
 
-    public CustomIndexExpression(IndexName targetIndex, Term.Raw value)
+    public CustomIndexExpression(QualifiedName targetIndex, Term.Raw value)
     {
         this.targetIndex = targetIndex;
         this.valueRaw = value;
@@ -51,14 +50,33 @@ public class CustomIndexExpression
     {
         filter.addCustomIndexExpression(table,
                                         table.indexes
-                                             .get(targetIndex.getIdx())
+                                             .get(targetIndex.getName())
                                              .orElseThrow(() -> IndexRestrictions.indexNotFound(targetIndex, table)),
                                         value.bindAndGet(options));
     }
-    
+
     @Override
     public String toString()
     {
-        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+        return String.format("expr(%s,%s)", targetIndex, valueRaw);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(targetIndex, valueRaw);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof CustomIndexExpression))
+            return false;
+
+        CustomIndexExpression cie = (CustomIndexExpression) o;
+        return targetIndex.equals(cie.targetIndex) && valueRaw.equals(cie.valueRaw);
     }
 }

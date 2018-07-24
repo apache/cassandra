@@ -28,8 +28,8 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -113,12 +113,12 @@ public class ExecuteMessage extends Message.Request
         try
         {
             QueryHandler handler = ClientState.getCQLQueryHandler();
-            ParsedStatement.Prepared prepared = handler.getPrepared(statementId);
+            QueryProcessor.Prepared prepared = handler.getPrepared(statementId);
             if (prepared == null)
                 throw new PreparedQueryNotFoundException(statementId);
 
-            options.prepare(prepared.boundNames);
             CQLStatement statement = prepared.statement;
+            options.prepare(statement.getBindVariables());
 
             if (options.getPageSize() == 0)
                 throw new ProtocolException("The page size cannot be 0");
@@ -143,9 +143,9 @@ public class ExecuteMessage extends Message.Request
                     builder.put("serial_consistency_level", options.getSerialConsistency().name());
                 builder.put("query", prepared.rawCQLStatement);
 
-                for(int i=0;i<prepared.boundNames.size();i++)
+                for(int i = 0; i < statement.getBindVariables().size(); i++)
                 {
-                    ColumnSpecification cs = prepared.boundNames.get(i);
+                    ColumnSpecification cs = statement.getBindVariables().get(i);
                     String boundName = cs.name.toString();
                     String boundValue = cs.type.asCQL3Type().toCQLLiteral(options.getValues().get(i), options.getProtocolVersion());
                     if ( boundValue.length() > 1000 )
@@ -163,7 +163,7 @@ public class ExecuteMessage extends Message.Request
 
             // Some custom QueryHandlers are interested by the bound names. We provide them this information
             // by wrapping the QueryOptions.
-            QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.boundNames);
+            QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.statement.getBindVariables());
 
             long fqlTime = isLoggingEnabled ? System.currentTimeMillis() : 0;
             Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
@@ -230,7 +230,7 @@ public class ExecuteMessage extends Message.Request
                 }
                 else
                 {
-                    ParsedStatement.Prepared prepared = ClientState.getCQLQueryHandler().getPrepared(statementId);
+                    QueryHandler.Prepared prepared = ClientState.getCQLQueryHandler().getPrepared(statementId);
                     if (prepared != null)
                     {
                         AuditLogEntry auditLogEntry = new AuditLogEntry.Builder(state.getClientState())

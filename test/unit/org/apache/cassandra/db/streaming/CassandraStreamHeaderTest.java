@@ -25,7 +25,7 @@ import java.util.List;
 import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.streaming.CassandraStreamHeader.CassandraStreamHeaderSerializer;
 import org.apache.cassandra.dht.Murmur3Partitioner;

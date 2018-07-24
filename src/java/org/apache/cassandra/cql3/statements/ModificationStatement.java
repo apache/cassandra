@@ -29,7 +29,6 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.ColumnMetadata.Raw;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
@@ -77,7 +76,8 @@ public abstract class ModificationStatement implements CQLStatement
 
     protected final StatementType type;
 
-    private final int boundTerms;
+    protected final VariableSpecifications bindVariables;
+
     public final TableMetadata metadata;
     private final Attributes attrs;
 
@@ -94,7 +94,7 @@ public abstract class ModificationStatement implements CQLStatement
     private final RegularAndStaticColumns requiresRead;
 
     public ModificationStatement(StatementType type,
-                                 int boundTerms,
+                                 VariableSpecifications bindVariables,
                                  TableMetadata metadata,
                                  Operations operations,
                                  StatementRestrictions restrictions,
@@ -102,7 +102,7 @@ public abstract class ModificationStatement implements CQLStatement
                                  Attributes attrs)
     {
         this.type = type;
-        this.boundTerms = boundTerms;
+        this.bindVariables = bindVariables;
         this.metadata = metadata;
         this.restrictions = restrictions;
         this.operations = operations;
@@ -147,6 +147,19 @@ public abstract class ModificationStatement implements CQLStatement
         this.requiresRead = requiresReadBuilder.build();
     }
 
+    @Override
+    public List<ColumnSpecification> getBindVariables()
+    {
+        return bindVariables.getBindVariables();
+    }
+
+    @Override
+    public short[] getPartitionKeyBindVariableIndexes()
+    {
+        return bindVariables.getPartitionKeyBindVariableIndexes(metadata);
+    }
+
+    @Override
     public Iterable<Function> getFunctions()
     {
         List<Function> functions = new ArrayList<>();
@@ -178,11 +191,6 @@ public abstract class ModificationStatement implements CQLStatement
     public abstract void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering clustering, UpdateParameters params);
 
     public abstract void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Slice slice, UpdateParameters params);
-
-    public int getBoundTerms()
-    {
-        return boundTerms;
-    }
 
     public String keyspace()
     {
@@ -224,28 +232,28 @@ public abstract class ModificationStatement implements CQLStatement
         return attrs.getTimeToLive(options, metadata);
     }
 
-    public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
+    public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
-        state.hasColumnFamilyAccess(metadata, Permission.MODIFY);
+        state.ensureTablePermission(metadata, Permission.MODIFY);
 
         // CAS updates can be used to simulate a SELECT query, so should require Permission.SELECT as well.
         if (hasConditions())
-            state.hasColumnFamilyAccess(metadata, Permission.SELECT);
+            state.ensureTablePermission(metadata, Permission.SELECT);
 
         // MV updates need to get the current state from the table, and might update the views
         // Require Permission.SELECT on the base table, and Permission.MODIFY on the views
         Iterator<ViewMetadata> views = View.findAll(keyspace(), columnFamily()).iterator();
         if (views.hasNext())
         {
-            state.hasColumnFamilyAccess(metadata, Permission.SELECT);
+            state.ensureTablePermission(metadata, Permission.SELECT);
             do
             {
-                state.hasColumnFamilyAccess(views.next().metadata, Permission.MODIFY);
+                state.ensureTablePermission(views.next().metadata, Permission.MODIFY);
             } while (views.hasNext());
         }
 
         for (Function function : getFunctions())
-            state.ensureHasPermission(Permission.EXECUTE, function);
+            state.ensurePermission(Permission.EXECUTE, function);
     }
 
     public void validate(ClientState state) throws InvalidRequestException
@@ -597,7 +605,7 @@ public abstract class ModificationStatement implements CQLStatement
         return builder.build();
     }
 
-    public ResultMessage executeInternal(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
+    public ResultMessage executeLocally(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
         return hasConditions()
                ? executeInternalWithCondition(queryState, options)
@@ -799,7 +807,7 @@ public abstract class ModificationStatement implements CQLStatement
         return builder.build();
     }
 
-    public static abstract class Parsed extends CFStatement
+    public static abstract class Parsed extends QualifiedStatement
     {
         protected final StatementType type;
         private final Attributes.Raw attrs;
@@ -807,7 +815,7 @@ public abstract class ModificationStatement implements CQLStatement
         private final boolean ifNotExists;
         private final boolean ifExists;
 
-        protected Parsed(CFName name,
+        protected Parsed(QualifiedName name,
                          StatementType type,
                          Attributes.Raw attrs,
                          List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> conditions,
@@ -817,39 +825,36 @@ public abstract class ModificationStatement implements CQLStatement
             super(name);
             this.type = type;
             this.attrs = attrs;
-            this.conditions = conditions == null ? Collections.<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>>emptyList() : conditions;
+            this.conditions = conditions == null ? Collections.emptyList() : conditions;
             this.ifNotExists = ifNotExists;
             this.ifExists = ifExists;
         }
 
-        public ParsedStatement.Prepared prepare()
+        public ModificationStatement prepare(ClientState state)
         {
-            VariableSpecifications boundNames = getBoundVariables();
-            ModificationStatement statement = prepare(boundNames);
-            TableMetadata metadata = Schema.instance.validateTable(keyspace(), columnFamily());
-            return new ParsedStatement.Prepared(statement, boundNames, boundNames.getPartitionKeyBindIndexes(metadata));
+            return prepare(bindVariables);
         }
 
-        public ModificationStatement prepare(VariableSpecifications boundNames)
+        public ModificationStatement prepare(VariableSpecifications bindVariables)
         {
-            TableMetadata metadata = Schema.instance.validateTable(keyspace(), columnFamily());
+            TableMetadata metadata = Schema.instance.validateTable(keyspace(), name());
 
-            Attributes preparedAttributes = attrs.prepare(keyspace(), columnFamily());
-            preparedAttributes.collectMarkerSpecification(boundNames);
+            Attributes preparedAttributes = attrs.prepare(keyspace(), name());
+            preparedAttributes.collectMarkerSpecification(bindVariables);
 
-            Conditions preparedConditions = prepareConditions(metadata, boundNames);
+            Conditions preparedConditions = prepareConditions(metadata, bindVariables);
 
-            return prepareInternal(metadata, boundNames, preparedConditions, preparedAttributes);
+            return prepareInternal(metadata, bindVariables, preparedConditions, preparedAttributes);
         }
 
         /**
          * Returns the column conditions.
          *
          * @param metadata the column family meta data
-         * @param boundNames the bound names
+         * @param bindVariables the bound names
          * @return the column conditions.
          */
-        private Conditions prepareConditions(TableMetadata metadata, VariableSpecifications boundNames)
+        private Conditions prepareConditions(TableMetadata metadata, VariableSpecifications bindVariables)
         {
             // To have both 'IF EXISTS'/'IF NOT EXISTS' and some other conditions doesn't make sense.
             // So far this is enforced by the parser, but let's assert it for sanity if ever the parse changes.
@@ -870,17 +875,17 @@ public abstract class ModificationStatement implements CQLStatement
             if (conditions.isEmpty())
                 return Conditions.EMPTY_CONDITION;
 
-            return prepareColumnConditions(metadata, boundNames);
+            return prepareColumnConditions(metadata, bindVariables);
         }
 
         /**
          * Returns the column conditions.
          *
          * @param metadata the column family meta data
-         * @param boundNames the bound names
+         * @param bindVariables the bound names
          * @return the column conditions.
          */
-        private ColumnConditions prepareColumnConditions(TableMetadata metadata, VariableSpecifications boundNames)
+        private ColumnConditions prepareColumnConditions(TableMetadata metadata, VariableSpecifications bindVariables)
         {
             checkNull(attrs.timestamp, "Cannot provide custom timestamp for conditional updates");
 
@@ -890,7 +895,7 @@ public abstract class ModificationStatement implements CQLStatement
             {
                 ColumnMetadata def = entry.left.prepare(metadata);
                 ColumnCondition condition = entry.right.prepare(keyspace(), def, metadata);
-                condition.collectMarkerSpecification(boundNames);
+                condition.collectMarkerSpecification(bindVariables);
 
                 checkFalse(def.isPrimaryKeyColumn(), "PRIMARY KEY column '%s' cannot have IF conditions", def.name);
                 builder.add(condition);
@@ -899,7 +904,7 @@ public abstract class ModificationStatement implements CQLStatement
         }
 
         protected abstract ModificationStatement prepareInternal(TableMetadata metadata,
-                                                                 VariableSpecifications boundNames,
+                                                                 VariableSpecifications bindVariables,
                                                                  Conditions conditions,
                                                                  Attributes attrs);
 
@@ -933,7 +938,7 @@ public abstract class ModificationStatement implements CQLStatement
          * @param rawId the raw <code>ColumnIdentifier</code>
          * @return the <code>ColumnMetadata</code> corresponding to the specified raw <code>ColumnIdentifier</code>
          */
-        protected static ColumnMetadata getColumnDefinition(TableMetadata metadata, Raw rawId)
+        protected static ColumnMetadata getColumnDefinition(TableMetadata metadata, ColumnMetadata.Raw rawId)
         {
             return rawId.prepare(metadata);
         }
@@ -942,7 +947,7 @@ public abstract class ModificationStatement implements CQLStatement
         {
             ImmutableList.Builder<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> builder = ImmutableList.builderWithExpectedSize(conditions.size());
 
-            for (Pair<Raw, ColumnCondition.Raw> condition : conditions)
+            for (Pair<ColumnMetadata.Raw, ColumnCondition.Raw> condition : conditions)
                 builder.add(Pair.create(condition.left, condition.right));
 
             return builder.build();
