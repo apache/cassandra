@@ -18,14 +18,24 @@
 
 package org.apache.cassandra.db.streaming;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.schema.TableId;
@@ -34,25 +44,41 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.concurrent.Ref;
 
+import static org.apache.cassandra.db.compaction.Verifier.RangeOwnHelper;
+
 /**
  * used to transfer the part(or whole) of a SSTable data file
  */
 public class CassandraOutgoingFile implements OutgoingStream
 {
+    private static final boolean isFullSSTableTransfersEnabled = DatabaseDescriptor.isFullSSTableTransfersEnabled();
+    public static final List<Component> STREAM_COMPONENTS = ImmutableList.of(Component.DATA, Component.PRIMARY_INDEX, Component.STATS,
+                                                                             Component.COMPRESSION_INFO, Component.FILTER, Component.SUMMARY,
+                                                                             Component.DIGEST, Component.CRC);
+
     private final Ref<SSTableReader> ref;
     private final long estimatedKeys;
     private final List<SSTableReader.PartitionPositionBounds> sections;
     private final String filename;
     private final CassandraStreamHeader header;
     private final boolean keepSSTableLevel;
+    private final List<ComponentInfo> components;
+    private final boolean isFullyContained;
 
-    public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref, List<SSTableReader.PartitionPositionBounds> sections, long estimatedKeys)
+    private final List<Range<Token>> ranges;
+
+    public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
+                                 List<SSTableReader.PartitionPositionBounds> sections, Collection<Range<Token>> ranges,
+                                 long estimatedKeys)
     {
         Preconditions.checkNotNull(ref.get());
         this.ref = ref;
         this.estimatedKeys = estimatedKeys;
         this.sections = sections;
+        this.ranges = ImmutableList.copyOf(ranges);
         this.filename = ref.get().getFilename();
+        this.components = getComponents(ref.get());
+        this.isFullyContained = fullyContainedIn(this.ranges, ref.get());
 
         SSTableReader sstable = ref.get();
         keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
@@ -62,7 +88,22 @@ public class CassandraOutgoingFile implements OutgoingStream
                                                 sections,
                                                 sstable.compression ? sstable.getCompressionMetadata() : null,
                                                 keepSSTableLevel ? sstable.getSSTableLevel() : 0,
-                                                sstable.header.toComponent());
+                                                sstable.header.toComponent(), components, shouldStreamFullSSTable(),
+                                                sstable.first,
+                                                sstable.metadata().id);
+    }
+
+    private static List<ComponentInfo> getComponents(SSTableReader sstable)
+    {
+        List<ComponentInfo> result = new ArrayList<>(STREAM_COMPONENTS.size());
+        for (Component component : STREAM_COMPONENTS)
+        {
+            File file = new File(sstable.descriptor.filenameFor(component));
+            if (file.exists())
+                result.add(new ComponentInfo(component.type, file.length()));
+        }
+
+        return result;
     }
 
     public static CassandraOutgoingFile fromStream(OutgoingStream stream)
@@ -114,11 +155,49 @@ public class CassandraOutgoingFile implements OutgoingStream
         CassandraStreamHeader.serializer.serialize(header, out, version);
         out.flush();
 
-        CassandraStreamWriter writer = header.compressionInfo == null ?
-                                       new CassandraStreamWriter(sstable, header.sections, session) :
-                                       new CompressedCassandraStreamWriter(sstable, header.sections,
-                                                                           header.compressionInfo, session);
+        IStreamWriter writer;
+        if (shouldStreamFullSSTable())
+        {
+            writer = new CassandraBlockStreamWriter(sstable, session, components);
+        }
+        else
+        {
+            writer = (header.compressionInfo == null) ?
+                     new CassandraStreamWriter(sstable, header.sections, session) :
+                     new CompressedCassandraStreamWriter(sstable, header.sections,
+                                                         header.compressionInfo, session);
+        }
         writer.write(out);
+    }
+
+    @VisibleForTesting
+    public boolean shouldStreamFullSSTable()
+    {
+        return isFullSSTableTransfersEnabled && isFullyContained;
+    }
+
+    @VisibleForTesting
+    public boolean fullyContainedIn(List<Range<Token>> normalizedRanges, SSTableReader sstable)
+    {
+        if (normalizedRanges == null)
+            return false;
+
+        RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(normalizedRanges);
+        try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
+        {
+            while (iter.hasNext())
+            {
+                DecoratedKey key = iter.next();
+                try
+                {
+                    rangeOwnHelper.check(key);
+                } catch(RuntimeException e)
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     @Override

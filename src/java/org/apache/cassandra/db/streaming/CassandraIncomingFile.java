@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 import com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
@@ -45,6 +47,8 @@ public class CassandraIncomingFile implements IncomingStream
     private volatile SSTableMultiWriter sstable;
     private volatile long size = -1;
 
+    private static final Logger logger = LoggerFactory.getLogger(CassandraIncomingFile.class);
+
     public CassandraIncomingFile(ColumnFamilyStore cfs, StreamSession session, StreamMessageHeader header)
     {
         this.cfs = cfs;
@@ -56,9 +60,19 @@ public class CassandraIncomingFile implements IncomingStream
     public synchronized void read(DataInputPlus in, int version) throws IOException
     {
         CassandraStreamHeader streamHeader = CassandraStreamHeader.serializer.deserialize(in, version);
-        CassandraStreamReader reader = !streamHeader.isCompressed()
-                                       ? new CassandraStreamReader(header, streamHeader, session)
-                                       : new CompressedCassandraStreamReader(header, streamHeader, session);
+        logger.debug("Incoming stream fullStream={} components={}", streamHeader.fullStream, streamHeader.components);
+
+        IStreamReader reader;
+        if (streamHeader.fullStream)
+        {
+            reader = new CassandraBlockStreamReader(header, streamHeader, session);
+        }
+        else
+        {
+            reader = !streamHeader.isCompressed()
+                     ? new CassandraStreamReader(header, streamHeader, session)
+                     : new CompressedCassandraStreamReader(header, streamHeader, session);
+        }
         size = streamHeader.size();
         sstable = reader.read(in);
     }

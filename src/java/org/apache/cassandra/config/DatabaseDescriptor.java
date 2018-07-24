@@ -2268,6 +2268,20 @@ public class DatabaseDescriptor
         return conf.streaming_connections_per_host;
     }
 
+    public static boolean isFullSSTableTransfersEnabled()
+    {
+        if (conf.server_encryption_options.enabled || conf.server_encryption_options.optional)
+        {
+            logger.debug("Internode encryption enabled. Disabling zero copy SSTable transfers for streaming.");
+            return false;
+        }
+        else
+        {
+            return Boolean.valueOf(System.getProperty(Config.PROPERTY_PREFIX + "streaming.enableZeroCopySSTableTransfers",
+                                                      Boolean.toString(conf.streaming_zerocopy_sstables_enabled)));
+        }
+    }
+
     public static String getLocalDataCenter()
     {
         return localDC;

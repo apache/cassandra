@@ -18,9 +18,12 @@
 package org.apache.cassandra.io.sstable;
 
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableMap;
 
 /**
  * SSTables are made up of multiple components in separate files. Components are
@@ -37,35 +40,39 @@ public class Component
     {
         // the base data for an sstable: the remaining components can be regenerated
         // based on the data component
-        DATA("Data.db"),
+        DATA("Data.db", 1),
         // index of the row keys with pointers to their positions in the data file
-        PRIMARY_INDEX("Index.db"),
+        PRIMARY_INDEX("Index.db", 2),
         // serialized bloom filter for the row keys in the sstable
-        FILTER("Filter.db"),
+        FILTER("Filter.db", 3),
         // file to hold information about uncompressed data length, chunk offsets etc.
-        COMPRESSION_INFO("CompressionInfo.db"),
+        COMPRESSION_INFO("CompressionInfo.db", 4),
         // statistical metadata about the content of the sstable
-        STATS("Statistics.db"),
+        STATS("Statistics.db", 5),
         // holds CRC32 checksum of the data file
-        DIGEST("Digest.crc32"),
+        DIGEST("Digest.crc32", 6),
         // holds the CRC32 for chunks in an a uncompressed file.
-        CRC("CRC.db"),
+        CRC("CRC.db", 7),
         // holds SSTable Index Summary (sampling of Index component)
-        SUMMARY("Summary.db"),
+        SUMMARY("Summary.db", 8),
         // table of contents, stores the list of all components for the sstable
-        TOC("TOC.txt"),
+        TOC("TOC.txt", 9),
         // built-in secondary index (may be multiple per sstable)
-        SECONDARY_INDEX("SI_.*.db"),
+        SECONDARY_INDEX("SI_.*.db", 10),
         // custom component, used by e.g. custom compaction strategy
-        CUSTOM(null);
+        CUSTOM(null, 11);
 
-        final String repr;
-        Type(String repr)
+        public final String repr;
+        public final byte id;
+        public static final Map<Byte, Type> idToType;
+
+        Type(String repr, int id)
         {
             this.repr = repr;
+            this.id = (byte) id;
         }
 
-        static Type fromRepresentation(String repr)
+        public static Type fromRepresentation(String repr)
         {
             for (Type type : TYPES)
             {
@@ -73,6 +80,21 @@ public class Component
                     return type;
             }
             return CUSTOM;
+        }
+
+        public static Type fromRepresentation(byte id)
+        {
+            return idToType.getOrDefault(id, CUSTOM);
+        }
+
+        static
+        {
+            Type[] values = Type.values();
+            Map<Byte, Type> result = new HashMap<>(values.length);
+            for (Type t : values)
+                if (!t.equals(CUSTOM)) result.put(t.id, t);
+
+            idToType = ImmutableMap.copyOf(result);
         }
     }
 
@@ -120,7 +142,7 @@ public class Component
      * @return the component corresponding to {@code name}. Note that this always return a component as an unrecognized
      * name is parsed into a CUSTOM component.
      */
-    static Component parse(String name)
+    public static Component parse(String name)
     {
         Type type = Type.fromRepresentation(name);
 

@@ -46,3 +46,5 @@ enable_user_defined_functions: true
 enable_scripted_user_defined_functions: true
 prepared_statements_cache_size_mb: 1
 corrupted_tombstone_strategy: exception
+streaming_zerocopy_sstables_enabled: true
+stream_throughput_outbound_megabits_per_sec: 200000000

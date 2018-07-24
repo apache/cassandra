@@ -47,7 +47,6 @@ import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -152,7 +151,8 @@ public class CassandraStreamManager implements TableStreamManager
                     ref.release();
                     continue;
                 }
-                streams.add(new CassandraOutgoingFile(session.getStreamOperation(), ref, sections, sstable.estimatedKeysForRanges(ranges)));
+                streams.add(new CassandraOutgoingFile(session.getStreamOperation(), ref, sections, ranges,
+                                                      sstable.estimatedKeysForRanges(ranges)));
             }
 
             return streams;
