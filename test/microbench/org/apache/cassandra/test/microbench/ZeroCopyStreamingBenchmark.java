@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.test.microbench;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,14 +42,13 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.streaming.CassandraBlockStreamReader;
 import org.apache.cassandra.db.streaming.CassandraBlockStreamWriter;
+import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.db.streaming.CassandraStreamHeader;
 import org.apache.cassandra.db.streaming.CassandraStreamReader;
 import org.apache.cassandra.db.streaming.CassandraStreamWriter;
-import org.apache.cassandra.db.streaming.ComponentInfo;
 import org.apache.cassandra.db.streaming.CompressionInfo;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -82,8 +79,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
-
-import static org.apache.cassandra.db.streaming.CassandraOutgoingFile.STREAM_COMPONENTS;
 
 /**
  * Please ensure that this benchmark is run with stream_throughput_outbound_megabits_per_sec set to a
@@ -125,7 +120,7 @@ public class ZeroCopyStreamingBenchmark
 
             sstable = store.getLiveSSTables().iterator().next();
             session = setupStreamingSessionForTest();
-            blockStreamWriter = new CassandraBlockStreamWriter(sstable, session, getStreamableComponents(sstable));
+            blockStreamWriter = new CassandraBlockStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
 
             CapturingNettyChannel blockStreamCaptureChannel = new CapturingNettyChannel(STREAM_SIZE);
             ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(session, blockStreamCaptureChannel, 1024 * 1024);
@@ -138,7 +133,7 @@ public class ZeroCopyStreamingBenchmark
             CassandraStreamHeader blockStreamHeader = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType,
                                                                                 sstable.estimatedKeys(), Collections.emptyList(),
                                                                                 (CompressionInfo) null, 0, sstable.header.toComponent(),
-                                                                                getStreamableComponents(sstable), true, sstable.first,
+                                                                                CassandraOutgoingFile.getComponentManifest(sstable), true, sstable.first,
                                                                                 sstable.metadata().id);
 
             blockStreamReader = new CassandraBlockStreamReader(new StreamMessageHeader(sstable.metadata().id,
@@ -156,7 +151,7 @@ public class ZeroCopyStreamingBenchmark
             CassandraStreamHeader partialStreamHeader = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType,
                                                                                   sstable.estimatedKeys(), sstable.getPositionsForRanges(requestedRanges),
                                                                                   (CompressionInfo) null, 0, sstable.header.toComponent(),
-                                                                                  getStreamableComponents(sstable), false, sstable.first,
+                                                                                  CassandraOutgoingFile.getComponentManifest(sstable), false, sstable.first,
                                                                                   sstable.metadata().id);
 
             partialStreamReader = new CassandraStreamReader(new StreamMessageHeader(sstable.metadata().id,
@@ -264,21 +259,6 @@ public class ZeroCopyStreamingBenchmark
         Collection<SSTableReader> newSstables = sstableWriter.finished();
         in.close();
         channel.finishAndReleaseAll();
-    }
-
-    private static List<ComponentInfo> getStreamableComponents(SSTableReader sstable)
-    {
-        List<ComponentInfo> result = new ArrayList<>(STREAM_COMPONENTS.size());
-        for (Component component : STREAM_COMPONENTS)
-        {
-            File file = new File(sstable.descriptor.filenameFor(component));
-            if (file.exists())
-            {
-                result.add(new ComponentInfo(component.type, file.length()));
-            }
-        }
-
-        return result;
     }
 
     private EmbeddedChannel createMockNettyChannel()

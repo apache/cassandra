@@ -20,7 +20,6 @@ package org.apache.cassandra.db.streaming;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.Set;
 
 import com.google.common.base.Throwables;
@@ -44,7 +43,6 @@ import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
-import org.apache.cassandra.utils.Collectors3;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -58,7 +56,7 @@ public class CassandraBlockStreamReader implements IStreamReader
     protected final int sstableLevel;
     protected final SerializationHeader.Component header;
     protected final int fileSeqNum;
-    private final List<ComponentInfo> components;
+    private final ComponentManifest manifest;
     private final SSTableFormat.Type format;
     private final Version version;
     private final DecoratedKey firstKey;
@@ -75,7 +73,7 @@ public class CassandraBlockStreamReader implements IStreamReader
         }
         this.session = session;
         this.tableId = header.tableId;
-        this.components = streamHeader.components;
+        this.manifest = streamHeader.componentManifest;
         this.sstableLevel = streamHeader.sstableLevel;
         this.header = streamHeader.header;
         this.format = streamHeader.format;
@@ -93,7 +91,7 @@ public class CassandraBlockStreamReader implements IStreamReader
     @Override
     public SSTableMultiWriter read(DataInputPlus inputPlus) throws IOException
     {
-        long totalSize = totalSize();
+        long totalSize = manifest.getTotalSize();
 
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
 
@@ -110,23 +108,23 @@ public class CassandraBlockStreamReader implements IStreamReader
 
         try
         {
-            Set<Component> componentsToWrite = components.stream()
-                                                         .map(p -> Component.parse(p.type.repr))
-                                                         .collect(Collectors3.toImmutableSet());
-
-            writer = createWriter(cfs, totalSize, componentsToWrite);
+            writer = createWriter(cfs, totalSize, manifest.getComponents());
             long bytesRead = 0;
-            for (ComponentInfo info : components)
+            for (Component component : manifest.getComponents())
             {
+                long length = manifest.getSizeForType(component.type);
+
                 logger.debug("[Stream #{}] About to receive file {} from {} readBytes = {}, componentSize = {}, totalSize = {}",
-                            session.planId(), info.type, session.peer, FBUtilities.prettyPrintMemory(bytesRead),
-                            FBUtilities.prettyPrintMemory(info.length), FBUtilities.prettyPrintMemory(totalSize));
-                writer.writeComponent(info.type, inputPlus, info.length);
-                session.progress(writer.descriptor.filenameFor(Component.parse(info.type.repr)), ProgressInfo.Direction.IN, info.length, info.length);
-                bytesRead += info.length;
+                             session.planId(), component, session.peer, FBUtilities.prettyPrintMemory(bytesRead),
+                             FBUtilities.prettyPrintMemory(length), FBUtilities.prettyPrintMemory(totalSize));
+
+                writer.writeComponent(component.type, inputPlus, length);
+                session.progress(writer.descriptor.filenameFor(component), ProgressInfo.Direction.IN, length, length);
+                bytesRead += length;
+
                 logger.debug("[Stream #{}] Finished receiving file {} from {} readBytes = {}, componentSize = {}, totalSize = {}",
-                            session.planId(), info.type, session.peer, FBUtilities.prettyPrintMemory(bytesRead),
-                            FBUtilities.prettyPrintMemory(info.length), FBUtilities.prettyPrintMemory(totalSize));
+                             session.planId(), component, session.peer, FBUtilities.prettyPrintMemory(bytesRead),
+                             FBUtilities.prettyPrintMemory(length), FBUtilities.prettyPrintMemory(totalSize));
             }
 
             return writer;
@@ -170,15 +168,9 @@ public class CassandraBlockStreamReader implements IStreamReader
         Descriptor desc = cfs.newSSTableDescriptor(dataDir, version, format);
 
         logger.debug("[Table #{}] {} Components to write - {}", tableId, desc.filenameFor(Component.DATA), componentsToWrite);
+
+
         BigTableBlockWriter writer = new BigTableBlockWriter(desc, cfs.metadata, txn, componentsToWrite);
         return writer;
-    }
-
-    protected long totalSize()
-    {
-        long size = 0;
-        for (ComponentInfo component : components)
-            size += component.length;
-        return size;
     }
 }

@@ -45,15 +45,15 @@ public class CassandraBlockStreamWriter implements IStreamWriter
     private static final Logger logger = LoggerFactory.getLogger(CassandraBlockStreamWriter.class);
 
     protected final SSTableReader sstable;
-    protected final List<ComponentInfo> components;
+    protected final ComponentManifest manifest;
     protected final StreamSession session;
     private final StreamRateLimiter limiter;
 
-    public CassandraBlockStreamWriter(SSTableReader sstable, StreamSession session, List<ComponentInfo> components)
+    public CassandraBlockStreamWriter(SSTableReader sstable, StreamSession session, ComponentManifest manifest)
     {
         this.session = session;
         this.sstable = sstable;
-        this.components = components;
+        this.manifest = manifest;
         this.limiter =  StreamManager.getRateLimiter(session.peer);
     }
 
@@ -67,17 +67,17 @@ public class CassandraBlockStreamWriter implements IStreamWriter
     @Override
     public void write(DataOutputStreamPlus output) throws IOException
     {
-        long totalSize = totalSize();
+        long totalSize = manifest.getTotalSize();
         logger.debug("[Stream #{}] Start streaming sstable {} to {}, repairedAt = {}, totalSize = {}", session.planId(),
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
 
         long progress = 0L;
         ByteBufDataOutputStreamPlus byteBufDataOutputStreamPlus = (ByteBufDataOutputStreamPlus) output;
 
-        for (ComponentInfo info : components)
+        for (Component component : manifest.getComponents())
         {
             @SuppressWarnings("resource") // this is closed after the file is transferred by ByteBufDataOutputStreamPlus
-            FileChannel in = new RandomAccessFile(sstable.descriptor.filenameFor(Component.parse(info.type.repr)), "r").getChannel();
+            FileChannel in = new RandomAccessFile(sstable.descriptor.filenameFor(component), "r").getChannel();
 
             // Total Length to transmit for this file
             long length = in.size();
@@ -85,17 +85,17 @@ public class CassandraBlockStreamWriter implements IStreamWriter
             // tracks write progress
             long bytesRead = 0;
             logger.debug("[Stream #{}] Block streaming {}.{} gen {} component {} size {}", session.planId(),
-                        sstable.getKeyspaceName(), sstable.getColumnFamilyName(), sstable.descriptor.generation, info.type, length);
+                        sstable.getKeyspaceName(), sstable.getColumnFamilyName(), sstable.descriptor.generation, component, length);
 
             bytesRead += byteBufDataOutputStreamPlus.writeToChannel(in, limiter);
             progress += bytesRead;
 
-            session.progress(sstable.descriptor.filenameFor(Component.parse(info.type.repr)), ProgressInfo.Direction.OUT, bytesRead,
+            session.progress(sstable.descriptor.filenameFor(component), ProgressInfo.Direction.OUT, bytesRead,
                              length);
 
             logger.debug("[Stream #{}] Finished block streaming {}.{} gen {} component {} to {}, xfered = {}, length = {}, totalSize = {}",
                          session.planId(), sstable.getKeyspaceName(), sstable.getColumnFamilyName(),
-                         sstable.descriptor.generation, info.type, session.peer, FBUtilities.prettyPrintMemory(bytesRead),
+                         sstable.descriptor.generation, component, session.peer, FBUtilities.prettyPrintMemory(bytesRead),
                          FBUtilities.prettyPrintMemory(length), FBUtilities.prettyPrintMemory(totalSize));
 
             byteBufDataOutputStreamPlus.flush();
@@ -105,13 +105,5 @@ public class CassandraBlockStreamWriter implements IStreamWriter
                          FBUtilities.prettyPrintMemory(totalSize));
 
         }
-    }
-
-    protected long totalSize()
-    {
-        long size = 0;
-        for (ComponentInfo component : components)
-            size += component.length;
-        return size;
     }
 }

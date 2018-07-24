@@ -20,9 +20,12 @@ package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
@@ -63,7 +66,7 @@ public class CassandraStreamHeaderTest
         String ddl = "CREATE TABLE tbl (k INT PRIMARY KEY, v INT)";
         TableMetadata metadata = CreateTableStatement.parse(ddl, "ks").build();
 
-        List<ComponentInfo> ci = ImmutableList.of(new ComponentInfo(Component.Type.DATA, 100));
+        ComponentManifest manifest = new ComponentManifest(new HashMap(ImmutableMap.of(Component.Type.DATA, 100L)));
 
         CassandraStreamHeader header = new CassandraStreamHeader(BigFormat.latestVersion,
                                                                  SSTableFormat.Type.BIG,
@@ -72,7 +75,7 @@ public class CassandraStreamHeaderTest
                                                                  ((CompressionMetadata) null),
                                                                  0,
                                                                  SerializationHeader.makeWithoutStats(metadata).toComponent(),
-                                                                 ci, true, Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), metadata.id);
+                                                                 manifest, true, Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), metadata.id);
 
         SerializationUtils.assertSerializationCycle(header, new TestableCassandraStreamHeaderSerializer());
     }

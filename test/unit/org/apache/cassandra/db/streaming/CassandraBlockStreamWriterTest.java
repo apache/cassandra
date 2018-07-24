@@ -118,7 +118,7 @@ public class CassandraBlockStreamWriterTest
     {
         StreamSession session = setupStreamingSessionForTest();
 
-        CassandraBlockStreamWriter writer = new CassandraBlockStreamWriter(sstable, session, getStreamableComponents(sstable));
+        CassandraBlockStreamWriter writer = new CassandraBlockStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
 
         EmbeddedChannel channel = new EmbeddedChannel();
         ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(session, channel, 1024 * 1024);
@@ -135,7 +135,7 @@ public class CassandraBlockStreamWriterTest
         StreamSession session = setupStreamingSessionForTest();
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
 
-        CassandraBlockStreamWriter writer = new CassandraBlockStreamWriter(sstable, session, getStreamableComponents(sstable));
+        CassandraBlockStreamWriter writer = new CassandraBlockStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
 
         // This is needed as Netty releases the ByteBuffers as soon as the channel is flushed
         ByteBuf serializedFile = Unpooled.buffer(8192);
@@ -146,7 +146,7 @@ public class CassandraBlockStreamWriterTest
 
         session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104));
 
-        CassandraStreamHeader header = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType, sstable.estimatedKeys(), Collections.emptyList(), (CompressionInfo) null, 0, sstable.header.toComponent(), getStreamableComponents(sstable), true, sstable.first, sstable.metadata().id);
+        CassandraStreamHeader header = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType, sstable.estimatedKeys(), Collections.emptyList(), (CompressionInfo) null, 0, sstable.header.toComponent(), CassandraOutgoingFile.getComponentManifest(sstable), true, sstable.first, sstable.metadata().id);
 
         CassandraBlockStreamReader reader = new CassandraBlockStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), 0, 0, 0, null), header, session);
 
@@ -187,21 +187,6 @@ public class CassandraBlockStreamWriterTest
                     super.write(ctx, msg, promise);
                 }
             });
-    }
-
-    private static List<ComponentInfo> getStreamableComponents(SSTableReader sstable)
-    {
-        List<ComponentInfo> result = new ArrayList<>(STREAM_COMPONENTS.size());
-        for (Component component : STREAM_COMPONENTS)
-        {
-            File file = new File(sstable.descriptor.filenameFor(component));
-            if (file.exists())
-            {
-                result.add(new ComponentInfo(component.type, file.length()));
-            }
-        }
-
-        return result;
     }
 
     private StreamSession setupStreamingSessionForTest()

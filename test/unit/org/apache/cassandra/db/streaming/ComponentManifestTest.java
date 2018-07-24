@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
+import java.util.HashMap;
 
 import org.junit.Test;
 
@@ -34,28 +35,28 @@ import org.apache.cassandra.serializers.SerializationUtils;
 
 import static org.junit.Assert.assertNotEquals;
 
-public class ComponentInfoTest
+public class ComponentManifestTest
 {
     @Test
     public void testSerialization()
     {
-        ComponentInfo expected = new ComponentInfo(Component.Type.DATA, 100);
-        SerializationUtils.assertSerializationCycle(expected, ComponentInfo.serializer);
+        ComponentManifest expected = new ComponentManifest(new HashMap<Component.Type, Long>() {{ put(Component.Type.DATA, 100L); }});
+        SerializationUtils.assertSerializationCycle(expected, ComponentManifest.serializer);
     }
 
     @Test(expected = AssertionError.class)
     public void testSerialization_FailsOnBadBytes() throws IOException
     {
         ByteBuf buf = Unpooled.buffer(512);
-        ComponentInfo expected = new ComponentInfo(Component.Type.DATA, 100);
+        ComponentManifest expected = new ComponentManifest(new HashMap<Component.Type, Long>() {{ put(Component.Type.DATA, 100L); }});
 
         DataOutputPlus output = new ByteBufDataOutputPlus(buf);
-        ComponentInfo.serializer.serialize(expected, output, MessagingService.VERSION_40);
+        ComponentManifest.serializer.serialize(expected, output, MessagingService.VERSION_40);
 
         buf.setInt(0, -100);
 
         DataInputPlus input = new ByteBufDataInputPlus(buf);
-        ComponentInfo actual = ComponentInfo.serializer.deserialize(input, MessagingService.VERSION_40);
+        ComponentManifest actual = ComponentManifest.serializer.deserialize(input, MessagingService.VERSION_40);
 
         assertNotEquals(expected, actual);
     }

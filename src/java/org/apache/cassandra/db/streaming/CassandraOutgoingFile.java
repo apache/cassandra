@@ -20,8 +20,8 @@ package org.apache.cassandra.db.streaming;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -62,7 +62,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final String filename;
     private final CassandraStreamHeader header;
     private final boolean keepSSTableLevel;
-    private final List<ComponentInfo> components;
+    private final ComponentManifest manifest;
     private final boolean isFullyContained;
 
     private final List<Range<Token>> ranges;
@@ -77,7 +77,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         this.sections = sections;
         this.ranges = ImmutableList.copyOf(ranges);
         this.filename = ref.get().getFilename();
-        this.components = getComponents(ref.get());
+        this.manifest = getComponentManifest(ref.get());
         this.isFullyContained = fullyContainedIn(this.ranges, ref.get());
 
         SSTableReader sstable = ref.get();
@@ -88,22 +88,23 @@ public class CassandraOutgoingFile implements OutgoingStream
                                                 sections,
                                                 sstable.compression ? sstable.getCompressionMetadata() : null,
                                                 keepSSTableLevel ? sstable.getSSTableLevel() : 0,
-                                                sstable.header.toComponent(), components, shouldStreamFullSSTable(),
+                                                sstable.header.toComponent(), manifest, shouldStreamFullSSTable(),
                                                 sstable.first,
                                                 sstable.metadata().id);
     }
 
-    private static List<ComponentInfo> getComponents(SSTableReader sstable)
+    @VisibleForTesting
+    public static ComponentManifest getComponentManifest(SSTableReader sstable)
     {
-        List<ComponentInfo> result = new ArrayList<>(STREAM_COMPONENTS.size());
+        LinkedHashMap<Component.Type, Long> components = new LinkedHashMap<>(STREAM_COMPONENTS.size());
         for (Component component : STREAM_COMPONENTS)
         {
             File file = new File(sstable.descriptor.filenameFor(component));
             if (file.exists())
-                result.add(new ComponentInfo(component.type, file.length()));
+                components.put(component.type, file.length());
         }
 
-        return result;
+        return new ComponentManifest(components);
     }
 
     public static CassandraOutgoingFile fromStream(OutgoingStream stream)
@@ -158,7 +159,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         IStreamWriter writer;
         if (shouldStreamFullSSTable())
         {
-            writer = new CassandraBlockStreamWriter(sstable, session, components);
+            writer = new CassandraBlockStreamWriter(sstable, session, manifest);
         }
         else
         {
