@@ -189,13 +189,8 @@ public class CassandraOutgoingFile implements OutgoingStream
             while (iter.hasNext())
             {
                 DecoratedKey key = iter.next();
-                try
-                {
-                    rangeOwnHelper.check(key);
-                } catch(RuntimeException e)
-                {
+                if (!rangeOwnHelper.checkBoolean(key))
                     return false;
-                }
             }
         }
         return true;

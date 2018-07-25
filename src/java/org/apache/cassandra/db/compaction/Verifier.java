@@ -362,11 +362,25 @@ public class Verifier implements Closeable
          */
         public void check(DecoratedKey key)
         {
+            if (!checkBoolean(key))
+                throw new RuntimeException("Key " + key + " is not contained in the given ranges");
+        }
+
+        /**
+         * check if the given key is contained in any of the given ranges
+         *
+         * Must be called in sorted order - key should be increasing
+         *
+         * @param key the key
+         * @return boolean
+         */
+        public boolean checkBoolean(DecoratedKey key)
+        {
             assert lastKey == null || key.compareTo(lastKey) > 0;
             lastKey = key;
 
             if (normalizedRanges.isEmpty()) // handle tests etc where we don't have any ranges
-                return;
+                return true;
 
             if (rangeIndex > normalizedRanges.size() - 1)
                 throw new IllegalStateException("RangeOwnHelper can only be used to find the first out-of-range-token");
@@ -375,8 +389,10 @@ public class Verifier implements Closeable
             {
                 rangeIndex++;
                 if (rangeIndex > normalizedRanges.size() - 1)
-                    throw new RuntimeException("Key "+key+" is not contained in the given ranges");
+                    return false;
             }
+
+            return true;
         }
     }
 
