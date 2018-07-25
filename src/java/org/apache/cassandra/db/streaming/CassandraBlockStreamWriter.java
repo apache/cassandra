@@ -44,9 +44,9 @@ public class CassandraBlockStreamWriter implements IStreamWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraBlockStreamWriter.class);
 
-    protected final SSTableReader sstable;
-    protected final ComponentManifest manifest;
-    protected final StreamSession session;
+    private final SSTableReader sstable;
+    private final ComponentManifest manifest;
+    private final StreamSession session;
     private final StreamRateLimiter limiter;
 
     public CassandraBlockStreamWriter(SSTableReader sstable, StreamSession session, ComponentManifest manifest)

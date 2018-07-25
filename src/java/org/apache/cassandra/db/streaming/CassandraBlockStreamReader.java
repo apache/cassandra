@@ -51,11 +51,11 @@ import org.apache.cassandra.utils.FBUtilities;
 public class CassandraBlockStreamReader implements IStreamReader
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraBlockStreamReader.class);
-    protected final TableId tableId;
-    protected final StreamSession session;
-    protected final int sstableLevel;
-    protected final SerializationHeader.Component header;
-    protected final int fileSeqNum;
+    private final TableId tableId;
+    private final StreamSession session;
+    private final int sstableLevel;
+    private final SerializationHeader.Component header;
+    private final int fileSeqNum;
     private final ComponentManifest manifest;
     private final SSTableFormat.Type format;
     private final Version version;
