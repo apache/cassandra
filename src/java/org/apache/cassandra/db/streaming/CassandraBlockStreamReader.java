@@ -68,7 +68,7 @@ public class CassandraBlockStreamReader implements IStreamReader
             // we should only ever be streaming pending repair
             // sstables if the session has a pending repair id
             if (!session.getPendingRepair().equals(header.pendingRepair))
-                throw new IllegalStateException(String.format("Stream Session & SSTable ({}) pendingRepair UUID mismatch.",
+                throw new IllegalStateException(String.format("Stream Session & SSTable (%s) pendingRepair UUID mismatch.",
                                                               header.tableId));
         }
         this.session = session;
