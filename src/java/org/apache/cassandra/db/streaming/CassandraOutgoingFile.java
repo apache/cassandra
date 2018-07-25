@@ -31,7 +31,9 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
@@ -174,7 +176,15 @@ public class CassandraOutgoingFile implements OutgoingStream
     @VisibleForTesting
     public boolean shouldStreamFullSSTable()
     {
-        return isFullSSTableTransfersEnabled && isFullyContained;
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(getTableId());
+
+        if (cfs == null)
+            return false;
+
+        if (cfs.getCompactionStrategyManager().getCompactionStrategyFor(ref.get()) instanceof LeveledCompactionStrategy)
+            return isFullSSTableTransfersEnabled && isFullyContained;
+
+        return false;
     }
 
     @VisibleForTesting

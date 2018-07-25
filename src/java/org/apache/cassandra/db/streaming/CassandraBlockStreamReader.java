@@ -127,6 +127,7 @@ public class CassandraBlockStreamReader implements IStreamReader
                              FBUtilities.prettyPrintMemory(length), FBUtilities.prettyPrintMemory(totalSize));
             }
 
+            writer.descriptor.getMetadataSerializer().mutateLevel(writer.descriptor, sstableLevel);
             return writer;
         }
         catch (Throwable e)

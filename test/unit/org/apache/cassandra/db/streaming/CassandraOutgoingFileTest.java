@@ -66,7 +66,7 @@ public class CassandraOutgoingFileTest
                                                 .caching(CachingParams.CACHE_NOTHING));
 
         Keyspace keyspace = Keyspace.open(KEYSPACE);
-        store = keyspace.getColumnFamilyStore("Standard1");
+        store = keyspace.getColumnFamilyStore(CF_STANDARD);
 
         // insert data and compact to a single sstable
         CompactionManager.instance.disableAutoCompaction();
