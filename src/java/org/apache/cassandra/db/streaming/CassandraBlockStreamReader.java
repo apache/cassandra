@@ -133,12 +133,11 @@ public class CassandraBlockStreamReader implements IStreamReader
         catch (Throwable e)
         {
             logger.error("[Stream {}] Error while reading from stream on ks='{}' and table='{}'.",
-                        session.planId(), cfs.keyspace.getName(), cfs.getTableName(), e);
+                         session.planId(), cfs.keyspace.getName(), cfs.getTableName(), e);
             if (writer != null)
-            {
-                writer.abort(e);
-            }
-            throw Throwables.propagate(e);
+                e = writer.abort(e);
+            Throwables.throwIfUnchecked(e);
+            throw new RuntimeException(e);
         }
     }
 

@@ -165,8 +165,7 @@ public class BigTableBlockWriter extends SSTable implements SSTableMultiWriter
     public Throwable commit(Throwable accumulate)
     {
         for (SequentialWriter writer : componentWriters.values())
-            writer.commit(accumulate);
-
+            accumulate = writer.commit(accumulate);
         return accumulate;
     }
 
@@ -174,8 +173,7 @@ public class BigTableBlockWriter extends SSTable implements SSTableMultiWriter
     public Throwable abort(Throwable accumulate)
     {
         for (SequentialWriter writer : componentWriters.values())
-            writer.abort(accumulate);
-
+            accumulate = writer.abort(accumulate);
         return accumulate;
     }
 
