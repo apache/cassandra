@@ -15,19 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,51 +47,61 @@ import org.apache.cassandra.net.async.RebufferingByteBufDataInputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadataRef;
 
+import static java.lang.String.format;
+import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
+
 public class BigTableBlockWriter extends SSTable implements SSTableMultiWriter
 {
+    private static final Logger logger = LoggerFactory.getLogger(BigTableBlockWriter.class);
+
     private final TableMetadataRef metadata;
-    private final LifecycleTransaction txn;
     private volatile SSTableReader finalReader;
     private final Map<Component.Type, SequentialWriter> componentWriters;
 
-    private final Logger logger = LoggerFactory.getLogger(BigTableBlockWriter.class);
+    private static final SequentialWriterOption WRITER_OPTION =
+        SequentialWriterOption.newBuilder()
+                              .trickleFsync(false)
+                              .bufferSize(2 << 20)
+                              .bufferType(BufferType.OFF_HEAP)
+                              .build();
 
-    private final SequentialWriterOption writerOption = SequentialWriterOption.newBuilder()
-                                                                              .trickleFsync(false)
-                                                                              .bufferSize(2 * 1024 * 1024)
-                                                                              .bufferType(BufferType.OFF_HEAP)
-                                                                              .build();
-    public static final ImmutableSet<Component> supportedComponents = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.STATS,
-                                                                               Component.COMPRESSION_INFO, Component.FILTER, Component.SUMMARY,
-                                                                               Component.DIGEST, Component.CRC);
+    private static final ImmutableSet<Component> SUPPORTED_COMPONENTS =
+        ImmutableSet.of(Component.DATA,
+                        Component.PRIMARY_INDEX,
+                        Component.SUMMARY,
+                        Component.STATS,
+                        Component.COMPRESSION_INFO,
+                        Component.FILTER,
+                        Component.DIGEST,
+                        Component.CRC);
 
     public BigTableBlockWriter(Descriptor descriptor,
                                TableMetadataRef metadata,
                                LifecycleTransaction txn,
                                final Set<Component> components)
     {
-        super(descriptor, ImmutableSet.copyOf(components), metadata,
-              DatabaseDescriptor.getDiskOptimizationStrategy());
+        super(descriptor, ImmutableSet.copyOf(components), metadata, DatabaseDescriptor.getDiskOptimizationStrategy());
+
         txn.trackNew(this);
         this.metadata = metadata;
-        this.txn = txn;
-        this.componentWriters = new HashMap<>(components.size());
+        this.componentWriters = new EnumMap<>(Component.Type.class);
 
-        assert supportedComponents.containsAll(components) : String.format("Unsupported streaming component detected %s",
-                                                                           new HashSet(components).removeAll(supportedComponents));
+        if (!SUPPORTED_COMPONENTS.containsAll(components))
+            throw new AssertionError(format("Unsupported streaming component detected %s",
+                                            Sets.difference(components, SUPPORTED_COMPONENTS)));
 
         for (Component c : components)
-            componentWriters.put(c.type, makeWriter(descriptor, c, writerOption));
+            componentWriters.put(c.type, makeWriter(descriptor, c));
     }
 
-    private static SequentialWriter makeWriter(Descriptor descriptor, Component component, SequentialWriterOption writerOption)
+    private static SequentialWriter makeWriter(Descriptor descriptor, Component component)
     {
-        return new SequentialWriter(new File(descriptor.filenameFor(component)), writerOption, false);
+        return new SequentialWriter(new File(descriptor.filenameFor(component)), WRITER_OPTION, false);
     }
 
     private void write(DataInputPlus in, long size, SequentialWriter out) throws FSWriteError
     {
-        final int BUFFER_SIZE = 1 * 1024 * 1024;
+        final int BUFFER_SIZE = 1 << 20;
         long bytesRead = 0;
         byte[] buff = new byte[BUFFER_SIZE];
         try
@@ -193,7 +202,8 @@ public class BigTableBlockWriter extends SSTable implements SSTableMultiWriter
 
     public void writeComponent(Component.Type type, DataInputPlus in, long size)
     {
-        logger.info("Writing component {} to {} length {}", type, componentWriters.get(type).getPath(), size);
+        logger.info("Writing component {} to {} length {}", type, componentWriters.get(type).getPath(), prettyPrintMemory(size));
+
         if (in instanceof RebufferingByteBufDataInputPlus)
             write((RebufferingByteBufDataInputPlus) in, size, componentWriters.get(type));
         else
@@ -202,14 +212,14 @@ public class BigTableBlockWriter extends SSTable implements SSTableMultiWriter
 
     private void write(RebufferingByteBufDataInputPlus in, long size, SequentialWriter writer)
     {
-        logger.info("Block Writing component to {} length {}", writer.getPath(), size);
+        logger.info("Block Writing component to {} length {}", writer.getPath(), prettyPrintMemory(size));
 
         try
         {
             long bytesWritten = in.consumeUntil(writer, size);
 
             if (bytesWritten != size)
-                throw new IOException(String.format("Failed to read correct number of bytes from Channel {}", writer));
+                throw new IOException(format("Failed to read correct number of bytes from channel %s", writer));
         }
         catch (IOException e)
         {
