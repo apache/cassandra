@@ -180,7 +180,7 @@ public class Verifier implements Closeable
                 while (iter.hasNext())
                 {
                     DecoratedKey key = iter.next();
-                    rangeOwnHelper.check(key);
+                    rangeOwnHelper.validate(key);
                 }
             }
             catch (Throwable t)
@@ -262,7 +262,7 @@ public class Verifier implements Closeable
                 {
                     try
                     {
-                        rangeOwnHelper.check(key);
+                        rangeOwnHelper.validate(key);
                     }
                     catch (Throwable t)
                     {
@@ -360,9 +360,9 @@ public class Verifier implements Closeable
          * @param key the key
          * @throws RuntimeException if the key is not contained
          */
-        public void check(DecoratedKey key)
+        public void validate(DecoratedKey key)
         {
-            if (!checkBoolean(key))
+            if (!check(key))
                 throw new RuntimeException("Key " + key + " is not contained in the given ranges");
         }
 
@@ -374,7 +374,7 @@ public class Verifier implements Closeable
          * @param key the key
          * @return boolean
          */
-        public boolean checkBoolean(DecoratedKey key)
+        public boolean check(DecoratedKey key)
         {
             assert lastKey == null || key.compareTo(lastKey) > 0;
             lastKey = key;
