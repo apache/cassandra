@@ -27,15 +27,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigTableBlockWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableId;
@@ -43,7 +39,10 @@ import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
-import org.apache.cassandra.utils.FBUtilities;
+
+import static java.lang.String.format;
+
+import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 
 /**
  * CassandraBlockStreamReader reads SSTable off the wire and writes it to disk.
@@ -51,35 +50,25 @@ import org.apache.cassandra.utils.FBUtilities;
 public class CassandraBlockStreamReader implements IStreamReader
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraBlockStreamReader.class);
+
     private final TableId tableId;
     private final StreamSession session;
-    private final int sstableLevel;
-    private final SerializationHeader.Component header;
-    private final int fileSeqNum;
-    private final ComponentManifest manifest;
-    private final SSTableFormat.Type format;
-    private final Version version;
-    private final DecoratedKey firstKey;
+    private final CassandraStreamHeader header;
+    private final int fileSequenceNumber;
 
-    public CassandraBlockStreamReader(StreamMessageHeader header, CassandraStreamHeader streamHeader, StreamSession session)
+    public CassandraBlockStreamReader(StreamMessageHeader messageHeader, CassandraStreamHeader streamHeader, StreamSession session)
     {
         if (session.getPendingRepair() != null)
         {
-            // we should only ever be streaming pending repair
-            // sstables if the session has a pending repair id
-            if (!session.getPendingRepair().equals(header.pendingRepair))
-                throw new IllegalStateException(String.format("Stream Session & SSTable (%s) pendingRepair UUID mismatch.",
-                                                              header.tableId));
+            // we should only ever be streaming pending repair sstables if the session has a pending repair id
+            if (!session.getPendingRepair().equals(messageHeader.pendingRepair))
+                throw new IllegalStateException(format("Stream Session & SSTable (%s) pendingRepair UUID mismatch.", messageHeader.tableId));
         }
+
+        this.header = streamHeader;
         this.session = session;
-        this.tableId = header.tableId;
-        this.manifest = streamHeader.componentManifest;
-        this.sstableLevel = streamHeader.sstableLevel;
-        this.header = streamHeader.header;
-        this.format = streamHeader.format;
-        this.fileSeqNum = header.sequenceNumber;
-        this.version = streamHeader.version;
-        this.firstKey = streamHeader.firstKey;
+        this.tableId = messageHeader.tableId;
+        this.fileSequenceNumber = messageHeader.sequenceNumber;
     }
 
     /**
@@ -91,18 +80,22 @@ public class CassandraBlockStreamReader implements IStreamReader
     @Override
     public SSTableMultiWriter read(DataInputPlus inputPlus) throws IOException
     {
-        long totalSize = manifest.getTotalSize();
-
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
-
         if (cfs == null)
         {
             // schema was dropped during streaming
-            throw new IOException("CF " + tableId + " was dropped during streaming");
+            throw new IOException("Table " + tableId + " was dropped during streaming");
         }
 
-        logger.debug("[Stream #{}] Start receiving file #{} from {}, size = {}, ks = '{}', table = '{}'.",
-                     session.planId(), fileSeqNum, session.peer, totalSize, cfs.keyspace.getName(), cfs.getTableName());
+        ComponentManifest manifest = header.componentManifest;
+        long totalSize = manifest.getTotalSize();
+
+        logger.debug("[Stream #{}] Started receiving sstable #{} from {}, size = {}, table = {}",
+                     session.planId(),
+                     fileSequenceNumber,
+                     session.peer,
+                     prettyPrintMemory(totalSize),
+                     cfs.metadata());
 
         BigTableBlockWriter writer = null;
 
@@ -114,26 +107,33 @@ public class CassandraBlockStreamReader implements IStreamReader
             {
                 long length = manifest.getSizeForType(component.type);
 
-                logger.debug("[Stream #{}] About to receive file {} from {} readBytes = {}, componentSize = {}, totalSize = {}",
-                             session.planId(), component, session.peer, FBUtilities.prettyPrintMemory(bytesRead),
-                             FBUtilities.prettyPrintMemory(length), FBUtilities.prettyPrintMemory(totalSize));
+                logger.debug("[Stream #{}] Started receiving {} component from {}, componentSize = {}, readBytes = {}, totalSize = {}",
+                             session.planId(),
+                             component,
+                             session.peer,
+                             prettyPrintMemory(length),
+                             prettyPrintMemory(bytesRead),
+                             prettyPrintMemory(totalSize));
 
                 writer.writeComponent(component.type, inputPlus, length);
                 session.progress(writer.descriptor.filenameFor(component), ProgressInfo.Direction.IN, length, length);
                 bytesRead += length;
 
-                logger.debug("[Stream #{}] Finished receiving file {} from {} readBytes = {}, componentSize = {}, totalSize = {}",
-                             session.planId(), component, session.peer, FBUtilities.prettyPrintMemory(bytesRead),
-                             FBUtilities.prettyPrintMemory(length), FBUtilities.prettyPrintMemory(totalSize));
+                logger.debug("[Stream #{}] Finished receiving {} component from {}, componentSize = {}, readBytes = {}, totalSize = {}",
+                             session.planId(),
+                             component,
+                             session.peer,
+                             prettyPrintMemory(length),
+                             prettyPrintMemory(bytesRead),
+                             prettyPrintMemory(totalSize));
             }
 
-            writer.descriptor.getMetadataSerializer().mutateLevel(writer.descriptor, sstableLevel);
+            writer.descriptor.getMetadataSerializer().mutateLevel(writer.descriptor, header.sstableLevel);
             return writer;
         }
         catch (Throwable e)
         {
-            logger.error("[Stream {}] Error while reading from stream on ks='{}' and table='{}'.",
-                         session.planId(), cfs.keyspace.getName(), cfs.getTableName(), e);
+            logger.error("[Stream {}] Error while reading sstable from stream for table = {}", session.planId(), cfs.metadata(), e);
             if (writer != null)
                 e = writer.abort(e);
             Throwables.throwIfUnchecked(e);
@@ -145,9 +145,9 @@ public class CassandraBlockStreamReader implements IStreamReader
     {
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)
-            throw new IOException(String.format("Insufficient disk space to store %s", FBUtilities.prettyPrintMemory(totalSize)));
+            throw new IOException(format("Insufficient disk space to store %s", prettyPrintMemory(totalSize)));
 
-        File dir = cfs.getDirectories().getLocationForDisk(cfs.getDiskBoundaries().getCorrectDiskForKey(firstKey));
+        File dir = cfs.getDirectories().getLocationForDisk(cfs.getDiskBoundaries().getCorrectDiskForKey(header.firstKey));
 
         if (dir == null)
             return cfs.getDirectories().getDirectoryForNewSSTables();
@@ -156,7 +156,7 @@ public class CassandraBlockStreamReader implements IStreamReader
     }
 
     @SuppressWarnings("resource")
-    protected BigTableBlockWriter createWriter(ColumnFamilyStore cfs, long totalSize, Set<Component> componentsToWrite) throws IOException
+    protected BigTableBlockWriter createWriter(ColumnFamilyStore cfs, long totalSize, Set<Component> components) throws IOException
     {
         File dataDir = getDataDir(cfs, totalSize);
 
@@ -165,12 +165,10 @@ public class CassandraBlockStreamReader implements IStreamReader
 
         LifecycleTransaction txn = CassandraStreamReceiver.fromReceiver(session.getAggregator(tableId)).getTransaction();
 
-        Descriptor desc = cfs.newSSTableDescriptor(dataDir, version, format);
+        Descriptor desc = cfs.newSSTableDescriptor(dataDir, header.version, header.format);
 
-        logger.debug("[Table #{}] {} Components to write - {}", tableId, desc.filenameFor(Component.DATA), componentsToWrite);
+        logger.debug("[Table #{}] {} Components to write: {}", cfs.metadata(), desc.filenameFor(Component.DATA), components);
 
-
-        BigTableBlockWriter writer = new BigTableBlockWriter(desc, cfs.metadata, txn, componentsToWrite);
-        return writer;
+        return new BigTableBlockWriter(desc, cfs.metadata, txn, components);
     }
 }
