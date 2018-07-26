@@ -92,10 +92,10 @@ public class CassandraBlockStreamWriter implements IStreamWriter
                          sstable.descriptor.generation,
                          component, length);
 
-            long bytesRead = byteBufDataOutputStreamPlus.writeToChannel(in, limiter);
-            progress += bytesRead;
+            long bytesWritten = byteBufDataOutputStreamPlus.writeToChannel(in, limiter);
+            progress += bytesWritten;
 
-            session.progress(sstable.descriptor.filenameFor(component), ProgressInfo.Direction.OUT, bytesRead, length);
+            session.progress(sstable.descriptor.filenameFor(component), ProgressInfo.Direction.OUT, bytesWritten, length);
 
             logger.debug("[Stream #{}] Finished block streaming {}.{} gen {} component {} to {}, xfered = {}, length = {}, totalSize = {}",
                          session.planId(),
@@ -104,7 +104,7 @@ public class CassandraBlockStreamWriter implements IStreamWriter
                          sstable.descriptor.generation,
                          component,
                          session.peer,
-                         prettyPrintMemory(bytesRead),
+                         prettyPrintMemory(bytesWritten),
                          prettyPrintMemory(length),
                          prettyPrintMemory(totalSize));
         }
