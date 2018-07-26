@@ -19,9 +19,8 @@ package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 
-import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
@@ -58,12 +57,12 @@ public class CassandraStreamHeaderTest
     }
 
     @Test
-    public void serializerTest_FullSSTableTransfer()
+    public void serializerTest_EntireSSTableTransfer()
     {
         String ddl = "CREATE TABLE tbl (k INT PRIMARY KEY, v INT)";
         TableMetadata metadata = CreateTableStatement.parse(ddl, "ks").build();
 
-        ComponentManifest manifest = new ComponentManifest(new HashMap(ImmutableMap.of(Component.DATA, 100L)));
+        ComponentManifest manifest = new ComponentManifest(new LinkedHashMap<Component, Long>() {{ put(Component.DATA, 100L); }});
 
         CassandraStreamHeader header =
             CassandraStreamHeader.builder()

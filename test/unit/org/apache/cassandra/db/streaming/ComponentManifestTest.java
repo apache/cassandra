@@ -20,7 +20,7 @@ package org.apache.cassandra.db.streaming;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 import org.junit.Test;
 
@@ -41,7 +41,7 @@ public class ComponentManifestTest
     @Test
     public void testSerialization()
     {
-        ComponentManifest expected = new ComponentManifest(new HashMap<Component, Long>() {{ put(Component.DATA, 100L); }});
+        ComponentManifest expected = new ComponentManifest(new LinkedHashMap<Component, Long>() {{ put(Component.DATA, 100L); }});
         SerializationUtils.assertSerializationCycle(expected, ComponentManifest.serializer);
     }
 
@@ -49,7 +49,7 @@ public class ComponentManifestTest
     public void testSerialization_FailsOnBadBytes() throws IOException
     {
         ByteBuf buf = Unpooled.buffer(512);
-        ComponentManifest expected = new ComponentManifest(new HashMap<Component, Long>() {{ put(Component.DATA, 100L); }});
+        ComponentManifest expected = new ComponentManifest(new LinkedHashMap<Component, Long>() {{ put(Component.DATA, 100L); }});
 
         DataOutputPlus output = new ByteBufDataOutputPlus(buf);
         ComponentManifest.serializer.serialize(expected, output, MessagingService.VERSION_40);

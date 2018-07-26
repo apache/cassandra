@@ -2260,7 +2260,7 @@ public class DatabaseDescriptor
         return conf.streaming_connections_per_host;
     }
 
-    public static boolean isFullSSTableTransfersEnabled()
+    public static boolean isZeroCopySSTableTransfersEnabled()
     {
         if (conf.server_encryption_options.enabled || conf.server_encryption_options.optional)
         {
