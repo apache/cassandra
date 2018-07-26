@@ -259,7 +259,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
             }
             // iterators can be empty for offline tools
             return iterators.isEmpty() ? EmptyIterators.unfilteredPartition(metadata())
-                                       : checkCacheFilter(UnfilteredPartitionIterators.mergeLazily(iterators, nowInSec()), cfs);
+                                       : checkCacheFilter(UnfilteredPartitionIterators.mergeLazily(iterators), cfs);
         }
         catch (RuntimeException | Error e)
         {

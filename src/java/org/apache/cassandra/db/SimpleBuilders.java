@@ -323,7 +323,7 @@ public abstract class SimpleBuilders
         public RowBuilder(TableMetadata metadata, Object... clusteringColumns)
         {
             this.metadata = metadata;
-            this.builder = BTreeRow.unsortedBuilder(FBUtilities.nowInSeconds());
+            this.builder = BTreeRow.unsortedBuilder();
 
             this.builder.newRow(makeClustering(metadata, clusteringColumns));
         }

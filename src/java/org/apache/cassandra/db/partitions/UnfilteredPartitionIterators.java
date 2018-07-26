@@ -112,7 +112,7 @@ public abstract class UnfilteredPartitionIterators
     }
 
     @SuppressWarnings("resource")
-    public static UnfilteredPartitionIterator merge(final List<? extends UnfilteredPartitionIterator> iterators, final int nowInSec, final MergeListener listener)
+    public static UnfilteredPartitionIterator merge(final List<? extends UnfilteredPartitionIterator> iterators, final MergeListener listener)
     {
         assert listener != null;
         assert !iterators.isEmpty();
@@ -155,7 +155,7 @@ public abstract class UnfilteredPartitionIterators
                     }
                 }
 
-                return UnfilteredRowIterators.merge(toMerge, nowInSec, rowListener);
+                return UnfilteredRowIterators.merge(toMerge, rowListener);
             }
 
             protected void onKeyChange()
@@ -193,7 +193,7 @@ public abstract class UnfilteredPartitionIterators
     }
 
     @SuppressWarnings("resource")
-    public static UnfilteredPartitionIterator mergeLazily(final List<? extends UnfilteredPartitionIterator> iterators, final int nowInSec)
+    public static UnfilteredPartitionIterator mergeLazily(final List<? extends UnfilteredPartitionIterator> iterators)
     {
         assert !iterators.isEmpty();
 
@@ -217,7 +217,7 @@ public abstract class UnfilteredPartitionIterators
                 {
                     protected UnfilteredRowIterator initializeIterator()
                     {
-                        return UnfilteredRowIterators.merge(toMerge, nowInSec);
+                        return UnfilteredRowIterators.merge(toMerge);
                     }
                 };
             }

@@ -718,7 +718,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                        SSTableReadMetricsCollector metricsCollector)
     {
         @SuppressWarnings("resource") //  Closed through the closing of the result of the caller method.
-        UnfilteredRowIterator merged = UnfilteredRowIterators.merge(iterators, nowInSec());
+        UnfilteredRowIterator merged = UnfilteredRowIterators.merge(iterators);
 
         if (!merged.isEmpty())
         {
@@ -882,7 +882,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         if (result == null)
             return ImmutableBTreePartition.create(iter, maxRows);
 
-        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(Arrays.asList(iter, result.unfilteredIterator(columnFilter(), Slices.ALL, filter.isReversed())), nowInSec()))
+        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(Arrays.asList(iter, result.unfilteredIterator(columnFilter(), Slices.ALL, filter.isReversed()))))
         {
             return ImmutableBTreePartition.create(merged, maxRows);
         }

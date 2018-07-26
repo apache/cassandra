@@ -95,13 +95,13 @@ public class UpdateParameters
         if (clustering == Clustering.STATIC_CLUSTERING)
         {
             if (staticBuilder == null)
-                staticBuilder = BTreeRow.unsortedBuilder(nowInSec);
+                staticBuilder = BTreeRow.unsortedBuilder();
             builder = staticBuilder;
         }
         else
         {
             if (regularBuilder == null)
-                regularBuilder = BTreeRow.unsortedBuilder(nowInSec);
+                regularBuilder = BTreeRow.unsortedBuilder();
             builder = regularBuilder;
         }
 
@@ -230,7 +230,7 @@ public class UpdateParameters
         if (prefetchedRow == null)
             return pendingMutations;
 
-        return Rows.merge(prefetchedRow, pendingMutations, nowInSec)
+        return Rows.merge(prefetchedRow, pendingMutations)
                    .purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
     }
 }

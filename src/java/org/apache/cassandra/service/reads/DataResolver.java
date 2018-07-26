@@ -112,7 +112,7 @@ public class DataResolver extends ResponseResolver
             for (int i = 0; i < results.size(); i++)
                 results.set(i, ShortReadProtection.extend(sources[i], results.get(i), command, mergedResultCounter, queryStartNanoTime, enforceStrictLiveness));
 
-        return UnfilteredPartitionIterators.merge(results, command.nowInSec(), wrapMergeListener(readRepair.getMergeListener(sources), sources));
+        return UnfilteredPartitionIterators.merge(results, wrapMergeListener(readRepair.getMergeListener(sources), sources));
     }
 
     private String makeResponsesDebugString(DecoratedKey partitionKey)

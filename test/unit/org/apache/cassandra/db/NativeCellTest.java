@@ -61,7 +61,7 @@ public class NativeCellTest
     {
         for (int run = 0 ; run < 1000 ; run++)
         {
-            Row.Builder builder = BTreeRow.unsortedBuilder(1);
+            Row.Builder builder = BTreeRow.unsortedBuilder();
             builder.newRow(rndclustering());
             int count = 1 + rand.nextInt(10);
             for (int i = 0 ; i < count ; i++)

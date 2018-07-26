@@ -123,13 +123,13 @@ public abstract class UnfilteredRowIterators
     /**
      * Returns an iterator that is the result of merging other iterators.
      */
-    public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators, int nowInSec)
+    public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators)
     {
         assert !iterators.isEmpty();
         if (iterators.size() == 1)
             return iterators.get(0);
 
-        return UnfilteredRowMergeIterator.create(iterators, nowInSec, null);
+        return UnfilteredRowMergeIterator.create(iterators, null);
     }
 
     /**
@@ -138,9 +138,9 @@ public abstract class UnfilteredRowIterators
      *
      * Note that this method assumes that there is at least 2 iterators to merge.
      */
-    public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators, int nowInSec, MergeListener mergeListener)
+    public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators, MergeListener mergeListener)
     {
-        return UnfilteredRowMergeIterator.create(iterators, nowInSec, mergeListener);
+        return UnfilteredRowMergeIterator.create(iterators, mergeListener);
     }
 
     /**
@@ -394,7 +394,6 @@ public abstract class UnfilteredRowIterators
                                            List<UnfilteredRowIterator> iterators,
                                            RegularAndStaticColumns columns,
                                            DeletionTime partitionDeletion,
-                                           int nowInSec,
                                            boolean reversed,
                                            MergeListener listener)
         {
@@ -402,17 +401,17 @@ public abstract class UnfilteredRowIterators
                   iterators.get(0).partitionKey(),
                   partitionDeletion,
                   columns,
-                  mergeStaticRows(iterators, columns.statics, nowInSec, listener, partitionDeletion),
+                  mergeStaticRows(iterators, columns.statics, listener, partitionDeletion),
                   reversed,
                   mergeStats(iterators));
 
             this.mergeIterator = MergeIterator.get(iterators,
                                                    reversed ? metadata.comparator.reversed() : metadata.comparator,
-                                                   new MergeReducer(iterators.size(), reversed, nowInSec, listener));
+                                                   new MergeReducer(iterators.size(), reversed, listener));
             this.listener = listener;
         }
 
-        private static UnfilteredRowMergeIterator create(List<UnfilteredRowIterator> iterators, int nowInSec, MergeListener listener)
+        private static UnfilteredRowMergeIterator create(List<UnfilteredRowIterator> iterators, MergeListener listener)
         {
             try
             {
@@ -421,7 +420,6 @@ public abstract class UnfilteredRowIterators
                                                       iterators,
                                                       collectColumns(iterators),
                                                       collectPartitionLevelDeletion(iterators, listener),
-                                                      nowInSec,
                                                       iterators.get(0).isReverseOrder(),
                                                       listener);
             }
@@ -477,7 +475,6 @@ public abstract class UnfilteredRowIterators
 
         private static Row mergeStaticRows(List<UnfilteredRowIterator> iterators,
                                            Columns columns,
-                                           int nowInSec,
                                            MergeListener listener,
                                            DeletionTime partitionDeletion)
         {
@@ -487,7 +484,7 @@ public abstract class UnfilteredRowIterators
             if (iterators.stream().allMatch(iter -> iter.staticRow().isEmpty()))
                 return Rows.EMPTY_STATIC_ROW;
 
-            Row.Merger merger = new Row.Merger(iterators.size(), nowInSec, columns.hasComplex());
+            Row.Merger merger = new Row.Merger(iterators.size(), columns.hasComplex());
             for (int i = 0; i < iterators.size(); i++)
                 merger.add(i, iterators.get(i).staticRow());
 
@@ -552,9 +549,9 @@ public abstract class UnfilteredRowIterators
             private final Row.Merger rowMerger;
             private final RangeTombstoneMarker.Merger markerMerger;
 
-            private MergeReducer(int size, boolean reversed, int nowInSec, MergeListener listener)
+            private MergeReducer(int size, boolean reversed, MergeListener listener)
             {
-                this.rowMerger = new Row.Merger(size, nowInSec, columns().regulars.hasComplex());
+                this.rowMerger = new Row.Merger(size, columns().regulars.hasComplex());
                 this.markerMerger = new RangeTombstoneMarker.Merger(size, partitionLevelDeletion(), reversed);
                 this.listener = listener;
             }
