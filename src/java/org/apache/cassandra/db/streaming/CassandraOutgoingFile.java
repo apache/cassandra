@@ -181,7 +181,8 @@ public class CassandraOutgoingFile implements OutgoingStream
         if (cfs == null)
             return false;
 
-        if (cfs.getCompactionStrategyManager().getCompactionStrategyFor(ref.get()) instanceof LeveledCompactionStrategy)
+        if (cfs.getCompactionStrategyManager().getCompactionStrategyFor(ref.get()) instanceof LeveledCompactionStrategy &&
+            !ref.get().getSSTableMetadata().hasLegacyCounterShards)
             return isFullSSTableTransfersEnabled && isFullyContained;
 
         return false;
