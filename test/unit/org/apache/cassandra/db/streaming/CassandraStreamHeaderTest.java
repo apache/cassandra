@@ -63,7 +63,7 @@ public class CassandraStreamHeaderTest
         String ddl = "CREATE TABLE tbl (k INT PRIMARY KEY, v INT)";
         TableMetadata metadata = CreateTableStatement.parse(ddl, "ks").build();
 
-        ComponentManifest manifest = new ComponentManifest(new HashMap(ImmutableMap.of(Component.Type.DATA, 100L)));
+        ComponentManifest manifest = new ComponentManifest(new HashMap(ImmutableMap.of(Component.DATA, 100L)));
 
         CassandraStreamHeader header = new CassandraStreamHeader(BigFormat.latestVersion,
                                                                  SSTableFormat.Type.BIG,
