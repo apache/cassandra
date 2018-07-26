@@ -708,6 +708,15 @@ public class DatabaseDescriptor
                                             "server_encryption_options.internode_encryption = " + conf.server_encryption_options.internode_encryption, false);
         }
 
+        if (conf.streaming_zerocopy_sstables_enabled)
+        {
+            if (conf.server_encryption_options.enabled || conf.server_encryption_options.optional)
+            {
+                logger.warn("Internode encryption enabled. Disabling zero copy SSTable transfers for streaming.");
+                conf.streaming_zerocopy_sstables_enabled = false;
+            }
+        }
+
         if (conf.max_value_size_in_mb <= 0)
             throw new ConfigurationException("max_value_size_in_mb must be positive", false);
         else if (conf.max_value_size_in_mb >= 2048)
@@ -2262,16 +2271,7 @@ public class DatabaseDescriptor
 
     public static boolean isZeroCopySSTableTransfersEnabled()
     {
-        if (conf.server_encryption_options.enabled || conf.server_encryption_options.optional)
-        {
-            logger.warn("Internode encryption enabled. Disabling zero copy SSTable transfers for streaming.");
-            return false;
-        }
-        else
-        {
-            return Boolean.valueOf(System.getProperty(Config.PROPERTY_PREFIX + "streaming.enableZeroCopySSTableTransfers",
-                                                      Boolean.toString(conf.streaming_zerocopy_sstables_enabled)));
-        }
+        return conf.streaming_zerocopy_sstables_enabled;
     }
 
     public static String getLocalDataCenter()
