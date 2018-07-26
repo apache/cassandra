@@ -275,7 +275,7 @@ public class CassandraStreamHeader
                 ByteBuffer keyBuf = ByteBufferUtil.readWithVIntLength(in);
                 IPartitioner partitioner = partitionerMapper.apply(tableId);
                 if (partitioner == null)
-                    throw new IllegalArgumentException(String.format("Could not determine partitioner for tableId {}", tableId));
+                    throw new IllegalArgumentException(String.format("Could not determine partitioner for tableId %s", tableId));
                 firstKey = partitioner.decorateKey(keyBuf);
             }
 

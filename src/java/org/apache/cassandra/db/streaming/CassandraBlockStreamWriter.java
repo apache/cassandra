@@ -90,7 +90,8 @@ public class CassandraBlockStreamWriter implements IStreamWriter
                          sstable.getKeyspaceName(),
                          sstable.getColumnFamilyName(),
                          sstable.descriptor.generation,
-                         component, length);
+                         component,
+                         prettyPrintMemory(length));
 
             long bytesWritten = byteBufDataOutputStreamPlus.writeToChannel(in, limiter);
             progress += bytesWritten;
