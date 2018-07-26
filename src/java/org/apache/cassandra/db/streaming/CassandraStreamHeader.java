@@ -140,7 +140,7 @@ public class CassandraStreamHeader
     private long calculateSize()
     {
         if (fullStream)
-            return componentManifest.getTotalSize();
+            return componentManifest.totalSize();
 
         long transferSize = 0;
         if (compressionInfo != null)

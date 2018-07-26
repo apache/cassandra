@@ -98,12 +98,12 @@ public class CassandraOutgoingFile implements OutgoingStream
     @VisibleForTesting
     public static ComponentManifest getComponentManifest(SSTableReader sstable)
     {
-        LinkedHashMap<Component.Type, Long> components = new LinkedHashMap<>(STREAM_COMPONENTS.size());
+        LinkedHashMap<Component, Long> components = new LinkedHashMap<>(STREAM_COMPONENTS.size());
         for (Component component : STREAM_COMPONENTS)
         {
             File file = new File(sstable.descriptor.filenameFor(component));
             if (file.exists())
-                components.put(component.type, file.length());
+                components.put(component, file.length());
         }
 
         return new ComponentManifest(components);

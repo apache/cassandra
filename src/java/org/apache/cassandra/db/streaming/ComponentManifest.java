@@ -19,12 +19,13 @@
 package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+
+import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -32,77 +33,78 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class ComponentManifest
+public final class ComponentManifest implements Iterable<Component>
 {
-    private final LinkedHashMap<Component.Type, Long> manifest;
-    private final Set<Component> components = new LinkedHashSet<>(Component.Type.values().length);
-    private final long totalSize;
+    private final LinkedHashMap<Component, Long> components;
 
-    public ComponentManifest(Map<Component.Type, Long> componentManifest)
+    public ComponentManifest(Map<Component, Long> components)
     {
-        this.manifest = new LinkedHashMap<>(componentManifest);
-
-        long size = 0;
-        for (Map.Entry<Component.Type, Long> entry : this.manifest.entrySet())
-        {
-            size += entry.getValue();
-            this.components.add(Component.parse(entry.getKey().repr));
-        }
-
-        this.totalSize = size;
+        this.components = new LinkedHashMap<>(components);
     }
 
-    public Long getSizeForType(Component.Type type)
+    public long sizeOf(Component component)
     {
-        return manifest.get(type);
+        Long size = components.get(component);
+        if (size == null)
+            throw new IllegalArgumentException("Component " + component + " is not present in the manifest");
+        return size;
     }
 
-    public long getTotalSize()
+    public long totalSize()
     {
+        long totalSize = 0;
+        for (Long size : components.values())
+            totalSize += size;
         return totalSize;
     }
 
-    public Set<Component> getComponents()
+    public List<Component> components()
     {
-        return Collections.unmodifiableSet(components);
+        return new ArrayList<>(components.keySet());
     }
 
+    @Override
     public boolean equals(Object o)
     {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+
+        if (!(o instanceof ComponentManifest))
+            return false;
+
         ComponentManifest that = (ComponentManifest) o;
-        return totalSize == that.totalSize &&
-               Objects.equals(manifest, that.manifest);
+        return components.equals(that.components);
     }
 
+    @Override
     public int hashCode()
     {
-
-        return Objects.hash(manifest, totalSize);
+        return components.hashCode();
     }
 
     public static final IVersionedSerializer<ComponentManifest> serializer = new IVersionedSerializer<ComponentManifest>()
     {
         public void serialize(ComponentManifest manifest, DataOutputPlus out, int version) throws IOException
         {
-            out.writeInt(manifest.manifest.size());
-            for (Map.Entry<Component.Type, Long> entry : manifest.manifest.entrySet())
-                serialize(entry.getKey(), entry.getValue(), out);
+            out.writeUnsignedVInt(manifest.components.size());
+            for (Map.Entry<Component, Long> entry : manifest.components.entrySet())
+            {
+                out.writeByte(entry.getKey().type.id);
+                out.writeUnsignedVInt(entry.getValue());
+            }
         }
 
         public ComponentManifest deserialize(DataInputPlus in, int version) throws IOException
         {
-            LinkedHashMap<Component.Type, Long> components = new LinkedHashMap<>(Component.Type.values().length);
+            int size = (int) in.readUnsignedVInt();
 
-            int size = in.readInt();
-            assert size >= 0 : "Invalid number of components";
+            LinkedHashMap<Component, Long> components = new LinkedHashMap<>(size);
 
             for (int i = 0; i < size; i++)
             {
-                Component.Type type = Component.Type.fromRepresentation(in.readByte());
-                long length = in.readLong();
-                components.put(type, length);
+                Component component = Component.get(Component.Type.fromRepresentation(in.readByte()));
+                long length = in.readUnsignedVInt();
+                components.put(component, length);
             }
 
             return new ComponentManifest(components);
@@ -110,20 +112,19 @@ public class ComponentManifest
 
         public long serializedSize(ComponentManifest manifest, int version)
         {
-            long size = 0;
-            size += TypeSizes.sizeof(manifest.manifest.size());
-            for (Map.Entry<Component.Type, Long> entry : manifest.manifest.entrySet())
+            long size = TypeSizes.sizeofUnsignedVInt(manifest.components.size());
+            for (Map.Entry<Component, Long> entry : manifest.components.entrySet())
             {
-                size += TypeSizes.sizeof(entry.getKey().id);
-                size += TypeSizes.sizeof(entry.getValue());
+                size += TypeSizes.sizeof(entry.getKey().type.id);
+                size += TypeSizes.sizeofUnsignedVInt(entry.getValue());
             }
             return size;
         }
-
-        private void serialize(Component.Type type, long size, DataOutputPlus out) throws IOException
-        {
-            out.writeByte(type.id);
-            out.writeLong(size);
-        }
     };
+
+    @Override
+    public Iterator<Component> iterator()
+    {
+        return Iterators.unmodifiableIterator(components.keySet().iterator());
+    }
 }

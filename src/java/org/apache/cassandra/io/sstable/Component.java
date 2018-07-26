@@ -145,7 +145,21 @@ public class Component
     public static Component parse(String name)
     {
         Type type = Type.fromRepresentation(name);
+        Component c = get(type);
 
+        if (c != null)
+            return c;
+
+        switch (type)
+        {
+            case SECONDARY_INDEX: return new Component(Type.SECONDARY_INDEX, name);
+            case CUSTOM:          return new Component(Type.CUSTOM, name);
+            default:              throw new AssertionError();
+        }
+    }
+
+    public static Component get(Type type)
+    {
         // Build (or retrieve singleton for) the component object
         switch (type)
         {
@@ -158,9 +172,7 @@ public class Component
             case CRC:              return Component.CRC;
             case SUMMARY:          return Component.SUMMARY;
             case TOC:              return Component.TOC;
-            case SECONDARY_INDEX:  return new Component(Type.SECONDARY_INDEX, name);
-            case CUSTOM:           return new Component(Type.CUSTOM, name);
-            default:               throw new AssertionError();
+            default:               return null;
         }
     }
 

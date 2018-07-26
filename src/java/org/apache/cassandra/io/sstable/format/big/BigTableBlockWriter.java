@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -78,7 +77,7 @@ public class BigTableBlockWriter extends SSTable implements SSTableMultiWriter
     public BigTableBlockWriter(Descriptor descriptor,
                                TableMetadataRef metadata,
                                LifecycleTransaction txn,
-                               final Set<Component> components)
+                               final Collection<Component> components)
     {
         super(descriptor, ImmutableSet.copyOf(components), metadata, DatabaseDescriptor.getDiskOptimizationStrategy());
 
@@ -88,7 +87,7 @@ public class BigTableBlockWriter extends SSTable implements SSTableMultiWriter
 
         if (!SUPPORTED_COMPONENTS.containsAll(components))
             throw new AssertionError(format("Unsupported streaming component detected %s",
-                                            Sets.difference(components, SUPPORTED_COMPONENTS)));
+                                            Sets.difference(ImmutableSet.copyOf(components), SUPPORTED_COMPONENTS)));
 
         for (Component c : components)
             componentWriters.put(c.type, makeWriter(descriptor, c));

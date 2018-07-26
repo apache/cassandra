@@ -21,7 +21,6 @@ package org.apache.cassandra.db.streaming;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
-import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,9 +32,9 @@ import org.apache.cassandra.net.async.ByteBufDataOutputStreamPlus;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
+import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 
 /**
  * CassandraBlockStreamWriter streams the entire SSTable to given channel.
@@ -67,14 +66,18 @@ public class CassandraBlockStreamWriter implements IStreamWriter
     @Override
     public void write(DataOutputStreamPlus output) throws IOException
     {
-        long totalSize = manifest.getTotalSize();
-        logger.debug("[Stream #{}] Start streaming sstable {} to {}, repairedAt = {}, totalSize = {}", session.planId(),
-                     sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
+        long totalSize = manifest.totalSize();
+        logger.debug("[Stream #{}] Start streaming sstable {} to {}, repairedAt = {}, totalSize = {}",
+                     session.planId(),
+                     sstable.getFilename(),
+                     session.peer,
+                     sstable.getSSTableMetadata().repairedAt,
+                     prettyPrintMemory(totalSize));
 
         long progress = 0L;
         ByteBufDataOutputStreamPlus byteBufDataOutputStreamPlus = (ByteBufDataOutputStreamPlus) output;
 
-        for (Component component : manifest.getComponents())
+        for (Component component : manifest.components())
         {
             @SuppressWarnings("resource") // this is closed after the file is transferred by ByteBufDataOutputStreamPlus
             FileChannel in = new RandomAccessFile(sstable.descriptor.filenameFor(component), "r").getChannel();
@@ -83,27 +86,37 @@ public class CassandraBlockStreamWriter implements IStreamWriter
             long length = in.size();
 
             // tracks write progress
-            long bytesRead = 0;
             logger.debug("[Stream #{}] Block streaming {}.{} gen {} component {} size {}", session.planId(),
-                        sstable.getKeyspaceName(), sstable.getColumnFamilyName(), sstable.descriptor.generation, component, length);
+                         sstable.getKeyspaceName(),
+                         sstable.getColumnFamilyName(),
+                         sstable.descriptor.generation,
+                         component, length);
 
-            bytesRead += byteBufDataOutputStreamPlus.writeToChannel(in, limiter);
+            long bytesRead = byteBufDataOutputStreamPlus.writeToChannel(in, limiter);
             progress += bytesRead;
 
-            session.progress(sstable.descriptor.filenameFor(component), ProgressInfo.Direction.OUT, bytesRead,
-                             length);
+            session.progress(sstable.descriptor.filenameFor(component), ProgressInfo.Direction.OUT, bytesRead, length);
 
             logger.debug("[Stream #{}] Finished block streaming {}.{} gen {} component {} to {}, xfered = {}, length = {}, totalSize = {}",
-                         session.planId(), sstable.getKeyspaceName(), sstable.getColumnFamilyName(),
-                         sstable.descriptor.generation, component, session.peer, FBUtilities.prettyPrintMemory(bytesRead),
-                         FBUtilities.prettyPrintMemory(length), FBUtilities.prettyPrintMemory(totalSize));
-
-            byteBufDataOutputStreamPlus.flush();
-
-            logger.debug("[Stream #{}] Finished block streaming sstable {} to {}, xfered = {}, totalSize = {}",
-                         session.planId(), sstable.getFilename(), session.peer, FBUtilities.prettyPrintMemory(progress),
-                         FBUtilities.prettyPrintMemory(totalSize));
-
+                         session.planId(),
+                         sstable.getKeyspaceName(),
+                         sstable.getColumnFamilyName(),
+                         sstable.descriptor.generation,
+                         component,
+                         session.peer,
+                         prettyPrintMemory(bytesRead),
+                         prettyPrintMemory(length),
+                         prettyPrintMemory(totalSize));
         }
+
+        byteBufDataOutputStreamPlus.flush();
+
+        logger.debug("[Stream #{}] Finished block streaming sstable {} to {}, xfered = {}, totalSize = {}",
+                     session.planId(),
+                     sstable.getFilename(),
+                     session.peer,
+                     prettyPrintMemory(progress),
+                     prettyPrintMemory(totalSize));
+
     }
 }

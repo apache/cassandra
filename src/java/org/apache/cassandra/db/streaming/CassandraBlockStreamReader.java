@@ -20,7 +20,7 @@ package org.apache.cassandra.db.streaming;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Set;
+import java.util.Collection;
 
 import com.google.common.base.Throwables;
 import org.slf4j.Logger;
@@ -41,7 +41,6 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 
 import static java.lang.String.format;
-
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 
 /**
@@ -88,7 +87,7 @@ public class CassandraBlockStreamReader implements IStreamReader
         }
 
         ComponentManifest manifest = header.componentManifest;
-        long totalSize = manifest.getTotalSize();
+        long totalSize = manifest.totalSize();
 
         logger.debug("[Stream #{}] Started receiving sstable #{} from {}, size = {}, table = {}",
                      session.planId(),
@@ -101,11 +100,11 @@ public class CassandraBlockStreamReader implements IStreamReader
 
         try
         {
-            writer = createWriter(cfs, totalSize, manifest.getComponents());
+            writer = createWriter(cfs, totalSize, manifest.components());
             long bytesRead = 0;
-            for (Component component : manifest.getComponents())
+            for (Component component : manifest.components())
             {
-                long length = manifest.getSizeForType(component.type);
+                long length = manifest.sizeOf(component);
 
                 logger.debug("[Stream #{}] Started receiving {} component from {}, componentSize = {}, readBytes = {}, totalSize = {}",
                              session.planId(),
@@ -156,7 +155,7 @@ public class CassandraBlockStreamReader implements IStreamReader
     }
 
     @SuppressWarnings("resource")
-    protected BigTableBlockWriter createWriter(ColumnFamilyStore cfs, long totalSize, Set<Component> components) throws IOException
+    protected BigTableBlockWriter createWriter(ColumnFamilyStore cfs, long totalSize, Collection<Component> components) throws IOException
     {
         File dataDir = getDataDir(cfs, totalSize);
 
