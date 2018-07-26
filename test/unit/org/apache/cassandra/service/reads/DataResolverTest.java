@@ -714,7 +714,7 @@ public class DataResolverTest
 
         long[] ts = {100, 200};
 
-        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
+        Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(Clustering.EMPTY);
         builder.addComplexDeletion(m, new DeletionTime(ts[0] - 1, nowInSec));
         builder.addCell(mapCell(0, 0, ts[0]));
@@ -766,7 +766,7 @@ public class DataResolverTest
 
         long[] ts = {100, 200};
 
-        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
+        Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(Clustering.EMPTY);
         builder.addComplexDeletion(m, new DeletionTime(ts[0] - 1, nowInSec));
         builder.addCell(mapCell(0, 0, ts[0]));
@@ -810,7 +810,7 @@ public class DataResolverTest
         long[] ts = {100, 200};
 
         // map column
-        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
+        Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(Clustering.EMPTY);
         DeletionTime expectedCmplxDelete = new DeletionTime(ts[0] - 1, nowInSec);
         builder.addComplexDeletion(m, expectedCmplxDelete);
@@ -859,7 +859,7 @@ public class DataResolverTest
         long[] ts = {100, 200};
 
         // cleared map column
-        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
+        Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(Clustering.EMPTY);
         builder.addComplexDeletion(m, new DeletionTime(ts[0] - 1, nowInSec));
 

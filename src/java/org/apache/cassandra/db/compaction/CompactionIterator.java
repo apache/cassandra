@@ -102,8 +102,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         UnfilteredPartitionIterator merged = scanners.isEmpty()
                                            ? EmptyIterators.unfilteredPartition(controller.cfs.metadata())
-                                           : UnfilteredPartitionIterators.merge(scanners, nowInSec, listener());
-        merged = Transformation.apply(merged, new GarbageSkipper(controller, nowInSec));
+                                           : UnfilteredPartitionIterators.merge(scanners, listener());
+        merged = Transformation.apply(merged, new GarbageSkipper(controller));
         merged = Transformation.apply(merged, new Purger(controller, nowInSec));
         compacted = Transformation.apply(merged, new AbortableUnfilteredPartitionTransformation(this));
     }
@@ -322,7 +322,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final DeletionTime partitionLevelDeletion;
         final Row staticRow;
         final ColumnFilter cf;
-        final int nowInSec;
         final TableMetadata metadata;
         final boolean cellLevelGC;
 
@@ -340,15 +339,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
          *
          * @param dataSource The input row. The result is a filtered version of this.
          * @param tombSource Tombstone source, i.e. iterator used to identify deleted data in the input row.
-         * @param nowInSec Current time, used in choosing the winner when cell expiration is involved.
          * @param cellLevelGC If false, the iterator will only look at row-level deletion times and tombstones.
          *                    If true, deleted or overwritten cells within a surviving row will also be removed.
          */
-        protected GarbageSkippingUnfilteredRowIterator(UnfilteredRowIterator dataSource, UnfilteredRowIterator tombSource, int nowInSec, boolean cellLevelGC)
+        protected GarbageSkippingUnfilteredRowIterator(UnfilteredRowIterator dataSource, UnfilteredRowIterator tombSource, boolean cellLevelGC)
         {
             super(dataSource);
             this.tombSource = tombSource;
-            this.nowInSec = nowInSec;
             this.cellLevelGC = cellLevelGC;
             metadata = dataSource.metadata();
             cf = ColumnFilter.all(metadata);
@@ -453,7 +450,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         {
             if (cellLevelGC)
             {
-                return Rows.removeShadowedCells(dataRow, tombRow, activeDeletionTime, nowInSec);
+                return Rows.removeShadowedCells(dataRow, tombRow, activeDeletionTime);
             }
             else
             {
@@ -512,14 +509,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
      */
     private static class GarbageSkipper extends Transformation<UnfilteredRowIterator>
     {
-        final int nowInSec;
         final CompactionController controller;
         final boolean cellLevelGC;
 
-        private GarbageSkipper(CompactionController controller, int nowInSec)
+        private GarbageSkipper(CompactionController controller)
         {
             this.controller = controller;
-            this.nowInSec = nowInSec;
             cellLevelGC = controller.tombstoneOption == TombstoneOption.CELL;
         }
 
@@ -540,7 +535,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             if (iters.isEmpty())
                 return partition;
 
-            return new GarbageSkippingUnfilteredRowIterator(partition, UnfilteredRowIterators.merge(iters, nowInSec), nowInSec, cellLevelGC);
+            return new GarbageSkippingUnfilteredRowIterator(partition, UnfilteredRowIterators.merge(iters), cellLevelGC);
         }
     }
 

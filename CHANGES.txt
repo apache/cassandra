@@ -18,6 +18,7 @@
  * Fix toDate function for timestamp arguments (CASSANDRA-14502)
  * Revert running dtests by default in circleci (CASSANDRA-14614)
  * Stream entire SSTables when possible (CASSANDRA-14556)
+ * Cell reconciliation should not depend on nowInSec (CASSANDRA-14592)
  * Add experimental support for Java 11 (CASSANDRA-9608)
  * Make PeriodicCommitLogService.blockWhenSyncLagsNanos configurable (CASSANDRA-14580)
  * Improve logging in MessageInHandler's constructor (CASSANDRA-14576)

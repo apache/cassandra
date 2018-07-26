@@ -101,7 +101,7 @@ public class PartitionImplementationTest
     Row makeRow(Clustering clustering, String colValue)
     {
         ColumnMetadata defCol = metadata.getColumn(new ColumnIdentifier("col", true));
-        Row.Builder row = BTreeRow.unsortedBuilder(TIMESTAMP);
+        Row.Builder row = BTreeRow.unsortedBuilder();
         row.newRow(clustering);
         row.addCell(BufferCell.live(defCol, TIMESTAMP, ByteBufferUtil.bytes(colValue)));
         return row.build();
@@ -110,7 +110,7 @@ public class PartitionImplementationTest
     Row makeStaticRow()
     {
         ColumnMetadata defCol = metadata.getColumn(new ColumnIdentifier("static_col", true));
-        Row.Builder row = BTreeRow.unsortedBuilder(TIMESTAMP);
+        Row.Builder row = BTreeRow.unsortedBuilder();
         row.newRow(Clustering.STATIC_CLUSTERING);
         row.addCell(BufferCell.live(defCol, TIMESTAMP, ByteBufferUtil.bytes("static value")));
         return row.build();

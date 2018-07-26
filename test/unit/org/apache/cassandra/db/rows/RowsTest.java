@@ -211,7 +211,7 @@ public class RowsTest
     private static Row.Builder createBuilder(Clustering c, int now, ByteBuffer vVal, ByteBuffer mKey, ByteBuffer mVal)
     {
         long ts = secondToTs(now);
-        Row.Builder builder = BTreeRow.unsortedBuilder(now);
+        Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(c);
         builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(ts, now));
         if (vVal != null)
@@ -232,7 +232,7 @@ public class RowsTest
     {
         int now = FBUtilities.nowInSeconds();
         long ts = secondToTs(now);
-        Row.Builder originalBuilder = BTreeRow.unsortedBuilder(now);
+        Row.Builder originalBuilder = BTreeRow.unsortedBuilder();
         originalBuilder.newRow(c1);
         LivenessInfo liveness = LivenessInfo.create(ts, now);
         originalBuilder.addPrimaryKeyLivenessInfo(liveness);
@@ -261,7 +261,7 @@ public class RowsTest
     {
         int now = FBUtilities.nowInSeconds();
         long ts = secondToTs(now);
-        Row.Builder builder = BTreeRow.unsortedBuilder(now);
+        Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(c1);
         LivenessInfo liveness = LivenessInfo.create(ts, now);
         builder.addPrimaryKeyLivenessInfo(liveness);
@@ -299,7 +299,7 @@ public class RowsTest
     {
         int now1 = FBUtilities.nowInSeconds();
         long ts1 = secondToTs(now1);
-        Row.Builder r1Builder = BTreeRow.unsortedBuilder(now1);
+        Row.Builder r1Builder = BTreeRow.unsortedBuilder();
         r1Builder.newRow(c1);
         LivenessInfo r1Liveness = LivenessInfo.create(ts1, now1);
         r1Builder.addPrimaryKeyLivenessInfo(r1Liveness);
@@ -315,7 +315,7 @@ public class RowsTest
 
         int now2 = now1 + 1;
         long ts2 = secondToTs(now2);
-        Row.Builder r2Builder = BTreeRow.unsortedBuilder(now2);
+        Row.Builder r2Builder = BTreeRow.unsortedBuilder();
         r2Builder.newRow(c1);
         LivenessInfo r2Liveness = LivenessInfo.create(ts2, now2);
         r2Builder.addPrimaryKeyLivenessInfo(r2Liveness);
@@ -331,7 +331,7 @@ public class RowsTest
 
         Row r1 = r1Builder.build();
         Row r2 = r2Builder.build();
-        Row merged = Rows.merge(r1, r2, now2 + 1);
+        Row merged = Rows.merge(r1, r2);
 
         Assert.assertEquals(r1ComplexDeletion, merged.getComplexColumnData(m).complexDeletion());
 
@@ -375,7 +375,7 @@ public class RowsTest
     {
         int now1 = FBUtilities.nowInSeconds();
         long ts1 = secondToTs(now1);
-        Row.Builder r1Builder = BTreeRow.unsortedBuilder(now1);
+        Row.Builder r1Builder = BTreeRow.unsortedBuilder();
         r1Builder.newRow(c1);
         LivenessInfo r1Liveness = LivenessInfo.create(ts1, now1);
         r1Builder.addPrimaryKeyLivenessInfo(r1Liveness);
@@ -383,7 +383,7 @@ public class RowsTest
         // mergedData == null
         int now2 = now1 + 1;
         long ts2 = secondToTs(now2);
-        Row.Builder r2Builder = BTreeRow.unsortedBuilder(now2);
+        Row.Builder r2Builder = BTreeRow.unsortedBuilder();
         r2Builder.newRow(c1);
         LivenessInfo r2Liveness = LivenessInfo.create(ts2, now2);
         r2Builder.addPrimaryKeyLivenessInfo(r2Liveness);
@@ -429,7 +429,7 @@ public class RowsTest
     {
         int now1 = FBUtilities.nowInSeconds();
         long ts1 = secondToTs(now1);
-        Row.Builder r1Builder = BTreeRow.unsortedBuilder(now1);
+        Row.Builder r1Builder = BTreeRow.unsortedBuilder();
         r1Builder.newRow(c1);
         LivenessInfo r1Liveness = LivenessInfo.create(ts1, now1);
         r1Builder.addPrimaryKeyLivenessInfo(r1Liveness);
@@ -437,7 +437,7 @@ public class RowsTest
         // mergedData == null
         int now2 = now1 + 1;
         long ts2 = secondToTs(now2);
-        Row.Builder r2Builder = BTreeRow.unsortedBuilder(now2);
+        Row.Builder r2Builder = BTreeRow.unsortedBuilder();
         r2Builder.newRow(c1);
         LivenessInfo r2Liveness = LivenessInfo.create(ts2, now2);
         r2Builder.addPrimaryKeyLivenessInfo(r2Liveness);
@@ -494,7 +494,7 @@ public class RowsTest
         updateBuilder.addCell(expectedMCell);
 
         RowBuilder builder = new RowBuilder();
-        long td = Rows.merge(existingBuilder.build(), updateBuilder.build(), builder, now2 + 1);
+        long td = Rows.merge(existingBuilder.build(), updateBuilder.build(), builder);
 
         Assert.assertEquals(c1, builder.clustering);
         Assert.assertEquals(LivenessInfo.create(ts2, now2), builder.livenessInfo);
@@ -518,7 +518,7 @@ public class RowsTest
         updateBuilder.addRowDeletion(expectedDeletion);
 
         RowBuilder builder = new RowBuilder();
-        Rows.merge(existingBuilder.build(), updateBuilder.build(), builder, now3 + 1);
+        Rows.merge(existingBuilder.build(), updateBuilder.build(), builder);
 
         Assert.assertEquals(expectedDeletion, builder.deletionTime);
         Assert.assertEquals(Collections.emptyList(), builder.complexDeletions);
@@ -542,7 +542,7 @@ public class RowsTest
         updateBuilder.addRowDeletion(expectedDeletion);
 
         RowBuilder builder = new RowBuilder();
-        Rows.merge(existingBuilder.build(), updateBuilder.build(), builder, now3 + 1);
+        Rows.merge(existingBuilder.build(), updateBuilder.build(), builder);
 
         Assert.assertEquals(expectedDeletion, builder.deletionTime);
         Assert.assertEquals(LivenessInfo.EMPTY, builder.livenessInfo);

@@ -548,7 +548,7 @@ public class Scrubber implements Closeable
                     }
 
                     // Duplicate row, merge it.
-                    next = Rows.merge((Row) next, (Row) peek, FBUtilities.nowInSeconds());
+                    next = Rows.merge((Row) next, (Row) peek);
                 }
             }
 

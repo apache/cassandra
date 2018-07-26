@@ -97,6 +97,9 @@ New features
 
 Upgrading
 ---------
+    - Timestamp ties between values resolve differently: if either value has a TTL,
+      this value always wins. This is to provide consistent reconciliation before
+      and after the value expires into a tombstone.
     - Cassandra 4.0 removed support for COMPACT STORAGE tables. All Compact Tables
       have to be migrated using `ALTER ... DROP COMPACT STORAGE` statement in 3.0/3.11.
       Cassandra starting 4.0 will not start if flags indicate that the table is non-CQL.

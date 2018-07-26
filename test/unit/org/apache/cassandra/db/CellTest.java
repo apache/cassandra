@@ -367,7 +367,7 @@ public class CellTest
         List<Cell> cells2 = Lists.newArrayList(r2m2, r2m3, r2m4);
 
         RowBuilder builder = new RowBuilder();
-        Cells.reconcileComplex(m, cells1.iterator(), cells2.iterator(), DeletionTime.LIVE, builder, now2 + 1);
+        Cells.reconcileComplex(m, cells1.iterator(), cells2.iterator(), DeletionTime.LIVE, builder);
         Assert.assertEquals(Lists.newArrayList(r1m1, r2m2, r2m3, r2m4), builder.cells);
     }
 
@@ -384,10 +384,9 @@ public class CellTest
         Cell c1 = expiring(cfm, n1, v1, t1, et1);
         Cell c2 = expiring(cfm, n2, v2, t2, et2);
 
-        int now = FBUtilities.nowInSeconds();
-        if (Cells.reconcile(c1, c2, now) == c1)
-            return Cells.reconcile(c2, c1, now) == c1 ? -1 : 0;
-        return Cells.reconcile(c2, c1, now) == c2 ? 1 : 0;
+        if (Cells.reconcile(c1, c2) == c1)
+            return Cells.reconcile(c2, c1) == c1 ? -1 : 0;
+        return Cells.reconcile(c2, c1) == c2 ? 1 : 0;
     }
 
     private Cell regular(TableMetadata cfm, String columnName, String value, long timestamp)
