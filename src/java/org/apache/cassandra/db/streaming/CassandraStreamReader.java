@@ -85,7 +85,7 @@ public class CassandraStreamReader implements IStreamReader
         this.pendingRepair = header.pendingRepair;
         this.format = streamHeader.format;
         this.sstableLevel = streamHeader.sstableLevel;
-        this.header = streamHeader.header;
+        this.header = streamHeader.serializationHeader;
         this.fileSeqNum = header.sequenceNumber;
     }
 

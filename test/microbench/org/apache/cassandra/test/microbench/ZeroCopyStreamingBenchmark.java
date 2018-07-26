@@ -46,7 +46,6 @@ import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.db.streaming.CassandraStreamHeader;
 import org.apache.cassandra.db.streaming.CassandraStreamReader;
 import org.apache.cassandra.db.streaming.CassandraStreamWriter;
-import org.apache.cassandra.db.streaming.CompressionInfo;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
@@ -130,16 +129,24 @@ public class ZeroCopyStreamingBenchmark
 
             session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, serializedBlockStream.readableBytes()));
 
-            CassandraStreamHeader blockStreamHeader = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType,
-                                                                                sstable.estimatedKeys(), Collections.emptyList(),
-                                                                                (CompressionInfo) null, 0, sstable.header.toComponent(),
-                                                                                CassandraOutgoingFile.getComponentManifest(sstable), true, sstable.first,
-                                                                                sstable.metadata().id);
+            CassandraStreamHeader entireSSTableStreamHeader =
+                CassandraStreamHeader.builder()
+                                     .withSSTableFormat(sstable.descriptor.formatType)
+                                     .withSSTableVersion(sstable.descriptor.version)
+                                     .withSSTableLevel(0)
+                                     .withEstimatedKeys(sstable.estimatedKeys())
+                                     .withSections(Collections.emptyList())
+                                     .withSerializationHeader(sstable.header.toComponent())
+                                     .withComponentManifest(CassandraOutgoingFile.getComponentManifest(sstable))
+                                     .isEntireSSTable(true)
+                                     .withFirstKey(sstable.first)
+                                     .withTableId(sstable.metadata().id)
+                                     .build();
 
             blockStreamReader = new CassandraBlockStreamReader(new StreamMessageHeader(sstable.metadata().id,
                                                                                        peer, session.planId(),
                                                                                        0, 0, 0,
-                                                                                       null), blockStreamHeader, session);
+                                                                                       null), entireSSTableStreamHeader, session);
 
             List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(sstable.first.minValue().getToken(), sstable.last.getToken()));
             partialStreamWriter = new CassandraStreamWriter(sstable, sstable.getPositionsForRanges(requestedRanges), session);
@@ -148,17 +155,22 @@ public class ZeroCopyStreamingBenchmark
             partialStreamWriter.write(ByteBufDataOutputStreamPlus.create(session, partialStreamChannel, 1024 * 1024));
             serializedPartialStream = partialStreamChannel.getSerializedStream();
 
-            CassandraStreamHeader partialStreamHeader = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType,
-                                                                                  sstable.estimatedKeys(), sstable.getPositionsForRanges(requestedRanges),
-                                                                                  (CompressionInfo) null, 0, sstable.header.toComponent(),
-                                                                                  CassandraOutgoingFile.getComponentManifest(sstable), false, sstable.first,
-                                                                                  sstable.metadata().id);
+            CassandraStreamHeader partialSSTableStreamHeader =
+                CassandraStreamHeader.builder()
+                                     .withSSTableFormat(sstable.descriptor.formatType)
+                                     .withSSTableVersion(sstable.descriptor.version)
+                                     .withSSTableLevel(0)
+                                     .withEstimatedKeys(sstable.estimatedKeys())
+                                     .withSections(sstable.getPositionsForRanges(requestedRanges))
+                                     .withSerializationHeader(sstable.header.toComponent())
+                                     .withTableId(sstable.metadata().id)
+                                     .build();
 
             partialStreamReader = new CassandraStreamReader(new StreamMessageHeader(sstable.metadata().id,
                                                                                     peer, session.planId(),
                                                                                     0, 0, 0,
                                                                                     null),
-                                                            partialStreamHeader, session);
+                                                            partialSSTableStreamHeader, session);
         }
 
         private Keyspace setupSchemaAndKeySpace()

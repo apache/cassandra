@@ -85,15 +85,20 @@ public class CassandraOutgoingFile implements OutgoingStream
 
         SSTableReader sstable = ref.get();
         keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
-        this.header = new CassandraStreamHeader(sstable.descriptor.version,
-                                                sstable.descriptor.formatType,
-                                                estimatedKeys,
-                                                sections,
-                                                sstable.compression ? sstable.getCompressionMetadata() : null,
-                                                keepSSTableLevel ? sstable.getSSTableLevel() : 0,
-                                                sstable.header.toComponent(), manifest, shouldStreamFullSSTable(),
-                                                sstable.first,
-                                                sstable.metadata().id);
+        this.header =
+            CassandraStreamHeader.builder()
+                                 .withSSTableFormat(sstable.descriptor.formatType)
+                                 .withSSTableVersion(sstable.descriptor.version)
+                                 .withSSTableLevel(keepSSTableLevel ? sstable.getSSTableLevel() : 0)
+                                 .withEstimatedKeys(estimatedKeys)
+                                 .withSections(sections)
+                                 .withCompressionMetadata(sstable.compression ? sstable.getCompressionMetadata() : null)
+                                 .withSerializationHeader(sstable.header.toComponent())
+                                 .isEntireSSTable(shouldStreamEntireSSTable())
+                                 .withComponentManifest(manifest)
+                                 .withFirstKey(sstable.first)
+                                 .withTableId(sstable.metadata().id)
+                                 .build();
     }
 
     @VisibleForTesting
@@ -160,7 +165,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         out.flush();
 
         IStreamWriter writer;
-        if (shouldStreamFullSSTable())
+        if (shouldStreamEntireSSTable())
         {
             writer = new CassandraBlockStreamWriter(sstable, session, manifest);
         }
@@ -175,7 +180,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     }
 
     @VisibleForTesting
-    public boolean shouldStreamFullSSTable()
+    public boolean shouldStreamEntireSSTable()
     {
         // don't stream if full sstable transfers are disabled or legacy counter shards are present
         if (!isFullSSTableTransfersEnabled || ref.get().getSSTableMetadata().hasLegacyCounterShards)

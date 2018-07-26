@@ -15,9 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db.streaming;
-
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -141,7 +139,19 @@ public class CassandraBlockStreamWriterTest
 
         session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104));
 
-        CassandraStreamHeader header = new CassandraStreamHeader(sstable.descriptor.version, sstable.descriptor.formatType, sstable.estimatedKeys(), Collections.emptyList(), (CompressionInfo) null, 0, sstable.header.toComponent(), CassandraOutgoingFile.getComponentManifest(sstable), true, sstable.first, sstable.metadata().id);
+        CassandraStreamHeader header =
+            CassandraStreamHeader.builder()
+                                 .withSSTableFormat(sstable.descriptor.formatType)
+                                 .withSSTableVersion(sstable.descriptor.version)
+                                 .withSSTableLevel(0)
+                                 .withEstimatedKeys(sstable.estimatedKeys())
+                                 .withSections(Collections.emptyList())
+                                 .withSerializationHeader(sstable.header.toComponent())
+                                 .withComponentManifest(CassandraOutgoingFile.getComponentManifest(sstable))
+                                 .isEntireSSTable(true)
+                                 .withFirstKey(sstable.first)
+                                 .withTableId(sstable.metadata().id)
+                                 .build();
 
         CassandraBlockStreamReader reader = new CassandraBlockStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), 0, 0, 0, null), header, session);
 

@@ -15,11 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 
 import com.google.common.collect.ImmutableMap;
@@ -29,7 +28,6 @@ import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.streaming.CassandraStreamHeader.CassandraStreamHeaderSerializer;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
@@ -45,14 +43,16 @@ public class CassandraStreamHeaderTest
     {
         String ddl = "CREATE TABLE tbl (k INT PRIMARY KEY, v INT)";
         TableMetadata metadata = CreateTableStatement.parse(ddl, "ks").build();
-        CassandraStreamHeader header = new CassandraStreamHeader(BigFormat.latestVersion,
-                                                                 SSTableFormat.Type.BIG,
-                                                                 0,
-                                                                 new ArrayList<>(),
-                                                                 ((CompressionMetadata) null),
-                                                                 0,
-                                                                 SerializationHeader.makeWithoutStats(metadata).toComponent(),
-                                                                 metadata.id);
+        CassandraStreamHeader header =
+            CassandraStreamHeader.builder()
+                                 .withSSTableFormat(SSTableFormat.Type.BIG)
+                                 .withSSTableVersion(BigFormat.latestVersion)
+                                 .withSSTableLevel(0)
+                                 .withEstimatedKeys(0)
+                                 .withSections(Collections.emptyList())
+                                 .withSerializationHeader(SerializationHeader.makeWithoutStats(metadata).toComponent())
+                                 .withTableId(metadata.id)
+                                 .build();
 
         SerializationUtils.assertSerializationCycle(header, CassandraStreamHeader.serializer);
     }
@@ -65,14 +65,19 @@ public class CassandraStreamHeaderTest
 
         ComponentManifest manifest = new ComponentManifest(new HashMap(ImmutableMap.of(Component.DATA, 100L)));
 
-        CassandraStreamHeader header = new CassandraStreamHeader(BigFormat.latestVersion,
-                                                                 SSTableFormat.Type.BIG,
-                                                                 0,
-                                                                 new ArrayList<>(),
-                                                                 ((CompressionMetadata) null),
-                                                                 0,
-                                                                 SerializationHeader.makeWithoutStats(metadata).toComponent(),
-                                                                 manifest, true, Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), metadata.id);
+        CassandraStreamHeader header =
+            CassandraStreamHeader.builder()
+                                 .withSSTableFormat(SSTableFormat.Type.BIG)
+                                 .withSSTableVersion(BigFormat.latestVersion)
+                                 .withSSTableLevel(0)
+                                 .withEstimatedKeys(0)
+                                 .withSections(Collections.emptyList())
+                                 .withSerializationHeader(SerializationHeader.makeWithoutStats(metadata).toComponent())
+                                 .withComponentManifest(manifest)
+                                 .isEntireSSTable(true)
+                                 .withFirstKey(Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER))
+                                 .withTableId(metadata.id)
+                                 .build();
 
         SerializationUtils.assertSerializationCycle(header, new TestableCassandraStreamHeaderSerializer());
     }
