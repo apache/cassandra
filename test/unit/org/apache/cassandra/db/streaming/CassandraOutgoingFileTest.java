@@ -93,7 +93,7 @@ public class CassandraOutgoingFileTest
                                                               sstable.getPositionsForRanges(requestedRanges),
                                                               requestedRanges, sstable.estimatedKeys());
 
-        assertTrue(cof.fullyContainedIn(requestedRanges, sstable));
+        assertTrue(cof.contained(requestedRanges, sstable));
     }
 
     @Test
@@ -105,7 +105,7 @@ public class CassandraOutgoingFileTest
                                                               sstable.getPositionsForRanges(requestedRanges),
                                                               requestedRanges, sstable.estimatedKeys());
 
-        assertFalse(cof.fullyContainedIn(requestedRanges, sstable));
+        assertFalse(cof.contained(requestedRanges, sstable));
     }
 
     @Test
@@ -119,7 +119,7 @@ public class CassandraOutgoingFileTest
                                                               sstable.getPositionsForRanges(requestedRanges),
                                                               requestedRanges, sstable.estimatedKeys());
 
-        assertTrue(cof.fullyContainedIn(requestedRanges, sstable));
+        assertTrue(cof.contained(requestedRanges, sstable));
     }
 
     private DecoratedKey getKeyAtIndex(int i)

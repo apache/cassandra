@@ -33,7 +33,9 @@ import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
@@ -65,7 +67,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final CassandraStreamHeader header;
     private final boolean keepSSTableLevel;
     private final ComponentManifest manifest;
-    private final boolean isFullyContained;
+    private Boolean isFullyContained;
 
     private final List<Range<Token>> ranges;
 
@@ -80,7 +82,6 @@ public class CassandraOutgoingFile implements OutgoingStream
         this.ranges = ImmutableList.copyOf(ranges);
         this.filename = ref.get().getFilename();
         this.manifest = getComponentManifest(ref.get());
-        this.isFullyContained = fullyContainedIn(this.ranges, ref.get());
 
         SSTableReader sstable = ref.get();
         keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
@@ -176,20 +177,44 @@ public class CassandraOutgoingFile implements OutgoingStream
     @VisibleForTesting
     public boolean shouldStreamFullSSTable()
     {
+        // don't stream if full sstable transfers are disabled or legacy counter shards are present
+        if (!isFullSSTableTransfersEnabled || ref.get().getSSTableMetadata().hasLegacyCounterShards)
+            return false;
+
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(getTableId());
 
         if (cfs == null)
             return false;
 
-        if (cfs.getCompactionStrategyManager().getCompactionStrategyFor(ref.get()) instanceof LeveledCompactionStrategy &&
-            !ref.get().getSSTableMetadata().hasLegacyCounterShards)
-            return isFullSSTableTransfersEnabled && isFullyContained;
+        AbstractCompactionStrategy compactionStrategy = cfs.getCompactionStrategyManager()
+                                                           .getCompactionStrategyFor(ref.get());
+
+        if (compactionStrategy instanceof LeveledCompactionStrategy)
+            return contained(ranges, ref.get());
+
+        if (compactionStrategy instanceof SizeTieredCompactionStrategy)
+        {
+            return (ranges != null
+                        && ranges.size() == 1
+                        && ranges.get(0)
+                                 .contains(new Range<>(ref.get().first.getToken(),
+                                                       ref.get().last.getToken())));
+        }
 
         return false;
     }
 
     @VisibleForTesting
-    public boolean fullyContainedIn(List<Range<Token>> normalizedRanges, SSTableReader sstable)
+    public boolean contained(List<Range<Token>> normalizedRanges, SSTableReader sstable)
+    {
+        if (isFullyContained != null)
+            return isFullyContained;
+
+        isFullyContained = computeContainment(normalizedRanges, sstable);
+        return isFullyContained;
+    }
+
+    private boolean computeContainment(List<Range<Token>> normalizedRanges, SSTableReader sstable)
     {
         if (normalizedRanges == null)
             return false;
