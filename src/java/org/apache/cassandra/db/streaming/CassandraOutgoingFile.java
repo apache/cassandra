@@ -172,7 +172,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         {
             CassandraStreamWriter writer = (header.compressionInfo == null) ?
                      new CassandraStreamWriter(sstable, header.sections, session) :
-                     new CompressedCassandraStreamWriter(sstable, header.sections,
+                     new CassandraCompressedStreamWriter(sstable, header.sections,
                                                          header.compressionInfo, session);
             writer.write(out);
         }

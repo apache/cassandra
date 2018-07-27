@@ -40,15 +40,15 @@ import org.apache.cassandra.utils.FBUtilities;
 /**
  * CassandraStreamWriter for compressed SSTable.
  */
-public class CompressedCassandraStreamWriter extends CassandraStreamWriter
+public class CassandraCompressedStreamWriter extends CassandraStreamWriter
 {
     private static final int CHUNK_SIZE = 1 << 16;
 
-    private static final Logger logger = LoggerFactory.getLogger(CompressedCassandraStreamWriter.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraCompressedStreamWriter.class);
 
     private final CompressionInfo compressionInfo;
 
-    public CompressedCassandraStreamWriter(SSTableReader sstable, Collection<SSTableReader.PartitionPositionBounds> sections, CompressionInfo compressionInfo, StreamSession session)
+    public CassandraCompressedStreamWriter(SSTableReader sstable, Collection<SSTableReader.PartitionPositionBounds> sections, CompressionInfo compressionInfo, StreamSession session)
     {
         super(sstable, sections, session);
         this.compressionInfo = compressionInfo;
