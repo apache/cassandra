@@ -45,18 +45,18 @@ import static java.lang.String.format;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 
 /**
- * CassandraBlockStreamReader reads SSTable off the wire and writes it to disk.
+ * CassandraEntireSSTableStreamReader reads SSTable off the wire and writes it to disk.
  */
-public class CassandraBlockStreamReader implements IStreamReader
+public class CassandraEntireSSTableStreamReader implements IStreamReader
 {
-    private static final Logger logger = LoggerFactory.getLogger(CassandraBlockStreamReader.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraEntireSSTableStreamReader.class);
 
     private final TableId tableId;
     private final StreamSession session;
     private final CassandraStreamHeader header;
     private final int fileSequenceNumber;
 
-    public CassandraBlockStreamReader(StreamMessageHeader messageHeader, CassandraStreamHeader streamHeader, StreamSession session)
+    public CassandraEntireSSTableStreamReader(StreamMessageHeader messageHeader, CassandraStreamHeader streamHeader, StreamSession session)
     {
         if (streamHeader.format != SSTableFormat.Type.BIG)
             throw new AssertionError("Unsupported SSTable format " + streamHeader.format);

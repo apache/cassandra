@@ -40,8 +40,8 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.streaming.CassandraBlockStreamReader;
-import org.apache.cassandra.db.streaming.CassandraBlockStreamWriter;
+import org.apache.cassandra.db.streaming.CassandraEntireSSTableStreamReader;
+import org.apache.cassandra.db.streaming.CassandraEntireSSTableStreamWriter;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.db.streaming.CassandraStreamHeader;
 import org.apache.cassandra.db.streaming.CassandraStreamReader;
@@ -102,10 +102,10 @@ public class ZeroCopyStreamingBenchmark
         private static SSTableReader sstable;
         private static ColumnFamilyStore store;
         private StreamSession session;
-        private CassandraBlockStreamWriter blockStreamWriter;
+        private CassandraEntireSSTableStreamWriter blockStreamWriter;
         private ByteBuf serializedBlockStream;
         private InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
-        private CassandraBlockStreamReader blockStreamReader;
+        private CassandraEntireSSTableStreamReader blockStreamReader;
         private CassandraStreamWriter partialStreamWriter;
         private CassandraStreamReader partialStreamReader;
         private ByteBuf serializedPartialStream;
@@ -119,7 +119,7 @@ public class ZeroCopyStreamingBenchmark
 
             sstable = store.getLiveSSTables().iterator().next();
             session = setupStreamingSessionForTest();
-            blockStreamWriter = new CassandraBlockStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
+            blockStreamWriter = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
 
             CapturingNettyChannel blockStreamCaptureChannel = new CapturingNettyChannel(STREAM_SIZE);
             ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(session, blockStreamCaptureChannel, 1024 * 1024);
@@ -143,10 +143,10 @@ public class ZeroCopyStreamingBenchmark
                                      .withTableId(sstable.metadata().id)
                                      .build();
 
-            blockStreamReader = new CassandraBlockStreamReader(new StreamMessageHeader(sstable.metadata().id,
-                                                                                       peer, session.planId(),
-                                                                                       0, 0, 0,
-                                                                                       null), entireSSTableStreamHeader, session);
+            blockStreamReader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id,
+                                                                                               peer, session.planId(),
+                                                                                               0, 0, 0,
+                                                                                               null), entireSSTableStreamHeader, session);
 
             List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(sstable.first.minValue().getToken(), sstable.last.getToken()));
             partialStreamWriter = new CassandraStreamWriter(sstable, sstable.getPositionsForRanges(requestedRanges), session);

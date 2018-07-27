@@ -35,7 +35,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
-import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
@@ -166,7 +165,7 @@ public class CassandraOutgoingFile implements OutgoingStream
 
         if (shouldStreamEntireSSTable() && out instanceof ByteBufDataOutputStreamPlus)
         {
-            CassandraBlockStreamWriter writer = new CassandraBlockStreamWriter(sstable, session, manifest);
+            CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, manifest);
             writer.write((ByteBufDataOutputStreamPlus) out);
         }
         else

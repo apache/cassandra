@@ -64,9 +64,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class CassandraBlockStreamWriterTest
+public class CassandraEntireSSTableStreamWriterTest
 {
-    public static final String KEYSPACE = "CassandraBlockStreamWriterTest";
+    public static final String KEYSPACE = "CassandraEntireSSTableStreamWriterTest";
     public static final String CF_STANDARD = "Standard1";
     public static final String CF_INDEXED = "Indexed1";
     public static final String CF_STANDARDLOWINDEXINTERVAL = "StandardLowIndexInterval";
@@ -111,7 +111,7 @@ public class CassandraBlockStreamWriterTest
     {
         StreamSession session = setupStreamingSessionForTest();
 
-        CassandraBlockStreamWriter writer = new CassandraBlockStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
+        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
 
         EmbeddedChannel channel = new EmbeddedChannel();
         ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(session, channel, 1024 * 1024);
@@ -128,7 +128,7 @@ public class CassandraBlockStreamWriterTest
         StreamSession session = setupStreamingSessionForTest();
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
 
-        CassandraBlockStreamWriter writer = new CassandraBlockStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
+        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
 
         // This is needed as Netty releases the ByteBuffers as soon as the channel is flushed
         ByteBuf serializedFile = Unpooled.buffer(8192);
@@ -153,7 +153,7 @@ public class CassandraBlockStreamWriterTest
                                  .withTableId(sstable.metadata().id)
                                  .build();
 
-        CassandraBlockStreamReader reader = new CassandraBlockStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), 0, 0, 0, null), header, session);
+        CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), 0, 0, 0, null), header, session);
 
         SSTableMultiWriter sstableWriter = reader.read(new ByteBufDataInputPlus(serializedFile));
         Collection<SSTableReader> newSstables = sstableWriter.finished();

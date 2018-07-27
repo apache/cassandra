@@ -36,18 +36,18 @@ import static org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 
 /**
- * CassandraBlockStreamWriter streams the entire SSTable to given channel.
+ * CassandraEntireSSTableStreamWriter streams the entire SSTable to given channel.
  */
-public class CassandraBlockStreamWriter
+public class CassandraEntireSSTableStreamWriter
 {
-    private static final Logger logger = LoggerFactory.getLogger(CassandraBlockStreamWriter.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraEntireSSTableStreamWriter.class);
 
     private final SSTableReader sstable;
     private final ComponentManifest manifest;
     private final StreamSession session;
     private final StreamRateLimiter limiter;
 
-    public CassandraBlockStreamWriter(SSTableReader sstable, StreamSession session, ComponentManifest manifest)
+    public CassandraEntireSSTableStreamWriter(SSTableReader sstable, StreamSession session, ComponentManifest manifest)
     {
         this.session = session;
         this.sstable = sstable;

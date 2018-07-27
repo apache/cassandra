@@ -65,7 +65,7 @@ public class CassandraIncomingFile implements IncomingStream
         IStreamReader reader;
         if (streamHeader.isEntireSSTable)
         {
-            reader = new CassandraBlockStreamReader(header, streamHeader, session);
+            reader = new CassandraEntireSSTableStreamReader(header, streamHeader, session);
         }
         else
         {
