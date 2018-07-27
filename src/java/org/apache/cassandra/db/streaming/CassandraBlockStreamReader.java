@@ -75,13 +75,13 @@ public class CassandraBlockStreamReader implements IStreamReader
     }
 
     /**
-     * @param inputPlus where this reads data from
+     * @param in where this reads data from
      * @return SSTable transferred
      * @throws IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
      */
     @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
     @Override
-    public SSTableMultiWriter read(DataInputPlus inputPlus) throws IOException
+    public SSTableMultiWriter read(DataInputPlus in) throws IOException
     {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
         if (cfs == null)
@@ -118,7 +118,7 @@ public class CassandraBlockStreamReader implements IStreamReader
                              prettyPrintMemory(bytesRead),
                              prettyPrintMemory(totalSize));
 
-                writer.writeComponent(component.type, inputPlus, length);
+                writer.writeComponent(component.type, in, length);
                 session.progress(writer.descriptor.filenameFor(component), ProgressInfo.Direction.IN, length, length);
                 bytesRead += length;
 
