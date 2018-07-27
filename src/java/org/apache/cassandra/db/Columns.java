@@ -526,6 +526,8 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
                     }
                     encoded >>>= 1;
                 }
+                if (encoded != 0)
+                    throw new IOException("Invalid Columns subset bytes; too many bits set:" + Long.toBinaryString(encoded));
                 return new Columns(builder.build(), firstComplexIdx);
             }
         }
