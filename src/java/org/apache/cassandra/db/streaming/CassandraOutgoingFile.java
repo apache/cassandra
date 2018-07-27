@@ -56,7 +56,6 @@ import static org.apache.cassandra.db.compaction.Verifier.RangeOwnHelper;
  */
 public class CassandraOutgoingFile implements OutgoingStream
 {
-    private static final boolean isZeroCopySSTableTransfersEnabled = DatabaseDescriptor.isZeroCopySSTableTransfersEnabled();
     public static final List<Component> STREAM_COMPONENTS = ImmutableList.of(Component.DATA, Component.PRIMARY_INDEX, Component.STATS,
                                                                              Component.COMPRESSION_INFO, Component.FILTER, Component.SUMMARY,
                                                                              Component.DIGEST, Component.CRC);
@@ -184,7 +183,8 @@ public class CassandraOutgoingFile implements OutgoingStream
     public boolean shouldStreamEntireSSTable()
     {
         // don't stream if full sstable transfers are disabled or legacy counter shards are present
-        if (!isZeroCopySSTableTransfersEnabled || ref.get().getSSTableMetadata().hasLegacyCounterShards)
+        if (!DatabaseDescriptor.isZeroCopySSTableTransfersEnabled()
+                || ref.get().getSSTableMetadata().hasLegacyCounterShards)
             return false;
 
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(getTableId());
@@ -197,15 +197,6 @@ public class CassandraOutgoingFile implements OutgoingStream
 
         if (compactionStrategy instanceof LeveledCompactionStrategy)
             return contained(ranges, ref.get());
-
-        if (compactionStrategy instanceof SizeTieredCompactionStrategy)
-        {
-            return (ranges != null
-                        && ranges.size() == 1
-                        && ranges.get(0)
-                                 .contains(new Range<>(ref.get().first.getToken(),
-                                                       ref.get().last.getToken())));
-        }
 
         return false;
     }
