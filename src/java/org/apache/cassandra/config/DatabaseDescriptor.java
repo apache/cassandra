@@ -708,12 +708,12 @@ public class DatabaseDescriptor
                                             "server_encryption_options.internode_encryption = " + conf.server_encryption_options.internode_encryption, false);
         }
 
-        if (conf.streaming_zero_copy_sstables_enabled)
+        if (conf.stream_entire_sstables)
         {
             if (conf.server_encryption_options.enabled || conf.server_encryption_options.optional)
             {
                 logger.warn("Internode encryption enabled. Disabling zero copy SSTable transfers for streaming.");
-                conf.streaming_zero_copy_sstables_enabled = false;
+                conf.stream_entire_sstables = false;
             }
         }
 
@@ -2271,7 +2271,7 @@ public class DatabaseDescriptor
 
     public static boolean isZeroCopySSTableTransfersEnabled()
     {
-        return conf.streaming_zero_copy_sstables_enabled;
+        return conf.stream_entire_sstables;
     }
 
     public static String getLocalDataCenter()

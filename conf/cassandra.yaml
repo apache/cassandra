@@ -793,7 +793,7 @@ sstable_preemptive_open_interval_in_mb: 50
 # disabled if internode encryption is enabled. Currently this can be used with
 # Leveled Compaction. Once CASSANDRA-14586 is fixed other compaction strategies
 # will benefit as well when used in combination with CASSANDRA-6696.
-# streaming_zero_copy_sstables_enabled: false
+# stream_entire_sstables: false
 
 # Throttles all outbound streaming file transfers on this node to the
 # given total throughput in Mbps. This is necessary because Cassandra does
