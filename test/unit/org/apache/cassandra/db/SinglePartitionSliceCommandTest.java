@@ -282,7 +282,7 @@ public class SinglePartitionSliceCommandTest
                 assertTrue(unfiltered.isRow());
                 Row row = (Row) unfiltered;
                 assertEquals(deletionTime, row.deletion().time().markedForDeleteAt());
-                assertEquals(0, row.size()); // no btree
+                assertEquals(0, row.columnCount()); // no btree
             }
             count++;
         }
