@@ -39,7 +39,7 @@ import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 /**
  * CassandraBlockStreamWriter streams the entire SSTable to given channel.
  */
-public class CassandraBlockStreamWriter implements IStreamWriter
+public class CassandraBlockStreamWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraBlockStreamWriter.class);
 
@@ -60,11 +60,10 @@ public class CassandraBlockStreamWriter implements IStreamWriter
      * Stream the entire file to given channel.
      * <p>
      *
-     * @param output where this writes data to
+     * @param out where this writes data to
      * @throws IOException on any I/O error
      */
-    @Override
-    public void write(DataOutputStreamPlus output) throws IOException
+    public void write(ByteBufDataOutputStreamPlus out) throws IOException
     {
         long totalSize = manifest.totalSize();
         logger.debug("[Stream #{}] Start streaming sstable {} to {}, repairedAt = {}, totalSize = {}",
@@ -75,7 +74,6 @@ public class CassandraBlockStreamWriter implements IStreamWriter
                      prettyPrintMemory(totalSize));
 
         long progress = 0L;
-        ByteBufDataOutputStreamPlus byteBufDataOutputStreamPlus = (ByteBufDataOutputStreamPlus) output;
 
         for (Component component : manifest.components())
         {
@@ -93,7 +91,7 @@ public class CassandraBlockStreamWriter implements IStreamWriter
                          component,
                          prettyPrintMemory(length));
 
-            long bytesWritten = byteBufDataOutputStreamPlus.writeToChannel(in, limiter);
+            long bytesWritten = out.writeToChannel(in, limiter);
             progress += bytesWritten;
 
             session.progress(sstable.descriptor.filenameFor(component), ProgressInfo.Direction.OUT, bytesWritten, length);
@@ -110,7 +108,7 @@ public class CassandraBlockStreamWriter implements IStreamWriter
                          prettyPrintMemory(totalSize));
         }
 
-        byteBufDataOutputStreamPlus.flush();
+        out.flush();
 
         logger.debug("[Stream #{}] Finished block streaming sstable {} to {}, xfered = {}, totalSize = {}",
                      session.planId(),

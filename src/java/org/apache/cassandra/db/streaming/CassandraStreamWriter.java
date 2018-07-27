@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.FBUtilities;
 /**
  * CassandraStreamWriter writes given section of the SSTable to given channel.
  */
-public class CassandraStreamWriter implements IStreamWriter
+public class CassandraStreamWriter
 {
     private static final int DEFAULT_CHUNK_SIZE = 64 * 1024;
 
@@ -69,7 +69,6 @@ public class CassandraStreamWriter implements IStreamWriter
      * @param output where this writes data to
      * @throws IOException on any I/O error
      */
-    @Override
     public void write(DataOutputStreamPlus output) throws IOException
     {
         long totalSize = totalSize();

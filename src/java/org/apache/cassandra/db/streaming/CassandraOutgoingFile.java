@@ -42,6 +42,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.net.async.ByteBufDataOutputStreamPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamOperation;
@@ -164,19 +165,19 @@ public class CassandraOutgoingFile implements OutgoingStream
         CassandraStreamHeader.serializer.serialize(header, out, version);
         out.flush();
 
-        IStreamWriter writer;
-        if (shouldStreamEntireSSTable())
+        if (shouldStreamEntireSSTable() && out instanceof ByteBufDataOutputStreamPlus)
         {
-            writer = new CassandraBlockStreamWriter(sstable, session, manifest);
+            CassandraBlockStreamWriter writer = new CassandraBlockStreamWriter(sstable, session, manifest);
+            writer.write((ByteBufDataOutputStreamPlus) out);
         }
         else
         {
-            writer = (header.compressionInfo == null) ?
+            CassandraStreamWriter writer = (header.compressionInfo == null) ?
                      new CassandraStreamWriter(sstable, header.sections, session) :
                      new CompressedCassandraStreamWriter(sstable, header.sections,
                                                          header.compressionInfo, session);
+            writer.write(out);
         }
-        writer.write(out);
     }
 
     @VisibleForTesting
