@@ -32,6 +32,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigTableBlockWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableId;
@@ -57,6 +58,9 @@ public class CassandraBlockStreamReader implements IStreamReader
 
     public CassandraBlockStreamReader(StreamMessageHeader messageHeader, CassandraStreamHeader streamHeader, StreamSession session)
     {
+        if (streamHeader.format != SSTableFormat.Type.BIG)
+            throw new AssertionError("Unsupported SSTable format " + streamHeader.format);
+
         if (session.getPendingRepair() != null)
         {
             // we should only ever be streaming pending repair sstables if the session has a pending repair id
