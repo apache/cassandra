@@ -18,12 +18,9 @@
 package org.apache.cassandra.io.sstable;
 
 import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableMap;
 
 /**
  * SSTables are made up of multiple components in separate files. Components are
@@ -36,40 +33,41 @@ public class Component
 
     final static EnumSet<Type> TYPES = EnumSet.allOf(Type.class);
 
+    /**
+     * WARNING: Be careful while changing the names or string representation of the enum
+     * members. Streaming code depends on the names during streaming (Ref: CASSANDRA-14556).
+     */
     public enum Type
     {
         // the base data for an sstable: the remaining components can be regenerated
         // based on the data component
-        DATA("Data.db", 1),
+        DATA("Data.db"),
         // index of the row keys with pointers to their positions in the data file
-        PRIMARY_INDEX("Index.db", 2),
+        PRIMARY_INDEX("Index.db"),
         // serialized bloom filter for the row keys in the sstable
-        FILTER("Filter.db", 3),
+        FILTER("Filter.db"),
         // file to hold information about uncompressed data length, chunk offsets etc.
-        COMPRESSION_INFO("CompressionInfo.db", 4),
+        COMPRESSION_INFO("CompressionInfo.db"),
         // statistical metadata about the content of the sstable
-        STATS("Statistics.db", 5),
+        STATS("Statistics.db"),
         // holds CRC32 checksum of the data file
-        DIGEST("Digest.crc32", 6),
+        DIGEST("Digest.crc32"),
         // holds the CRC32 for chunks in an a uncompressed file.
-        CRC("CRC.db", 7),
+        CRC("CRC.db"),
         // holds SSTable Index Summary (sampling of Index component)
-        SUMMARY("Summary.db", 8),
+        SUMMARY("Summary.db"),
         // table of contents, stores the list of all components for the sstable
-        TOC("TOC.txt", 9),
+        TOC("TOC.txt"),
         // built-in secondary index (may be multiple per sstable)
-        SECONDARY_INDEX("SI_.*.db", 10),
+        SECONDARY_INDEX("SI_.*.db"),
         // custom component, used by e.g. custom compaction strategy
-        CUSTOM(null, 11);
+        CUSTOM(null);
 
         public final String repr;
-        public final byte id;
-        public static final Map<Byte, Type> idToType;
 
-        Type(String repr, int id)
+        Type(String repr)
         {
             this.repr = repr;
-            this.id = (byte) id;
         }
 
         public static Type fromRepresentation(String repr)
@@ -80,21 +78,6 @@ public class Component
                     return type;
             }
             return CUSTOM;
-        }
-
-        public static Type fromRepresentation(byte id)
-        {
-            return idToType.getOrDefault(id, CUSTOM);
-        }
-
-        static
-        {
-            Type[] values = Type.values();
-            Map<Byte, Type> result = new HashMap<>(values.length);
-            for (Type t : values)
-                if (!t.equals(CUSTOM)) result.put(t.id, t);
-
-            idToType = ImmutableMap.copyOf(result);
         }
     }
 
@@ -145,21 +128,7 @@ public class Component
     public static Component parse(String name)
     {
         Type type = Type.fromRepresentation(name);
-        Component c = get(type);
 
-        if (c != null)
-            return c;
-
-        switch (type)
-        {
-            case SECONDARY_INDEX: return new Component(Type.SECONDARY_INDEX, name);
-            case CUSTOM:          return new Component(Type.CUSTOM, name);
-            default:              throw new AssertionError();
-        }
-    }
-
-    public static Component get(Type type)
-    {
         // Build (or retrieve singleton for) the component object
         switch (type)
         {
@@ -172,7 +141,9 @@ public class Component
             case CRC:              return Component.CRC;
             case SUMMARY:          return Component.SUMMARY;
             case TOC:              return Component.TOC;
-            default:               return null;
+            case SECONDARY_INDEX:  return new Component(Type.SECONDARY_INDEX, name);
+            case CUSTOM:           return new Component(Type.CUSTOM, name);
+            default:               throw new AssertionError();
         }
     }
 

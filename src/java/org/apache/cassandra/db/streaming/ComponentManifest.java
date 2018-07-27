@@ -89,7 +89,7 @@ public final class ComponentManifest implements Iterable<Component>
             out.writeUnsignedVInt(manifest.components.size());
             for (Map.Entry<Component, Long> entry : manifest.components.entrySet())
             {
-                out.writeByte(entry.getKey().type.id);
+                out.writeUTF(entry.getKey().name);
                 out.writeUnsignedVInt(entry.getValue());
             }
         }
@@ -102,7 +102,7 @@ public final class ComponentManifest implements Iterable<Component>
 
             for (int i = 0; i < size; i++)
             {
-                Component component = Component.get(Component.Type.fromRepresentation(in.readByte()));
+                Component component = Component.parse(in.readUTF());
                 long length = in.readUnsignedVInt();
                 components.put(component, length);
             }
@@ -115,7 +115,7 @@ public final class ComponentManifest implements Iterable<Component>
             long size = TypeSizes.sizeofUnsignedVInt(manifest.components.size());
             for (Map.Entry<Component, Long> entry : manifest.components.entrySet())
             {
-                size += TypeSizes.sizeof(entry.getKey().type.id);
+                size += TypeSizes.sizeof(entry.getKey().name);
                 size += TypeSizes.sizeofUnsignedVInt(entry.getValue());
             }
             return size;
