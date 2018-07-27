@@ -83,7 +83,7 @@ public class CassandraEntireSSTableStreamWriter
             long length = in.size();
 
             // tracks write progress
-            logger.debug("[Stream #{}] Block streaming {}.{} gen {} component {} size {}", session.planId(),
+            logger.debug("[Stream #{}] Streaming {}.{} gen {} component {} size {}", session.planId(),
                          sstable.getKeyspaceName(),
                          sstable.getColumnFamilyName(),
                          sstable.descriptor.generation,
@@ -95,7 +95,7 @@ public class CassandraEntireSSTableStreamWriter
 
             session.progress(sstable.descriptor.filenameFor(component), ProgressInfo.Direction.OUT, bytesWritten, length);
 
-            logger.debug("[Stream #{}] Finished block streaming {}.{} gen {} component {} to {}, xfered = {}, length = {}, totalSize = {}",
+            logger.debug("[Stream #{}] Finished streaming {}.{} gen {} component {} to {}, xfered = {}, length = {}, totalSize = {}",
                          session.planId(),
                          sstable.getKeyspaceName(),
                          sstable.getColumnFamilyName(),
@@ -109,7 +109,7 @@ public class CassandraEntireSSTableStreamWriter
 
         out.flush();
 
-        logger.debug("[Stream #{}] Finished block streaming sstable {} to {}, xfered = {}, totalSize = {}",
+        logger.debug("[Stream #{}] Finished streaming sstable {} to {}, xfered = {}, totalSize = {}",
                      session.planId(),
                      sstable.getFilename(),
                      session.peer,
