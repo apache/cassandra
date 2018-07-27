@@ -27,6 +27,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.junit.AfterClass;
 import org.junit.Test;
 
@@ -47,6 +49,31 @@ public class ColumnsTest
 {
 
     private static final CFMetaData cfMetaData = MockSchema.newCFS().metadata;
+
+    @Test
+    public void testDeserializeCorruption() throws IOException
+    {
+        ColumnsCheck check = randomSmall(1, 0, 3, 0);
+        Columns superset = check.columns;
+        List<ColumnDefinition> minus1 = new ArrayList<>(check.definitions);
+        minus1.remove(3);
+        Columns minus2 = check.columns
+                .without(check.columns.getSimple(3))
+                .without(check.columns.getSimple(2));
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            // serialize a subset
+            Columns.serializer.serializeSubset(minus1, superset, out);
+            try (DataInputBuffer in = new DataInputBuffer(out.toByteArray()))
+            {
+                Columns.serializer.deserializeSubset(minus2, in);
+                Assert.assertFalse(true);
+            }
+            catch (IOException e)
+            {
+            }
+        }
+    }
 
     // this tests most of our functionality, since each subset we perform
     // reasonably comprehensive tests of basic functionality against
@@ -455,7 +482,7 @@ public class ColumnsTest
             results.add(ColumnDefinition.regularDef(cfMetaData, bytes(name), UTF8Type.instance));
     }
 
-    private static <V> void addComplex(List<String> names, List<ColumnDefinition> results)
+    private static void addComplex(List<String> names, List<ColumnDefinition> results)
     {
         for (String name : names)
             results.add(ColumnDefinition.regularDef(cfMetaData, bytes(name), SetType.getInstance(UTF8Type.instance, true)));

@@ -1,6 +1,7 @@
 3.0.18
  * RangeTombstoneList doesn't properly clean up mergeable or superseded rts in some cases (CASSANDRA-14894)
  * Fix handling of collection tombstones for dropped columns from legacy sstables (CASSANDRA-14912)
+ * Throw exception if Columns serialized subset encode more columns than possible (CASSANDRA-14591)
  * Drop/add column name with different Kind can result in corruption (CASSANDRA-14843)
  * Fix missing rows when reading 2.1 SSTables with static columns in 3.0 (CASSANDRA-14873)
  * Move TWCS message 'No compaction necessary for bucket size' to Trace level (CASSANDRA-14884)
