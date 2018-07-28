@@ -20,7 +20,6 @@ package org.apache.cassandra.net.async;
 
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
 
 import com.google.common.net.InetAddresses;
 import org.junit.After;
@@ -77,7 +76,6 @@ public class OutboundHandshakeHandlerTest
                                          .callback(handshakeResult -> callbackHandler.receive(handshakeResult))
                                          .mode(NettyFactory.Mode.MESSAGING)
                                          .protocolVersion(MessagingService.current_version)
-                                         .coalescingStrategy(Optional.empty())
                                          .build();
         handler = new OutboundHandshakeHandler(params);
         channel.pipeline().addFirst(HANDLER_NAME, handler);
@@ -163,7 +161,6 @@ public class OutboundHandshakeHandlerTest
                                          .callback(handshakeResult -> callbackHandler.receive(handshakeResult))
                                          .mode(NettyFactory.Mode.MESSAGING)
                                          .protocolVersion(msgVersion)
-                                         .coalescingStrategy(Optional.empty())
                                          .build();
         handler = new OutboundHandshakeHandler(params);
         channel.pipeline().addFirst(HANDLER_NAME, handler);
@@ -199,7 +196,6 @@ public class OutboundHandshakeHandlerTest
                                          .callback(handshakeResult -> callbackHandler.receive(handshakeResult))
                                          .mode(NettyFactory.Mode.MESSAGING)
                                          .protocolVersion(msgVersion)
-                                         .coalescingStrategy(Optional.empty())
                                          .build();
         handler = new OutboundHandshakeHandler(params);
         channel.pipeline().addFirst(HANDLER_NAME, handler);
@@ -221,7 +217,6 @@ public class OutboundHandshakeHandlerTest
         handler.setupPipeline(chan, MESSAGING_VERSION);
         Assert.assertNotNull(pipeline.get(Lz4FrameEncoder.class));
         Assert.assertNull(pipeline.get(Lz4FrameDecoder.class));
-        Assert.assertNotNull(pipeline.get(MessageOutHandler.class));
     }
 
     @Test
@@ -235,7 +230,6 @@ public class OutboundHandshakeHandlerTest
         handler.setupPipeline(chan, MESSAGING_VERSION);
         Assert.assertNull(pipeline.get(Lz4FrameEncoder.class));
         Assert.assertNull(pipeline.get(Lz4FrameDecoder.class));
-        Assert.assertNotNull(pipeline.get(MessageOutHandler.class));
     }
 
     private static class CallbackHandler

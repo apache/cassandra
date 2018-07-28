@@ -55,24 +55,29 @@ public class HandshakeProtocolTest
     @Test
     public void firstMessageTest() throws Exception
     {
-        firstMessageTest(NettyFactory.Mode.MESSAGING, false);
-        firstMessageTest(NettyFactory.Mode.MESSAGING, true);
-        firstMessageTest(NettyFactory.Mode.STREAMING, false);
-        firstMessageTest(NettyFactory.Mode.STREAMING, true);
+        firstMessageTest(NettyFactory.Mode.MESSAGING, false, false);
+        firstMessageTest(NettyFactory.Mode.MESSAGING, false, true);
+        firstMessageTest(NettyFactory.Mode.MESSAGING, true, false);
+        firstMessageTest(NettyFactory.Mode.MESSAGING, true, true);
+        firstMessageTest(NettyFactory.Mode.STREAMING, false, false);
+        firstMessageTest(NettyFactory.Mode.STREAMING, false, true);
+        firstMessageTest(NettyFactory.Mode.STREAMING, true, false);
+        firstMessageTest(NettyFactory.Mode.STREAMING, true, true);
     }
 
-    private void firstMessageTest(NettyFactory.Mode mode, boolean compression) throws Exception
+    private void firstMessageTest(NettyFactory.Mode mode, boolean compression, boolean largeMessages) throws Exception
     {
-        FirstHandshakeMessage before = new FirstHandshakeMessage(MessagingService.current_version, mode, compression);
+        FirstHandshakeMessage before = new FirstHandshakeMessage(MessagingService.current_version, mode, compression, largeMessages);
         buf = before.encode(PooledByteBufAllocator.DEFAULT);
         FirstHandshakeMessage after = FirstHandshakeMessage.maybeDecode(buf);
+        Assert.assertNotNull(after);
         assertEquals(before, after);
         assertEquals(before.hashCode(), after.hashCode());
         Assert.assertFalse(before.equals(null));
     }
 
     @Test
-    public void secondMessageTest() throws Exception
+    public void secondMessageTest()
     {
         SecondHandshakeMessage before = new SecondHandshakeMessage(MessagingService.current_version);
         buf = before.encode(PooledByteBufAllocator.DEFAULT);
@@ -83,7 +88,7 @@ public class HandshakeProtocolTest
     }
 
     @Test
-    public void thirdMessageTest() throws Exception
+    public void thirdMessageTest()
     {
         ThirdHandshakeMessage before = new ThirdHandshakeMessage(MessagingService.current_version, FBUtilities.getBroadcastAddressAndPort());
         buf = before.encode(PooledByteBufAllocator.DEFAULT);

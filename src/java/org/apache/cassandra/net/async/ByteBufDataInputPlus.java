@@ -22,30 +22,17 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import org.apache.cassandra.io.util.DataInputPlus;
 
-import java.io.IOException;
-
 public class ByteBufDataInputPlus extends ByteBufInputStream implements DataInputPlus
 {
     /**
      * The parent class does not expose the buffer to derived classes, so we need
-     * to stash a reference here so it can be exposed via {@link #buffer()}.
+     * to stash a public reference here.
      */
-    private final ByteBuf buf;
+    public final ByteBuf buf;
 
     public ByteBufDataInputPlus(ByteBuf buffer)
     {
         super(buffer);
         this.buf = buffer;
-    }
-
-    public ByteBuf buffer()
-    {
-        return buf;
-    }
-
-    @Override
-    public String readUTF() throws IOException
-    {
-        return DataInputStreamPlus.readUTF(this);
     }
 }

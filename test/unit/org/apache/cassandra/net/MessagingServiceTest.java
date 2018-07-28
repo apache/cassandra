@@ -442,19 +442,6 @@ public class MessagingServiceTest
     }
 
     @Test
-    public void testOutboundMessagingConnectionCleansUp() throws Exception
-    {
-        MessagingService ms = MessagingService.instance();
-        InetAddressAndPort local = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", 9876);
-        InetAddressAndPort remote = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", 9876);
-
-        OutboundMessagingPool pool = new OutboundMessagingPool(remote, local, null, new MockBackPressureStrategy(null).newState(remote), ALLOW_NOTHING_AUTHENTICATOR);
-        ms.channelManagers.put(remote, pool);
-        pool.sendMessage(new MessageOut(MessagingService.Verb.GOSSIP_DIGEST_ACK), 0);
-        assertFalse(ms.channelManagers.containsKey(remote));
-    }
-
-    @Test
     public void reconnectWithNewIp() throws Exception
     {
         InetAddressAndPort publicIp = InetAddressAndPort.getByName("127.0.0.2");

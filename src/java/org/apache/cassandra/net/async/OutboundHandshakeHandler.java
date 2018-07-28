@@ -101,9 +101,10 @@ public class OutboundHandshakeHandler extends ByteToMessageDecoder
      * containing the streaming protocol version, is all that is required.
      */
     @Override
-    public void channelActive(final ChannelHandlerContext ctx) throws Exception
+    public void channelActive(final ChannelHandlerContext ctx)
     {
-        FirstHandshakeMessage msg = new FirstHandshakeMessage(messagingVersion, mode, params.compress);
+        boolean largeMessages = params.connectionId.type() == OutboundConnectionIdentifier.ConnectionType.LARGE_MESSAGE;
+        FirstHandshakeMessage msg = new FirstHandshakeMessage(messagingVersion, mode, params.compress, largeMessages);
         logger.trace("starting handshake with peer {}, msg = {}", connectionId.connectionAddress(), msg);
         ctx.writeAndFlush(msg.encode(ctx.alloc())).addListener(future -> firstHandshakeMessageListener(future, ctx));
 
@@ -178,8 +179,8 @@ public class OutboundHandshakeHandler extends ByteToMessageDecoder
         try
         {
             ctx.writeAndFlush(new ThirdHandshakeMessage(peerMessagingVersion, connectionId.local()).encode(ctx.alloc()));
-            ChannelWriter channelWriter = setupPipeline(ctx.channel(), peerMessagingVersion);
-            callback.accept(HandshakeResult.success(channelWriter, peerMessagingVersion));
+            setupPipeline(ctx.channel(), peerMessagingVersion);
+            callback.accept(HandshakeResult.success(ctx.channel(), peerMessagingVersion));
         }
         catch (Exception e)
         {
@@ -190,17 +191,15 @@ public class OutboundHandshakeHandler extends ByteToMessageDecoder
     }
 
     @VisibleForTesting
-    ChannelWriter setupPipeline(Channel channel, int messagingVersion)
+    void setupPipeline(Channel channel, int messagingVersion)
     {
         ChannelPipeline pipeline = channel.pipeline();
         pipeline.addLast("idleWriteHandler", new IdleStateHandler(true, 0, WRITE_IDLE_MS, 0, TimeUnit.MILLISECONDS));
         if (params.compress)
             pipeline.addLast(NettyFactory.OUTBOUND_COMPRESSOR_HANDLER_NAME, NettyFactory.createLz4Encoder(messagingVersion));
 
-        ChannelWriter channelWriter = ChannelWriter.create(channel, params.messageResultConsumer, params.coalescingStrategy);
-        pipeline.addLast("messageOutHandler", new MessageOutHandler(connectionId, messagingVersion, channelWriter, params.backlogSupplier));
+        pipeline.addLast("messageOutHandler", new MessageOutHandler(connectionId));
         pipeline.remove(this);
-        return channelWriter;
     }
 
     @Override
@@ -231,20 +230,20 @@ public class OutboundHandshakeHandler extends ByteToMessageDecoder
         }
 
         /** The channel for the connection, only set for successful handshake. */
-        final ChannelWriter channelWriter;
+        final Channel channel;
         /** The version negotiated with the peer. Set unless this is a {@link Outcome#NEGOTIATION_FAILURE}. */
         final int negotiatedMessagingVersion;
         /** The handshake {@link Outcome}. */
         final Outcome outcome;
 
-        private HandshakeResult(ChannelWriter channelWriter, int negotiatedMessagingVersion, Outcome outcome)
+        private HandshakeResult(Channel channel, int negotiatedMessagingVersion, Outcome outcome)
         {
-            this.channelWriter = channelWriter;
+            this.channel = channel;
             this.negotiatedMessagingVersion = negotiatedMessagingVersion;
             this.outcome = outcome;
         }
 
-        static HandshakeResult success(ChannelWriter channel, int negotiatedMessagingVersion)
+        static HandshakeResult success(Channel channel, int negotiatedMessagingVersion)
         {
             return new HandshakeResult(channel, negotiatedMessagingVersion, Outcome.SUCCESS);
         }

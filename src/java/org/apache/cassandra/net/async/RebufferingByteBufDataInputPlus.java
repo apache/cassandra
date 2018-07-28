@@ -24,18 +24,28 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeUnit;
+
+import com.google.common.primitives.Ints;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelConfig;
+import io.netty.channel.Channel;
 import io.netty.util.ReferenceCountUtil;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.RebufferingInputStream;
 
+// TODO:JEB add documentation!!
 public class RebufferingByteBufDataInputPlus extends RebufferingInputStream implements ReadableByteChannel
 {
+    public static final Logger logger = LoggerFactory.getLogger(RebufferingByteBufDataInputPlus.class);
+
+    private static final long DEFAULT_REBUFFER_BLOCK_IN_MILLIS = TimeUnit.MINUTES.toMillis(3);
+    private final Channel channel;
+
     /**
      * The parent, or owning, buffer of the current buffer being read from ({@link super#buffer}).
      */
@@ -43,30 +53,28 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
 
     private final BlockingQueue<ByteBuf> queue;
 
-    /**
-     * The count of live bytes in all {@link ByteBuf}s held by this instance.
-     */
-    private final AtomicInteger queuedByteCount;
-
-    private final int lowWaterMark;
-    private final int highWaterMark;
-    private final ChannelConfig channelConfig;
+    private final long rebufferBlockInMillis;
 
     private volatile boolean closed;
 
-    public RebufferingByteBufDataInputPlus(int lowWaterMark, int highWaterMark, ChannelConfig channelConfig)
+    public RebufferingByteBufDataInputPlus(Channel channel)
+    {
+        this (channel, DEFAULT_REBUFFER_BLOCK_IN_MILLIS);
+    }
+
+    public RebufferingByteBufDataInputPlus(Channel channel, long rebufferBlockInMillis)
     {
         super(Unpooled.EMPTY_BUFFER.nioBuffer());
 
-        if (lowWaterMark > highWaterMark)
-            throw new IllegalArgumentException(String.format("low water mark is greater than high water mark: %d vs %d", lowWaterMark, highWaterMark));
-
         currentBuf = Unpooled.EMPTY_BUFFER;
-        this.lowWaterMark = lowWaterMark;
-        this.highWaterMark = highWaterMark;
-        this.channelConfig = channelConfig;
+        this.rebufferBlockInMillis = rebufferBlockInMillis;
         queue = new LinkedBlockingQueue<>();
-        queuedByteCount = new AtomicInteger();
+
+        this.channel = channel;
+        channel.config().setAutoRead(false);
+
+        // TODO:JEB doc me
+        channel.read();
     }
 
     /**
@@ -84,14 +92,6 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
             throw new IllegalStateException("stream is already closed, so cannot add another buffer");
         }
 
-        // this slightly undercounts the live count as it doesn't include the currentBuf's size.
-        // that's ok as the worst we'll do is allow another buffer in and add it to the queue,
-        // and that point we'll disable auto-read. this is a tradeoff versus making some other member field
-        // atomic or volatile.
-        int queuedCount = queuedByteCount.addAndGet(buf.readableBytes());
-        if (channelConfig.isAutoRead() && queuedCount > highWaterMark)
-            channelConfig.setAutoRead(false);
-
         queue.add(buf);
     }
 
@@ -102,34 +102,37 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
      * <p>
      * This is best, and more or less expected, to be invoked on a consuming thread (not the event loop)
      * becasue if we block on the queue we can't fill it on the event loop (as that's where the buffers are coming from).
+     *
+     * @throws EOFException when no further reading from this instance should occur. Implies this instance is closed.
+     * @throws InputTimeoutException when no new buffers arrive for reading before
+     * the {@link #rebufferBlockInMillis} elapses while blocking. Implies this instance can still be used.
      */
     @Override
-    protected void reBuffer() throws IOException
+    protected void reBuffer() throws EOFException, InputTimeoutException
     {
-        currentBuf.release();
-        buffer = null;
-        currentBuf = null;
-
-        // possibly re-enable auto-read, *before* blocking on the queue, because if we block on the queue
-        // without enabling auto-read we'll block forever :(
-        if (!channelConfig.isAutoRead() && queuedByteCount.get() < lowWaterMark)
-            channelConfig.setAutoRead(true);
+        if (queue.isEmpty())
+            channel.read();
 
         try
         {
-            currentBuf = queue.take();
+            ByteBuf next = queue.poll(rebufferBlockInMillis, TimeUnit.MILLISECONDS);
             int bytes;
-            // if we get an explicitly empty buffer, we treat that as an indicator that the input is closed
-            if (currentBuf == null || (bytes = currentBuf.readableBytes()) == 0)
+            if (next == null)
             {
+                throw new InputTimeoutException();
+            }
+            else if ((bytes = next.readableBytes()) == 0)
+            {
+                // if we get an explicitly empty buffer, we treat that as an indicator that the input is closed
                 releaseResources();
                 throw new EOFException();
             }
 
-            buffer = currentBuf.nioBuffer(currentBuf.readerIndex(), bytes);
-            assert buffer.remaining() == bytes;
-            queuedByteCount.addAndGet(-bytes);
-            return;
+            // delay releasing the buffers in case a InputTimeoutException is thrown.
+            // we need to be be able to try reading again
+            currentBuf.release();
+            currentBuf = next;
+            buffer = next.nioBuffer(currentBuf.readerIndex(), bytes);
         }
         catch (InterruptedException ie)
         {
@@ -169,18 +172,26 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
      *
      * @throws EOFException thrown when no bytes are buffered and {@link #closed} is true.
      */
-    @Override
-    public int available() throws EOFException
+    public int unsafeAvailable()
     {
-       final int availableBytes = queuedByteCount.get() + (buffer != null ? buffer.remaining() : 0);
+        long count = buffer != null ? buffer.remaining() : 0;
+        for (ByteBuf buf : queue)
+            count += buf.readableBytes();
 
-        if (availableBytes == 0 && closed)
-            throw new EOFException();
+        return Ints.checkedCast(count);
+    }
 
-        if (!channelConfig.isAutoRead() && availableBytes < lowWaterMark)
-            channelConfig.setAutoRead(true);
+    // TODO:JEB add docs
+    // TL;DR if there's no Bufs open anywhere here, issue a channle read to try and grab data.
+    public void maybeIssueRead()
+    {
+        if (isEmpty())
+            channel.read();
+    }
 
-        return availableBytes;
+    public boolean isEmpty()
+    {
+        return queue.isEmpty() && buffer.remaining() == 0;
     }
 
     @Override
@@ -239,8 +250,7 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
     public String toString()
     {
         return new StringBuilder(128).append("RebufferingByteBufDataInputPlus: currentBuf = ").append(currentBuf)
-                                  .append(" (super.buffer = ").append(buffer).append(')')
-                                  .append(", queuedByteCount = ").append(queuedByteCount)
+                                  .append(", (super.buffer = ").append(buffer).append(')')
                                   .append(", queue buffers = ").append(queue)
                                   .append(", closed = ").append(closed)
                                   .toString();
@@ -248,7 +258,7 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
 
     public ByteBufAllocator getAllocator()
     {
-        return channelConfig.getAllocator();
+        return channel.alloc();
     }
 
     /**
@@ -288,4 +298,7 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
 
         return copied;
     }
+
+    public static class InputTimeoutException extends IOException
+    { }
 }

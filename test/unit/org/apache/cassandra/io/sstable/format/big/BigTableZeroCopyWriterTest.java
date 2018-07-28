@@ -132,7 +132,7 @@ public class BigTableZeroCopyWriterTest
     {
         writeDataTestCycle(buffer -> {
             EmbeddedChannel channel = new EmbeddedChannel();
-            RebufferingByteBufDataInputPlus inputPlus = new RebufferingByteBufDataInputPlus(1 << 10, 1 << 20, channel.config());
+            RebufferingByteBufDataInputPlus inputPlus = new RebufferingByteBufDataInputPlus(channel);
             inputPlus.append(Unpooled.wrappedBuffer(buffer));
             return inputPlus;
         });

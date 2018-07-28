@@ -1,10 +1,8 @@
 package org.apache.cassandra.net.async;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.Checksum;
-
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
@@ -43,10 +41,10 @@ import io.netty.util.concurrent.DefaultThreadFactory;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
-
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.xxhash.XXHashFactory;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -65,6 +63,9 @@ import org.apache.cassandra.utils.FBUtilities;
 public final class NettyFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(NettyFactory.class);
+
+    private static final int INBOUND_THREADS = Integer.getInteger(Config.PROPERTY_PREFIX + "internode-inbound-threads", FBUtilities.getAvailableProcessors());
+    private static final int OUTBOUND_THREADS = Integer.getInteger(Config.PROPERTY_PREFIX + "internode-outbound-threads", FBUtilities.getAvailableProcessors());
 
     /**
      * The block size for use with netty's lz4 code.
@@ -113,7 +114,7 @@ public final class NettyFactory
     private final EventLoopGroup acceptGroup;
 
     private final EventLoopGroup inboundGroup;
-    private final EventLoopGroup outboundGroup;
+    final EventLoopGroup outboundGroup;
     public final EventLoopGroup streamingGroup;
 
     /**
@@ -124,11 +125,10 @@ public final class NettyFactory
     NettyFactory(boolean useEpoll)
     {
         this.useEpoll = useEpoll;
-        acceptGroup = getEventLoopGroup(useEpoll, determineAcceptGroupSize(DatabaseDescriptor.getInternodeMessagingEncyptionOptions()),
-                                        "MessagingService-NettyAcceptor-Thread", false);
-        inboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyInbound-Thread", false);
-        outboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyOutbound-Thread", true);
-        streamingGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "Streaming-Netty-Thread", false);
+        acceptGroup = getEventLoopGroup(useEpoll, determineAcceptGroupSize(DatabaseDescriptor.getInternodeMessagingEncyptionOptions()), "MessagingService-NettyAcceptor-Thread");
+        inboundGroup = getEventLoopGroup(useEpoll, INBOUND_THREADS, "MessagingService-NettyInbound-Thread");
+        outboundGroup = getEventLoopGroup(useEpoll, OUTBOUND_THREADS, "MessagingService-NettyOutbound-Thread");
+        streamingGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "Streaming-Netty-Thread");
     }
 
     /**
@@ -154,33 +154,16 @@ public final class NettyFactory
         return listenSocketCount;
     }
 
-    /**
-     * Create an {@link EventLoopGroup}, for epoll or nio. The {@code boostIoRatio} flag passes a hint to the netty
-     * event loop threads to optimize comsuming all the tasks from the netty channel before checking for IO activity.
-     * By default, netty will process some maximum number of tasks off it's queue before it will check for activity on
-     * any of the open FDs, which basically amounts to checking for any incoming data. If you have a class of event loops
-     * that that do almost *no* inbound activity (like cassandra's outbound channels), then it behooves us to have the
-     * outbound netty channel consume as many tasks as it can before making the system calls to check up on the FDs,
-     * as we're not expecting any incoming data on those sockets, anyways. Thus, we pass the magic value {@code 100}
-     * to achieve the maximum consuption from the netty queue. (for implementation details, as of netty 4.1.8,
-     * see {@link io.netty.channel.epoll.EpollEventLoop#run()}.
-     */
-    static EventLoopGroup getEventLoopGroup(boolean useEpoll, int threadCount, String threadNamePrefix, boolean boostIoRatio)
+    static EventLoopGroup getEventLoopGroup(boolean useEpoll, int threadCount, String threadNamePrefix)
     {
         if (useEpoll)
         {
             logger.debug("using netty epoll event loop for pool prefix {}", threadNamePrefix);
-            EpollEventLoopGroup eventLoopGroup = new EpollEventLoopGroup(threadCount, new DefaultThreadFactory(threadNamePrefix, true));
-            if (boostIoRatio)
-                eventLoopGroup.setIoRatio(100);
-            return eventLoopGroup;
+            return new EpollEventLoopGroup(threadCount, new DefaultThreadFactory(threadNamePrefix, true));
         }
 
         logger.debug("using netty nio event loop for pool prefix {}", threadNamePrefix);
-        NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(threadCount, new DefaultThreadFactory(threadNamePrefix, true));
-        if (boostIoRatio)
-            eventLoopGroup.setIoRatio(100);
-        return eventLoopGroup;
+        return new NioEventLoopGroup(threadCount, new DefaultThreadFactory(threadNamePrefix, true));
     }
 
     /**
@@ -323,24 +306,33 @@ public final class NettyFactory
     @VisibleForTesting
     public Bootstrap createOutboundBootstrap(OutboundConnectionParams params)
     {
-        logger.debug("creating outbound bootstrap to peer {}, compression: {}, encryption: {}, coalesce: {}, protocolVersion: {}",
+        logger.debug("creating outbound bootstrap to peer {}, connection type = {}, compression: {}, encryption: {}, coalesce: {}, protocolVersion: {}",
                      params.connectionId.connectionAddress(),
+                     params.connectionId.type(),
                      params.compress, encryptionLogStatement(params.encryptionOptions),
-                     params.coalescingStrategy.isPresent() ? params.coalescingStrategy.get() : CoalescingStrategies.Strategy.DISABLED,
+                     params.coalescingStrategy != null ? params.coalescingStrategy : CoalescingStrategies.Strategy.DISABLED,
                      params.protocolVersion);
         Class<? extends Channel> transport = useEpoll ? EpollSocketChannel.class : NioSocketChannel.class;
-        Bootstrap bootstrap = new Bootstrap().group(params.mode == Mode.MESSAGING ? outboundGroup : streamingGroup)
+
+        EventLoopGroup eventLoopGroup = params.eventLoop;
+        if (eventLoopGroup == null)
+            eventLoopGroup = params.mode == Mode.MESSAGING ? outboundGroup.next() : streamingGroup.next();
+
+        Bootstrap bootstrap = new Bootstrap()
+                              .group(eventLoopGroup)
                               .channel(transport)
                               .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, params.tcpConnectTimeoutInMS)
                               .option(ChannelOption.SO_KEEPALIVE, true)
                               .option(ChannelOption.SO_REUSEADDR, true)
-                              .option(ChannelOption.SO_SNDBUF, params.sendBufferSize)
                               .option(ChannelOption.SO_RCVBUF, OUTBOUND_CHANNEL_RECEIVE_BUFFER_SIZE)
                               .option(ChannelOption.TCP_NODELAY, params.tcpNoDelay)
                               .option(ChannelOption.WRITE_BUFFER_WATER_MARK, params.waterMark)
                               .handler(new OutboundInitializer(params));
         if (useEpoll)
             bootstrap.option(EpollChannelOption.TCP_USER_TIMEOUT, params.tcpUserTimeoutInMS);
+
+        if (params.sendBufferSize > 0)
+            bootstrap.option(ChannelOption.SO_SNDBUF, params.sendBufferSize);
 
         InetAddressAndPort remoteAddress = params.connectionId.connectionAddress();
         bootstrap.remoteAddress(new InetSocketAddress(remoteAddress.address, remoteAddress.port));
@@ -360,7 +352,7 @@ public final class NettyFactory
          * {@inheritDoc}
          *
          * To determine if we should enable TLS, we only need to check if {@link #params#encryptionOptions} is set.
-         * The logic for figuring that out is is located in {@link MessagingService#getMessagingConnection(InetAddress)};
+         * The logic for figuring that out is is located in {@link MessagingService#getMessagingConnection(InetAddressAndPort)};
          */
         public void initChannel(SocketChannel channel) throws Exception
         {

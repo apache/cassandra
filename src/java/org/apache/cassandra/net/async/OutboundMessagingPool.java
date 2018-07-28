@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.net.async;
 
-import java.util.Optional;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.auth.IInternodeAuthenticator;
@@ -63,20 +61,22 @@ public class OutboundMessagingPool
     {
         preferredRemoteAddr = remoteAddr;
         this.backPressureState = backPressureState;
-        metrics = new ConnectionMetrics(localAddr, this);
+        metrics = new ConnectionMetrics(remoteAddr, this);
 
 
         smallMessageChannel = new OutboundMessagingConnection(OutboundConnectionIdentifier.small(localAddr, preferredRemoteAddr),
                                                               encryptionOptions, coalescingStrategy(remoteAddr), authenticator);
+
+        // don't bother with the coalescing algorithm on large messages
         largeMessageChannel = new OutboundMessagingConnection(OutboundConnectionIdentifier.large(localAddr, preferredRemoteAddr),
-                                                              encryptionOptions, coalescingStrategy(remoteAddr), authenticator);
+                                                              encryptionOptions, null, authenticator);
 
         // don't attempt coalesce the gossip messages, just ship them out asap (let's not anger the FD on any peer node by any artificial delays)
         gossipChannel = new OutboundMessagingConnection(OutboundConnectionIdentifier.gossip(localAddr, preferredRemoteAddr),
-                                                        encryptionOptions, Optional.empty(), authenticator);
+                                                        encryptionOptions, null, authenticator);
     }
 
-    private static Optional<CoalescingStrategy> coalescingStrategy(InetAddressAndPort remoteAddr)
+    private static CoalescingStrategy coalescingStrategy(InetAddressAndPort remoteAddr)
     {
         String strategyName = DatabaseDescriptor.getOtcCoalescingStrategy();
         String displayName = remoteAddr.toString();
