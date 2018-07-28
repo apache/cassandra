@@ -31,7 +31,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelPipeline;
@@ -116,7 +115,7 @@ public class InboundHandshakeHandlerTest
     public void decode_AlreadyFailed()
     {
         handler.setState(State.HANDSHAKE_FAIL);
-        buf = new FirstHandshakeMessage(MESSAGING_VERSION, MESSAGING, true).encode(PooledByteBufAllocator.DEFAULT);
+        buf = new FirstHandshakeMessage(MESSAGING_VERSION, MESSAGING, true, false).encode(PooledByteBufAllocator.DEFAULT);
         handler.decode(channel.pipeline().firstContext(), buf, new ArrayList<>());
         Assert.assertFalse(channel.isOpen());
         Assert.assertFalse(channel.isActive());
@@ -142,9 +141,10 @@ public class InboundHandshakeHandlerTest
 
         FirstHandshakeMessage first = new FirstHandshakeMessage(MESSAGING_VERSION,
                                                                 MESSAGING,
-                                                                true);
+                                                                true,
+                                                                false);
 
-        buf.writeInt(MessagingService.PROTOCOL_MAGIC << 2);
+        buf.writeInt(MessagingService.PROTOCOL_MAGIC - 1);
         buf.writeInt(first.encodeFlags());
         handler.handleStart(channel.pipeline().firstContext(), buf);
     }
@@ -153,7 +153,7 @@ public class InboundHandshakeHandlerTest
     public void handleStart_VersionTooHigh() throws IOException
     {
         channel.eventLoop();
-        buf = new FirstHandshakeMessage(MESSAGING_VERSION + 1, MESSAGING, true).encode(PooledByteBufAllocator.DEFAULT);
+        buf = new FirstHandshakeMessage(MESSAGING_VERSION + 1, MESSAGING, true, false).encode(PooledByteBufAllocator.DEFAULT);
         State state = handler.handleStart(channel.pipeline().firstContext(), buf);
         Assert.assertEquals(State.HANDSHAKE_FAIL, state);
         Assert.assertFalse(channel.isOpen());
@@ -163,7 +163,7 @@ public class InboundHandshakeHandlerTest
     @Test
     public void handleStart_VersionLessThan3_0() throws IOException
     {
-        buf = new FirstHandshakeMessage(VERSION_30 - 1, MESSAGING, true).encode(PooledByteBufAllocator.DEFAULT);
+        buf = new FirstHandshakeMessage(VERSION_30 - 1, MESSAGING, true, false).encode(PooledByteBufAllocator.DEFAULT);
         State state = handler.handleStart(channel.pipeline().firstContext(), buf);
         Assert.assertEquals(State.HANDSHAKE_FAIL, state);
 
@@ -174,7 +174,7 @@ public class InboundHandshakeHandlerTest
     @Test
     public void handleStart_HappyPath_Messaging() throws IOException
     {
-        buf = new FirstHandshakeMessage(MESSAGING_VERSION, MESSAGING, true).encode(PooledByteBufAllocator.DEFAULT);
+        buf = new FirstHandshakeMessage(MESSAGING_VERSION, MESSAGING, true, false).encode(PooledByteBufAllocator.DEFAULT);
         State state = handler.handleStart(channel.pipeline().firstContext(), buf);
         Assert.assertEquals(State.AWAIT_MESSAGING_START_RESPONSE, state);
         if (buf.refCnt() > 0)

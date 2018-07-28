@@ -19,6 +19,7 @@
 package org.apache.cassandra.net.async;
 
 import java.util.Optional;
+import java.util.Queue;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -99,7 +100,7 @@ public class OutboundConnectionParams
         private Supplier<QueuedMessage> backlogSupplier;
         private Consumer<MessageResult> messageResultConsumer;
         private WriteBufferWaterMark waterMark = WriteBufferWaterMark.DEFAULT;
-        int protocolVersion;
+        private int protocolVersion;
 
         private Builder()
         {   }
@@ -116,6 +117,8 @@ public class OutboundConnectionParams
             this.tcpNoDelay = params.tcpNoDelay;
             this.backlogSupplier = params.backlogSupplier;
             this.messageResultConsumer = params.messageResultConsumer;
+            this.waterMark = params.waterMark;
+            this.protocolVersion = params.protocolVersion;
         }
 
         public Builder connectionId(OutboundConnectionIdentifier connectionId)
@@ -195,8 +198,9 @@ public class OutboundConnectionParams
             Preconditions.checkArgument(protocolVersion > 0, "illegal protocol version: " + protocolVersion);
             Preconditions.checkArgument(sendBufferSize > 0 && sendBufferSize < 1 << 20, "illegal send buffer size: " + sendBufferSize);
 
-            return new OutboundConnectionParams(connectionId, callback, encryptionOptions, mode, compress, coalescingStrategy, sendBufferSize,
-                                                tcpNoDelay, backlogSupplier, messageResultConsumer, waterMark, protocolVersion);
+            return new OutboundConnectionParams(connectionId, callback, encryptionOptions, mode, compress,
+                                                coalescingStrategy, sendBufferSize, tcpNoDelay, backlogSupplier,
+                                                messageResultConsumer, waterMark, protocolVersion);
         }
     }
 }

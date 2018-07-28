@@ -26,11 +26,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -322,7 +324,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                     throw new IllegalStateException("channel's transferring state is currently set to true. refusing to start new stream");
 
                 // close the DataOutputStreamPlus as we're done with it - but don't close the channel
-                try (DataOutputStreamPlus outPlus = ByteBufDataOutputStreamPlus.create(session, channel, 1 << 20))
+                try (DataOutputStreamPlus outPlus = ByteBufDataOutputStreamPlus.create(channel, 1 << 20, t -> onError(t), 5, TimeUnit.MINUTES))
                 {
                     StreamMessage.serialize(msg, outPlus, protocolVersion, session);
                     channel.flush();
@@ -390,6 +392,18 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             catch (Exception e)
             {
                 throw new IOError(e);
+            }
+        }
+
+        private void onError(Throwable t)
+        {
+            try
+            {
+                session.onError(t).get(5, TimeUnit.MINUTES);
+            }
+            catch (Exception e)
+            {
+                // nop - let the Throwable param be the main failure point here, and let session handle it
             }
         }
 

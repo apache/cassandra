@@ -19,7 +19,6 @@
 package org.apache.cassandra.test.microbench;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
@@ -36,14 +35,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.MessageIn.MessageInProcessor;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParameterType;
-import org.apache.cassandra.net.async.BaseMessageInHandler;
 import org.apache.cassandra.net.async.ByteBufDataOutputPlus;
-import org.apache.cassandra.net.async.MessageInHandler;
-import org.apache.cassandra.net.async.MessageInHandlerPre40;
-import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
 import org.apache.cassandra.utils.UUIDGen;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -72,8 +68,8 @@ public class MessageOutBench
 
     private MessageOut msgOut;
     private ByteBuf buf;
-    BaseMessageInHandler handler40;
-    BaseMessageInHandler handlerPre40;
+    MessageInProcessor processor40;
+    MessageInProcessor processorPre40;
 
     @Setup
     public void setup()
@@ -94,36 +90,28 @@ public class MessageOutBench
         msgOut = new MessageOut<>(addr, MessagingService.Verb.ECHO, null, null, ImmutableList.of(), SMALL_MESSAGE);
         buf = Unpooled.buffer(1024, 1024); // 1k should be enough for everybody!
 
-        handler40 = new MessageInHandler(addr, MessagingService.VERSION_40, messageConsumer);
-        handlerPre40 = new MessageInHandlerPre40(addr, MessagingService.VERSION_30, messageConsumer);
+        processor40 = MessageIn.getProcessor(addr, MessagingService.VERSION_40, (messageIn, integer) -> {});
+        processorPre40 = MessageIn.getProcessor(addr, MessagingService.VERSION_30, (messageIn, integer) -> {});
     }
 
     @Benchmark
     public int serialize40() throws Exception
     {
-        return serialize(MessagingService.VERSION_40, handler40);
+        return serialize(MessagingService.VERSION_40, processor40);
     }
 
-    private int serialize(int messagingVersion, BaseMessageInHandler handler) throws Exception
+    private int serialize(int messagingVersion, MessageInProcessor processor) throws IOException
     {
         buf.resetReaderIndex();
         buf.resetWriterIndex();
-        buf.writeInt(MessagingService.PROTOCOL_MAGIC);
-        buf.writeInt(42); // this is the id
-        buf.writeInt((int) NanoTimeToCurrentTimeMillis.convert(System.nanoTime()));
-
-        msgOut.serialize(new ByteBufDataOutputPlus(buf), messagingVersion);
-        handler.decode(null, buf, Collections.emptyList());
+        msgOut.serialize(new ByteBufDataOutputPlus(buf), messagingVersion, null, 42, System.nanoTime());
+        processor.process(buf);
         return msgOut.serializedSize(messagingVersion);
     }
 
     @Benchmark
     public int serializePre40() throws Exception
     {
-        return serialize(MessagingService.VERSION_30, handlerPre40);
+        return serialize(MessagingService.VERSION_30, processorPre40);
     }
-
-    private final BiConsumer<MessageIn, Integer> messageConsumer = (messageIn, integer) ->
-    {
-    };
 }
