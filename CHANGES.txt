@@ -1,3 +1,7 @@
+3.0.18
+ * Fix reading columns with non-UTF names from schema (CASSANDRA-14468)
+
+
 3.0.17
  * Fix corrupted static collection deletions in 3.0 -> 2.{1,2} messages (CASSANDRA-14568)
  * Fix potential IndexOutOfBoundsException with counters (CASSANDRA-14167)
