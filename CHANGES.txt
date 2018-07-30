@@ -1,4 +1,5 @@
 4.0
+ * Revert running dtests by default in circleci (CASSANDRA-14614)
  * Stream entire SSTables when possible (CASSANDRA-14556)
  * Add experimental support for Java 11 (CASSANDRA-9608)
  * Make PeriodicCommitLogService.blockWhenSyncLagsNanos configurable (CASSANDRA-14580)
