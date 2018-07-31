@@ -57,7 +57,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     private int resizeIntervalInMinutes = 0;
     private long memoryPoolBytes;
 
-    public final DebuggableScheduledThreadPoolExecutor executor;
+    private final DebuggableScheduledThreadPoolExecutor executor;
 
     // our next scheduled resizing run
     private ScheduledFuture future;

@@ -17,36 +17,21 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import static com.google.common.base.CaseFormat.LOWER_UNDERSCORE;
+import static com.google.common.base.CaseFormat.UPPER_CAMEL;
+
 import java.lang.management.ManagementFactory;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import javax.management.MBeanServer;
 
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.sstable.IndexSummaryManager;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 
-import static com.google.common.base.CaseFormat.UPPER_CAMEL;
-import static com.google.common.base.CaseFormat.LOWER_UNDERSCORE;
-import com.google.common.collect.ImmutableMap;
-
 final class ThreadPoolTable extends AbstractVirtualTable
 {
-    private static final String SCHEDULED_SUMMARY_BUILDER = "scheduled_summary_builder";
-    private static final String SCHEDULED_HOTNESS_TRACKER = "scheduled_hotness_tracker";
-    private static final String SCHEDULED_HEARTBEAT = "scheduled_heartbeat";
-    private static final String SCHEDULED_TASKS = "scheduled_tasks";
-    private static final String SCHEDULED_FAST_TASKS = "scheduled_fast_tasks";
-    private static final String SCHEDULED_OPTIONAL_TASKS = "scheduled_optional_tasks";
-    private static final String SCHEDULED_NON_PERIODIC_TASKS = "scheduled_non_periodic_tasks";
-
     private final static String POOL = "thread_pool";
     private final static String ACTIVE = "active";
     private final static String ACTIVE_MAX = "active_max";
@@ -81,28 +66,9 @@ final class ThreadPoolTable extends AbstractVirtualTable
         throw new IllegalArgumentException(value + " of unexpected type " + value.getClass());
     }
 
-    private void addScheduledThreadPoolExecutor(SimpleDataSet result, String name, ScheduledThreadPoolExecutor pool)
-    {
-        result.row(name)
-            .column(ACTIVE, (long) pool.getActiveCount())
-            .column(ACTIVE_MAX, (long) pool.getMaximumPoolSize())
-            .column(BLOCKED, 0L)
-            .column(TOTAL_BLOCKED, 0L)
-            .column(PENDING, (long) pool.getQueue().size())
-            .column(COMPLETED, pool.getCompletedTaskCount());
-    }
-
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-
-        addScheduledThreadPoolExecutor(result, SCHEDULED_NON_PERIODIC_TASKS, ScheduledExecutors.nonPeriodicTasks);
-        addScheduledThreadPoolExecutor(result, SCHEDULED_OPTIONAL_TASKS, ScheduledExecutors.optionalTasks);
-        addScheduledThreadPoolExecutor(result, SCHEDULED_FAST_TASKS, ScheduledExecutors.scheduledFastTasks);
-        addScheduledThreadPoolExecutor(result, SCHEDULED_TASKS, ScheduledExecutors.scheduledTasks);
-        addScheduledThreadPoolExecutor(result, SCHEDULED_HEARTBEAT, Gossiper.executor);
-        addScheduledThreadPoolExecutor(result, SCHEDULED_HOTNESS_TRACKER, SSTableReader.syncExecutor);
-        addScheduledThreadPoolExecutor(result, SCHEDULED_SUMMARY_BUILDER, IndexSummaryManager.instance.executor);
 
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
         for (Map.Entry<String, String> tpool : ThreadPoolMetrics.getJmxThreadPools(server).entries())
