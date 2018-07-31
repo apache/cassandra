@@ -73,7 +73,7 @@ final class ThreadPoolTable extends AbstractVirtualTable
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
         for (Map.Entry<String, String> tpool : ThreadPoolMetrics.getJmxThreadPools(server).entries())
         {
-            result.row(UPPER_CAMEL.to(LOWER_UNDERSCORE, tpool.getValue()).replaceAll("-", ""))
+            result.row(tpool.getValue())
                 .column(ACTIVE, getJmxMetric(tpool, ThreadPoolMetrics.ACTIVE_TASKS))
                 .column(ACTIVE_MAX, getJmxMetric(tpool, ThreadPoolMetrics.MAX_POOL_SIZE))
                 .column(PENDING, getJmxMetric(tpool, ThreadPoolMetrics.PENDING_TASKS))
