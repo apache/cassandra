@@ -1,4 +1,5 @@
 4.0
+ * Fix toDate function for timestamp arguments (CASSANDRA-14502)
  * Revert running dtests by default in circleci (CASSANDRA-14614)
  * Stream entire SSTables when possible (CASSANDRA-14556)
  * Add experimental support for Java 11 (CASSANDRA-9608)

@@ -49,7 +49,7 @@ public abstract class TimeFcts
                                 toTimestamp(TimeUUIDType.instance),
                                 toUnixTimestamp(TimeUUIDType.instance),
                                 toUnixTimestamp(TimestampType.instance),
-                                toDate(SimpleDateType.instance),
+                                toDate(TimestampType.instance),
                                 toUnixTimestamp(SimpleDateType.instance),
                                 toTimestamp(SimpleDateType.instance));
     }
