@@ -1840,6 +1840,7 @@
 	<echo file=".classpath"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <classpath>
   <classpathentry kind="src" path="src/java"/>
+  <classpathentry kind="src" path="src/java8"/>
   <classpathentry kind="src" path="src/resources"/>
   <classpathentry kind="src" path="src/gen-java"/>
   <classpathentry kind="src" path="conf" including="hotspot_compiler"/>
