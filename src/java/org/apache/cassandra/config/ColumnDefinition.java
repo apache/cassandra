@@ -161,7 +161,6 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
     {
         super(ksName, cfName, name, type);
         assert name != null && type != null && kind != null;
-        assert name.isInterned();
         assert (position == NO_POSITION) == !kind.isPrimaryKeyKind(); // The position really only make sense for partition and clustering columns (and those must have one),
                                                                       // so make sure we don't sneak it for something else since it'd breaks equals()
         this.kind = kind;

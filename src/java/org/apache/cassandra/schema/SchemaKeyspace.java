@@ -1120,9 +1120,7 @@ public final class SchemaKeyspace
         if (order == ClusteringOrder.DESC)
             type = ReversedType.getInstance(type);
 
-        ColumnIdentifier name = ColumnIdentifier.getInterned(type,
-                                                             row.getBytes("column_name_bytes"),
-                                                             row.getString("column_name"));
+        ColumnIdentifier name = new ColumnIdentifier(row.getBytes("column_name_bytes"), row.getString("column_name"));
 
         return new ColumnDefinition(keyspace, table, name, type, position, kind);
     }
