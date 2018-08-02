@@ -1,5 +1,7 @@
-2.2.13
+2.2.14
  * Returns null instead of NaN or Infinity in JSON strings (CASSANDRA-14377)
+
+2.2.13
  * Fix bug that prevented compaction of SSTables after full repairs (CASSANDRA-14423)
  * Incorrect counting of pending messages in OutboundTcpConnection (CASSANDRA-11551)
  * Fix compaction failure caused by reading un-flushed data (CASSANDRA-12743)
