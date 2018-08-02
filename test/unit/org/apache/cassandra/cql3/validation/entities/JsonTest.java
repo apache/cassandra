@@ -1287,4 +1287,15 @@ JsonTest extends CQLTester
                    row("{\"a\": 100}"),
                    row("{\"a\": 20}"));
     }
+
+    @Test
+    public void testJsonWithNaNAndInfinity() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, f1 float, f2 float, f3 float, d1 double, d2 double, d3 double)");
+        execute("INSERT INTO %s (pk, f1, f2, f3, d1, d2, d3) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                1, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+
+        // JSON does not support NaN, Infinity and -Infinity values. Most of the parser convert them into null.
+        assertRows(execute("SELECT JSON * FROM %s"), row("{\"pk\": 1, \"d1\": null, \"d2\": null, \"d3\": null, \"f1\": null, \"f2\": null, \"f3\": null}"));
+    }
 }
