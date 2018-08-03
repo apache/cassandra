@@ -71,7 +71,7 @@ public class ViewComplexTest extends CQLTester
     private void updateViewWithFlush(String query, boolean flush, Object... params) throws Throwable
     {
         executeNet(protocolVersion, query, params);
-        while (!(((SEPExecutor) StageManager.getStage(Stage.VIEW_MUTATION)).getPendingTasks() == 0
+        while (!(((SEPExecutor) StageManager.getStage(Stage.VIEW_MUTATION)).getPendingTaskCount() == 0
                 && ((SEPExecutor) StageManager.getStage(Stage.VIEW_MUTATION)).getActiveCount() == 0))
         {
             Thread.sleep(1);

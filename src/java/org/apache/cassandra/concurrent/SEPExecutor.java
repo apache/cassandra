@@ -240,12 +240,14 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
         return isTerminated();
     }
 
-    public long getPendingTasks()
+    @Override
+    public long getPendingTaskCount()
     {
         return taskPermits(permits.get());
     }
 
-    public long getCompletedTasks()
+    @Override
+    public long getCompletedTaskCount()
     {
         return completedTasks.get();
     }
@@ -253,6 +255,12 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
     public int getActiveCount()
     {
         return maxWorkers - workPermits(permits.get());
+    }
+
+    @Override
+    public int getMaximumPoolSize()
+    {
+        return maxWorkers;
     }
 
     private static int taskPermits(long both)

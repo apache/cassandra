@@ -213,6 +213,12 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
         super.beforeExecute(t, r);
     }
 
+    @Override
+    public long getPendingTaskCount()
+    {
+        return getQueue().size();
+    }
+
     /**
      * Send @param t and any exception wrapped by @param r to the default uncaught exception handler,
      * or log them if none such is set up
