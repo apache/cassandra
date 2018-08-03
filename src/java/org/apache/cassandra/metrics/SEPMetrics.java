@@ -23,8 +23,6 @@ import org.apache.cassandra.concurrent.SEPExecutor;
 
 public class SEPMetrics extends ThreadPoolMetrics
 {
-    public static final String MAX_TASKS_QUEUED = "MaxTasksQueued";
-
     /** Maximum number of tasks queued before a task get blocked */
     public final Gauge<Integer> maxTasksQueued;
 
@@ -38,12 +36,12 @@ public class SEPMetrics extends ThreadPoolMetrics
     public SEPMetrics(final SEPExecutor executor, String path, String poolName)
     {
         super(executor, path, poolName);
-        maxTasksQueued =  register(poolName, MAX_TASKS_QUEUED, () -> executor.maxTasksQueued);
+        maxTasksQueued =  register(poolName, Type.MAX_TASKS_QUEUED, () -> executor.maxTasksQueued);
     }
 
     public void release()
     {
         super.release();
-        remove(MAX_TASKS_QUEUED);
+        remove(Type.MAX_TASKS_QUEUED);
     }
 }

@@ -20,6 +20,8 @@ package org.apache.cassandra.metrics;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -34,8 +36,11 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.Metric;
+import com.google.common.base.Objects;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
+import com.google.common.collect.SetMultimap;
 
 
 /**
@@ -43,12 +48,34 @@ import com.google.common.collect.Multimap;
  */
 public class ThreadPoolMetrics
 {
-    public static final String CURRENTLY_BLOCKED_TASKS = "CurrentlyBlockedTasks";
-    public static final String TOTAL_BLOCKED_TASKS = "TotalBlockedTasks";
-    public static final String MAX_POOL_SIZE = "MaxPoolSize";
-    public static final String COMPLETED_TASKS = "CompletedTasks";
-    public static final String PENDING_TASKS = "PendingTasks";
-    public static final String ACTIVE_TASKS = "ActiveTasks";
+    public static enum Type
+    {
+        CURRENTLY_BLOCKED_TASKS("CurrentlyBlockedTasks"),
+        TOTAL_BLOCKED_TASKS("TotalBlockedTasks"),
+        MAX_POOL_SIZE("MaxPoolSize"),
+        COMPLETED_TASKS("CompletedTasks"),
+        PENDING_TASKS("PendingTasks"),
+        MAX_TASKS_QUEUED("MaxTasksQueued"),
+        ACTIVE_TASKS("ActiveTasks");
+
+        /* legacy name used in JMX */
+        public final String name;
+
+        private Type(String name)
+        {
+            this.name = name;
+        }
+
+        public static Type fromName(String name)
+        {
+            for (Type t : Type.values())
+                if (t.name.equals(name))
+                    return t;
+            throw new IllegalArgumentException("Invalid ThreadPoolMetrics.Type " + name);
+        }
+    }
+
+    private final static SetMultimap<String, ThreadPoolMetric> threadPools = Multimaps.synchronizedSetMultimap(HashMultimap.create());
 
     /** Number of active tasks. */
     public final Gauge<Integer> activeTasks;
@@ -79,22 +106,22 @@ public class ThreadPoolMetrics
     {
         this.factory = newMetricNameFactory(path, poolName);
 
-        activeTasks = register(poolName, ACTIVE_TASKS, executor::getActiveCount);
-        totalBlocked = counter(poolName, TOTAL_BLOCKED_TASKS);
-        currentBlocked = counter(poolName, CURRENTLY_BLOCKED_TASKS);
-        completedTasks = register(poolName, COMPLETED_TASKS, executor::getCompletedTaskCount);
-        pendingTasks = register(poolName, PENDING_TASKS, executor::getPendingTaskCount);
-        maxPoolSize = register(poolName, MAX_POOL_SIZE, executor::getMaximumPoolSize);
+        activeTasks = register(poolName, Type.ACTIVE_TASKS, executor::getActiveCount);
+        totalBlocked = counter(poolName, Type.TOTAL_BLOCKED_TASKS);
+        currentBlocked = counter(poolName, Type.CURRENTLY_BLOCKED_TASKS);
+        completedTasks = register(poolName, Type.COMPLETED_TASKS, executor::getCompletedTaskCount);
+        pendingTasks = register(poolName, Type.PENDING_TASKS, executor::getPendingTaskCount);
+        maxPoolSize = register(poolName, Type.MAX_POOL_SIZE, executor::getMaximumPoolSize);
     }
 
     public void release()
     {
-        remove(ACTIVE_TASKS);
-        remove(PENDING_TASKS);
-        remove(COMPLETED_TASKS);
-        remove(TOTAL_BLOCKED_TASKS);
-        remove(CURRENTLY_BLOCKED_TASKS);
-        remove(MAX_POOL_SIZE);
+        remove(Type.ACTIVE_TASKS);
+        remove(Type.PENDING_TASKS);
+        remove(Type.COMPLETED_TASKS);
+        remove(Type.TOTAL_BLOCKED_TASKS);
+        remove(Type.CURRENTLY_BLOCKED_TASKS);
+        remove(Type.MAX_POOL_SIZE);
     }
 
     public static Object getJmxMetric(MBeanServerConnection mbeanServerConn, String jmxPath, String poolName, String metricName)
@@ -109,7 +136,7 @@ public class ThreadPoolMetrics
                 return "N/A";
             }
 
-            switch (metricName)
+            switch (Type.fromName(metricName))
             {
                 case ACTIVE_TASKS:
                 case PENDING_TASKS:
@@ -127,6 +154,16 @@ public class ThreadPoolMetrics
         {
             throw new RuntimeException("Error reading: " + name, e);
         }
+    }
+
+    public static Collection<String> poolNames()
+    {
+        return threadPools.keySet();
+    }
+
+    public static Collection<ThreadPoolMetric> getPoolMetrics(String poolName)
+    {
+        return Collections.unmodifiableCollection(threadPools.get(poolName));
     }
 
     private static String mbeanName(String jmxPath, String poolName, String metricName)
@@ -166,80 +203,106 @@ public class ThreadPoolMetrics
                 mbeanName(path, poolName, metricName));
     }
 
-    protected final Counter counter(String pool, String name)
+    protected final Counter counter(String pool, Type name)
     {
-        ThreadPoolCounter counter = new ThreadPoolCounter(pool, name);
-        return Metrics.register(factory.createMetricName(name), counter);
+        ThreadPoolCounter counter = new ThreadPoolCounter(name);
+        threadPools.put(pool, counter);
+        return Metrics.register(factory.createMetricName(counter.getType().name), counter);
     }
 
-    protected final <T extends Number> Gauge<T> register(String pool, String name, Gauge<T> gauge)
+    protected final <T extends Number> Gauge<T> register(String pool, Type name, Gauge<T> gauge)
     {
-        ThreadPoolGauge<T> tpg = new ThreadPoolGauge<>(pool, name, gauge);
-        return Metrics.register(factory.createMetricName(tpg.metric), tpg);
+        ThreadPoolGauge<T> tpg = new ThreadPoolGauge<>(name, gauge);
+        threadPools.put(pool, tpg);
+        return Metrics.register(factory.createMetricName(tpg.getType().name), tpg);
     }
 
-    protected final void remove(String name)
+    protected final void remove(Type type)
     {
-        Metrics.remove(factory.createMetricName(name));
+        Metrics.remove(factory.createMetricName(type.name));
     }
 
     public static interface ThreadPoolMetric extends Metric
     {
-        public String getPoolName();
-        public String getMetricName();
+        public Type getType();
+
         public Long getLongValue();
     }
 
     private static class ThreadPoolCounter extends Counter implements ThreadPoolMetric
     {
-        public final String pool;
-        public final String metric;
+        private final Type metric;
 
-        public ThreadPoolCounter(String pool, String metric)
+        public ThreadPoolCounter(Type metric)
         {
-            this.pool = pool;
             this.metric = metric;
         }
-        public String getPoolName()
-        {
-            return pool;
-        }
-        public String getMetricName()
+
+        public Type getType()
         {
             return metric;
         }
+
         public Long getLongValue()
         {
             return getCount();
+        }
+
+        public int hashCode()
+        {
+            return Objects.hashCode(metric);
+        }
+
+        public boolean equals(Object obj)
+        {
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            final ThreadPoolCounter other = (ThreadPoolCounter) obj;
+            return Objects.equal(metric, other.metric);
         }
     }
 
     private static class ThreadPoolGauge<T extends Number> implements Gauge<T>, ThreadPoolMetric
     {
-        public final String pool;
-        public final String metric;
-        public final Gauge<T> wrapped;
-        public ThreadPoolGauge(String pool, String metric, Gauge<T> wrapped)
+        private final Type metric;
+        private final Gauge<T> wrapped;
+
+        public ThreadPoolGauge(Type metric, Gauge<T> wrapped)
         {
-            this.pool = pool;
             this.metric = metric;
             this.wrapped = wrapped;
         }
+
         public T getValue()
         {
             return wrapped.getValue();
         }
-        public String getPoolName()
-        {
-            return pool;
-        }
-        public String getMetricName()
+
+        public Type getType()
         {
             return metric;
         }
+
         public Long getLongValue()
         {
             return ((Number) wrapped.getValue()).longValue();
+        }
+
+        public int hashCode()
+        {
+            return Objects.hashCode(metric);
+        }
+
+        public boolean equals(Object obj)
+        {
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            final ThreadPoolCounter other = (ThreadPoolCounter) obj;
+            return Objects.equal(metric, other.metric);
         }
     }
 }

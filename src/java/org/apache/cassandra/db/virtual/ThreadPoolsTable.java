@@ -17,20 +17,13 @@
  */
 package org.apache.cassandra.db.virtual;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.stream.Collectors;
-
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics.ThreadPoolMetric;
 import org.apache.cassandra.schema.TableMetadata;
 
-import static com.google.common.base.CaseFormat.UPPER_CAMEL;
-import static com.google.common.base.CaseFormat.LOWER_UNDERSCORE;
 
 final class ThreadPoolsTable extends AbstractVirtualTable
 {
@@ -40,8 +33,8 @@ final class ThreadPoolsTable extends AbstractVirtualTable
     private final static String PENDING = "pending_tasks";
     private final static String MAX_TASKS = "max_tasks_queued";
     private final static String COMPLETED = "completed_tasks";
-    private final static String BLOCKED = "currently_blocked_tasks";
-    private final static String TOTAL_BLOCKED = "total_blocked_tasks";
+    private final static String BLOCKED = "blocked_tasks";
+    private final static String TOTAL_BLOCKED = "blocked_tasks_all_time";
 
     ThreadPoolsTable(String keyspace)
     {
@@ -60,29 +53,38 @@ final class ThreadPoolsTable extends AbstractVirtualTable
                            .build());
     }
 
+    public String getColumn(ThreadPoolMetrics.Type type)
+    {
+        switch(type)
+        {
+        case ACTIVE_TASKS:            return ACTIVE;
+        case COMPLETED_TASKS:         return COMPLETED;
+        case CURRENTLY_BLOCKED_TASKS: return BLOCKED;
+        case MAX_POOL_SIZE:           return ACTIVE_MAX;
+        case MAX_TASKS_QUEUED:        return MAX_TASKS;
+        case PENDING_TASKS:           return PENDING;
+        case TOTAL_BLOCKED_TASKS:     return TOTAL_BLOCKED;
+        default:
+            throw new IllegalArgumentException("Unknown thread poole metric " + type);
+        }
+    }
+
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
 
         // get and group ThreadPoolMetrics by thread pool
-        Map<String, List<ThreadPoolMetric>> pools = CassandraMetricsRegistry.Metrics.getMetrics()
-                .values().stream()
-                .filter(m -> m instanceof ThreadPoolMetric)
-                .map(m -> (ThreadPoolMetric) m)
-                .collect(Collectors.groupingBy(m -> m.getPoolName()));
-
-        for (Entry<String, List<ThreadPoolMetric>> e : pools.entrySet())
+        for (String pool : ThreadPoolMetrics.poolNames())
         {
-            result.row(e.getKey());
-            for (ThreadPoolMetric m : e.getValue())
+            result.row(pool);
+            for (ThreadPoolMetric metric : ThreadPoolMetrics.getPoolMetrics(pool))
             {
-                String identifier = UPPER_CAMEL.to(LOWER_UNDERSCORE, m.getMetricName());
-
+                String column = getColumn(metric.getType());
                 // unbound can be null or MAX_VALUE, so just always have as null
-                if (Integer.MAX_VALUE != m.getLongValue())
-                    result.column(identifier, m.getLongValue());
+                if (Integer.MAX_VALUE != metric.getLongValue())
+                    result.column(column, metric.getLongValue());
             }
-        };
+        }
         return result;
     }
 }
