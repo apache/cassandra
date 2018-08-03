@@ -147,9 +147,22 @@ class PendingRepairManager
             strategy.removeSSTable(sstable);
     }
 
+
+    void removeSSTables(Iterable<SSTableReader> removed)
+    {
+        for (SSTableReader sstable : removed)
+            removeSSTable(sstable);
+    }
+
     synchronized void addSSTable(SSTableReader sstable)
     {
         getOrCreate(sstable).addSSTable(sstable);
+    }
+
+    void addSSTables(Iterable<SSTableReader> added)
+    {
+        for (SSTableReader sstable : added)
+            addSSTable(sstable);
     }
 
     synchronized void replaceSSTables(Set<SSTableReader> removed, Set<SSTableReader> added)
@@ -335,21 +348,6 @@ class PendingRepairManager
         return !ActiveRepairService.instance.consistent.local.isSessionInProgress(sessionID);
     }
 
-    /**
-     * calling this when underlying strategy is not LeveledCompactionStrategy is an error
-     */
-    synchronized int[] getSSTableCountPerLevel()
-    {
-        int [] res = new int[LeveledManifest.MAX_LEVEL_COUNT];
-        for (AbstractCompactionStrategy strategy : strategies.values())
-        {
-            assert strategy instanceof LeveledCompactionStrategy;
-            int[] counts = ((LeveledCompactionStrategy) strategy).getAllLevelSize();
-            res = CompactionStrategyManager.sumArrays(res, counts);
-        }
-        return res;
-    }
-
     @SuppressWarnings("resource")
     synchronized Set<ISSTableScanner> getScanners(Collection<SSTableReader> sstables, Collection<Range<Token>> ranges)
     {
@@ -391,7 +389,7 @@ class PendingRepairManager
         return strategies.keySet().contains(sessionID);
     }
 
-    public Collection<AbstractCompactionTask> createUserDefinedTasks(List<SSTableReader> sstables, int gcBefore)
+    public Collection<AbstractCompactionTask> createUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
     {
         Map<UUID, List<SSTableReader>> group = sstables.stream().collect(Collectors.groupingBy(s -> s.getSSTableMetadata().pendingRepair));
         return group.entrySet().stream().map(g -> strategies.get(g.getKey()).getUserDefinedTask(g.getValue(), gcBefore)).collect(Collectors.toList());

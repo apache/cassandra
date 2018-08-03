@@ -2553,12 +2553,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getDirectories().trueSnapshotsSize();
     }
 
-    @VisibleForTesting
-    void resetFileIndexGenerator()
-    {
-        fileIndexGenerator.set(0);
-    }
-
     /**
      * Returns a ColumnFamilyStore by id if it exists, null otherwise
      * Differently from others, this method does not throw exception if the table does not exist.
