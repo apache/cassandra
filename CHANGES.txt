@@ -1,4 +1,5 @@
 4.0
+ * Refactor CompactionStrategyManager (CASSANDRA-14621)
  * Flush netty client messages immediately by default (CASSANDRA-13651)
  * Improve read repair blocking behavior (CASSANDRA-10726)
  * Add a virtual table to expose settings (CASSANDRA-14573)
