@@ -20,25 +20,28 @@ package org.apache.cassandra.db.virtual;
 import static com.google.common.base.CaseFormat.LOWER_UNDERSCORE;
 import static com.google.common.base.CaseFormat.UPPER_CAMEL;
 
-import java.lang.management.ManagementFactory;
-import java.util.Map;
-
-import javax.management.MBeanServer;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.metrics.ThreadPoolMetrics;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.metrics.ThreadPoolMetrics.ThreadPoolMetric;
 import org.apache.cassandra.schema.TableMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class ThreadPoolTable extends AbstractVirtualTable
 {
+    private static final Logger logger = LoggerFactory.getLogger(ThreadPoolTable.class);
+
     private final static String POOL = "thread_pool";
-    private final static String ACTIVE = "active";
-    private final static String ACTIVE_MAX = "active_max";
-    private final static String PENDING = "pending";
-    private final static String COMPLETED = "completed";
-    private final static String BLOCKED = "tasks_blocked";
-    private final static String TOTAL_BLOCKED = "total_blocked";
+    private final static String ACTIVE = "active_tasks";
+    private final static String ACTIVE_MAX = "max_pool_size";
+    private final static String PENDING = "pending_tasks";
+    private final static String MAX_TASKS = "max_tasks_queued";
+    private final static String COMPLETED = "completed_tasks";
+    private final static String BLOCKED = "currently_blocked_tasks";
+    private final static String TOTAL_BLOCKED = "total_blocked_tasks";
 
     ThreadPoolTable(String keyspace)
     {
@@ -51,36 +54,28 @@ final class ThreadPoolTable extends AbstractVirtualTable
                            .addRegularColumn(PENDING, LongType.instance)
                            .addRegularColumn(COMPLETED, LongType.instance)
                            .addRegularColumn(BLOCKED, LongType.instance)
+                           .addRegularColumn(MAX_TASKS, LongType.instance)
                            .addRegularColumn(TOTAL_BLOCKED, LongType.instance)
                            .build());
     }
 
-    private long getJmxMetric(Map.Entry<String, String> tpool, String key)
-    {
-        MBeanServer server = ManagementFactory.getPlatformMBeanServer();
-        Object value = ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), key);
-        if (value instanceof Long)
-            return ((Long) value).longValue();
-        else if (value instanceof Integer)
-            return ((Integer) value).longValue();
-        throw new IllegalArgumentException(value + " of unexpected type " + value.getClass());
-    }
 
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-
-        MBeanServer server = ManagementFactory.getPlatformMBeanServer();
-        for (Map.Entry<String, String> tpool : ThreadPoolMetrics.getJmxThreadPools(server).entries())
-        {
-            result.row(tpool.getValue())
-                .column(ACTIVE, getJmxMetric(tpool, ThreadPoolMetrics.ACTIVE_TASKS))
-                .column(ACTIVE_MAX, getJmxMetric(tpool, ThreadPoolMetrics.MAX_POOL_SIZE))
-                .column(PENDING, getJmxMetric(tpool, ThreadPoolMetrics.PENDING_TASKS))
-                .column(COMPLETED, getJmxMetric(tpool, ThreadPoolMetrics.COMPLETED_TASKS))
-                .column(BLOCKED, getJmxMetric(tpool, ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS))
-                .column(TOTAL_BLOCKED, getJmxMetric(tpool, ThreadPoolMetrics.TOTAL_BLOCKED_TASKS));
-        }
+        CassandraMetricsRegistry.Metrics.getMetrics().values().stream()
+            .filter(m -> m instanceof ThreadPoolMetric)
+            .map(m -> (ThreadPoolMetric) m)
+            .collect(Collectors.groupingBy(m -> m.getPoolName()))
+            .entrySet().forEach(e ->
+            {
+                result.row(e.getKey());
+                for (ThreadPoolMetric m : e.getValue())
+                {
+                    String identifier = UPPER_CAMEL.to(LOWER_UNDERSCORE, m.getMetricName());
+                    result.column(identifier, m.getLongValue());
+                }
+            });
         return result;
     }
 }

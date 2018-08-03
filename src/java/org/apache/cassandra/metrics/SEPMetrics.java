@@ -38,7 +38,7 @@ public class SEPMetrics extends ThreadPoolMetrics
     public SEPMetrics(final SEPExecutor executor, String path, String poolName)
     {
         super(executor, path, poolName);
-        maxTasksQueued =  register(MAX_TASKS_QUEUED, () -> executor.maxTasksQueued);
+        maxTasksQueued =  register(poolName, MAX_TASKS_QUEUED, () -> executor.maxTasksQueued);
     }
 
     public void release()

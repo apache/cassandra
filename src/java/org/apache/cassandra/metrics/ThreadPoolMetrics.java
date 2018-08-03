@@ -17,25 +17,25 @@
  */
 package org.apache.cassandra.metrics;
 
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
-
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.JmxReporter;
 
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
-
 import org.apache.cassandra.concurrent.LocalAwareExecutorService;
 
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.JmxReporter;
+import com.codahale.metrics.Metric;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 
 
 /**
@@ -79,12 +79,12 @@ public class ThreadPoolMetrics
     {
         this.factory = newMetricNameFactory(path, poolName);
 
-        activeTasks = register(ACTIVE_TASKS, () -> executor.getActiveCount());
-        totalBlocked = counter(TOTAL_BLOCKED_TASKS);
-        currentBlocked = counter(CURRENTLY_BLOCKED_TASKS);
-        completedTasks = register(COMPLETED_TASKS, () -> executor.getCompletedTaskCount());
-        pendingTasks = register(PENDING_TASKS, () -> executor.getPendingTaskCount());
-        maxPoolSize = register(MAX_POOL_SIZE, () -> executor.getMaximumPoolSize());
+        activeTasks = register(poolName, ACTIVE_TASKS, () -> executor.getActiveCount());
+        totalBlocked = counter(poolName, TOTAL_BLOCKED_TASKS);
+        currentBlocked = counter(poolName, CURRENTLY_BLOCKED_TASKS);
+        completedTasks = register(poolName, COMPLETED_TASKS, () -> executor.getCompletedTaskCount());
+        pendingTasks = register(poolName, PENDING_TASKS, () -> executor.getPendingTaskCount());
+        maxPoolSize = register(poolName, MAX_POOL_SIZE, () -> executor.getMaximumPoolSize());
     }
 
     public void release()
@@ -173,18 +173,80 @@ public class ThreadPoolMetrics
         };
     }
 
-    protected final Counter counter(String name)
+    protected final Counter counter(String pool, String name)
     {
-        return Metrics.counter(factory.createMetricName(name));
+        ThreadPoolCounter counter = new ThreadPoolCounter(pool, name);
+        return Metrics.register(factory.createMetricName(name), counter);
     }
 
-    protected final <T> Gauge<T> register(String name, Gauge<T> gauge)
+    protected final <T extends Number> Gauge<T> register(String pool, String name, Gauge<T> gauge)
     {
-        return Metrics.register(factory.createMetricName(name), gauge);
+        ThreadPoolGauge<T> tpg = new ThreadPoolGauge<>(pool, name, gauge);
+        return Metrics.register(factory.createMetricName(tpg.metric), tpg);
     }
 
     protected final void remove(String name)
     {
         Metrics.remove(factory.createMetricName(name));
+    }
+
+    public static interface ThreadPoolMetric extends Metric
+    {
+        public String getPoolName();
+        public String getMetricName();
+        public Long getLongValue();
+    }
+
+    private static class ThreadPoolCounter extends Counter implements ThreadPoolMetric
+    {
+        public final String pool;
+        public final String metric;
+
+        public ThreadPoolCounter(String pool, String metric)
+        {
+            this.pool = pool;
+            this.metric = metric;
+        }
+        public String getPoolName()
+        {
+            return pool;
+        }
+        public String getMetricName()
+        {
+            return metric;
+        }
+        public Long getLongValue()
+        {
+            return getCount();
+        }
+    }
+
+    private static class ThreadPoolGauge<T extends Number> implements Gauge<T>, ThreadPoolMetric
+    {
+        public final String pool;
+        public final String metric;
+        public final Gauge<T> wrapped;
+        public ThreadPoolGauge(String pool, String metric, Gauge<T> wrapped)
+        {
+            this.pool = pool;
+            this.metric = metric;
+            this.wrapped = wrapped;
+        }
+        public T getValue()
+        {
+            return wrapped.getValue();
+        }
+        public String getPoolName()
+        {
+            return pool;
+        }
+        public String getMetricName()
+        {
+            return metric;
+        }
+        public Long getLongValue()
+        {
+            return ((Number) wrapped.getValue()).longValue();
+        }
     }
 }
