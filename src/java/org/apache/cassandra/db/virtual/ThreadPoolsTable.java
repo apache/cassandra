@@ -17,24 +17,24 @@
  */
 package org.apache.cassandra.db.virtual;
 
-import static com.google.common.base.CaseFormat.LOWER_UNDERSCORE;
-import static com.google.common.base.CaseFormat.UPPER_CAMEL;
-
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.ThreadPoolMetrics.ThreadPoolMetric;
 import org.apache.cassandra.schema.TableMetadata;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-final class ThreadPoolTable extends AbstractVirtualTable
+import static com.google.common.base.CaseFormat.UPPER_CAMEL;
+import static com.google.common.base.CaseFormat.LOWER_UNDERSCORE;
+
+final class ThreadPoolsTable extends AbstractVirtualTable
 {
-    private static final Logger logger = LoggerFactory.getLogger(ThreadPoolTable.class);
-
-    private final static String POOL = "thread_pool";
+    private final static String THREAD_POOL = "thread_pool";
     private final static String ACTIVE = "active_tasks";
     private final static String ACTIVE_MAX = "max_pool_size";
     private final static String PENDING = "pending_tasks";
@@ -43,12 +43,13 @@ final class ThreadPoolTable extends AbstractVirtualTable
     private final static String BLOCKED = "currently_blocked_tasks";
     private final static String TOTAL_BLOCKED = "total_blocked_tasks";
 
-    ThreadPoolTable(String keyspace)
+    ThreadPoolsTable(String keyspace)
     {
         super(TableMetadata.builder(keyspace, "thread_pools")
                            .comment("metrics of internal thread pools")
                            .kind(TableMetadata.Kind.VIRTUAL)
-                           .addPartitionKeyColumn(POOL, UTF8Type.instance)
+                           .partitioner(new LocalPartitioner(UTF8Type.instance))
+                           .addPartitionKeyColumn(THREAD_POOL, UTF8Type.instance)
                            .addRegularColumn(ACTIVE, LongType.instance)
                            .addRegularColumn(ACTIVE_MAX, LongType.instance)
                            .addRegularColumn(PENDING, LongType.instance)
@@ -59,23 +60,29 @@ final class ThreadPoolTable extends AbstractVirtualTable
                            .build());
     }
 
-
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        CassandraMetricsRegistry.Metrics.getMetrics().values().stream()
-            .filter(m -> m instanceof ThreadPoolMetric)
-            .map(m -> (ThreadPoolMetric) m)
-            .collect(Collectors.groupingBy(m -> m.getPoolName()))
-            .entrySet().forEach(e ->
+
+        // get and group ThreadPoolMetrics by thread pool
+        Map<String, List<ThreadPoolMetric>> pools = CassandraMetricsRegistry.Metrics.getMetrics()
+                .values().stream()
+                .filter(m -> m instanceof ThreadPoolMetric)
+                .map(m -> (ThreadPoolMetric) m)
+                .collect(Collectors.groupingBy(m -> m.getPoolName()));
+
+        for (Entry<String, List<ThreadPoolMetric>> e : pools.entrySet())
+        {
+            result.row(e.getKey());
+            for (ThreadPoolMetric m : e.getValue())
             {
-                result.row(e.getKey());
-                for (ThreadPoolMetric m : e.getValue())
-                {
-                    String identifier = UPPER_CAMEL.to(LOWER_UNDERSCORE, m.getMetricName());
+                String identifier = UPPER_CAMEL.to(LOWER_UNDERSCORE, m.getMetricName());
+
+                // unbound can be null or MAX_VALUE, so just always have as null
+                if (Integer.MAX_VALUE != m.getLongValue())
                     result.column(identifier, m.getLongValue());
-                }
-            });
+            }
+        };
         return result;
     }
 }
