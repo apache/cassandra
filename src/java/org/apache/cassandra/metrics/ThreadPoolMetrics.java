@@ -17,25 +17,13 @@
  */
 package org.apache.cassandra.metrics;
 
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-
-import java.io.IOException;
-import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
 
-import javax.management.JMX;
-import javax.management.MBeanServerConnection;
-import javax.management.MalformedObjectNameException;
-import javax.management.ObjectName;
-
 import org.apache.cassandra.concurrent.LocalAwareExecutorService;
+import org.apache.cassandra.concurrent.SEPExecutor;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.JmxReporter;
-import com.codahale.metrics.Metric;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 
 
 /**
@@ -66,7 +54,14 @@ public class ThreadPoolMetrics
     /** Maximum number of threads before it will start queuing tasks */
     public final Gauge<Integer> maxPoolSize;
 
-    private final MetricNameFactory factory;
+    public static final String MAX_TASKS_QUEUED = "MaxTasksQueued";
+
+    /** Maximum number of tasks queued before a task get blocked */
+    public final Gauge<Integer> maxTasksQueued;
+
+
+    public final String path;
+    public final String poolName;
 
     /**
      * Create metrics for given ThreadPoolExecutor.
@@ -77,176 +72,37 @@ public class ThreadPoolMetrics
      */
     public ThreadPoolMetrics(final LocalAwareExecutorService executor, String path, String poolName)
     {
-        this.factory = newMetricNameFactory(path, poolName);
+        this.path = path;
+        this.poolName = poolName;
 
-        activeTasks = register(poolName, ACTIVE_TASKS, () -> executor.getActiveCount());
-        totalBlocked = counter(poolName, TOTAL_BLOCKED_TASKS);
-        currentBlocked = counter(poolName, CURRENTLY_BLOCKED_TASKS);
-        completedTasks = register(poolName, COMPLETED_TASKS, () -> executor.getCompletedTaskCount());
-        pendingTasks = register(poolName, PENDING_TASKS, () -> executor.getPendingTaskCount());
-        maxPoolSize = register(poolName, MAX_POOL_SIZE, () -> executor.getMaximumPoolSize());
+        activeTasks = executor::getActiveCount;
+        totalBlocked = new Counter();
+        currentBlocked = new Counter();
+        completedTasks = executor::getCompletedTaskCount;
+        pendingTasks = executor::getPendingTaskCount;
+        maxPoolSize = executor::getMaximumPoolSize;
+        maxTasksQueued = () -> -1;
     }
 
-    public void release()
-    {
-        remove(ACTIVE_TASKS);
-        remove(PENDING_TASKS);
-        remove(COMPLETED_TASKS);
-        remove(TOTAL_BLOCKED_TASKS);
-        remove(CURRENTLY_BLOCKED_TASKS);
-        remove(MAX_POOL_SIZE);
-    }
+    /**
+     * Create metrics for given ThreadPoolExecutor.
+    *
+    * @param executor Thread pool
+    * @param path Type of thread pool
+    * @param poolName Name of thread pool to identify metrics
+    */
+   public ThreadPoolMetrics(final SEPExecutor executor, String path, String poolName)
+   {
+       this.path = path;
+       this.poolName = poolName;
 
-    public static Object getJmxMetric(MBeanServerConnection mbeanServerConn, String jmxPath, String poolName, String metricName)
-    {
-        String name = mbeanName(jmxPath, poolName, metricName);
+       activeTasks = executor::getActiveCount;
+       totalBlocked = new Counter();
+       currentBlocked = new Counter();
+       completedTasks = executor::getCompletedTaskCount;
+       pendingTasks = executor::getPendingTaskCount;
+       maxPoolSize = executor::getMaximumPoolSize;
+       maxTasksQueued = executor::getMaxTasksQueued;
+   }
 
-        try
-        {
-            ObjectName oName = new ObjectName(name);
-            if (!mbeanServerConn.isRegistered(oName))
-            {
-                return "N/A";
-            }
-
-            switch (metricName)
-            {
-                case ACTIVE_TASKS:
-                case PENDING_TASKS:
-                case COMPLETED_TASKS:
-                case MAX_POOL_SIZE:
-                    return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxGaugeMBean.class).getValue();
-                case TOTAL_BLOCKED_TASKS:
-                case CURRENTLY_BLOCKED_TASKS:
-                    return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxCounterMBean.class).getCount();
-                default:
-                    throw new AssertionError("Unknown metric name " + metricName);
-            }
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException("Error reading: " + name, e);
-        }
-    }
-
-    private static String mbeanName(String jmxPath, String poolName, String metricName)
-    {
-        return String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s", jmxPath, poolName, metricName);
-    }
-
-    public static Multimap<String, String> getJmxThreadPools(MBeanServerConnection mbeanServerConn)
-    {
-        try
-        {
-            Multimap<String, String> threadPools = HashMultimap.create();
-            Set<ObjectName> threadPoolObjectNames = mbeanServerConn.queryNames(new ObjectName("org.apache.cassandra.metrics:type=ThreadPools,*"),
-                                                                               null);
-            for (ObjectName oName : threadPoolObjectNames)
-            {
-                threadPools.put(oName.getKeyProperty("path"), oName.getKeyProperty("scope"));
-            }
-
-            return threadPools;
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException("Bad query to JMX server: ", e);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Error getting threadpool names from JMX", e);
-        }
-    }
-
-    private MetricNameFactory newMetricNameFactory(String path, String poolName)
-    {
-        return new MetricNameFactory()
-        {
-            public CassandraMetricsRegistry.MetricName createMetricName(String metricName)
-            {
-                String mbeanName = mbeanName(path, poolName, metricName);
-                return new CassandraMetricsRegistry.MetricName("org.apache.cassandra.metrics", 
-                                                               "ThreadPools",
-                                                               metricName, path + "." + poolName,
-                                                               mbeanName);
-            }
-        };
-    }
-
-    protected final Counter counter(String pool, String name)
-    {
-        ThreadPoolCounter counter = new ThreadPoolCounter(pool, name);
-        return Metrics.register(factory.createMetricName(name), counter);
-    }
-
-    protected final <T extends Number> Gauge<T> register(String pool, String name, Gauge<T> gauge)
-    {
-        ThreadPoolGauge<T> tpg = new ThreadPoolGauge<>(pool, name, gauge);
-        return Metrics.register(factory.createMetricName(tpg.metric), tpg);
-    }
-
-    protected final void remove(String name)
-    {
-        Metrics.remove(factory.createMetricName(name));
-    }
-
-    public static interface ThreadPoolMetric extends Metric
-    {
-        public String getPoolName();
-        public String getMetricName();
-        public Long getLongValue();
-    }
-
-    private static class ThreadPoolCounter extends Counter implements ThreadPoolMetric
-    {
-        public final String pool;
-        public final String metric;
-
-        public ThreadPoolCounter(String pool, String metric)
-        {
-            this.pool = pool;
-            this.metric = metric;
-        }
-        public String getPoolName()
-        {
-            return pool;
-        }
-        public String getMetricName()
-        {
-            return metric;
-        }
-        public Long getLongValue()
-        {
-            return getCount();
-        }
-    }
-
-    private static class ThreadPoolGauge<T extends Number> implements Gauge<T>, ThreadPoolMetric
-    {
-        public final String pool;
-        public final String metric;
-        public final Gauge<T> wrapped;
-        public ThreadPoolGauge(String pool, String metric, Gauge<T> wrapped)
-        {
-            this.pool = pool;
-            this.metric = metric;
-            this.wrapped = wrapped;
-        }
-        public T getValue()
-        {
-            return wrapped.getValue();
-        }
-        public String getPoolName()
-        {
-            return pool;
-        }
-        public String getMetricName()
-        {
-            return metric;
-        }
-        public Long getLongValue()
-        {
-            return ((Number) wrapped.getValue()).longValue();
-        }
-    }
 }

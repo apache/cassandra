@@ -20,12 +20,24 @@ package org.apache.cassandra.metrics;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
-import com.codahale.metrics.*;
-import com.google.common.annotations.VisibleForTesting;
+import javax.management.MBeanServer;
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
 
-import javax.management.*;
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metered;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 
 /**
  * Makes integrating 3.0 metrics API with 2.0.
@@ -36,6 +48,7 @@ import javax.management.*;
 public class CassandraMetricsRegistry extends MetricRegistry
 {
     public static final CassandraMetricsRegistry Metrics = new CassandraMetricsRegistry();
+    private final Map<String, ThreadPoolMetrics> threadPoolMetrics = new ConcurrentHashMap<>();
 
     private final MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
 
@@ -117,6 +130,48 @@ public class CassandraMetricsRegistry extends MetricRegistry
             Metric existing = Metrics.getMetrics().get(name.getMetricName());
             return (T)existing;
         }
+    }
+
+    public Map<String, ThreadPoolMetrics> getThreadPoolMetrics()
+    {
+        return ImmutableMap.copyOf(threadPoolMetrics);
+    }
+
+    public void register(ThreadPoolMetrics metrics)
+    {
+        MetricNameFactory factory = threadPoolNameFactory(metrics);
+        register(factory.createMetricName(ThreadPoolMetrics.ACTIVE_TASKS), metrics.activeTasks);
+        register(factory.createMetricName(ThreadPoolMetrics.PENDING_TASKS), metrics.pendingTasks);
+        register(factory.createMetricName(ThreadPoolMetrics.COMPLETED_TASKS), metrics.completedTasks);
+        register(factory.createMetricName(ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS), metrics.currentBlocked);
+        register(factory.createMetricName(ThreadPoolMetrics.TOTAL_BLOCKED_TASKS), metrics.totalBlocked);
+        register(factory.createMetricName(ThreadPoolMetrics.MAX_POOL_SIZE), metrics.maxPoolSize);
+        register(factory.createMetricName(ThreadPoolMetrics.MAX_TASKS_QUEUED), metrics.maxTasksQueued);
+        threadPoolMetrics.put(metrics.poolName, metrics);
+    }
+
+    private MetricNameFactory threadPoolNameFactory(ThreadPoolMetrics metrics)
+    {
+        return metricName -> new CassandraMetricsRegistry.MetricName(
+                "org.apache.cassandra.metrics",
+                "ThreadPools",
+                metricName,
+                metrics.path + '.' + metrics.poolName,
+                String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s",
+                        metrics.path, metrics.poolName, metricName));
+    }
+
+    public void release(ThreadPoolMetrics metrics)
+    {
+        MetricNameFactory factory = threadPoolNameFactory(metrics);
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.ACTIVE_TASKS));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.PENDING_TASKS));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.COMPLETED_TASKS));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.TOTAL_BLOCKED_TASKS));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.MAX_POOL_SIZE));
+        Metrics.remove(factory.createMetricName(ThreadPoolMetrics.MAX_TASKS_QUEUED));
+        threadPoolMetrics.remove(metrics.poolName, metrics);
     }
 
     public <T extends Metric> T register(MetricName name, MetricName aliasName, T metric)
