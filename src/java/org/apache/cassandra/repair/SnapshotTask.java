@@ -77,7 +77,10 @@ public class SnapshotTask extends AbstractFuture<InetAddressAndPort> implements 
         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
         {
             //listener.failedSnapshot();
-            task.setException(new RuntimeException("Could not create snapshot at " + from));
+            if (!task.isDone())
+            {
+                task.setException(new RuntimeException("Could not create snapshot at " + from));
+            }
         }
     }
 }
