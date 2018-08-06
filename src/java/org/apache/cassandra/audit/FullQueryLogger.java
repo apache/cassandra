@@ -21,6 +21,7 @@ package org.apache.cassandra.audit;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 
@@ -92,7 +93,8 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
         logRecord(wrappedQuery, binLog);
     }
 
-    static class WeighableMarshallableBatch extends AbstractWeighableMarshallable
+    @VisibleForTesting
+    public static class WeighableMarshallableBatch extends AbstractWeighableMarshallable
     {
         private final int weight;
         private final String batchType;
@@ -170,7 +172,8 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
         }
     }
 
-    static class WeighableMarshallableQuery extends AbstractWeighableMarshallable
+    @VisibleForTesting
+    public static class WeighableMarshallableQuery extends AbstractWeighableMarshallable
     {
         private final String query;
 
