@@ -23,6 +23,7 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 
@@ -151,7 +152,7 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
         logRecord(wrappedQuery, binLog);
     }
 
-    static class Query extends AbstractLogEntry
+    public static class Query extends AbstractLogEntry
     {
         private final String query;
 
@@ -181,7 +182,7 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
         }
     }
 
-    static class Batch extends AbstractLogEntry
+    public static class Batch extends AbstractLogEntry
     {
         private final int weight;
         private final BatchStatement.Type batchType;

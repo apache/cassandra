@@ -1,4 +1,5 @@
 4.0
+ * Add fqltool replay (CASSANDRA-14618)
  * Log keyspace in full query log (CASSANDRA-14656)
  * Transient Replication and Cheap Quorums (CASSANDRA-14404)
  * Log server-generated timestamp and nowInSeconds used by queries in FQL (CASSANDRA-14675)

@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 
+import org.apache.cassandra.transport.ClientStat;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -37,6 +38,13 @@ public class QueryState
     public QueryState(ClientState clientState)
     {
         this.clientState = clientState;
+    }
+
+    public QueryState(ClientState clientState, long timestamp, int nowInSeconds)
+    {
+        this(clientState);
+        this.timestamp = timestamp;
+        this.nowInSeconds = nowInSeconds;
     }
 
     /**
