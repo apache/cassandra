@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.fqltool;
+package org.apache.cassandra.tools.fqltool.commands;
 
 import java.io.File;
 import java.nio.BufferUnderflowException;
