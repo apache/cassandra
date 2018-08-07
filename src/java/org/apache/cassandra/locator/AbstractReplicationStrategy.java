@@ -359,12 +359,12 @@ public abstract class AbstractReplicationStrategy
 
             if (parsedRf < 0)
             {
-                throw new ConfigurationException("Replication factor must be non-negative; found " + rf);
+                throw new ConfigurationException(String.format("Replication factor must be non-negative; found %s", rf));
             }
         }
         catch (NumberFormatException e2)
         {
-            throw new ConfigurationException("Replication factor must be numeric; found " + rf);
+            throw new ConfigurationException(String.format("Replication factor must be numeric; found %s", rf));
         }
     }
 
