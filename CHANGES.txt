@@ -12,7 +12,7 @@
  * Remove hardcoded java11 jvm args in idea workspace files (CASSANDRA-14627)
  * Update netty to 4.1.128 (CASSANDRA-14633)
  * Add a virtual table to expose thread pools (CASSANDRA-14523)
- * Add a virtual table to expose caches (CASSANDRA-14538)
+ * Add a virtual table to expose caches (CASSANDRA-14538, CASSANDRA-14626)
  * Fix toDate function for timestamp arguments (CASSANDRA-14502)
  * Revert running dtests by default in circleci (CASSANDRA-14614)
  * Stream entire SSTables when possible (CASSANDRA-14556)

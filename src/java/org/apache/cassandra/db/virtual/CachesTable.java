@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.CacheMetrics;
@@ -69,9 +70,13 @@ final class CachesTable extends AbstractVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
+
+        if (null != ChunkCache.instance)
+            addRow(result, "chunks", ChunkCache.instance.metrics);
         addRow(result, "counters", CacheService.instance.counterCache.getMetrics());
         addRow(result, "keys", CacheService.instance.keyCache.getMetrics());
         addRow(result, "rows", CacheService.instance.rowCache.getMetrics());
+
         return result;
     }
 }
