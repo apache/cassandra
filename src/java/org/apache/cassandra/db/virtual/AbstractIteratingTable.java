@@ -53,12 +53,14 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.AbstractIterator;
 
 /**
@@ -66,11 +68,11 @@ import com.google.common.collect.AbstractIterator;
  * for when the data set is too large to fit in memory. It requires that the partition
  * keys are provided in the order of the partitioner of the table metadata.
  */
-public abstract class OrderedVirtualTable implements VirtualTable
+public abstract class AbstractIteratingTable implements VirtualTable
 {
     final protected TableMetadata metadata;
 
-    protected OrderedVirtualTable(TableMetadata metadata)
+    protected AbstractIteratingTable(TableMetadata metadata)
     {
         this.metadata = metadata;
     }
@@ -143,9 +145,12 @@ public abstract class OrderedVirtualTable implements VirtualTable
         {
             protected UnfilteredRowIterator computeNext()
             {
+                Token last = metadata.partitioner.getMinimumToken();
                 while (iter.hasNext())
                 {
                     DecoratedKey key = iter.next();
+                    Preconditions.checkArgument(last.compareTo(key.getToken()) <= 0, "Keys out of order");
+                    last = key.getToken();
                     if (dataRange.contains(key))
                     {
                         return makePartition(key, dataRange, columnFilter);

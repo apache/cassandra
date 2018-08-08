@@ -44,7 +44,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.virtual.AbstractVirtualTable;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
-import org.apache.cassandra.db.virtual.OrderedVirtualTable;
+import org.apache.cassandra.db.virtual.AbstractIteratingTable;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
@@ -150,7 +150,7 @@ public class VirtualTableTest extends CQLTester
                 makeKey(vt3metadata, "pk1"),
                 makeKey(vt3metadata, "pk2"));
 
-        VirtualTable vt3 = new OrderedVirtualTable(vt3metadata)
+        VirtualTable vt3 = new AbstractIteratingTable(vt3metadata)
         {
             protected Iterator<DecoratedKey> getPartitionKeys(DataRange dataRange)
             {
@@ -274,7 +274,7 @@ public class VirtualTableTest extends CQLTester
     }
 
     @Test
-    public void testAbstractUnordered() throws Throwable
+    public void testIteratorTable() throws Throwable
     {
         testQueries("vt3");
     }
