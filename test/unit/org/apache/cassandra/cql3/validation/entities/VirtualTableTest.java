@@ -17,34 +17,48 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
+import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
-import com.google.common.collect.ImmutableList;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.virtual.AbstractVirtualTable;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
+import org.apache.cassandra.db.virtual.OrderedVirtualTable;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.triggers.ITrigger;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 public class VirtualTableTest extends CQLTester
 {
@@ -87,6 +101,14 @@ public class VirtualTableTest extends CQLTester
         }
     }
 
+    private static DecoratedKey makeKey(TableMetadata metadata, String... partitionKeyValues)
+    {
+        ByteBuffer partitionKey = partitionKeyValues.length == 1
+                                ?  UTF8Type.instance.decompose(partitionKeyValues[0])
+                                : ((CompositeType) metadata.partitionKeyType).decompose(partitionKeyValues);
+        return metadata.partitioner.decorateKey(partitionKey);
+    }
+
     @BeforeClass
     public static void setUpClass()
     {
@@ -116,95 +138,145 @@ public class VirtualTableTest extends CQLTester
             }
         };
         VirtualTable vt2 = new WritableVirtualTable(KS_NAME, VT2_NAME);
+        TableMetadata vt3metadata = TableMetadata.builder(KS_NAME, "vt3")
+                .kind(TableMetadata.Kind.VIRTUAL)
+                .partitioner(new LocalPartitioner(UTF8Type.instance))
+                .addPartitionKeyColumn("pk", UTF8Type.instance)
+                .addClusteringColumn("c", UTF8Type.instance)
+                .addRegularColumn("v1", Int32Type.instance)
+                .addRegularColumn("v2", LongType.instance)
+                .build();
+        final List<DecoratedKey> vt3keys = Lists.newArrayList(
+                makeKey(vt3metadata, "pk1"),
+                makeKey(vt3metadata, "pk2"));
 
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2)));
+        VirtualTable vt3 = new OrderedVirtualTable(vt3metadata)
+        {
+            protected Iterator<DecoratedKey> getPartitionKeys(DataRange dataRange)
+            {
+                return vt3keys.iterator();
+            }
+
+            protected Iterator<Row> getRows(boolean isReversed, DecoratedKey key, RegularAndStaticColumns columns)
+            {
+                String value = metadata.partitionKeyType.getString(key.getKey());
+                int pk = Integer.parseInt(value.substring(2));
+                List<Row> rows = Lists.newArrayList(
+                        row("c1").add("v1", 10 * pk + 1).add("v2", (long) (10 * pk + 1)).build(columns),
+                        row("c2").add("v1", 10 * pk + 2).add("v2", (long) (10 * pk + 2)).build(columns),
+                        row("c3").add("v1", 10 * pk + 3).add("v2", (long) (10 * pk + 3)).build(columns));
+                if (isReversed)
+                {
+                    Collections.reverse(rows);
+                }
+                return rows.iterator();
+            }
+
+            protected boolean hasKey(DecoratedKey partitionKey)
+            {
+                return vt3keys.contains(partitionKey);
+            }
+        };
+
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3)));
 
         CQLTester.setUpClass();
     }
 
-    @Test
-    public void testQueries() throws Throwable
+    public void testQueries(String table) throws Throwable
     {
-        assertRowsNet(executeNet("SELECT * FROM test_virtual_ks.vt1 WHERE pk = 'UNKNOWN'"));
+        assertRowsNet(executeNet("SELECT * FROM test_virtual_ks."+table+" WHERE pk = 'UNKNOWN'"));
 
-        assertRowsNet(executeNet("SELECT * FROM test_virtual_ks.vt1 WHERE pk = 'pk1' AND c = 'UNKNOWN'"));
+        assertRowsNet(executeNet("SELECT * FROM test_virtual_ks."+table+" WHERE pk = 'pk1' AND c = 'UNKNOWN'"));
 
         // Test DISTINCT query
-        assertRowsNet(executeNet("SELECT DISTINCT pk FROM test_virtual_ks.vt1"),
+        assertRowsNet(executeNet("SELECT DISTINCT pk FROM test_virtual_ks."+table),
                       row("pk1"),
                       row("pk2"));
 
-        assertRowsNet(executeNet("SELECT DISTINCT pk FROM test_virtual_ks.vt1 WHERE token(pk) > token('pk1')"),
+        assertRowsNet(executeNet("SELECT DISTINCT pk FROM test_virtual_ks."+table+" WHERE token(pk) > token('pk1')"),
                       row("pk2"));
 
         // Test single partition queries
-        assertRowsNet(executeNet("SELECT v1, v2 FROM test_virtual_ks.vt1 WHERE pk = 'pk1' AND c = 'c1'"),
+        assertRowsNet(executeNet("SELECT v1, v2 FROM test_virtual_ks."+table+" WHERE pk = 'pk1' AND c = 'c1'"),
                       row(11, 11L));
 
-        assertRowsNet(executeNet("SELECT c, v1, v2 FROM test_virtual_ks.vt1 WHERE pk = 'pk1' AND c IN ('c1', 'c2')"),
+        assertRowsNet(executeNet("SELECT c, v1, v2 FROM test_virtual_ks."+table+" WHERE pk = 'pk1' AND c IN ('c1', 'c2')"),
                       row("c1", 11, 11L),
                       row("c2", 12, 12L));
 
-        assertRowsNet(executeNet("SELECT c, v1, v2 FROM test_virtual_ks.vt1 WHERE pk = 'pk1' AND c IN ('c2', 'c1') ORDER BY c DESC"),
+        assertRowsNet(executeNet("SELECT c, v1, v2 FROM test_virtual_ks."+table+" WHERE pk = 'pk1' AND c IN ('c2', 'c1') ORDER BY c DESC"),
                       row("c2", 12, 12L),
                       row("c1", 11, 11L));
 
         // Test multi-partition queries
-        assertRows(execute("SELECT * FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')"),
+        assertRows(execute("SELECT * FROM test_virtual_ks."+table+" WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')"),
                    row("pk1", "c1", 11, 11L),
                    row("pk1", "c2", 12, 12L),
                    row("pk2", "c1", 21, 21L),
                    row("pk2", "c2", 22, 22L));
 
-        assertRows(execute("SELECT pk, c, v1 FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') ORDER BY c DESC"),
+        assertRows(execute("SELECT pk, c, v1 FROM test_virtual_ks."+table+" WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') ORDER BY c DESC"),
                    row("pk1", "c2", 12),
                    row("pk2", "c2", 22),
                    row("pk1", "c1", 11),
                    row("pk2", "c1", 21));
 
-        assertRows(execute("SELECT pk, c, v1 FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') ORDER BY c DESC LIMIT 1"),
+        assertRows(execute("SELECT pk, c, v1 FROM test_virtual_ks."+table+" WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') ORDER BY c DESC LIMIT 1"),
                    row("pk1", "c2", 12));
 
-        assertRows(execute("SELECT c, v1, v2 FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1' , 'c3') ORDER BY c DESC PER PARTITION LIMIT 1"),
+        assertRows(execute("SELECT c, v1, v2 FROM test_virtual_ks."+table+" WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1' , 'c3') ORDER BY c DESC PER PARTITION LIMIT 1"),
                    row("c3", 13, 13L),
                    row("c3", 23, 23L));
 
-        assertRows(execute("SELECT count(*) FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')"),
+        assertRows(execute("SELECT count(*) FROM test_virtual_ks."+table+" WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')"),
                    row(4L));
 
         for (int pageSize = 1; pageSize < 5; pageSize++)
         {
-            assertRowsNet(executeNetWithPaging("SELECT pk, c, v1, v2 FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT pk, c, v1, v2 FROM test_virtual_ks."+table+" WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')", pageSize),
                           row("pk1", "c1", 11, 11L),
                           row("pk1", "c2", 12, 12L),
                           row("pk2", "c1", 21, 21L),
                           row("pk2", "c2", 22, 22L));
 
-            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') LIMIT 2", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks."+table+" WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') LIMIT 2", pageSize),
                           row("pk1", "c1", 11, 11L),
                           row("pk1", "c2", 12, 12L));
 
-            assertRowsNet(executeNetWithPaging("SELECT count(*) FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT count(*) FROM test_virtual_ks."+table+" WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')", pageSize),
                           row(4L));
         }
 
         // Test range queries
         for (int pageSize = 1; pageSize < 4; pageSize++)
         {
-            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks.vt1 WHERE token(pk) < token('pk2') AND c IN ('c2', 'c1') ALLOW FILTERING", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks."+table+" WHERE token(pk) < token('pk2') AND c IN ('c2', 'c1') ALLOW FILTERING", pageSize),
                           row("pk1", "c1", 11, 11L),
                           row("pk1", "c2", 12, 12L));
 
-            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks.vt1 WHERE token(pk) < token('pk2') AND c IN ('c2', 'c1') LIMIT 1 ALLOW FILTERING", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks."+table+" WHERE token(pk) < token('pk2') AND c IN ('c2', 'c1') LIMIT 1 ALLOW FILTERING", pageSize),
                           row("pk1", "c1", 11, 11L));
 
-            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks.vt1 WHERE token(pk) <= token('pk2') AND c > 'c1' PER PARTITION LIMIT 1 ALLOW FILTERING", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks."+table+" WHERE token(pk) <= token('pk2') AND c > 'c1' PER PARTITION LIMIT 1 ALLOW FILTERING", pageSize),
                           row("pk1", "c2", 12, 12L),
                           row("pk2", "c2", 22, 22L));
 
-            assertRowsNet(executeNetWithPaging("SELECT count(*) FROM test_virtual_ks.vt1 WHERE token(pk) = token('pk2') AND c < 'c3' ALLOW FILTERING", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT count(*) FROM test_virtual_ks."+table+" WHERE token(pk) = token('pk2') AND c < 'c3' ALLOW FILTERING", pageSize),
                           row(2L));
         }
+    }
+
+    @Test
+    public void testInMemoryQueries() throws Throwable
+    {
+        testQueries("vt1");
+    }
+
+    @Test
+    public void testAbstractUnordered() throws Throwable
+    {
+        testQueries("vt3");
     }
 
     @Test
