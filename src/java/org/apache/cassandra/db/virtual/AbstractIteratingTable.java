@@ -103,6 +103,8 @@ public abstract class AbstractIteratingTable implements VirtualTable
     protected abstract Iterator<Row> getRows(boolean isReversed, DecoratedKey key, RegularAndStaticColumns columns);
 
     @Override
+    // eclipse warnings doesnt like returning closeable iterators when created anonymously
+    @SuppressWarnings("resource")
     public UnfilteredPartitionIterator select(DecoratedKey partitionKey, ClusteringIndexFilter clusteringFilter,
             ColumnFilter columnFilter)
     {
