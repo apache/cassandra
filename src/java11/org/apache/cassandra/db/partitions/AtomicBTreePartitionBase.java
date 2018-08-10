@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.partitions;
 
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
@@ -38,7 +39,8 @@ public abstract class AtomicBTreePartitionBase extends AbstractBTreePartition
     }
 
     // Replacement for Unsafe.monitorEnter/monitorExit.
-    private final ReentrantLock lock = new ReentrantLock();
+    private volatile ReentrantLock lock;
+    private static final AtomicReferenceFieldUpdater<AtomicBTreePartitionBase, ReentrantLock> lockUpdater = AtomicReferenceFieldUpdater.newUpdater(AtomicBTreePartitionBase.class, ReentrantLock.class, "lock");
 
     static
     {
@@ -50,6 +52,9 @@ public abstract class AtomicBTreePartitionBase extends AbstractBTreePartition
 
     protected final void acquireLock()
     {
+        if (lock == null)
+            lockUpdater.compareAndSet(this, null, new ReentrantLock());
+
         lock.lock();
     }
 
