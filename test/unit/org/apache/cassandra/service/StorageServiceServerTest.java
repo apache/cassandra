@@ -623,27 +623,27 @@ public class StorageServiceServerTest
     @Test(expected = IllegalStateException.class)
     public void testAuditLogEnableLoggerNotFound() throws Exception
     {
-        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
+        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
         assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
-        StorageService.instance.enableAuditLog("foobar", null, null, null, null, null, null);
+        StorageService.instance.enableAuditLog("foobar", null, null, null, null, null, null, null);
     }
 
     @Test
     public void testAuditLogEnableLoggerTransitions() throws Exception
     {
-        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
+        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
         assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
 
         try
         {
-            StorageService.instance.enableAuditLog("foobar", null, null, null, null, null, null);
+            StorageService.instance.enableAuditLog("foobar", null, null, null, null, null, null, null);
         }
         catch (ConfigurationException | IllegalStateException e)
         {
             e.printStackTrace();
         }
 
-        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
+        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
         assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
     }
 }

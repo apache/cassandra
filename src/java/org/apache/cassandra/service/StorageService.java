@@ -5442,7 +5442,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
-                               String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException
+                               String includedUsers, String excludedUsers, String archiveCommand) throws ConfigurationException, IllegalStateException
     {
         loggerName = loggerName != null ? loggerName : DatabaseDescriptor.getAuditLoggingOptions().logger;
 
@@ -5458,13 +5458,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         auditLogOptions.excluded_categories = excludedCategories != null ? excludedCategories : DatabaseDescriptor.getAuditLoggingOptions().excluded_categories;
         auditLogOptions.included_users = includedUsers != null ? includedUsers : DatabaseDescriptor.getAuditLoggingOptions().included_users;
         auditLogOptions.excluded_users = excludedUsers != null ? excludedUsers : DatabaseDescriptor.getAuditLoggingOptions().excluded_users;
+        auditLogOptions.archive_command = archiveCommand != null ? archiveCommand : DatabaseDescriptor.getAuditLoggingOptions().archive_command;
 
         AuditLogManager.getInstance().enableAuditLog(auditLogOptions);
 
         logger.info("AuditLog is enabled with logger: [{}], included_keyspaces: [{}], excluded_keyspaces: [{}], " +
-                    "included_categories: [{}], excluded_categories: [{}]," +
-                    "included_users: [{}], excluded_users: [{}],", loggerName, auditLogOptions.included_keyspaces, auditLogOptions.excluded_keyspaces,
-                    auditLogOptions.included_categories, auditLogOptions.excluded_categories, auditLogOptions.included_users, auditLogOptions.excluded_users);
+                    "included_categories: [{}], excluded_categories: [{}], included_users: [{}], "
+                    + "excluded_users: [{}], archive_command: [{}]", loggerName, auditLogOptions.included_keyspaces, auditLogOptions.excluded_keyspaces,
+                    auditLogOptions.included_categories, auditLogOptions.excluded_categories, auditLogOptions.included_users, auditLogOptions.excluded_users, 
+                    auditLogOptions.archive_command);
 
     }
 

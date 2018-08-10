@@ -46,10 +46,13 @@ public class EnableAuditLog extends NodeToolCmd
 
     @Option(title = "excluded_users", name = { "--excluded-users" }, description = "Comma separated list of users to be excluded for audit log. If not set the value from cassandra.yaml will be used")
     private String excluded_users = null;
+    
+    @Option(title = "archive_command", name = { "--archive-command" }, description = "Script/command to be executed when audit log directory size is over limit. If not set the value from cassandra.yaml will be used")
+    private String archive_command = null;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.enableAuditLog(logger, included_keyspaces, excluded_keyspaces, included_categories, excluded_categories, included_users, excluded_users);
+        probe.enableAuditLog(logger, included_keyspaces, excluded_keyspaces, included_categories, excluded_categories, included_users, excluded_users, archive_command);
     }
 }

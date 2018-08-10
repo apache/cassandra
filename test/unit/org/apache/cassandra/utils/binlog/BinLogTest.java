@@ -36,6 +36,8 @@ import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.audit.AuditLogOptions;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
 
 import static org.junit.Assert.assertEquals;
@@ -58,10 +60,15 @@ public class BinLogTest
 
     private BinLog binLog;
     private Path path;
+    private Path archiveDirPath;
 
     @Before
     public void setUp() throws Exception
     {
+        AuditLogOptions options = new AuditLogOptions();
+        options.enabled = false;
+        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setAuditLoggingOptions(options);
         path = tempDir();
         binLog = new BinLog(path, RollCycles.TEST_SECONDLY, 10, 1024 * 1024 * 128);
         binLog.start();
@@ -77,6 +84,13 @@ public class BinLogTest
         for (File f : path.toFile().listFiles())
         {
             f.delete();
+        }
+        if(archiveDirPath != null)
+        {
+            for (File f : archiveDirPath.toFile().listFiles())
+            {
+                f.delete();
+            }
         }
     }
 
@@ -355,6 +369,49 @@ public class BinLogTest
         List<String> records = readBinLogRecords(path);
         System.out.println("Records found are " + records);
         assertTrue(records.size() < 5);
+    }
+    @Test
+    public void testBinLogArchival() throws Exception {
+        tearDown();
+        archiveDirPath = tempDir();
+        File archiveScriptFile = FileUtils.createTempFile("archive_script", ".sh", path.toFile());
+        archiveScriptFile.setExecutable(true);
+        FileUtils.append(archiveScriptFile, "#!/bin/sh");
+        FileUtils.append(archiveScriptFile, "mv $1 " + archiveDirPath);
+        DatabaseDescriptor.getAuditLoggingOptions().archive_command = archiveScriptFile.getPath() + " %path";
+        binLog = new BinLog(path, RollCycles.TEST_SECONDLY, 10000, 1);
+        binLog.start();
+        for (int ii = 0; ii < 5; ii++)
+        {
+            binLog.put(record(String.valueOf(ii)));
+            Thread.sleep(1001);
+        }
+        List<String> records = readBinLogRecords(path);
+        assertTrue(records.size() < 5);
+        
+        records = readBinLogRecords(archiveDirPath);
+        assertTrue(records.size() >= 1);
+    }
+    
+    @Test
+    // bin logs remain in case of script execution failures
+    public void testBinLogArchivalFailure() throws Exception {
+        tearDown();
+        archiveDirPath = tempDir();
+        File archiveScriptFile = FileUtils.createTempFile("archive_script", ".sh", path.toFile());
+        archiveScriptFile.setExecutable(true);
+        FileUtils.append(archiveScriptFile, "#!/bin/sh");
+        FileUtils.append(archiveScriptFile, "invalid_linux_command");
+        DatabaseDescriptor.getAuditLoggingOptions().archive_command = archiveScriptFile.getPath() + " %path";
+        binLog = new BinLog(path, RollCycles.TEST_SECONDLY, 10000, 1);
+        binLog.start();
+        for (int ii = 0; ii < 5; ii++)
+        {
+            binLog.put(record(String.valueOf(ii)));
+            Thread.sleep(1001);
+        }
+        List<String> records = readBinLogRecords(path);
+        assertTrue(records.size() > 0 && records.size() < 5);
     }
 
     @Test(expected = IllegalStateException.class)

@@ -19,9 +19,12 @@
 package org.apache.cassandra.audit;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -36,6 +39,8 @@ import io.netty.buffer.ByteBuf;
 import net.openhft.chronicle.bytes.BytesStore;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
@@ -54,6 +59,7 @@ abstract class BinLogAuditLogger implements IAuditLogger
     static final int EMPTY_LIST_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(new ArrayList(0)));
     private static final int EMPTY_BYTEBUF_SIZE;
     private static final int OBJECT_HEADER_SIZE = MemoryLayoutSpecification.SPEC.getObjectHeaderSize();
+    protected static final Logger logger = LoggerFactory.getLogger(BinLogAuditLogger.class);
     static
     {
         int tempSize = 0;
@@ -69,7 +75,6 @@ abstract class BinLogAuditLogger implements IAuditLogger
         EMPTY_BYTEBUF_SIZE = tempSize;
     }
 
-    protected static final Logger logger = LoggerFactory.getLogger(BinLogAuditLogger.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
     private static final NoSpamLogger.NoSpamLogStatement droppedSamplesStatement = noSpamLogger.getStatement("Dropped {} binary log samples", 1, TimeUnit.MINUTES);
 
