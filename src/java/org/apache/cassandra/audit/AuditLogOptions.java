@@ -51,12 +51,12 @@ public class AuditLogOptions
     /**
      * Maximum size of the rolled files to retain on disk before deleting the oldest file. For advanced configurations
      */
-    public long max_log_size = 1;
+    public long max_log_size = 16L * 1024L * 1024L * 1024L;
 
     /**
      * How often to roll Audit log segments so they can potentially be reclaimed. Available options are:
      * MINUTELY, HOURLY, DAILY, LARGE_DAILY, XLARGE_DAILY, HUGE_DAILY.
      * For more options, refer: net.openhft.chronicle.queue.RollCycles
      */
-    public String roll_cycle = "MINUTELY";
+    public String roll_cycle = "HOURLY";
 }

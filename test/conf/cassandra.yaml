@@ -51,4 +51,4 @@ stream_throughput_outbound_megabits_per_sec: 200000000
 audit_logging_options:
     enabled: true
     logger: BinAuditLogger
-    archive_command: /Users/pksivar/Desktop/archive_script.sh %path
+    archive_command: archive_script.sh %path

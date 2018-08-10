@@ -1204,7 +1204,7 @@ back_pressure_strategy:
 # Audit logging - Logs every incoming CQL command request, authentication to a node. See the docs
 # on audit_logging for full details about the various configuration options.
 audit_logging_options:
-    enabled: true
+    enabled: false
     logger: BinAuditLogger
     # audit_logs_dir:
     # included_keyspaces: 
@@ -1213,7 +1213,7 @@ audit_logging_options:
     # excluded_categories:
     # included_users:
     # excluded_users:
-    #archive_command:
+    # archive_command:
 
 # validate tombstones on reads and compaction
 # can be either "disabled", "warn" or "exception"
