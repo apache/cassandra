@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -54,6 +55,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLogTest;
+import org.apache.cassandra.utils.binlog.DeletingArchiver;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -101,31 +103,31 @@ public class FullQueryLoggerTest extends CQLTester
     @Test(expected = NullPointerException.class)
     public void testConfigureNullPath() throws Exception
     {
-        instance.configure(null, "", true, 1, 1);
+        instance.configure(null, "", true, 1, 1, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = NullPointerException.class)
     public void testConfigureNullRollCycle() throws Exception
     {
-        instance.configure(BinLogTest.tempDir(), null, true, 1, 1);
+        instance.configure(BinLogTest.tempDir(), null, true, 1, 1, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testConfigureInvalidRollCycle() throws Exception
     {
-        instance.configure(BinLogTest.tempDir(), "foobar", true, 1, 1);
+        instance.configure(BinLogTest.tempDir(), "foobar", true, 1, 1, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testConfigureInvalidMaxQueueWeight() throws Exception
     {
-        instance.configure(BinLogTest.tempDir(), "DAILY", true, 0, 1);
+        instance.configure(BinLogTest.tempDir(), "DAILY", true, 0, 1, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testConfigureInvalidMaxQueueLogSize() throws Exception
     {
-        instance.configure(BinLogTest.tempDir(), "DAILY", true, 1, 0);
+        instance.configure(BinLogTest.tempDir(), "DAILY", true, 1, 0, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -133,7 +135,7 @@ public class FullQueryLoggerTest extends CQLTester
     {
         File f = FileUtils.createTempFile("foo", "bar");
         f.deleteOnExit();
-        instance.configure(f.toPath(), "TEST_SECONDLY", true, 1, 1);
+        instance.configure(f.toPath(), "TEST_SECONDLY", true, 1, 1, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -344,7 +346,7 @@ public class FullQueryLoggerTest extends CQLTester
     @Test
     public void testNonBlocking() throws Exception
     {
-        instance.configure(tempDir, "TEST_SECONDLY", false, 1, 1024 * 1024 * 256);
+        instance.configure(tempDir, "TEST_SECONDLY", false, 1, 1024 * 1024 * 256, StringUtils.EMPTY, 10);
         //Prevent the bin log thread from making progress, causing the task queue to refuse tasks
         Semaphore blockBinLog = new Semaphore(0);
         try
@@ -689,7 +691,7 @@ public class FullQueryLoggerTest extends CQLTester
 
     private void configureFQL() throws Exception
     {
-        instance.configure(tempDir, "TEST_SECONDLY", true, 1, 1024 * 1024 * 256);
+        instance.configure(tempDir, "TEST_SECONDLY", true, 1, 1024 * 1024 * 256, StringUtils.EMPTY, 10);
     }
 
     private void logQuery(String query)

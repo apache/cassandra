@@ -19,7 +19,9 @@ package org.apache.cassandra.audit;
 
 import org.apache.commons.lang3.StringUtils;
 
-public class AuditLogOptions
+import org.apache.cassandra.utils.binlog.BinLogOptions;
+
+public class AuditLogOptions extends BinLogOptions
 {
     public volatile boolean enabled = false;
     public String logger = BinAuditLogger.class.getSimpleName();
@@ -35,27 +37,24 @@ public class AuditLogOptions
      */
     public String audit_logs_dir = System.getProperty("cassandra.logdir.audit",
                                                       System.getProperty("cassandra.logdir",".")+"/audit/");
-    /**
-     * Indicates if the AuditLog should block if the it falls behind or should drop audit log records.
-     * Default is set to true so that AuditLog records wont be lost
-     */
-    public boolean block = true;
 
-    /**
-     * Maximum weight of in memory queue for records waiting to be written to the audit log file
-     * before blocking or dropping the log records. For advanced configurations
-     */
-    public int max_queue_weight = 256 * 1024 * 1024;
-
-    /**
-     * Maximum size of the rolled files to retain on disk before deleting the oldest file. For advanced configurations
-     */
-    public long max_log_size = 16L * 1024L * 1024L * 1024L;
-
-    /**
-     * How often to roll Audit log segments so they can potentially be reclaimed. Available options are:
-     * MINUTELY, HOURLY, DAILY, LARGE_DAILY, XLARGE_DAILY, HUGE_DAILY.
-     * For more options, refer: net.openhft.chronicle.queue.RollCycles
-     */
-    public String roll_cycle = "HOURLY";
+    public String toString()
+    {
+        return "AuditLogOptions{" +
+               "enabled=" + enabled +
+               ", logger='" + logger + '\'' +
+               ", included_keyspaces='" + included_keyspaces + '\'' +
+               ", excluded_keyspaces='" + excluded_keyspaces + '\'' +
+               ", included_categories='" + included_categories + '\'' +
+               ", excluded_categories='" + excluded_categories + '\'' +
+               ", included_users='" + included_users + '\'' +
+               ", excluded_users='" + excluded_users + '\'' +
+               ", audit_logs_dir='" + audit_logs_dir + '\'' +
+               ", archive_command='" + archive_command + '\'' +
+               ", roll_cycle='" + roll_cycle + '\'' +
+               ", block=" + block +
+               ", max_queue_weight=" + max_queue_weight +
+               ", max_log_size=" + max_log_size +
+               '}';
+    }
 }

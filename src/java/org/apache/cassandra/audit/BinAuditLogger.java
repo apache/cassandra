@@ -39,7 +39,9 @@ public class BinAuditLogger extends BinLogAuditLogger implements IAuditLogger
                   auditLoggingOptions.block,
                   auditLoggingOptions.max_queue_weight,
                   auditLoggingOptions.max_log_size,
-                  false);
+                  false,
+                  auditLoggingOptions.archive_command,
+                  auditLoggingOptions.max_archive_retries);
     }
 
     @Override

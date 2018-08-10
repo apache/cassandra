@@ -126,6 +126,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.audit.BinLogAuditLogger",
     "org.apache.cassandra.audit.FullQueryLogger",
     "org.apache.cassandra.audit.AuditLogOptions",
+    "org.apache.cassandra.utils.binlog.BinLogOptions",
+    "org.apache.cassandra.audit.FullQueryLoggerOptions",
     // generated classes
     "org.apache.cassandra.config.ConfigBeanInfo",
     "org.apache.cassandra.config.ConfigCustomizer",

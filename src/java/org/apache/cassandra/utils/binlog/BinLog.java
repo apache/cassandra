@@ -18,12 +18,9 @@
 
 package org.apache.cassandra.utils.binlog;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -35,7 +32,6 @@ import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycle;
-import net.openhft.chronicle.queue.impl.StoreFileListener;
 import net.openhft.chronicle.wire.WireOut;
 import net.openhft.chronicle.wire.WriteMarshallable;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
@@ -53,7 +49,7 @@ import org.apache.cassandra.utils.concurrent.WeightedQueue;
  * to handle writing the log, making it available for readers, as well as log rolling.
  *
  */
-public class BinLog implements Runnable, StoreFileListener
+public class BinLog implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(BinLog.class);
 
@@ -62,17 +58,7 @@ public class BinLog implements Runnable, StoreFileListener
     @VisibleForTesting
     Thread binLogThread = new NamedThreadFactory("Binary Log thread").newThread(this);
     final WeightedQueue<ReleaseableWriteMarshallable> sampleQueue;
-    private final long maxLogSize;
-
-    /**
-     * The files in the chronicle queue that have already rolled
-     */
-    private Queue<File> chronicleStoreFiles = new ConcurrentLinkedQueue<>();
-
-    /**
-     * The number of bytes in store files that have already rolled
-     */
-    private long bytesInStoreFiles;
+    private final BinLogArchiver archiver;
 
     private static final ReleaseableWriteMarshallable NO_OP = new ReleaseableWriteMarshallable()
     {
@@ -90,25 +76,23 @@ public class BinLog implements Runnable, StoreFileListener
     private volatile boolean shouldContinue = true;
 
     /**
-     *
-     * @param path Path to store the BinLog. Can't be shared with anything else.
-     * @param rollCycle How often to roll the log file so it can potentially be deleted
+     * @param path           Path to store the BinLog. Can't be shared with anything else.
+     * @param rollCycle      How often to roll the log file so it can potentially be deleted
      * @param maxQueueWeight Maximum weight of in memory queue for records waiting to be written to the file before blocking or dropping
-     * @param maxLogSize Maximum size of the rolled files to retain on disk before deleting the oldest file
      */
-    public BinLog(Path path, RollCycle rollCycle, int maxQueueWeight, long maxLogSize)
+    public BinLog(Path path, RollCycle rollCycle, int maxQueueWeight, BinLogArchiver archiver)
     {
         Preconditions.checkNotNull(path, "path was null");
         Preconditions.checkNotNull(rollCycle, "rollCycle was null");
         Preconditions.checkArgument(maxQueueWeight > 0, "maxQueueWeight must be > 0");
-        Preconditions.checkArgument(maxLogSize > 0, "maxLogSize must be > 0");
         ChronicleQueueBuilder builder = ChronicleQueueBuilder.single(path.toFile());
         builder.rollCycle(rollCycle);
-        builder.storeFileListener(this);
+
+        sampleQueue = new WeightedQueue<>(maxQueueWeight);
+        this.archiver = archiver;
+        builder.storeFileListener(this.archiver);
         queue = builder.build();
         appender = queue.acquireAppender();
-        sampleQueue = new WeightedQueue<>(maxQueueWeight);
-        this.maxLogSize = maxLogSize;
     }
 
     /**
@@ -139,6 +123,7 @@ public class BinLog implements Runnable, StoreFileListener
         binLogThread.join();
         appender = null;
         queue = null;
+        archiver.stop();
     }
 
     /**
@@ -226,34 +211,6 @@ public class BinLog implements Runnable, StoreFileListener
         finalize();
     }
 
-    /**
-     * Track store files as they are added and their storage impact. Delete them if over storage limit.
-     * @param cycle
-     * @param file
-     */
-    public synchronized void onReleased(int cycle, File file)
-    {
-        chronicleStoreFiles.offer(file);
-        //This isn't accurate because the files are sparse, but it's at least pessimistic
-        bytesInStoreFiles += file.length();
-        logger.debug("Chronicle store file {} rolled file size {}", file.getPath(), file.length());
-        while (bytesInStoreFiles > maxLogSize & !chronicleStoreFiles.isEmpty())
-        {
-            File toDelete = chronicleStoreFiles.poll();
-            long toDeleteLength = toDelete.length();
-            if (!toDelete.delete())
-            {
-                logger.error("Failed to delete chronicle store file: {} store file size: {} bytes in store files: {}. " +
-                             "You will need to clean this up manually or reset full query logging.",
-                             toDelete.getPath(), toDeleteLength, bytesInStoreFiles);
-            }
-            else
-            {
-                bytesInStoreFiles -= toDeleteLength;
-                logger.info("Deleted chronicle store file: {} store file size: {} bytes in store files: {} max log size: {}.", file.getPath(), toDeleteLength, bytesInStoreFiles, maxLogSize);
-            }
-        }
-    }
 
     /**
      * There is a race where we might not release a buffer, going to let finalization
