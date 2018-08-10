@@ -293,7 +293,7 @@ public class AuditLogManager
         oldLogger.stop();
     }
 
-    public void configureFQL(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize)
+    public void configureFQL(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
     {
         if (path.equals(auditLogger.path()))
             throw new IllegalArgumentException(String.format("fullquerylogger path (%s) cannot be the same as the " +
@@ -301,7 +301,7 @@ public class AuditLogManager
                                                              path,
                                                              auditLogger.path()));
 
-        fullQueryLogger.configure(path, rollCycle, blocking, maxQueueWeight, maxLogSize);
+        fullQueryLogger.configure(path, rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
     }
 
     public void resetFQL(String fullQueryLogPath)
