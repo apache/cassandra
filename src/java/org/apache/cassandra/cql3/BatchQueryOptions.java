@@ -84,6 +84,11 @@ public abstract class BatchQueryOptions
         return wrapped.getTimestamp(state);
     }
 
+    public int getNowInSeconds()
+    {
+        return wrapped.getNowInSeconds();
+    }
+
     private static class WithoutPerStatementVariables extends BatchQueryOptions
     {
         private WithoutPerStatementVariables(QueryOptions wrapped, List<Object> queryOrIdList)

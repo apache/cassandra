@@ -234,7 +234,7 @@ public class SelectStatement implements CQLStatement
 
         cl.validateForRead(keyspace());
 
-        int nowInSec = FBUtilities.nowInSeconds();
+        int nowInSec = options.getNowInSeconds();
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
         int pageSize = options.getPageSize();
@@ -428,7 +428,7 @@ public class SelectStatement implements CQLStatement
 
     public ResultMessage.Rows executeLocally(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
-        return executeInternal(state, options, FBUtilities.nowInSeconds(), System.nanoTime());
+        return executeInternal(state, options, options.getNowInSeconds(), System.nanoTime());
     }
 
     public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options, int nowInSec, long queryStartNanoTime) throws RequestExecutionException, RequestValidationException

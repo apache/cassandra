@@ -235,6 +235,7 @@ public class StorageProxy implements StorageProxyMBean
                                   ConsistencyLevel consistencyForPaxos,
                                   ConsistencyLevel consistencyForCommit,
                                   ClientState state,
+                                  int nowInSeconds,
                                   long queryStartNanoTime)
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
@@ -261,7 +262,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 // read the current values and check they validate the conditions
                 Tracing.trace("Reading existing values for CAS precondition");
-                SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) request.readCommand(FBUtilities.nowInSeconds());
+                SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
                 ConsistencyLevel readConsistency = consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
 
                 FilteredPartition current;
