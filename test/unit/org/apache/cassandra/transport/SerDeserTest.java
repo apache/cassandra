@@ -42,7 +42,6 @@ import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Serialization/deserialization tests for protocol objects and messages.
@@ -308,34 +307,56 @@ public class SerDeserTest
     }
 
     @Test
-    public void queryOptionsSerDeserTest() throws Exception
+    public void queryOptionsSerDeserTest()
     {
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
-            queryOptionsSerDeserTest(version);
-    }
+        {
+            queryOptionsSerDeserTest(
+                version,
+                QueryOptions.create(ConsistencyLevel.ALL,
+                                    Collections.singletonList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 })),
+                                    false,
+                                    5000,
+                                    Util.makeSomePagingState(version),
+                                    ConsistencyLevel.SERIAL,
+                                    version,
+                                    null)
+            );
+        }
 
-    private void queryOptionsSerDeserTest(ProtocolVersion version) throws Exception
-    {
-        queryOptionsSerDeserTest(version, QueryOptions.create(ConsistencyLevel.ALL,
-                                                              Collections.singletonList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 })),
-                                                              false,
-                                                              5000,
-                                                              Util.makeSomePagingState(version),
-                                                              ConsistencyLevel.SERIAL,
-                                                              version,
-                                                              null
-        ));
+        for (ProtocolVersion version : ProtocolVersion.supportedVersionsStartingWith(ProtocolVersion.V5))
+        {
+            queryOptionsSerDeserTest(
+                version,
+                QueryOptions.create(ConsistencyLevel.LOCAL_ONE,
+                                    Arrays.asList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 }),
+                                                  ByteBuffer.wrap(new byte[] { 0x03, 0x04, 0x05, 0x03, 0x04, 0x05 })),
+                                    true,
+                                    10,
+                                    Util.makeSomePagingState(version),
+                                    ConsistencyLevel.SERIAL,
+                                    version,
+                                    "some_keyspace")
+            );
+        }
 
-        queryOptionsSerDeserTest(version, QueryOptions.create(ConsistencyLevel.LOCAL_ONE,
-                                                              Arrays.asList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 }),
-                                                                            ByteBuffer.wrap(new byte[] { 0x03, 0x04, 0x05, 0x03, 0x04, 0x05 })),
-                                                              true,
-                                                              10,
-                                                              Util.makeSomePagingState(version),
-                                                              ConsistencyLevel.SERIAL,
-                                                              version,
-                                                              "some_keyspace"
-        ));
+        for (ProtocolVersion version : ProtocolVersion.supportedVersionsStartingWith(ProtocolVersion.V5))
+        {
+            queryOptionsSerDeserTest(
+                version,
+                QueryOptions.create(ConsistencyLevel.LOCAL_ONE,
+                                    Arrays.asList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 }),
+                                                  ByteBuffer.wrap(new byte[] { 0x03, 0x04, 0x05, 0x03, 0x04, 0x05 })),
+                                    true,
+                                    10,
+                                    Util.makeSomePagingState(version),
+                                    ConsistencyLevel.SERIAL,
+                                    version,
+                                    "some_keyspace",
+                                    FBUtilities.timestampMicros(),
+                                    FBUtilities.nowInSeconds())
+            );
+        }
     }
 
     private void queryOptionsSerDeserTest(ProtocolVersion version, QueryOptions options)
@@ -353,5 +374,6 @@ public class SerDeserTest
         assertEquals(options.getPagingState(), decodedOptions.getPagingState());
         assertEquals(options.skipMetadata(), decodedOptions.skipMetadata());
         assertEquals(options.getKeyspace(), decodedOptions.getKeyspace());
+        assertEquals(options.getNowInSeconds(), decodedOptions.getNowInSeconds());
     }
 }

@@ -84,6 +84,15 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
         return ret;
     }
 
+    public static List<ProtocolVersion> supportedVersionsStartingWith(ProtocolVersion smallestVersion)
+    {
+        ArrayList<ProtocolVersion> versions = new ArrayList<>(SUPPORTED_VERSIONS.length);
+        for (ProtocolVersion version : SUPPORTED_VERSIONS)
+            if (version.isGreaterOrEqualTo(smallestVersion))
+                versions.add(version);
+        return versions;
+    }
+
     public static ProtocolVersion decode(int versionNum)
     {
         ProtocolVersion ret = versionNum >= MIN_SUPPORTED_VERSION.num && versionNum <= MAX_SUPPORTED_VERSION.num

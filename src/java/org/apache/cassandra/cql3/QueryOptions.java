@@ -34,6 +34,7 @@ import org.apache.cassandra.transport.CBCodec;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -69,9 +70,34 @@ public abstract class QueryOptions
         return new DefaultQueryOptions(null, null, true, null, protocolVersion);
     }
 
-    public static QueryOptions create(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, int pageSize, PagingState pagingState, ConsistencyLevel serialConsistency, ProtocolVersion version, String keyspace)
+    public static QueryOptions create(ConsistencyLevel consistency,
+                                      List<ByteBuffer> values,
+                                      boolean skipMetadata,
+                                      int pageSize,
+                                      PagingState pagingState,
+                                      ConsistencyLevel serialConsistency,
+                                      ProtocolVersion version,
+                                      String keyspace)
     {
-        return new DefaultQueryOptions(consistency, values, skipMetadata, new SpecificOptions(pageSize, pagingState, serialConsistency, -1L, keyspace), version);
+        return create(consistency, values, skipMetadata, pageSize, pagingState, serialConsistency, version, keyspace, Long.MIN_VALUE, Integer.MIN_VALUE);
+    }
+
+    public static QueryOptions create(ConsistencyLevel consistency,
+                                      List<ByteBuffer> values,
+                                      boolean skipMetadata,
+                                      int pageSize,
+                                      PagingState pagingState,
+                                      ConsistencyLevel serialConsistency,
+                                      ProtocolVersion version,
+                                      String keyspace,
+                                      long timestamp,
+                                      int nowInSeconds)
+    {
+        return new DefaultQueryOptions(consistency,
+                                       values,
+                                       skipMetadata,
+                                       new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds),
+                                       version);
     }
 
     public static QueryOptions addColumnSpecifications(QueryOptions options, List<ColumnSpecification> columnSpecs)
@@ -172,6 +198,12 @@ public abstract class QueryOptions
     {
         long tstamp = getSpecificOptions().timestamp;
         return tstamp != Long.MIN_VALUE ? tstamp : state.getTimestamp();
+    }
+
+    public int getNowInSeconds()
+    {
+        int nowInSeconds = getSpecificOptions().nowInSeconds;
+        return Integer.MIN_VALUE == nowInSeconds ? FBUtilities.nowInSeconds() : nowInSeconds;
     }
 
     /** The keyspace that this query is bound to, or null if not relevant. */
@@ -346,21 +378,28 @@ public abstract class QueryOptions
     // Options that are likely to not be present in most queries
     static class SpecificOptions
     {
-        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE, null);
+        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE, null, Integer.MIN_VALUE);
 
         private final int pageSize;
         private final PagingState state;
         private final ConsistencyLevel serialConsistency;
         private final long timestamp;
         private final String keyspace;
+        private final int nowInSeconds;
 
-        private SpecificOptions(int pageSize, PagingState state, ConsistencyLevel serialConsistency, long timestamp, String keyspace)
+        private SpecificOptions(int pageSize,
+                                PagingState state,
+                                ConsistencyLevel serialConsistency,
+                                long timestamp,
+                                String keyspace,
+                                int nowInSeconds)
         {
             this.pageSize = pageSize;
             this.state = state;
             this.serialConsistency = serialConsistency == null ? ConsistencyLevel.SERIAL : serialConsistency;
             this.timestamp = timestamp;
             this.keyspace = keyspace;
+            this.nowInSeconds = nowInSeconds;
         }
     }
 
@@ -376,7 +415,8 @@ public abstract class QueryOptions
             SERIAL_CONSISTENCY,
             TIMESTAMP,
             NAMES_FOR_VALUES,
-            KEYSPACE;
+            KEYSPACE,
+            NOW_IN_SECONDS;
 
             private static final Flag[] ALL_VALUES = values();
 
@@ -442,8 +482,10 @@ public abstract class QueryOptions
                     timestamp = ts;
                 }
                 String keyspace = flags.contains(Flag.KEYSPACE) ? CBUtil.readString(body) : null;
-                options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace);
+                int nowInSeconds = flags.contains(Flag.NOW_IN_SECONDS) ? body.readInt() : Integer.MIN_VALUE;
+                options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds);
             }
+
             DefaultQueryOptions opts = new DefaultQueryOptions(consistency, values, skipMetadata, options, version);
             return names == null ? opts : new OptionsWithNames(opts, names);
         }
@@ -452,7 +494,7 @@ public abstract class QueryOptions
         {
             CBUtil.writeConsistencyLevel(options.getConsistency(), dest);
 
-            EnumSet<Flag> flags = gatherFlags(options);
+            EnumSet<Flag> flags = gatherFlags(options, version);
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                 dest.writeInt(Flag.serialize(flags));
             else
@@ -470,6 +512,8 @@ public abstract class QueryOptions
                 dest.writeLong(options.getSpecificOptions().timestamp);
             if (flags.contains(Flag.KEYSPACE))
                 CBUtil.writeString(options.getSpecificOptions().keyspace, dest);
+            if (flags.contains(Flag.NOW_IN_SECONDS))
+                dest.writeInt(options.getSpecificOptions().nowInSeconds);
 
             // Note that we don't really have to bother with NAMES_FOR_VALUES server side,
             // and in fact we never really encode QueryOptions, only decode them, so we
@@ -482,7 +526,7 @@ public abstract class QueryOptions
 
             size += CBUtil.sizeOfConsistencyLevel(options.getConsistency());
 
-            EnumSet<Flag> flags = gatherFlags(options);
+            EnumSet<Flag> flags = gatherFlags(options, version);
             size += (version.isGreaterOrEqualTo(ProtocolVersion.V5) ? 4 : 1);
 
             if (flags.contains(Flag.VALUES))
@@ -497,10 +541,13 @@ public abstract class QueryOptions
                 size += 8;
             if (flags.contains(Flag.KEYSPACE))
                 size += CBUtil.sizeOfString(options.getSpecificOptions().keyspace);
+            if (flags.contains(Flag.NOW_IN_SECONDS))
+                size += 4;
+
             return size;
         }
 
-        private EnumSet<Flag> gatherFlags(QueryOptions options)
+        private EnumSet<Flag> gatherFlags(QueryOptions options, ProtocolVersion version)
         {
             EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
             if (options.getValues().size() > 0)
@@ -515,8 +562,15 @@ public abstract class QueryOptions
                 flags.add(Flag.SERIAL_CONSISTENCY);
             if (options.getSpecificOptions().timestamp != Long.MIN_VALUE)
                 flags.add(Flag.TIMESTAMP);
-            if (options.getSpecificOptions().keyspace != null)
-                flags.add(Flag.KEYSPACE);
+
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+            {
+                if (options.getSpecificOptions().keyspace != null)
+                    flags.add(Flag.KEYSPACE);
+                if (options.getSpecificOptions().nowInSeconds != Integer.MIN_VALUE)
+                    flags.add(Flag.NOW_IN_SECONDS);
+            }
+
             return flags;
         }
     }

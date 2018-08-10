@@ -66,7 +66,7 @@ public class UpdateParameters
         this.updatedColumns = updatedColumns;
         this.options = options;
 
-        this.nowInSec = FBUtilities.nowInSeconds();
+        this.nowInSec = options.getNowInSeconds();
         this.timestamp = timestamp;
         this.ttl = ttl;
 

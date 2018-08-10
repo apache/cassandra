@@ -375,6 +375,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                            DataLimits limits,
                                                            boolean local,
                                                            ConsistencyLevel cl,
+                                                           int nowInSeconds,
                                                            long queryStartNanoTime)
     {
         if (!requiresRead())
@@ -390,10 +391,9 @@ public abstract class ModificationStatement implements CQLStatement
         }
 
         List<SinglePartitionReadCommand> commands = new ArrayList<>(partitionKeys.size());
-        int nowInSec = FBUtilities.nowInSeconds();
         for (ByteBuffer key : partitionKeys)
             commands.add(SinglePartitionReadCommand.create(metadata(),
-                                                           nowInSec,
+                                                           nowInSeconds,
                                                            ColumnFilter.selection(this.requiresRead),
                                                            RowFilter.NONE,
                                                            limits,
@@ -484,6 +484,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                    options.getSerialConsistency(),
                                                    options.getConsistency(),
                                                    queryState.getClientState(),
+                                                   options.getNowInSeconds(),
                                                    queryStartNanoTime))
         {
             return new ResultMessage.Rows(buildCasResultSet(result, options));
@@ -600,7 +601,7 @@ public abstract class ModificationStatement implements CQLStatement
         SelectStatement.forSelection(metadata, selection).processPartition(partition,
                                                                       options,
                                                                       builder,
-                                                                      FBUtilities.nowInSeconds());
+                                                                      options.getNowInSeconds());
 
         return builder.build();
     }
@@ -622,17 +623,17 @@ public abstract class ModificationStatement implements CQLStatement
     public ResultMessage executeInternalWithCondition(QueryState state, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
         CQL3CasRequest request = makeCasRequest(state, options);
-        try (RowIterator result = casInternal(request, state))
+        try (RowIterator result = casInternal(request, state, options.getNowInSeconds()))
         {
             return new ResultMessage.Rows(buildCasResultSet(result, options));
         }
     }
 
-    static RowIterator casInternal(CQL3CasRequest request, QueryState state)
+    static RowIterator casInternal(CQL3CasRequest request, QueryState state, int nowInSeconds)
     {
         UUID ballot = UUIDGen.getTimeUUIDFromMicros(state.getTimestamp());
 
-        SinglePartitionReadQuery readCommand = request.readCommand(FBUtilities.nowInSeconds());
+        SinglePartitionReadQuery readCommand = request.readCommand(nowInSeconds);
         FilteredPartition current;
         try (ReadExecutionController executionController = readCommand.executionController();
              PartitionIterator iter = readCommand.executeInternal(executionController))
@@ -656,21 +657,21 @@ public abstract class ModificationStatement implements CQLStatement
      *
      * @param options value for prepared statement markers
      * @param local if true, any requests (for collections) performed by getMutation should be done locally only.
-     * @param now the current timestamp in microseconds to use if no timestamp is user provided.
+     * @param timestamp the current timestamp in microseconds to use if no timestamp is user provided.
      *
      * @return list of the mutations
      */
-    private Collection<? extends IMutation> getMutations(QueryOptions options, boolean local, long now, long queryStartNanoTime)
+    private Collection<? extends IMutation> getMutations(QueryOptions options, boolean local, long timestamp, long queryStartNanoTime)
     {
         UpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, 1);
-        addUpdates(collector, options, local, now, queryStartNanoTime);
+        addUpdates(collector, options, local, timestamp, queryStartNanoTime);
         return collector.toMutations();
     }
 
     final void addUpdates(UpdatesCollector collector,
                           QueryOptions options,
                           boolean local,
-                          long now,
+                          long timestamp,
                           long queryStartNanoTime)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options);
@@ -688,7 +689,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                            options,
                                                            DataLimits.NONE,
                                                            local,
-                                                           now,
+                                                           timestamp,
                                                            queryStartNanoTime);
             for (ByteBuffer key : keys)
             {
@@ -709,7 +710,7 @@ public abstract class ModificationStatement implements CQLStatement
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            UpdateParameters params = makeUpdateParameters(keys, clusterings, options, local, now, queryStartNanoTime);
+            UpdateParameters params = makeUpdateParameters(keys, clusterings, options, local, timestamp, queryStartNanoTime);
 
             for (ByteBuffer key : keys)
             {
@@ -752,7 +753,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                   NavigableSet<Clustering> clusterings,
                                                   QueryOptions options,
                                                   boolean local,
-                                                  long now,
+                                                  long timestamp,
                                                   long queryStartNanoTime)
     {
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
@@ -761,7 +762,7 @@ public abstract class ModificationStatement implements CQLStatement
                                         options,
                                         DataLimits.cqlLimits(1),
                                         local,
-                                        now,
+                                        timestamp,
                                         queryStartNanoTime);
 
         return makeUpdateParameters(keys,
@@ -769,7 +770,7 @@ public abstract class ModificationStatement implements CQLStatement
                                     options,
                                     DataLimits.NONE,
                                     local,
-                                    now,
+                                    timestamp,
                                     queryStartNanoTime);
     }
 
@@ -778,12 +779,12 @@ public abstract class ModificationStatement implements CQLStatement
                                                   QueryOptions options,
                                                   DataLimits limits,
                                                   boolean local,
-                                                  long now,
+                                                  long timestamp,
                                                   long queryStartNanoTime)
     {
         // Some lists operation requires reading
-        Map<DecoratedKey, Partition> lists = readRequiredLists(keys, filter, limits, local, options.getConsistency(), queryStartNanoTime);
-        return new UpdateParameters(metadata(), updatedColumns(), options, getTimestamp(now, options), getTimeToLive(options), lists);
+        Map<DecoratedKey, Partition> lists = readRequiredLists(keys, filter, limits, local, options.getConsistency(), options.getNowInSeconds(), queryStartNanoTime);
+        return new UpdateParameters(metadata(), updatedColumns(), options, getTimestamp(timestamp, options), getTimeToLive(options), lists);
     }
 
     private Slices toSlices(SortedSet<ClusteringBound> startBounds, SortedSet<ClusteringBound> endBounds)
