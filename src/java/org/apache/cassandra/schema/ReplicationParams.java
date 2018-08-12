@@ -79,6 +79,14 @@ public final class ReplicationParams
         Map<String, String> options = new HashMap<>(map);
         String className = options.remove(CLASS);
         Class<? extends AbstractReplicationStrategy> klass = AbstractReplicationStrategy.getClass(className);
+
+        // add default replication factor if missing
+        // CASSANDRA-14303 will address NetworkTopologyStrategy by adding data centers with default replication factor
+        if (klass == SimpleStrategy.class)
+        {
+            options.putIfAbsent("replication_factor", Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF()));
+        }
+
         return new ReplicationParams(klass, options);
     }
 

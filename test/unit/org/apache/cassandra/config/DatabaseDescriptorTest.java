@@ -28,6 +28,7 @@ import java.util.Enumeration;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
@@ -249,5 +250,24 @@ public class DatabaseDescriptorTest
         assertTrue(testConfig.cas_contention_timeout_in_ms == DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
         assertTrue(testConfig.counter_write_request_timeout_in_ms == DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
         assertTrue(testConfig.request_timeout_in_ms == DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
+    }
+
+    @Test (expected = ConfigurationException.class)
+    public void testInvalidSub1DefaultRFs() throws ConfigurationException
+    {
+        DatabaseDescriptor.setDefaultKeyspaceRF(0);
+    }
+
+    @Test (expected = ConfigurationException.class)
+    public void testInvalidSub0MinimumRFs() throws ConfigurationException
+    {
+        DatabaseDescriptor.setMinimumKeyspaceRF(-1);
+    }
+
+    @Test (expected = ConfigurationException.class)
+    public void testDefaultRfLessThanMinRF()
+    {
+        DatabaseDescriptor.setMinimumKeyspaceRF(2);
+        DatabaseDescriptor.setDefaultKeyspaceRF(1);
     }
 }

@@ -86,8 +86,9 @@ The supported ``options`` are:
 =================== ========== =========== ========= ===================================================================
 name                 kind       mandatory   default   description
 =================== ========== =========== ========= ===================================================================
-``replication``      *map*      yes                   The replication strategy and options to use for the keyspace (see
-                                                      details below).
+``replication``      *map*      yes (nts)             The replication strategy and options to use for the keyspace (see
+                                no  (ss)              details below). NOT mandatory for Simple Strategy (ss). This is
+                                                      however mandatory for NetworkTopology Strategy (nts).
 ``durable_writes``   *simple*   no          true      Whether to use the commit log for updates on this keyspace
                                                       (disable this option at your own risk!).
 =================== ========== =========== ========= ===================================================================
@@ -97,10 +98,14 @@ The ``replication`` property is mandatory and must at least contains the ``'clas
 strategy is used. By default, Cassandra support the following ``'class'``:
 
 - ``'SimpleStrategy'``: A simple strategy that defines a replication factor for the whole cluster. The only sub-options
-  supported is ``'replication_factor'`` to define that replication factor and is mandatory.
+  supported is ``'replication_factor'`` to define that replication factor, not mandatory (default_keyspace_rf would be
+  applied if this sub-option is not mentioned).
 - ``'NetworkTopologyStrategy'``: A replication strategy that allows to set the replication factor independently for
   each data-center. The rest of the sub-options are key-value pairs where a key is a data-center name and its value is
   the associated replication factor.
+
+Attempting to create a keyspace with a replication factor less than what is configured for minimum_keyspace_rf
+(default value 0) will return an error.
 
 Attempting to create a keyspace that already exists will return an error unless the ``IF NOT EXISTS`` option is used. If
 it is used, the statement will be a no-op if the keyspace already exists.
