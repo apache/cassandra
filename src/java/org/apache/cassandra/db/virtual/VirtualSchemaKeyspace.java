@@ -22,9 +22,10 @@ import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.schema.TableMetadata.builder;
@@ -32,6 +33,7 @@ import static org.apache.cassandra.schema.TableMetadata.builder;
 public final class VirtualSchemaKeyspace extends VirtualKeyspace
 {
     private static final String NAME = "system_virtual_schema";
+    private static final IPartitioner UTF8_PARTITIONER = new LocalPartitioner(UTF8Type.instance);
 
     public static final VirtualSchemaKeyspace instance = new VirtualSchemaKeyspace();
 
@@ -49,6 +51,7 @@ public final class VirtualSchemaKeyspace extends VirtualKeyspace
             super(builder(keyspace, "keyspaces")
                  .comment("virtual keyspace definitions")
                  .kind(TableMetadata.Kind.VIRTUAL)
+                 .partitioner(UTF8_PARTITIONER)
                  .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
                  .build());
         }
@@ -73,6 +76,7 @@ public final class VirtualSchemaKeyspace extends VirtualKeyspace
             super(builder(keyspace, "tables")
                  .comment("virtual table definitions")
                  .kind(TableMetadata.Kind.VIRTUAL)
+                 .partitioner(UTF8_PARTITIONER)
                  .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
                  .addClusteringColumn(TABLE_NAME, UTF8Type.instance)
                  .addRegularColumn(COMMENT, UTF8Type.instance)
@@ -112,6 +116,7 @@ public final class VirtualSchemaKeyspace extends VirtualKeyspace
             super(builder(keyspace, "columns")
                  .comment("virtual column definitions")
                  .kind(TableMetadata.Kind.VIRTUAL)
+                 .partitioner(UTF8_PARTITIONER)
                  .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
                  .addClusteringColumn(TABLE_NAME, UTF8Type.instance)
                  .addClusteringColumn(COLUMN_NAME, UTF8Type.instance)

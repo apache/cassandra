@@ -20,6 +20,7 @@ package org.apache.cassandra.db.virtual;
 import java.net.InetSocketAddress;
 
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ConnectedClient;
@@ -44,6 +45,7 @@ final class ClientsTable extends AbstractVirtualTable
         super(TableMetadata.builder(keyspace, "clients")
                            .comment("currently connected clients")
                            .kind(TableMetadata.Kind.VIRTUAL)
+                           .partitioner(new LocalPartitioner(InetAddressType.instance))
                            .addPartitionKeyColumn(ADDRESS, InetAddressType.instance)
                            .addClusteringColumn(PORT, Int32Type.instance)
                            .addRegularColumn(HOSTNAME, UTF8Type.instance)
