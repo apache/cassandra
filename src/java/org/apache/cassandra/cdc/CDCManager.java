@@ -450,7 +450,7 @@ public class CDCManager implements CDCManagerMBean
      */
     private void validateTables()
     {
-        for (String keyspaceName : Schema.instance.getUserKeyspaces().names())
+        for (String keyspaceName : Schema.instance.getUserKeyspaces())
         {
             Keyspace keyspace = Schema.instance.getKeyspaceInstance(keyspaceName);
             for (TableMetadata table : Schema.instance.getTablesAndViews(keyspaceName))

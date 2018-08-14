@@ -664,6 +664,22 @@ public class Config
 
     public String bad_query_ignore_keyspaces = "";
 
+    public Boolean auto_repair_enabled = false;
+
+    public Integer auto_repair_no_of_subranges = 1;
+
+    public Integer auto_repair_number_of_repair_threads = 1;
+
+    public Integer auto_repair_sstable_upper_threshold = 10000;
+
+    public String auto_repair_ignore_keyspaces = "";
+
+    public Integer auto_repair_check_interval_in_sec = 300;
+
+    public Integer auto_repair_min_repair_frequency_in_hours = 24;
+
+    public String auto_repair_ignore_dc = "phx2";
+
     /**
      * When a node first starts up it intially considers all other peers as DOWN and is disconnected from all of them.
      * To be useful as a coordinator (and not introduce latency penalties on restart) this node must have successfully

@@ -4786,4 +4786,44 @@ public class DatabaseDescriptor
     {
         return conf.bad_query_ignore_keyspaces;
     }
+
+    public static Boolean isAutoRepairEnabled()
+    {
+        return conf.auto_repair_enabled;
+    }
+
+    public static Integer getAutoRepairNumberOfSubRanges()
+    {
+        return conf.auto_repair_no_of_subranges;
+    }
+
+    public static Integer getAutoRepairNumberOfRepairThreads()
+    {
+        return conf.auto_repair_number_of_repair_threads;
+    }
+
+    public static Integer getAutoRepairSSTableUpperThreshold()
+    {
+        return conf.auto_repair_sstable_upper_threshold;
+    }
+
+    public static String getAutoRepairIgnoreKeyspaces()
+    {
+        return conf.auto_repair_ignore_keyspaces;
+    }
+
+    public static Integer getAutoRepairCheckInterval()
+    {
+        return conf.auto_repair_check_interval_in_sec;
+    }
+
+    public static Integer getAutoRepairMinRepairFrequencyInHours()
+    {
+         return conf.auto_repair_min_repair_frequency_in_hours;
+    }
+
+    public static String getAutoRepairIgnoreDC()
+    {
+        return conf.auto_repair_ignore_dc;
+    }
 }

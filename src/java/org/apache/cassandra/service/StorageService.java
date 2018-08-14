@@ -92,6 +92,7 @@ import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.db.monitoring.BadQuery;
+import org.apache.cassandra.repair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -441,7 +442,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /* Used for tracking drain progress */
     private volatile int totalCFs, remainingCFs;
 
-    private static final AtomicInteger nextRepairCommand = new AtomicInteger();
+    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<>();
 
@@ -455,6 +456,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private static final boolean joinRing = Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true"));
     private boolean replacing;
 
+    private boolean autoRepairStarted = true;
     private final StreamStateStore streamStateStore = new StreamStateStore();
 
     public final SSTablesGlobalTracker sstablesTracker;
@@ -1364,6 +1366,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         doRequestThrottlerSetup();
 
         doBadQuerySetup();
+
+        doAutoRepairSetup();
     }
 
     @VisibleForTesting
@@ -1419,6 +1423,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             BadQuery.setup();
         }
         MonitoringService.instance.setBadQueryTracingStatus(DatabaseDescriptor.isBadQueryTracingEnabled());
+    }
+
+    private void doAutoRepairSetup()
+    {
+        if (DatabaseDescriptor.isAutoRepairEnabled())
+        {
+            logger.info("enable autorepair");
+            AutoRepair.instance.setup();
+        }
     }
 
     @VisibleForTesting
@@ -7209,5 +7222,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         return DatabaseDescriptor.getPaxosRepairRaceWait();
     }
+    public void stopAutoRepair()
+    {
+        autoRepairStarted = false;
+    }
 
+    @Override
+    public void startAutoRepair()
+    {
+        autoRepairStarted = true;
+    }
+
+    public boolean isAutoRepairStarted()
+    {
+        return autoRepairStarted;
+    }
+
+    public boolean isAutoRepairEnabled()
+    {
+        return DatabaseDescriptor.isAutoRepairEnabled();
+    }
 }

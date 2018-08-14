@@ -1107,4 +1107,13 @@ public interface StorageServiceMBean extends NotificationEmitter
     void setPaxosRepairRaceWait(boolean paxosRepairCoordinatorWait);
 
     boolean getPaxosRepairRaceWait();
+
+    /** Stop ongoing AutoRepair */
+    public void stopAutoRepair();
+
+    /** Start AutoRepair */
+    public void startAutoRepair();
+
+    /** Check if AutoRepair is enabled for this node */
+    public boolean isAutoRepairEnabled();
 }

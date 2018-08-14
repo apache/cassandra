@@ -96,6 +96,7 @@
                  <!-- Uber specific -->
                  <exclude NAME=".arcconfig"/>
                  <exclude NAME="METADATA"/>
+                 <exclude NAME="**/**"/>
             </fileset>
         </rat:report>
         <exec executable="grep" outputproperty="rat.failed.files" failifexecutionfails="false">

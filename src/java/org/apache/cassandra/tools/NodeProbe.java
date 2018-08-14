@@ -2268,6 +2268,21 @@ public class NodeProbe implements AutoCloseable
     {
         monitoringProxy.setBadQueryIgnoreKeyspaces(badQueryIgnoreKeyspaces);
     }
+
+    public void stopAutoRepair()
+    {
+        ssProxy.stopAutoRepair();
+    }
+
+    public void startAutoRepair()
+    {
+        ssProxy.startAutoRepair();
+    }
+
+    public boolean isAutoRepairEnabled()
+    {
+        return ssProxy.isAutoRepairEnabled();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
