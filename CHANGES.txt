@@ -1,4 +1,5 @@
 4.0
+ * Make all existing virtual tables use LocalPartitioner (CASSANDRA-14640)
  * Revert 4.0 GC alg back to CMS (CASANDRA-14636)
  * Remove hardcoded java11 jvm args in idea workspace files (CASSANDRA-14627)
  * Update netty to 4.1.128 (CASSANDRA-14633)
