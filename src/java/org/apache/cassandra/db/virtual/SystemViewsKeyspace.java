@@ -29,6 +29,7 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
     {
         super(NAME, ImmutableList.of(new CachesTable(NAME),
                                      new ClientsTable(NAME),
+                                     new SettingsTable(NAME),
                                      new SSTableTasksTable(NAME),
                                      new ThreadPoolsTable(NAME)));
     }
