@@ -80,8 +80,9 @@ final class SettingsTable extends AbstractVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         String setting = UTF8Type.instance.compose(partitionKey.getKey());
-        if (FIELDS.containsKey(setting))
-            addValue(result, FIELDS.get(setting));
+        Field field = FIELDS.get(setting);
+        if (field != null)
+            addValue(result, field);
         return result;
     }
 
