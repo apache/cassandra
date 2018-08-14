@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -49,6 +50,7 @@ public final class VirtualSchemaKeyspace extends VirtualKeyspace
             super(builder(keyspace, "keyspaces")
                  .comment("virtual keyspace definitions")
                  .kind(TableMetadata.Kind.VIRTUAL)
+                 .partitioner(new LocalPartitioner(UTF8Type.instance))
                  .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
                  .build());
         }
@@ -73,6 +75,7 @@ public final class VirtualSchemaKeyspace extends VirtualKeyspace
             super(builder(keyspace, "tables")
                  .comment("virtual table definitions")
                  .kind(TableMetadata.Kind.VIRTUAL)
+                 .partitioner(new LocalPartitioner(UTF8Type.instance))
                  .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
                  .addClusteringColumn(TABLE_NAME, UTF8Type.instance)
                  .addRegularColumn(COMMENT, UTF8Type.instance)
@@ -112,6 +115,7 @@ public final class VirtualSchemaKeyspace extends VirtualKeyspace
             super(builder(keyspace, "columns")
                  .comment("virtual column definitions")
                  .kind(TableMetadata.Kind.VIRTUAL)
+                 .partitioner(new LocalPartitioner(UTF8Type.instance))
                  .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
                  .addClusteringColumn(TABLE_NAME, UTF8Type.instance)
                  .addClusteringColumn(COLUMN_NAME, UTF8Type.instance)
