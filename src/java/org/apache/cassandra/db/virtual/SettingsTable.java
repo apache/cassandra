@@ -21,7 +21,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.config.Config;
@@ -57,30 +56,32 @@ final class SettingsTable extends AbstractVirtualTable
     private void addValue(SimpleDataSet result, Field f)
     {
         Config config = DatabaseDescriptor.getRawConfig();
+
+        Object value;
         try
         {
-            Object value = f.get(config);
-            if (value != null && value.getClass().isArray())
-            {
-                value = Arrays.toString((Object[]) value);
-            }
-            result.row(f.getName());
-            if (value != null)
-                result.column(VALUE, value.toString());
+            value = f.get(config);
         }
         catch (IllegalAccessException | IllegalArgumentException e)
         {
             throw new ServerError(e);
         }
+
+        if (value != null && value.getClass().isArray())
+        {
+            value = Arrays.toString((Object[]) value);
+        }
+        result.row(f.getName());
+        if (value != null)
+            result.column(VALUE, value.toString());
     }
 
     public DataSet data(DecoratedKey partitionKey)
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         String setting = UTF8Type.instance.compose(partitionKey.getKey());
-        if (!FIELDS.containsKey(setting))
-            return result;
-        addValue(result, FIELDS.get(setting));
+        if (FIELDS.containsKey(setting))
+            addValue(result, FIELDS.get(setting));
         return result;
     }
 
@@ -88,9 +89,9 @@ final class SettingsTable extends AbstractVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        for (Entry<String, Field> setting : FIELDS.entrySet())
+        for (Field setting : FIELDS.values())
         {
-            addValue(result, setting.getValue());
+            addValue(result, setting);
         }
         return result;
     }
