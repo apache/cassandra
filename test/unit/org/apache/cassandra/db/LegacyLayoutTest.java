@@ -187,7 +187,6 @@ public class LegacyLayoutTest
         }
     }
 
-
     @Test
     public void testStaticRangeTombstoneRoundTripUnexpectedDeletion() throws Throwable
     {
