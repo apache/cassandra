@@ -25,7 +25,6 @@ import java.security.MessageDigest;
 import java.util.*;
 
 import org.apache.cassandra.cql3.SuperColumnCompatibility;
-import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
@@ -46,6 +45,7 @@ import org.apache.cassandra.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
@@ -201,16 +201,19 @@ public abstract class LegacyLayout
         List<ByteBuffer> components = CompositeType.splitName(bound);
         byte eoc = CompositeType.lastEOC(bound);
 
+        // if the bound we have decoded is static, 2.2 format requires there to be N empty clusterings
+        assert !isStatic ||
+                (components.size() >= clusteringSize
+                        && all(components.subList(0, clusteringSize), ByteBufferUtil.EMPTY_BYTE_BUFFER::equals));
         // There can be  more components than the clustering size only in the case this is the bound of a collection
         // range tombstone. In which case, there is exactly one more component, and that component is the name of the
         // collection being selected/deleted.
-        assert components.size() <= clusteringSize || (!metadata.isCompactTable() && components.size() == clusteringSize + 1);
-
         ColumnDefinition collectionName = null;
-        if (components.size() > (isStatic ? 0 : clusteringSize))
+        if (components.size() > clusteringSize)
         {
+            assert clusteringSize + 1 == components.size() && !metadata.isCompactTable();
             // pop the collection name from the back of the list of clusterings
-            ByteBuffer collectionNameBytes = components.remove(isStatic ? 0 : clusteringSize);
+            ByteBuffer collectionNameBytes = components.remove(clusteringSize);
             collectionName = metadata.getColumnDefinition(collectionNameBytes);
         }
 
@@ -799,12 +802,18 @@ public abstract class LegacyLayout
             if (!delTime.isLive())
             {
                 Clustering clustering = row.clustering();
+                boolean isStatic = clustering == Clustering.STATIC_CLUSTERING;
+                assert isStatic == col.isStatic();
 
-                Slice.Bound startBound = Slice.Bound.inclusiveStartOf(clustering);
-                Slice.Bound endBound = Slice.Bound.inclusiveEndOf(clustering);
+                Slice.Bound startBound = isStatic
+                        ? LegacyDeletionInfo.staticBound(metadata, true)
+                        : Slice.Bound.inclusiveStartOf(clustering);
+                Slice.Bound endBound = isStatic
+                        ? LegacyDeletionInfo.staticBound(metadata, false)
+                        : Slice.Bound.inclusiveEndOf(clustering);
 
-                LegacyLayout.LegacyBound start = new LegacyLayout.LegacyBound(startBound, col.isStatic(), col);
-                LegacyLayout.LegacyBound end = new LegacyLayout.LegacyBound(endBound, col.isStatic(), col);
+                LegacyLayout.LegacyBound start = new LegacyLayout.LegacyBound(startBound, isStatic, col);
+                LegacyLayout.LegacyBound end = new LegacyLayout.LegacyBound(endBound, isStatic, col);
 
                 deletions.add(start, end, delTime.markedForDeleteAt(), delTime.localDeletionTime());
             }
@@ -1496,6 +1505,12 @@ public abstract class LegacyLayout
     {
         public boolean isCell();
 
+        // note that for static atoms, LegacyCell and LegacyRangeTombstone behave differently here:
+        //  - LegacyCell returns the modern Clustering.STATIC_CLUSTERING
+        //  - LegacyRangeTombstone returns the 2.2 bound (i.e. N empty ByteBuffer, where N is number of clusterings)
+        // in LegacyDeletionInfo.add(), we split any LRT with a static bound out into the inRowRangeTombstones collection
+        // these are merged with regular row cells, in the CellGrouper, and their clustering is obtained via start.bound.getAsClustering
+        // (also, it should be impossibly to issue raw static row deletions anyway)
         public ClusteringPrefix clustering();
         public boolean isStatic();
 
@@ -1689,6 +1704,7 @@ public abstract class LegacyLayout
             this.deletionTime = deletionTime;
         }
 
+        /** @see LegacyAtom#clustering for static inconsistencies explained */
         public ClusteringPrefix clustering()
         {
             return start.bound;
