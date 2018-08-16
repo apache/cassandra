@@ -35,12 +35,10 @@ import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
@@ -66,12 +64,10 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
 
     private final Keyspace keyspace; // TODO push this into ConsistencyLevel?
 
-    private final ReadRepair readRepair;
-
     /**
      * Constructor when response count has to be calculated and blocked for.
      */
-    public ReadCallback(ResponseResolver resolver, ConsistencyLevel consistencyLevel, ReadCommand command, List<InetAddressAndPort> filteredEndpoints, long queryStartNanoTime, ReadRepair readRepair)
+    public ReadCallback(ResponseResolver resolver, ConsistencyLevel consistencyLevel, ReadCommand command, List<InetAddressAndPort> filteredEndpoints, long queryStartNanoTime)
     {
         this(resolver,
              consistencyLevel,
@@ -79,10 +75,10 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
              command,
              Keyspace.open(command.metadata().keyspace),
              filteredEndpoints,
-             queryStartNanoTime, readRepair);
+             queryStartNanoTime);
     }
 
-    public ReadCallback(ResponseResolver resolver, ConsistencyLevel consistencyLevel, int blockfor, ReadCommand command, Keyspace keyspace, List<InetAddressAndPort> endpoints, long queryStartNanoTime, ReadRepair readRepair)
+    public ReadCallback(ResponseResolver resolver, ConsistencyLevel consistencyLevel, int blockfor, ReadCommand command, Keyspace keyspace, List<InetAddressAndPort> endpoints, long queryStartNanoTime)
     {
         this.command = command;
         this.keyspace = keyspace;
@@ -91,7 +87,6 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
         this.resolver = resolver;
         this.queryStartNanoTime = queryStartNanoTime;
         this.endpoints = endpoints;
-        this.readRepair = readRepair;
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
         assert !(command instanceof PartitionRangeReadCommand) || blockfor >= endpoints.size();

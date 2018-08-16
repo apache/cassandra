@@ -172,7 +172,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         DataResolver resolver = new DataResolver(keyspace, cmd, ConsistencyLevel.ONE, 1, queryStartNanoTime, NoopReadRepair.instance);
-        ReadCallback handler = new ReadCallback(resolver, ConsistencyLevel.ONE, cmd, Collections.singletonList(source), queryStartNanoTime, NoopReadRepair.instance);
+        ReadCallback handler = new ReadCallback(resolver, ConsistencyLevel.ONE, cmd, Collections.singletonList(source), queryStartNanoTime);
 
         if (StorageProxy.canDoLocalRequest(source))
             StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
