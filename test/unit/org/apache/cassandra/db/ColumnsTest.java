@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 
@@ -33,6 +34,7 @@ import junit.framework.Assert;
 import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -129,19 +131,75 @@ public class ColumnsTest
     {
         List<String> names = new ArrayList<>();
         for (int i = 0; i < 50; i++)
-            names.add("clustering_" + i);
+            names.add("regular_" + i);
 
         List<ColumnDefinition> defs = new ArrayList<>();
-        addClustering(names, defs);
+        addRegular(names, defs);
 
         Columns columns = Columns.from(new HashSet<>(defs));
 
         defs = new ArrayList<>();
-        addClustering(names.subList(0, 8), defs);
+        addRegular(names.subList(0, 8), defs);
 
         Columns subset = Columns.from(new HashSet<>(defs));
 
         Assert.assertTrue(columns.containsAll(subset));
+    }
+
+    @Test
+    public void testStaticColumns()
+    {
+        testColumns(ColumnDefinition.Kind.STATIC);
+    }
+
+    @Test
+    public void testRegularColumns()
+    {
+        testColumns(ColumnDefinition.Kind.REGULAR);
+    }
+
+    private void testColumns(ColumnDefinition.Kind kind)
+    {
+        List<ColumnDefinition> definitions = ImmutableList.of(
+            def("a", UTF8Type.instance, kind),
+            def("b", SetType.getInstance(UTF8Type.instance, true), kind),
+            def("c", UTF8Type.instance, kind),
+            def("d", SetType.getInstance(UTF8Type.instance, true), kind),
+            def("e", UTF8Type.instance, kind),
+            def("f", SetType.getInstance(UTF8Type.instance, true), kind),
+            def("g", UTF8Type.instance, kind),
+            def("h", SetType.getInstance(UTF8Type.instance, true), kind)
+        );
+        Columns columns = Columns.from(definitions);
+
+        // test simpleColumnCount()
+        Assert.assertEquals(4, columns.simpleColumnCount());
+
+        // test simpleColumns()
+        List<ColumnDefinition> simpleColumnsExpected =
+            ImmutableList.of(definitions.get(0), definitions.get(2), definitions.get(4), definitions.get(6));
+        List<ColumnDefinition> simpleColumnsActual = new ArrayList<>();
+        Iterators.addAll(simpleColumnsActual, columns.simpleColumns());
+        Assert.assertEquals(simpleColumnsExpected, simpleColumnsActual);
+
+        // test complexColumnCount()
+        Assert.assertEquals(4, columns.complexColumnCount());
+
+        // test complexColumns()
+        List<ColumnDefinition> complexColumnsExpected =
+            ImmutableList.of(definitions.get(1), definitions.get(3), definitions.get(5), definitions.get(7));
+        List<ColumnDefinition> complexColumnsActual = new ArrayList<>();
+        Iterators.addAll(complexColumnsActual, columns.complexColumns());
+        Assert.assertEquals(complexColumnsExpected, complexColumnsActual);
+
+        // test size()
+        Assert.assertEquals(8, columns.size());
+
+        // test selectOrderIterator()
+        List<ColumnDefinition> columnsExpected = definitions;
+        List<ColumnDefinition> columnsActual = new ArrayList<>();
+        Iterators.addAll(columnsActual, columns.selectOrderIterator());
+        Assert.assertEquals(columnsExpected, columnsActual);
     }
 
     private void testSerializeSubset(ColumnsCheck input) throws IOException
@@ -401,6 +459,11 @@ public class ColumnsTest
     {
         for (String name : names)
             results.add(ColumnDefinition.regularDef(cfMetaData, bytes(name), SetType.getInstance(UTF8Type.instance, true)));
+    }
+
+    private static ColumnDefinition def(String name, AbstractType<?> type, ColumnDefinition.Kind kind)
+    {
+        return new ColumnDefinition(cfMetaData, bytes(name), type, ColumnDefinition.NO_POSITION, kind);
     }
 
     private static CFMetaData mock(Columns columns)
