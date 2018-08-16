@@ -369,7 +369,7 @@ public final class NativeLibrary
         }
         catch (IllegalArgumentException|IllegalAccessException e)
         {
-            logger.warn("Unable to read fd field from FileChannel");
+            logger.warn("Unable to read fd field from FileChannel", e);
         }
         return -1;
     }
