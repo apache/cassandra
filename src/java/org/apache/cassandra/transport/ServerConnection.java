@@ -20,8 +20,15 @@ package org.apache.cassandra.transport;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.security.cert.X509Certificate;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.channel.Channel;
 import com.codahale.metrics.Counter;
+import io.netty.handler.ssl.SslHandler;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
@@ -29,6 +36,7 @@ import org.apache.cassandra.service.QueryState;
 
 public class ServerConnection extends Connection
 {
+    private static Logger logger = LoggerFactory.getLogger(ServerConnection.class);
 
     private volatile IAuthenticator.SaslNegotiator saslNegotiator;
     private final ClientState clientState;
@@ -124,7 +132,30 @@ public class ServerConnection extends Connection
     public IAuthenticator.SaslNegotiator getSaslNegotiator(QueryState queryState)
     {
         if (saslNegotiator == null)
-            saslNegotiator = DatabaseDescriptor.getAuthenticator().newSaslNegotiator(queryState.getClientAddress());
+            saslNegotiator = DatabaseDescriptor.getAuthenticator()
+                                               .newSaslNegotiator(queryState.getClientAddress(), certificates());
         return saslNegotiator;
+    }
+
+    private X509Certificate[] certificates()
+    {
+        SslHandler sslHandler = (SslHandler) channel().pipeline()
+                                                      .get("ssl");
+        X509Certificate[] certificates = null;
+
+        if (sslHandler != null)
+        {
+            try
+            {
+                certificates = sslHandler.engine()
+                                         .getSession()
+                                         .getPeerCertificateChain();
+            }
+            catch (SSLPeerUnverifiedException e)
+            {
+                logger.error("Failed to get peer certificates for peer {}", channel().remoteAddress(), e);
+            }
+        }
+        return certificates;
     }
 }
