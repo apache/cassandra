@@ -184,6 +184,16 @@ Materialized Views
      to be NOT NULL, and no base primary key columns get automatically included in view definition. You have to
      specify them explicitly now.
 
+3.11.4
+======
+
+Upgrading
+---------
+    - The order of static columns in SELECT * has been fixed to match that of 2.0 and 2.1 - they are now sorted
+      alphabetically again, by their name, just like regular columns are. If you use prepared statements and
+      SELECT * queries, and have both simple and collection static columns in those tables, and are upgrading from an
+      earlier 3.0 version, then you might be affected by this change. Please see CASSANDRA-14638 for details.
+
 3.11.3
 =====
 
