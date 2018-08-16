@@ -20,50 +20,29 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.BTreeRow;
-import org.apache.cassandra.db.rows.BufferCell;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.MigrationManager;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.service.reads.ReadCallback;
 
-public class ReadRepairTest
+public class BlockingReadRepairTest extends AbstractReadRepairTest
 {
-    static Keyspace ks;
-    static ColumnFamilyStore cfs;
-    static TableMetadata cfm;
-    static InetAddressAndPort target1;
-    static InetAddressAndPort target2;
-    static InetAddressAndPort target3;
-    static List<InetAddressAndPort> targets;
 
     private static class InstrumentedReadRepairHandler extends BlockingPartitionRepair
     {
@@ -93,77 +72,10 @@ public class ReadRepairTest
         }
     }
 
-    static long now = TimeUnit.NANOSECONDS.toMicros(System.nanoTime());
-    static DecoratedKey key;
-    static Cell cell1;
-    static Cell cell2;
-    static Cell cell3;
-    static Mutation resolved;
-
-    private static void assertRowsEqual(Row expected, Row actual)
-    {
-        try
-        {
-            Assert.assertEquals(expected == null, actual == null);
-            if (expected == null)
-                return;
-            Assert.assertEquals(expected.clustering(), actual.clustering());
-            Assert.assertEquals(expected.deletion(), actual.deletion());
-            Assert.assertArrayEquals(Iterables.toArray(expected.cells(), Cell.class), Iterables.toArray(expected.cells(), Cell.class));
-        } catch (Throwable t)
-        {
-            throw new AssertionError(String.format("Row comparison failed, expected %s got %s", expected, actual), t);
-        }
-    }
-
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
-        SchemaLoader.loadSchema();
-        String ksName = "ks";
-
-        cfm = CreateTableStatement.parse("CREATE TABLE tbl (k int primary key, v text)", ksName).build();
-        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(3), Tables.of(cfm));
-        MigrationManager.announceNewKeyspace(ksm, false);
-
-        ks = Keyspace.open(ksName);
-        cfs = ks.getColumnFamilyStore("tbl");
-
-        cfs.sampleLatencyNanos = 0;
-
-        target1 = InetAddressAndPort.getByName("127.0.0.255");
-        target2 = InetAddressAndPort.getByName("127.0.0.254");
-        target3 = InetAddressAndPort.getByName("127.0.0.253");
-
-        targets = ImmutableList.of(target1, target2, target3);
-
-        // default test values
-        key  = dk(5);
-        cell1 = cell("v", "val1", now);
-        cell2 = cell("v", "val2", now);
-        cell3 = cell("v", "val3", now);
-        resolved = mutation(cell1, cell2);
-    }
-
-    private static DecoratedKey dk(int v)
-    {
-        return DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.bytes(v));
-    }
-
-    private static Cell cell(String name, String value, long timestamp)
-    {
-        return BufferCell.live(cfm.getColumn(ColumnIdentifier.getInterned(name, false)), timestamp, ByteBufferUtil.bytes(value));
-    }
-
-    private static Mutation mutation(Cell... cells)
-    {
-        Row.Builder builder = BTreeRow.unsortedBuilder();
-        builder.newRow(Clustering.EMPTY);
-        for (Cell cell: cells)
-        {
-            builder.addCell(cell);
-        }
-        return new Mutation(PartitionUpdate.singleRowUpdate(cfm, key, builder.build()));
+        configureClass(ReadRepairStrategy.BLOCKING);
     }
 
     private static InstrumentedReadRepairHandler createRepairHandler(Map<InetAddressAndPort, Mutation> repairs, int maxBlockFor, Collection<InetAddressAndPort> participants)
@@ -178,6 +90,49 @@ public class ReadRepairTest
         return createRepairHandler(repairs, maxBlockFor, repairs.keySet());
     }
 
+    private static class InstrumentedBlockingReadRepair extends BlockingReadRepair implements InstrumentedReadRepair
+    {
+        public InstrumentedBlockingReadRepair(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency)
+        {
+            super(command, queryStartNanoTime, consistency);
+        }
+
+        Set<InetAddressAndPort> readCommandRecipients = new HashSet<>();
+        ReadCallback readCallback = null;
+
+        @Override
+        void sendReadCommand(InetAddressAndPort to, ReadCallback callback)
+        {
+            assert readCallback == null || readCallback == callback;
+            readCommandRecipients.add(to);
+            readCallback = callback;
+        }
+
+        @Override
+        Iterable<InetAddressAndPort> getCandidatesForToken(Token token)
+        {
+            return targets;
+        }
+
+        @Override
+        public Set<InetAddressAndPort> getReadRecipients()
+        {
+            return readCommandRecipients;
+        }
+
+        @Override
+        public ReadCallback getReadCallback()
+        {
+            return readCallback;
+        }
+    }
+
+    @Override
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency)
+    {
+        return new InstrumentedBlockingReadRepair(command, queryStartNanoTime, consistency);
+    }
+
     @Test
     public void consistencyLevelTest() throws Exception
     {
@@ -188,15 +143,6 @@ public class ReadRepairTest
         Assert.assertFalse(ConsistencyLevel.ANY.satisfies(ConsistencyLevel.QUORUM, ks));
     }
 
-    private static void assertMutationEqual(Mutation expected, Mutation actual)
-    {
-        Assert.assertEquals(expected.getKeyspaceName(), actual.getKeyspaceName());
-        Assert.assertEquals(expected.key(), actual.key());
-        Assert.assertEquals(expected.key(), actual.key());
-        PartitionUpdate expectedUpdate = Iterables.getOnlyElement(expected.getPartitionUpdates());
-        PartitionUpdate actualUpdate = Iterables.getOnlyElement(actual.getPartitionUpdates());
-        assertRowsEqual(Iterables.getOnlyElement(expectedUpdate), Iterables.getOnlyElement(actualUpdate));
-    }
 
     @Test
     public void additionalMutationRequired() throws Exception

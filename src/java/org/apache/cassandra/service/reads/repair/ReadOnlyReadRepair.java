@@ -18,45 +18,38 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
+import com.codahale.metrics.Meter;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
-import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.reads.DigestResolver;
+import org.apache.cassandra.metrics.ReadRepairMetrics;
 
 /**
- * Bypasses the read repair path for short read protection and testing
+ * Only performs the collection of data responses and reconciliation of them, doesn't send repair mutations
+ * to replicas. This preserves write atomicity, but doesn't provide monotonic quorum reads
  */
-public class NoopReadRepair implements ReadRepair
+public class ReadOnlyReadRepair extends AbstractReadRepair
 {
-    public static final NoopReadRepair instance = new NoopReadRepair();
+    public ReadOnlyReadRepair(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency)
+    {
+        super(command, queryStartNanoTime, consistency);
+    }
 
-    private NoopReadRepair() {}
-
+    @Override
     public UnfilteredPartitionIterators.MergeListener getMergeListener(InetAddressAndPort[] endpoints)
     {
         return UnfilteredPartitionIterators.MergeListener.NOOP;
     }
 
-    public void startRepair(DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints, List<InetAddressAndPort> contactedEndpoints, Consumer<PartitionIterator> resultConsumer)
-    {
-        resultConsumer.accept(digestResolver.getData());
-    }
-
-    public void awaitReads() throws ReadTimeoutException
-    {
-    }
-
     @Override
-    public void maybeSendAdditionalReads()
+    Meter getRepairMeter()
     {
-
+        return ReadRepairMetrics.reconcileRead;
     }
 
     @Override
@@ -66,13 +59,13 @@ public class NoopReadRepair implements ReadRepair
     }
 
     @Override
-    public void awaitWrites()
+    public void repairPartition(DecoratedKey key, Map<InetAddressAndPort, Mutation> mutations, InetAddressAndPort[] destinations)
     {
-
+        throw new UnsupportedOperationException("ReadOnlyReadRepair shouldn't be trying to repair partitions");
     }
 
     @Override
-    public void repairPartition(DecoratedKey key, Map<InetAddressAndPort, Mutation> mutations, InetAddressAndPort[] destinations)
+    public void awaitWrites()
     {
 
     }

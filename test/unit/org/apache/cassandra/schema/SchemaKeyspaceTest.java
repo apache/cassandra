@@ -26,6 +26,7 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -39,6 +40,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
@@ -94,6 +96,15 @@ public class SchemaKeyspaceTest
 
         metadata = Schema.instance.getTableMetadata(keyspace, "test");
         assertEquals(extensions, metadata.params.extensions);
+    }
+
+    @Test
+    public void testReadRepair()
+    {
+        createTable("ks", "CREATE TABLE tbl (a text primary key, b int, c int) WITH read_repair='none'");
+        TableMetadata metadata = Schema.instance.getTableMetadata("ks", "tbl");
+        Assert.assertEquals(ReadRepairStrategy.NONE, metadata.params.readRepair);
+
     }
 
     private static void updateTable(String keyspace, TableMetadata oldTable, TableMetadata newTable)

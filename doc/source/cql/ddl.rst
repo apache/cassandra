@@ -474,6 +474,8 @@ A table supports the following options:
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
 | ``memtable_flush_period_in_ms``| *simple* | 0           | Time (in ms) before Cassandra flushes memtables to disk.  |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``read_repair``                | *simple* | BLOCKING    | Sets read repair behavior (see below)                     |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
 
 .. _speculative-retry-options:
 
@@ -600,6 +602,36 @@ For instance, to create a table with both a key cache and 10 rows per partition:
     value text,
     PRIMARY KEY (key, value)
     ) WITH caching = {'keys': 'ALL', 'rows_per_partition': 10};
+
+
+Read Repair options
+###################
+
+The ``read_repair`` options configures the read repair behavior to allow tuning for various performance and
+consistency behaviors. Two consistency properties are affected by read repair behavior.
+
+- Monotonic Quorum Reads: Provided by ``BLOCKING``. Monotonic quorum reads prevents reads from appearing to go back
+  in time in some circumstances. When monotonic quorum reads are not provided and a write fails to reach a quorum of
+  replicas, it may be visible in one read, and then disappear in a subsequent read.
+- Write Atomicity: Provided by ``NONE``. Write atomicity prevents reads from returning partially applied writes.
+  Cassandra attempts to provide partition level write atomicity, but since only the data covered by a SELECT statement
+  is repaired by a read repair, read repair can break write atomicity when data is read at a more granular level than it
+  is written. For example read repair can break write atomicity if you write multiple rows to a clustered partition in a
+  batch, but then select a single row by specifying the clustering column in a SELECT statement.
+
+The available read repair settings are:
+
+Blocking
+````````
+The default setting. When ``read_repair`` is set to ``BLOCKING``, and a read repair is triggered, the read will block
+on writes sent to other replicas until the CL is reached by the writes. Provides monotonic quorum reads, but not partition
+level write atomicity
+
+None
+````
+
+When ``read_repair`` is set to ``NONE``, the coordinator will reconcile any differences between replicas, but will not
+attempt to repair them. Provides partition level write atomicity, but not monotonic quorum reads.
 
 
 Other considerations:

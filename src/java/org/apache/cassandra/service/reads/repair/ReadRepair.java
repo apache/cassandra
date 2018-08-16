@@ -33,6 +33,11 @@ import org.apache.cassandra.service.reads.DigestResolver;
 
 public interface ReadRepair
 {
+    public interface Factory
+    {
+        ReadRepair create(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency);
+    }
+
     /**
      * Used by DataResolver to generate corrections as the partition iterator is consumed
      */
@@ -87,6 +92,6 @@ public interface ReadRepair
 
     static ReadRepair create(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency)
     {
-        return new BlockingReadRepair(command, queryStartNanoTime, consistency);
+        return command.metadata().params.readRepair.create(command, queryStartNanoTime, consistency);
     }
 }
