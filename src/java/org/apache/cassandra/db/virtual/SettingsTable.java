@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -35,28 +36,33 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ServerError;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Functions;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.Ordering;
 
 final class SettingsTable extends AbstractVirtualTable
 {
     private static final String VALUE = "value";
     private static final String SETTING = "setting";
 
-    private static final Map<String, Field> FIELDS = Arrays.stream(Config.class.getFields())
+    @VisibleForTesting
+    static final Map<String, Field> FIELDS = Arrays.stream(Config.class.getFields())
             .filter(f -> !Modifier.isStatic(f.getModifiers()))
             .collect(Collectors.toMap(Field::getName, Functions.identity()));
 
-    private static final Map<String, BiConsumer<SimpleDataSet, Field>> overrides;
-    static {
-        overrides = new ImmutableMap.Builder<String, BiConsumer<SimpleDataSet, Field>>()
-                    .put("server_encryption_options", SettingsTable::addEncryptionOptions)
-                    .put("client_encryption_options", SettingsTable::addEncryptionOptions)
-                    .put("transparent_data_encryption_options", SettingsTable::addTransparentEncryptionOptions)
-                    .put("audit_logging_options", SettingsTable::addAuditLoggingOptions)
-                    .build();
-    }
+    @VisibleForTesting
+    final SortedMap<String, BiConsumer<SimpleDataSet, Field>> overrides =
+        new ImmutableSortedMap.Builder<String, BiConsumer<SimpleDataSet, Field>>(Ordering.natural())
+            .put("server_encryption_options", this::addEncryptionOptions)
+            .put("client_encryption_options", this::addEncryptionOptions)
+            .put("transparent_data_encryption_options", this::addTransparentEncryptionOptions)
+            .put("audit_logging_options", this::addAuditLoggingOptions)
+            .build();
+
+    @VisibleForTesting
+    Config config;
 
     SettingsTable(String keyspace)
     {
@@ -67,11 +73,12 @@ final class SettingsTable extends AbstractVirtualTable
                            .addPartitionKeyColumn(SETTING, UTF8Type.instance)
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
+        config = DatabaseDescriptor.getRawConfig();
     }
 
-    private static Object getValue(Field f)
+    @VisibleForTesting
+    Object getValue(Field f)
     {
-        Config config = DatabaseDescriptor.getRawConfig();
         Object value;
         try
         {
@@ -84,7 +91,7 @@ final class SettingsTable extends AbstractVirtualTable
         return value;
     }
 
-    private static void addValue(SimpleDataSet result, Field f)
+    private void addValue(SimpleDataSet result, Field f)
     {
         Object value = getValue(f);
         if (value == null)
@@ -114,6 +121,17 @@ final class SettingsTable extends AbstractVirtualTable
         Field field = FIELDS.get(setting);
         if (field != null)
             addValue(result, field);
+        else
+        {
+            // rows created by overrides might be directly queried so include them in result to be possibly filtered
+            for (Map.Entry<String, Field> f : FIELDS.entrySet())
+            {
+                if (setting.startsWith(f.getKey()))
+                {
+                    addValue(result, f.getValue());
+                }
+            }
+        }
         return result;
     }
 
@@ -128,7 +146,7 @@ final class SettingsTable extends AbstractVirtualTable
         return result;
     }
 
-    private static void addAuditLoggingOptions(SimpleDataSet result, Field f)
+    private void addAuditLoggingOptions(SimpleDataSet result, Field f)
     {
         Preconditions.checkArgument(AuditLogOptions.class.isAssignableFrom(f.getType()));
 
@@ -147,7 +165,7 @@ final class SettingsTable extends AbstractVirtualTable
         }
     }
 
-    private static void addTransparentEncryptionOptions(SimpleDataSet result, Field f)
+    private void addTransparentEncryptionOptions(SimpleDataSet result, Field f)
     {
         Preconditions.checkArgument(TransparentDataEncryptionOptions.class.isAssignableFrom(f.getType()));
 
@@ -156,12 +174,12 @@ final class SettingsTable extends AbstractVirtualTable
         if (value.enabled)
         {
             result.row(f.getName() + "_cipher").column(VALUE, value.cipher);
-            result.row(f.getName() + "_chunk_length_kb").column(VALUE, value.chunk_length_kb);
-            result.row(f.getName() + "_iv_length").column(VALUE, value.iv_length);
+            result.row(f.getName() + "_chunk_length_kb").column(VALUE, Integer.toString(value.chunk_length_kb));
+            result.row(f.getName() + "_iv_length").column(VALUE, Integer.toString(value.iv_length));
         }
     }
 
-    private static void addEncryptionOptions(SimpleDataSet result, Field f)
+    private void addEncryptionOptions(SimpleDataSet result, Field f)
     {
         Preconditions.checkArgument(EncryptionOptions.class.isAssignableFrom(f.getType()));
 
@@ -170,6 +188,7 @@ final class SettingsTable extends AbstractVirtualTable
         if (value.enabled)
         {
             result.row(f.getName() + "_algorithm").column(VALUE, value.algorithm);
+            result.row(f.getName() + "_protocol").column(VALUE, value.protocol);
             result.row(f.getName() + "_cipher_suites").column(VALUE, Arrays.toString(value.cipher_suites));
             result.row(f.getName() + "_client_auth").column(VALUE, Boolean.toString(value.require_client_auth));
             result.row(f.getName() + "_endpoint_verification")
