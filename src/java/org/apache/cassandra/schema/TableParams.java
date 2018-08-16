@@ -28,6 +28,7 @@ import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.BloomCalculations;
 
 import static java.lang.String.format;
@@ -51,7 +52,8 @@ public final class TableParams
         MIN_INDEX_INTERVAL,
         SPECULATIVE_RETRY,
         CRC_CHECK_CHANCE,
-        CDC;
+        CDC,
+        READ_REPAIR;
 
         @Override
         public String toString()
@@ -74,6 +76,7 @@ public final class TableParams
     public final CompressionParams compression;
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
+    public final ReadRepairStrategy readRepair;
 
     private TableParams(Builder builder)
     {
@@ -93,6 +96,7 @@ public final class TableParams
         compression = builder.compression;
         extensions = builder.extensions;
         cdc = builder.cdc;
+        readRepair = builder.readRepair;
     }
 
     public static Builder builder()
@@ -115,7 +119,8 @@ public final class TableParams
                             .minIndexInterval(params.minIndexInterval)
                             .speculativeRetry(params.speculativeRetry)
                             .extensions(params.extensions)
-                            .cdc(params.cdc);
+                            .cdc(params.cdc)
+                            .readRepair(params.readRepair);
     }
 
     public Builder unbuild()
@@ -198,7 +203,8 @@ public final class TableParams
             && compaction.equals(p.compaction)
             && compression.equals(p.compression)
             && extensions.equals(p.extensions)
-            && cdc == p.cdc;
+            && cdc == p.cdc
+            && readRepair == p.readRepair;
     }
 
     @Override
@@ -217,7 +223,8 @@ public final class TableParams
                                 compaction,
                                 compression,
                                 extensions,
-                                cdc);
+                                cdc,
+                                readRepair);
     }
 
     @Override
@@ -238,6 +245,7 @@ public final class TableParams
                           .add(Option.COMPRESSION.toString(), compression)
                           .add(Option.EXTENSIONS.toString(), extensions)
                           .add(Option.CDC.toString(), cdc)
+                          .add(Option.READ_REPAIR.toString(), readRepair)
                           .toString();
     }
 
@@ -257,6 +265,7 @@ public final class TableParams
         private CompressionParams compression = CompressionParams.DEFAULT;
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
+        private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
 
         public Builder()
         {
@@ -342,6 +351,12 @@ public final class TableParams
         public Builder cdc(boolean val)
         {
             cdc = val;
+            return this;
+        }
+
+        public Builder readRepair(ReadRepairStrategy val)
+        {
+            readRepair = val;
             return this;
         }
 

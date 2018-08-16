@@ -18,84 +18,40 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Meter;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.reads.DataResolver;
-import org.apache.cassandra.service.reads.DigestResolver;
-import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.tracing.Tracing;
 
 /**
  * 'Classic' read repair. Doesn't allow the client read to return until
- *  updates have been written to nodes needing correction.
+ *  updates have been written to nodes needing correction. Breaks write
+ *  atomicity in some situations
  */
-public class BlockingReadRepair implements ReadRepair
+public class BlockingReadRepair extends AbstractReadRepair
 {
     private static final Logger logger = LoggerFactory.getLogger(BlockingReadRepair.class);
 
-    private final ReadCommand command;
-    private final long queryStartNanoTime;
-    private final ConsistencyLevel consistency;
-    private final ColumnFamilyStore cfs;
+    protected final Queue<BlockingPartitionRepair> repairs = new ConcurrentLinkedQueue<>();
 
-    private final Queue<BlockingPartitionRepair> repairs = new ConcurrentLinkedQueue<>();
-
-    private volatile DigestRepair digestRepair = null;
-
-    private static class DigestRepair
+    public BlockingReadRepair(ReadCommand command, long queryStartNanoTime, ConsistencyLevel consistency)
     {
-        private final DataResolver dataResolver;
-        private final ReadCallback readCallback;
-        private final Consumer<PartitionIterator> resultConsumer;
-        private final List<InetAddressAndPort> initialContacts;
-
-        public DigestRepair(DataResolver dataResolver, ReadCallback readCallback, Consumer<PartitionIterator> resultConsumer, List<InetAddressAndPort> initialContacts)
-        {
-            this.dataResolver = dataResolver;
-            this.readCallback = readCallback;
-            this.resultConsumer = resultConsumer;
-            this.initialContacts = initialContacts;
-        }
-    }
-
-    public BlockingReadRepair(ReadCommand command,
-                              long queryStartNanoTime,
-                              ConsistencyLevel consistency)
-    {
-        this.command = command;
-        this.queryStartNanoTime = queryStartNanoTime;
-        this.consistency = consistency;
-        this.cfs = Keyspace.openAndGetStore(command.metadata());
+        super(command, queryStartNanoTime, consistency);
     }
 
     public UnfilteredPartitionIterators.MergeListener getMergeListener(InetAddressAndPort[] endpoints)
@@ -103,83 +59,10 @@ public class BlockingReadRepair implements ReadRepair
         return new PartitionIteratorMergeListener(endpoints, command, consistency, this);
     }
 
-    private int getMaxResponses()
+    @Override
+    Meter getRepairMeter()
     {
-        AbstractReplicationStrategy strategy = cfs.keyspace.getReplicationStrategy();
-        if (consistency.isDatacenterLocal() && strategy instanceof NetworkTopologyStrategy)
-        {
-            NetworkTopologyStrategy nts = (NetworkTopologyStrategy) strategy;
-            return nts.getReplicationFactor(DatabaseDescriptor.getLocalDataCenter());
-        }
-        else
-        {
-            return strategy.getReplicationFactor();
-        }
-    }
-
-    // digestResolver isn't used here because we resend read requests to all participants
-    public void startRepair(DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints, List<InetAddressAndPort> contactedEndpoints, Consumer<PartitionIterator> resultConsumer)
-    {
-        ReadRepairMetrics.repairedBlocking.mark();
-
-        // Do a full data read to resolve the correct response (and repair node that need be)
-        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        DataResolver resolver = new DataResolver(keyspace, command, ConsistencyLevel.ALL, getMaxResponses(), queryStartNanoTime, this);
-        ReadCallback readCallback = new ReadCallback(resolver, ConsistencyLevel.ALL, consistency.blockFor(cfs.keyspace), command,
-                                                     keyspace, allEndpoints, queryStartNanoTime);
-
-        digestRepair = new DigestRepair(resolver, readCallback, resultConsumer, contactedEndpoints);
-
-        for (InetAddressAndPort endpoint : contactedEndpoints)
-        {
-            Tracing.trace("Enqueuing full data read to {}", endpoint);
-            MessagingService.instance().sendRRWithFailure(command.createMessage(), endpoint, readCallback);
-        }
-    }
-
-    public void awaitReads() throws ReadTimeoutException
-    {
-        DigestRepair repair = digestRepair;
-        if (repair == null)
-            return;
-
-        repair.readCallback.awaitResults();
-        repair.resultConsumer.accept(digestRepair.dataResolver.resolve());
-    }
-
-    private boolean shouldSpeculate()
-    {
-        ConsistencyLevel speculativeCL = consistency.isDatacenterLocal() ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
-        return  consistency != ConsistencyLevel.EACH_QUORUM
-               && consistency.satisfies(speculativeCL, cfs.keyspace)
-               && cfs.sampleLatencyNanos <= TimeUnit.MILLISECONDS.toNanos(command.getTimeout());
-    }
-
-    public void maybeSendAdditionalReads()
-    {
-        Preconditions.checkState(command instanceof SinglePartitionReadCommand,
-                                 "maybeSendAdditionalReads can only be called for SinglePartitionReadCommand");
-        DigestRepair repair = digestRepair;
-        if (repair == null)
-            return;
-
-        if (shouldSpeculate() && !repair.readCallback.await(cfs.sampleLatencyNanos, TimeUnit.NANOSECONDS))
-        {
-            Set<InetAddressAndPort> contacted = Sets.newHashSet(repair.initialContacts);
-            Token replicaToken = ((SinglePartitionReadCommand) command).partitionKey().getToken();
-            Iterable<InetAddressAndPort> candidates = BlockingReadRepairs.getCandidateEndpoints(cfs.keyspace, replicaToken, consistency);
-            boolean speculated = false;
-            for (InetAddressAndPort endpoint: Iterables.filter(candidates, e -> !contacted.contains(e)))
-            {
-                speculated = true;
-                Tracing.trace("Enqueuing speculative full data read to {}", endpoint);
-                MessagingService.instance().sendRR(command.createMessage(), endpoint, repair.readCallback);
-                break;
-            }
-
-            if (speculated)
-                ReadRepairMetrics.speculatedRead.mark();
-        }
+        return ReadRepairMetrics.repairedBlocking;
     }
 
     @Override

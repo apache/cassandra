@@ -50,7 +50,8 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('default_time_to_live', None),
         ('speculative_retry', None),
         ('memtable_flush_period_in_ms', None),
-        ('cdc', None)
+        ('cdc', None),
+        ('read_repair', None),
     )
 
     columnfamily_layout_map_options = (
@@ -508,6 +509,8 @@ def cf_prop_val_completer(ctxt, cass):
         return [Hint('<integer>')]
     if this_opt in ('cdc'):
         return [Hint('<true|false>')]
+    if this_opt in ('read_repair'):
+        return [Hint('<\'none\'|\'blocking\'>')]
     return [Hint('<option_value>')]
 
 

@@ -44,6 +44,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -137,6 +138,7 @@ public final class SchemaKeyspace
               + "read_repair_chance double," // no longer used, left for drivers' sake
               + "speculative_retry text,"
               + "cdc boolean,"
+              + "read_repair text,"
               + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final TableMetadata Columns =
@@ -202,6 +204,7 @@ public final class SchemaKeyspace
               + "read_repair_chance double," // no longer used, left for drivers' sake
               + "speculative_retry text,"
               + "cdc boolean,"
+              + "read_repair text,"
               + "PRIMARY KEY ((keyspace_name), view_name))");
 
     private static final TableMetadata Indexes =
@@ -564,6 +567,7 @@ public final class SchemaKeyspace
                .add("caching", params.caching.asMap())
                .add("compaction", params.compaction.asMap())
                .add("compression", params.compression.asMap())
+               .add("read_repair", params.readRepair.toString())
                .add("extensions", params.extensions);
 
         // Only add CDC-enabled flag to schema if it's enabled on the node. This is to work around RTE's post-8099 if a 3.8+
@@ -988,6 +992,7 @@ public final class SchemaKeyspace
                           .crcCheckChance(row.getDouble("crc_check_chance"))
                           .speculativeRetry(SpeculativeRetryPolicy.fromString(row.getString("speculative_retry")))
                           .cdc(row.has("cdc") && row.getBoolean("cdc"))
+                          .readRepair(getReadRepairStrategy(row))
                           .build();
     }
 
@@ -1292,5 +1297,12 @@ public final class SchemaKeyspace
         {
             super(message);
         }
+    }
+
+    private static ReadRepairStrategy getReadRepairStrategy(UntypedResultSet.Row row)
+    {
+        return row.has("read_repair")
+               ? ReadRepairStrategy.fromString(row.getString("read_repair"))
+               : ReadRepairStrategy.BLOCKING;
     }
 }
