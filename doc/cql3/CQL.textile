@@ -1079,7 +1079,7 @@ The @SELECT@ statements reads one or more columns for one or more rows in a tabl
 
 h4(#selectSelection). @<select-clause>@
 
-The @<select-clause>@ determines which columns needs to be queried and returned in the result-set. It consists of either the comma-separated list of <selector> or the wildcard character (@*@) to select all the columns defined for the table.
+The @<select-clause>@ determines which columns needs to be queried and returned in the result-set. It consists of either the comma-separated list of <selector> or the wildcard character (@*@) to select all the columns defined for the table. Please note that for wildcard @SELECT@ queries the order of columns returned is not specified and is not guaranteed to be stable between Cassandra versions.
 
 A @<selector>@ is either a column name to retrieve or a @<function>@ of one or more @<term>@s. The function allowed are the same as for @<term>@ and are described in the "function section":#functions. In addition to these generic functions, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)).
 
