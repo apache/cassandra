@@ -660,7 +660,7 @@ public final class Schema
         delta.tables.altered.forEach(diff -> alterTable(diff.after));
         delta.views.altered.forEach(diff -> alterView(diff.after));
 
-        // deal with all removed, added, and altered views
+        // deal with all added, and altered views
         Keyspace.open(delta.after.name).viewManager.reload(true);
 
         // notify on everything dropped
@@ -720,7 +720,7 @@ public final class Schema
 
     private void dropView(ViewMetadata metadata)
     {
-        Keyspace.open(metadata.keyspace()).viewManager.stopBuild(metadata.name());
+        Keyspace.open(metadata.keyspace()).viewManager.dropView(metadata.name());
         dropTable(metadata.metadata);
     }
 
