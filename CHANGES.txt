@@ -1,4 +1,5 @@
 4.1
+ * Remove check on gossip status from DynamicEndpointSnitch::updateScores (CASSANDRA-11671)
  * Fix AbstractReadQuery::toCQLString not returning valid CQL (CASSANDRA-16510)
  * Log when compacting many tombstones (CASSANDRA-16780)
  * Display bytes per level in tablestats for LCS tables (CASSANDRA-16799)
