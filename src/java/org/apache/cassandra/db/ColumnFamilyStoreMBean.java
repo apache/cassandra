@@ -198,12 +198,12 @@ public interface ColumnFamilyStoreMBean
      * begin sampling for a specific sampler with a given capacity.  The cardinality may
      * be larger than the capacity, but depending on the use case it may affect its accuracy
      */
-    public void beginLocalSampling(String sampler, int capacity);
+    public void beginLocalSampling(String sampler, int capacity, int durationMillis);
 
     /**
      * @return top <i>count</i> items for the sampler since beginLocalSampling was called
      */
-    public CompositeData finishLocalSampling(String sampler, int count) throws OpenDataException;
+    public List<CompositeData> finishLocalSampling(String sampler, int count) throws OpenDataException;
 
     /*
         Is Compaction space check enabled

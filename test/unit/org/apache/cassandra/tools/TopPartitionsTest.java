@@ -35,7 +35,7 @@ public class TopPartitionsTest
     @Test
     public void testServiceTopPartitionsNoArg() throws Exception
     {
-        BlockingQueue<Map<String, Map<String, CompositeData>>> q = new ArrayBlockingQueue<>(1);
+        BlockingQueue<Map<String, List<CompositeData>>> q = new ArrayBlockingQueue<>(1);
         ColumnFamilyStore.all();
         Executors.newCachedThreadPool().execute(() ->
         {
@@ -48,20 +48,20 @@ public class TopPartitionsTest
                 e.printStackTrace();
             }
         });
+        Thread.sleep(100);
         SystemKeyspace.persistLocalMetadata();
-        Map<String, Map<String, CompositeData>> result = q.poll(11, TimeUnit.SECONDS);
-        List<CompositeData> cd = (List<CompositeData>) (Object) Lists.newArrayList(((TabularDataSupport) result.get("system.local").get("WRITES").get("partitions")).values());
+        Map<String, List<CompositeData>> result = q.poll(5, TimeUnit.SECONDS);
+        List<CompositeData> cd = result.get("WRITES");
         assertEquals(1, cd.size());
     }
 
     @Test
     public void testServiceTopPartitionsSingleTable() throws Exception
     {
-        ColumnFamilyStore.getIfExists("system", "local").beginLocalSampling("READS", 5);
+        ColumnFamilyStore.getIfExists("system", "local").beginLocalSampling("READS", 5, 100000);
         String req = "SELECT * FROM system.%s WHERE key='%s'";
         executeInternal(format(req, SystemKeyspace.LOCAL, SystemKeyspace.LOCAL));
-        CompositeData result = ColumnFamilyStore.getIfExists("system", "local").finishLocalSampling("READS", 5);
-        List<CompositeData> cd = (List<CompositeData>) (Object) Lists.newArrayList(((TabularDataSupport) result.get("partitions")).values());
-        assertEquals(1, cd.size());
+        List<CompositeData> result = ColumnFamilyStore.getIfExists("system", "local").finishLocalSampling("READS", 5);
+        assertEquals(1, result.size());
     }
 }

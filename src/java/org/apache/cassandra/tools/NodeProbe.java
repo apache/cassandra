@@ -69,7 +69,6 @@ import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
-import org.apache.cassandra.metrics.TableMetrics.Sampler;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
@@ -421,27 +420,25 @@ public class NodeProbe implements AutoCloseable
             }
         }
     }
-    public Map<String, Map<String, CompositeData>> getPartitionSample(int capacity, int duration, int count, List<String> samplers) throws OpenDataException
+    public Map<String, List<CompositeData>> getPartitionSample(int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
     {
-        return ssProxy.samplePartitions(duration, capacity, count, samplers);
+        return ssProxy.samplePartitions(durationMillis, capacity, count, samplers);
     }
 
-    public Map<String, Map<String, CompositeData>> getPartitionSample(String ks, String cf, int capacity, int duration, int count, List<String> samplers) throws OpenDataException
+    public Map<String, List<CompositeData>> getPartitionSample(String ks, String cf, int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(ks, cf);
         for(String sampler : samplers)
         {
-            cfsProxy.beginLocalSampling(sampler, capacity);
+            cfsProxy.beginLocalSampling(sampler, capacity, durationMillis);
         }
-        Uninterruptibles.sleepUninterruptibly(duration, TimeUnit.MILLISECONDS);
-        Map<String, CompositeData> result = Maps.newHashMap();
+        Uninterruptibles.sleepUninterruptibly(durationMillis, TimeUnit.MILLISECONDS);
+        Map<String, List<CompositeData>> result = Maps.newHashMap();
         for(String sampler : samplers)
         {
             result.put(sampler, cfsProxy.finishLocalSampling(sampler, count));
         }
-        return new ImmutableMap.Builder<String, Map<String, CompositeData>>()
-                .put(ks + "." + cf, result)
-                .build();
+        return result;
     }
 
     public void invalidateCounterCache()

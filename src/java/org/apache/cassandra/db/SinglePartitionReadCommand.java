@@ -723,7 +723,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         if (!merged.isEmpty())
         {
             DecoratedKey key = merged.partitionKey();
-            metrics.samplers.get(TableMetrics.Sampler.READS).addSample(key.getKey(), key.hashCode(), 1);
+            metrics.topReadPartitionFrequency.addSample(key.getKey(), 1);
         }
 
         class UpdateSstablesIterated extends Transformation
@@ -847,7 +847,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             return EmptyIterators.unfilteredRow(metadata(), partitionKey(), false);
 
         DecoratedKey key = result.partitionKey();
-        cfs.metric.samplers.get(TableMetrics.Sampler.READS).addSample(key.getKey(), key.hashCode(), 1);
+        cfs.metric.topReadPartitionFrequency.addSample(key.getKey(), 1);
         StorageHook.instance.reportRead(cfs.metadata.id, partitionKey());
 
         // "hoist up" the requested data into a more recent sstable
