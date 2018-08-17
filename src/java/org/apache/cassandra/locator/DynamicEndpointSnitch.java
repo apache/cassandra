@@ -303,7 +303,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 
     private void updateScores() // this is expensive
     {
-        if (!StorageService.instance.isGossipActive())
+        if (!StorageService.instance.isInitialized())
             return;
         if (!registered)
         {
