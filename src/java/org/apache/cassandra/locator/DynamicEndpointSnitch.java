@@ -271,7 +271,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     private void updateScores() // this is expensive
     {
-        if (!StorageService.instance.isGossipActive())
+        if (!StorageService.instance.isInitialized())
             return;
         if (!registered)
         {
