@@ -272,6 +272,7 @@ public final class MessagingService implements MessagingServiceMBean
         UNUSED_3,
         UNUSED_4,
         UNUSED_5,
+        _SAMPLE // dummy verb so we can use MS.droppedMessagesMap
         ;
         // add new verbs after the existing verbs, since we serialize by ordinal.
 
@@ -479,6 +480,7 @@ public final class MessagingService implements MessagingServiceMBean
      * drop internal messages like bootstrap or repair notifications.
      */
     public static final EnumSet<Verb> DROPPABLE_VERBS = EnumSet.of(Verb._TRACE,
+                                                                   Verb._SAMPLE,
                                                                    Verb.MUTATION,
                                                                    Verb.COUNTER_MUTATION,
                                                                    Verb.HINT,
