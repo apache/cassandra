@@ -5291,33 +5291,39 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /*
-     * little hard to parse for JMX MBean requirements, but the output looks something like:
-     *
-     *  {"keyspace.table":
-     *    {"SAMPLER": [{cardinality:i partitions: [{raw:"", string:"", count:i, error:i}, ...]}, ...]}
-     *  }
+     * { "sampler_name": [ {table: "", count: i, error: i, value: ""}, ... ] }
      */
     @Override
-    public Map<String, Map<String, CompositeData>> samplePartitions(long duration, int capacity, int count, List<String> samplers) throws OpenDataException
+    public Map<String, List<CompositeData>> samplePartitions(int durationMillis, int capacity, int count,
+            List<String> samplers) throws OpenDataException
     {
+        ConcurrentHashMap<String, List<CompositeData>> result = new ConcurrentHashMap<>();
         for (String sampler : samplers)
         {
             for (ColumnFamilyStore table : ColumnFamilyStore.all())
             {
-                table.beginLocalSampling(sampler, capacity);
+                table.beginLocalSampling(sampler, capacity, durationMillis);
             }
         }
+        Uninterruptibles.sleepUninterruptibly(durationMillis, TimeUnit.MILLISECONDS);
 
-        Uninterruptibles.sleepUninterruptibly(duration, TimeUnit.MILLISECONDS);
-        ConcurrentHashMap<String, Map<String, CompositeData>> result = new ConcurrentHashMap<>();
         for (String sampler : samplers)
         {
+            List<CompositeData> topk = new ArrayList<>();
             for (ColumnFamilyStore table : ColumnFamilyStore.all())
             {
-                String name = table.keyspace.getName() + "." + table.name;
-                Map<String, CompositeData> topk = result.computeIfAbsent(name, x -> new HashMap<>());
-                topk.put(sampler, table.finishLocalSampling(sampler, count));
+                topk.addAll(table.finishLocalSampling(sampler, count));
             }
+            Collections.sort(topk, new Ordering<CompositeData>()
+            {
+                public int compare(CompositeData left, CompositeData right)
+                {
+                    return Long.compare((long) right.get("count"), (long) left.get("count"));
+                }
+            });
+            // sublist is not serializable for jmx
+            topk = new ArrayList<>(topk.subList(0, Math.min(topk.size(), count)));
+            result.put(sampler, topk);
         }
         return result;
     }

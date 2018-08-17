@@ -33,7 +33,6 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.metrics.TableMetrics.Sampler;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -630,7 +629,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void setTraceProbability(double probability);
 
-    public Map<String, Map<String, CompositeData>> samplePartitions(long duration, int capacity, int count, List<String> samplers) throws OpenDataException;
+    public Map<String, List<CompositeData>> samplePartitions(int duration, int capacity, int count, List<String> samplers) throws OpenDataException;
 
     /**
      * Returns the configured tracing probability.

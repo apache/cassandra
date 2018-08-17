@@ -240,13 +240,12 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
         final long startTimeForMetrics = System.nanoTime();
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, cfName);
         int contentions = 0;
         try
         {
             consistencyForPaxos.validateForCas();
             consistencyForCommit.validateForCasCommit(keyspaceName);
-
-            TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, cfName);
 
             long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCasContentionTimeout());
             while (System.nanoTime() - queryStartNanoTime < timeout)
@@ -334,6 +333,7 @@ public class StorageProxy implements StorageProxyMBean
         finally
         {
             recordCasContention(contentions);
+            Keyspace.open(keyspaceName).getColumnFamilyStore(cfName).metric.topCasPartitionContention.addSample(key.getKey(), contentions);
             final long latency = System.nanoTime() - startTimeForMetrics;
             casWriteMetrics.addNano(latency);
             writeMetricsMap.get(consistencyForPaxos).addNano(latency);
