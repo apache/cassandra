@@ -39,7 +39,7 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
     @Override
     public void log(AuditLogEntry entry)
     {
-        logQuery(entry.getOperation(), entry.getOptions(), entry.getTimestamp());
+        logQuery(entry.getOperation(), entry.getKeyspace(), entry.getOptions(), entry.getTimestamp());
     }
 
     /**
@@ -50,7 +50,7 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
      * @param queryOptions Options associated with the query invocation
      * @param batchTimeMillis Approximate time in milliseconds since the epoch since the batch was invoked
      */
-    void logBatch(String type, List<String> queries, List<List<ByteBuffer>> values, QueryOptions queryOptions, long batchTimeMillis)
+    void logBatch(String type, String keyspace, List<String> queries, List<List<ByteBuffer>> values, QueryOptions queryOptions, long batchTimeMillis)
     {
         Preconditions.checkNotNull(type, "type was null");
         Preconditions.checkNotNull(queries, "queries was null");
@@ -65,7 +65,7 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
             return;
         }
 
-        WeighableMarshallableBatch wrappedBatch = new WeighableMarshallableBatch(type, queries, values, queryOptions, batchTimeMillis);
+        WeighableMarshallableBatch wrappedBatch = new WeighableMarshallableBatch(type, keyspace, queries, values, queryOptions, batchTimeMillis);
         logRecord(wrappedBatch, binLog);
     }
 
@@ -75,7 +75,7 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
      * @param queryOptions Options associated with the query invocation
      * @param queryTimeMillis Approximate time in milliseconds since the epoch since the batch was invoked
      */
-    void logQuery(String query, QueryOptions queryOptions, long queryTimeMillis)
+    void logQuery(String query, String keyspace, QueryOptions queryOptions, long queryTimeMillis)
     {
         Preconditions.checkNotNull(query, "query was null");
         Preconditions.checkNotNull(queryOptions, "queryOptions was null");
@@ -88,7 +88,7 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
             return;
         }
 
-        WeighableMarshallableQuery wrappedQuery = new WeighableMarshallableQuery(query, queryOptions, queryTimeMillis);
+        WeighableMarshallableQuery wrappedQuery = new WeighableMarshallableQuery(query, keyspace, queryOptions, queryTimeMillis);
         logRecord(wrappedQuery, binLog);
     }
 
@@ -99,9 +99,9 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
         private final List<String> queries;
         private final List<List<ByteBuffer>> values;
 
-        public WeighableMarshallableBatch(String batchType, List<String> queries, List<List<ByteBuffer>> values, QueryOptions queryOptions, long batchTimeMillis)
+        public WeighableMarshallableBatch(String batchType, String keyspace, List<String> queries, List<List<ByteBuffer>> values, QueryOptions queryOptions, long batchTimeMillis)
         {
-           super(queryOptions, batchTimeMillis);
+           super(keyspace, queryOptions, batchTimeMillis);
            this.queries = queries;
            this.values = values;
            this.batchType = batchType;
@@ -174,9 +174,9 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
     {
         private final String query;
 
-        public WeighableMarshallableQuery(String query, QueryOptions queryOptions, long queryTimeMillis)
+        public WeighableMarshallableQuery(String query, String keyspace, QueryOptions queryOptions, long queryTimeMillis)
         {
-            super(queryOptions, queryTimeMillis);
+            super(keyspace, queryOptions, queryTimeMillis);
             this.query = query;
         }
 

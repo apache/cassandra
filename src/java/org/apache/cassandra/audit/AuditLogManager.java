@@ -205,7 +205,7 @@ public class AuditLogManager
             {
                 queryStrings.add(prepStatment.rawCQLStatement);
             }
-            fullQueryLogger.logBatch(batchTypeName, queryStrings, values, options, queryStartTimeMillis);
+            fullQueryLogger.logBatch(batchTypeName, state.getClientState().getRawKeyspace(), queryStrings, values, options, queryStartTimeMillis);
         }
     }
 
