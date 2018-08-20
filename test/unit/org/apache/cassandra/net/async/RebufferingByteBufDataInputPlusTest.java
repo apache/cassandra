@@ -22,6 +22,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -216,8 +217,8 @@ public class RebufferingByteBufDataInputPlusTest
         BufferedDataOutputStreamPlus writer = new BufferedDataOutputStreamPlus(wbc);
         inputPlus.consumeUntil(writer, len);
 
-        Assert.assertEquals(String.format("Test with {} buffers starting at {} consuming {} bytes", nBuffs, startOffset,
-                                          len), len, wbc.writtenBytes.readableBytes());
+        Assert.assertEquals(String.format("Test with %d buffers starting at %d consuming %d bytes", nBuffs, startOffset, len),
+                            len, wbc.writtenBytes.readableBytes());
 
         Assert.assertArrayEquals(expectedBytes, wbc.writtenBytes.array());
     }
@@ -232,7 +233,7 @@ public class RebufferingByteBufDataInputPlusTest
              writtenBytes = Unpooled.buffer(initialCapacity);
         }
 
-        public int write(ByteBuffer src) throws IOException
+        public int write(ByteBuffer src)
         {
             int size = src.remaining();
             writtenBytes.writeBytes(src);
@@ -244,9 +245,30 @@ public class RebufferingByteBufDataInputPlusTest
             return isOpen;
         }
 
-        public void close() throws IOException
+        public void close()
         {
             isOpen = false;
         }
-    };
+    }
+
+    @Test
+    public void rebufferTimeout() throws IOException
+    {
+        long timeoutMillis = 1000;
+        inputPlus = new RebufferingByteBufDataInputPlus(10, 20, channel.config(), timeoutMillis);
+
+        long startNanos = System.nanoTime();
+        try
+        {
+            inputPlus.readInt();
+            Assert.fail("should not have been able to read from the queue");
+        }
+        catch (EOFException eof)
+        {
+            // this is the success case, and is expected. any other exception is a failure.
+        }
+
+        long durationNanos = System.nanoTime() - startNanos;
+        Assert.assertTrue(TimeUnit.MILLISECONDS.toNanos(timeoutMillis) <= durationNanos);
+    }
 }
