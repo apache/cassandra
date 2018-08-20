@@ -65,7 +65,11 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
      */
     private final Semaphore channelRateLimiter;
 
-    // TODO:JEB rename me and document me
+    /**
+     * An optional function that can receive and observe all of the {@link ChannelFuture}s that are emitted
+     * when writing an object to the {@link #channel}. Useful if the caller needs to know the success of each
+     * buffer written to the channel.
+     */
     private final Consumer<Future> futureConsumer;
 
     /**

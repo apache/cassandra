@@ -329,7 +329,7 @@ public class MessageIn<T>
          * Only applicable in the non-blocking use case, and should ony be used for testing!!!
          */
         @VisibleForTesting
-        MessageHeader getMessageHeader()
+        public MessageHeader getMessageHeader()
         {
             return messageHeader;
         }
@@ -337,12 +337,12 @@ public class MessageIn<T>
         /**
          * A simple struct to hold the message header data as it is being built up.
          */
-        static class MessageHeader
+        public static class MessageHeader
         {
-            int messageId;
+            public int messageId;
             long constructionTime;
-            InetAddressAndPort from;
-            MessagingService.Verb verb;
+            public InetAddressAndPort from;
+            public MessagingService.Verb verb;
             int payloadSize;
 
             Map<ParameterType, Object> parameters = Collections.emptyMap();

@@ -24,6 +24,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,12 +63,16 @@ public class MessageInHandler extends ChannelInboundHandlerAdapter
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws IOException
     {
         if (!closed)
+        {
             bufferHandler.channelRead(ctx, (ByteBuf) msg);
+        }
         else
+        {
             ReferenceCountUtil.release(msg);
+            ctx.close();
+        }
     }
 
-    // TODO:JEB reevaluate the error handling once I switch from ByteToMessageDecoder to ChannelInboundHandlerAdapter
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
     {
         if (cause instanceof EOFException)
@@ -94,6 +99,11 @@ public class MessageInHandler extends ChannelInboundHandlerAdapter
     {
         closed = true;
         bufferHandler.close();
+    }
+
+    boolean isClosed()
+    {
+        return closed;
     }
 
     /**
@@ -128,7 +138,7 @@ public class MessageInHandler extends ChannelInboundHandlerAdapter
             this.messageProcessor = messageProcessor;
         }
 
-        public void channelRead(ChannelHandlerContext ctx, ByteBuf in)
+        public void channelRead(ChannelHandlerContext ctx, ByteBuf in) throws IOException
         {
             final ByteBuf toProcess;
             if (retainedInlineBuffer != null)
@@ -139,11 +149,6 @@ public class MessageInHandler extends ChannelInboundHandlerAdapter
             try
             {
                 messageProcessor.process(toProcess);
-            }
-            catch (Throwable cause)
-            {
-                // TODO:JEB is this the correct error handling?
-                exceptionCaught(ctx, cause);
             }
             finally
             {
@@ -189,6 +194,12 @@ public class MessageInHandler extends ChannelInboundHandlerAdapter
          */
         private static final int QUEUE_HIGH_WATER_MARK = 1 << 16;
 
+        /**
+         * Default time in milliseconds that {@link #queuedBuffers} should wait for new buffers to arrive.
+         * See {@link RebufferingByteBufDataInputPlus} for more information.
+         */
+        private static final long QUEUED_BUFFERS_REBUFFER_MILLIS = 10 * 1000;
+
         private final MessageInProcessor messageProcessor;
 
         /**
@@ -202,77 +213,88 @@ public class MessageInHandler extends ChannelInboundHandlerAdapter
          */
         private RebufferingByteBufDataInputPlus queuedBuffers;
 
-        private volatile boolean executing;
+        private final AtomicBoolean executing;
 
         BlockingBufferHandler(MessageInProcessor messageProcessor)
         {
             this.messageProcessor = messageProcessor;
-
-            String threadName = "MessagingService-NettyInbound-" + peer.toString() + "-LargeMessages";
-
+            executing = new AtomicBoolean(false);
 
             // bound the LBQ to a handful element so we don't inadvertently add a bunch of empty tasks to the queue,
             // but we need more than one to allow for the current executing task (so it can exit) and an entry after it
             // so we can schedule resumption tasks if channelRead
             RejectedExecutionHandler nopHandler = (r, executor) -> {};
+            String threadName = "MessagingService-NettyInbound-" + peer.toString() + "-LargeMessages";
             executorService = new ThreadPoolExecutor(1, 1, 5L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(3),
                                                      new NamedThreadFactory(threadName), nopHandler);
             executorService.allowCoreThreadTimeOut(true);
         }
 
+        /**
+         * This will execute on the netty event loop
+         */
         public void channelRead(ChannelHandlerContext ctx, ByteBuf in)
         {
             if (queuedBuffers == null)
             {
                 queuedBuffers = new RebufferingByteBufDataInputPlus(QUEUE_LOW_WATER_MARK,
                                                                     QUEUE_HIGH_WATER_MARK,
-                                                                    ctx.channel().config());
+                                                                    ctx.channel().config(),
+                                                                    QUEUED_BUFFERS_REBUFFER_MILLIS);
             }
 
-            queuedBuffers.append(in);
+            try
+            {
+                queuedBuffers.append(in);
+            }
+            catch (IllegalStateException ise)
+            {
+                // this catch block serves mainly to not make the logs a mess with multiple stack traces
+                // when a race happens between inserting into the queue on the netty event loop after the background
+                // task has closed the queue.
+                // we would only get here if we are racing with the processInBackground() task, and it marked
+                // the closed flag as false after we read it as true.
+                // in any case, we are done processing, and catchException()/properly closing the channel will be soon invoked.
+                ReferenceCountUtil.release(in);
+                return;
+            }
 
             // if we are racing with processInBackground(), go ahead and add another task to the queue
             // as the number of tasks in the queue is bounded (and we throw away any rejection exceptions).
             // We could get a bunch of incoming buffers and add them to the queue before the background thread has
             // a chance to start executing.
-            if (!executing)
+            if (executing.compareAndSet(false, true))
                 executorService.submit(() -> processInBackground(ctx));
         }
 
         /**
-         * This will execute not on the netty event loop.
+         * This will execute on a thread in {@link #executorService}, not on the netty event loop.
          */
         private void processInBackground(ChannelHandlerContext ctx)
         {
             try
             {
-                executing = true;
-                // it's expected this will block until the either the channel is closed
-                // or there is no incoming data.
+                // this will block until the either the channel is closed or there is no incoming data.
                 messageProcessor.process(queuedBuffers);
-            }
-            catch (EOFException eof)
-            {
-                // ignore this excpetion - just means we've been signalled that processing is done on this channel
             }
             catch (Throwable cause)
             {
-                // TODO:JEB is this the correct error handling, especially off the event loop?
-                exceptionCaught(ctx, cause);
+                 // this is the safest way to indicate to the netty event loop that no more buffers should be processed
+                closed = true;
+
+                // close the buffers as we're on the consuming thread
                 queuedBuffers.close();
-                // TODO:JEB CHANNEL needs to die here! & queuedBuffers, cuz we're in a spot place in the stream
+                exceptionCaught(ctx, cause);
             }
             finally
             {
-                // don't close queuesBuffers from the threadPool, only from the netty event loop
-                executing = false;
-
-                // if we are racing with channelRead(), go ahead and add another task to the queue
-                // as the number of tasks in the queue is bounded (and we throw away any rejection exceptions)
+                executing.set(false);
 
                 try
                 {
-                    if (!queuedBuffers.isEmpty())
+                    // if we are racing with channelRead(), go ahead and add another task to the queue
+                    // as the number of tasks in the queue is bounded (and we throw away any rejection exceptions)
+                    if (!closed && !queuedBuffers.isEmpty())
                         executorService.submit(() -> processInBackground(ctx));
                 }
                 catch (EOFException e)
@@ -284,7 +306,8 @@ public class MessageInHandler extends ChannelInboundHandlerAdapter
 
         public void close()
         {
-            queuedBuffers.markClose();
+            if (queuedBuffers != null)
+                queuedBuffers.markClose();
         }
     }
 }

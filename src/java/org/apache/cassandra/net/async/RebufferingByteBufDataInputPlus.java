@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.netty.buffer.ByteBuf;
@@ -36,6 +37,11 @@ import org.apache.cassandra.io.util.RebufferingInputStream;
 
 public class RebufferingByteBufDataInputPlus extends RebufferingInputStream implements ReadableByteChannel
 {
+    /**
+     * Default to a very large value.
+     */
+    private static final long DEFAULT_REBUFFER_BLOCK_IN_MILLIS = TimeUnit.DAYS.toMillis(2);
+
     /**
      * The parent, or owning, buffer of the current buffer being read from ({@link super#buffer}).
      */
@@ -51,10 +57,16 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
     private final int lowWaterMark;
     private final int highWaterMark;
     private final ChannelConfig channelConfig;
+    private final long rebufferBlockInMillis;
 
     private volatile boolean closed;
 
     public RebufferingByteBufDataInputPlus(int lowWaterMark, int highWaterMark, ChannelConfig channelConfig)
+    {
+        this (lowWaterMark, highWaterMark, channelConfig, DEFAULT_REBUFFER_BLOCK_IN_MILLIS);
+    }
+
+    public RebufferingByteBufDataInputPlus(int lowWaterMark, int highWaterMark, ChannelConfig channelConfig, long rebufferBlockInMillis)
     {
         super(Unpooled.EMPTY_BUFFER.nioBuffer());
 
@@ -65,6 +77,7 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
         this.lowWaterMark = lowWaterMark;
         this.highWaterMark = highWaterMark;
         this.channelConfig = channelConfig;
+        this.rebufferBlockInMillis = rebufferBlockInMillis;
         queue = new LinkedBlockingQueue<>();
         queuedByteCount = new AtomicInteger();
     }
@@ -117,7 +130,7 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
 
         try
         {
-            currentBuf = queue.take();
+            currentBuf = queue.poll(rebufferBlockInMillis, TimeUnit.MILLISECONDS);
             int bytes;
             // if we get an explicitly empty buffer, we treat that as an indicator that the input is closed
             if (currentBuf == null || (bytes = currentBuf.readableBytes()) == 0)
@@ -129,7 +142,6 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
             buffer = currentBuf.nioBuffer(currentBuf.readerIndex(), bytes);
             assert buffer.remaining() == bytes;
             queuedByteCount.addAndGet(-bytes);
-            return;
         }
         catch (InterruptedException ie)
         {
