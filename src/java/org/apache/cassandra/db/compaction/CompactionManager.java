@@ -292,6 +292,7 @@ public class CompactionManager implements CompactionManagerMBean
     private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs, final OneSSTableOperation operation, int jobs, OperationType operationType) throws ExecutionException, InterruptedException
     {
         List<LifecycleTransaction> transactions = new ArrayList<>();
+        List<Future<?>> futures = new ArrayList<>();
         try (LifecycleTransaction compacting = cfs.markAllCompacting(operationType))
         {
             if (compacting == null)
@@ -303,8 +304,6 @@ public class CompactionManager implements CompactionManagerMBean
                 logger.info("No sstables for {}.{}", cfs.keyspace.getName(), cfs.name);
                 return AllSSTableOpStatus.SUCCESSFUL;
             }
-
-            List<Future<?>> futures = new ArrayList<>();
 
             for (final SSTableReader sstable : sstables)
             {
@@ -337,9 +336,18 @@ public class CompactionManager implements CompactionManagerMBean
         }
         finally
         {
+            // wait on any unfinished futures to make sure we don't close an ongoing transaction
+            try
+            {
+                FBUtilities.waitOnFutures(futures);
+            }
+            catch (Throwable t)
+            {
+               // these are handled/logged in CompactionExecutor#afterExecute
+            }
             Throwable fail = Throwables.close(null, transactions);
             if (fail != null)
-                logger.error("Failed to cleanup lifecycle transactions {}", fail);
+                logger.error("Failed to cleanup lifecycle transactions", fail);
         }
     }
 
