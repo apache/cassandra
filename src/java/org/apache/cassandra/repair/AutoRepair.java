@@ -29,6 +29,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +53,7 @@ import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.metrics.AutoRepairMetrics;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -111,8 +113,11 @@ public class AutoRepair
     private static ModificationStatement delStatementRepairStatus;
     private static SelectStatement selectStatementRepairStatus;
 
-    private static final int REPAIR_NOT_DONE = 1;
-    private static final int REPAIR_DONE = 0;
+    enum REPAIR_CUR_STATUS
+    {
+        REPAIR_DONE,
+        REPAIR_NOT_DONE
+    }
 
     private static ConsistencyLevel internalQueryCL;
     private static int numberOfSubranges = 1;
@@ -222,7 +227,7 @@ public class AutoRepair
                 String nodeDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(node);
                 if (ignoreDCs.contains(nodeDC))
                 {
-                    logger.info("Ignore node {} because its datacenter is {}", node, nodeDC);
+                    logger.debug("Ignore node {} because its datacenter is {}", node, nodeDC);
                     continue;
                 }
                 UUID hostId = Gossiper.instance.getHostId(node);
@@ -277,12 +282,14 @@ public class AutoRepair
                     return false;
                 }
 
-                if (myNeighbourHostId != null && myNeighbourHostId.equals(hostIdWithOnGoingRepair) && (currentRepairStatus == REPAIR_DONE))
+                if (myNeighbourHostId != null && myNeighbourHostId.equals(hostIdWithOnGoingRepair) &&
+                        (currentRepairStatus == REPAIR_CUR_STATUS.REPAIR_DONE.ordinal()))
                 {
                     //my neighbour is done with repair, its my turn now
                     myTurn = true;
                 }
-                else if (hostIdWithOnGoingRepair.equals(myId) && (currentRepairStatus == REPAIR_NOT_DONE))
+                else if (hostIdWithOnGoingRepair.equals(myId) && (currentRepairStatus == REPAIR_CUR_STATUS
+                        .REPAIR_NOT_DONE.ordinal()))
                 {
                     //for some reason I was not done with the repair hence resume (maybe node restart in-between, etc.)
                     myTurn = true;
@@ -296,7 +303,7 @@ public class AutoRepair
         }
         catch (Exception e)
         {
-            logger.error("Exception {}", e.getMessage());
+            logger.error("Exception while deciding node's turn:", e);
         }
         return myTurn;
     }
@@ -351,7 +358,7 @@ public class AutoRepair
                     }
                 }
 
-                long startTime = System.currentTimeMillis();
+                Stopwatch stopWatch = Stopwatch.createStarted();
                 logger.info("My turn to run repair...");
 
                 //todo: add grafana metrics so we can see which node is running repair, etc.
@@ -360,13 +367,14 @@ public class AutoRepair
                         QueryOptions.forInternalCalls(internalQueryCL,
                                 Lists.newArrayList(ByteBufferUtil.bytes(0),
                                         ByteBufferUtil.bytes(myId),
-                                        ByteBufferUtil.bytes(REPAIR_NOT_DONE),
+                                        ByteBufferUtil.bytes(REPAIR_CUR_STATUS.REPAIR_NOT_DONE.ordinal()),
                                         ByteBufferUtil.bytes(System.currentTimeMillis()))), Dispatcher.RequestTime.forImmediateExecution());
 
                 int repairKeyspaceCount = 0;
                 int repairTableSuccessCount = 0;
                 int repairTableFailureCount = 0;
                 int repairTableSkipCount = 0;
+                AutoRepairMetrics.repairsInProgress.inc();
                 for (Keyspace keyspace : Keyspace.all())
                 {
                     Tables tables = keyspace.getMetadata().tables;
@@ -385,6 +393,7 @@ public class AutoRepair
                             if (!StorageService.instance.isAutoRepairStarted())
                             {
                                 logger.error("AutoRepair is disabled hence not running repair");
+                                AutoRepairMetrics.repairsInProgress.dec();
                                 return;
                             }
                             totalTablesConsideredForRepair++;
@@ -405,6 +414,9 @@ public class AutoRepair
                             //now run full repair on this table
                             Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);
                             boolean tableRepairSuccess = true;
+                            Set<Range<Token>> ranges = new HashSet<>();
+                            int totalSubRanges = tokens.size() * numberOfSubranges;
+                            int totalProcessedSubRanges = 0;
                             for (Range<Token> token : tokens)
                             {
                                 Murmur3Partitioner.LongToken l = (Murmur3Partitioner.LongToken) (token.left);
@@ -422,10 +434,10 @@ public class AutoRepair
                                 if ((right - left) < numberOfSubranges)
                                 {
                                     logger.warn("Too many sub-ranges are given {}", numberOfSubranges);
-                                    numberOfSubranges = (int) (right - left);
+                                    numberOfSubranges = (int) (right - left) == 0 ? 1 : (int) (right - left);
                                     repairTokenWidth = 1;
+                                    totalSubRanges = tokens.size() * numberOfSubranges;
                                 }
-
                                 for (int i = 0; i < numberOfSubranges; i++)
                                 {
                                     long curLeft = left + (i * repairTokenWidth);
@@ -443,41 +455,43 @@ public class AutoRepair
                                     logger.debug("Current Token Left side {}, right side {}", childStartToken
                                             .toString(), childEndToken.toString());
 
-                                    Set<Range<Token>> ranges = new HashSet<>();
                                     ranges.add(new Range<>(childStartToken, childEndToken));
-
-                                    RepairOption options = new RepairOption(RepairParallelism.PARALLEL, true, false,
-                                                                            false, repairThreads, ranges, !ranges.isEmpty(), false,
-                                                                            false, PreviewKind.NONE, false, true,
-                                                                            false, false);
-                                    options.getColumnFamilies().add(tableName);
-
-                                    int repairCmdId = StorageService.instance.nextRepairCommand.incrementAndGet();
-                                    RepairRunnable task = new RepairRunnable(StorageService.instance, repairCmdId, options, keyspaceName);
-                                    RepairStatus rs = new RepairStatus();
-                                    task.addProgressListener(rs);
-                                    new Thread(NamedThreadFactory.createAnonymousThread(new FutureTask<>(task, null))).start();
-                                    try
+                                    totalProcessedSubRanges++;
+                                    if ((totalProcessedSubRanges % repairThreads == 0) ||
+                                            (totalProcessedSubRanges == totalSubRanges))
                                     {
-                                        rs.waitForRepairToComplete();
-                                    }
-                                    catch (InterruptedException e)
-                                    {
-                                        logger.error("Exception in cond await {}", e.getMessage());
-                                    }
-
-                                    //check repair status
-                                    if (rs.success)
-                                    {
-                                        logger.debug("Repair completed for range {}-{} for {}.{}", childStartToken
-                                                .toString(), childEndToken.toString(), keyspaceName, tableName);
-                                    }
-                                    else
-                                    {
-                                        tableRepairSuccess = false;
-                                        //in future we can add retry, etc.
-                                        logger.info("Repair failed for range {}-{} for {}.{}", childStartToken
-                                                .toString(), childEndToken.toString(), keyspaceName, tableName);
+                                        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, true, false,
+                                                                                false, repairThreads, ranges, !ranges.isEmpty(), false,
+                                                                                false, PreviewKind.NONE, false, true,
+                                                                                false, false);
+                                        options.getColumnFamilies().add(tableName);
+                                        int repairCmdId = StorageService.instance.nextRepairCommand.incrementAndGet();
+                                        RepairRunnable task = new RepairRunnable(StorageService.instance, repairCmdId, options, keyspaceName);
+                                        RepairStatus rs = new RepairStatus();
+                                        task.addProgressListener(rs);
+                                        new Thread(NamedThreadFactory.createAnonymousThread(new FutureTask<>(task, null))).start();
+                                        try
+                                        {
+                                            rs.waitForRepairToComplete();
+                                        }
+                                        catch (InterruptedException e)
+                                        {
+                                            logger.error("Exception in cond await:", e);
+                                        }
+                                        //check repair status
+                                        if (rs.success)
+                                        {
+                                            logger.debug("Repair completed for range {}-{} for {}.{}", childStartToken
+                                            .toString(), childEndToken.toString(), keyspaceName, tableName);
+                                        }
+                                        else
+                                        {
+                                            tableRepairSuccess = false;
+                                            //in future we can add retry, etc.
+                                            logger.info("Repair failed for range {}-{} for {}.{}", childStartToken
+                                            .toString(), childEndToken.toString(), keyspaceName, tableName);
+                                        }
+                                        ranges.clear();
                                     }
                                 }
                             }
@@ -493,7 +507,7 @@ public class AutoRepair
                         }
                         catch (Exception e)
                         {
-                            logger.error("Exception {}", e.getMessage());
+                            logger.error("Exception while repairing keyspace {}:", keyspaceName, e);
                         }
                     }
                 }
@@ -502,13 +516,14 @@ public class AutoRepair
                         QueryOptions.forInternalCalls(internalQueryCL,
                                 Lists.newArrayList(ByteBufferUtil.bytes(0),
                                         ByteBufferUtil.bytes(myId),
-                                        ByteBufferUtil.bytes(REPAIR_DONE),
+                                        ByteBufferUtil.bytes(REPAIR_CUR_STATUS.REPAIR_DONE.ordinal()),
                                         ByteBufferUtil.bytes(System.currentTimeMillis()))), Dispatcher.RequestTime.forImmediateExecution());
 
                 logger.info("Local repair time {} hour(s), stats: repairKeyspaceCount {}, " +
                                 "repairTableSuccessCount {}, repairTableFailureCount {}, " +
-                                "repairTableSkipCount {}", TimeUnit.MILLISECONDS.toHours(System.currentTimeMillis() -
-                                startTime), repairKeyspaceCount, repairTableSuccessCount, repairTableFailureCount,
+                                "repairTableSkipCount {}", stopWatch.elapsed(TimeUnit.HOURS), repairKeyspaceCount,
+                        repairTableSuccessCount,
+                        repairTableFailureCount,
                         repairTableSkipCount);
                 if (lastRepairTimeInMs != 0)
                 {
@@ -516,6 +531,7 @@ public class AutoRepair
                             TimeUnit.MILLISECONDS.toHours(System.currentTimeMillis() - lastRepairTimeInMs));
                 }
                 lastRepairTimeInMs = System.currentTimeMillis();
+                AutoRepairMetrics.repairsInProgress.dec();
             }
             else
             {
@@ -524,7 +540,7 @@ public class AutoRepair
         }
         catch (Exception e)
         {
-            logger.error("Exception {}", e.getMessage());
+            logger.error("Exception in autorepair:", e);
         }
     }
 }

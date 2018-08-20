@@ -91,7 +91,7 @@ public class AutoRepairTest extends CQLTester
     public void testRepairTurn() throws Throwable
     {
         UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
-        Assert.assertTrue(AutoRepair.instance.myTurnToRunRepair(myId));
+        Assert.assertTrue("Expected my turn for the repair", AutoRepair.instance.myTurnToRunRepair(myId));
     }
 
     @Test
@@ -101,7 +101,7 @@ public class AutoRepairTest extends CQLTester
         AutoRepair.repair(false);
         long lastRepairTime = AutoRepair.instance.getLastRepairTime();
         //if repair was done then lastRepairTime should be non-zero
-        Assert.assertTrue(lastRepairTime > 0);
+        Assert.assertTrue("Expected lastRepairTime > 0, actual value lastRepairTime: " + lastRepairTime, lastRepairTime > 0);
     }
 
     @Test
@@ -111,14 +111,18 @@ public class AutoRepairTest extends CQLTester
         AutoRepair.instance.setMinRepairFrequencyInHours(-1);
         AutoRepair.repair(false);
         long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
-        Assert.assertNotSame(AutoRepair.instance.getTotalTablesConsideredForRepair(), 0);
+        Assert.assertNotSame("Expected total repaired tables > 0, actual value: " + AutoRepair.instance
+                .getTotalTablesConsideredForRepair(), AutoRepair.instance.getTotalTablesConsideredForRepair(), 0);
 
         //if repair was done in last 24 hours then it should not trigger another repair
         AutoRepair.instance.setMinRepairFrequencyInHours(24);
         AutoRepair.repair(false);
         long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
-        Assert.assertEquals(lastRepairTime1, lastRepairTime2);
-        Assert.assertEquals(AutoRepair.instance.getTotalTablesConsideredForRepair(), 0);
+        Assert.assertEquals("Expected repair time to be same, actual value lastRepairTime1: " + lastRepairTime1 + "," +
+                " lastRepairTime2: " + lastRepairTime2, lastRepairTime1, lastRepairTime2);
+        Assert.assertEquals("Expected total repaired tables = 0, actual value: " + AutoRepair.instance
+                .getTotalTablesConsideredForRepair(), AutoRepair.instance
+                .getTotalTablesConsideredForRepair(), 0);
     }
 
     @Test
@@ -127,11 +131,12 @@ public class AutoRepairTest extends CQLTester
         AutoRepair.instance.setMinRepairFrequencyInHours(-1);
         AutoRepair.repair(false);
         long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
-        Assert.assertTrue(lastRepairTime1 > 0);
+        Assert.assertTrue("Expected lastRepairTime1 > 0, actual value lastRepairTime1: " + lastRepairTime1, lastRepairTime1 > 0);
         UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
-        Assert.assertTrue(AutoRepair.instance.myTurnToRunRepair(myId));
+        Assert.assertTrue("Expected my turn for the repair", AutoRepair.instance.myTurnToRunRepair(myId));
         AutoRepair.repair(false);
         long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
-        Assert.assertNotSame(lastRepairTime1, lastRepairTime2);
+        Assert.assertNotSame("Expected repair time to be same, actual value lastRepairTime1: " + lastRepairTime1 +
+                ", lastRepairTime2: " + lastRepairTime2, lastRepairTime1, lastRepairTime2);
     }
 }
