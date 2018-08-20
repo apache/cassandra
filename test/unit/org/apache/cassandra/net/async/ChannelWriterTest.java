@@ -315,13 +315,16 @@ public class ChannelWriterTest
     }
 
     @Test
-    public void writeBacklog_NotEmpty()
+    public void writeBacklog_NotEmpty() throws InterruptedException
     {
         BlockingQueue<QueuedMessage> queue = new LinkedBlockingQueue<>();
         int count = 12;
+        wrapper.latch = new CountDownLatch(count);
         for (int i = 0; i < count; i++)
             queue.offer(new QueuedMessage(new MessageOut<>(ECHO), i));
         Assert.assertEquals(count, channelWriter.writeBacklog(queue, false));
+
+        wrapper.latch.await(5, TimeUnit.SECONDS);
         Assert.assertTrue(channel.releaseOutbound());
     }
 
@@ -419,7 +422,7 @@ public class ChannelWriterTest
 
     private class MessageOutWrapper
     {
-        final CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch latch = new CountDownLatch(1);
         MessageResult messageResult;
     }
 }
