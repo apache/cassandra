@@ -38,7 +38,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     /*
      * Threshold at which resizing transitions from doubling to increasing by 50%
      */
-    private static final long DOUBLING_THRESHOLD = Long.getLong(Config.PROPERTY_PREFIX + "DOB_DOUBLING_THRESHOLD_MB", 64);
+    static final long DOUBLING_THRESHOLD = Long.getLong(Config.PROPERTY_PREFIX + "DOB_DOUBLING_THRESHOLD_MB", 64);
 
     /*
      * Only recycle OutputBuffers up to 1Mb. Larger buffers will be trimmed back to this size.
@@ -116,7 +116,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     @Override
     protected void doFlush(int count) throws IOException
     {
-        reallocate(count);
+        expandToFit(count);
     }
 
     //Hack for test, make it possible to override checking the buffer capacity
@@ -152,7 +152,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         return validateReallocation(newSize);
     }
 
-    protected void reallocate(long count)
+    protected void expandToFit(long count)
     {
         if (count <= 0)
             return;
@@ -179,7 +179,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         public int write(ByteBuffer src) throws IOException
         {
             int count = src.remaining();
-            reallocate(count);
+            expandToFit(count);
             buffer.put(src);
             return count;
         }
