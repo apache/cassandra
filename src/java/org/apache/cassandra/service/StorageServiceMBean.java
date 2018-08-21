@@ -507,6 +507,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void stopNativeTransport();
     public void startNativeTransport();
     public boolean isNativeTransportRunning();
+    public void enableNativeTransportOldProtocolVersions();
+    public void disableNativeTransportOldProtocolVersions();
 
     // allows a node that have been started without joining the ring to join it
     public void joinRing() throws IOException;

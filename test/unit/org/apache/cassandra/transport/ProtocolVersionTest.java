@@ -18,11 +18,30 @@
 
 package org.apache.cassandra.transport;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class ProtocolVersionTest
 {
+    @BeforeClass
+    public static void setupDatabaseDescriptor()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
+    @Before
+    public void setUp()
+    {
+        DatabaseDescriptor.setNativeTransportAllowOlderProtocols(true);
+    }
+
     @Test
     public void testDecode()
     {
@@ -99,5 +118,29 @@ public class ProtocolVersionTest
         Assert.assertFalse(ProtocolVersion.V4.isSmallerThan(ProtocolVersion.V3));
         Assert.assertFalse(ProtocolVersion.V3.isSmallerThan(ProtocolVersion.V2));
         Assert.assertFalse(ProtocolVersion.V2.isSmallerThan(ProtocolVersion.V1));
+    }
+
+    @Test
+    public void testDisableOldProtocolVersions_Succeeds()
+    {
+        DatabaseDescriptor.setNativeTransportAllowOlderProtocols(false);
+        List<ProtocolVersion> disallowedVersions = ProtocolVersion.SUPPORTED
+                                                       .stream()
+                                                       .filter(v -> v.isSmallerThan(ProtocolVersion.CURRENT))
+                                                       .collect(Collectors.toList());
+
+        for (ProtocolVersion version : disallowedVersions)
+        {
+            try
+            {
+                ProtocolVersion.decode(version.asInt());
+                Assert.fail("Expected invalid protocol exception");
+            }
+            catch (ProtocolException ex)
+            {
+            }
+        }
+
+        Assert.assertEquals(ProtocolVersion.CURRENT, ProtocolVersion.decode(ProtocolVersion.CURRENT.asInt()));
     }
 }

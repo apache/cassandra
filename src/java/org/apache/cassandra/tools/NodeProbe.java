@@ -1749,6 +1749,16 @@ public class NodeProbe implements AutoCloseable
     {
         ssProxy.enableAuditLog(loggerName, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
     }
+
+    public void enableOldProtocolVersions()
+    {
+        ssProxy.enableNativeTransportOldProtocolVersions();
+    }
+
+    public void disableOldProtocolVersions()
+    {
+        ssProxy.disableNativeTransportOldProtocolVersions();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

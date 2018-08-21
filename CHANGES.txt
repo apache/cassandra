@@ -1,4 +1,5 @@
 4.0
+ * Disable old native protocol versions on demand (CASANDRA-14659)
  * Allow specifying now-in-seconds in native protocol (CASSANDRA-14664)
  * Improve BTree build performance by avoiding data copy (CASSANDRA-9989)
  * Make monotonic read / read repair configurable (CASSANDRA-14635)

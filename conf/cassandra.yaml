@@ -664,6 +664,10 @@ native_transport_port: 9042
 # The default is -1, which means unlimited.
 # native_transport_max_concurrent_connections_per_ip: -1
 
+# Controls whether Cassandra honors older, yet currently supported, protocol versions.
+# The default is true, which means all supported protocols will be honored.
+native_transport_allow_older_protocols: true
+
 # The address or interface to bind the native transport server to.
 #
 # Set rpc_address OR rpc_interface, not both.

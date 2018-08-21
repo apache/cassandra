@@ -153,6 +153,7 @@ public class Config
     public volatile long native_transport_max_concurrent_connections = -1L;
     public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
+    public volatile boolean native_transport_allow_older_protocols = true;
 
     /**
      * Max size of values in SSTables, in MegaBytes.
