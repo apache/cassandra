@@ -18,12 +18,10 @@
 
 package org.apache.cassandra.net.async;
 
-import java.net.InetSocketAddress;
-import java.util.Optional;
-
 import com.google.common.net.InetAddresses;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,10 +29,12 @@ import org.junit.Test;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.SingleThreadEventLoop;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.channel.nio.NioEventLoop;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
@@ -43,7 +43,6 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -87,8 +86,7 @@ public class NettyFactoryTest
     @Test
     public void createServerChannel_Epoll()
     {
-        if (!EPOLL_AVAILABLE)
-            return;
+        Assume.assumeTrue(EPOLL_AVAILABLE);
         Channel inboundChannel = createServerChannel(true);
         if (inboundChannel == null)
             return;
@@ -185,8 +183,7 @@ public class NettyFactoryTest
     @Test
     public void getEventLoopGroup_EpollWithIoRatioBoost()
     {
-        if (!EPOLL_AVAILABLE)
-            return;
+        Assume.assumeTrue(EPOLL_AVAILABLE);
         getEventLoopGroup_Epoll(true);
     }
 
@@ -213,8 +210,7 @@ public class NettyFactoryTest
     @Test
     public void getEventLoopGroup_EpollWithoutIoRatioBoost()
     {
-        if (!EPOLL_AVAILABLE)
-            return;
+        Assume.assumeTrue(EPOLL_AVAILABLE);
         getEventLoopGroup_Epoll(false);
     }
 
@@ -240,10 +236,12 @@ public class NettyFactoryTest
     @Test
     public void createOutboundBootstrap_Epoll()
     {
-        if (!EPOLL_AVAILABLE)
-            return;
+        Assume.assumeTrue(EPOLL_AVAILABLE);
         Bootstrap bootstrap = createOutboundBootstrap(true);
-        Assert.assertEquals(EpollEventLoopGroup.class, bootstrap.config().group().getClass());
+
+        // EpollEventLoop is package default visibility, so we can't check for that type explicity :(
+        Assert.assertTrue(bootstrap.config().group() instanceof EpollEventLoopGroup ||
+                          bootstrap.config().group() instanceof SingleThreadEventLoop);
     }
 
     private Bootstrap createOutboundBootstrap(boolean useEpoll)
@@ -252,7 +250,6 @@ public class NettyFactoryTest
         OutboundConnectionIdentifier id = OutboundConnectionIdentifier.gossip(LOCAL_ADDR, REMOTE_ADDR);
         OutboundConnectionParams params = OutboundConnectionParams.builder()
                                                                   .connectionId(id)
-                                                                  .coalescingStrategy(Optional.empty())
                                                                   .protocolVersion(MessagingService.current_version)
                                                                   .build();
         return factory.createOutboundBootstrap(params);
@@ -262,7 +259,8 @@ public class NettyFactoryTest
     public void createOutboundBootstrap_Nio()
     {
         Bootstrap bootstrap = createOutboundBootstrap(false);
-        Assert.assertEquals(NioEventLoopGroup.class, bootstrap.config().group().getClass());
+        Assert.assertTrue(bootstrap.config().group() instanceof NioEventLoopGroup ||
+                          bootstrap.config().group() instanceof NioEventLoop);
     }
 
     @Test

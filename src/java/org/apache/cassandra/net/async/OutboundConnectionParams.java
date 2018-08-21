@@ -18,12 +18,11 @@
 
 package org.apache.cassandra.net.async;
 
-import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
 
+import io.netty.channel.EventLoop;
 import io.netty.channel.WriteBufferWaterMark;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.net.async.OutboundHandshakeHandler.HandshakeResult;
@@ -41,26 +40,24 @@ public class OutboundConnectionParams
     final ServerEncryptionOptions encryptionOptions;
     final NettyFactory.Mode mode;
     final boolean compress;
-    final Optional<CoalescingStrategy> coalescingStrategy;
+    final CoalescingStrategy coalescingStrategy;
     final int sendBufferSize;
     final boolean tcpNoDelay;
-    final Supplier<QueuedMessage> backlogSupplier;
-    final Consumer<MessageResult> messageResultConsumer;
     final WriteBufferWaterMark waterMark;
     final int protocolVersion;
+    final EventLoop eventLoop;
 
     private OutboundConnectionParams(OutboundConnectionIdentifier connectionId,
                                      Consumer<HandshakeResult> callback,
                                      ServerEncryptionOptions encryptionOptions,
                                      NettyFactory.Mode mode,
                                      boolean compress,
-                                     Optional<CoalescingStrategy> coalescingStrategy,
+                                     CoalescingStrategy coalescingStrategy,
                                      int sendBufferSize,
                                      boolean tcpNoDelay,
-                                     Supplier<QueuedMessage> backlogSupplier,
-                                     Consumer<MessageResult> messageResultConsumer,
                                      WriteBufferWaterMark waterMark,
-                                     int protocolVersion)
+                                     int protocolVersion,
+                                     EventLoop eventLoop)
     {
         this.connectionId = connectionId;
         this.callback = callback;
@@ -70,10 +67,9 @@ public class OutboundConnectionParams
         this.coalescingStrategy = coalescingStrategy;
         this.sendBufferSize = sendBufferSize;
         this.tcpNoDelay = tcpNoDelay;
-        this.backlogSupplier = backlogSupplier;
-        this.messageResultConsumer = messageResultConsumer;
         this.waterMark = waterMark;
         this.protocolVersion = protocolVersion;
+        this.eventLoop = eventLoop;
     }
 
     public static Builder builder()
@@ -93,12 +89,11 @@ public class OutboundConnectionParams
         private ServerEncryptionOptions encryptionOptions;
         private NettyFactory.Mode mode;
         private boolean compress;
-        private Optional<CoalescingStrategy> coalescingStrategy = Optional.empty();
+        private CoalescingStrategy coalescingStrategy;
         private int sendBufferSize = DEFAULT_SEND_BUFFER_SIZE;
         private boolean tcpNoDelay;
-        private Supplier<QueuedMessage> backlogSupplier;
-        private Consumer<MessageResult> messageResultConsumer;
         private WriteBufferWaterMark waterMark = WriteBufferWaterMark.DEFAULT;
+        private EventLoop eventLoop;
         int protocolVersion;
 
         private Builder()
@@ -114,8 +109,7 @@ public class OutboundConnectionParams
             this.coalescingStrategy = params.coalescingStrategy;
             this.sendBufferSize = params.sendBufferSize;
             this.tcpNoDelay = params.tcpNoDelay;
-            this.backlogSupplier = params.backlogSupplier;
-            this.messageResultConsumer = params.messageResultConsumer;
+            this.eventLoop = params.eventLoop;
         }
 
         public Builder connectionId(OutboundConnectionIdentifier connectionId)
@@ -148,7 +142,7 @@ public class OutboundConnectionParams
             return this;
         }
 
-        public Builder coalescingStrategy(Optional<CoalescingStrategy> coalescingStrategy)
+        public Builder coalescingStrategy(CoalescingStrategy coalescingStrategy)
         {
             this.coalescingStrategy = coalescingStrategy;
             return this;
@@ -166,18 +160,6 @@ public class OutboundConnectionParams
             return this;
         }
 
-        public Builder backlogSupplier(Supplier<QueuedMessage> backlogSupplier)
-        {
-            this.backlogSupplier = backlogSupplier;
-            return this;
-        }
-
-        public Builder messageResultConsumer(Consumer<MessageResult> messageResultConsumer)
-        {
-            this.messageResultConsumer = messageResultConsumer;
-            return this;
-        }
-
         public Builder waterMark(WriteBufferWaterMark waterMark)
         {
             this.waterMark = waterMark;
@@ -190,13 +172,19 @@ public class OutboundConnectionParams
             return this;
         }
 
+        public Builder eventLoop(EventLoop eventLoop)
+        {
+            this.eventLoop = eventLoop;
+            return this;
+        }
+
         public OutboundConnectionParams build()
         {
             Preconditions.checkArgument(protocolVersion > 0, "illegal protocol version: " + protocolVersion);
             Preconditions.checkArgument(sendBufferSize > 0 && sendBufferSize < 1 << 20, "illegal send buffer size: " + sendBufferSize);
 
             return new OutboundConnectionParams(connectionId, callback, encryptionOptions, mode, compress, coalescingStrategy, sendBufferSize,
-                                                tcpNoDelay, backlogSupplier, messageResultConsumer, waterMark, protocolVersion);
+                                                tcpNoDelay, waterMark, protocolVersion, eventLoop);
         }
     }
 }

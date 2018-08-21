@@ -19,16 +19,15 @@
 package org.apache.cassandra.net.async;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.util.Optional;
+import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -37,9 +36,11 @@ import org.slf4j.LoggerFactory;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.EventLoop;
+import io.netty.util.Attribute;
+import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
@@ -54,20 +55,42 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 /**
- * Represents one connection to a peer, and handles the state transistions on the connection and the netty {@link Channel}
+ * Represents a connection type to a peer, and handles the state transistions on the connection and the netty {@link Channel}.
  * The underlying socket is not opened until explicitly requested (by sending a message).
  *
- * The basic setup for the channel is like this: a message is requested to be sent via {@link #sendMessage(MessageOut, int)}.
- * If the channel is not established, then we need to create it (obviously). To prevent multiple threads from creating
- * independent connections, they attempt to update the {@link #state}; one thread will win the race and create the connection.
- * Upon sucessfully setting up the connection/channel, the {@link #state} will be updated again (to {@link State#READY},
- * which indicates to other threads that the channel is ready for business and can be written to.
+ * Aside from a few administrative methods, the main entry point to sending a message is, aptly named, {@link #sendMessage(MessageOut, int)}.
+ * As a producer, any thread may send a message (which enqueues the message to {@link #backlog}; but then there is only
+ * one consuming thread, which consumes from the {@link #backlog}. The method {@link #maybeStartDequeuing()} is the entry point
+ * for the task that consumes the backlog (and executes on the event loop).
  *
+ * For all of the netty and channel related behaviors, we get an explicit netty event loop (which can be thought of
+ * as a glorified thread) in the constructor, and stash that for the instance lifetime in {@link #eventLoop}. That event loop
+ * is then used for all channels that will be created during the lifetime of this instance, as well as handling connection
+ * timeouts and callbacks. This way all the activity happens on a single thread, and there's less multi-threaded concurrency
+ * to have to reason about. However, one must be able to reason about the ordering and states of the callbacks/methods that are
+ * executed on that event loop, which can be tricky.
+ *
+ * The state of the class is guided an an instance of {@link State}; refer to it's javadoc to understand the full
+ * state machine semantics. In brief, the state machine helps to signal between the producers and consumer task, as well
+ * as ensuring only one consume task is executing (and only one connect operation is happening, as well).
+ * Ignoring the connecting state, the basic state flow is:
+ * IDLE -> ENQUEUED -> RUNNING -> IDLE.
+ *
+ * The state begins at IDLE, then is transitioned either by a producer or the consumer to ENQUEUED, at which point
+ * the consumer task is scheduled (or is already running). The consumer task then moves the state from ENQUEUED to RUNNING.
+ * When the consumer is done writing to the netty channel, it moves the state back to IDLE. There is some special handling,
+ * primarily in {@link #maybeEnqueueConsumerTask()}, to catch for races between producers and consumer wrt the {@link #backlog}
+ * and changing the state.
+ *
+ * When reading this code, it is important to know what thread a given method will be invoked on. To that end,
+ * the important methods have javadoc comments that state which thread they will/should execute on.
+ * To that end, the {@link #backlog} is treated like a MPSC queue (Multi-producer, single-consumer), where any thread
+ * can write to it, but only the {@link #eventLoop} should consume from it.
  */
 public class OutboundMessagingConnection
 {
     static final Logger logger = LoggerFactory.getLogger(OutboundMessagingConnection.class);
-    private static final NoSpamLogger errorLogger = NoSpamLogger.getLogger(logger, 10, TimeUnit.SECONDS);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 30L, TimeUnit.SECONDS);
 
     private static final String INTRADC_TCP_NODELAY_PROPERTY = Config.PROPERTY_PREFIX + "otc_intradc_tcp_nodelay";
 
@@ -79,67 +102,111 @@ public class OutboundMessagingConnection
     /**
      * Number of milliseconds between connection createRetry attempts.
      */
-    private static final int OPEN_RETRY_DELAY_MS = 100;
+    private static final int OPEN_RETRY_DELAY_MS = 200;
 
     /**
      * A minimum number of milliseconds to wait for a connection (TCP socket connect + handshake)
      */
     private static final int MINIMUM_CONNECT_TIMEOUT_MS = 2000;
+
+    /**
+     * Some (artificial) max number of time to attempt to connect at a given time.
+     */
+    private static final int MAX_RECONNECT_ATTEMPTS = 10;
+
+    private static final String BACKLOG_PURGE_SIZE_PROPERTY = Config.PROPERTY_PREFIX + "otc_backlog_purge_size";
+    private static final int BACKLOG_PURGE_SIZE = Integer.getInteger(BACKLOG_PURGE_SIZE_PROPERTY, 1024);
+
+    /**
+     * A naively high threshold for the number of of messages to be allowed in the {@link #backlog}.
+     */
+    private static final int DEFAULT_MAX_BACKLOG_DEPTH = 16 * 1024;
+
+    /**
+     * An upper bound on the number of messages to dequeue, in order to cooperatively make use of the {@link #eventLoop}
+     * (and not starve out other tasks on the same event loop).
+     */
+    private static final int MAX_DEQUEUE_COUNT = 32;
+
+    /**
+     * A netty channel {@link Attribute} to indicate, when a channel is closed, any backlogged messages should be purged,
+     * as well. See the class-level documentation for more information.
+     */
+    static final AttributeKey<Boolean> PURGE_MESSAGES_CHANNEL_ATTR = AttributeKey.newInstance("purgeMessages");
+
     private final IInternodeAuthenticator authenticator;
 
     /**
-     * Describes this instance's ability to send messages into it's Netty {@link Channel}.
-     */
-    enum State
-    {
-        /** waiting to create the connection */
-        NOT_READY,
-        /** we've started to create the connection/channel */
-        CREATING_CHANNEL,
-        /** channel is established and we can send messages */
-        READY,
-        /** a dead state which should not be transitioned away from */
-        CLOSED
-    }
-
-    /**
-     * Backlog to hold messages passed by upstream threads while the Netty {@link Channel} is being set up or recreated.
+     * Backlog to hold messages passed by producer threads while a consumer task  sned them one by one to
+     * the Netty {@link Channel}/{@link #channelWriter}.
      */
     private final Queue<QueuedMessage> backlog;
 
     /**
-     * Reference to a {@link ScheduledExecutorService} rther than directly depending on something like {@link ScheduledExecutors}.
+     * A count of the items in {@link #backlog}, as we are not using a data structure with a constant-time
+     * {@link Queue#size()} method.
+     *
+     * NOTE: this field should only be used for expiring messages, where a slight inaccurcy wrt {@link Queue#size()}
+     * is acceptable.
      */
-    private final ScheduledExecutorService scheduledExecutor;
+    @VisibleForTesting
+    final AtomicInteger backlogSize;
 
-    final AtomicLong droppedMessageCount;
-    final AtomicLong completedMessageCount;
+    /**
+     * The size threshold at which to start trying to expiry messages from the {@link #backlog}.
+     */
+    private final int backlogPurgeSize;
+
+    /**
+     * An upper bound for the number of elements in {@link #backlog}. Anything more than this and we should drop messages
+     * in order to avoid getting into a bad place wrt memory.
+     */
+    private final int maxQueueDepth;
+
+    /**
+     * The minimum time (in system nanos) after which to try expiring messages from the {@link #backlog}.
+     */
+    @VisibleForTesting
+    volatile long backlogNextExpirationTime;
+
+    /**
+     * A flag to indicate if we are either scheduled to or are actively expiring messages from the {@link #backlog}.
+     */
+    @VisibleForTesting
+    final AtomicBoolean backlogExpirationActive;
+
+    private final AtomicLong droppedMessageCount;
+    private final AtomicLong completedMessageCount;
 
     private volatile OutboundConnectionIdentifier connectionId;
 
     private final ServerEncryptionOptions encryptionOptions;
 
     /**
-     * A future for retrying connections. Bear in mind that this future does not execute in the
-     * netty event event loop, so there's some races to be careful of.
+     * A future for retrying connections.
      */
-    private volatile ScheduledFuture<?> connectionRetryFuture;
+    private ScheduledFuture<?> connectionRetryFuture;
 
     /**
      * A future for notifying when the timeout for creating the connection and negotiating the handshake has elapsed.
-     * It will be cancelled when the channel is established correctly. Bear in mind that this future does not execute in the
-     * netty event event loop, so there's some races to be careful of.
+     * It will be cancelled when the channel is established correctly. This future executes in the netty event loop.
      */
-    private volatile ScheduledFuture<?> connectionTimeoutFuture;
+    private ScheduledFuture<?> connectionTimeoutFuture;
 
-    private final AtomicReference<State> state;
-
-    private final Optional<CoalescingStrategy> coalescingStrategy;
+    private final CoalescingStrategy coalescingStrategy;
 
     /**
-     * A running count of the number of times we've tried to create a connection.
+     * An explicit thread from a netty {@link io.netty.channel.EventLoopGroup} on which to perform all connection creation
+     * and channel sending related activities.
      */
-    private volatile int connectAttemptCount;
+    private final EventLoop eventLoop;
+
+    /**
+     * A running count of the number of times we've tried to create a connection. Is reset upon a successful connection creation.
+     *
+     * As it is only referenced on the event loop, this field does not need to be volatile.
+     */
+    private int connectAttemptCount;
 
     /**
      * The netty channel, once a socket connection is established; it won't be in it's normal working state until the handshake is complete.
@@ -151,30 +218,39 @@ public class OutboundMessagingConnection
      */
     private int targetVersion;
 
+    private final State state;
+
     OutboundMessagingConnection(OutboundConnectionIdentifier connectionId,
                                 ServerEncryptionOptions encryptionOptions,
-                                Optional<CoalescingStrategy> coalescingStrategy,
+                                CoalescingStrategy coalescingStrategy,
                                 IInternodeAuthenticator authenticator)
     {
-        this(connectionId, encryptionOptions, coalescingStrategy, authenticator, ScheduledExecutors.scheduledFastTasks);
+        this (connectionId, encryptionOptions, coalescingStrategy, authenticator, BACKLOG_PURGE_SIZE, DEFAULT_MAX_BACKLOG_DEPTH);
     }
 
-    @VisibleForTesting
     OutboundMessagingConnection(OutboundConnectionIdentifier connectionId,
                                 ServerEncryptionOptions encryptionOptions,
-                                Optional<CoalescingStrategy> coalescingStrategy,
+                                CoalescingStrategy coalescingStrategy,
                                 IInternodeAuthenticator authenticator,
-                                ScheduledExecutorService sceduledExecutor)
+                                int backlogPurgeSize,
+                                int maxQueueDepth)
     {
         this.connectionId = connectionId;
         this.encryptionOptions = encryptionOptions;
         this.authenticator = authenticator;
+        this.backlogPurgeSize = backlogPurgeSize;
+        this.coalescingStrategy = coalescingStrategy;
+        this.maxQueueDepth = maxQueueDepth;
+
         backlog = new ConcurrentLinkedQueue<>();
+        backlogSize = new AtomicInteger(0);
+
+        backlogExpirationActive = new AtomicBoolean(false);
         droppedMessageCount = new AtomicLong(0);
         completedMessageCount = new AtomicLong(0);
-        state = new AtomicReference<>(State.NOT_READY);
-        this.scheduledExecutor = sceduledExecutor;
-        this.coalescingStrategy = coalescingStrategy;
+        state = new State();
+
+        eventLoop = NettyFactory.instance.outboundGroup.next();
 
         // We want to use the most precise protocol version we know because while there is version detection on connect(),
         // the target version might be accessed by the pool (in getConnection()) before we actually connect (as we
@@ -186,42 +262,213 @@ public class OutboundMessagingConnection
         targetVersion = MessagingService.instance().getVersion(connectionId.remote());
     }
 
-    /**
-     * If the connection is set up and ready to use (the normal case), simply send the message to it and return.
-     * Otherwise, one lucky thread is selected to create the Channel, while other threads just add the {@code msg} to
-     * the backlog queue.
-     *
-     * @return true if the message was accepted by the {@link #channelWriter}; else false if it was not accepted
-     * and added to the backlog or the channel is {@link State#CLOSED}. See documentation in {@link ChannelWriter} and
-     * {@link MessageOutHandler} how the backlogged messages get consumed.
-     */
+    private String loggingTag()
+    {
+        ChannelWriter writer = channelWriter;
+        String channelId = writer != null && !writer.isClosed()
+                           ? writer.channel.id().asShortText()
+                           : "[no-channel]";
+        return connectionId.remote() + "-" + connectionId.type() + "-" + channelId;
+    }
+
     boolean sendMessage(MessageOut msg, int id)
     {
         return sendMessage(new QueuedMessage(msg, id));
     }
 
+    /**
+     * This is the main entry point for enqueuing a message to be sent to the remote peer.
+     *
+     * Can be be called from any thread.
+     */
     boolean sendMessage(QueuedMessage queuedMessage)
     {
-        State state = this.state.get();
-        if (state == State.READY)
-        {
-            if (channelWriter.write(queuedMessage, false))
-                return true;
+        if (isClosed())
+            return false;
 
-            backlog.add(queuedMessage);
+        maybeScheduleMessageExpiry(System.nanoTime());
+
+        if (queuedMessage.droppable && backlogSize.get() > maxQueueDepth)
+        {
+            noSpamLogger.warn("{} backlog to send messages is getting critically long, dropping outbound messages", loggingTag());
+            droppedMessageCount.incrementAndGet();
             return false;
         }
-        else if (state == State.CLOSED)
-        {
-            errorLogger.warn("trying to write message to a closed connection");
+
+        backlog.add(queuedMessage);
+        backlogSize.incrementAndGet();
+
+        if (state.set(State.STATE_IDLE, State.STATE_CONSUME_ENQUEUED))
+            eventLoop.submit(this::maybeStartDequeuing);
+
+        return true;
+    }
+
+    boolean maybeScheduleMessageExpiry(long timestampNanos)
+    {
+        if (backlogSize.get() < backlogPurgeSize)
             return false;
-        }
-        else
+
+        if (backlogNextExpirationTime - timestampNanos > 0)
+            return false; // Expiration is not due.
+
+        if (backlogExpirationActive.compareAndSet(false, true))
         {
-            backlog.add(queuedMessage);
-            connect();
+            eventLoop.submit(this::expireMessages);
             return true;
         }
+
+        return false;
+    }
+
+    /**
+     * Expire elements from the queue if the queue is pretty full and expiration is not already in progress.
+     * This method will only remove droppable expired entries. If no such element exists, nothing is removed from the queue.
+     *
+     * Note: executes on the netty event loop, primarily to preserve a MPSC relationship on the {@link #backlog}.
+     */
+    int expireMessages()
+    {
+        int expiredMessageCount = 0;
+
+        // if this instance is closed, don't bother unsetting the backlogExpirationActive flag, as we never want to run again
+        if (isClosed())
+            return expiredMessageCount;
+
+        long timestampNanos = System.nanoTime();
+        try
+        {
+
+            Iterator<QueuedMessage> iter = backlog.iterator();
+            while (iter.hasNext())
+            {
+                QueuedMessage qm = iter.next();
+                if (!qm.droppable)
+                    continue;
+                if (!qm.isTimedOut(timestampNanos))
+                    continue;
+                iter.remove();
+                expiredMessageCount++;
+            }
+
+            backlogSize.addAndGet(-expiredMessageCount);
+            droppedMessageCount.addAndGet(expiredMessageCount);
+
+            if (logger.isTraceEnabled())
+            {
+                long duration = TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - timestampNanos);
+                logger.trace("{} Expiration took {}μs, and expired {} messages", loggingTag(), duration, expiredMessageCount);
+            }
+        }
+        finally
+        {
+            long backlogExpirationIntervalNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getOtcBacklogExpirationInterval());
+            backlogNextExpirationTime = timestampNanos + backlogExpirationIntervalNanos;
+            backlogExpirationActive.set(false);
+        }
+
+        return expiredMessageCount;
+    }
+
+    /**
+     * Peform checks on the state of this instance, before invoking {@link #dequeueMessages()}.
+     *
+     * Note: executes on the netty event loop.
+     */
+    private boolean maybeStartDequeuing()
+    {
+        if (isClosed())
+            return false;
+
+        if (backlog.isEmpty())
+        {
+            state.set(State.STATE_IDLE);
+            return false;
+        }
+
+        if (channelWriter == null || channelWriter.isClosed())
+        {
+            if (state.set(State.STATE_IDLE))
+                reconnect();
+            return false;
+        }
+
+        if (!state.set(State.STATE_CONSUME_ENQUEUED, State.STATE_CONSUME_RUNNING))
+            return false;
+
+        return dequeueMessages();
+    }
+
+    /**
+     * Attempts to reschedule the consumer task if there are messages remaining. The key
+     */
+    private void maybeEnqueueConsumerTask()
+    {
+        if (!backlog.isEmpty() && state.set(State.STATE_IDLE, State.STATE_CONSUME_ENQUEUED))
+            eventLoop.submit(this::maybeStartDequeuing);
+    }
+
+    /**
+     * Pull messages off the {@link #backlog} and write them to the netty channel until we can flush (or hit an upper bound).
+     * Assumes the {@link #channelWriter} and channel are properly established, and that we are in the RUNNING state.
+     *
+     * Note: executes on the netty event loop.
+     */
+    private boolean dequeueMessages()
+    {
+        int sentMessages = 0;
+        long timestampNanos = System.nanoTime();
+
+        // we loop until we know a flush has been scheduled else we'll never get handleMessageResult() invoked
+        while (true)
+        {
+            if (!channelWriter.channel.isWritable())
+            {
+                if (sentMessages > 0)
+                    channelWriter.channel.flush();
+                break;
+            }
+
+            QueuedMessage next = backlog.poll();
+            if (next == null)
+            {
+                // if we've already dequeued at least one message (on a previous loop iteration), we do not need to
+                // explicitly call flush in this case as the last loop would have seen the backlog size at zero
+                // and would have already called flush.
+                break;
+            }
+
+            backlogSize.decrementAndGet();
+
+            if (!next.isTimedOut(timestampNanos))
+            {
+                channelWriter.write(next).addListener(future -> handleMessageResult(next, future));
+                sentMessages++;
+
+                boolean flushed = channelWriter.flush(!backlog.isEmpty());
+
+                if (flushed)
+                    break;
+                else if (sentMessages == MAX_DEQUEUE_COUNT)
+                {
+                    channelWriter.channel.flush();
+                    break;
+                }
+            }
+            else
+            {
+                droppedMessageCount.incrementAndGet();
+            }
+        }
+
+        // note: we have to set the state back to IDLE if we did not send a message to channelWriter,
+        // because there's no other component that will do it. handleMessageResult() sets the state correctly
+        // when a message *is* written to the channleWriter
+        if (sentMessages == 0)
+            state.set(State.STATE_IDLE);
+
+        maybeEnqueueConsumerTask();
+        return sentMessages > 0;
     }
 
     /**
@@ -230,39 +477,22 @@ public class OutboundMessagingConnection
      * Netty {@link Channel}. However, this method will not block for all those actions: it will only
      * kick off the connection attempt as everything is asynchronous.
      * <p>
-     * Threads compete to update the {@link #state} field to {@link State#CREATING_CHANNEL} to ensure only one
-     * connection is attempted at a time.
-     *
-     * @return true if kicking off the connection attempt was started by this thread; else, false.
+     * Note: this should only be invoked on the event loop.
      */
-    public boolean connect()
+    boolean connect(boolean cancelTimeout)
     {
-        // try to be the winning thread to create the channel
-        if (!state.compareAndSet(State.NOT_READY, State.CREATING_CHANNEL))
+        // clean up any lingering connection attempts
+        cleanupConnectArtifacts(cancelTimeout);
+
+        if (isClosed())
             return false;
 
-        // clean up any lingering connection attempts
-        if (connectionTimeoutFuture != null)
-        {
-            connectionTimeoutFuture.cancel(false);
-            connectionTimeoutFuture = null;
-        }
-
-        return tryConnect();
-    }
-
-    private boolean tryConnect()
-    {
-        if (state.get() != State.CREATING_CHANNEL)
-                return false;
-
-        logger.debug("connection attempt {} to {}", connectAttemptCount, connectionId);
-
+        logger.debug("{} connection attempt {}", loggingTag(), connectAttemptCount);
 
         InetAddressAndPort remote = connectionId.remote();
         if (!authenticator.authenticate(remote.address, remote.port))
         {
-            logger.warn("Internode auth failed connecting to {}", connectionId);
+            logger.warn("{} Internode auth failed", loggingTag());
             //Remove the connection pool and other thread so messages aren't queued
             MessagingService.instance().destroyConnectionPool(remote);
 
@@ -274,13 +504,13 @@ public class OutboundMessagingConnection
         boolean compress = shouldCompressConnection(connectionId.local(), connectionId.remote());
         maybeUpdateConnectionId();
         Bootstrap bootstrap = buildBootstrap(compress);
-
         ChannelFuture connectFuture = bootstrap.connect();
         connectFuture.addListener(this::connectCallback);
 
         long timeout = Math.max(MINIMUM_CONNECT_TIMEOUT_MS, DatabaseDescriptor.getRpcTimeout());
+
         if (connectionTimeoutFuture == null || connectionTimeoutFuture.isDone())
-            connectionTimeoutFuture = scheduledExecutor.schedule(() -> connectionTimeout(connectFuture), timeout, TimeUnit.MILLISECONDS);
+            connectionTimeoutFuture = eventLoop.schedule(() -> connectionTimeout(connectFuture), timeout, TimeUnit.MILLISECONDS);
         return true;
     }
 
@@ -311,7 +541,8 @@ public class OutboundMessagingConnection
                 targetVersion = version;
                 int port = MessagingService.instance().portFor(connectionId.remote());
                 connectionId = connectionId.withNewConnectionPort(port);
-                logger.debug("changing connectionId to {}, with a different port for secure communication, because peer version is {}", connectionId, version);
+                logger.debug("{} changing connectionId to {}, with a different port for secure communication, because peer version is {}",
+                             loggingTag(), connectionId, version);
             }
         }
     }
@@ -332,28 +563,11 @@ public class OutboundMessagingConnection
                                                                   .coalescingStrategy(coalescingStrategy)
                                                                   .sendBufferSize(sendBufferSize)
                                                                   .tcpNoDelay(tcpNoDelay)
-                                                                  .backlogSupplier(() -> nextBackloggedMessage())
-                                                                  .messageResultConsumer(this::handleMessageResult)
                                                                   .protocolVersion(targetVersion)
+                                                                  .eventLoop(eventLoop)
                                                                   .build();
 
         return NettyFactory.instance.createOutboundBootstrap(params);
-    }
-
-    private QueuedMessage nextBackloggedMessage()
-    {
-        QueuedMessage msg = backlog.poll();
-        if (msg == null)
-            return null;
-
-        if (!msg.isTimedOut())
-            return msg;
-
-        if (msg.shouldRetry())
-            return msg.createRetry();
-
-        droppedMessageCount.incrementAndGet();
-        return null;
     }
 
     static boolean isLocalDC(InetAddressAndPort localHost, InetAddressAndPort remoteHost)
@@ -372,9 +586,9 @@ public class OutboundMessagingConnection
      * This method does not alter the {@link #state} as it's only evaluating the TCP connect, not TCP connect and handshake.
      * Thus, {@link #finishHandshake(HandshakeResult)} will handle any necessary state updates.
      * <p>
-     * Note: this method is called from the event loop, so be careful wrt thread visibility
+     * Note: this method is called from the event loop.
      *
-     * @return true iff the TCP connection was established and the {@link #state} is not {@link State#CLOSED}; else false.
+     * @return true iff the TCP connection was established and the {@link #state} is not closed; else false.
      */
     @VisibleForTesting
     boolean connectCallback(Future<? super Void> future)
@@ -382,8 +596,9 @@ public class OutboundMessagingConnection
         ChannelFuture channelFuture = (ChannelFuture)future;
 
         // make sure this instance is not (terminally) closed
-        if (state.get() == State.CLOSED)
+        if (isClosed())
         {
+            // we don't have a ChannelWriter just yet, so we have to go directly to the future's channel to close it
             channelFuture.channel().close();
             return false;
         }
@@ -391,83 +606,66 @@ public class OutboundMessagingConnection
         // this is the success state
         final Throwable cause = future.cause();
         if (cause == null)
-        {
-            connectAttemptCount = 0;
             return true;
-        }
 
-        setStateIfNotClosed(state, State.NOT_READY);
         if (cause instanceof IOException)
         {
-            logger.trace("unable to connect on attempt {} to {}", connectAttemptCount, connectionId, cause);
-            connectAttemptCount++;
-            connectionRetryFuture = scheduledExecutor.schedule(this::connect, OPEN_RETRY_DELAY_MS * connectAttemptCount, TimeUnit.MILLISECONDS);
+            if (logger.isTraceEnabled())
+                logger.trace("{} unable to connect on attempt {}", loggingTag(), connectAttemptCount, cause);
+
+            if (connectAttemptCount < MAX_RECONNECT_ATTEMPTS)
+            {
+                connectAttemptCount++;
+                connectionRetryFuture = eventLoop.schedule(() -> connect(false), OPEN_RETRY_DELAY_MS * connectAttemptCount, TimeUnit.MILLISECONDS);
+            }
+            else
+            {
+                state.set(State.STATE_IDLE);
+            }
         }
         else
         {
             JVMStabilityInspector.inspectThrowable(cause);
-            logger.error("non-IO error attempting to connect to {}", connectionId, cause);
+            logger.error("{} non-IO error attempting to connect", loggingTag(), cause);
+            cleanupConnectArtifacts(true);
+            state.set(State.STATE_IDLE);
         }
         return false;
     }
 
     /**
      * A callback for handling timeouts when creating a connection/negotiating the handshake.
-     * <p>
-     * Note: this method is *not* invoked from the netty event loop,
-     * so there's an inherent race with {@link #finishHandshake(HandshakeResult)},
-     * as well as any possible connect() reattempts (a seemingly remote race condition, however).
-     * Therefore, this function tries to lose any races, as much as possible.
+     *
+     * Note: this method is invoked from the netty event loop.
      *
      * @return true if there was a timeout on the connect/handshake; else false.
      */
     boolean connectionTimeout(ChannelFuture channelFuture)
     {
-        if (connectionRetryFuture != null)
-        {
-            connectionRetryFuture.cancel(false);
-            connectionRetryFuture = null;
-        }
-        connectAttemptCount = 0;
-        State initialState = state.get();
-        if (initialState == State.CLOSED)
-            return true;
+        cleanupConnectArtifacts(true);
+        if (isClosed())
+            return false;
 
-        if (initialState != State.READY)
-        {
-            logger.debug("timed out while trying to connect to {}", connectionId);
+        if (logger.isDebugEnabled())
+            logger.debug("{} timed out while trying to connect", loggingTag());
 
-            channelFuture.channel().close();
-            // a last-ditch attempt to let finishHandshake() win the race
-            if (state.compareAndSet(initialState, State.NOT_READY))
-            {
-                backlog.clear();
-                return true;
-            }
-        }
-        return false;
+        state.set(State.STATE_IDLE);
+        channelFuture.channel().close();
+        purgeBacklog();
+        return true;
     }
 
     /**
-     * Process the results of the handshake negotiation.
+     * Process the results of the handshake negotiation. This should only be invoked after {@link #connectCallback(Future)}
+     * has successfully be invoked (as we need the TCP connection to be properly established before any
+     * application messages can be sent).
      * <p>
-     * Note: this method will be invoked from the netty event loop,
-     * so there's an inherent race with {@link #connectionTimeout(ChannelFuture)}.
+     * Note: this method will be invoked from the netty event loop.
      */
     void finishHandshake(HandshakeResult result)
     {
         // clean up the connector instances before changing the state
-        if (connectionTimeoutFuture != null)
-        {
-            connectionTimeoutFuture.cancel(false);
-            connectionTimeoutFuture = null;
-        }
-        if (connectionRetryFuture != null)
-        {
-            connectionRetryFuture.cancel(false);
-            connectionRetryFuture = null;
-        }
-        connectAttemptCount = 0;
+        cleanupConnectArtifacts(true);
 
         if (result.negotiatedMessagingVersion != HandshakeResult.UNKNOWN_PROTOCOL_VERSION)
         {
@@ -479,43 +677,67 @@ public class OutboundMessagingConnection
         {
             case SUCCESS:
                 assert result.channelWriter != null;
-                logger.debug("successfully connected to {}, compress = {}, coalescing = {}", connectionId,
-                             shouldCompressConnection(connectionId.local(), connectionId.remote()),
-                             coalescingStrategy.isPresent() ? coalescingStrategy.get() : CoalescingStrategies.Strategy.DISABLED);
-                if (state.get() == State.CLOSED)
+
+                if (isClosed() || result.channelWriter.isClosed())
                 {
                     result.channelWriter.close();
-                    backlog.clear();
+                    state.set(State.STATE_IDLE);
+                    purgeBacklog();
                     break;
                 }
+
+                if (logger.isDebugEnabled())
+                {
+                    logger.debug("{} successfully connected, compress = {}, coalescing = {}", loggingTag(),
+                                 shouldCompressConnection(connectionId.local(), connectionId.remote()),
+                                 coalescingStrategy != null ? coalescingStrategy : CoalescingStrategies.Strategy.DISABLED);
+                }
+                result.channelWriter.channel.attr(PURGE_MESSAGES_CHANNEL_ATTR).set(false);
+
+                ChannelWriter previousChannelWriter = channelWriter;
                 channelWriter = result.channelWriter;
-                // drain the backlog to the channel
-                channelWriter.writeBacklog(backlog, true);
-                // change the state so newly incoming messages can be sent to the channel (without adding to the backlog)
-                setStateIfNotClosed(state, State.READY);
-                // ship out any stragglers that got added to the backlog
-                channelWriter.writeBacklog(backlog, true);
+                if (previousChannelWriter != null)
+                    previousChannelWriter.close();
+
+                if (state.set(State.STATE_CONSUME_ENQUEUED))
+                    maybeStartDequeuing();
                 break;
             case DISCONNECT:
+                state.set(State.STATE_IDLE);
                 reconnect();
                 break;
             case NEGOTIATION_FAILURE:
-                setStateIfNotClosed(state, State.NOT_READY);
-                backlog.clear();
+                state.set(State.STATE_IDLE);
+                purgeBacklog();
                 break;
             default:
                 throw new IllegalArgumentException("unhandled result type: " + result.outcome);
         }
     }
 
-    @VisibleForTesting
-    static boolean setStateIfNotClosed(AtomicReference<State> state, State newState)
+    /**
+     * Cleanup member fields used when connecting to a peer.
+     *
+     * Note: This will execute on the event loop
+     */
+    private void cleanupConnectArtifacts(boolean resetConnectTimeout)
     {
-        State s = state.get();
-        if (s == State.CLOSED)
-            return false;
-        state.set(newState);
-        return true;
+        if (resetConnectTimeout)
+        {
+            if (connectionTimeoutFuture != null)
+            {
+                connectionTimeoutFuture.cancel(false);
+                connectionTimeoutFuture = null;
+            }
+
+            connectAttemptCount = 0;
+        }
+
+        if (connectionRetryFuture != null)
+        {
+            connectionRetryFuture.cancel(false);
+            connectionRetryFuture = null;
+        }
     }
 
     int getTargetVersion()
@@ -524,25 +746,24 @@ public class OutboundMessagingConnection
     }
 
     /**
-     * Handles the result of each message sent.
+     * Handles the result of sending each message. This function will be invoked when all of the bytes of the message have
+     * been TCP ack'ed, not when any other application-level response has occurred.
      *
-     * Note: this function is expected to be invoked on the netty event loop. Also, do not retain any state from
-     * the input {@code messageResult}.
+     * Note: this function is expected to be invoked on the netty event loop.
      */
-    void handleMessageResult(MessageResult messageResult)
+    void handleMessageResult(QueuedMessage message, Future<? super Void> future)
     {
         completedMessageCount.incrementAndGet();
 
-        // checking the cause() is an optimized way to tell if the operation was successful (as the cause will be null)
-        // Note that ExpiredException is just a marker for timeout-ed message we're dropping, but as we already
-        // incremented the dropped message count in MessageOutHandler, we have nothing to do.
-        Throwable cause = messageResult.future.cause();
-        if (cause == null)
+        if (isClosed())
             return;
 
-        if (cause instanceof ExpiredException)
+        // checking the cause() is an optimized way to tell if the operation was successful (as the cause will be null)
+        Throwable cause = future.cause();
+        if (cause == null)
         {
-            droppedMessageCount.incrementAndGet();
+            if (!dequeueMessages())
+                maybeEnqueueConsumerTask();
             return;
         }
 
@@ -550,25 +771,18 @@ public class OutboundMessagingConnection
 
         if (cause instanceof IOException || cause.getCause() instanceof IOException)
         {
-            ChannelWriter writer = messageResult.writer;
-            if (writer.shouldPurgeBacklog())
+            boolean purge = shouldPurgeBacklog(channelWriter.channel);
+            if (purge)
                 purgeBacklog();
 
-            // This writer needs to be closed and we need to trigger a reconnection. We really only want to do that
-            // once for this channel however (and again, no race because we're on the netty event loop).
-            if (!writer.isClosed() && messageResult.allowReconnect)
-            {
-                reconnect();
-                writer.close();
-            }
+            state.set(State.STATE_IDLE);
+            channelWriter.close();
 
-            QueuedMessage msg = messageResult.msg;
-            if (msg != null && msg.shouldRetry())
-            {
-                sendMessage(msg.createRetry());
-            }
+            // maybe reenqueue the victim message, unless we're just purging all messages
+            if (!purge && message != null && message.shouldRetry())
+                sendMessage(message.createRetry());
         }
-        else if (messageResult.future.isCancelled())
+        else if (future.isCancelled())
         {
             // Someone cancelled the future, which we assume meant it doesn't want the message to be sent if it hasn't
             // yet. Just ignore.
@@ -576,8 +790,20 @@ public class OutboundMessagingConnection
         else
         {
             // Non IO exceptions are likely a programming error so let's not silence them
-            logger.error("Unexpected error writing on " + connectionId, cause);
+            logger.error("{} Unexpected error writing", loggingTag(), cause);
         }
+
+        maybeEnqueueConsumerTask();
+    }
+
+
+    private boolean shouldPurgeBacklog(Channel channel)
+    {
+        if (!channel.attr(PURGE_MESSAGES_CHANNEL_ATTR).get())
+            return false;
+
+        channel.attr(PURGE_MESSAGES_CHANNEL_ATTR).set(false);
+        return true;
     }
 
     /**
@@ -585,21 +811,19 @@ public class OutboundMessagingConnection
      * was a previous connection, and new incoming messages as well as existing {@link #backlog} messages will be sent there.
      * Any outstanding messages in the existing channel will still be sent to the previous address (we won't/can't move them from
      * one channel to another).
+     *
+     * Note: this will not be invoked on the event loop.
      */
     void reconnectWithNewIp(InetAddressAndPort newAddr)
     {
-        State currentState = state.get();
-
         // if we're closed, ignore the request
-        if (currentState == State.CLOSED)
+        if (isClosed())
             return;
 
         // capture a reference to the current channel, in case it gets swapped out before we can call close() on it
         ChannelWriter currentChannel = channelWriter;
         connectionId = connectionId.withNewConnectionAddress(newAddr);
-
-        if (currentState != State.NOT_READY)
-            reconnect();
+        reconnect();
 
         // lastly, push through anything remaining in the existing channel.
         if (currentChannel != null)
@@ -607,44 +831,49 @@ public class OutboundMessagingConnection
     }
 
     /**
-     * Sets the state properly so {@link #connect()} can attempt to reconnect.
+     * Schedule {@link #connect(boolean)} to attempt to reconnect.
      */
     void reconnect()
     {
-        if (setStateIfNotClosed(state, State.NOT_READY))
-            connect();
+        if (state.set(State.STATE_IDLE, State.STATE_CREATING_CONNECTION))
+            eventLoop.submit(() -> connect(true));
     }
 
-    void purgeBacklog()
+    private void purgeBacklog()
     {
         backlog.clear();
+        int droppedCount = backlogSize.getAndSet(0);
+        droppedMessageCount.addAndGet(droppedCount);
     }
 
+    /**
+     * Permanently close this instance.
+     *
+     * Note: should not be invoked on the event loop, but id the {@link #backlog} needs to be purged,
+     * it should be scheduled on the event loop.
+     */
     public void close(boolean softClose)
     {
-        state.set(State.CLOSED);
+        if (isClosed())
+            return;
 
-        if (connectionTimeoutFuture != null)
-        {
-            connectionTimeoutFuture.cancel(false);
-            connectionTimeoutFuture = null;
-        }
+        if (!softClose)
+            state.close();
+
+        cleanupConnectArtifacts(true);
 
         // drain the backlog
         if (channelWriter != null)
         {
             if (softClose)
             {
-                channelWriter.writeBacklog(backlog, false);
                 channelWriter.softClose();
             }
             else
             {
-                backlog.clear();
+                eventLoop.submit(this::purgeBacklog).awaitUninterruptibly(5, TimeUnit.SECONDS);
                 channelWriter.close();
             }
-
-            channelWriter = null;
         }
     }
 
@@ -656,11 +885,7 @@ public class OutboundMessagingConnection
 
     public Integer getPendingMessages()
     {
-        int pending = backlog.size();
-        ChannelWriter chan = channelWriter;
-        if (chan != null)
-            pending += (int)chan.pendingMessageCount();
-        return pending;
+        return backlog.size();
     }
 
     public Long getCompletedMessages()
@@ -678,15 +903,10 @@ public class OutboundMessagingConnection
      */
 
     @VisibleForTesting
-    int backlogSize()
-    {
-        return backlog.size();
-    }
-
-    @VisibleForTesting
     void addToBacklog(QueuedMessage msg)
     {
         backlog.add(msg);
+        backlogSize.incrementAndGet();
     }
 
     @VisibleForTesting
@@ -699,18 +919,6 @@ public class OutboundMessagingConnection
     ChannelWriter getChannelWriter()
     {
         return channelWriter;
-    }
-
-    @VisibleForTesting
-    void setState(State state)
-    {
-        this.state.set(state);
-    }
-
-    @VisibleForTesting
-    State getState()
-    {
-        return state.get();
     }
 
     @VisibleForTesting
@@ -739,6 +947,126 @@ public class OutboundMessagingConnection
 
     public boolean isConnected()
     {
-        return state.get() == State.READY;
+        return channelWriter != null;
+    }
+
+    public boolean isClosed()
+    {
+        return state.state == State.STATE_CLOSED;
+    }
+
+    // For testing only!!
+    void setState(int nextState)
+    {
+        State.stateUpdater.set(state, nextState);
+    }
+
+    int getState()
+    {
+        return state.state;
+    }
+
+    static class State
+    {
+        /**
+         * An initial/idle state; the {@link OutboundMessagingConnection#channelWriter} may or may not be established yet.
+         * May transition to:
+         * - {@link #STATE_CREATING_CONNECTION}
+         * - {@link #STATE_CONSUME_ENQUEUED}
+         * - {@link #STATE_CLOSED}
+         */
+        static final int STATE_IDLE = 0;
+
+        /**
+         * State to indicate that a new connection/channel is being created
+         * May transition to:
+         * - {@link #STATE_IDLE}
+         * - {@link #STATE_CONSUME_ENQUEUED}
+         * - {@link #STATE_CLOSED}
+         */
+        static final int STATE_CREATING_CONNECTION = 1;
+
+        /**
+         * State to indicate that the consume task has been enqueued
+         * May transition to:
+         * - {@link #STATE_IDLE}
+         * - {@link #STATE_CONSUME_RUNNING}
+         * - {@link #STATE_CLOSED}
+         */
+        static final int STATE_CONSUME_ENQUEUED = 2;
+
+        /**
+         * State to indicate that the consume task is executing.
+         * May transition to:
+         * - {@link #STATE_IDLE}
+         * - {@link #STATE_CLOSED}
+         */
+        static final int STATE_CONSUME_RUNNING = 3;
+
+        /**
+         * State to indicate this instance is closed (not creatng new connections, should not accept more messages).
+         * This is a final state and cannot be transitioned away from.
+         */
+        static final int STATE_CLOSED = 4;
+
+        volatile int state;
+        private static final AtomicIntegerFieldUpdater<State> stateUpdater = AtomicIntegerFieldUpdater.newUpdater(State.class, "state");
+
+        private State()
+        {
+            this(STATE_IDLE);
+        }
+
+        State(int state)
+        {
+            this.state = state;
+        }
+
+        boolean set(int nextState)
+        {
+            int currentState = state;
+            return isValidTransition(currentState, nextState) && stateUpdater.compareAndSet(this, currentState, nextState);
+        }
+
+        /**
+         * Ensure state transitions are valid. A state is allowed to transition to itself.
+         */
+        static boolean isValidTransition(int initial, int next)
+        {
+            if (initial == next)
+                return true;
+
+            switch (initial)
+            {
+                case STATE_CLOSED:
+                    return false;
+                case STATE_IDLE:
+                    return next != STATE_CONSUME_RUNNING;
+                case STATE_CONSUME_ENQUEUED:
+                    return next != STATE_CREATING_CONNECTION;
+                case STATE_CONSUME_RUNNING:
+                    return next == STATE_IDLE || next == STATE_CLOSED;
+                case STATE_CREATING_CONNECTION:
+                    return next != STATE_CONSUME_RUNNING;
+                default:
+                    throw new IllegalArgumentException("unknown starting state: " + initial);
+            }
+        }
+
+        boolean set(int expectedState, int nextState)
+        {
+            return isValidTransition(expectedState, nextState) && stateUpdater.compareAndSet(this, expectedState, nextState);
+        }
+
+        void close()
+        {
+            stateUpdater.set(this, STATE_CLOSED);
+        }
+
+        @Override
+        public String toString()
+        {
+            return Integer.toString(state);
+        }
     }
 }

@@ -20,9 +20,9 @@ package org.apache.cassandra.net.async;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -37,7 +37,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.UnsupportedMessageTypeException;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
-
+import io.netty.util.ReferenceCountUtil;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParameterType;
@@ -52,12 +52,8 @@ import static org.apache.cassandra.config.Config.PROPERTY_PREFIX;
 /**
  * A Netty {@link ChannelHandler} for serializing outbound messages.
  * <p>
- * On top of transforming a {@link QueuedMessage} into bytes, this handler also feeds back progress to the linked
- * {@link ChannelWriter} so that the latter can take decision on when data should be flushed (with and without coalescing).
- * See the javadoc on {@link ChannelWriter} for more details about the callbacks as well as message timeouts.
- *<p>
  * Note: this class derives from {@link ChannelDuplexHandler} so we can intercept calls to
- * {@link #userEventTriggered(ChannelHandlerContext, Object)} and {@link #channelWritabilityChanged(ChannelHandlerContext)}.
+ * {@link #userEventTriggered(ChannelHandlerContext, Object)}.
  */
 class MessageOutHandler extends ChannelDuplexHandler
 {
@@ -90,41 +86,49 @@ class MessageOutHandler extends ChannelDuplexHandler
      */
     private final int flushSizeThreshold;
 
-    private final ChannelWriter channelWriter;
+    private String loggingTag;
 
-    private final Supplier<QueuedMessage> backlogSupplier;
-
-    MessageOutHandler(OutboundConnectionIdentifier connectionId, int targetMessagingVersion, ChannelWriter channelWriter, Supplier<QueuedMessage> backlogSupplier)
+    MessageOutHandler(OutboundConnectionIdentifier connectionId, int targetMessagingVersion)
     {
-        this (connectionId, targetMessagingVersion, channelWriter, backlogSupplier, AUTO_FLUSH_THRESHOLD);
+        this (connectionId, targetMessagingVersion, AUTO_FLUSH_THRESHOLD);
     }
 
-    MessageOutHandler(OutboundConnectionIdentifier connectionId, int targetMessagingVersion, ChannelWriter channelWriter, Supplier<QueuedMessage> backlogSupplier, int flushThreshold)
+    MessageOutHandler(OutboundConnectionIdentifier connectionId, int targetMessagingVersion, int flushThreshold)
     {
         this.connectionId = connectionId;
         this.targetMessagingVersion = targetMessagingVersion;
-        this.channelWriter = channelWriter;
         this.flushSizeThreshold = flushThreshold;
-        this.backlogSupplier = backlogSupplier;
+    }
+
+    @Override
+    public void handlerAdded(final ChannelHandlerContext ctx)
+    {
+        loggingTag = connectionId.remote() + "-" + connectionId.type() + "-" + ctx.channel().id();
     }
 
     @Override
     public void write(ChannelHandlerContext ctx, Object o, ChannelPromise promise)
     {
-        // this is a temporary fix until https://github.com/netty/netty/pull/6867 is released (probably netty 4.1.13).
+        // this was a temporary fix until https://github.com/netty/netty/pull/6867 was released (probably netty 4.1.13).
         // TL;DR a closed channel can still process messages in the pipeline that were queued before the close.
-        // the channel handlers are removed from the channel potentially saync from the close operation.
+        // the channel handlers are removed from the channel potentially async from the close operation.
         if (!ctx.channel().isOpen())
         {
-            logger.debug("attempting to process a message in the pipeline, but channel {} is closed", ctx.channel().id());
+            logger.debug("{} attempting to process a message in the pipeline, but channel is closed", loggingTag);
+            promise.tryFailure(new ClosedChannelException());
             return;
         }
 
         ByteBuf out = null;
         try
         {
-            if (!isMessageValid(o, promise))
+            if (!(o instanceof QueuedMessage))
+            {
+                ReferenceCountUtil.release(o);
+                promise.tryFailure(new UnsupportedMessageTypeException(connectionId + " msg must be an instance of " +
+                                                                       QueuedMessage.class.getSimpleName()));
                 return;
+            }
 
             QueuedMessage msg = (QueuedMessage) o;
 
@@ -134,7 +138,7 @@ class MessageOutHandler extends ChannelDuplexHandler
             long currentFrameSize = MESSAGE_PREFIX_SIZE + msg.message.serializedSize(targetMessagingVersion);
             if (currentFrameSize > Integer.MAX_VALUE || currentFrameSize < 0)
             {
-                promise.tryFailure(new IllegalStateException(String.format("%s illegal frame size: %d, ignoring message", connectionId, currentFrameSize)));
+                promise.tryFailure(new IllegalStateException(String.format("%s illegal frame size: %d, ignoring message", loggingTag, currentFrameSize)));
                 return;
             }
 
@@ -156,37 +160,6 @@ class MessageOutHandler extends ChannelDuplexHandler
             exceptionCaught(ctx, e);
             promise.tryFailure(e);
         }
-        finally
-        {
-            // Make sure we signal the outChanel even in case of errors.
-            channelWriter.onMessageProcessed(ctx);
-        }
-    }
-
-    /**
-     * Test to see if the message passed in is a {@link QueuedMessage} and if it has timed out or not. If the checks fail,
-     * this method has the side effect of modifying the {@link ChannelPromise}.
-     */
-    boolean isMessageValid(Object o, ChannelPromise promise)
-    {
-        // optimize for the common case
-        if (o instanceof QueuedMessage)
-        {
-            if (!((QueuedMessage)o).isTimedOut())
-            {
-                return true;
-            }
-            else
-            {
-                promise.tryFailure(ExpiredException.INSTANCE);
-            }
-        }
-        else
-        {
-            promise.tryFailure(new UnsupportedMessageTypeException(connectionId +
-                                                                   " msg must be an instance of " + QueuedMessage.class.getSimpleName()));
-        }
-        return false;
     }
 
     /**
@@ -221,7 +194,7 @@ class MessageOutHandler extends ChannelDuplexHandler
         }
         catch (Exception e)
         {
-            logger.warn("{} failed to capture the tracing info for an outbound message, ignoring", connectionId, e);
+            logger.warn("{} failed to capture the tracing info for an outbound message, ignoring", loggingTag, e);
         }
     }
 
@@ -242,41 +215,7 @@ class MessageOutHandler extends ChannelDuplexHandler
         // if we allocated to little buffer space, we would have hit an exception when trying to write more bytes to it
         if (out.isWritable())
             errorLogger.error("{} reported message size {}, actual message size {}, msg {}",
-                         connectionId, out.capacity(), out.writerIndex(), msg.message);
-    }
-
-    @Override
-    public void flush(ChannelHandlerContext ctx)
-    {
-        channelWriter.onTriggeredFlush(ctx);
-    }
-
-
-    /**
-     * {@inheritDoc}
-     *
-     * When the channel becomes writable (assuming it was previously unwritable), try to eat through any backlogged messages
-     * {@link #backlogSupplier}. As we're on the event loop when this is invoked, no one else can fill up the netty
-     * {@link ChannelOutboundBuffer}, so we should be able to make decent progress chewing through the backlog
-     * (assuming not large messages). Any messages messages written from {@link OutboundMessagingConnection} threads won't
-     * be processed immediately; they'll be queued up as tasks, and once this function return, those messages can begin
-     * to be consumed.
-     * <p>
-     * Note: this is invoked on the netty event loop.
-     */
-    @Override
-    public void channelWritabilityChanged(ChannelHandlerContext ctx)
-    {
-        if (!ctx.channel().isWritable())
-            return;
-
-        // guarantee at least a minimal amount of progress (one messge from the backlog) by using a do-while loop.
-        do
-        {
-            QueuedMessage msg = backlogSupplier.get();
-            if (msg == null || !channelWriter.write(msg, false))
-                break;
-        } while (ctx.channel().isWritable());
+                         loggingTag, out.capacity(), out.writerIndex(), msg.message);
     }
 
     /**
@@ -297,7 +236,7 @@ class MessageOutHandler extends ChannelDuplexHandler
             ChannelOutboundBuffer cob = ctx.channel().unsafe().outboundBuffer();
             if (cob != null && cob.totalPendingWriteBytes() > 0)
             {
-                ctx.channel().attr(ChannelWriter.PURGE_MESSAGES_CHANNEL_ATTR)
+                ctx.channel().attr(OutboundMessagingConnection.PURGE_MESSAGES_CHANNEL_ATTR)
                    .compareAndSet(Boolean.FALSE, Boolean.TRUE);
                 ctx.close();
             }
@@ -308,9 +247,9 @@ class MessageOutHandler extends ChannelDuplexHandler
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
     {
         if (cause instanceof IOException)
-            logger.trace("{} io error", connectionId, cause);
+            logger.trace("{} io error", loggingTag, cause);
         else
-            logger.warn("{} error", connectionId, cause);
+            logger.warn("{} error", loggingTag, cause);
 
         ctx.close();
     }

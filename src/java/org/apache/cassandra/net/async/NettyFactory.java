@@ -1,9 +1,7 @@
 package org.apache.cassandra.net.async;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.zip.Checksum;
-
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
@@ -41,7 +39,6 @@ import io.netty.util.concurrent.DefaultThreadFactory;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
-
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.xxhash.XXHashFactory;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
@@ -111,7 +108,7 @@ public final class NettyFactory
     private final EventLoopGroup acceptGroup;
 
     private final EventLoopGroup inboundGroup;
-    private final EventLoopGroup outboundGroup;
+    public final EventLoopGroup outboundGroup;
     public final EventLoopGroup streamingGroup;
 
     /**
@@ -321,10 +318,16 @@ public final class NettyFactory
         logger.debug("creating outbound bootstrap to peer {}, compression: {}, encryption: {}, coalesce: {}, protocolVersion: {}",
                      params.connectionId.connectionAddress(),
                      params.compress, encryptionLogStatement(params.encryptionOptions),
-                     params.coalescingStrategy.isPresent() ? params.coalescingStrategy.get() : CoalescingStrategies.Strategy.DISABLED,
+                     params.coalescingStrategy != null ? params.coalescingStrategy : CoalescingStrategies.Strategy.DISABLED,
                      params.protocolVersion);
         Class<? extends Channel> transport = useEpoll ? EpollSocketChannel.class : NioSocketChannel.class;
-        Bootstrap bootstrap = new Bootstrap().group(params.mode == Mode.MESSAGING ? outboundGroup : streamingGroup)
+
+        EventLoopGroup eventLoopGroup = params.eventLoop;
+        if (eventLoopGroup == null)
+            eventLoopGroup = params.mode == Mode.MESSAGING ? outboundGroup.next() : streamingGroup.next();
+
+        Bootstrap bootstrap = new Bootstrap()
+                              .group(eventLoopGroup)
                               .channel(transport)
                               .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 2000)
                               .option(ChannelOption.SO_KEEPALIVE, true)
@@ -352,7 +355,7 @@ public final class NettyFactory
          * {@inheritDoc}
          *
          * To determine if we should enable TLS, we only need to check if {@link #params#encryptionOptions} is set.
-         * The logic for figuring that out is is located in {@link MessagingService#getMessagingConnection(InetAddress)};
+         * The logic for figuring that out is is located in {@link MessagingService#getMessagingConnection(InetAddressAndPort)};
          */
         public void initChannel(SocketChannel channel) throws Exception
         {
