@@ -2243,12 +2243,23 @@ public class StorageProxy implements StorageProxyMBean
         {
             List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
             List<ReadRepair> readRepairs = new ArrayList<>(concurrencyFactor);
-            for (int i = 0; i < concurrencyFactor && ranges.hasNext(); i++)
+
+            try
             {
-                SingleRangeResponse response = query(ranges.next(), i == 0);
-                concurrentQueries.add(response);
-                readRepairs.add(response.readRepair);
-                ++rangesQueried;
+                for (int i = 0; i < concurrencyFactor && ranges.hasNext(); i++)
+                {
+                    @SuppressWarnings("resource") // response will be closed by concatAndBlockOnRepair, or in the catch block below
+                    SingleRangeResponse response = query(ranges.next(), i == 0);
+                    concurrentQueries.add(response);
+                    readRepairs.add(response.readRepair);
+                    ++rangesQueried;
+                }
+            }
+            catch (Throwable t)
+            {
+                for (PartitionIterator response: concurrentQueries)
+                    response.close();
+                throw t;
             }
 
             Tracing.trace("Submitted {} concurrent range requests", concurrentQueries.size());
