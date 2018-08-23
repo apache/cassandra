@@ -244,11 +244,13 @@ public class CellTest
         Assert.assertEquals(-1, testExpiring("val", "a", 2, 1, null, "val", 1L, 2));
 
         Assert.assertEquals(-1, testExpiring("val", "a", 1, 2, null, null, null, 1));
-        Assert.assertEquals(1, testExpiring("val", "a", 1, 2, null, "val", null, 1));
+        Assert.assertEquals(-1, testExpiring("val", "a", 1, 2, null, "val", null, 1));
+        Assert.assertEquals(1, testExpiring("val", "a", 1, 1, null, "val", null, 2));
+        Assert.assertEquals(1, testExpiring("val", "a", 1, 1, null, "val", null, 1));
 
         // newer value
         Assert.assertEquals(-1, testExpiring("val", "b", 2, 1, null, "a", null, null));
-        Assert.assertEquals(-1, testExpiring("val", "b", 2, 1, null, "a", null, 2));
+        Assert.assertEquals(-1, testExpiring("val", "b", 2, 1, null, "a", null, 1));
     }
 
     class SimplePurger implements DeletionPurger
