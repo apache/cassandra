@@ -2630,9 +2630,9 @@ public class DatabaseDescriptor
         return  conf.full_query_logging_options;
     }
 
-    public static int getBlockForPeersPercentage()
+    public static boolean getBlockForPeersInRemoteDatacenters()
     {
-        return conf.block_for_peers_percentage;
+        return conf.block_for_peers_in_remote_dcs;
     }
 
     public static int getBlockForPeersTimeoutInSeconds()
