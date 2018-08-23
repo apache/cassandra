@@ -157,7 +157,7 @@ public class ReadRepairTest
 
     private static Mutation mutation(Cell... cells)
     {
-        Row.Builder builder = BTreeRow.unsortedBuilder(0);
+        Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(Clustering.EMPTY);
         for (Cell cell: cells)
         {
