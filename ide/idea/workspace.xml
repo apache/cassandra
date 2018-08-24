@@ -297,6 +297,7 @@
         <filter targetName="codecoverage" isVisible="true" />
         <filter targetName="build-project" isVisible="false" />
         <filter targetName="stress-build" isVisible="true" />
+        <filter targetName="fqltool-build" isVisible="true" />
         <filter targetName="_write-poms" isVisible="false" />
         <filter targetName="write-poms" isVisible="false" />
         <filter targetName="jar" isVisible="true" />

@@ -16,21 +16,21 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.fqltool;
+package org.apache.cassandra.fqltool;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import javax.annotation.Nullable;
+//import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.FutureCallback;
@@ -41,7 +41,6 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.Statement;
@@ -93,19 +92,7 @@ public class QueryReplayer implements Closeable
                     Statement statement = query.toStatement();
                     for (Session session : sessions)
                     {
-                        try
-                        {
-                            if (query.keyspace != null && !query.keyspace.equals(session.getLoggedKeyspace()))
-                            {
-                                if (debug)
-                                    out.printf("Switching keyspace from %s to %s%n", session.getLoggedKeyspace(), query.keyspace);
-                                session.execute("USE " + query.keyspace);
-                            }
-                        }
-                        catch (Throwable t)
-                        {
-                            out.printf("USE %s failed: %s%n", query.keyspace, t.getMessage());
-                        }
+                        maybeSetKeyspace(session, query);
                         if (debug)
                         {
                             out.println("Executing query:");
@@ -119,7 +106,7 @@ public class QueryReplayer implements Closeable
 
                     Futures.addCallback(resultList, new FutureCallback<List<ResultHandler.ComparableResultSet>>()
                     {
-                        public void onSuccess(@Nullable List<ResultHandler.ComparableResultSet> resultSets)
+                        public void onSuccess(/*@Nullable */List<ResultHandler.ComparableResultSet> resultSets)
                         {
                             // note that the order of resultSets is signifcant here - resultSets.get(x) should
                             // be the result from a query against targetHosts.get(x)
@@ -146,6 +133,23 @@ public class QueryReplayer implements Closeable
         }
     }
 
+    private void maybeSetKeyspace(Session session, FQLQuery query)
+    {
+        try
+        {
+            if (query.keyspace() != null && !query.keyspace().equals(session.getLoggedKeyspace()))
+            {
+                if (debug)
+                    out.printf("Switching keyspace from %s to %s%n", session.getLoggedKeyspace(), query.keyspace());
+                session.execute("USE " + query.keyspace());
+            }
+        }
+        catch (Throwable t)
+        {
+            out.printf("USE %s failed: %s%n", query.keyspace(), t.getMessage());
+        }
+    }
+
     /**
      * Make sure we catch any query errors
      *
@@ -159,9 +163,10 @@ public class QueryReplayer implements Closeable
         return fluentFuture.catching(Throwable.class, DriverResultSet::failed, MoreExecutors.directExecutor());
     }
 
-    public void close()
+    public void close() throws IOException
     {
         sessions.forEach(Session::close);
         targetClusters.forEach(Cluster::close);
+        resultHandler.close();
     }
 }

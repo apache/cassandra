@@ -233,6 +233,7 @@
         <mkdir dir="${test.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${stress.test.classes}"/>
+        <mkdir dir="${fqltool.test.classes}"/>
         <mkdir dir="${build.src.gen-java}"/>
         <mkdir dir="${build.dir.lib}"/>
         <mkdir dir="${jacoco.export.dir}"/>
@@ -914,6 +915,50 @@
         </testmacro>
     </target>
 
+    <!--
+        fqltool build file
+        -->
+    <property name="fqltool.build.src" value="${basedir}/tools/fqltool/src" />
+    <property name="fqltool.test.src" value="${basedir}/tools/fqltool/test/unit" />
+    <property name="fqltool.build.classes" value="${build.classes}/fqltool" />
+    <property name="fqltool.test.classes" value="${build.dir}/test/fqltool-classes" />
+    <property name="fqltool.manifest" value="${fqltool.build.classes}/MANIFEST.MF" />
+
+    <target name="fqltool-build-test" depends="fqltool-build" description="Compile fqltool tests">
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${fqltool.test.classes}"
+               source="${source.version}" target="${target.version}"
+               includeantruntime="false" encoding="utf-8">
+            <classpath>
+                <path refid="cassandra.classpath"/>
+                <pathelement location="${fqltool.build.classes}" />
+            </classpath>
+            <src path="${fqltool.test.src}"/>
+        </javac>
+    </target>
+
+    <target name="fqltool-build" depends="build" description="build fqltool">
+    	<mkdir dir="${fqltool.build.classes}" />
+        <javac compiler="modern" debug="true" debuglevel="${debuglevel}"
+               source="${source.version}" target="${target.version}"
+               encoding="utf-8" destdir="${fqltool.build.classes}" includeantruntime="true">
+            <src path="${fqltool.build.src}" />
+            <classpath>
+                <path refid="cassandra.classes" />
+                <path>
+                    <fileset dir="${build.lib}">
+                        <include name="**/*.jar" />
+                    </fileset>
+                </path>
+            </classpath>
+        </javac>
+    </target>
+
+    <target name="fqltool-test" depends="fqltool-build-test, build-test" description="Runs fqltool tests">
+        <testmacro inputdir="${fqltool.test.src}"
+                       timeout="${test.timeout}">
+        </testmacro>
+    </target>
+
 	<target name="_write-poms" depends="maven-declare-dependencies">
 	    <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
 	    <artifact:writepom pomRefId="all-pom" file="${build.dir}/${final.name}.pom"/>
@@ -950,7 +995,7 @@
       </jar>
     </target>
     <target name="jar"
-            depends="_main-jar, build-test, stress-build, write-poms"
+            depends="_main-jar, build-test, stress-build, fqltool-build, write-poms"
             description="Assemble Cassandra JAR files">
       <!-- Stress jar -->
       <manifest file="${stress.manifest}">
@@ -961,6 +1006,16 @@
       <mkdir dir="${build.dir}/tools/lib/" />
       <jar destfile="${build.dir}/tools/lib/stress.jar" manifest="${stress.manifest}">
         <fileset dir="${stress.build.classes}"/>
+      </jar>
+      <!-- fqltool jar -->
+      <manifest file="${fqltool.manifest}">
+        <attribute name="Built-By" value="Marcus Eriksson"/>
+        <attribute name="Main-Class" value="org.apache.cassandra.fqltool.FullQueryLogTool"/>
+      </manifest>
+      <mkdir dir="${fqltool.build.classes}/META-INF" />
+      <mkdir dir="${build.dir}/tools/lib/" />
+      <jar destfile="${build.dir}/tools/lib/fqltool.jar" manifest="${stress.manifest}">
+        <fileset dir="${fqltool.build.classes}"/>
       </jar>
     </target>
 
@@ -1178,7 +1233,7 @@
     <!-- use https://github.com/krummas/jstackjunit to get thread dumps when unit tests time out -->
   <taskdef name="junit" classname="org.krummas.junit.JStackJUnitTask" classpath="lib/jstackjunit-0.0.1.jar"/>
 
-  <target name="build-test" depends="_main-jar, stress-build, write-poms" description="Compile test classes">
+  <target name="build-test" depends="_main-jar, stress-build, fqltool-build, write-poms" description="Compile test classes">
     <javac
      compiler="modern"
      debug="true"
@@ -1257,9 +1312,11 @@
         <classpath>
           <pathelement path="${java.class.path}"/>
           <pathelement location="${stress.build.classes}"/>
+          <pathelement location="${fqltool.build.classes}"/>
           <path refid="cassandra.classpath.test" />
           <pathelement location="${test.classes}"/>
           <pathelement location="${stress.test.classes}"/>
+          <pathelement location="${fqltool.test.classes}"/>
           <pathelement location="${test.conf}"/>
           <fileset dir="${test.lib}">
             <include name="**/*.jar" />
@@ -1392,7 +1449,7 @@
     </testmacro>
   </target>
 
-  <target name="test-compression" depends="build-test, stress-build" description="Execute unit tests with sstable compression enabled">
+  <target name="test-compression" depends="build-test, stress-build, fqltool-build" description="Execute unit tests with sstable compression enabled">
     <property name="compressed_yaml" value="${build.test.dir}/cassandra.compressed.yaml"/>
     <concat destfile="${compressed_yaml}">
       <fileset file="${test.conf}/cassandra.yaml"/>
@@ -1529,7 +1586,7 @@
   </target>
 
   <target name="test-all"
-          depends="eclipse-warnings,test,long-test,test-compression,stress-test"
+          depends="eclipse-warnings,test,long-test,test-compression,stress-test,fqltool-test"
           description="Run all tests except for those under test-burn" />
 
   <!-- Use JaCoCo ant extension without needing externally saved lib -->
@@ -1848,7 +1905,9 @@
   <classpathentry kind="src" output="build/test/classes" path="test/long"/>
   <classpathentry kind="src" output="build/test/classes" path="test/resources" />
   <classpathentry kind="src" path="tools/stress/src"/>
+  <classpathentry kind="src" path="tools/fqltool/src"/>
   <classpathentry kind="src" output="build/test/stress-classes" path="tools/stress/test/unit" />
+  <classpathentry kind="src" output="build/test/fqltool-classes" path="tools/fqltool/test/unit" />
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/eclipse"/>
   <classpathentry kind="lib" path="test/conf"/>

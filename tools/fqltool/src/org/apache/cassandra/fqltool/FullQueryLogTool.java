@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools;
+package org.apache.cassandra.fqltool;
 
 import java.util.List;
 
@@ -31,8 +31,10 @@ import io.airlift.airline.ParseCommandUnrecognizedException;
 import io.airlift.airline.ParseOptionConversionException;
 import io.airlift.airline.ParseOptionMissingException;
 import io.airlift.airline.ParseOptionMissingValueException;
-import org.apache.cassandra.tools.fqltool.commands.Dump;
-import org.apache.cassandra.tools.fqltool.commands.Replay;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.fqltool.commands.Compare;
+import org.apache.cassandra.fqltool.commands.Dump;
+import org.apache.cassandra.fqltool.commands.Replay;
 
 import static com.google.common.base.Throwables.getStackTraceAsString;
 import static com.google.common.collect.Lists.newArrayList;
@@ -41,10 +43,12 @@ public class FullQueryLogTool
 {
     public static void main(String... args)
     {
+        DatabaseDescriptor.clientInitialization();
         List<Class<? extends Runnable>> commands = newArrayList(
                 Help.class,
                 Dump.class,
-                Replay.class
+                Replay.class,
+                Compare.class
         );
 
         Cli.CliBuilder<Runnable> builder = Cli.builder("fqltool");

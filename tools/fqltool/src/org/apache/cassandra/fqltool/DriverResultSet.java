@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.fqltool;
+package org.apache.cassandra.fqltool;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -60,7 +60,7 @@ public class DriverResultSet implements ResultHandler.ComparableResultSet
     public ResultHandler.ComparableColumnDefinitions getColumnDefinitions()
     {
         if (wasFailed())
-            return new DriverColumnDefinitions(null, true);
+            return new DriverColumnDefinitions(null, true, failureException);
 
         return new DriverColumnDefinitions(resultSet.getColumnDefinitions());
     }
@@ -155,16 +155,18 @@ public class DriverResultSet implements ResultHandler.ComparableResultSet
     {
         private final ColumnDefinitions columnDefinitions;
         private final boolean failed;
+        private final Throwable failureException;
 
         public DriverColumnDefinitions(ColumnDefinitions columnDefinitions)
         {
-            this(columnDefinitions, false);
+            this(columnDefinitions, false, null);
         }
 
-        private DriverColumnDefinitions(ColumnDefinitions columnDefinitions, boolean failed)
+        private DriverColumnDefinitions(ColumnDefinitions columnDefinitions, boolean failed, Throwable failureException)
         {
             this.columnDefinitions = columnDefinitions;
             this.failed = failed;
+            this.failureException = failureException;
         }
 
         public List<ResultHandler.ComparableDefinition> asList()
@@ -177,6 +179,11 @@ public class DriverResultSet implements ResultHandler.ComparableResultSet
         public boolean wasFailed()
         {
             return failed;
+        }
+
+        public Throwable getFailureException()
+        {
+            return failureException;
         }
 
         public int size()

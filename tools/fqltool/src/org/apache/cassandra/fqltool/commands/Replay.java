@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.fqltool.commands;
+package org.apache.cassandra.fqltool.commands;
 
 
 import java.io.File;
@@ -34,9 +34,9 @@ import net.openhft.chronicle.core.io.Closeable;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ChronicleQueueBuilder;
 
-import org.apache.cassandra.tools.fqltool.FQLQuery;
-import org.apache.cassandra.tools.fqltool.FQLQueryIterator;
-import org.apache.cassandra.tools.fqltool.QueryReplayer;
+import org.apache.cassandra.fqltool.FQLQuery;
+import org.apache.cassandra.fqltool.FQLQueryIterator;
+import org.apache.cassandra.fqltool.QueryReplayer;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
@@ -102,7 +102,7 @@ public class Replay implements Runnable
         List<Predicate<FQLQuery>> filters = new ArrayList<>();
 
         if (keyspace != null)
-            filters.add(fqlQuery -> fqlQuery.keyspace == null || fqlQuery.keyspace.equals(keyspace));
+            filters.add(fqlQuery -> fqlQuery.keyspace() == null || fqlQuery.keyspace().equals(keyspace));
 
         try
         {

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.fqltool;
+package org.apache.cassandra.fqltool;
 
 
 import java.util.List;

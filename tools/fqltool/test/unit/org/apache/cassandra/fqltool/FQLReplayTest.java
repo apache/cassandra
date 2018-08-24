@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.fqltool;
+package org.apache.cassandra.fqltool;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,31 +28,31 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.junit.Test;
 
+import com.datastax.driver.core.CodecRegistry;
+import com.datastax.driver.core.SimpleStatement;
+import com.datastax.driver.core.Statement;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
-import net.openhft.chronicle.wire.ValueIn;
 import org.apache.cassandra.audit.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.fqltool.commands.Compare;
+import org.apache.cassandra.fqltool.commands.Replay;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tools.Util;
-import org.apache.cassandra.tools.fqltool.commands.Replay;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Pair;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -84,6 +84,27 @@ public class FQLReplayTest
         }
         assertEquals(100, queryCount);
     }
+
+    @Test
+    public void testQueryIterator() throws IOException
+    {
+        File f = generateQueries(100, false);
+        int queryCount = 0;
+        try (ChronicleQueue queue = ChronicleQueueBuilder.single(f).build();
+             FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 1))
+        {
+            long last = -1;
+            while (iter.hasNext())
+            {
+                FQLQuery q = iter.next();
+                assertTrue(q.queryStartTime >= last);
+                last = q.queryStartTime;
+                queryCount++;
+            }
+        }
+        assertEquals(100, queryCount);
+    }
+
     @Test
     public void testMergingIterator() throws IOException
     {
@@ -125,11 +146,11 @@ public class FQLReplayTest
                 assertNotNull(reader.getQuery());
                 if (reader.getQuery() instanceof FQLQuery.Single)
                 {
-                    assertTrue(reader.getQuery().keyspace == null || reader.getQuery().keyspace.equals("querykeyspace"));
+                    assertTrue(reader.getQuery().keyspace() == null || reader.getQuery().keyspace().equals("querykeyspace"));
                 }
                 else
                 {
-                    assertEquals("someks", reader.getQuery().keyspace);
+                    assertEquals("someks", reader.getQuery().keyspace());
                 }
                 queryCount++;
             }
@@ -145,9 +166,9 @@ public class FQLReplayTest
 
         ResultHandler.ComparableResultSet res = createResultSet(10, 10, true);
         ResultStore rs = new ResultStore(Collections.singletonList(tmpDir), queryDir);
+        FQLQuery query = new FQLQuery.Single("abc", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 12345, 11111, 22, "select * from abc", Collections.emptyList());
         try
         {
-            FQLQuery query = new FQLQuery.Single("abc", 3, QueryOptions.DEFAULT, 12345, 11111, 22, "select * from abc", Collections.emptyList());
             rs.storeColumnDefinitions(query, Collections.singletonList(res.getColumnDefinitions()));
             Iterator<ResultHandler.ComparableRow> it = res.iterator();
             while (it.hasNext())
@@ -163,10 +184,39 @@ public class FQLReplayTest
             rs.close();
         }
 
-        List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> resultSets = readResultFile(tmpDir, queryDir);
-        assertEquals(1, resultSets.size());
-        assertEquals(res, resultSets.get(0).right);
+        compareResults(Collections.singletonList(Pair.create(query, res)),
+                       readResultFile(tmpDir, queryDir));
 
+    }
+
+    private static void compareResults(List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> expected,
+                                List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> other)
+    {
+        ResultComparator comparator = new ResultComparator();
+        assertEquals(expected.size(), other.size());
+        for (int i = 0; i < expected.size(); i++)
+        {
+            assertEquals(expected.get(i).left, other.get(i).left);
+            ResultHandler.ComparableResultSet expectedResultSet = expected.get(i).right;
+            ResultHandler.ComparableResultSet otherResultSet = other.get(i).right;
+            List<String> hosts = Lists.newArrayList("a", "b");
+            comparator.compareColumnDefinitions(hosts,
+                                                expected.get(i).left,
+                                                Lists.newArrayList(expectedResultSet.getColumnDefinitions(),
+                                                                   otherResultSet.getColumnDefinitions()));
+            Iterator<ResultHandler.ComparableRow> expectedRowIter = expectedResultSet.iterator();
+            Iterator<ResultHandler.ComparableRow> otherRowIter = otherResultSet.iterator();
+
+
+            while(expectedRowIter.hasNext() && otherRowIter.hasNext())
+            {
+                ResultHandler.ComparableRow expectedRow = expectedRowIter.next();
+                ResultHandler.ComparableRow otherRow = otherRowIter.next();
+                assertTrue(comparator.compareRows(hosts, expected.get(i).left, Lists.newArrayList(expectedRow, otherRow)));
+            }
+            assertFalse(expectedRowIter.hasNext());
+            assertFalse(otherRowIter.hasNext());
+        }
     }
 
     @Test
@@ -270,18 +320,22 @@ public class FQLReplayTest
         File queryDir = Files.createTempDirectory("queries").toFile();
         List<File> resultPaths = new ArrayList<>();
         targetHosts.forEach(host -> { File f = new File(tmpDir, host); f.mkdir(); resultPaths.add(f);});
-        ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir);
+
         ResultHandler.ComparableResultSet res = createResultSet(10, 10, false);
         ResultHandler.ComparableResultSet res2 = createResultSet(10, 10, false);
         ResultHandler.ComparableResultSet res3 = createResultSet(10, 10, false);
         List<ResultHandler.ComparableResultSet> toCompare = Lists.newArrayList(res, res2, res3);
-        rh.handleResults(new FQLQuery.Single("abcabc", 3, QueryOptions.DEFAULT, 1111, 2222, 3333, "select * from xyz", Collections.emptyList()), toCompare);
+        FQLQuery query = new FQLQuery.Single("abcabc", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 1111, 2222, 3333, "select * from xyz", Collections.emptyList());
+        try (ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir))
+        {
+            rh.handleResults(query, toCompare);
+        }
         List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> results1 = readResultFile(resultPaths.get(0), queryDir);
         List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> results2 = readResultFile(resultPaths.get(1), queryDir);
         List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> results3 = readResultFile(resultPaths.get(2), queryDir);
-        assertEquals(results1, results2);
-        assertEquals(results1, results3);
-        assertEquals(Iterables.getOnlyElement(results3).right, res);
+        compareResults(results1, results2);
+        compareResults(results1, results3);
+        compareResults(results3, Collections.singletonList(Pair.create(query, res)));
     }
 
     @Test
@@ -292,17 +346,21 @@ public class FQLReplayTest
         File queryDir = Files.createTempDirectory("queries").toFile();
         List<File> resultPaths = new ArrayList<>();
         targetHosts.forEach(host -> { File f = new File(tmpDir, host); f.mkdir(); resultPaths.add(f);});
-        ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir);
+
         ResultHandler.ComparableResultSet res = createResultSet(10, 10, false);
         ResultHandler.ComparableResultSet res2 = createResultSet(10, 5, false);
         ResultHandler.ComparableResultSet res3 = createResultSet(10, 10, false);
         List<ResultHandler.ComparableResultSet> toCompare = Lists.newArrayList(res, res2, res3);
-        rh.handleResults(new FQLQuery.Single("aaa", 3, QueryOptions.DEFAULT, 123123, 11111, 22222, "select * from abcabc", Collections.emptyList()), toCompare);
+        FQLQuery query = new FQLQuery.Single("aaa", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 123123, 11111, 22222, "select * from abcabc", Collections.emptyList());
+        try (ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir))
+        {
+            rh.handleResults(query, toCompare);
+        }
         List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> results1 = readResultFile(resultPaths.get(0), queryDir);
         List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> results2 = readResultFile(resultPaths.get(1), queryDir);
         List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> results3 = readResultFile(resultPaths.get(2), queryDir);
-        assertEquals(results1, results3);
-        assertEquals(results2.get(0).right, res2);
+        compareResults(results1, results3);
+        compareResults(results2, Collections.singletonList(Pair.create(query, res2)));
     }
 
     @Test
@@ -313,7 +371,6 @@ public class FQLReplayTest
         File queryDir = Files.createTempDirectory("queries").toFile();
         List<File> resultPaths = new ArrayList<>();
         targetHosts.forEach(host -> { File f = new File(tmpDir, host); f.mkdir(); resultPaths.add(f);});
-        ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir);
         List<Pair<FQLQuery, List<ResultHandler.ComparableResultSet>>> resultSets = new ArrayList<>();
         Random random = new Random();
         for (int i = 0; i < 10; i++)
@@ -324,18 +381,32 @@ public class FQLReplayTest
             {
                 results.add(createResultSet(5, 1 + random.nextInt(10), true));
             }
-            FQLQuery q = new FQLQuery.Single("abc"+i,
+            FQLQuery q = i % 2 == 0
+                         ? new FQLQuery.Single("abc"+i,
                                              3,
                                              QueryOptions.forInternalCalls(values),
                                              i * 1000,
                                              12345,
                                              54321,
                                              "select * from xyz where id = "+i,
-                                             values);
+                                             values)
+                         : new FQLQuery.Batch("abc"+i,
+                                              3,
+                                              QueryOptions.forInternalCalls(values),
+                                              i * 1000,
+                                              i * 54321,
+                                              i * 12345,
+                                              com.datastax.driver.core.BatchStatement.Type.UNLOGGED,
+                                              Lists.newArrayList("select * from aaaa"),
+                                              Collections.singletonList(values));
+
             resultSets.add(Pair.create(q, results));
         }
-        for (int i = 0; i < resultSets.size(); i++)
-            rh.handleResults(resultSets.get(i).left, resultSets.get(i).right);
+        try (ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir))
+        {
+            for (int i = 0; i < resultSets.size(); i++)
+                rh.handleResults(resultSets.get(i).left, resultSets.get(i).right);
+        }
 
         for (int i = 0; i < targetHosts.size(); i++)
             compareWithFile(resultPaths, queryDir, resultSets, i);
@@ -349,7 +420,7 @@ public class FQLReplayTest
         File queryDir = Files.createTempDirectory("queries").toFile();
         List<File> resultPaths = new ArrayList<>();
         targetHosts.forEach(host -> { File f = new File(tmpDir, host); f.mkdir(); resultPaths.add(f);});
-        ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir);
+
         List<Pair<FQLQuery, List<ResultHandler.ComparableResultSet>>> resultSets = new ArrayList<>();
         Random random = new Random();
         for (int i = 0; i < 10; i++)
@@ -360,8 +431,8 @@ public class FQLReplayTest
             {
                 results.add(createResultSet(5, 1 + random.nextInt(10), true));
             }
-            results.set(0, FakeResultSet.failed(new RuntimeException("testing abc")));
-            results.set(3, FakeResultSet.failed(new RuntimeException("testing abc")));
+            results.set(0, StoredResultSet.failed("testing abc"));
+            results.set(3, StoredResultSet.failed("testing abc"));
             FQLQuery q = new FQLQuery.Single("abc"+i,
                                              3,
                                              QueryOptions.forInternalCalls(values),
@@ -372,13 +443,14 @@ public class FQLReplayTest
                                              values);
             resultSets.add(Pair.create(q, results));
         }
-        for (int i = 0; i < resultSets.size(); i++)
-            rh.handleResults(resultSets.get(i).left, resultSets.get(i).right);
-
+        try (ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir))
+        {
+            for (int i = 0; i < resultSets.size(); i++)
+                rh.handleResults(resultSets.get(i).left, resultSets.get(i).right);
+        }
         for (int i = 0; i < targetHosts.size(); i++)
             compareWithFile(resultPaths, queryDir, resultSets, i);
     }
-
 
     @Test
     public void testCompare()
@@ -412,6 +484,75 @@ public class FQLReplayTest
         FQLQuery q9 = new FQLQuery.Single("abc", 0, QueryOptions.DEFAULT, 123, 111, 222, "aaaa", Collections.singletonList(ByteBufferUtil.bytes("b")));
         assertTrue(q8.compareTo(q9) < 0);
         assertTrue(q9.compareTo(q8) > 0);
+    }
+
+    @Test
+    public void testFQLQuerySingleToStatement()
+    {
+        List<ByteBuffer> values = new ArrayList<>();
+        for (int i = 0; i < 10; i++)
+            values.add(ByteBufferUtil.bytes(i));
+        FQLQuery.Single single = new FQLQuery.Single("xyz",
+                                                     QueryOptions.DEFAULT.getProtocolVersion().asInt(),
+                                                     QueryOptions.forInternalCalls(values),
+                                                     1234,
+                                                     12345,
+                                                     54321,
+                                                     "select * from aaa",
+                                                     values);
+        Statement stmt = single.toStatement();
+        assertEquals(stmt.getDefaultTimestamp(), 12345);
+        assertTrue(stmt instanceof SimpleStatement);
+        SimpleStatement simpleStmt = (SimpleStatement)stmt;
+        assertEquals("select * from aaa",simpleStmt.getQueryString(CodecRegistry.DEFAULT_INSTANCE));
+        assertArrayEquals(values.toArray(), simpleStmt.getValues(com.datastax.driver.core.ProtocolVersion.fromInt(QueryOptions.DEFAULT.getProtocolVersion().asInt()), CodecRegistry.DEFAULT_INSTANCE));
+    }
+
+
+    @Test
+    public void testFQLQueryBatchToStatement()
+    {
+        List<List<ByteBuffer>> values = new ArrayList<>();
+        List<String> queries = new ArrayList<>();
+        for (int bqCount = 0; bqCount < 10; bqCount++)
+        {
+            queries.add("select * from asdf where x = ? and y = " + bqCount);
+            List<ByteBuffer> queryValues = new ArrayList<>();
+            for (int i = 0; i < 10; i++)
+                queryValues.add(ByteBufferUtil.bytes(i + ":" + bqCount));
+            values.add(queryValues);
+        }
+
+        FQLQuery.Batch batch = new FQLQuery.Batch("xyz",
+                                                   QueryOptions.DEFAULT.getProtocolVersion().asInt(),
+                                                   QueryOptions.DEFAULT,
+                                                   1234,
+                                                   12345,
+                                                   54321,
+                                                   com.datastax.driver.core.BatchStatement.Type.UNLOGGED,
+                                                   queries,
+                                                   values);
+        Statement stmt = batch.toStatement();
+        assertEquals(stmt.getDefaultTimestamp(), 12345);
+        assertTrue(stmt instanceof com.datastax.driver.core.BatchStatement);
+        com.datastax.driver.core.BatchStatement batchStmt = (com.datastax.driver.core.BatchStatement)stmt;
+        List<Statement> statements = Lists.newArrayList(batchStmt.getStatements());
+        List<Statement> fromFQLQueries = batch.queries.stream().map(FQLQuery.Single::toStatement).collect(Collectors.toList());
+        assertEquals(statements.size(), fromFQLQueries.size());
+        assertEquals(12345, batchStmt.getDefaultTimestamp());
+        for (int i = 0; i < statements.size(); i++)
+            compareStatements(statements.get(i), fromFQLQueries.get(i));
+    }
+
+    private void compareStatements(Statement statement1, Statement statement2)
+    {
+        assertTrue(statement1 instanceof SimpleStatement && statement2 instanceof SimpleStatement);
+        SimpleStatement simpleStmt1 = (SimpleStatement)statement1;
+        SimpleStatement simpleStmt2 = (SimpleStatement)statement2;
+        assertEquals(simpleStmt1.getQueryString(CodecRegistry.DEFAULT_INSTANCE), simpleStmt2.getQueryString(CodecRegistry.DEFAULT_INSTANCE));
+        assertArrayEquals(simpleStmt1.getValues(com.datastax.driver.core.ProtocolVersion.fromInt(QueryOptions.DEFAULT.getProtocolVersion().asInt()), CodecRegistry.DEFAULT_INSTANCE),
+                          simpleStmt2.getValues(com.datastax.driver.core.ProtocolVersion.fromInt(QueryOptions.DEFAULT.getProtocolVersion().asInt()), CodecRegistry.DEFAULT_INSTANCE));
+
     }
 
     private File generateQueries(int count, boolean random) throws IOException
@@ -468,7 +609,7 @@ public class FQLReplayTest
         return new QueryState(clientState);
     }
 
-    private static ResultHandler.ComparableResultSet createResultSet(int columnCount, int rowCount, boolean random)
+    static ResultHandler.ComparableResultSet createResultSet(int columnCount, int rowCount, boolean random)
     {
         List<Pair<String, String>> columnDefs = new ArrayList<>(columnCount);
         Random r = new Random();
@@ -476,24 +617,27 @@ public class FQLReplayTest
         {
             columnDefs.add(Pair.create("a" + i, "int"));
         }
-        List<List<String>> rows = new ArrayList<>();
+        ResultHandler.ComparableColumnDefinitions colDefs = new StoredResultSet.StoredComparableColumnDefinitions(columnDefs, false, null);
+        List<ResultHandler.ComparableRow> rows = new ArrayList<>();
         for (int i = 0; i < rowCount; i++)
         {
-            List<String> row = new ArrayList<>(columnCount);
+            List<ByteBuffer> row = new ArrayList<>(columnCount);
             for (int jj = 0; jj < columnCount; jj++)
-                row.add(i + " col " + jj + (random ? r.nextInt() : ""));
-            rows.add(row);
+                row.add(ByteBufferUtil.bytes(i + " col " + jj + (random ? r.nextInt() : "")));
+
+            rows.add(new StoredResultSet.StoredComparableRow(row, colDefs));
         }
-        return new FakeResultSet(columnDefs, rows);
+        return new StoredResultSet(colDefs, true, false, null, rows::iterator);
     }
 
     private static void compareWithFile(List<File> dirs, File resultDir, List<Pair<FQLQuery, List<ResultHandler.ComparableResultSet>>> resultSets, int idx)
     {
         List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> results1 = readResultFile(dirs.get(idx), resultDir);
-        for (int i = 0; i < results1.size(); i++)
+        for (int i = 0; i < resultSets.size(); i++)
         {
-            assertEquals(results1.get(i).left, resultSets.get(i).left);
-            assertEquals(results1.get(i).right, resultSets.get(i).right.get(idx));
+            FQLQuery query = resultSets.get(i).left;
+            List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> toCompare = Collections.singletonList(Pair.create(query, resultSets.get(i).right.get(idx)));
+            compareResults(Collections.singletonList(results1.get(i)), toCompare);
         }
     }
 
@@ -503,258 +647,29 @@ public class FQLReplayTest
         try (ChronicleQueue q = ChronicleQueueBuilder.single(dir).build();
              ChronicleQueue queryQ = ChronicleQueueBuilder.single(queryDir).build())
         {
-            ExcerptTailer tailer = q.createTailer();
             ExcerptTailer queryTailer = queryQ.createTailer();
-            List<Pair<String, String>> columnDefinitions = new ArrayList<>();
-            List<List<String>> rowColumns = new ArrayList<>();
-            AtomicBoolean allRowsRead = new AtomicBoolean(false);
-            AtomicBoolean failedQuery = new AtomicBoolean(false);
-            while (tailer.readDocument(wire -> {
-                String type = wire.read("type").text();
-                if (type.equals("column_definitions"))
-                {
-                    int columnCount = wire.read("column_count").int32();
-                    for (int i = 0; i < columnCount; i++)
-                    {
-                        ValueIn vi = wire.read("column_definition");
-                        String name = vi.text();
-                        String dataType = vi.text();
-                        columnDefinitions.add(Pair.create(name, dataType));
-                    }
-                }
-                else if (type.equals("row"))
-                {
-                    int rowColumnCount = wire.read("row_column_count").int32();
-                    List<String> r = new ArrayList<>(rowColumnCount);
-                    for (int i = 0; i < rowColumnCount; i++)
-                    {
-                        byte[] b = wire.read("column").bytes();
-                        r.add(new String(b));
-                    }
-                    rowColumns.add(r);
-                }
-                else if (type.equals("end_resultset"))
-                {
-                    allRowsRead.set(true);
-                }
-                else if (type.equals("query_failed"))
-                {
-                    failedQuery.set(true);
-                }
-            }))
+            FQLQueryReader queryReader = new FQLQueryReader();
+            Compare.StoredResultSetIterator resultSetIterator = new Compare.StoredResultSetIterator(q.createTailer());
+            // we need to materialize the rows in-memory to compare them easier in these tests
+            while (resultSetIterator.hasNext())
             {
-                if (allRowsRead.get())
+                ResultHandler.ComparableResultSet resultSetFromDisk = resultSetIterator.next();
+                Iterator<ResultHandler.ComparableRow> rowIterFromDisk = resultSetFromDisk.iterator();
+                queryTailer.readDocument(queryReader);
+
+                FQLQuery query = queryReader.getQuery();
+                List<ResultHandler.ComparableRow> rows = new ArrayList<>();
+                while (rowIterFromDisk.hasNext())
                 {
-                    FQLQueryReader reader = new FQLQueryReader();
-                    queryTailer.readDocument(reader);
-                    resultSets.add(Pair.create(reader.getQuery(), failedQuery.get() ? FakeResultSet.failed(new RuntimeException("failure"))
-                                                                                    : new FakeResultSet(ImmutableList.copyOf(columnDefinitions), ImmutableList.copyOf(rowColumns))));
-                    allRowsRead.set(false);
-                    failedQuery.set(false);
-                    columnDefinitions.clear();
-                    rowColumns.clear();
+                    rows.add(rowIterFromDisk.next());
                 }
+                resultSets.add(Pair.create(query, new StoredResultSet(resultSetFromDisk.getColumnDefinitions(),
+                                                                      resultSetIterator.hasNext(),
+                                                                      resultSetFromDisk.wasFailed(),
+                                                                      resultSetFromDisk.getFailureException(),
+                                                                      rows::iterator)));
             }
         }
         return resultSets;
-    }
-
-    private static class FakeResultSet implements ResultHandler.ComparableResultSet
-    {
-        private final List<Pair<String, String>> cdStrings;
-        private final List<List<String>> rows;
-        private final Throwable ex;
-
-        public FakeResultSet(List<Pair<String, String>> cdStrings, List<List<String>> rows)
-        {
-            this(cdStrings, rows, null);
-        }
-
-        public FakeResultSet(List<Pair<String, String>> cdStrings, List<List<String>> rows, Throwable ex)
-        {
-            this.cdStrings = cdStrings;
-            this.rows = rows;
-            this.ex = ex;
-        }
-
-        public static FakeResultSet failed(Throwable ex)
-        {
-            return new FakeResultSet(null, null, ex);
-        }
-
-        public ResultHandler.ComparableColumnDefinitions getColumnDefinitions()
-        {
-            return new FakeComparableColumnDefinitions(cdStrings, wasFailed());
-        }
-
-        public boolean wasFailed()
-        {
-            return getFailureException() != null;
-        }
-
-        public Throwable getFailureException()
-        {
-            return ex;
-        }
-
-        public Iterator<ResultHandler.ComparableRow> iterator()
-        {
-            if (wasFailed())
-                return Collections.emptyListIterator();
-            return new AbstractIterator<ResultHandler.ComparableRow>()
-            {
-                Iterator<List<String>> iter = rows.iterator();
-                protected ResultHandler.ComparableRow computeNext()
-                {
-                    if (iter.hasNext())
-                        return new FakeComparableRow(iter.next(), cdStrings);
-                    return endOfData();
-                }
-            };
-        }
-
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (!(o instanceof FakeResultSet)) return false;
-            FakeResultSet that = (FakeResultSet) o;
-            if (wasFailed() && that.wasFailed())
-                return true;
-            return Objects.equals(cdStrings, that.cdStrings) &&
-                   Objects.equals(rows, that.rows);
-        }
-
-        public int hashCode()
-        {
-            return Objects.hash(cdStrings, rows);
-        }
-
-        public String toString()
-        {
-            return "FakeResultSet{" +
-                   "cdStrings=" + cdStrings +
-                   ", rows=" + rows +
-                   '}';
-        }
-    }
-
-    private static class FakeComparableRow implements ResultHandler.ComparableRow
-    {
-        private final List<String> row;
-        private final List<Pair<String, String>> cds;
-
-        public FakeComparableRow(List<String> row, List<Pair<String,String>> cds)
-        {
-            this.row = row;
-            this.cds = cds;
-        }
-
-        public ByteBuffer getBytesUnsafe(int i)
-        {
-            return ByteBufferUtil.bytes(row.get(i));
-        }
-
-        public ResultHandler.ComparableColumnDefinitions getColumnDefinitions()
-        {
-            return new FakeComparableColumnDefinitions(cds, false);
-        }
-
-        public boolean equals(Object other)
-        {
-            if (!(other instanceof FakeComparableRow))
-                return false;
-            return row.equals(((FakeComparableRow)other).row);
-        }
-
-        public String toString()
-        {
-            return row.toString();
-        }
-    }
-
-    private static class FakeComparableColumnDefinitions implements ResultHandler.ComparableColumnDefinitions
-    {
-        private final List<ResultHandler.ComparableDefinition> defs;
-        private final boolean failed;
-        public FakeComparableColumnDefinitions(List<Pair<String, String>> cds, boolean failed)
-        {
-            defs = cds != null ? cds.stream().map(FakeComparableDefinition::new).collect(Collectors.toList()) : null;
-            this.failed = failed;
-        }
-
-        public List<ResultHandler.ComparableDefinition> asList()
-        {
-            if (wasFailed())
-                return Collections.emptyList();
-            return defs;
-        }
-
-        public boolean wasFailed()
-        {
-            return failed;
-        }
-
-        public int size()
-        {
-            return defs.size();
-        }
-
-        public Iterator<ResultHandler.ComparableDefinition> iterator()
-        {
-            if (wasFailed())
-                return Collections.emptyListIterator();
-            return new AbstractIterator<ResultHandler.ComparableDefinition>()
-            {
-                Iterator<ResultHandler.ComparableDefinition> iter = defs.iterator();
-                protected ResultHandler.ComparableDefinition computeNext()
-                {
-                    if (iter.hasNext())
-                        return iter.next();
-                    return endOfData();
-                }
-            };
-        }
-        public boolean equals(Object other)
-        {
-            if (!(other instanceof FakeComparableColumnDefinitions))
-                return false;
-            return defs.equals(((FakeComparableColumnDefinitions)other).defs);
-        }
-
-        public String toString()
-        {
-            return defs.toString();
-        }
-    }
-
-    private static class FakeComparableDefinition implements ResultHandler.ComparableDefinition
-    {
-        private final Pair<String, String> p;
-
-        public FakeComparableDefinition(Pair<String, String> p)
-        {
-            this.p = p;
-        }
-        public String getType()
-        {
-            return p.right;
-        }
-
-        public String getName()
-        {
-            return p.left;
-        }
-
-        public boolean equals(Object other)
-        {
-            if (!(other instanceof FakeComparableDefinition))
-                return false;
-            return p.equals(((FakeComparableDefinition)other).p);
-        }
-
-        public String toString()
-        {
-            return getName() + ':' + getType();
-        }
     }
 }
