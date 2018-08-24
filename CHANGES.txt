@@ -288,6 +288,7 @@
 
 3.11.4
 Merged from 3.0:
+ * Improve TokenMetaData cache populating performance avoid long locking (CASSANDRA-14660)
  * Fix static column order for SELECT * wildcard queries (CASSANDRA-14638)
  * sstableloader should use discovered broadcast address to connect intra-cluster (CASSANDRA-14522)
  * Fix reading columns with non-UTF names from schema (CASSANDRA-14468)
