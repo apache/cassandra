@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.fqltool;
+package org.apache.cassandra.fqltool;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -43,18 +43,14 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
     public final long queryStartTime;
     public final QueryOptions queryOptions;
     public final int protocolVersion;
-    public final String keyspace;
-    public final long generatedTimestamp;
-    private final int generatedNowInSeconds;
+    public final QueryState queryState;
 
     public FQLQuery(String keyspace, int protocolVersion, QueryOptions queryOptions, long queryStartTime, long generatedTimestamp, int generatedNowInSeconds)
     {
         this.queryStartTime = queryStartTime;
         this.queryOptions = queryOptions;
         this.protocolVersion = protocolVersion;
-        this.keyspace = keyspace;
-        this.generatedTimestamp = generatedTimestamp;
-        this.generatedNowInSeconds = generatedNowInSeconds;
+        this.queryState = queryState(keyspace, generatedTimestamp, generatedNowInSeconds);
     }
 
     public abstract Statement toStatement();
@@ -64,10 +60,14 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
      */
     public abstract BinLog.ReleaseableWriteMarshallable toMarshallable();
 
-    public QueryState queryState()
+    public String keyspace()
+    {
+        return queryState.getClientState().getRawKeyspace();
+    }
+
+    private QueryState queryState(String keyspace, long generatedTimestamp, int generatedNowInSeconds)
     {
         ClientState clientState = keyspace != null ? ClientState.forInternalCalls(keyspace) : ClientState.forInternalCalls();
-
         return new QueryState(clientState, generatedTimestamp, generatedNowInSeconds);
     }
 
@@ -78,27 +78,19 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         FQLQuery fqlQuery = (FQLQuery) o;
         return queryStartTime == fqlQuery.queryStartTime &&
                protocolVersion == fqlQuery.protocolVersion &&
-               generatedTimestamp == fqlQuery.generatedTimestamp &&
-               generatedNowInSeconds == fqlQuery.generatedNowInSeconds &&
-               Objects.equals(queryOptions.getValues(), fqlQuery.queryOptions.getValues()) &&
-               Objects.equals(keyspace, fqlQuery.keyspace);
+               queryState.getTimestamp() == fqlQuery.queryState.getTimestamp() &&
+               Objects.equals(queryState.getClientState().getRawKeyspace(), fqlQuery.queryState.getClientState().getRawKeyspace()) &&
+               Objects.equals(queryOptions.getValues(), fqlQuery.queryOptions.getValues());
     }
 
     public int hashCode()
     {
-        return Objects.hash(queryStartTime, queryOptions, protocolVersion, keyspace, generatedTimestamp, generatedNowInSeconds);
+        return Objects.hash(queryStartTime, queryOptions, protocolVersion, queryState.getClientState().getRawKeyspace());
     }
 
     public int compareTo(FQLQuery other)
     {
-        int cmp = Longs.compare(queryStartTime, other.queryStartTime);
-        if (cmp != 0)
-            return cmp;
-        cmp = Longs.compare(generatedTimestamp, other.generatedTimestamp);
-        if (cmp != 0)
-            return cmp;
-
-        return Longs.compare(generatedNowInSeconds, other.generatedNowInSeconds);
+        return Longs.compare(queryStartTime, other.queryStartTime);
     }
 
     public String toString()
@@ -106,9 +98,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         return "FQLQuery{" +
                "queryStartTime=" + queryStartTime +
                ", protocolVersion=" + protocolVersion +
-               ", keyspace='" + keyspace + '\'' +
-               ", generatedTimestamp=" + generatedTimestamp +
-               ", generatedNowInSeconds=" + generatedNowInSeconds +
+               ", queryState='" + queryState + '\'' +
                '}';
     }
 
@@ -137,14 +127,14 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         {
             SimpleStatement ss = new SimpleStatement(query, values.toArray());
             ss.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
-            ss.setDefaultTimestamp(generatedTimestamp);
+            ss.setDefaultTimestamp(queryOptions.getTimestamp(queryState));
             return ss;
         }
 
         public BinLog.ReleaseableWriteMarshallable toMarshallable()
         {
 
-            return new FullQueryLogger.Query(query, queryOptions, queryState(), queryStartTime);
+            return new FullQueryLogger.Query(query, queryOptions, queryState, queryStartTime);
         }
 
         public int compareTo(FQLQuery other)
@@ -207,13 +197,10 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         public Statement toStatement()
         {
             BatchStatement bs = new BatchStatement(batchType);
-
             for (Single query : queries)
-            {
-                bs.add(new SimpleStatement(query.query, query.values.toArray()));
-            }
+                bs.add(query.toStatement());
             bs.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
-            bs.setDefaultTimestamp(generatedTimestamp); // todo: set actual server side generated time
+            bs.setDefaultTimestamp(queryOptions.getTimestamp(queryState));
             return bs;
         }
 
@@ -248,7 +235,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
                 queryStrings.add(q.query);
                 values.add(q.values);
             }
-            return new FullQueryLogger.Batch(org.apache.cassandra.cql3.statements.BatchStatement.Type.valueOf(batchType.name()), queryStrings, values, queryOptions, queryState(), queryStartTime);
+            return new FullQueryLogger.Batch(org.apache.cassandra.cql3.statements.BatchStatement.Type.valueOf(batchType.name()), queryStrings, values, queryOptions, queryState, queryStartTime);
         }
 
         public String toString()

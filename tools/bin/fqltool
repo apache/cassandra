@@ -71,6 +71,6 @@ fi
 "$JAVA" $JAVA_AGENT -ea -da:net.openhft... -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
         -Dlog4j.configurationFile=log4j2-tools.xml \
         $JVM_ARGS \
-        org.apache.cassandra.tools.FullQueryLogTool $ARGS
+        org.apache.cassandra.fqltool.FullQueryLogTool $ARGS
 
 # vi:ai sw=4 ts=4 tw=0 et
