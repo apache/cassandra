@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.tools.fqltool;
 
+import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -28,7 +30,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
-public class ResultHandler
+public class ResultHandler implements Closeable
 {
     private final ResultStore resultStore;
     private final ResultComparator resultComparator;
@@ -95,6 +97,12 @@ public class ResultHandler
         return rows;
     }
 
+    public void close() throws IOException
+    {
+        if (resultStore != null)
+            resultStore.close();
+    }
+
     public interface ComparableResultSet extends Iterable<ComparableRow>
     {
         public ComparableColumnDefinitions getColumnDefinitions();
@@ -106,6 +114,7 @@ public class ResultHandler
     {
         public List<ComparableDefinition> asList();
         public boolean wasFailed();
+        public Throwable getFailureException();
         public int size();
     }
 
