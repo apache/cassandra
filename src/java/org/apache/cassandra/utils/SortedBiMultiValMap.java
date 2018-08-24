@@ -39,7 +39,7 @@ public class SortedBiMultiValMap<K, V> extends BiMultiValMap<K, V>
     public static <K extends Comparable<K>, V extends Comparable<V>> SortedBiMultiValMap<K, V> create(BiMultiValMap<K, V> map)
     {
         SortedBiMultiValMap<K, V> newMap = SortedBiMultiValMap.<K,V>create();
-        newMap.forwardMap.putAll(map);
+        newMap.forwardMap.putAll(map.forwardMap);
         // Put each individual TreeSet instead of Multimap#putAll(Multimap) to get linear complexity
         // See CASSANDRA-14660
         for (Entry<V, Collection<K>> entry : map.inverse().asMap().entrySet())
