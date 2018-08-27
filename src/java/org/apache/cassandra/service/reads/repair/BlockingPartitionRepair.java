@@ -161,6 +161,7 @@ public class BlockingPartitionRepair extends AbstractFuture<Object> implements I
 
             if (!shouldBlockOn(destination))
                 pendingRepairs.remove(destination);
+            ReadRepairDiagnostics.sendInitialRepair(this, destination, mutation);
         }
     }
 
@@ -226,12 +227,29 @@ public class BlockingPartitionRepair extends AbstractFuture<Object> implements I
             if (mutation == null)
             {
                 // the mutation is too large to send.
+                ReadRepairDiagnostics.speculatedWriteOversized(this, endpoint);
                 continue;
             }
 
             Tracing.trace("Sending speculative read-repair-mutation to {}", endpoint);
             sendRR(mutation.createMessage(MessagingService.Verb.READ_REPAIR), endpoint);
+            ReadRepairDiagnostics.speculatedWrite(this, endpoint, mutation);
         }
+    }
+
+    Keyspace getKeyspace()
+    {
+        return keyspace;
+    }
+
+    DecoratedKey getKey()
+    {
+        return key;
+    }
+
+    ConsistencyLevel getConsistency()
+    {
+        return consistency;
     }
 
     @VisibleForTesting
