@@ -122,6 +122,7 @@ public abstract class AbstractReadRepair implements ReadRepair
             Tracing.trace("Enqueuing full data read to {}", endpoint);
             sendReadCommand(endpoint, readCallback);
         }
+        ReadRepairDiagnostics.startRepair(this, contactedEndpoints, digestResolver, allEndpoints);
     }
 
     public void awaitReads() throws ReadTimeoutException
@@ -167,6 +168,7 @@ public abstract class AbstractReadRepair implements ReadRepair
                 Tracing.trace("Enqueuing speculative full data read to {}", endpoint);
                 sendReadCommand(endpoint.get(), repair.readCallback);
                 ReadRepairMetrics.speculatedRead.mark();
+                ReadRepairDiagnostics.speculatedRead(this, endpoint.get(), candidates);
             }
         }
     }

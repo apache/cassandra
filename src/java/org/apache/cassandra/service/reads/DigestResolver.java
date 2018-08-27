@@ -25,9 +25,10 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
-import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DigestResolver extends ResponseResolver
 {
@@ -81,5 +82,32 @@ public class DigestResolver extends ResponseResolver
     public boolean isDataPresent()
     {
         return dataResponse != null;
+    }
+
+    public DigestResolverDebugResult[] getDigestsByEndpoint()
+    {
+        DigestResolverDebugResult[] ret = new DigestResolverDebugResult[responses.size()];
+        for (int i = 0; i < responses.size(); i++)
+        {
+            MessageIn<ReadResponse> message = responses.get(i);
+            ReadResponse response = message.payload;
+            String digestHex = ByteBufferUtil.bytesToHex(response.digest(command));
+            ret[i] = new DigestResolverDebugResult(message.from, digestHex, message.payload.isDigestResponse());
+        }
+        return ret;
+    }
+
+    public static class DigestResolverDebugResult
+    {
+        public InetAddressAndPort from;
+        public String digestHex;
+        public boolean isDigestResponse;
+
+        private DigestResolverDebugResult(InetAddressAndPort from, String digestHex, boolean isDigestResponse)
+        {
+            this.from = from;
+            this.digestHex = digestHex;
+            this.isDigestResponse = isDigestResponse;
+        }
     }
 }

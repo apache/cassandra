@@ -1,4 +1,5 @@
 4.0
+ * Add diagnostic events for read repairs (CASSANDRA-14668)
  * Use consistent nowInSeconds and timestamps values within a request (CASSANDRA-14671)
  * Add sampler for query time and expose with nodetool (CASSANDRA-14436)
  * Clean up Message.Request implementations (CASSANDRA-14677)
