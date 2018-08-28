@@ -38,7 +38,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -46,6 +45,7 @@ public class QueryReplayer implements Closeable
 {
     private final ExecutorService es = Executors.newFixedThreadPool(1);
     private final Iterator<List<FQLQuery>> queryIterator;
+    private final List<String> targetHosts;
     private final List<Cluster> targetClusters;
     private final List<Predicate<FQLQuery>> filters;
     private final List<Session> sessions;
@@ -60,16 +60,18 @@ public class QueryReplayer implements Closeable
                          List<Predicate<FQLQuery>> filters,
                          PrintStream out,
                          String useKeyspace,
+                         String queryFilePathString,
                          boolean debug)
     {
         this.queryIterator = queryIterator;
+        this.targetHosts = targetHosts;
         targetClusters = targetHosts.stream().map(h -> Cluster.builder().addContactPoint(h).build()).collect(Collectors.toList());
         this.filters = filters;
         sessions = useKeyspace != null ?
                    targetClusters.stream().map(c -> c.connect(useKeyspace)).collect(Collectors.toList()) :
                    targetClusters.stream().map(Cluster::connect).collect(Collectors.toList());
-
-        resultHandler = new ResultHandler(targetHosts, resultPaths);
+        File queryFilePath = queryFilePathString != null ? new File(queryFilePathString) : null;
+        resultHandler = new ResultHandler(targetHosts, resultPaths, queryFilePath);
         this.debug = debug;
         this.out = out;
     }
@@ -85,18 +87,18 @@ public class QueryReplayer implements Closeable
                     continue;
                 try (Timer.Context ctx = metrics.timer("queries").time())
                 {
-                    List<ListenableFuture<ResultSet>> results = new ArrayList<>(sessions.size());
-                    for (Session s : sessions)
+                    List<ListenableFuture<ResultHandler.ComparableResultSet>> results = new ArrayList<>(sessions.size());
+                    for (Session session : sessions)
                     {
                         try
                         {
-                            if (query.keyspace != null && !query.keyspace.equals(s.getLoggedKeyspace()))
+                            if (query.keyspace != null && !query.keyspace.equals(session.getLoggedKeyspace()))
                             {
                                 if (debug)
                                 {
-                                    out.println(String.format("Switching keyspace from %s to %s", s.getLoggedKeyspace(), query.keyspace));
+                                    out.println(String.format("Switching keyspace from %s to %s", session.getLoggedKeyspace(), query.keyspace));
                                 }
-                                s.execute("USE " + query.keyspace);
+                                session.execute("USE " + query.keyspace);
                             }
                         }
                         catch (Throwable t)
@@ -108,21 +110,21 @@ public class QueryReplayer implements Closeable
                             out.println("Executing query:");
                             out.println(query);
                         }
-                        results.add(query.execute(s));
+                        results.add(query.execute(session));
                     }
 
-                    ListenableFuture<List<ResultSet>> resultList = Futures.allAsList(results);
+                    ListenableFuture<List<ResultHandler.ComparableResultSet>> resultList = Futures.allAsList(results);
 
-                    Futures.addCallback(resultList, new FutureCallback<List<ResultSet>>()
+                    Futures.addCallback(resultList, new FutureCallback<List<ResultHandler.ComparableResultSet>>()
                     {
-                        public void onSuccess(@Nullable List<ResultSet> resultSets)
+                        public void onSuccess(@Nullable List<ResultHandler.ComparableResultSet> resultSets)
                         {
                             resultHandler.handleResults(query, resultSets);
                         }
 
                         public void onFailure(Throwable throwable)
                         {
-                            out.println(query + " FAIL: " + throwable);
+                            throw new AssertionError("Errors should be handled in FQLQuery.execute", throwable);
                         }
                     }, es);
 

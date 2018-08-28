@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools.fqltool;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -38,18 +39,46 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class DriverResultSet implements ResultHandler.ComparableResultSet
 {
     private final ResultSet resultSet;
+    private final Throwable failureException;
 
     public DriverResultSet(ResultSet resultSet)
     {
-        this.resultSet = resultSet;
+        this(resultSet, null);
     }
+
+    private DriverResultSet(ResultSet res, Throwable failureException)
+    {
+        resultSet = res;
+        this.failureException = failureException;
+    }
+
+    public static DriverResultSet failed(Throwable ex)
+    {
+        return new DriverResultSet(null, ex);
+    }
+
     public ResultHandler.ComparableColumnDefinitions getColumnDefinitions()
     {
+        if (wasFailed())
+            return new DriverColumnDefinitions(null, true);
+
         return new DriverColumnDefinitions(resultSet.getColumnDefinitions());
+    }
+
+    public boolean wasFailed()
+    {
+        return failureException != null;
+    }
+
+    public Throwable getFailureException()
+    {
+        return failureException;
     }
 
     public Iterator<ResultHandler.ComparableRow> iterator()
     {
+        if (wasFailed())
+            return Collections.emptyListIterator();
         return new AbstractIterator<ResultHandler.ComparableRow>()
         {
             Iterator<Row> iter = resultSet.iterator();
@@ -127,15 +156,29 @@ public class DriverResultSet implements ResultHandler.ComparableResultSet
     public static class DriverColumnDefinitions implements ResultHandler.ComparableColumnDefinitions
     {
         private final ColumnDefinitions columnDefinitions;
+        private final boolean failed;
 
         public DriverColumnDefinitions(ColumnDefinitions columnDefinitions)
         {
+            this(columnDefinitions, false);
+        }
+
+        private DriverColumnDefinitions(ColumnDefinitions columnDefinitions, boolean failed)
+        {
             this.columnDefinitions = columnDefinitions;
+            this.failed = failed;
         }
 
         public List<ResultHandler.ComparableDefinition> asList()
         {
+            if (wasFailed())
+                return Collections.emptyList();
             return columnDefinitions.asList().stream().map(DriverDefinition::new).collect(Collectors.toList());
+        }
+
+        public boolean wasFailed()
+        {
+            return failed;
         }
 
         public int size()
@@ -145,16 +188,7 @@ public class DriverResultSet implements ResultHandler.ComparableResultSet
 
         public Iterator<ResultHandler.ComparableDefinition> iterator()
         {
-            return new AbstractIterator<ResultHandler.ComparableDefinition>()
-            {
-                Iterator<ColumnDefinitions.Definition> iter = columnDefinitions.iterator();
-                protected ResultHandler.ComparableDefinition computeNext()
-                {
-                    if (iter.hasNext())
-                        return new DriverDefinition(iter.next());
-                    return endOfData();
-                }
-            };
+            return asList().iterator();
         }
 
         public boolean equals(Object oo)
@@ -163,6 +197,9 @@ public class DriverResultSet implements ResultHandler.ComparableResultSet
                 return false;
 
             ResultHandler.ComparableColumnDefinitions o = (ResultHandler.ComparableColumnDefinitions)oo;
+            if (wasFailed() && o.wasFailed())
+                return true;
+
             if (size() != o.size())
                 return false;
 

@@ -67,6 +67,9 @@ public class Replay implements Runnable
     @Option(title = "legacy", name = {"--legacyfiles"}, description = "If the FQL files don't contain keyspace information.")
     private boolean legacyFiles;
 
+    @Option(title = "store_queries", name = {"--store-queries"}, description = "Path to store the queries executed. Stores queries in the same order as the result sets are in the result files. Requires --results")
+    private String queryStorePath;
+
     @Override
     public void run()
     {
@@ -84,7 +87,7 @@ public class Replay implements Runnable
                 resultPaths = targetHosts.stream().map(target -> new File(basePath, target)).collect(Collectors.toList());
                 resultPaths.forEach(File::mkdir);
             }
-            replay(keyspace, arguments, targetHosts, resultPaths, useKeyspace, legacyFiles, debug);
+            replay(keyspace, arguments, targetHosts, resultPaths, useKeyspace, legacyFiles, queryStorePath, debug);
         }
         catch (Exception e)
         {
@@ -92,7 +95,7 @@ public class Replay implements Runnable
         }
     }
 
-    public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String useKeyspace, boolean legacyFiles, boolean debug)
+    public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String useKeyspace, boolean legacyFiles, String queryStorePath, boolean debug)
     {
         int readAhead = 200; // how many fql queries should we read in to memory to be able to sort them?
         List<ChronicleQueue> readQueues = null;
@@ -107,7 +110,7 @@ public class Replay implements Runnable
             readQueues = arguments.stream().map(s -> ChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
             iterators = readQueues.stream().map(ChronicleQueue::createTailer).map(tailer -> new FQLQueryIterator(tailer, readAhead, legacyFiles)).collect(Collectors.toList());
             try (MergeIterator<FQLQuery, List<FQLQuery>> iter = MergeIterator.get(iterators, FQLQuery::compareTo, new Reducer());
-                 QueryReplayer replayer = new QueryReplayer(iter, targetHosts, resultPaths, filters, System.out, useKeyspace, debug))
+                 QueryReplayer replayer = new QueryReplayer(iter, targetHosts, resultPaths, filters, System.out, useKeyspace, queryStorePath, debug))
             {
                 replayer.replay();
             }

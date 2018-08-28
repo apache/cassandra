@@ -32,6 +32,7 @@ import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.wire.ValueOut;
+import org.apache.cassandra.utils.binlog.BinLog;
 
 /**
  * see FQLReplayTest#readResultFile for how to read files produced by this class
@@ -40,12 +41,18 @@ public class ResultStore
 {
     private final List<ChronicleQueue> queues;
     private final List<ExcerptAppender> appenders;
+    private final ChronicleQueue queryStoreQueue;
+    private final ExcerptAppender queryStoreAppender;
     private final Set<Integer> finishedHosts = new HashSet<>();
+    private final File queryFilePath;
 
-    public ResultStore(List<File> resultPaths)
+    public ResultStore(List<File> resultPaths, File queryFilePath)
     {
         queues = resultPaths.stream().map(path -> ChronicleQueueBuilder.single(path).build()).collect(Collectors.toList());
         appenders = queues.stream().map(ChronicleQueue::acquireAppender).collect(Collectors.toList());
+        queryStoreQueue = queryFilePath != null ? ChronicleQueueBuilder.single(queryFilePath).build() : null;
+        queryStoreAppender = queryStoreQueue != null ? queryStoreQueue.acquireAppender() : null;
+        this.queryFilePath = queryFilePath;
     }
 
     /**
@@ -57,23 +64,35 @@ public class ResultStore
      * calling storeRows.
      *
      */
-    public void storeColumnDefinitions(List<ResultHandler.ComparableColumnDefinitions> cds)
+    public void storeColumnDefinitions(FQLQuery query, List<ResultHandler.ComparableColumnDefinitions> cds)
     {
         finishedHosts.clear();
+        if (queryStoreAppender != null)
+        {
+            BinLog.ReleaseableWriteMarshallable writeMarshallableQuery = query.toMarshallable();
+            queryStoreAppender.writeDocument(writeMarshallableQuery);
+            writeMarshallableQuery.release();
+        }
         for (int i = 0; i < cds.size(); i++)
         {
             ResultHandler.ComparableColumnDefinitions cd = cds.get(i);
             appenders.get(i).writeDocument(wire ->
                                            {
-                                               wire.write("type").text("column_definitions");
-                                               wire.write("column_count").int32(cd.size());
-                                               for (ResultHandler.ComparableDefinition d : cd.asList())
+                                               if (!cd.wasFailed())
                                                {
-                                                   ValueOut vo = wire.write("column_definition");
-                                                   vo.text(d.getName());
-                                                   vo.text(d.getType());
+                                                   wire.write("type").text("column_definitions");
+                                                   wire.write("column_count").int32(cd.size());
+                                                   for (ResultHandler.ComparableDefinition d : cd.asList())
+                                                   {
+                                                       ValueOut vo = wire.write("column_definition");
+                                                       vo.text(d.getName());
+                                                       vo.text(d.getType());
+                                                   }
                                                }
-
+                                               else
+                                               {
+                                                   wire.write("type").text("query_failed");
+                                               }
                                            });
         }
     }
@@ -119,5 +138,7 @@ public class ResultStore
     public void close()
     {
         queues.forEach(Closeable::close);
+        if (queryStoreQueue != null)
+            queryStoreQueue.close();
     }
 }

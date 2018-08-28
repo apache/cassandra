@@ -21,17 +21,25 @@ package org.apache.cassandra.tools.fqltool;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import com.google.common.primitives.Longs;
+import com.google.common.util.concurrent.FluentFuture;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.ConsistencyLevel;
+import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.ResultSetFuture;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
+import org.apache.cassandra.audit.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.binlog.BinLog;
 
 public abstract class FQLQuery implements Comparable<FQLQuery>
 {
@@ -48,7 +56,41 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         this.keyspace = keyspace;
     }
 
-    public abstract ResultSetFuture execute(Session session);
+    public abstract ListenableFuture<ResultHandler.ComparableResultSet> execute(Session session);
+
+    /**
+     * used when storing the queries executed
+     */
+    public abstract BinLog.ReleaseableWriteMarshallable toMarshallable();
+
+    /**
+     * Make sure we catch any query errors
+     *
+     * On error, this creates a failed ComparableResultSet with the exception set to be able to store
+     * this fact in the result file and handle comparison of failed result sets.
+     */
+    ListenableFuture<ResultHandler.ComparableResultSet> handleErrors(ListenableFuture<ResultSet> result)
+    {
+        FluentFuture<ResultHandler.ComparableResultSet> fluentFuture = FluentFuture.from(result)
+                                                                                   .transform(DriverResultSet::new, MoreExecutors.directExecutor());
+        return fluentFuture.catching(Throwable.class, DriverResultSet::failed, MoreExecutors.directExecutor());
+    }
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (!(o instanceof FQLQuery)) return false;
+        FQLQuery fqlQuery = (FQLQuery) o;
+        return queryTime == fqlQuery.queryTime &&
+               protocolVersion == fqlQuery.protocolVersion &&
+               queryOptions.getValues().equals(fqlQuery.queryOptions.getValues()) &&
+               Objects.equals(keyspace, fqlQuery.keyspace);
+    }
+
+    public int hashCode()
+    {
+        return Objects.hash(queryTime, queryOptions, protocolVersion, keyspace);
+    }
 
     public int compareTo(FQLQuery other)
     {
@@ -76,11 +118,17 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
                                  values.stream().map(ByteBufferUtil::bytesToHex).collect(Collectors.joining(",")));
         }
 
-        public ResultSetFuture execute(Session session)
+        public ListenableFuture<ResultHandler.ComparableResultSet> execute(Session session)
         {
             SimpleStatement ss = new SimpleStatement(query, values.toArray());
             ss.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
-            return session.executeAsync(ss);
+            ListenableFuture<ResultSet> future = session.executeAsync(ss);
+            return handleErrors(future);
+        }
+
+        public BinLog.ReleaseableWriteMarshallable toMarshallable()
+        {
+            return new FullQueryLogger.WeighableMarshallableQuery(query, keyspace, queryOptions, queryTime);
         }
 
         public int compareTo(FQLQuery other)
@@ -109,6 +157,21 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
             }
             return cmp;
         }
+
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (!(o instanceof Single)) return false;
+            if (!super.equals(o)) return false;
+            Single single = (Single) o;
+            return Objects.equals(query, single.query) &&
+                   Objects.equals(values, single.values);
+        }
+
+        public int hashCode()
+        {
+            return Objects.hash(super.hashCode(), query, values);
+        }
     }
 
     public static class Batch extends FQLQuery
@@ -125,7 +188,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
                 this.queries.add(new Single(keyspace, protocolVersion, queryOptions, queryTime, queries.get(i), values.get(i)));
         }
 
-        public ResultSetFuture execute(Session session)
+        public ListenableFuture<ResultHandler.ComparableResultSet> execute(Session session)
         {
             BatchStatement bs = new BatchStatement(batchType);
             bs.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
@@ -133,7 +196,8 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
             {
                 bs.add(new SimpleStatement(query.query, query.values.toArray()));
             }
-            return session.executeAsync(bs);
+            ListenableFuture<ResultSet> future = session.executeAsync(bs);
+            return handleErrors(future);
         }
 
         public int compareTo(FQLQuery other)
@@ -158,6 +222,18 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
             return cmp;
         }
 
+        public BinLog.ReleaseableWriteMarshallable toMarshallable()
+        {
+            List<String> queryStrings = new ArrayList<>();
+            List<List<ByteBuffer>> values = new ArrayList<>();
+            for (Single q : queries)
+            {
+                queryStrings.add(q.query);
+                values.add(q.values);
+            }
+            return new FullQueryLogger.WeighableMarshallableBatch(batchType.name(), keyspace, queryStrings, values, queryOptions, queryTime);
+        }
+
         public String toString()
         {
             StringBuilder sb = new StringBuilder("batch: ").append(batchType).append('\n');
@@ -167,6 +243,21 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
             }
             sb.append("end batch");
             return sb.toString();
+        }
+
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (!(o instanceof Batch)) return false;
+            if (!super.equals(o)) return false;
+            Batch batch = (Batch) o;
+            return batchType == batch.batchType &&
+                   Objects.equals(queries, batch.queries);
+        }
+
+        public int hashCode()
+        {
+            return Objects.hash(super.hashCode(), batchType, queries);
         }
     }
 }

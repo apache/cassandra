@@ -99,9 +99,20 @@ public class ResultComparator
     private String columnDefinitionsString(ResultHandler.ComparableColumnDefinitions cd)
     {
         StringBuilder sb = new StringBuilder();
-        for (ResultHandler.ComparableDefinition def : cd)
+        if (cd == null)
         {
-            sb.append(def.toString());
+            sb.append("NULL");
+        }
+        else if (cd.wasFailed())
+        {
+            sb.append("FAILED");
+        }
+        else
+        {
+            for (ResultHandler.ComparableDefinition def : cd)
+            {
+                sb.append(def.toString());
+            }
         }
         return sb.toString();
     }

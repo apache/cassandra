@@ -36,29 +36,33 @@ public class ResultHandler
     private final ResultComparator resultComparator;
     private final List<String> targetHosts;
 
-    public ResultHandler(List<String> targetHosts, List<File> resultPaths)
+    public ResultHandler(List<String> targetHosts, List<File> resultPaths, File queryFilePath)
     {
         this.targetHosts = targetHosts;
-        resultStore = resultPaths != null ? new ResultStore(resultPaths) : null;
+        resultStore = resultPaths != null ? new ResultStore(resultPaths, queryFilePath) : null;
         resultComparator = new ResultComparator();
-    }
-
-    public void handleResults(FQLQuery query, List<ResultSet> results)
-    {
-        List<ComparableResultSet> comparableResults = results.stream().map(DriverResultSet::new).collect(Collectors.toList());
-        handle(query, comparableResults);
     }
 
     /**
      * Since we can't iterate a ResultSet more than once, and we don't want to keep the entire result set in memory
      * we feed the rows one-by-one to resultComparator and resultStore.
      */
-    public void handle(FQLQuery query, List<ComparableResultSet> results)
+    public void handleResults(FQLQuery query, List<ComparableResultSet> results)
     {
+        for (int i = 0; i < targetHosts.size(); i++)
+        {
+            if (results.get(i).wasFailed())
+            {
+                System.out.println("Query against "+targetHosts.get(i)+" failure:");
+                System.out.println(query);
+                System.out.println("Message: "+results.get(i).getFailureException().getMessage());
+            }
+        }
+
         List<ComparableColumnDefinitions> columnDefinitions = results.stream().map(ComparableResultSet::getColumnDefinitions).collect(Collectors.toList());
         resultComparator.compareColumnDefinitions(targetHosts, query, columnDefinitions);
         if (resultStore != null)
-            resultStore.storeColumnDefinitions(columnDefinitions);
+            resultStore.storeColumnDefinitions(query, columnDefinitions);
         List<Iterator<ComparableRow>> iters = results.stream().map(Iterable::iterator).collect(Collectors.toList());
 
         while (true)
@@ -94,11 +98,14 @@ public class ResultHandler
     public interface ComparableResultSet extends Iterable<ComparableRow>
     {
         public ComparableColumnDefinitions getColumnDefinitions();
+        public boolean wasFailed();
+        public Throwable getFailureException();
     }
 
     public interface ComparableColumnDefinitions extends Iterable<ComparableDefinition>
     {
         public List<ComparableDefinition> asList();
+        public boolean wasFailed();
         public int size();
     }
 
