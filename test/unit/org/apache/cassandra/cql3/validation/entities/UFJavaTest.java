@@ -476,7 +476,7 @@ public class UFJavaTest extends CQLTester
             {
                 List<Row> rowsNet = executeNet(version, "SELECT f_use1(udt) FROM %s WHERE key = 1").all();
                 Assert.assertEquals(1, rowsNet.size());
-                UDTValue udtVal = rowsNet.get(0).getUDTValue(0);
+                com.datastax.driver.core.UDTValue udtVal = rowsNet.get(0).getUDTValue(0);
                 Assert.assertEquals("one", udtVal.getString("txt"));
                 Assert.assertEquals(1, udtVal.getInt("i"));
             }
@@ -717,13 +717,15 @@ public class UFJavaTest extends CQLTester
                                   "(key int primary key, lst list<frozen<%s>>, st set<frozen<%s>>, mp map<int, frozen<%s>>)",
                                   type, type, type));
 
+        // The mix of the package names org.apache.cassandra.cql3.functions.types and com.datastax.driver.core is
+        // intentional to test the replacement of com.datastax.driver.core with org.apache.cassandra.cql3.functions.types.
         String fName1 = createFunction(KEYSPACE, "list<frozen<" + type + ">>",
                                        "CREATE FUNCTION %s( lst list<frozen<" + type + ">> ) " +
                                        "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java\n" +
                                        "AS $$" +
-                                       "     com.datastax.driver.core.UDTValue udtVal = (com.datastax.driver.core.UDTValue)lst.get(1);" +
+                                       "     org.apache.cassandra.cql3.functions.types.UDTValue udtVal = (com.datastax.driver.core.UDTValue)lst.get(1);" +
                                        "     return udtVal.getString(\"txt\");$$;");
         String fName2 = createFunction(KEYSPACE, "set<frozen<" + type + ">>",
                                        "CREATE FUNCTION %s( st set<frozen<" + type + ">> ) " +
@@ -731,7 +733,7 @@ public class UFJavaTest extends CQLTester
                                        "RETURNS text " +
                                        "LANGUAGE java\n" +
                                        "AS $$" +
-                                       "     com.datastax.driver.core.UDTValue udtVal = (com.datastax.driver.core.UDTValue)st.iterator().next();" +
+                                       "     com.datastax.driver.core.UDTValue udtVal = (org.apache.cassandra.cql3.functions.types.UDTValue)st.iterator().next();" +
                                        "     return udtVal.getString(\"txt\");$$;");
         String fName3 = createFunction(KEYSPACE, "map<int, frozen<" + type + ">>",
                                        "CREATE FUNCTION %s( mp map<int, frozen<" + type + ">> ) " +
@@ -739,7 +741,7 @@ public class UFJavaTest extends CQLTester
                                        "RETURNS text " +
                                        "LANGUAGE java\n" +
                                        "AS $$" +
-                                       "     com.datastax.driver.core.UDTValue udtVal = (com.datastax.driver.core.UDTValue)mp.get(Integer.valueOf(3));" +
+                                       "     org.apache.cassandra.cql3.functions.types.UDTValue udtVal = (com.datastax.driver.core.UDTValue)mp.get(Integer.valueOf(3));" +
                                        "     return udtVal.getString(\"txt\");$$;");
 
         execute("INSERT INTO %s (key, lst, st, mp) values (1, " +

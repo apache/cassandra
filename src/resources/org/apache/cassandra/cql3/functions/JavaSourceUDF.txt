@@ -7,9 +7,9 @@ import org.apache.cassandra.cql3.functions.JavaUDF;
 import org.apache.cassandra.cql3.functions.UDFContext;
 import org.apache.cassandra.transport.ProtocolVersion;
 
-import com.datastax.driver.core.TypeCodec;
-import com.datastax.driver.core.TupleValue;
-import com.datastax.driver.core.UDTValue;
+import org.apache.cassandra.cql3.functions.types.TypeCodec;
+import org.apache.cassandra.cql3.functions.types.TupleValue;
+import org.apache.cassandra.cql3.functions.types.UDTValue;
 
 public final class #class_name# extends JavaUDF
 {
