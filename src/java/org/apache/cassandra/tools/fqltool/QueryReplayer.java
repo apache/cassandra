@@ -26,19 +26,25 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.ConsistencyLevel;
+import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.Statement;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class QueryReplayer implements Closeable
@@ -84,6 +90,7 @@ public class QueryReplayer implements Closeable
                 try (Timer.Context ctx = metrics.timer("queries").time())
                 {
                     List<ListenableFuture<ResultHandler.ComparableResultSet>> results = new ArrayList<>(sessions.size());
+                    Statement statement = query.toStatement();
                     for (Session session : sessions)
                     {
                         try
@@ -104,7 +111,8 @@ public class QueryReplayer implements Closeable
                             out.println("Executing query:");
                             out.println(query);
                         }
-                        results.add(query.execute(session));
+                        ListenableFuture<ResultSet> future = session.executeAsync(statement);
+                        results.add(handleErrors(future));
                     }
 
                     ListenableFuture<List<ResultHandler.ComparableResultSet>> resultList = Futures.allAsList(results);
@@ -134,6 +142,19 @@ public class QueryReplayer implements Closeable
                     out.printf("%d queries, rate = %.2f%n", timer.getCount(), timer.getOneMinuteRate());
             }
         }
+    }
+
+    /**
+     * Make sure we catch any query errors
+     *
+     * On error, this creates a failed ComparableResultSet with the exception set to be able to store
+     * this fact in the result file and handle comparison of failed result sets.
+     */
+    private static ListenableFuture<ResultHandler.ComparableResultSet> handleErrors(ListenableFuture<ResultSet> result)
+    {
+        FluentFuture<ResultHandler.ComparableResultSet> fluentFuture = FluentFuture.from(result)
+                                                                                   .transform(DriverResultSet::new, MoreExecutors.directExecutor());
+        return fluentFuture.catching(Throwable.class, DriverResultSet::failed, MoreExecutors.directExecutor());
     }
 
     public void close()

@@ -26,15 +26,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.primitives.Longs;
-import com.google.common.util.concurrent.FluentFuture;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.ConsistencyLevel;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
+import com.datastax.driver.core.Statement;
 import org.apache.cassandra.audit.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -55,25 +51,12 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         this.keyspace = keyspace;
     }
 
-    public abstract ListenableFuture<ResultHandler.ComparableResultSet> execute(Session session);
+    public abstract Statement toStatement();
 
     /**
      * used when storing the queries executed
      */
     public abstract BinLog.ReleaseableWriteMarshallable toMarshallable();
-
-    /**
-     * Make sure we catch any query errors
-     *
-     * On error, this creates a failed ComparableResultSet with the exception set to be able to store
-     * this fact in the result file and handle comparison of failed result sets.
-     */
-    ListenableFuture<ResultHandler.ComparableResultSet> handleErrors(ListenableFuture<ResultSet> result)
-    {
-        FluentFuture<ResultHandler.ComparableResultSet> fluentFuture = FluentFuture.from(result)
-                                                                                   .transform(DriverResultSet::new, MoreExecutors.directExecutor());
-        return fluentFuture.catching(Throwable.class, DriverResultSet::failed, MoreExecutors.directExecutor());
-    }
 
     public boolean equals(Object o)
     {
@@ -117,13 +100,12 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
                                  values.stream().map(ByteBufferUtil::bytesToHex).collect(Collectors.joining(",")));
         }
 
-        public ListenableFuture<ResultHandler.ComparableResultSet> execute(Session session)
+        public Statement toStatement()
         {
             SimpleStatement ss = new SimpleStatement(query, values.toArray());
             ss.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
             ss.setDefaultTimestamp(TimeUnit.MICROSECONDS.convert(queryTime, TimeUnit.MILLISECONDS)); // todo: set actual server side generated time
-            ListenableFuture<ResultSet> future = session.executeAsync(ss);
-            return handleErrors(future);
+            return ss;
         }
 
         public BinLog.ReleaseableWriteMarshallable toMarshallable()
@@ -188,17 +170,17 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
                 this.queries.add(new Single(keyspace, protocolVersion, queryOptions, queryTime, queries.get(i), values.get(i)));
         }
 
-        public ListenableFuture<ResultHandler.ComparableResultSet> execute(Session session)
+        public Statement toStatement()
         {
             BatchStatement bs = new BatchStatement(batchType);
-            bs.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
+
             for (Single query : queries)
             {
                 bs.add(new SimpleStatement(query.query, query.values.toArray()));
             }
+            bs.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
             bs.setDefaultTimestamp(TimeUnit.MICROSECONDS.convert(queryTime, TimeUnit.MILLISECONDS)); // todo: set actual server side generated time
-            ListenableFuture<ResultSet> future = session.executeAsync(bs);
-            return handleErrors(future);
+            return bs;
         }
 
         public int compareTo(FQLQuery other)
