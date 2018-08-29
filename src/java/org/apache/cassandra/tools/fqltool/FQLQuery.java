@@ -26,14 +26,12 @@ import java.util.stream.Collectors;
 
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.FluentFuture;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.ResultSetFuture;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.audit.FullQueryLogger;
@@ -238,9 +236,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         {
             StringBuilder sb = new StringBuilder("batch: ").append(batchType).append('\n');
             for (Single q : queries)
-            {
                 sb.append(q.toString()).append('\n');
-            }
             sb.append("end batch");
             return sb.toString();
         }

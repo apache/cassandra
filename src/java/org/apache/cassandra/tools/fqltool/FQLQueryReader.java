@@ -35,17 +35,6 @@ import org.apache.cassandra.transport.ProtocolVersion;
 public class FQLQueryReader implements ReadMarshallable
 {
     private FQLQuery query;
-    private final boolean legacyFiles;
-
-    public FQLQueryReader()
-    {
-        this(false);
-    }
-
-    public FQLQueryReader(boolean legacyFiles)
-    {
-        this.legacyFiles = legacyFiles;
-    }
 
     public void readMarshallable(WireIn wireIn) throws IORuntimeException
     {
@@ -53,7 +42,7 @@ public class FQLQueryReader implements ReadMarshallable
         int protocolVersion = wireIn.read("protocol-version").int32();
         QueryOptions queryOptions = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read("query-options").bytes()), ProtocolVersion.decode(protocolVersion));
         long queryTime = wireIn.read("query-time").int64();
-        String keyspace = legacyFiles ? null : wireIn.read("keyspace").text();
+        String keyspace = wireIn.read("keyspace").text();
         switch (type)
         {
             case "single":
@@ -77,9 +66,7 @@ public class FQLQueryReader implements ReadMarshallable
                     values.add(subValues);
                     int numSubValues = in.int32();
                     for (int zz = 0; zz < numSubValues; zz++)
-                    {
                         subValues.add(ByteBuffer.wrap(in.bytes()));
-                    }
                 }
                 query = new FQLQuery.Batch(keyspace, protocolVersion, queryOptions, queryTime, batchType, queries, values);
                 break;

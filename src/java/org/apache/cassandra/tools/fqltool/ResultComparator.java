@@ -100,13 +100,9 @@ public class ResultComparator
     {
         StringBuilder sb = new StringBuilder();
         if (cd == null)
-        {
             sb.append("NULL");
-        }
         else if (cd.wasFailed())
-        {
             sb.append("FAILED");
-        }
         else
         {
             for (ResultHandler.ComparableDefinition def : cd)

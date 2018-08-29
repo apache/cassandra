@@ -61,12 +61,6 @@ public class Replay implements Runnable
     @Option(title = "debug", name = {"--debug"}, description = "Debug mode, print all queries executed.")
     private boolean debug;
 
-    @Option(title = "use", name = {"--use"}, description = "Connect to the cluster(s) using this keyspace.")
-    private String useKeyspace;
-
-    @Option(title = "legacy", name = {"--legacyfiles"}, description = "If the FQL files don't contain keyspace information.")
-    private boolean legacyFiles;
-
     @Option(title = "store_queries", name = {"--store-queries"}, description = "Path to store the queries executed. Stores queries in the same order as the result sets are in the result files. Requires --results")
     private String queryStorePath;
 
@@ -87,7 +81,12 @@ public class Replay implements Runnable
                 resultPaths = targetHosts.stream().map(target -> new File(basePath, target)).collect(Collectors.toList());
                 resultPaths.forEach(File::mkdir);
             }
-            replay(keyspace, arguments, targetHosts, resultPaths, useKeyspace, legacyFiles, queryStorePath, debug);
+            if (targetHosts.size() < 1)
+            {
+                System.err.println("You need to state at least one --target host to replay the query against");
+                System.exit(1);
+            }
+            replay(keyspace, arguments, targetHosts, resultPaths, queryStorePath, debug);
         }
         catch (Exception e)
         {
@@ -95,7 +94,7 @@ public class Replay implements Runnable
         }
     }
 
-    public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String useKeyspace, boolean legacyFiles, String queryStorePath, boolean debug)
+    public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String queryStorePath, boolean debug)
     {
         int readAhead = 200; // how many fql queries should we read in to memory to be able to sort them?
         List<ChronicleQueue> readQueues = null;
@@ -108,9 +107,9 @@ public class Replay implements Runnable
         try
         {
             readQueues = arguments.stream().map(s -> ChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
-            iterators = readQueues.stream().map(ChronicleQueue::createTailer).map(tailer -> new FQLQueryIterator(tailer, readAhead, legacyFiles)).collect(Collectors.toList());
+            iterators = readQueues.stream().map(ChronicleQueue::createTailer).map(tailer -> new FQLQueryIterator(tailer, readAhead)).collect(Collectors.toList());
             try (MergeIterator<FQLQuery, List<FQLQuery>> iter = MergeIterator.get(iterators, FQLQuery::compareTo, new Reducer());
-                 QueryReplayer replayer = new QueryReplayer(iter, targetHosts, resultPaths, filters, System.out, useKeyspace, queryStorePath, debug))
+                 QueryReplayer replayer = new QueryReplayer(iter, targetHosts, resultPaths, filters, System.out, queryStorePath, debug))
             {
                 replayer.replay();
             }
@@ -146,6 +145,4 @@ public class Replay implements Runnable
             queries.clear();
         }
     }
-
-
 }

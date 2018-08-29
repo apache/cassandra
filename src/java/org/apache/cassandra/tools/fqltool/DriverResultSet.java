@@ -85,9 +85,7 @@ public class DriverResultSet implements ResultHandler.ComparableResultSet
             protected ResultHandler.ComparableRow computeNext()
             {
                 if (iter.hasNext())
-                {
                     return new DriverRow(iter.next());
-                }
                 return endOfData();
             }
         };

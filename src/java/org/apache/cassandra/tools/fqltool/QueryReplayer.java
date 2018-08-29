@@ -43,9 +43,9 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class QueryReplayer implements Closeable
 {
+    private static final int PRINT_RATE = 5000;
     private final ExecutorService es = Executors.newFixedThreadPool(1);
     private final Iterator<List<FQLQuery>> queryIterator;
-    private final List<String> targetHosts;
     private final List<Cluster> targetClusters;
     private final List<Predicate<FQLQuery>> filters;
     private final List<Session> sessions;
@@ -59,17 +59,13 @@ public class QueryReplayer implements Closeable
                          List<File> resultPaths,
                          List<Predicate<FQLQuery>> filters,
                          PrintStream out,
-                         String useKeyspace,
                          String queryFilePathString,
                          boolean debug)
     {
         this.queryIterator = queryIterator;
-        this.targetHosts = targetHosts;
         targetClusters = targetHosts.stream().map(h -> Cluster.builder().addContactPoint(h).build()).collect(Collectors.toList());
         this.filters = filters;
-        sessions = useKeyspace != null ?
-                   targetClusters.stream().map(c -> c.connect(useKeyspace)).collect(Collectors.toList()) :
-                   targetClusters.stream().map(Cluster::connect).collect(Collectors.toList());
+        sessions = targetClusters.stream().map(Cluster::connect).collect(Collectors.toList());
         File queryFilePath = queryFilePathString != null ? new File(queryFilePathString) : null;
         resultHandler = new ResultHandler(targetHosts, resultPaths, queryFilePath);
         this.debug = debug;
@@ -95,15 +91,13 @@ public class QueryReplayer implements Closeable
                             if (query.keyspace != null && !query.keyspace.equals(session.getLoggedKeyspace()))
                             {
                                 if (debug)
-                                {
-                                    out.println(String.format("Switching keyspace from %s to %s", session.getLoggedKeyspace(), query.keyspace));
-                                }
+                                    out.printf("Switching keyspace from %s to %s%n", session.getLoggedKeyspace(), query.keyspace);
                                 session.execute("USE " + query.keyspace);
                             }
                         }
                         catch (Throwable t)
                         {
-                            out.println("USE "+query.keyspace+" failed: "+t.getMessage());
+                            out.printf("USE %s failed: %s%n", query.keyspace, t.getMessage());
                         }
                         if (debug)
                         {
@@ -132,11 +126,11 @@ public class QueryReplayer implements Closeable
                 }
                 catch (Throwable t)
                 {
-                    out.println("QUERY " + query +" got exception: "+t.getMessage());
+                    out.printf("QUERY %s got exception: %s", query, t.getMessage());
                 }
 
                 Timer timer = metrics.timer("queries");
-                if (timer.getCount() % 5000 == 0)
+                if (timer.getCount() % PRINT_RATE == 0)
                     out.printf("%d queries, rate = %.2f%n", timer.getCount(), timer.getOneMinuteRate());
             }
         }

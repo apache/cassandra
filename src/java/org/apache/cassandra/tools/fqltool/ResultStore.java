@@ -44,7 +44,6 @@ public class ResultStore
     private final ChronicleQueue queryStoreQueue;
     private final ExcerptAppender queryStoreAppender;
     private final Set<Integer> finishedHosts = new HashSet<>();
-    private final File queryFilePath;
 
     public ResultStore(List<File> resultPaths, File queryFilePath)
     {
@@ -52,7 +51,6 @@ public class ResultStore
         appenders = queues.stream().map(ChronicleQueue::acquireAppender).collect(Collectors.toList());
         queryStoreQueue = queryFilePath != null ? ChronicleQueueBuilder.single(queryFilePath).build() : null;
         queryStoreAppender = queryStoreQueue != null ? queryStoreQueue.acquireAppender() : null;
-        this.queryFilePath = queryFilePath;
     }
 
     /**

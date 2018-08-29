@@ -68,7 +68,7 @@ public class FQLReplayTest
         File f = generateQueries(100, true);
         int queryCount = 0;
         try (ChronicleQueue queue = ChronicleQueueBuilder.single(f).build();
-             FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 101, false))
+             FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 101))
         {
             long last = -1;
             while (iter.hasNext())
@@ -89,8 +89,8 @@ public class FQLReplayTest
         int queryCount = 0;
         try (ChronicleQueue queue = ChronicleQueueBuilder.single(f).build();
              ChronicleQueue queue2 = ChronicleQueueBuilder.single(f2).build();
-             FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 101, false);
-             FQLQueryIterator iter2 = new FQLQueryIterator(queue2.createTailer(), 101, false);
+             FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 101);
+             FQLQueryIterator iter2 = new FQLQueryIterator(queue2.createTailer(), 101);
              MergeIterator<FQLQuery, List<FQLQuery>> merger = MergeIterator.get(Lists.newArrayList(iter, iter2), FQLQuery::compareTo, new Replay.Reducer()))
         {
             long last = -1;
@@ -407,47 +407,6 @@ public class FQLReplayTest
         assertTrue(q9.compareTo(q8) > 0);
     }
 
-    @Test
-    public void testLegacyFiles() throws IOException
-    {
-        // make sure we can read pre-CASSANDRA-14656 files
-        File dir = Files.createTempDirectory("legacy").toFile();
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(dir).build())
-        {
-            ExcerptAppender appender = queue.acquireAppender();
-            int optionsSize = QueryOptions.codec.encodedSize(QueryOptions.DEFAULT, ProtocolVersion.CURRENT);
-            ByteBuf queryOptionsBuffer = CBUtil.allocator.buffer(optionsSize, optionsSize);
-            QueryOptions.codec.encode(QueryOptions.DEFAULT, queryOptionsBuffer, ProtocolVersion.CURRENT);
-            for (int i = 0; i < 10; i++)
-            {
-                appender.writeDocument(wire ->
-                                       {
-                                           wire.write("type").text("single");
-                                           wire.write("protocol-version").int32(ProtocolVersion.CURRENT.asInt());
-                                           wire.write("query-options").bytes(BytesStore.wrap(queryOptionsBuffer.nioBuffer()));
-                                           wire.write("query-time").int64(123456);
-                                           // don't write keyspace
-                                           wire.write("query").text("Q U E R Y");
-                                       });
-            }
-        }
-
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(dir).readOnly(true).build();
-             FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 10, true))
-        {
-            int queryCount = 0;
-            while (iter.hasNext())
-            {
-                FQLQuery query = iter.next();
-                assertNull(query.keyspace);
-                assertEquals(123456, query.queryTime);
-                assertEquals("Q U E R Y", ((FQLQuery.Single)query).query);
-                queryCount++;
-            }
-            assertEquals(10, queryCount);
-        }
-    }
-
     private File generateQueries(int count, boolean random) throws IOException
     {
         Random r = new Random();
@@ -567,7 +526,7 @@ public class FQLReplayTest
             {
                 if (allRowsRead.get())
                 {
-                    FQLQueryReader reader = new FQLQueryReader(false);
+                    FQLQueryReader reader = new FQLQueryReader();
                     queryTailer.readDocument(reader);
                     resultSets.add(Pair.create(reader.getQuery(), failedQuery.get() ? FakeResultSet.failed(new RuntimeException("failure"))
                                                                                     : new FakeResultSet(ImmutableList.copyOf(columnDefinitions), ImmutableList.copyOf(rowColumns))));

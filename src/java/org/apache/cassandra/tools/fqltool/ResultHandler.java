@@ -28,8 +28,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.datastax.driver.core.ResultSet;
-
 public class ResultHandler
 {
     private final ResultStore resultStore;

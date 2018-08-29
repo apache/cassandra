@@ -25,6 +25,7 @@ import org.apache.cassandra.utils.AbstractIterator;
 
 public class FQLQueryIterator extends AbstractIterator<FQLQuery>
 {
+    // use a priority queue to be able to sort the head of the query logs in memory
     private final PriorityQueue<FQLQuery> pq;
     private final ExcerptTailer tailer;
     private final FQLQueryReader reader;
@@ -34,10 +35,10 @@ public class FQLQueryIterator extends AbstractIterator<FQLQuery>
      *
      * Reads up to readAhead queries in to memory to be able to sort them (the files are mostly sorted already)
      */
-    public FQLQueryIterator(ExcerptTailer tailer, int readAhead, boolean legacyFiles)
+    public FQLQueryIterator(ExcerptTailer tailer, int readAhead)
     {
-        assert readAhead > 0 : "ReadAhead needs to be > 0";
-        reader = new FQLQueryReader(legacyFiles);
+        assert readAhead > 0 : "readAhead needs to be > 0";
+        reader = new FQLQueryReader();
         this.tailer = tailer;
         pq = new PriorityQueue<>(readAhead);
         for (int i = 0; i < readAhead; i++)
