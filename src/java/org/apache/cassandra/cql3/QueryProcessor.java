@@ -122,11 +122,11 @@ public class QueryProcessor implements QueryHandler
     {
         INSTANCE;
 
-        private final QueryState queryState;
+        private final ClientState clientState;
 
         InternalStateInstance()
         {
-            queryState = new QueryState(ClientState.forInternalCalls(SchemaConstants.SYSTEM_KEYSPACE_NAME));
+            clientState = ClientState.forInternalCalls(SchemaConstants.SYSTEM_KEYSPACE_NAME);
         }
     }
 
@@ -164,7 +164,7 @@ public class QueryProcessor implements QueryHandler
 
     private static QueryState internalQueryState()
     {
-        return InternalStateInstance.INSTANCE.queryState;
+        return new QueryState(InternalStateInstance.INSTANCE.clientState);
     }
 
     private QueryProcessor()

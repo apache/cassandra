@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Arrays;
@@ -289,6 +290,11 @@ public class ClientState
     public InetSocketAddress getRemoteAddress()
     {
         return remoteAddress;
+    }
+
+    InetAddress getClientAddress()
+    {
+        return isInternal ? null : remoteAddress.getAddress();
     }
 
     public String getRawKeyspace()

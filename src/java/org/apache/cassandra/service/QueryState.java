@@ -18,12 +18,8 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
-import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
-import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Represents the state related to a given query.
@@ -31,7 +27,9 @@ import org.apache.cassandra.tracing.Tracing;
 public class QueryState
 {
     private final ClientState clientState;
-    private volatile UUID preparedTracingSession;
+
+    private long timestamp = Long.MIN_VALUE;
+    private int nowInSeconds = Integer.MIN_VALUE;
 
     public QueryState(ClientState clientState)
     {
@@ -51,49 +49,22 @@ public class QueryState
         return clientState;
     }
 
-    /**
-     * This clock guarantees that updates for the same QueryState will be ordered
-     * in the sequence seen, even if multiple updates happen in the same millisecond.
-     */
-    public long getTimestamp()
-    {
-        return clientState.getTimestamp();
-    }
-
-    public boolean traceNextQuery()
-    {
-        if (preparedTracingSession != null)
-        {
-            return true;
-        }
-
-        double traceProbability = StorageService.instance.getTraceProbability();
-        return traceProbability != 0 && ThreadLocalRandom.current().nextDouble() < traceProbability;
-    }
-
-    public void prepareTracingSession(UUID sessionId)
-    {
-        this.preparedTracingSession = sessionId;
-    }
-
-    public void createTracingSession(Map<String,ByteBuffer> customPayload)
-    {
-        UUID session = this.preparedTracingSession;
-        if (session == null)
-        {
-            Tracing.instance.newSession(customPayload);
-        }
-        else
-        {
-            Tracing.instance.newSession(session, customPayload);
-            this.preparedTracingSession = null;
-        }
-    }
-
     public InetAddress getClientAddress()
     {
-        return clientState.isInternal
-             ? null
-             : clientState.getRemoteAddress().getAddress();
+        return clientState.getClientAddress();
+    }
+
+    public long getTimestamp()
+    {
+        if (timestamp == Long.MIN_VALUE)
+            timestamp = clientState.getTimestamp();
+        return timestamp;
+    }
+
+    public int getNowInSeconds()
+    {
+        if (nowInSeconds == Integer.MIN_VALUE)
+            nowInSeconds = FBUtilities.nowInSeconds();
+        return nowInSeconds;
     }
 }

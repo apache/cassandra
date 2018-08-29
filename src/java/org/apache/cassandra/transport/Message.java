@@ -42,11 +42,13 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * A message from the CQL binary protocol.
@@ -201,11 +203,7 @@ public abstract class Message
 
     public static abstract class Request extends Message
     {
-        protected boolean tracingRequested;
-
-        protected final AuditLogManager auditLogManager = AuditLogManager.getInstance();
-        protected boolean auditLogEnabled = auditLogManager.isAuditingEnabled();
-        protected boolean isLoggingEnabled = auditLogManager.isLoggingEnabled();
+        private boolean tracingRequested;
 
         protected Request(Type type)
         {
@@ -215,14 +213,56 @@ public abstract class Message
                 throw new IllegalArgumentException();
         }
 
-        public abstract Response execute(QueryState queryState, long queryStartNanoTime);
-
-        public void setTracingRequested()
+        protected boolean isTraceable()
         {
-            this.tracingRequested = true;
+            return false;
         }
 
-        public boolean isTracingRequested()
+        protected abstract Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest);
+
+        final Response execute(QueryState queryState, long queryStartNanoTime)
+        {
+            boolean shouldTrace = false;
+            UUID tracingSessionId = null;
+
+            if (isTraceable())
+            {
+                if (isTracingRequested())
+                {
+                    shouldTrace = true;
+                    tracingSessionId = UUIDGen.getTimeUUID();
+                    Tracing.instance.newSession(tracingSessionId, getCustomPayload());
+                }
+                else if (StorageService.instance.shouldTraceProbablistically())
+                {
+                    shouldTrace = true;
+                    Tracing.instance.newSession(getCustomPayload());
+                }
+            }
+
+            Response response;
+            try
+            {
+                response = execute(queryState, queryStartNanoTime, shouldTrace);
+            }
+            finally
+            {
+                if (shouldTrace)
+                    Tracing.instance.stopSession();
+            }
+
+            if (isTraceable() && isTracingRequested())
+                response.setTracingId(tracingSessionId);
+
+            return response;
+        }
+
+        void setTracingRequested()
+        {
+            tracingRequested = true;
+        }
+
+        boolean isTracingRequested()
         {
             return tracingRequested;
         }
@@ -241,18 +281,18 @@ public abstract class Message
                 throw new IllegalArgumentException();
         }
 
-        public Message setTracingId(UUID tracingId)
+        Message setTracingId(UUID tracingId)
         {
             this.tracingId = tracingId;
             return this;
         }
 
-        public UUID getTracingId()
+        UUID getTracingId()
         {
             return tracingId;
         }
 
-        public Message setWarnings(List<String> warnings)
+        Message setWarnings(List<String> warnings)
         {
             this.warnings = warnings;
             return this;
@@ -565,7 +605,7 @@ public abstract class Message
                 if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
                     ClientWarn.instance.captureWarnings();
 
-                QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion(), request.getStreamId());
+                QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
 
                 logger.trace("Received: {}, v={}", request, connection.getVersion());
                 connection.requests.inc();

@@ -5352,6 +5352,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return traceProbability;
     }
 
+    public boolean shouldTraceProbablistically()
+    {
+        return traceProbability != 0 && ThreadLocalRandom.current().nextDouble() < traceProbability;
+    }
+
     public void disableAutoCompaction(String ks, String... tables) throws IOException
     {
         for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, tables))

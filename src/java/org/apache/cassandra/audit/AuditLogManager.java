@@ -214,7 +214,7 @@ public class AuditLogManager
         List<AuditLogEntry> auditLogEntries = new ArrayList<>(queryOrIdList.size() + 1);
         UUID batchId = UUID.randomUUID();
         String queryString = String.format("BatchId:[%s] - BATCH of [%d] statements", batchId, queryOrIdList.size());
-        AuditLogEntry entry = new AuditLogEntry.Builder(state.getClientState())
+        AuditLogEntry entry = new AuditLogEntry.Builder(state)
                               .setOperation(queryString)
                               .setOptions(options)
                               .setTimestamp(queryStartTimeMillis)
@@ -226,7 +226,7 @@ public class AuditLogManager
         for (int i = 0; i < queryOrIdList.size(); i++)
         {
             CQLStatement statement = prepared.get(i).statement;
-            entry = new AuditLogEntry.Builder(state.getClientState())
+            entry = new AuditLogEntry.Builder(state)
                     .setType(statement.getAuditLogContext().auditLogEntryType)
                     .setOperation(prepared.get(i).rawCQLStatement)
                     .setTimestamp(queryStartTimeMillis)

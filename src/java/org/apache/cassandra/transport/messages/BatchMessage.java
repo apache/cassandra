@@ -20,13 +20,13 @@ package org.apache.cassandra.transport.messages;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.audit.AuditLogEntry;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.BatchQueryOptions;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -47,7 +47,6 @@ import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
-import org.apache.cassandra.utils.UUIDGen;
 
 public class BatchMessage extends Message.Request
 {
@@ -157,30 +156,21 @@ public class BatchMessage extends Message.Request
         this.options = options;
     }
 
-    public Message.Response execute(QueryState state, long queryStartNanoTime)
+    @Override
+    protected boolean isTraceable()
     {
+        return true;
+    }
+
+    @Override
+    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    {
+        AuditLogManager auditLogManager = AuditLogManager.getInstance();
+
         try
         {
-            UUID tracingId = null;
-            if (isTracingRequested())
-            {
-                tracingId = UUIDGen.getTimeUUID();
-                state.prepareTracingSession(tracingId);
-            }
-
-            if (state.traceNextQuery())
-            {
-                state.createTracingSession(getCustomPayload());
-
-                ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-                if(options.getConsistency() != null)
-                    builder.put("consistency_level", options.getConsistency().name());
-                if(options.getSerialConsistency() != null)
-                    builder.put("serial_consistency_level", options.getSerialConsistency().name());
-
-                // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
-                Tracing.instance.begin("Execute batch of CQL3 queries", state.getClientAddress(), builder.build());
-            }
+            if (traceRequest)
+                traceQuery(state);
 
             QueryHandler handler = ClientState.getCQLQueryHandler();
             List<QueryHandler.Prepared> prepared = new ArrayList<>(queryOrIdList.size());
@@ -227,39 +217,44 @@ public class BatchMessage extends Message.Request
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
             BatchStatement batch = new BatchStatement(batchType, VariableSpecifications.empty(), statements, Attributes.none());
 
-            long fqlTime = isLoggingEnabled ? System.currentTimeMillis() : 0;
+            long fqlTime = auditLogManager.isLoggingEnabled() ? System.currentTimeMillis() : 0;
             Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);
 
-            if (isLoggingEnabled)
-            {
+            if (auditLogManager.isLoggingEnabled())
                 auditLogManager.logBatch(batchType.name(), queryOrIdList, values, prepared, options, state, fqlTime);
-            }
-
-
-            if (tracingId != null)
-                response.setTracingId(tracingId);
 
             return response;
         }
         catch (Exception e)
         {
-            if (auditLogEnabled)
-            {
-                AuditLogEntry entry = new AuditLogEntry.Builder(state.getClientState())
-                                      .setOperation(getAuditString())
-                                      .setOptions(options)
-                                      .setType(AuditLogEntryType.BATCH)
-                                      .build();
-                auditLogManager.log(entry, e);
-            }
-
+            if (auditLogManager.isAuditingEnabled())
+                logException(state, e);
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }
-        finally
-        {
-            Tracing.instance.stopSession();
-        }
+    }
+
+    private void traceQuery(QueryState state)
+    {
+        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        if (options.getConsistency() != null)
+            builder.put("consistency_level", options.getConsistency().name());
+        if (options.getSerialConsistency() != null)
+            builder.put("serial_consistency_level", options.getSerialConsistency().name());
+
+        // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
+        Tracing.instance.begin("Execute batch of CQL3 queries", state.getClientAddress(), builder.build());
+    }
+
+    private void logException(QueryState state, Exception e)
+    {
+        AuditLogEntry entry =
+            new AuditLogEntry.Builder(state)
+                             .setOperation(getAuditString())
+                             .setOptions(options)
+                             .setType(AuditLogEntryType.BATCH)
+                             .build();
+        AuditLogManager.getInstance().log(entry, e);
     }
 
     @Override
@@ -278,10 +273,6 @@ public class BatchMessage extends Message.Request
 
     private String getAuditString()
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append("BATCH of [");
-        sb.append(queryOrIdList.size());
-        sb.append("] statements at consistency ").append(options.getConsistency());
-        return sb.toString();
+        return String.format("BATCH of %d statements at consistency %s", queryOrIdList.size(), options.getConsistency());
     }
 }

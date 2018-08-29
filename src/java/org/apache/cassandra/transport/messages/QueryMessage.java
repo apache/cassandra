@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import java.util.UUID;
-
 import com.google.common.collect.ImmutableMap;
 
 import io.netty.buffer.ByteBuf;
@@ -37,7 +35,6 @@ import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * A CQL query
@@ -87,86 +84,91 @@ public class QueryMessage extends Message.Request
         this.options = options;
     }
 
-    public Message.Response execute(QueryState state, long queryStartNanoTime)
+    @Override
+    protected boolean isTraceable()
     {
+        return true;
+    }
+
+    @Override
+    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    {
+        AuditLogManager auditLogManager = AuditLogManager.getInstance();
+
         try
         {
             if (options.getPageSize() == 0)
                 throw new ProtocolException("The page size cannot be 0");
 
-            UUID tracingId = null;
-            if (isTracingRequested())
-            {
-                tracingId = UUIDGen.getTimeUUID();
-                state.prepareTracingSession(tracingId);
-            }
+            if (traceRequest)
+                traceQuery(state);
 
-            if (state.traceNextQuery())
-            {
-                state.createTracingSession(getCustomPayload());
+            long queryStartTime = auditLogManager.isLoggingEnabled() ? System.currentTimeMillis() : 0L;
 
-                ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-                builder.put("query", query);
-                if (options.getPageSize() > 0)
-                    builder.put("page_size", Integer.toString(options.getPageSize()));
-                if(options.getConsistency() != null)
-                    builder.put("consistency_level", options.getConsistency().name());
-                if(options.getSerialConsistency() != null)
-                    builder.put("serial_consistency_level", options.getSerialConsistency().name());
-
-                Tracing.instance.begin("Execute CQL3 query", state.getClientAddress(), builder.build());
-            }
-
-            long fqlTime = isLoggingEnabled ? System.currentTimeMillis() : 0;
             Message.Response response = ClientState.getCQLQueryHandler().process(query, state, options, getCustomPayload(), queryStartNanoTime);
 
-            if (isLoggingEnabled)
-            {
-                CQLStatement parsedStatement = QueryProcessor.parseStatement(query, state.getClientState());
-                AuditLogEntry auditEntry = new AuditLogEntry.Builder(state.getClientState())
-                                           .setType(parsedStatement.getAuditLogContext().auditLogEntryType)
-                                           .setOperation(query)
-                                           .setTimestamp(fqlTime)
-                                           .setScope(parsedStatement)
-                                           .setKeyspace(state, parsedStatement)
-                                           .setOptions(options)
-                                           .build();
-                AuditLogManager.getInstance().log(auditEntry);
-
-            }
+            if (auditLogManager.isLoggingEnabled())
+                logSuccess(state, queryStartTime);
 
             if (options.skipMetadata() && response instanceof ResultMessage.Rows)
                 ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
-
-            if (tracingId != null)
-                response.setTracingId(tracingId);
 
             return response;
         }
         catch (Exception e)
         {
-            if (auditLogEnabled)
-            {
-                AuditLogEntry auditLogEntry = new AuditLogEntry.Builder(state.getClientState())
-                                              .setOperation(query)
-                                              .setOptions(options)
-                                              .build();
-                auditLogManager.log(auditLogEntry, e);
-            }
+            if (auditLogManager.isLoggingEnabled())
+                logException(state, e);
             JVMStabilityInspector.inspectThrowable(e);
             if (!((e instanceof RequestValidationException) || (e instanceof RequestExecutionException)))
                 logger.error("Unexpected error during query", e);
             return ErrorMessage.fromException(e);
         }
-        finally
-        {
-            Tracing.instance.stopSession();
-        }
+    }
+
+    private void traceQuery(QueryState state)
+    {
+        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        builder.put("query", query);
+        if (options.getPageSize() > 0)
+            builder.put("page_size", Integer.toString(options.getPageSize()));
+        if (options.getConsistency() != null)
+            builder.put("consistency_level", options.getConsistency().name());
+        if (options.getSerialConsistency() != null)
+            builder.put("serial_consistency_level", options.getSerialConsistency().name());
+
+        Tracing.instance.begin("Execute CQL3 query", state.getClientAddress(), builder.build());
+    }
+
+    private void logSuccess(QueryState state, long queryStartTime)
+    {
+        // FIXME: we are parsing the statement twice if audit logging is enabled. Why?
+        CQLStatement statement = QueryProcessor.parseStatement(query, state.getClientState());
+        AuditLogEntry entry =
+            new AuditLogEntry.Builder(state)
+                             .setType(statement.getAuditLogContext().auditLogEntryType)
+                             .setOperation(query)
+                             .setTimestamp(queryStartTime)
+                             .setScope(statement)
+                             .setKeyspace(state, statement)
+                             .setOptions(options)
+                             .build();
+        AuditLogManager.getInstance().log(entry);
+    }
+
+    private void logException(QueryState state, Exception e)
+    {
+        AuditLogEntry entry =
+            new AuditLogEntry.Builder(state)
+                             .setOperation(query)
+                             .setOptions(options)
+                             .build();
+        AuditLogManager.getInstance().log(entry, e);
     }
 
     @Override
     public String toString()
     {
-        return "QUERY " + query + "[pageSize = " + options.getPageSize() + "]";
+        return String.format("QUERY %s [pageSize = %d]", query, options.getPageSize());
     }
 }
