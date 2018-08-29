@@ -17,13 +17,12 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import java.util.UUID;
-
 import com.google.common.collect.ImmutableMap;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.audit.AuditLogEntry;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.service.ClientState;
@@ -33,7 +32,6 @@ import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.UUIDGen;
 
 public class PrepareMessage extends Message.Request
 {
@@ -97,61 +95,62 @@ public class PrepareMessage extends Message.Request
         this.keyspace = keyspace;
     }
 
-    public Message.Response execute(QueryState state, long queryStartNanoTime)
+    @Override
+    protected boolean isTraceable()
     {
+        return true;
+    }
+
+    @Override
+    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    {
+        AuditLogManager auditLogManager = AuditLogManager.getInstance();
+
         try
         {
-            UUID tracingId = null;
-            if (isTracingRequested())
-            {
-                tracingId = UUIDGen.getTimeUUID();
-                state.prepareTracingSession(tracingId);
-            }
-
-            if (state.traceNextQuery())
-            {
-                state.createTracingSession(getCustomPayload());
+            if (traceRequest)
                 Tracing.instance.begin("Preparing CQL3 query", state.getClientAddress(), ImmutableMap.of("query", query));
-            }
 
-            Message.Response response = ClientState.getCQLQueryHandler().prepare(query,
-                                                                                 state.getClientState().cloneWithKeyspaceIfSet(keyspace),
-                                                                                 getCustomPayload());
-            if (auditLogEnabled)
-            {
-                CQLStatement parsedStmt = QueryProcessor.parseStatement(query, state.getClientState());
-                AuditLogEntry auditLogEntry = new AuditLogEntry.Builder(state.getClientState())
-                                              .setOperation(query)
-                                              .setType(AuditLogEntryType.PREPARE_STATEMENT)
-                                              .setScope(parsedStmt)
-                                              .setKeyspace(parsedStmt)
-                                              .build();
-                auditLogManager.log(auditLogEntry);
-            }
+            ClientState clientState = state.getClientState().cloneWithKeyspaceIfSet(keyspace);
+            Message.Response response = ClientState.getCQLQueryHandler().prepare(query, clientState, getCustomPayload());
 
-            if (tracingId != null)
-                response.setTracingId(tracingId);
+            if (auditLogManager.isAuditingEnabled())
+                logSuccess(state);
 
             return response;
         }
         catch (Exception e)
         {
-            if (auditLogEnabled)
-            {
-                AuditLogEntry auditLogEntry = new AuditLogEntry.Builder(state.getClientState())
-                                              .setOperation(query)
-                                              .setKeyspace(keyspace)
-                                              .setType(AuditLogEntryType.PREPARE_STATEMENT)
-                                              .build();
-                auditLogManager.log(auditLogEntry, e);
-            }
+            if (auditLogManager.isAuditingEnabled())
+                logException(state, e);
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }
-        finally
-        {
-            Tracing.instance.stopSession();
-        }
+    }
+
+    private void logSuccess(QueryState state)
+    {
+        // The statement gets parsed twice. Not a big deal given that this is PREPARE, but still, why?
+        CQLStatement statement = QueryProcessor.parseStatement(query, state.getClientState());
+        AuditLogEntry entry =
+            new AuditLogEntry.Builder(state)
+                             .setOperation(query)
+                             .setType(AuditLogEntryType.PREPARE_STATEMENT)
+                             .setScope(statement)
+                             .setKeyspace(statement)
+                             .build();
+        AuditLogManager.getInstance().log(entry);
+    }
+
+    private void logException(QueryState state, Exception e)
+    {
+        AuditLogEntry entry =
+            new AuditLogEntry.Builder(state)
+                             .setOperation(query)
+                             .setKeyspace(keyspace)
+                             .setType(AuditLogEntryType.PREPARE_STATEMENT)
+                             .build();
+        AuditLogManager.getInstance().log(entry, e);
     }
 
     @Override

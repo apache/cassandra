@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.transport;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.security.cert.X509Certificate;
 
@@ -36,33 +33,19 @@ import org.apache.cassandra.service.QueryState;
 
 public class ServerConnection extends Connection
 {
-    private static Logger logger = LoggerFactory.getLogger(ServerConnection.class);
+    private static final Logger logger = LoggerFactory.getLogger(ServerConnection.class);
 
     private volatile IAuthenticator.SaslNegotiator saslNegotiator;
     private final ClientState clientState;
     private volatile ConnectionStage stage;
     public final Counter requests = new Counter();
 
-    private final ConcurrentMap<Integer, QueryState> queryStates = new ConcurrentHashMap<>();
-
-    public ServerConnection(Channel channel, ProtocolVersion version, Connection.Tracker tracker)
+    ServerConnection(Channel channel, ProtocolVersion version, Connection.Tracker tracker)
     {
         super(channel, version, tracker);
-        this.clientState = ClientState.forExternalCalls(channel.remoteAddress());
-        this.stage = ConnectionStage.ESTABLISHED;
-    }
 
-    private QueryState getQueryState(int streamId)
-    {
-        QueryState qState = queryStates.get(streamId);
-        if (qState == null)
-        {
-            // In theory we shouldn't get any race here, but it never hurts to be careful
-            QueryState newState = new QueryState(clientState);
-            if ((qState = queryStates.putIfAbsent(streamId, newState)) == null)
-                qState = newState;
-        }
-        return qState;
+        clientState = ClientState.forExternalCalls(channel.remoteAddress());
+        stage = ConnectionStage.ESTABLISHED;
     }
 
     public ClientState getClientState()
@@ -75,7 +58,7 @@ public class ServerConnection extends Connection
         return stage;
     }
 
-    public QueryState validateNewMessage(Message.Type type, ProtocolVersion version, int streamId)
+    QueryState validateNewMessage(Message.Type type, ProtocolVersion version)
     {
         switch (stage)
         {
@@ -95,10 +78,11 @@ public class ServerConnection extends Connection
             default:
                 throw new AssertionError();
         }
-        return getQueryState(streamId);
+
+        return new QueryState(clientState);
     }
 
-    public void applyStateTransition(Message.Type requestType, Message.Type responseType)
+    void applyStateTransition(Message.Type requestType, Message.Type responseType)
     {
         switch (stage)
         {

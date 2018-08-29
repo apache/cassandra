@@ -66,7 +66,8 @@ public class StartupMessage extends Message.Request
         this.options = options;
     }
 
-    public Message.Response execute(QueryState state, long queryStartNanoTime)
+    @Override
+    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
         String cqlVersion = options.get(CQL_VERSION);
         if (cqlVersion == null)

@@ -44,8 +44,18 @@ public class AuditLogEntry
     private final String scope;
     private final String operation;
     private final QueryOptions options;
+    private final QueryState state;
 
-    private AuditLogEntry(AuditLogEntryType type, InetAddressAndPort source, String user, long timestamp, UUID batch, String keyspace, String scope, String operation, QueryOptions options)
+    private AuditLogEntry(AuditLogEntryType type,
+                          InetAddressAndPort source,
+                          String user,
+                          long timestamp,
+                          UUID batch,
+                          String keyspace,
+                          String scope,
+                          String operation,
+                          QueryOptions options,
+                          QueryState state)
     {
         this.type = type;
         this.source = source;
@@ -56,6 +66,7 @@ public class AuditLogEntry
         this.scope = scope;
         this.operation = operation;
         this.options = options;
+        this.state = state;
     }
 
     String getLogString()
@@ -170,9 +181,14 @@ public class AuditLogEntry
         private String scope;
         private String operation;
         private QueryOptions options;
+        private QueryState state;
 
-        public Builder(ClientState clientState)
+        public Builder(QueryState queryState)
         {
+            state = queryState;
+
+            ClientState clientState = queryState.getClientState();
+
             if (clientState != null)
             {
                 if (clientState.getRemoteAddress() != null)
@@ -207,6 +223,7 @@ public class AuditLogEntry
             scope = entry.scope;
             operation = entry.operation;
             options = entry.options;
+            state = entry.state;
         }
 
         public Builder setType(AuditLogEntryType type)
@@ -291,7 +308,7 @@ public class AuditLogEntry
         public AuditLogEntry build()
         {
             timestamp = timestamp > 0 ? timestamp : System.currentTimeMillis();
-            return new AuditLogEntry(type, source, user, timestamp, batch, keyspace, scope, operation, options);
+            return new AuditLogEntry(type, source, user, timestamp, batch, keyspace, scope, operation, options, state);
         }
     }
 }
