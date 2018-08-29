@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.primitives.Longs;
@@ -120,6 +121,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         {
             SimpleStatement ss = new SimpleStatement(query, values.toArray());
             ss.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
+            ss.setDefaultTimestamp(TimeUnit.MICROSECONDS.convert(queryTime, TimeUnit.MILLISECONDS)); // todo: set actual server side generated time
             ListenableFuture<ResultSet> future = session.executeAsync(ss);
             return handleErrors(future);
         }
@@ -194,6 +196,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
             {
                 bs.add(new SimpleStatement(query.query, query.values.toArray()));
             }
+            bs.setDefaultTimestamp(TimeUnit.MICROSECONDS.convert(queryTime, TimeUnit.MILLISECONDS)); // todo: set actual server side generated time
             ListenableFuture<ResultSet> future = session.executeAsync(bs);
             return handleErrors(future);
         }
