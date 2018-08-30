@@ -201,17 +201,7 @@ public class DriverResultSet implements ResultHandler.ComparableResultSet
             if (size() != o.size())
                 return false;
 
-            List<ResultHandler.ComparableDefinition> def1 = asList();
-            List<ResultHandler.ComparableDefinition> def2 = o.asList();
-
-            for (int j = 0; j < def1.size(); j++)
-            {
-                if (!def1.get(j).equals(def2.get(j)))
-                {
-                    return false;
-                }
-            }
-            return true;
+            return asList().equals(o.asList());
         }
     }
 

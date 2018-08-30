@@ -44,6 +44,8 @@ public class ResultHandler
     /**
      * Since we can't iterate a ResultSet more than once, and we don't want to keep the entire result set in memory
      * we feed the rows one-by-one to resultComparator and resultStore.
+     *
+     * results.get(x) should be the results from executing query against targetHosts.get(x)
      */
     public void handleResults(FQLQuery query, List<ComparableResultSet> results)
     {

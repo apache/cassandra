@@ -48,11 +48,10 @@ public class ResultComparator
         {
             ResultHandler.ComparableRow compare = rows.get(i);
             if (!ref.equals(compare))
-            {
                 equal = false;
-                handleMismatch(targetHosts, query, rows);
-            }
         }
+        if (!equal)
+            handleMismatch(targetHosts, query, rows);
         return equal;
     }
 
@@ -72,11 +71,10 @@ public class ResultComparator
         {
             List<ResultHandler.ComparableDefinition> toCompare = cds.get(i).asList();
             if (!refDefs.equals(toCompare))
-            {
-                handleColumnDefMismatch(targetHosts, query, cds);
                 equal = false;
-            }
         }
+        if (!equal)
+            handleColumnDefMismatch(targetHosts, query, cds);
         return equal;
     }
 
