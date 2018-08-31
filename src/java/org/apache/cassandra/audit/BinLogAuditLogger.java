@@ -295,9 +295,11 @@ abstract class BinLogAuditLogger implements IAuditLogger
         private final ByteBuf queryOptionsBuffer;
         private final long timeMillis;
         private final int protocolVersion;
+        private final String keyspace;
 
-        AbstractWeighableMarshallable(QueryOptions queryOptions, long timeMillis)
+        AbstractWeighableMarshallable(String keyspace, QueryOptions queryOptions, long timeMillis)
         {
+            this.keyspace = keyspace;
             this.timeMillis = timeMillis;
             ProtocolVersion version = queryOptions.getProtocolVersion();
             this.protocolVersion = version.asInt();
@@ -336,6 +338,7 @@ abstract class BinLogAuditLogger implements IAuditLogger
             wire.write("protocol-version").int32(protocolVersion);
             wire.write("query-options").bytes(BytesStore.wrap(queryOptionsBuffer.nioBuffer()));
             wire.write("query-time").int64(timeMillis);
+            wire.write("keyspace").text(keyspace);
         }
 
         @Override
@@ -348,7 +351,8 @@ abstract class BinLogAuditLogger implements IAuditLogger
         @Override
         public int weight()
         {
-            return 8 + 8 + OBJECT_HEADER_SIZE + EMPTY_BYTEBUF_SIZE + queryOptionsBuffer.capacity();
+            // null entries in chronicle are a single byte (see BinaryWire.java)
+            return 8 + 8 + OBJECT_HEADER_SIZE + EMPTY_BYTEBUF_SIZE + queryOptionsBuffer.capacity() + (keyspace != null ? Ints.checkedCast(ObjectSizes.sizeOf(keyspace)) : 1);
         }
     }
 

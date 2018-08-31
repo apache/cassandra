@@ -53,6 +53,7 @@ import org.apache.cassandra.utils.binlog.BinLogTest;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class FullQueryLoggerTest extends CQLTester
@@ -250,7 +251,7 @@ public class FullQueryLoggerTest extends CQLTester
         {
             //Find out when the bin log thread has been blocked, necessary to not run into batch task drain behavior
             Semaphore binLogBlocked = new Semaphore(0);
-            instance.binLog.put(new WeighableMarshallableQuery("foo1", QueryOptions.DEFAULT, 1)
+            instance.binLog.put(new WeighableMarshallableQuery("foo1", "x", QueryOptions.DEFAULT, 1)
             {
 
                 public void writeMarshallable(WireOut wire)
@@ -332,7 +333,7 @@ public class FullQueryLoggerTest extends CQLTester
         {
             //Find out when the bin log thread has been blocked, necessary to not run into batch task drain behavior
             Semaphore binLogBlocked = new Semaphore(0);
-            instance.binLog.put(new WeighableMarshallableQuery("foo1", QueryOptions.DEFAULT, 1)
+            instance.binLog.put(new WeighableMarshallableQuery("foo1", "x", QueryOptions.DEFAULT, 1)
             {
 
                 public void writeMarshallable(WireOut wire)
@@ -366,7 +367,7 @@ public class FullQueryLoggerTest extends CQLTester
             //This sample should get dropped AKA released without being written
             AtomicInteger releasedCount = new AtomicInteger(0);
             AtomicInteger writtenCount = new AtomicInteger(0);
-            instance.logRecord(new WeighableMarshallableQuery("foo3", QueryOptions.DEFAULT, 1) {
+            instance.logRecord(new WeighableMarshallableQuery("foo3", "x", QueryOptions.DEFAULT, 1) {
                 public void writeMarshallable(WireOut wire)
                 {
                     writtenCount.incrementAndGet();
@@ -408,6 +409,7 @@ public class FullQueryLoggerTest extends CQLTester
                 ProtocolVersion protocolVersion = ProtocolVersion.decode(wire.read("protocol-version").int32());
                 assertEquals(ProtocolVersion.CURRENT, protocolVersion);
                 QueryOptions queryOptions = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wire.read("query-options").bytes()), protocolVersion);
+                assertEquals("abc", wire.read("keyspace").text());
                 compareQueryOptions(QueryOptions.DEFAULT, queryOptions);
                 assertEquals(1L, wire.read("query-time").int64());
                 assertEquals("foo", wire.read("query").text());
@@ -419,7 +421,7 @@ public class FullQueryLoggerTest extends CQLTester
     public void testRoundTripBatch() throws Exception
     {
         configureFQL();
-        instance.logBatch("UNLOGGED", Arrays.asList("foo1", "foo2"), Arrays.asList(Arrays.asList(ByteBuffer.allocate(1) , ByteBuffer.allocateDirect(2)), Arrays.asList()), QueryOptions.DEFAULT, 1);
+        instance.logBatch("UNLOGGED", null, Arrays.asList("foo1", "foo2"), Arrays.asList(Arrays.asList(ByteBuffer.allocate(1) , ByteBuffer.allocateDirect(2)), Arrays.asList()), QueryOptions.DEFAULT, 1);
         Util.spinAssertEquals(true, () ->
         {
             try (ChronicleQueue queue = ChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
@@ -436,6 +438,7 @@ public class FullQueryLoggerTest extends CQLTester
                 assertEquals(ProtocolVersion.CURRENT, protocolVersion);
                 QueryOptions queryOptions = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wire.read("query-options").bytes()), protocolVersion);
                 assertEquals(1L, wire.read("query-time").int64());
+                assertNull(wire.read("keyspace").text());
                 compareQueryOptions(QueryOptions.DEFAULT, queryOptions);
                 assertEquals("UNLOGGED", wire.read("batch-type").text());
                 ValueIn in = wire.read("queries");
@@ -456,7 +459,7 @@ public class FullQueryLoggerTest extends CQLTester
     public void testQueryWeight()
     {
         //Empty query should have some weight
-        WeighableMarshallableQuery query = new WeighableMarshallableQuery("", QueryOptions.DEFAULT, 1);
+        WeighableMarshallableQuery query = new WeighableMarshallableQuery("", "", QueryOptions.DEFAULT, 1);
         assertTrue(query.weight() >= 95);
 
         StringBuilder sb = new StringBuilder();
@@ -464,14 +467,18 @@ public class FullQueryLoggerTest extends CQLTester
         {
             sb.append('a');
         }
-        query = new WeighableMarshallableQuery(sb.toString(), QueryOptions.DEFAULT, 1);
-
+        String q = sb.toString();
+        query = new WeighableMarshallableQuery(q, "", QueryOptions.DEFAULT, 1);
+        int weightNoKeyspace = query.weight();
         //A large query should be reflected in the size, * 2 since characters are still two bytes
-        assertTrue(query.weight() > ObjectSizes.measureDeep(sb.toString()));
+        assertTrue(weightNoKeyspace > ObjectSizes.measureDeep(sb.toString()));
+        // new query with a keyspace length > 0, should reflect in weight;
+        query = new WeighableMarshallableQuery(q, "abcd", QueryOptions.DEFAULT, 1);
+        assertTrue(query.weight() > weightNoKeyspace);
 
         //Large query options should be reflected
         QueryOptions largeOptions = QueryOptions.forInternalCalls(Arrays.asList(ByteBuffer.allocate(1024 * 1024)));
-        query = new WeighableMarshallableQuery("", largeOptions, 1);
+        query = new WeighableMarshallableQuery("", "", largeOptions, 1);
         assertTrue(query.weight() > 1024 * 1024);
         System.out.printf("weight %d%n", query.weight());
     }
@@ -480,7 +487,7 @@ public class FullQueryLoggerTest extends CQLTester
     public void testBatchWeight()
     {
         //An empty batch should have weight
-        WeighableMarshallableBatch batch = new WeighableMarshallableBatch("", new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, 1);
+        WeighableMarshallableBatch batch = new WeighableMarshallableBatch("", "x", new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, 1);
         assertTrue(batch.weight() >= 183);
 
         StringBuilder sb = new StringBuilder();
@@ -488,10 +495,15 @@ public class FullQueryLoggerTest extends CQLTester
         {
             sb.append('a');
         }
-
+        String q = sb.toString();
         //The weight of the type string should be reflected
-        batch = new WeighableMarshallableBatch(sb.toString(), new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, 1);
-        assertTrue(batch.weight() > ObjectSizes.measureDeep(sb.toString()));
+        batch = new WeighableMarshallableBatch(q, "", new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, 1);
+        int weightWithoutKS = batch.weight();
+        assertTrue(weightWithoutKS > ObjectSizes.measureDeep(sb.toString()));
+
+        // non-0 keyspace should be reflected
+        batch = new WeighableMarshallableBatch(q, "abc", new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, 1);
+        assertTrue(batch.weight() > weightWithoutKS);
 
         //The weight of the list containing queries should be reflected
         List<String> bigList = new ArrayList(100000);
@@ -499,13 +511,13 @@ public class FullQueryLoggerTest extends CQLTester
         {
             bigList.add("");
         }
-        batch = new WeighableMarshallableBatch("", bigList, new ArrayList<>(), QueryOptions.DEFAULT, 1);
+        batch = new WeighableMarshallableBatch("", "x", bigList, new ArrayList<>(), QueryOptions.DEFAULT, 1);
         assertTrue(batch.weight() > ObjectSizes.measureDeep(bigList));
 
         //The size of the query should be reflected
         bigList = new ArrayList(1);
         bigList.add(sb.toString());
-        batch = new WeighableMarshallableBatch("", bigList, new ArrayList<>(), QueryOptions.DEFAULT, 1);
+        batch = new WeighableMarshallableBatch("", "x", bigList, new ArrayList<>(), QueryOptions.DEFAULT, 1);
         assertTrue(batch.weight() > ObjectSizes.measureDeep(bigList));
 
         bigList = null;
@@ -516,74 +528,74 @@ public class FullQueryLoggerTest extends CQLTester
             bigValues.add(new ArrayList<>(0));
         }
         bigValues.get(0).add(ByteBuffer.allocate(1024 * 1024 * 5));
-        batch = new WeighableMarshallableBatch("", new ArrayList<>(),  bigValues, QueryOptions.DEFAULT, 1);
+        batch = new WeighableMarshallableBatch("", "x", new ArrayList<>(),  bigValues, QueryOptions.DEFAULT, 1);
         assertTrue(batch.weight() > ObjectSizes.measureDeep(bigValues));
 
         //As should the size of the values
         QueryOptions largeOptions = QueryOptions.forInternalCalls(Arrays.asList(ByteBuffer.allocate(1024 * 1024)));
-        batch = new WeighableMarshallableBatch("", new ArrayList<>(), new ArrayList<>(), largeOptions, 1);
+        batch = new WeighableMarshallableBatch("", "x", new ArrayList<>(), new ArrayList<>(), largeOptions, 1);
         assertTrue(batch.weight() > 1024 * 1024);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullType() throws Exception
     {
-        instance.logBatch(null, new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, 1);
+        instance.logBatch(null, "x", new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullQueries() throws Exception
     {
-        instance.logBatch("", null, new ArrayList<>(), QueryOptions.DEFAULT, 1);
+        instance.logBatch("", "x", null, new ArrayList<>(), QueryOptions.DEFAULT, 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullQueriesQuery() throws Exception
     {
         configureFQL();
-        instance.logBatch("", Arrays.asList((String)null), new ArrayList<>(), QueryOptions.DEFAULT, 1);
+        instance.logBatch("", "x", Arrays.asList((String)null), new ArrayList<>(), QueryOptions.DEFAULT, 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullValues() throws Exception
     {
-        instance.logBatch("", new ArrayList<>(), null, QueryOptions.DEFAULT, 1);
+        instance.logBatch("", "x", new ArrayList<>(), null, QueryOptions.DEFAULT, 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullValuesValue() throws Exception
     {
-        instance.logBatch("", new ArrayList<>(), Arrays.asList((List<ByteBuffer>)null), null, 1);
+        instance.logBatch("", "x", new ArrayList<>(), Arrays.asList((List<ByteBuffer>)null), null, 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullQueryOptions() throws Exception
     {
-        instance.logBatch("", new ArrayList<>(), new ArrayList<>(), null, 1);
+        instance.logBatch("", "x", new ArrayList<>(), new ArrayList<>(), null, 1);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testLogBatchNegativeTime() throws Exception
     {
-        instance.logBatch("", new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, -1);
+        instance.logBatch("", "x", new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, -1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogQueryNullQuery() throws Exception
     {
-        instance.logQuery(null, QueryOptions.DEFAULT, 1);
+        instance.logQuery(null, "", QueryOptions.DEFAULT, 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogQueryNullQueryOptions() throws Exception
     {
-        instance.logQuery("", null, 1);
+        instance.logQuery("", "", null, 1);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testLogQueryNegativeTime() throws Exception
     {
-        instance.logQuery("", QueryOptions.DEFAULT, -1);
+        instance.logQuery("", "", QueryOptions.DEFAULT, -1);
     }
 
     private static void compareQueryOptions(QueryOptions a, QueryOptions b)
@@ -604,7 +616,7 @@ public class FullQueryLoggerTest extends CQLTester
 
     private void logQuery(String query)
     {
-        instance.logQuery(query, QueryOptions.DEFAULT, 1);
+        instance.logQuery(query, "abc", QueryOptions.DEFAULT, 1);
     }
 
 }
