@@ -200,10 +200,10 @@ public abstract class QueryOptions
         return tstamp != Long.MIN_VALUE ? tstamp : state.getTimestamp();
     }
 
-    public int getNowInSeconds()
+    public int getNowInSeconds(QueryState state)
     {
         int nowInSeconds = getSpecificOptions().nowInSeconds;
-        return Integer.MIN_VALUE == nowInSeconds ? FBUtilities.nowInSeconds() : nowInSeconds;
+        return nowInSeconds != Integer.MIN_VALUE ? nowInSeconds : state.getNowInSeconds();
     }
 
     /** The keyspace that this query is bound to, or null if not relevant. */

@@ -22,7 +22,10 @@ import java.net.InetAddress;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * Represents the state related to a given query.
+ * Primarily used as a recorder for server-generated timestamps (timestamp, in microseconds, and nowInSeconds - in, well, seconds).
+ *
+ * The goal is to be able to use a single consistent server-generated value for both timestamps across the whole request,
+ * and later be able to inspect QueryState for the generated values - for logging or other purposes.
  */
 public class QueryState
 {
@@ -34,6 +37,41 @@ public class QueryState
     public QueryState(ClientState clientState)
     {
         this.clientState = clientState;
+    }
+
+    /**
+     * Generate, cache, and record a timestamp value on the server-side.
+     *
+     * Used in reads for all live and expiring cells, and all kinds of deletion infos.
+     *
+     * Shouldn't be used directly. {@link org.apache.cassandra.cql3.QueryOptions#getTimestamp(QueryState)} should be used
+     * by all consumers.
+     *
+     * @return server-generated, recorded timestamp in seconds
+     */
+    public long getTimestamp()
+    {
+        if (timestamp == Long.MIN_VALUE)
+            timestamp = clientState.getTimestamp();
+        return timestamp;
+    }
+
+    /**
+     * Generate, cache, and record a nowInSeconds value on the server-side.
+     *
+     * In writes is used for calculating localDeletionTime for tombstones and expiring cells and other deletion infos.
+     * In reads used to determine liveness of expiring cells and rows.
+     *
+     * Shouldn't be used directly. {@link org.apache.cassandra.cql3.QueryOptions#getNowInSeconds(QueryState)} should be used
+     * by all consumers.
+     *
+     * @return server-generated, recorded timestamp in seconds
+     */
+    public int getNowInSeconds()
+    {
+        if (nowInSeconds == Integer.MIN_VALUE)
+            nowInSeconds = FBUtilities.nowInSeconds();
+        return nowInSeconds;
     }
 
     /**
@@ -52,19 +90,5 @@ public class QueryState
     public InetAddress getClientAddress()
     {
         return clientState.getClientAddress();
-    }
-
-    public long getTimestamp()
-    {
-        if (timestamp == Long.MIN_VALUE)
-            timestamp = clientState.getTimestamp();
-        return timestamp;
-    }
-
-    public int getNowInSeconds()
-    {
-        if (nowInSeconds == Integer.MIN_VALUE)
-            nowInSeconds = FBUtilities.nowInSeconds();
-        return nowInSeconds;
     }
 }

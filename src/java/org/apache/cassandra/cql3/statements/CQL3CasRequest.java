@@ -45,7 +45,6 @@ public class CQL3CasRequest implements CASRequest
 {
     public final TableMetadata metadata;
     public final DecoratedKey key;
-    public final boolean isBatch;
     private final RegularAndStaticColumns conditionColumns;
     private final boolean updatesRegularRows;
     private final boolean updatesStaticRow;
@@ -64,7 +63,6 @@ public class CQL3CasRequest implements CASRequest
 
     public CQL3CasRequest(TableMetadata metadata,
                           DecoratedKey key,
-                          boolean isBatch,
                           RegularAndStaticColumns conditionColumns,
                           boolean updatesRegularRows,
                           boolean updatesStaticRow)
@@ -72,20 +70,19 @@ public class CQL3CasRequest implements CASRequest
         this.metadata = metadata;
         this.key = key;
         this.conditions = new TreeMap<>(metadata.comparator);
-        this.isBatch = isBatch;
         this.conditionColumns = conditionColumns;
         this.updatesRegularRows = updatesRegularRows;
         this.updatesStaticRow = updatesStaticRow;
     }
 
-    public void addRowUpdate(Clustering clustering, ModificationStatement stmt, QueryOptions options, long timestamp)
+    void addRowUpdate(Clustering clustering, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
     {
-        updates.add(new RowUpdate(clustering, stmt, options, timestamp));
+        updates.add(new RowUpdate(clustering, stmt, options, timestamp, nowInSeconds));
     }
 
-    public void addRangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp)
+    void addRangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
     {
-        rangeDeletions.add(new RangeDeletion(slice, stmt, options, timestamp));
+        rangeDeletions.add(new RangeDeletion(slice, stmt, options, timestamp, nowInSeconds));
     }
 
     public void addNotExist(Clustering clustering) throws InvalidRequestException
@@ -262,19 +259,28 @@ public class CQL3CasRequest implements CASRequest
         private final ModificationStatement stmt;
         private final QueryOptions options;
         private final long timestamp;
+        private final int nowInSeconds;
 
-        private RowUpdate(Clustering clustering, ModificationStatement stmt, QueryOptions options, long timestamp)
+        private RowUpdate(Clustering clustering, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
         {
             this.clustering = clustering;
             this.stmt = stmt;
             this.options = options;
             this.timestamp = timestamp;
+            this.nowInSeconds = nowInSeconds;
         }
 
-        public void applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder) throws InvalidRequestException
+        void applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder)
         {
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
-            UpdateParameters params = new UpdateParameters(metadata, updateBuilder.columns(), options, timestamp, stmt.getTimeToLive(options), map);
+            UpdateParameters params =
+                new UpdateParameters(metadata,
+                                     updateBuilder.columns(),
+                                     options,
+                                     timestamp,
+                                     nowInSeconds,
+                                     stmt.getTimeToLive(options),
+                                     map);
             stmt.addUpdateForKey(updateBuilder, clustering, params);
         }
     }
@@ -285,20 +291,29 @@ public class CQL3CasRequest implements CASRequest
         private final ModificationStatement stmt;
         private final QueryOptions options;
         private final long timestamp;
+        private final int nowInSeconds;
 
-        private RangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp)
+        private RangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
         {
             this.slice = slice;
             this.stmt = stmt;
             this.options = options;
             this.timestamp = timestamp;
+            this.nowInSeconds = nowInSeconds;
         }
 
-        public void applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder) throws InvalidRequestException
+        void applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder)
         {
             // No slice statements currently require a read, but this maintains consistency with RowUpdate, and future proofs us
-            Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.<DecoratedKey, Partition>singletonMap(key, current) : null;
-            UpdateParameters params = new UpdateParameters(metadata, updateBuilder.columns(), options, timestamp, stmt.getTimeToLive(options), map);
+            Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
+            UpdateParameters params =
+                new UpdateParameters(metadata,
+                                     updateBuilder.columns(),
+                                     options,
+                                     timestamp,
+                                     nowInSeconds,
+                                     stmt.getTimeToLive(options),
+                                     map);
             stmt.addUpdateForKey(updateBuilder, slice, params);
         }
     }
