@@ -465,15 +465,19 @@ public abstract class ModificationStatement implements CQLStatement
         else
             cl.validateForWrite(metadata.keyspace);
 
-        Collection<? extends IMutation> mutations = getMutations(options, false, options.getTimestamp(queryState), queryStartNanoTime);
+        Collection<? extends IMutation> mutations =
+            getMutations(options,
+                         false,
+                         options.getTimestamp(queryState),
+                         options.getNowInSeconds(queryState),
+                         queryStartNanoTime);
         if (!mutations.isEmpty())
             StorageProxy.mutateWithTriggers(mutations, cl, false, queryStartNanoTime);
 
         return null;
     }
 
-    public ResultMessage executeWithCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime)
-    throws RequestExecutionException, RequestValidationException
+    private ResultMessage executeWithCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime)
     {
         CQL3CasRequest request = makeCasRequest(queryState, options);
 
@@ -484,10 +488,10 @@ public abstract class ModificationStatement implements CQLStatement
                                                    options.getSerialConsistency(),
                                                    options.getConsistency(),
                                                    queryState.getClientState(),
-                                                   options.getNowInSeconds(),
+                                                   options.getNowInSeconds(queryState),
                                                    queryStartNanoTime))
         {
-            return new ResultMessage.Rows(buildCasResultSet(result, options));
+            return new ResultMessage.Rows(buildCasResultSet(result, queryState, options));
         }
     }
 
@@ -500,17 +504,18 @@ public abstract class ModificationStatement implements CQLStatement
                    type.isUpdate()? "updates" : "deletions");
 
         DecoratedKey key = metadata().partitioner.decorateKey(keys.get(0));
-        long now = options.getTimestamp(queryState);
+        long timestamp = options.getTimestamp(queryState);
+        int nowInSeconds = options.getNowInSeconds(queryState);
 
         checkFalse(restrictions.clusteringKeyRestrictionsHasIN(),
                    "IN on the clustering key columns is not supported with conditional %s",
                     type.isUpdate()? "updates" : "deletions");
 
         Clustering clustering = Iterables.getOnlyElement(createClustering(options));
-        CQL3CasRequest request = new CQL3CasRequest(metadata(), key, false, conditionColumns(), updatesRegularRows(), updatesStaticRow());
+        CQL3CasRequest request = new CQL3CasRequest(metadata(), key, conditionColumns(), updatesRegularRows(), updatesStaticRow());
 
         addConditions(clustering, request, options);
-        request.addRowUpdate(clustering, this, options, now);
+        request.addRowUpdate(clustering, this, options, timestamp, nowInSeconds);
 
         return request;
     }
@@ -533,13 +538,18 @@ public abstract class ModificationStatement implements CQLStatement
         return new ColumnSpecification(ksName, cfName, CAS_RESULT_COLUMN, BooleanType.instance);
     }
 
-    private ResultSet buildCasResultSet(RowIterator partition, QueryOptions options) throws InvalidRequestException
+    private ResultSet buildCasResultSet(RowIterator partition, QueryState state, QueryOptions options)
     {
-        return buildCasResultSet(keyspace(), columnFamily(), partition, getColumnsWithConditions(), false, options);
+        return buildCasResultSet(keyspace(), columnFamily(), partition, getColumnsWithConditions(), false, state, options);
     }
 
-    public static ResultSet buildCasResultSet(String ksName, String tableName, RowIterator partition, Iterable<ColumnMetadata> columnsWithConditions, boolean isBatch, QueryOptions options)
-    throws InvalidRequestException
+    static ResultSet buildCasResultSet(String ksName,
+                                       String tableName,
+                                       RowIterator partition,
+                                       Iterable<ColumnMetadata> columnsWithConditions,
+                                       boolean isBatch,
+                                       QueryState state,
+                                       QueryOptions options)
     {
         boolean success = partition == null;
 
@@ -547,7 +557,7 @@ public abstract class ModificationStatement implements CQLStatement
         List<List<ByteBuffer>> rows = Collections.singletonList(Collections.singletonList(BooleanType.instance.decompose(success)));
 
         ResultSet rs = new ResultSet(metadata, rows);
-        return success ? rs : merge(rs, buildCasFailureResultSet(partition, columnsWithConditions, isBatch, options));
+        return success ? rs : merge(rs, buildCasFailureResultSet(partition, columnsWithConditions, isBatch, options, options.getNowInSeconds(state)));
     }
 
     private static ResultSet merge(ResultSet left, ResultSet right)
@@ -573,8 +583,11 @@ public abstract class ModificationStatement implements CQLStatement
         return new ResultSet(new ResultSet.ResultMetadata(EMPTY_HASH, specs), rows);
     }
 
-    private static ResultSet buildCasFailureResultSet(RowIterator partition, Iterable<ColumnMetadata> columnsWithConditions, boolean isBatch, QueryOptions options)
-    throws InvalidRequestException
+    private static ResultSet buildCasFailureResultSet(RowIterator partition,
+                                                      Iterable<ColumnMetadata> columnsWithConditions,
+                                                      boolean isBatch,
+                                                      QueryOptions options,
+                                                      int nowInSeconds)
     {
         TableMetadata metadata = partition.metadata();
         Selection selection;
@@ -598,10 +611,8 @@ public abstract class ModificationStatement implements CQLStatement
 
         Selectors selectors = selection.newSelectors(options);
         ResultSetBuilder builder = new ResultSetBuilder(selection.getResultMetadata(), selectors);
-        SelectStatement.forSelection(metadata, selection).processPartition(partition,
-                                                                      options,
-                                                                      builder,
-                                                                      options.getNowInSeconds());
+        SelectStatement.forSelection(metadata, selection)
+                       .processPartition(partition, options, builder, nowInSeconds);
 
         return builder.build();
     }
@@ -613,25 +624,29 @@ public abstract class ModificationStatement implements CQLStatement
                : executeInternalWithoutCondition(queryState, options, System.nanoTime());
     }
 
-    public ResultMessage executeInternalWithoutCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
+    public ResultMessage executeInternalWithoutCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime)
+    throws RequestValidationException, RequestExecutionException
     {
-        for (IMutation mutation : getMutations(options, true, queryState.getTimestamp(), queryStartNanoTime))
+        long timestamp = options.getTimestamp(queryState);
+        int nowInSeconds = options.getNowInSeconds(queryState);
+        for (IMutation mutation : getMutations(options, true, timestamp, nowInSeconds, queryStartNanoTime))
             mutation.apply();
         return null;
     }
 
-    public ResultMessage executeInternalWithCondition(QueryState state, QueryOptions options) throws RequestValidationException, RequestExecutionException
+    public ResultMessage executeInternalWithCondition(QueryState state, QueryOptions options)
     {
         CQL3CasRequest request = makeCasRequest(state, options);
-        try (RowIterator result = casInternal(request, state, options.getNowInSeconds()))
+
+        try (RowIterator result = casInternal(request, options.getTimestamp(state), options.getNowInSeconds(state)))
         {
-            return new ResultMessage.Rows(buildCasResultSet(result, options));
+            return new ResultMessage.Rows(buildCasResultSet(result, state, options));
         }
     }
 
-    static RowIterator casInternal(CQL3CasRequest request, QueryState state, int nowInSeconds)
+    static RowIterator casInternal(CQL3CasRequest request, long timestamp, int nowInSeconds)
     {
-        UUID ballot = UUIDGen.getTimeUUIDFromMicros(state.getTimestamp());
+        UUID ballot = UUIDGen.getTimeUUIDFromMicros(timestamp);
 
         SinglePartitionReadQuery readCommand = request.readCommand(nowInSeconds);
         FilteredPartition current;
@@ -661,10 +676,14 @@ public abstract class ModificationStatement implements CQLStatement
      *
      * @return list of the mutations
      */
-    private Collection<? extends IMutation> getMutations(QueryOptions options, boolean local, long timestamp, long queryStartNanoTime)
+    private Collection<? extends IMutation> getMutations(QueryOptions options,
+                                                         boolean local,
+                                                         long timestamp,
+                                                         int nowInSeconds,
+                                                         long queryStartNanoTime)
     {
         UpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, 1);
-        addUpdates(collector, options, local, timestamp, queryStartNanoTime);
+        addUpdates(collector, options, local, timestamp, nowInSeconds, queryStartNanoTime);
         return collector.toMutations();
     }
 
@@ -672,6 +691,7 @@ public abstract class ModificationStatement implements CQLStatement
                           QueryOptions options,
                           boolean local,
                           long timestamp,
+                          int nowInSeconds,
                           long queryStartNanoTime)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options);
@@ -690,6 +710,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                            DataLimits.NONE,
                                                            local,
                                                            timestamp,
+                                                           nowInSeconds,
                                                            queryStartNanoTime);
             for (ByteBuffer key : keys)
             {
@@ -710,7 +731,7 @@ public abstract class ModificationStatement implements CQLStatement
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            UpdateParameters params = makeUpdateParameters(keys, clusterings, options, local, timestamp, queryStartNanoTime);
+            UpdateParameters params = makeUpdateParameters(keys, clusterings, options, local, timestamp, nowInSeconds, queryStartNanoTime);
 
             for (ByteBuffer key : keys)
             {
@@ -754,6 +775,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                   QueryOptions options,
                                                   boolean local,
                                                   long timestamp,
+                                                  int nowInSeconds,
                                                   long queryStartNanoTime)
     {
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
@@ -763,6 +785,7 @@ public abstract class ModificationStatement implements CQLStatement
                                         DataLimits.cqlLimits(1),
                                         local,
                                         timestamp,
+                                        nowInSeconds,
                                         queryStartNanoTime);
 
         return makeUpdateParameters(keys,
@@ -771,6 +794,7 @@ public abstract class ModificationStatement implements CQLStatement
                                     DataLimits.NONE,
                                     local,
                                     timestamp,
+                                    nowInSeconds,
                                     queryStartNanoTime);
     }
 
@@ -780,11 +804,26 @@ public abstract class ModificationStatement implements CQLStatement
                                                   DataLimits limits,
                                                   boolean local,
                                                   long timestamp,
+                                                  int nowInSeconds,
                                                   long queryStartNanoTime)
     {
         // Some lists operation requires reading
-        Map<DecoratedKey, Partition> lists = readRequiredLists(keys, filter, limits, local, options.getConsistency(), options.getNowInSeconds(), queryStartNanoTime);
-        return new UpdateParameters(metadata(), updatedColumns(), options, getTimestamp(timestamp, options), getTimeToLive(options), lists);
+        Map<DecoratedKey, Partition> lists =
+            readRequiredLists(keys,
+                              filter,
+                              limits,
+                              local,
+                              options.getConsistency(),
+                              nowInSeconds,
+                              queryStartNanoTime);
+
+        return new UpdateParameters(metadata(),
+                                    updatedColumns(),
+                                    options,
+                                    getTimestamp(timestamp, options),
+                                    nowInSeconds,
+                                    getTimeToLive(options),
+                                    lists);
     }
 
     private Slices toSlices(SortedSet<ClusteringBound> startBounds, SortedSet<ClusteringBound> endBounds)

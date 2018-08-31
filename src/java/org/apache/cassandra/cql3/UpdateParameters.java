@@ -28,7 +28,6 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Groups the parameters of an update query, and make building updates easier.
@@ -58,6 +57,7 @@ public class UpdateParameters
                             RegularAndStaticColumns updatedColumns,
                             QueryOptions options,
                             long timestamp,
+                            int nowInSec,
                             int ttl,
                             Map<DecoratedKey, Partition> prefetchedRows)
     throws InvalidRequestException
@@ -66,7 +66,7 @@ public class UpdateParameters
         this.updatedColumns = updatedColumns;
         this.options = options;
 
-        this.nowInSec = options.getNowInSeconds();
+        this.nowInSec = nowInSec;
         this.timestamp = timestamp;
         this.ttl = ttl;
 
