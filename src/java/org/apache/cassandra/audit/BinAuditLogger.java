@@ -51,14 +51,14 @@ public class BinAuditLogger extends BinLogAuditLogger implements IAuditLogger
             return;
         }
 
-        super.logRecord(new WeighableMarshallableMessage(auditLogEntry.getLogString()), binLog);
+        super.logRecord(new Message(auditLogEntry.getLogString()), binLog);
     }
 
-    static class WeighableMarshallableMessage extends BinLog.ReleaseableWriteMarshallable implements WeightedQueue.Weighable
+    static class Message extends BinLog.ReleaseableWriteMarshallable implements WeightedQueue.Weighable
     {
         private final String message;
 
-        WeighableMarshallableMessage(String message)
+        Message(String message)
         {
             this.message = message;
         }
