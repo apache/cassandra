@@ -38,6 +38,8 @@ import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.ValueIn;
+import net.openhft.chronicle.wire.WireIn;
+import org.apache.cassandra.audit.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -67,59 +69,57 @@ public class Dump implements Runnable
     public static void dump(List<String> arguments, String rollCycle, boolean follow)
     {
         StringBuilder sb = new StringBuilder();
-        ReadMarshallable reader = wireIn -> {
+        ReadMarshallable reader = wireIn ->
+        {
             sb.setLength(0);
-            String type = wireIn.read("type").text();
-            sb.append("Type: ").append(type).append(System.lineSeparator());
-            assert type != null;
-            if (type.equals("AuditLog"))
-            {
-                sb.append("LogMessage: ").append(wireIn.read("message").text()).append(System.lineSeparator());
 
-            }
-            else
-            {
-                int protocolVersion = wireIn.read("protocol-version").int32();
-                sb.append("Protocol version: ").append(protocolVersion).append(System.lineSeparator());
-                QueryOptions options = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read("query-options").bytes()), ProtocolVersion.decode(protocolVersion));
-                sb.append("Query time: ").append(wireIn.read("query-time").int64()).append(System.lineSeparator());
+            int version = wireIn.read(FullQueryLogger.VERSION).int16();
+            if (version != FullQueryLogger.CURRENT_VERSION)
+                throw new UnsupportedOperationException("Full query log of unexpected version " + version + " encountered");
 
-                if (type.equals("single"))
-                {
-                    sb.append("Query: ").append(wireIn.read("query").text()).append(System.lineSeparator());
-                    List<ByteBuffer> values = options.getValues() != null ? options.getValues() : Collections.EMPTY_LIST;
-                    sb.append("Values: ").append(System.lineSeparator());
-                    valuesToStringBuilder(values, sb);
-                }
-                else
-                {
-                    sb.append("Batch type: ").append(wireIn.read("batch-type").text()).append(System.lineSeparator());
-                    ValueIn in = wireIn.read("queries");
-                    int numQueries = in.int32();
-                    List<String> queries = new ArrayList<>();
-                    for (int ii = 0; ii < numQueries; ii++)
-                    {
-                        queries.add(in.text());
-                    }
-                    in = wireIn.read("values");
-                    int numValues = in.int32();
-                    List<List<ByteBuffer>> values = new ArrayList<>();
-                    for (int ii = 0; ii < numValues; ii++)
-                    {
-                        List<ByteBuffer> subValues = new ArrayList<>();
-                        values.add(subValues);
-                        int numSubValues = in.int32();
-                        for (int zz = 0; zz < numSubValues; zz++)
-                        {
-                            subValues.add(ByteBuffer.wrap(in.bytes()));
-                        }
-                        sb.append("Query: ").append(queries.get(ii)).append(System.lineSeparator());
-                        sb.append("Values: ").append(System.lineSeparator());
-                        valuesToStringBuilder(subValues, sb);
-                    }
-                }
+            String type = wireIn.read(FullQueryLogger.TYPE).text();
+            sb.append("Type: ")
+              .append(type)
+              .append(System.lineSeparator());
+
+            long queryStartTime = wireIn.read(FullQueryLogger.QUERY_START_TIME).int64();
+            sb.append("Query start time: ")
+              .append(queryStartTime)
+              .append(System.lineSeparator());
+
+            int protocolVersion = wireIn.read(FullQueryLogger.PROTOCOL_VERSION).int32();
+            sb.append("Protocol version: ")
+              .append(protocolVersion)
+              .append(System.lineSeparator());
+
+            QueryOptions options =
+                QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read(FullQueryLogger.QUERY_OPTIONS).bytes()),
+                                          ProtocolVersion.decode(protocolVersion));
+
+            long generatedTimestamp = wireIn.read(FullQueryLogger.GENERATED_TIMESTAMP).int64();
+            sb.append("Generated timestamp:")
+              .append(generatedTimestamp)
+              .append(System.lineSeparator());
+
+            int generatedNowInSeconds = wireIn.read(FullQueryLogger.GENERATED_NOW_IN_SECONDS).int32();
+            sb.append("Generated nowInSeconds:")
+              .append(generatedNowInSeconds)
+              .append(System.lineSeparator());
+
+            switch (type)
+            {
+                case (FullQueryLogger.SINGLE_QUERY):
+                    dumpQuery(options, wireIn, sb);
+                    break;
+
+                case (FullQueryLogger.BATCH):
+                    dumpBatch(options, wireIn, sb);
+                    break;
+
+                default:
+                    throw new UnsupportedOperationException("Log entry of unsupported type " + type);
             }
-            sb.append(System.lineSeparator());
+
             System.out.print(sb.toString());
             System.out.flush();
         };
@@ -153,7 +153,57 @@ public class Dump implements Runnable
         }
     }
 
-    private static void valuesToStringBuilder(List<ByteBuffer> values, StringBuilder sb)
+    private static void dumpQuery(QueryOptions options, WireIn wireIn, StringBuilder sb)
+    {
+        sb.append("Query: ")
+          .append(wireIn.read(FullQueryLogger.QUERY).text())
+          .append(System.lineSeparator());
+
+        List<ByteBuffer> values = options.getValues() != null
+                                ? options.getValues()
+                                : Collections.emptyList();
+
+        sb.append("Values: ")
+          .append(System.lineSeparator());
+        appendValuesToStringBuilder(values, sb);
+        sb.append(System.lineSeparator());
+    }
+
+    private static void dumpBatch(QueryOptions options, WireIn wireIn, StringBuilder sb)
+    {
+        sb.append("Batch type: ")
+          .append(wireIn.read(FullQueryLogger.BATCH_TYPE).text())
+          .append(System.lineSeparator());
+
+        ValueIn in = wireIn.read(FullQueryLogger.QUERIES);
+        int numQueries = in.int32();
+        List<String> queries = new ArrayList<>(numQueries);
+        for (int i = 0; i < numQueries; i++)
+            queries.add(in.text());
+
+        in = wireIn.read(FullQueryLogger.VALUES);
+        int numValues = in.int32();
+
+        for (int i = 0; i < numValues; i++)
+        {
+            int numSubValues = in.int32();
+            List<ByteBuffer> subValues = new ArrayList<>(numSubValues);
+            for (int j = 0; j < numSubValues; j++)
+                subValues.add(ByteBuffer.wrap(in.bytes()));
+
+            sb.append("Query: ")
+              .append(queries.get(i))
+              .append(System.lineSeparator());
+
+            sb.append("Values: ")
+              .append(System.lineSeparator());
+            appendValuesToStringBuilder(subValues, sb);
+        }
+
+        sb.append(System.lineSeparator());
+    }
+
+    private static void appendValuesToStringBuilder(List<ByteBuffer> values, StringBuilder sb)
     {
         boolean first = true;
         for (ByteBuffer value : values)

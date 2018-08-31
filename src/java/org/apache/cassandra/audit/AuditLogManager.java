@@ -33,6 +33,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -187,7 +188,13 @@ public class AuditLogManager
     /**
      * Logs Batch queries to both FQL and standard audit logger.
      */
-    public void logBatch(String batchTypeName, List<Object> queryOrIdList, List<List<ByteBuffer>> values, List<QueryHandler.Prepared> prepared, QueryOptions options, QueryState state, long queryStartTimeMillis)
+    public void logBatch(BatchStatement.Type type,
+                         List<Object> queryOrIdList,
+                         List<List<ByteBuffer>> values,
+                         List<QueryHandler.Prepared> prepared,
+                         QueryOptions options,
+                         QueryState state,
+                         long queryStartTimeMillis)
     {
         if (isAuditingEnabled())
         {
@@ -205,7 +212,7 @@ public class AuditLogManager
             {
                 queryStrings.add(prepStatment.rawCQLStatement);
             }
-            fullQueryLogger.logBatch(batchTypeName, queryStrings, values, options, queryStartTimeMillis);
+            fullQueryLogger.logBatch(type, queryStrings, values, options, state, queryStartTimeMillis);
         }
     }
 

@@ -40,6 +40,14 @@ public class QueryState
     }
 
     /**
+     * @return a QueryState object for internal C* calls (not limited by any kind of auth).
+     */
+    public static QueryState forInternalCalls()
+    {
+        return new QueryState(ClientState.forInternalCalls());
+    }
+
+    /**
      * Generate, cache, and record a timestamp value on the server-side.
      *
      * Used in reads for all live and expiring cells, and all kinds of deletion infos.
@@ -75,11 +83,19 @@ public class QueryState
     }
 
     /**
-     * @return a QueryState object for internal C* calls (not limited by any kind of auth).
+     * @return server-generated timestamp value, if one had been requested, or Long.MIN_VALUE otherwise
      */
-    public static QueryState forInternalCalls()
+    public long generatedTimestamp()
     {
-        return new QueryState(ClientState.forInternalCalls());
+        return timestamp;
+    }
+
+    /**
+     * @return server-generated nowInSeconds value, if one had been requested, or Integer.MIN_VALUE otherwise
+     */
+    public int generatedNowInSeconds()
+    {
+        return nowInSeconds;
     }
 
     public ClientState getClientState()

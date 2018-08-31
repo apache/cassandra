@@ -153,6 +153,11 @@ public class AuditLogEntry
         return options;
     }
 
+    public QueryState getState()
+    {
+        return state;
+    }
+
     public static class Builder
     {
         private static final InetAddressAndPort DEFAULT_SOURCE;

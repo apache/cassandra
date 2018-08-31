@@ -221,7 +221,7 @@ public class BatchMessage extends Message.Request
             Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);
 
             if (auditLogManager.isLoggingEnabled())
-                auditLogManager.logBatch(batchType.name(), queryOrIdList, values, prepared, options, state, fqlTime);
+                auditLogManager.logBatch(batchType, queryOrIdList, values, prepared, options, state, fqlTime);
 
             return response;
         }

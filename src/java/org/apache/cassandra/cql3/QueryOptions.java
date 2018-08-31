@@ -34,7 +34,6 @@ import org.apache.cassandra.transport.CBCodec;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -45,7 +44,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 public abstract class QueryOptions
 {
     public static final QueryOptions DEFAULT = new DefaultQueryOptions(ConsistencyLevel.ONE,
-                                                                       Collections.<ByteBuffer>emptyList(),
+                                                                       Collections.emptyList(),
                                                                        false,
                                                                        SpecificOptions.DEFAULT,
                                                                        ProtocolVersion.CURRENT);
