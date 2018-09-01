@@ -228,7 +228,7 @@ public class PasswordAuthenticator implements IAuthenticator
         }
     }
 
-    private static class CredentialsCache extends AuthCache<String, String> implements CredentialsCacheMBean
+    private static class CredentialsCache extends AuthCache<String, String>
     {
         private CredentialsCache(PasswordAuthenticator authenticator)
         {
