@@ -34,5 +34,4 @@ public class NetworkAuthCache extends AuthCache<RoleResource, DCPermissions>
               authorizer::authorize,
               () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
     }
-
 }

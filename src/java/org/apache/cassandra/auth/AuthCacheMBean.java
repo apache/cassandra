@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.auth;
 
-public interface AuthCacheMBean<T>
+public interface AuthCacheMBean
 {
     public void invalidate();
-
-    public void invalidate(T t);
 
     public void setValidity(int validityPeriod);
 
