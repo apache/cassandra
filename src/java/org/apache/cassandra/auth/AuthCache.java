@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class AuthCache<K, V> implements AuthCacheMBean<K>
+public class AuthCache<K, V> implements AuthCacheMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(AuthCache.class);
 
