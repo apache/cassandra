@@ -128,7 +128,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         }
 
         // When all validations complete, submit sync tasks
-        ListenableFuture<List<SyncStat>> syncResults = Futures.transformAsync(validations, optimiseStreams && !session.pullRepair ? optimisedSyncing() : standardSyncing(), taskExecutor);
+        ListenableFuture<List<SyncStat>> syncResults = Futures.transformAsync(validations, optimiseStreams && !session.pullRepair ? this::optimisedSyncing : this::standardSyncing, taskExecutor);
 
         // When all sync complete, set the final result
         Futures.addCallback(syncResults, new FutureCallback<List<SyncStat>>()
@@ -165,107 +165,104 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         return session.commonRange.transEndpoints.contains(ep);
     }
 
-    private AsyncFunction<List<TreeResponse>, List<SyncStat>> standardSyncing()
+    private ListenableFuture<List<SyncStat>> standardSyncing(List<TreeResponse> trees)
     {
-        return trees ->
+        InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
+
+        List<AbstractSyncTask> syncTasks = new ArrayList<>();
+        // We need to difference all trees one against another
+        for (int i = 0; i < trees.size() - 1; ++i)
         {
-            InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
-
-            List<AbstractSyncTask> syncTasks = new ArrayList<>();
-            // We need to difference all trees one against another
-            for (int i = 0; i < trees.size() - 1; ++i)
+            TreeResponse r1 = trees.get(i);
+            for (int j = i + 1; j < trees.size(); ++j)
             {
-                TreeResponse r1 = trees.get(i);
-                for (int j = i + 1; j < trees.size(); ++j)
+                TreeResponse r2 = trees.get(j);
+
+                if (isTransient(r1.endpoint) && isTransient(r2.endpoint))
+                    continue;
+
+                AbstractSyncTask task;
+                if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
                 {
-                    TreeResponse r2 = trees.get(j);
+                    TreeResponse streamFrom = r1.endpoint.equals(local) ? r1 : r2;
+                    TreeResponse streamTo = r2.endpoint.equals(local) ? r2 : r1;
+                    assert !isTransient(streamFrom.endpoint) : "Coordination from a transient replica is not supported";
 
-                    if (isTransient(r1.endpoint) && isTransient(r2.endpoint))
-                        continue;
+                    task = new SymmetricLocalSyncTask(desc, streamFrom, streamTo, isTransient(streamTo.endpoint), isIncremental ? desc.parentSessionId : null, session.pullRepair, session.previewKind);
+                }
+                else if (isTransient(r1.endpoint) || isTransient(r2.endpoint))
+                {
+                    TreeResponse streamFrom = isTransient(r1.endpoint) ? r1 : r2;
+                    TreeResponse streamTo = isTransient(r1.endpoint) ? r2 : r1;
+                    task = new AsymmetricRemoteSyncTask(desc, streamTo, streamFrom, previewKind);
+                    session.waitForSync(Pair.create(desc, task.nodePair()), (AsymmetricRemoteSyncTask) task);
+                }
+                else
+                {
+                    task = new SymmetricRemoteSyncTask(desc, r1, r2, session.previewKind);
+                    // SymmetricRemoteSyncTask expects SyncComplete message sent back.
+                    // Register task to RepairSession to receive response.
+                    session.waitForSync(Pair.create(desc, task.nodePair()), (SymmetricRemoteSyncTask) task);
+                }
+                syncTasks.add(task);
+                taskExecutor.submit(task);
+            }
+        }
+        return Futures.allAsList(syncTasks);
+    }
 
-                    AbstractSyncTask task;
-                    if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
+    private ListenableFuture<List<SyncStat>> optimisedSyncing(List<TreeResponse> trees)
+    {
+        InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
+
+        List<AbstractSyncTask> syncTasks = new ArrayList<>();
+        // We need to difference all trees one against another
+        DifferenceHolder diffHolder = new DifferenceHolder(trees);
+
+        logger.debug("diffs = {}", diffHolder);
+        PreferedNodeFilter preferSameDCFilter = (streaming, candidates) ->
+                                                candidates.stream()
+                                                          .filter(node -> getDC(streaming)
+                                                                          .equals(getDC(node)))
+                                                          .collect(Collectors.toSet());
+        ImmutableMap<InetAddressAndPort, HostDifferences> reducedDifferences = ReduceHelper.reduce(diffHolder, preferSameDCFilter);
+
+        for (int i = 0; i < trees.size(); i++)
+        {
+            InetAddressAndPort address = trees.get(i).endpoint;
+
+            // we don't stream to transient replicas
+            if (isTransient(address))
+                continue;
+
+            HostDifferences streamsFor = reducedDifferences.get(address);
+            if (streamsFor != null)
+            {
+                assert streamsFor.get(address).isEmpty() : "We should not fetch ranges from ourselves";
+                for (InetAddressAndPort fetchFrom : streamsFor.hosts())
+                {
+                    List<Range<Token>> toFetch = streamsFor.get(fetchFrom);
+                    logger.debug("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
+                    AsymmetricSyncTask task;
+                    if (address.equals(local))
                     {
-                        InetAddressAndPort remote = r1.endpoint.equals(local) ? r2.endpoint : r1.endpoint;
-                        task = new SymmetricLocalSyncTask(desc, r1, r2, isTransient(remote), isIncremental ? desc.parentSessionId : null, session.pullRepair, session.previewKind);
-                    }
-                    else if (isTransient(r1.endpoint) || isTransient(r2.endpoint))
-                    {
-                        TreeResponse streamFrom = isTransient(r1.endpoint) ? r1 : r2;
-                        TreeResponse streamTo = isTransient(r1.endpoint) ? r2: r1;
-                        task = new AsymmetricRemoteSyncTask(desc, streamTo, streamFrom, previewKind);
-                        session.waitForSync(Pair.create(desc, new NodePair(streamTo.endpoint, streamFrom.endpoint)), (AsymmetricRemoteSyncTask) task);
+                        task = new AsymmetricLocalSyncTask(desc, fetchFrom, toFetch, isIncremental ? desc.parentSessionId : null, previewKind);
                     }
                     else
                     {
-                        task = new SymmetricRemoteSyncTask(desc, r1, r2, session.previewKind);
-                        // SymmetricRemoteSyncTask expects SyncComplete message sent back.
-                        // Register task to RepairSession to receive response.
-                        session.waitForSync(Pair.create(desc, new NodePair(r1.endpoint, r2.endpoint)), (SymmetricRemoteSyncTask) task);
+                        task = new AsymmetricRemoteSyncTask(desc, address, fetchFrom, toFetch, previewKind);
+                        session.waitForSync(Pair.create(desc, new NodePair(address, fetchFrom)), (AsymmetricRemoteSyncTask) task);
                     }
                     syncTasks.add(task);
                     taskExecutor.submit(task);
                 }
             }
-            return Futures.allAsList(syncTasks);
-        };
-    }
-
-    private AsyncFunction<List<TreeResponse>, List<SyncStat>> optimisedSyncing()
-    {
-        return trees ->
-        {
-            InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
-
-            List<AbstractSyncTask> syncTasks = new ArrayList<>();
-            // We need to difference all trees one against another
-            DifferenceHolder diffHolder = new DifferenceHolder(trees);
-
-            logger.debug("diffs = {}", diffHolder);
-            PreferedNodeFilter preferSameDCFilter = (streaming, candidates) ->
-                                                    candidates.stream()
-                                                              .filter(node -> getDC(streaming)
-                                                                              .equals(getDC(node)))
-                                                              .collect(Collectors.toSet());
-            ImmutableMap<InetAddressAndPort, HostDifferences> reducedDifferences = ReduceHelper.reduce(diffHolder, preferSameDCFilter);
-
-            for (int i = 0; i < trees.size(); i++)
+            else
             {
-                InetAddressAndPort address = trees.get(i).endpoint;
-
-                // we don't stream to transient replicas
-                if (isTransient(address))
-                    continue;
-
-                HostDifferences streamsFor = reducedDifferences.get(address);
-                if (streamsFor != null)
-                {
-                    assert streamsFor.get(address).isEmpty() : "We should not fetch ranges from ourselves";
-                    for (InetAddressAndPort fetchFrom : streamsFor.hosts())
-                    {
-                        List<Range<Token>> toFetch = streamsFor.get(fetchFrom);
-                        logger.debug("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
-                        AsymmetricSyncTask task;
-                        if (address.equals(local))
-                        {
-                            task = new AsymmetricLocalSyncTask(desc, fetchFrom, toFetch, isIncremental ? desc.parentSessionId : null, previewKind);
-                        }
-                        else
-                        {
-                            task = new AsymmetricRemoteSyncTask(desc, address, fetchFrom, toFetch, previewKind);
-                            session.waitForSync(Pair.create(desc, new NodePair(address, fetchFrom)),(AsymmetricRemoteSyncTask)task);
-                        }
-                        syncTasks.add(task);
-                        taskExecutor.submit(task);
-                    }
-                }
-                else
-                {
-                    logger.debug("Node {} has nothing to stream", address);
-                }
+                logger.debug("Node {} has nothing to stream", address);
             }
-            return Futures.allAsList(syncTasks);
-        };
+        }
+        return Futures.allAsList(syncTasks);
     }
 
     private String getDC(InetAddressAndPort address)

@@ -42,7 +42,7 @@ public abstract class SymmetricSyncTask extends AbstractSyncTask
     protected final TreeResponse r1;
     protected final TreeResponse r2;
     protected final PreviewKind previewKind;
-
+    protected final NodePair nodePair;
     protected volatile SyncStat stat;
     protected long startTime = Long.MIN_VALUE;
 
@@ -52,6 +52,7 @@ public abstract class SymmetricSyncTask extends AbstractSyncTask
         this.r1 = r1;
         this.r2 = r2;
         this.previewKind = previewKind;
+        this.nodePair = new NodePair(r1.endpoint, r2.endpoint);
     }
 
     /**
@@ -63,7 +64,7 @@ public abstract class SymmetricSyncTask extends AbstractSyncTask
         // compare trees, and collect differences
         List<Range<Token>> differences = MerkleTrees.difference(r1.trees, r2.trees);
 
-        stat = new SyncStat(new NodePair(r1.endpoint, r2.endpoint), differences.size());
+        stat = new SyncStat(nodePair, differences.size());
 
         // choose a repair method based on the significance of the difference
         String format = String.format("%s Endpoints %s and %s %%s for %s", previewKind.logPrefix(desc.sessionId), r1.endpoint, r2.endpoint, desc.columnFamily);
@@ -79,6 +80,11 @@ public abstract class SymmetricSyncTask extends AbstractSyncTask
         logger.info(String.format(format, "have " + differences.size() + " range(s) out of sync"));
         Tracing.traceRepair("Endpoint {} has {} range(s) out of sync with {} for {}", r1.endpoint, differences.size(), r2.endpoint, desc.columnFamily);
         startSync(differences);
+    }
+
+    public NodePair nodePair()
+    {
+        return nodePair;
     }
 
     public SyncStat getCurrentStat()

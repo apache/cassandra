@@ -196,16 +196,16 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
         List<CommonRange> commonRanges = new ArrayList<>();
 
-        //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
-        //calculation multiple times
-        // we arbitrarily limit ourselves to only full replicas, in lieu of ensuring it is safe to coordinate from a transient replica
-        Iterable<Range<Token>> keyspaceLocalRanges = storageService
-                .getLocalReplicas(keyspace)
-                .filter(Replica::isFull)
-                .ranges();
-
         try
         {
+            //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
+            //calculation multiple times
+            // we arbitrarily limit ourselves to only full replicas, in lieu of ensuring it is safe to coordinate from a transient replica
+            Iterable<Range<Token>> keyspaceLocalRanges = storageService
+                                                         .getLocalReplicas(keyspace)
+                                                         .filter(Replica::isFull)
+                                                         .ranges();
+
             for (Range<Token> range : options.getRanges())
             {
                 EndpointsForRange neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range,
@@ -647,15 +647,15 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                                                ImmutableList.of(failureMessage, completionMessage));
     }
 
-    private void addRangeToNeighbors(List<CommonRange> neighborRangeList, Range<Token> range, EndpointsForRange neighbors)
+    private static void addRangeToNeighbors(List<CommonRange> neighborRangeList, Range<Token> range, EndpointsForRange neighbors)
     {
         Set<InetAddressAndPort> endpoints = neighbors.endpoints();
         Set<InetAddressAndPort> transEndpoints = neighbors.filter(Replica::isTransient).endpoints();
-        for (int i = 0; i < neighborRangeList.size(); i++)
-        {
-            CommonRange cr = neighborRangeList.get(i);
 
-            if (cr.endpoints.containsAll(endpoints) && cr.transEndpoints.containsAll(transEndpoints))
+        for (CommonRange cr : neighborRangeList)
+        {
+            // Use strict equality here, as worst thing that can happen is we generate one more stream
+            if (Iterables.elementsEqual(cr.endpoints, endpoints) && Iterables.elementsEqual(cr.transEndpoints, transEndpoints))
             {
                 cr.ranges.add(range);
                 return;

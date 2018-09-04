@@ -39,6 +39,8 @@ public abstract class AsymmetricSyncTask extends AbstractSyncTask
     protected final List<Range<Token>> rangesToFetch;
     protected final InetAddressAndPort fetchingNode;
     protected final PreviewKind previewKind;
+    protected final NodePair nodePair;
+
     private long startTime = Long.MIN_VALUE;
     protected volatile SyncStat stat;
 
@@ -49,9 +51,16 @@ public abstract class AsymmetricSyncTask extends AbstractSyncTask
         this.fetchFrom = fetchFrom;
         this.fetchingNode = fetchingNode;
         this.rangesToFetch = rangesToFetch;
+        this.nodePair = new NodePair(fetchingNode, fetchFrom);
         // todo: make an AsymmetricSyncStat?
-        stat = new SyncStat(new NodePair(fetchingNode, fetchFrom), rangesToFetch.size());
+        stat = new SyncStat(nodePair, rangesToFetch.size());
         this.previewKind = previewKind;
+
+    }
+
+    public NodePair nodePair()
+    {
+        return nodePair;
     }
 
     public void run()
@@ -78,4 +87,6 @@ public abstract class AsymmetricSyncTask extends AbstractSyncTask
         if (startTime != Long.MIN_VALUE)
             Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).metric.syncTime.update(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
     }
+
+
 }
