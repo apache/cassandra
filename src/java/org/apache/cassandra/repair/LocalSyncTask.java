@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,43 +40,60 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MerkleTrees;
 
 /**
- * SymmetricLocalSyncTask performs streaming between local(coordinator) node and remote replica.
+ * LocalSyncTask performs streaming between local(coordinator) node and remote replica.
  */
-public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamEventHandler
+public class LocalSyncTask extends SyncTask implements StreamEventHandler
 {
     private final TraceState state = Tracing.instance.get();
 
-    private static final Logger logger = LoggerFactory.getLogger(SymmetricLocalSyncTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(LocalSyncTask.class);
 
-    private final boolean remoteIsTransient;
     private final UUID pendingRepair;
-    private final boolean pullRepair;
+    private final boolean requestRanges;
+    private final boolean transferRanges;
 
-    public SymmetricLocalSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, boolean remoteIsTransient, UUID pendingRepair, boolean pullRepair, PreviewKind previewKind)
+    public LocalSyncTask(RepairJobDesc desc, TreeResponse local, TreeResponse remote, UUID pendingRepair,
+                         boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
     {
-        super(desc, r1, r2, previewKind);
-        this.remoteIsTransient = remoteIsTransient;
+        this(desc, local.endpoint, remote.endpoint, MerkleTrees.difference(local.trees, remote.trees),
+             pendingRepair, requestRanges, transferRanges, previewKind);
+    }
+
+    public LocalSyncTask(RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote,
+                         List<Range<Token>> diff, UUID pendingRepair,
+                         boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
+    {
+        super(desc, local, remote, diff, previewKind);
+        Preconditions.checkArgument(requestRanges || transferRanges, "Nothing to do in a sync job");
+        Preconditions.checkArgument(local.equals(FBUtilities.getBroadcastAddressAndPort()));
+
         this.pendingRepair = pendingRepair;
-        this.pullRepair = pullRepair;
+        this.requestRanges = requestRanges;
+        this.transferRanges = transferRanges;
     }
 
     @VisibleForTesting
-    StreamPlan createStreamPlan(InetAddressAndPort dst, List<Range<Token>> differences)
+    StreamPlan createStreamPlan(InetAddressAndPort remote, List<Range<Token>> differences)
     {
         StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                           .listeners(this)
-                          .flushBeforeTransfer(pendingRepair == null)
-                          // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
-                          .requestRanges(dst, desc.keyspace, RangesAtEndpoint.toDummyList(differences),
-                                  RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily);  // request ranges from the remote node
+                          .flushBeforeTransfer(pendingRepair == null);
 
-        if (!pullRepair && !remoteIsTransient)
+        if (requestRanges)
+        {
+            // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
+            plan.requestRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(differences),
+                               RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily);
+        }
+
+        if (transferRanges)
         {
             // send ranges to the remote node if we are not performing a pull repair
             // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
-            plan.transferRanges(dst, desc.keyspace, RangesAtEndpoint.toDummyList(differences), desc.columnFamily);
+            plan.transferRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(differences), desc.columnFamily);
         }
 
         return plan;
@@ -86,17 +104,15 @@ public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamE
      * that will be called out of band once the streams complete.
      */
     @Override
-    protected void startSync(List<Range<Token>> differences)
+    protected void startSync()
     {
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
-        // We can take anyone of the node as source or destination, however if one is localhost, we put at source to avoid a forwarding
-        InetAddressAndPort dst = r2.endpoint.equals(local) ? r1.endpoint : r2.endpoint;
+        InetAddressAndPort remote = nodePair.peer;
 
-        String message = String.format("Performing streaming repair of %d ranges with %s", differences.size(), dst);
+        String message = String.format("Performing streaming repair of %d ranges with %s", rangesToSync.size(), remote);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
 
-        createStreamPlan(dst, differences).execute();
+        createStreamPlan(remote, rangesToSync).execute();
     }
 
     public void handleStreamEvent(StreamEvent event)
@@ -127,7 +143,7 @@ public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamE
 
     public void onSuccess(StreamState result)
     {
-        String message = String.format("Sync complete using session %s between %s and %s on %s", desc.sessionId, r1.endpoint, r2.endpoint, desc.columnFamily);
+        String message = String.format("Sync complete using session %s between %s and %s on %s", desc.sessionId, nodePair.coordinator, nodePair.peer, desc.columnFamily);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         set(stat.withSummaries(result.createSummaries()));

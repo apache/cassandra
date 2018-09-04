@@ -113,7 +113,7 @@ public abstract class AbstractReadExecutor
     protected void makeFullDataRequests(ReplicaCollection<?> replicas)
     {
         assert all(replicas, Replica::isFull);
-        makeRequests(command, replicas.filter(Replica::isFull));
+        makeRequests(command, replicas);
     }
 
     protected void makeTransientDataRequests(ReplicaCollection<?> replicas)

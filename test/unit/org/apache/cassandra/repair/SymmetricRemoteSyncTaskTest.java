@@ -30,18 +30,18 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class SymmetricRemoteSyncTaskTest extends AbstractRepairTest
 {
     private static final RepairJobDesc DESC = new RepairJobDesc(UUIDGen.getTimeUUID(), UUIDGen.getTimeUUID(), "ks", "tbl", ALL_RANGES);
     private static final List<Range<Token>> RANGE_LIST = ImmutableList.of(RANGE1);
-
     private static class InstrumentedSymmetricRemoteSyncTask extends SymmetricRemoteSyncTask
     {
         public InstrumentedSymmetricRemoteSyncTask(InetAddressAndPort e1, InetAddressAndPort e2)
         {
-            super(DESC, new TreeResponse(e1, null), new TreeResponse(e2, null), PreviewKind.NONE);
+            super(DESC, e1, e2, RANGE_LIST, PreviewKind.NONE);
         }
 
         RepairMessage sentMessage = null;
@@ -62,7 +62,7 @@ public class SymmetricRemoteSyncTaskTest extends AbstractRepairTest
     public void normalSync()
     {
         InstrumentedSymmetricRemoteSyncTask syncTask = new InstrumentedSymmetricRemoteSyncTask(PARTICIPANT1, PARTICIPANT2);
-        syncTask.startSync(RANGE_LIST);
+        syncTask.startSync();
 
         Assert.assertNotNull(syncTask.sentMessage);
         Assert.assertSame(SyncRequest.class, syncTask.sentMessage.getClass());

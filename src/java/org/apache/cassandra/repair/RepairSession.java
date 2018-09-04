@@ -54,9 +54,8 @@ import org.apache.cassandra.utils.Pair;
  *      ({@link org.apache.cassandra.repair.ValidationTask}) and waits until all trees are received (in
  *      validationComplete()).
  *   </li>
- *   <li>Synchronization phase: once all trees are received, the job compares each tree with
- *      all the other using a so-called {@link SymmetricSyncTask}. If there is difference between 2 trees, the
- *      concerned SymmetricSyncTask will start a streaming of the difference between the 2 endpoint concerned.
+ *   <li>Synchronization phase: once all trees are received, the job compares each tree with  all the others. If there is
+ *       difference between 2 trees, the differences between the 2 endpoints will be streamed with a {@link SyncTask}.
  *   </li>
  * </ol>
  * The job is done once all its SyncTasks are done (i.e. have either computed no differences
@@ -103,7 +102,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     // Each validation task waits response from replica in validating ConcurrentMap (keyed by CF name and endpoint address)
     private final ConcurrentMap<Pair<RepairJobDesc, InetAddressAndPort>, ValidationTask> validating = new ConcurrentHashMap<>();
     // Remote syncing jobs wait response in syncingTasks map
-    private final ConcurrentMap<Pair<RepairJobDesc, NodePair>, CompletableRemoteSyncTask> syncingTasks = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Pair<RepairJobDesc, SyncNodePair>, CompletableRemoteSyncTask> syncingTasks = new ConcurrentHashMap<>();
 
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
     public final ListeningExecutorService taskExecutor = MoreExecutors.listeningDecorator(DebuggableThreadPoolExecutor.createCachedThreadpoolWithMaxSize("RepairJobTask"));
@@ -195,11 +194,10 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         validating.put(key, task);
     }
 
-    public void waitForSync(Pair<RepairJobDesc, NodePair> key, CompletableRemoteSyncTask task)
+    public void waitForSync(Pair<RepairJobDesc, SyncNodePair> key, CompletableRemoteSyncTask task)
     {
         syncingTasks.put(key, task);
     }
-
 
     /**
      * Receive merkle tree response or failed response from {@code endpoint} for current repair job.
@@ -224,13 +222,13 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     }
 
     /**
-     * Notify this session that sync completed/failed with given {@code NodePair}.
+     * Notify this session that sync completed/failed with given {@code SyncNodePair}.
      *
      * @param desc synced repair job
      * @param nodes nodes that completed sync
      * @param success true if sync succeeded
      */
-    public void syncComplete(RepairJobDesc desc, NodePair nodes, boolean success, List<SessionSummary> summaries)
+    public void syncComplete(RepairJobDesc desc, SyncNodePair nodes, boolean success, List<SessionSummary> summaries)
     {
         CompletableRemoteSyncTask task = syncingTasks.get(Pair.create(desc, nodes));
         if (task == null)
@@ -240,7 +238,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         }
 
         if (logger.isDebugEnabled())
-            logger.debug("{} Repair completed between {} and {} on {}", previewKind.logPrefix(getId()), nodes.endpoint1, nodes.endpoint2, desc.columnFamily);
+            logger.debug("{} Repair completed between {} and {} on {}", previewKind.logPrefix(getId()), nodes.coordinator, nodes.peer, desc.columnFamily);
         task.syncComplete(success, summaries);
     }
 
