@@ -48,7 +48,13 @@ public class CommonRange
 
         this.endpoints = ImmutableSet.copyOf(endpoints);
         this.transEndpoints = ImmutableSet.copyOf(transEndpoints);
-        this.ranges = new ArrayList(ranges);
+        this.ranges = new ArrayList<>(ranges);
+    }
+
+    public boolean matchesEndpoints(Set<InetAddressAndPort> endpoints, Set<InetAddressAndPort> transEndpoints)
+    {
+        // Use strict equality here, as worst thing that can happen is we generate one more stream
+        return this.endpoints.equals(endpoints) && this.transEndpoints.equals(transEndpoints);
     }
 
     public boolean equals(Object o)

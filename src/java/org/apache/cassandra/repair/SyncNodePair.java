@@ -28,21 +28,21 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 /**
- * NodePair is used for repair message body to indicate the pair of nodes.
+ * SyncNodePair is used for repair message body to indicate the pair of nodes.
  *
  * @since 2.0
  */
-public class NodePair
+public class SyncNodePair
 {
-    public static IVersionedSerializer<NodePair> serializer = new NodePairSerializer();
+    public static IVersionedSerializer<SyncNodePair> serializer = new NodePairSerializer();
 
-    public final InetAddressAndPort endpoint1;
-    public final InetAddressAndPort endpoint2;
+    public final InetAddressAndPort coordinator;
+    public final InetAddressAndPort peer;
 
-    public NodePair(InetAddressAndPort endpoint1, InetAddressAndPort endpoint2)
+    public SyncNodePair(InetAddressAndPort coordinator, InetAddressAndPort peer)
     {
-        this.endpoint1 = endpoint1;
-        this.endpoint2 = endpoint2;
+        this.coordinator = coordinator;
+        this.peer = peer;
     }
 
     @Override
@@ -51,41 +51,41 @@ public class NodePair
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        NodePair nodePair = (NodePair) o;
-        return endpoint1.equals(nodePair.endpoint1) && endpoint2.equals(nodePair.endpoint2);
+        SyncNodePair nodePair = (SyncNodePair) o;
+        return coordinator.equals(nodePair.coordinator) && peer.equals(nodePair.peer);
     }
 
     @Override
     public String toString()
     {
-        return endpoint1.toString() + " - " + endpoint2.toString();
+        return coordinator.toString() + " - " + peer.toString();
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(endpoint1, endpoint2);
+        return Objects.hashCode(coordinator, peer);
     }
 
-    public static class NodePairSerializer implements IVersionedSerializer<NodePair>
+    public static class NodePairSerializer implements IVersionedSerializer<SyncNodePair>
     {
-        public void serialize(NodePair nodePair, DataOutputPlus out, int version) throws IOException
+        public void serialize(SyncNodePair nodePair, DataOutputPlus out, int version) throws IOException
         {
-            CompactEndpointSerializationHelper.instance.serialize(nodePair.endpoint1, out, version);
-            CompactEndpointSerializationHelper.instance.serialize(nodePair.endpoint2, out, version);
+            CompactEndpointSerializationHelper.instance.serialize(nodePair.coordinator, out, version);
+            CompactEndpointSerializationHelper.instance.serialize(nodePair.peer, out, version);
         }
 
-        public NodePair deserialize(DataInputPlus in, int version) throws IOException
+        public SyncNodePair deserialize(DataInputPlus in, int version) throws IOException
         {
             InetAddressAndPort ep1 = CompactEndpointSerializationHelper.instance.deserialize(in, version);
             InetAddressAndPort ep2 = CompactEndpointSerializationHelper.instance.deserialize(in, version);
-            return new NodePair(ep1, ep2);
+            return new SyncNodePair(ep1, ep2);
         }
 
-        public long serializedSize(NodePair nodePair, int version)
+        public long serializedSize(SyncNodePair nodePair, int version)
         {
-            return CompactEndpointSerializationHelper.instance.serializedSize(nodePair.endpoint1, version)
-                 + CompactEndpointSerializationHelper.instance.serializedSize(nodePair.endpoint2, version);
+            return CompactEndpointSerializationHelper.instance.serializedSize(nodePair.coordinator, version)
+                 + CompactEndpointSerializationHelper.instance.serializedSize(nodePair.peer, version);
         }
     }
 }

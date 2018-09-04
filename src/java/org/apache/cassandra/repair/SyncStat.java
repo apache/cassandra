@@ -26,16 +26,16 @@ import org.apache.cassandra.streaming.SessionSummary;
  */
 public class SyncStat
 {
-    public final NodePair nodes;
+    public final SyncNodePair nodes;
     public final long numberOfDifferences; // TODO: revert to Range<Token>
     public final List<SessionSummary> summaries;
 
-    public SyncStat(NodePair nodes, long numberOfDifferences)
+    public SyncStat(SyncNodePair nodes, long numberOfDifferences)
     {
         this(nodes, numberOfDifferences, null);
     }
 
-    public SyncStat(NodePair nodes, long numberOfDifferences, List<SessionSummary> summaries)
+    public SyncStat(SyncNodePair nodes, long numberOfDifferences, List<SessionSummary> summaries)
     {
         this.nodes = nodes;
         this.numberOfDifferences = numberOfDifferences;
