@@ -41,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -74,6 +75,7 @@ import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -717,5 +719,15 @@ public class Util
         Row row = BTreeRow.singleCellRow(c, BufferCell.live(def, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         PagingState.RowMark mark = PagingState.RowMark.create(metadata, row, protocolVersion);
         return new PagingState(pk, mark, 10, 0);
+    }
+
+    public static void assertRCEquals(ReplicaCollection<?> a, ReplicaCollection<?> b)
+    {
+        assertTrue(a + " not equal to " + b, Iterables.elementsEqual(a, b));
+    }
+
+    public static void assertNotRCEquals(ReplicaCollection<?> a, ReplicaCollection<?> b)
+    {
+        assertFalse(a + " equal to " + b, Iterables.elementsEqual(a, b));
     }
 }

@@ -223,24 +223,35 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
 
     public final Stream<Replica> stream() { return list.stream(); }
 
+    /**
+     *  <p>
+     *  It's not clear whether {@link AbstractReplicaCollection} should implement the order sensitive {@link Object#equals(Object) equals}
+     *  of {@link java.util.List} or the order oblivious {@link Object#equals(Object) equals} of {@link java.util.Set}. We never rely on equality
+     *  in the database so rather then leave in a potentially surprising implementation we have it throw {@link UnsupportedOperationException}.
+     *  </p>
+     *  <p>
+     *  Don't implement this and pick one behavior over the other. If you want equality you can static import {@link com.google.common.collect.Iterables#elementsEqual(Iterable, Iterable)}
+     *  and use that to get order sensitive equals.
+     *  </p>
+     */
     public final boolean equals(Object o)
     {
-        if (this == o) return true;
-        if (!(o instanceof AbstractReplicaCollection<?>))
-        {
-            if (!(o instanceof ReplicaCollection<?>))
-                return false;
-
-            ReplicaCollection<?> that = (ReplicaCollection<?>) o;
-            return Iterables.elementsEqual(this, that);
-        }
-        AbstractReplicaCollection<?> that = (AbstractReplicaCollection<?>) o;
-        return Objects.equals(list, that.list);
+        throw new UnsupportedOperationException("AbstractReplicaCollection equals unsupported");
     }
 
+    /**
+     *  <p>
+     *  It's not clear whether {@link AbstractReplicaCollection} should implement the order sensitive {@link Object#hashCode() hashCode}
+     *  of {@link java.util.List} or the order oblivious {@link Object#hashCode() equals} of {@link java.util.Set}. We never rely on hashCode
+     *  in the database so rather then leave in a potentially surprising implementation we have it throw {@link UnsupportedOperationException}.
+     *  </p>
+     *  <p>
+     *  Don't implement this and pick one behavior over the other.
+     *  </p>
+     */
     public final int hashCode()
     {
-        return list.hashCode();
+        throw new UnsupportedOperationException("AbstractReplicaCollection hashCode unsupported");
     }
 
     @Override
