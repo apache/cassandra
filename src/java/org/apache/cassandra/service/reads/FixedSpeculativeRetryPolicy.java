@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
 
 import com.google.common.base.Objects;
 
-import com.codahale.metrics.Timer;
+import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.TableParams;
 
@@ -39,7 +39,7 @@ public class FixedSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     }
 
     @Override
-    public long calculateThreshold(Timer readLatency)
+    public long calculateThreshold(Snapshot latency)
     {
         return TimeUnit.MILLISECONDS.toNanos(speculateAtMilliseconds);
     }

@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.primitives.Ints;
 
 import com.codahale.metrics.Clock;
 import com.codahale.metrics.Reservoir;
@@ -332,7 +333,6 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
             this.decayingBuckets = new long[length];
             this.values = new long[length];
-            this.count = count();
             this.snapshotLandmark = decayLandmark;
             this.bucketOffsets = reservoir.bucketOffsets; // No need to copy, these are immutable
 
@@ -341,6 +341,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
                 this.decayingBuckets[i] = Math.round(reservoir.decayingBuckets[i].sum() / rescaleFactor);
                 this.values[i] = buckets[i].sum();
             }
+            this.count = count();
             this.reservoir = reservoir;
         }
 
@@ -388,15 +389,12 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         }
 
         /**
-         * Return the number of buckets where recorded values are stored.
-         *
-         * This method does not return the number of recorded values as suggested by the {@link Snapshot} interface.
-         *
-         * @return the number of buckets
+         * @see {@link Snapshot#size()}
+         * @return
          */
         public int size()
         {
-            return decayingBuckets.length;
+            return Ints.saturatedCast(count);
         }
 
         @VisibleForTesting

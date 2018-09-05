@@ -41,6 +41,7 @@ import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.*;
@@ -453,8 +454,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         try
         {
-            sampleReadLatencyNanos = metadata().params.speculativeRetry.calculateThreshold(metric.coordinatorReadLatency);
-            transientWriteLatencyNanos = metadata().params.speculativeWriteThreshold.calculateThreshold(metric.coordinatorWriteLatency);
+            Snapshot readLatencySnapshot = metric.coordinatorReadLatency.getSnapshot();
+            if (readLatencySnapshot.size() > 0)
+                sampleReadLatencyNanos = metadata().params.speculativeRetry.calculateThreshold(readLatencySnapshot);
+            Snapshot writeLatencySnapshot = metric.coordinatorWriteLatency.getSnapshot();
+            if (writeLatencySnapshot.size() > 0)
+                transientWriteLatencyNanos = metadata().params.speculativeWriteThreshold.calculateThreshold(writeLatencySnapshot);
         }
         catch (Throwable e)
         {
