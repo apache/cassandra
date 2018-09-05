@@ -20,6 +20,7 @@ package org.apache.cassandra.repair;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
@@ -197,7 +198,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     if (!requestRanges && !transfterRanges)
                         continue;
 
-                    task = new LocalSyncTask(desc, self, remote, isIncremental ? desc.parentSessionId : null, requestRanges, transfterRanges, session.previewKind);
+                    task = new LocalSyncTask(desc, self, remote, isIncremental ? desc.parentSessionId : null,
+                                             requestRanges, transfterRanges, session.previewKind);
                 }
                 else if (isTransient(r1.endpoint) || isTransient(r2.endpoint))
                 {
@@ -248,7 +250,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             HostDifferences streamsFor = reducedDifferences.get(address);
             if (streamsFor != null)
             {
-                assert streamsFor.get(address).isEmpty() : "We should not fetch ranges from ourselves";
+                Preconditions.checkArgument(streamsFor.get(address).isEmpty(), "We should not fetch ranges from ourselves");
                 for (InetAddressAndPort fetchFrom : streamsFor.hosts())
                 {
                     List<Range<Token>> toFetch = streamsFor.get(fetchFrom);

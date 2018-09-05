@@ -21,6 +21,7 @@ package org.apache.cassandra.repair;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +47,7 @@ public abstract class AsymmetricSyncTask extends AbstractSyncTask
 
     public AsymmetricSyncTask(RepairJobDesc desc, InetAddressAndPort fetchingNode, InetAddressAndPort fetchFrom, List<Range<Token>> rangesToFetch, PreviewKind previewKind)
     {
-        assert !fetchFrom.equals(fetchingNode) : "Fetching from self " + fetchFrom;
+        Preconditions.checkArgument(!fetchFrom.equals(fetchingNode), "Sending and receiving node are the same: %s", fetchFrom);
         this.desc = desc;
         this.fetchFrom = fetchFrom;
         this.fetchingNode = fetchingNode;
@@ -55,7 +56,6 @@ public abstract class AsymmetricSyncTask extends AbstractSyncTask
         // todo: make an AsymmetricSyncStat?
         stat = new SyncStat(nodePair, rangesToFetch.size());
         this.previewKind = previewKind;
-
     }
 
     public NodePair nodePair()
@@ -87,6 +87,4 @@ public abstract class AsymmetricSyncTask extends AbstractSyncTask
         if (startTime != Long.MIN_VALUE)
             Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).metric.syncTime.update(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
     }
-
-
 }

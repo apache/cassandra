@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,8 +63,8 @@ public class LocalSyncTask extends SymmetricSyncTask implements StreamEventHandl
     public LocalSyncTask(RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote, List<Range<Token>> diff, UUID pendingRepair, boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
     {
         super(desc, local, remote, diff, previewKind);
-        assert requestRanges || transferRanges : "Nothing to do in a sync job";
-        assert local.equals(FBUtilities.getBroadcastAddressAndPort());
+        Preconditions.checkArgument(requestRanges || transferRanges, "Nothing to do in a sync job");
+        Preconditions.checkArgument(local.equals(FBUtilities.getBroadcastAddressAndPort()));
 
         this.pendingRepair = pendingRepair;
         this.requestRanges = requestRanges;

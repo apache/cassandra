@@ -205,8 +205,8 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             for (Range<Token> range : options.getRanges())
             {
                 EndpointsForRange neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range,
-                                                                        options.getDataCenters(),
-                                                                        options.getHosts());
+                                                                               options.getDataCenters(),
+                                                                               options.getHosts());
 
                 addRangeToNeighbors(commonRanges, range, neighbors);
                 allNeighbors.addAll(neighbors.endpoints());
@@ -648,12 +648,11 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         Set<InetAddressAndPort> endpoints = neighbors.endpoints();
         Set<InetAddressAndPort> transEndpoints = neighbors.filter(Replica::isTransient).endpoints();
 
-        for (CommonRange cr : neighborRangeList)
+        for (CommonRange commonRange : neighborRangeList)
         {
-            // Use strict equality here, as worst thing that can happen is we generate one more stream
-            if (Sets.difference(cr.endpoints, endpoints).isEmpty() && Sets.difference(cr.transEndpoints, transEndpoints).isEmpty())
+            if (commonRange.matchesEndpoints(endpoints, transEndpoints))
             {
-                cr.ranges.add(range);
+                commonRange.ranges.add(range);
                 return;
             }
         }

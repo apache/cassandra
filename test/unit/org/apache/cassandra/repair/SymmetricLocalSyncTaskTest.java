@@ -197,7 +197,7 @@ public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
      * Don't reciprocate streams if the other endpoint is a transient replica
      */
     @Test
-    public void transientStreamPlan()
+    public void transientRemoteStreamPlan()
     {
         UUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
@@ -209,6 +209,24 @@ public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
         LocalSyncTask task = new LocalSyncTask(desc, r1, r2, desc.parentSessionId, true, false, PreviewKind.NONE);
         StreamPlan plan = task.createStreamPlan(local, Lists.newArrayList(RANGE1));
         assertNumInOut(plan, 1, 0);
+    }
+
+    /**
+     * Don't request streams if the other endpoint is a transient replica
+     */
+    @Test
+    public void transientLocalStreamPlan()
+    {
+        UUID sessionID = registerSession(cfs, true, true);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+        RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
+
+        TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+        TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+
+        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, desc.parentSessionId, false, true, PreviewKind.NONE);
+        StreamPlan plan = task.createStreamPlan(local, Lists.newArrayList(RANGE1));
+        assertNumInOut(plan, 0, 1);
     }
 
     private MerkleTrees createInitialTree(RepairJobDesc desc, IPartitioner partitioner)
