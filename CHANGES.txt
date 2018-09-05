@@ -1,4 +1,5 @@
 4.0
+ * DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot returns wrong value for size() and incorrectly calculates count (CASSANDRA-14696)
  * AbstractReplicaCollection equals and hash code should throw due to conflict between order sensitive/insensitive uses (CASSANDRA-14700)
  * Detect inconsistencies in repaired data on the read path (CASSANDRA-14145)
  * Add checksumming to the native protocol (CASSANDRA-13304)
