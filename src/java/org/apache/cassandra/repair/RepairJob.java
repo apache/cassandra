@@ -178,20 +178,30 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             {
                 TreeResponse r2 = trees.get(j);
 
+                // Avoid streming between two tansient replicas
                 if (isTransient(r1.endpoint) && isTransient(r2.endpoint))
                     continue;
 
                 AbstractSyncTask task;
                 if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
                 {
-                    TreeResponse streamFrom = r1.endpoint.equals(local) ? r1 : r2;
-                    TreeResponse streamTo = r2.endpoint.equals(local) ? r2 : r1;
-                    assert !isTransient(streamFrom.endpoint) : "Coordination from a transient replica is not supported";
+                    TreeResponse self = r1.endpoint.equals(local) ? r1 : r2;
+                    TreeResponse remote = r2.endpoint.equals(local) ? r1 : r2;
 
-                    task = new SymmetricLocalSyncTask(desc, streamFrom, streamTo, isTransient(streamTo.endpoint), isIncremental ? desc.parentSessionId : null, session.pullRepair, session.previewKind);
+                    // pull only if local is full
+                    boolean requestRanges = !isTransient(self.endpoint);
+                    // push only if remote is full; additionally check for pull repair
+                    boolean transfterRanges = !isTransient(remote.endpoint) && !session.pullRepair;
+
+                    // Nothing to do
+                    if (!requestRanges && !transfterRanges)
+                        continue;
+
+                    task = new SymmetricLocalSyncTask(desc, self, remote, isIncremental ? desc.parentSessionId : null, requestRanges, transfterRanges, session.previewKind);
                 }
                 else if (isTransient(r1.endpoint) || isTransient(r2.endpoint))
                 {
+                    // Stream only from transient replica
                     TreeResponse streamFrom = isTransient(r1.endpoint) ? r1 : r2;
                     TreeResponse streamTo = isTransient(r1.endpoint) ? r2 : r1;
                     task = new AsymmetricRemoteSyncTask(desc, streamTo, streamFrom, previewKind);

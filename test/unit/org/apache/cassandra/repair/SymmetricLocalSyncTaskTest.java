@@ -60,6 +60,7 @@ import static org.junit.Assert.assertTrue;
 public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
 {
     private static final IPartitioner partitioner = Murmur3Partitioner.instance;
+    private static final InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
     public static final String KEYSPACE1 = "DifferencerTest";
     public static final String CF_STANDARD = "Standard1";
     public static ColumnFamilyStore cfs;
@@ -82,8 +83,7 @@ public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
     @Test
     public void testNoDifference() throws Throwable
     {
-        final InetAddressAndPort ep1 = InetAddressAndPort.getByName("127.0.0.1");
-        final InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.1");
+        final InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.2");
 
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
         RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), KEYSPACE1, "Standard1", Arrays.asList(range));
@@ -94,9 +94,9 @@ public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
 
         // difference the trees
         // note: we reuse the same endpoint which is bogus in theory but fine here
-        TreeResponse r1 = new TreeResponse(ep1, tree1);
+        TreeResponse r1 = new TreeResponse(local, tree1);
         TreeResponse r2 = new TreeResponse(ep2, tree2);
-        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, false, NO_PENDING_REPAIR, false, PreviewKind.NONE);
+        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, NO_PENDING_REPAIR,  true, true, PreviewKind.NONE);
         task.run();
 
         assertEquals(0, task.get().numberOfDifferences);
@@ -118,7 +118,6 @@ public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
         RepairJobDesc desc = new RepairJobDesc(parentRepairSession, UUID.randomUUID(), KEYSPACE1, "Standard1", Arrays.asList(range));
 
         MerkleTrees tree1 = createInitialTree(desc);
-
         MerkleTrees tree2 = createInitialTree(desc);
 
         // change a range in one of the trees
@@ -132,9 +131,9 @@ public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
 
         // difference the trees
         // note: we reuse the same endpoint which is bogus in theory but fine here
-        TreeResponse r1 = new TreeResponse(InetAddressAndPort.getByName("127.0.0.1"), tree1);
+        TreeResponse r1 = new TreeResponse(local, tree1);
         TreeResponse r2 = new TreeResponse(InetAddressAndPort.getByName("127.0.0.2"), tree2);
-        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, false, NO_PENDING_REPAIR, false, PreviewKind.NONE);
+        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
         DefaultConnectionFactory.MAX_CONNECT_ATTEMPTS = 1;
         DefaultConnectionFactory.MAX_WAIT_TIME_NANOS = TimeUnit.SECONDS.toNanos(2);
         try
@@ -158,11 +157,11 @@ public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
-        TreeResponse r1 = new TreeResponse(PARTICIPANT1, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+        TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
-        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, false, NO_PENDING_REPAIR, false, PreviewKind.NONE);
-        StreamPlan plan = task.createStreamPlan(PARTICIPANT1, Lists.newArrayList(RANGE1));
+        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
+        StreamPlan plan = task.createStreamPlan(local, Lists.newArrayList(RANGE1));
 
         assertEquals(NO_PENDING_REPAIR, plan.getPendingRepair());
         assertTrue(plan.getFlushBeforeTransfer());
@@ -183,11 +182,11 @@ public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
-        TreeResponse r1 = new TreeResponse(PARTICIPANT1, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+        TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
-        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, false, desc.parentSessionId, false, PreviewKind.NONE);
-        StreamPlan plan = task.createStreamPlan(PARTICIPANT1, Lists.newArrayList(RANGE1));
+        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, desc.parentSessionId, true, true, PreviewKind.NONE);
+        StreamPlan plan = task.createStreamPlan(local, Lists.newArrayList(RANGE1));
 
         assertEquals(desc.parentSessionId, plan.getPendingRepair());
         assertFalse(plan.getFlushBeforeTransfer());
@@ -204,11 +203,11 @@ public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
-        TreeResponse r1 = new TreeResponse(PARTICIPANT1, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+        TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
-        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, true, desc.parentSessionId, false, PreviewKind.NONE);
-        StreamPlan plan = task.createStreamPlan(PARTICIPANT2, Lists.newArrayList(RANGE1));
+        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, desc.parentSessionId, true, false, PreviewKind.NONE);
+        StreamPlan plan = task.createStreamPlan(local, Lists.newArrayList(RANGE1));
         assertNumInOut(plan, 1, 0);
     }
 

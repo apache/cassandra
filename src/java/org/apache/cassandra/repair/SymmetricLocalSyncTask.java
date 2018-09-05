@@ -49,16 +49,19 @@ public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamE
 
     private static final Logger logger = LoggerFactory.getLogger(SymmetricLocalSyncTask.class);
 
-    private final boolean remoteIsTransient;
     private final UUID pendingRepair;
-    private final boolean pullRepair;
+    private final boolean requestRanges;
+    private final boolean transferRanges;
 
-    public SymmetricLocalSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, boolean remoteIsTransient, UUID pendingRepair, boolean pullRepair, PreviewKind previewKind)
+    public SymmetricLocalSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, UUID pendingRepair, boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
     {
         super(desc, r1, r2, previewKind);
-        this.remoteIsTransient = remoteIsTransient;
+        assert requestRanges || transferRanges : "Nothing to do in a sync job";
+        assert r1.endpoint.equals(FBUtilities.getBroadcastAddressAndPort());
+
         this.pendingRepair = pendingRepair;
-        this.pullRepair = pullRepair;
+        this.requestRanges = requestRanges;
+        this.transferRanges = transferRanges;
     }
 
     @VisibleForTesting
@@ -66,12 +69,16 @@ public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamE
     {
         StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                           .listeners(this)
-                          .flushBeforeTransfer(pendingRepair == null)
-                          // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
-                          .requestRanges(dst, desc.keyspace, RangesAtEndpoint.toDummyList(differences),
-                                  RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily);  // request ranges from the remote node
+                          .flushBeforeTransfer(pendingRepair == null);
 
-        if (!pullRepair && !remoteIsTransient)
+        if (requestRanges)
+        {
+            // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
+            plan.requestRanges(dst, desc.keyspace, RangesAtEndpoint.toDummyList(differences),
+                               RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily);  // request ranges from the remote node
+        }
+
+        if (transferRanges)
         {
             // send ranges to the remote node if we are not performing a pull repair
             // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
@@ -88,9 +95,7 @@ public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamE
     @Override
     protected void startSync(List<Range<Token>> differences)
     {
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
-        // We can take anyone of the node as source or destination, however if one is localhost, we put at source to avoid a forwarding
-        InetAddressAndPort dst = r2.endpoint.equals(local) ? r1.endpoint : r2.endpoint;
+        InetAddressAndPort dst = r2.endpoint;
 
         String message = String.format("Performing streaming repair of %d ranges with %s", differences.size(), dst);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
