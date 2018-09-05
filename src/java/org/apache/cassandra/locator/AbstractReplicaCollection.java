@@ -225,22 +225,23 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
 
     public final boolean equals(Object o)
     {
-        if (this == o) return true;
-        if (!(o instanceof AbstractReplicaCollection<?>))
-        {
-            if (!(o instanceof ReplicaCollection<?>))
-                return false;
-
-            ReplicaCollection<?> that = (ReplicaCollection<?>) o;
-            return Iterables.elementsEqual(this, that);
-        }
-        AbstractReplicaCollection<?> that = (AbstractReplicaCollection<?>) o;
-        return Objects.equals(list, that.list);
+//        if (this == o) return true;
+//        if (!(o instanceof AbstractReplicaCollection<?>))
+//        {
+//            if (!(o instanceof ReplicaCollection<?>))
+//                return false;
+//
+//            ReplicaCollection<?> that = (ReplicaCollection<?>) o;
+//            return Iterables.elementsEqual(this, that);
+//        }
+//        AbstractReplicaCollection<?> that = (AbstractReplicaCollection<?>) o;
+//        return Objects.equals(list, that.list);
+        throw new UnsupportedOperationException("AbstractReplicaCollection equals unsupported");
     }
 
     public final int hashCode()
     {
-        return list.hashCode();
+        throw new UnsupportedOperationException("AbstractReplicaCollection hash code unsupported");
     }
 
     @Override
