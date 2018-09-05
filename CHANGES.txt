@@ -1,4 +1,5 @@
 2.2.14
+ * Fix incorrect cqlsh results when selecting same columns multiple times (CASSANDRA-13262)
  * Returns null instead of NaN or Infinity in JSON strings (CASSANDRA-14377)
 
 2.2.13
