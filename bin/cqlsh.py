@@ -1374,7 +1374,7 @@ class Shell(cmd.Cmd):
             # print header only
             self.print_formatted_result(formatted_names, None)
             return
-        formatted_values = [map(self.myformat_value, row.values()) for row in rows]
+        formatted_values = [map(self.myformat_value, [row[column] for column in column_names]) for row in rows]
 
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values)

@@ -4,6 +4,7 @@
  * sstableloader should use discovered broadcast address to connect intra-cluster (CASSANDRA-14522)
  * Fix reading columns with non-UTF names from schema (CASSANDRA-14468)
  Merged from 2.2:
+ * Fix incorrect cqlsh results when selecting same columns multiple times (CASSANDRA-13262)
  * Returns null instead of NaN or Infinity in JSON strings (CASSANDRA-14377)
 
 
