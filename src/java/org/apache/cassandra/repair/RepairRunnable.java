@@ -651,7 +651,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         for (CommonRange cr : neighborRangeList)
         {
             // Use strict equality here, as worst thing that can happen is we generate one more stream
-            if (Iterables.elementsEqual(cr.endpoints, endpoints) && Iterables.elementsEqual(cr.transEndpoints, transEndpoints))
+            if (Sets.difference(cr.endpoints, endpoints).isEmpty() && Sets.difference(cr.transEndpoints, transEndpoints).isEmpty())
             {
                 cr.ranges.add(range);
                 return;
