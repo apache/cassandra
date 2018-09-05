@@ -26,6 +26,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -71,8 +72,8 @@ public class StreamRequestTest
                 StreamRequest decoded = StreamRequest.serializer.deserialize(in, version);
 
                 Assert.assertEquals(orig.keyspace, decoded.keyspace);
-                Assert.assertEquals(orig.full, decoded.full);
-                Assert.assertEquals(orig.transientReplicas, decoded.transientReplicas);
+                Util.assertRCEquals(orig.full, decoded.full);
+                Util.assertRCEquals(orig.transientReplicas, decoded.transientReplicas);
                 Assert.assertEquals(orig.columnFamilies, decoded.columnFamilies);
             }
         }

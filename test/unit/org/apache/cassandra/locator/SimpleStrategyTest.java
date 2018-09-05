@@ -32,6 +32,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
@@ -222,7 +223,7 @@ public class SimpleStrategyTest
         SimpleStrategy strategy = new SimpleStrategy("ks", metadata, snitch, configOptions);
 
         Range<Token> range1 = range(400, 100);
-        Assert.assertEquals(EndpointsForToken.of(range1.right,
+        Util.assertRCEquals(EndpointsForToken.of(range1.right,
                                                  Replica.fullReplica(endpoints.get(0), range1),
                                                  Replica.fullReplica(endpoints.get(1), range1),
                                                  Replica.transientReplica(endpoints.get(2), range1)),
@@ -230,7 +231,7 @@ public class SimpleStrategyTest
 
 
         Range<Token> range2 = range(100, 200);
-        Assert.assertEquals(EndpointsForToken.of(range2.right,
+        Util.assertRCEquals(EndpointsForToken.of(range2.right,
                                                  Replica.fullReplica(endpoints.get(1), range2),
                                                  Replica.fullReplica(endpoints.get(2), range2),
                                                  Replica.transientReplica(endpoints.get(3), range2)),

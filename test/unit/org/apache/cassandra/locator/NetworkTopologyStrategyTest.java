@@ -35,6 +35,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -418,15 +419,15 @@ public class NetworkTopologyStrategyTest
 
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
 
-        Assert.assertEquals(EndpointsForRange.of(fullReplica(endpoints.get(0), range(400, 100)),
-                                           fullReplica(endpoints.get(1), range(400, 100)),
-                                           transientReplica(endpoints.get(2), range(400, 100))),
+        Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(0), range(400, 100)),
+                                               fullReplica(endpoints.get(1), range(400, 100)),
+                                               transientReplica(endpoints.get(2), range(400, 100))),
                             strategy.getNaturalReplicasForToken(tk(99)));
 
 
-        Assert.assertEquals(EndpointsForRange.of(fullReplica(endpoints.get(1), range(100, 200)),
-                                           fullReplica(endpoints.get(2), range(100, 200)),
-                                           transientReplica(endpoints.get(3), range(100, 200))),
+        Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(1), range(100, 200)),
+                                               fullReplica(endpoints.get(2), range(100, 200)),
+                                               transientReplica(endpoints.get(3), range(100, 200))),
                             strategy.getNaturalReplicasForToken(tk(101)));
     }
 }
