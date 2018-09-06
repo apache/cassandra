@@ -55,12 +55,16 @@ public class LocalSyncTask extends SymmetricSyncTask implements StreamEventHandl
     private final boolean requestRanges;
     private final boolean transferRanges;
 
-    public LocalSyncTask(RepairJobDesc desc, TreeResponse local, TreeResponse remote, UUID pendingRepair, boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
+    public LocalSyncTask(RepairJobDesc desc, TreeResponse local, TreeResponse remote, UUID pendingRepair,
+                         boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
     {
-        this(desc, local.endpoint, remote.endpoint, MerkleTrees.difference(local.trees, remote.trees), pendingRepair, requestRanges, transferRanges, previewKind);
+        this(desc, local.endpoint, remote.endpoint, MerkleTrees.difference(local.trees, remote.trees),
+             pendingRepair, requestRanges, transferRanges, previewKind);
     }
 
-    public LocalSyncTask(RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote, List<Range<Token>> diff, UUID pendingRepair, boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
+    public LocalSyncTask(RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote,
+                         List<Range<Token>> diff, UUID pendingRepair,
+                         boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
     {
         super(desc, local, remote, diff, previewKind);
         Preconditions.checkArgument(requestRanges || transferRanges, "Nothing to do in a sync job");

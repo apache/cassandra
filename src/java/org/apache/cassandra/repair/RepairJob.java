@@ -258,7 +258,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     AbstractSyncTask task;
                     if (address.equals(local))
                     {
-                        task = new LocalSyncTask(desc, address, fetchFrom, toFetch, isIncremental ? desc.parentSessionId : null, true, false, session.previewKind);
+                        task = new LocalSyncTask(desc, address, fetchFrom, toFetch, isIncremental ? desc.parentSessionId : null,
+                                                 true, false, session.previewKind);
                     }
                     else
                     {
