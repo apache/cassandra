@@ -20,9 +20,7 @@ package org.apache.cassandra.locator;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
 import static com.google.common.collect.Iterables.all;
@@ -81,4 +79,5 @@ public class Replicas
         }
         return stringEndpoints;
     }
+
 }

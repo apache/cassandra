@@ -25,14 +25,12 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
-
-import static com.google.common.collect.Iterables.elementsEqual;
-import static org.junit.Assert.assertTrue;
 
 public class ReplicationStrategyEndpointCacheTest
 {
@@ -76,7 +74,7 @@ public class ReplicationStrategyEndpointCacheTest
     public void runEndpointsWereCachedTest(Class stratClass, Map<String, String> configOptions) throws Exception
     {
         setup(stratClass, configOptions);
-        assertTrue(elementsEqual(strategy.getNaturalReplicasForToken(searchToken), strategy.getNaturalReplicasForToken(searchToken)));
+        Util.assertRCEquals(strategy.getNaturalReplicasForToken(searchToken), strategy.getNaturalReplicasForToken(searchToken));
     }
 
     @Test
@@ -101,7 +99,7 @@ public class ReplicationStrategyEndpointCacheTest
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(35)), InetAddressAndPort.getByName("127.0.0.5"));
         replicas = strategy.getNaturalReplicasForToken(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
-        assert !elementsEqual(replicas, initial);
+        Util.assertRCEquals(replicas, initial);
 
         // test token removal, newly created token
         initial = strategy.getNaturalReplicasForToken(searchToken);
@@ -109,7 +107,7 @@ public class ReplicationStrategyEndpointCacheTest
         replicas = strategy.getNaturalReplicasForToken(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
         assert !replicas.endpoints().contains(InetAddressAndPort.getByName("127.0.0.5"));
-        assert !elementsEqual(replicas, initial);
+        Util.assertRCEquals(replicas, initial);
 
         // test token change
         initial = strategy.getNaturalReplicasForToken(searchToken);
@@ -117,7 +115,7 @@ public class ReplicationStrategyEndpointCacheTest
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(25)), InetAddressAndPort.getByName("127.0.0.8"));
         replicas = strategy.getNaturalReplicasForToken(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
-        assert !elementsEqual(replicas, initial);
+        Util.assertRCEquals(replicas, initial);
     }
 
     protected static class FakeSimpleStrategy extends SimpleStrategy
