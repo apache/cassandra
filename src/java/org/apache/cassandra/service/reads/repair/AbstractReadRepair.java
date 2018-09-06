@@ -110,7 +110,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, L extends Repli
             Tracing.trace("Enqueuing full data read to {}", replica);
             sendReadCommand(replica, readCallback);
         }
-        ReadRepairDiagnostics.startRepair(this, replicaLayout.selected().endpoints(), digestResolver, replicaLayout.all().endpoints());
+        ReadRepairDiagnostics.startRepair(this, replicaLayout, digestResolver);
     }
 
     public void awaitReads() throws ReadTimeoutException
@@ -150,7 +150,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, L extends Repli
             Tracing.trace("Enqueuing speculative full data read to {}", replica);
             sendReadCommand(replica, repair.readCallback);
             ReadRepairMetrics.speculatedRead.mark();
-            ReadRepairDiagnostics.speculatedRead(this, replica.endpoint(), uncontacted.all().endpoints());
+            ReadRepairDiagnostics.speculatedRead(this, replica.endpoint(), uncontacted);
         }
     }
 }
