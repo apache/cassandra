@@ -75,6 +75,7 @@ import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -723,5 +724,10 @@ public class Util
     public static void assertRCEquals(ReplicaCollection<?> a, ReplicaCollection<?> b)
     {
         assertTrue(a + " not equal to " + b, Iterables.elementsEqual(a, b));
+    }
+
+    public static void assertNotRCEquals(ReplicaCollection<?> a, ReplicaCollection<?> b)
+    {
+        assertFalse(a + " equal to " + b, Iterables.elementsEqual(a, b));
     }
 }

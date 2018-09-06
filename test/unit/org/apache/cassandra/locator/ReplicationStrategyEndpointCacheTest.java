@@ -99,7 +99,7 @@ public class ReplicationStrategyEndpointCacheTest
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(35)), InetAddressAndPort.getByName("127.0.0.5"));
         replicas = strategy.getNaturalReplicasForToken(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
-        Util.assertRCEquals(replicas, initial);
+        Util.assertNotRCEquals(replicas, initial);
 
         // test token removal, newly created token
         initial = strategy.getNaturalReplicasForToken(searchToken);
@@ -107,7 +107,7 @@ public class ReplicationStrategyEndpointCacheTest
         replicas = strategy.getNaturalReplicasForToken(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
         assert !replicas.endpoints().contains(InetAddressAndPort.getByName("127.0.0.5"));
-        Util.assertRCEquals(replicas, initial);
+        Util.assertNotRCEquals(replicas, initial);
 
         // test token change
         initial = strategy.getNaturalReplicasForToken(searchToken);
@@ -115,7 +115,7 @@ public class ReplicationStrategyEndpointCacheTest
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(25)), InetAddressAndPort.getByName("127.0.0.8"));
         replicas = strategy.getNaturalReplicasForToken(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
-        Util.assertRCEquals(replicas, initial);
+        Util.assertNotRCEquals(replicas, initial);
     }
 
     protected static class FakeSimpleStrategy extends SimpleStrategy
