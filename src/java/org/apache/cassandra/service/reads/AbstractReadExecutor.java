@@ -81,7 +81,7 @@ public abstract class AbstractReadExecutor
         this.replicaLayout = replicaLayout;
         this.initialDataRequestCount = initialDataRequestCount;
         this.readRepair = ReadRepair.create(command, replicaLayout, queryStartNanoTime);
-        this.digestResolver = new DigestResolver<>(command, replicaLayout, readRepair, queryStartNanoTime);
+        this.digestResolver = new DigestResolver<>(command, replicaLayout, queryStartNanoTime);
         this.handler = new ReadCallback<>(digestResolver, replicaLayout.consistencyLevel().blockFor(replicaLayout.keyspace()), command, replicaLayout, queryStartNanoTime);
         this.cfs = cfs;
         this.traceState = Tracing.instance.get();
