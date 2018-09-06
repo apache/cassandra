@@ -317,7 +317,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      * The decaying buckets will be used for quantile calculations and mean values, but the non decaying buckets will be
      * exposed for calls to {@link Snapshot#getValues()}.
      */
-    class EstimatedHistogramReservoirSnapshot extends Snapshot
+    static class EstimatedHistogramReservoirSnapshot extends Snapshot
     {
         private final long[] decayingBuckets;
         private final long[] values;
@@ -329,17 +329,17 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         public EstimatedHistogramReservoirSnapshot(DecayingEstimatedHistogramReservoir reservoir)
         {
             final int length = reservoir.decayingBuckets.length;
-            final double rescaleFactor = forwardDecayWeight(clock.getTime());
+            final double rescaleFactor = reservoir.forwardDecayWeight(reservoir.clock.getTime());
 
             this.decayingBuckets = new long[length];
             this.values = new long[length];
-            this.snapshotLandmark = decayLandmark;
+            this.snapshotLandmark = reservoir.decayLandmark;
             this.bucketOffsets = reservoir.bucketOffsets; // No need to copy, these are immutable
 
             for (int i = 0; i < length; i++)
             {
                 this.decayingBuckets[i] = Math.round(reservoir.decayingBuckets[i].sum() / rescaleFactor);
-                this.values[i] = buckets[i].sum();
+                this.values[i] = reservoir.buckets[i].sum();
             }
             this.count = count();
             this.reservoir = reservoir;
