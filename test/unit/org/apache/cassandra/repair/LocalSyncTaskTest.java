@@ -57,7 +57,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
+public class LocalSyncTaskTest extends AbstractRepairTest
 {
     private static final IPartitioner partitioner = Murmur3Partitioner.instance;
     private static final InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
@@ -224,7 +224,7 @@ public class SymmetricLocalSyncTaskTest extends AbstractRepairTest
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
-        SymmetricLocalSyncTask task = new SymmetricLocalSyncTask(desc, r1, r2, desc.parentSessionId, false, true, PreviewKind.NONE);
+        LocalSyncTask task = new LocalSyncTask(desc, r1, r2, desc.parentSessionId, false, true, PreviewKind.NONE);
         StreamPlan plan = task.createStreamPlan(local, Lists.newArrayList(RANGE1));
         assertNumInOut(plan, 0, 1);
     }
