@@ -197,7 +197,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     if (!requestRanges && !transfterRanges)
                         continue;
 
-                    task = new SymmetricLocalSyncTask(desc, self, remote, isIncremental ? desc.parentSessionId : null, requestRanges, transfterRanges, session.previewKind);
+                    task = new LocalSyncTask(desc, self, remote, isIncremental ? desc.parentSessionId : null, requestRanges, transfterRanges, session.previewKind);
                 }
                 else if (isTransient(r1.endpoint) || isTransient(r2.endpoint))
                 {
@@ -253,15 +253,15 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 {
                     List<Range<Token>> toFetch = streamsFor.get(fetchFrom);
                     logger.debug("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
-                    AsymmetricSyncTask task;
+                    AbstractSyncTask task;
                     if (address.equals(local))
                     {
-                        task = new AsymmetricLocalSyncTask(desc, fetchFrom, toFetch, isIncremental ? desc.parentSessionId : null, previewKind);
+                        task = new LocalSyncTask(desc, address, fetchFrom, toFetch, isIncremental ? desc.parentSessionId : null, true, false, session.previewKind);
                     }
                     else
                     {
                         task = new AsymmetricRemoteSyncTask(desc, address, fetchFrom, toFetch, previewKind);
-                        session.waitForSync(Pair.create(desc, new NodePair(address, fetchFrom)), (AsymmetricRemoteSyncTask) task);
+                        session.waitForSync(Pair.create(desc, task.nodePair()), (AsymmetricRemoteSyncTask) task);
                     }
                     syncTasks.add(task);
                     taskExecutor.submit(task);

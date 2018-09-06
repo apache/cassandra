@@ -26,9 +26,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.MerkleTrees;
 
 /**
  * SymmetricSyncTask will calculate the difference of MerkleTree between two nodes
@@ -39,20 +39,22 @@ public abstract class SymmetricSyncTask extends AbstractSyncTask
     private static Logger logger = LoggerFactory.getLogger(SymmetricSyncTask.class);
 
     protected final RepairJobDesc desc;
-    protected final TreeResponse r1;
-    protected final TreeResponse r2;
+    protected final InetAddressAndPort endpoint1;
+    protected final InetAddressAndPort endpoint2;
+    protected final List<Range<Token>> differences;
     protected final PreviewKind previewKind;
     protected final NodePair nodePair;
     protected volatile SyncStat stat;
     protected long startTime = Long.MIN_VALUE;
 
-    public SymmetricSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, PreviewKind previewKind)
+    public SymmetricSyncTask(RepairJobDesc desc, InetAddressAndPort endpoint1, InetAddressAndPort endpoint2, List<Range<Token>> differences, PreviewKind previewKind)
     {
         this.desc = desc;
-        this.r1 = r1;
-        this.r2 = r2;
+        this.endpoint1 = endpoint1;
+        this.endpoint2 = endpoint2;
+        this.differences = differences;
         this.previewKind = previewKind;
-        this.nodePair = new NodePair(r1.endpoint, r2.endpoint);
+        this.nodePair = new NodePair(endpoint1, endpoint2);
     }
 
     /**
@@ -61,24 +63,22 @@ public abstract class SymmetricSyncTask extends AbstractSyncTask
     public void run()
     {
         startTime = System.currentTimeMillis();
-        // compare trees, and collect differences
-        List<Range<Token>> differences = MerkleTrees.difference(r1.trees, r2.trees);
 
         stat = new SyncStat(nodePair, differences.size());
 
         // choose a repair method based on the significance of the difference
-        String format = String.format("%s Endpoints %s and %s %%s for %s", previewKind.logPrefix(desc.sessionId), r1.endpoint, r2.endpoint, desc.columnFamily);
+        String format = String.format("%s Endpoints %s and %s %%s for %s", previewKind.logPrefix(desc.sessionId), endpoint1, endpoint2, desc.columnFamily);
         if (differences.isEmpty())
         {
             logger.info(String.format(format, "are consistent"));
-            Tracing.traceRepair("Endpoint {} is consistent with {} for {}", r1.endpoint, r2.endpoint, desc.columnFamily);
+            Tracing.traceRepair("Endpoint {} is consistent with {} for {}", endpoint1, endpoint2, desc.columnFamily);
             set(stat);
             return;
         }
 
         // non-0 difference: perform streaming repair
         logger.info(String.format(format, "have " + differences.size() + " range(s) out of sync"));
-        Tracing.traceRepair("Endpoint {} has {} range(s) out of sync with {} for {}", r1.endpoint, differences.size(), r2.endpoint, desc.columnFamily);
+        Tracing.traceRepair("Endpoint {} has {} range(s) out of sync with {} for {}", endpoint1, differences.size(), endpoint2, desc.columnFamily);
         startSync(differences);
     }
 

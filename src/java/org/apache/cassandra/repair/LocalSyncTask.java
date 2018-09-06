@@ -39,25 +39,31 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MerkleTrees;
 
 /**
- * SymmetricLocalSyncTask performs streaming between local(coordinator) node and remote replica.
+ * LocalSyncTask performs streaming between local(coordinator) node and remote replica.
  */
-public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamEventHandler
+public class LocalSyncTask extends SymmetricSyncTask implements StreamEventHandler
 {
     private final TraceState state = Tracing.instance.get();
 
-    private static final Logger logger = LoggerFactory.getLogger(SymmetricLocalSyncTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(LocalSyncTask.class);
 
     private final UUID pendingRepair;
     private final boolean requestRanges;
     private final boolean transferRanges;
 
-    public SymmetricLocalSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, UUID pendingRepair, boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
+    public LocalSyncTask(RepairJobDesc desc, TreeResponse local, TreeResponse remote, UUID pendingRepair, boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
     {
-        super(desc, r1, r2, previewKind);
+        this(desc, local.endpoint, remote.endpoint, MerkleTrees.difference(local.trees, remote.trees), pendingRepair, requestRanges, transferRanges, previewKind);
+    }
+
+    public LocalSyncTask(RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote, List<Range<Token>> diff, UUID pendingRepair, boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
+    {
+        super(desc, local, remote, diff, previewKind);
         assert requestRanges || transferRanges : "Nothing to do in a sync job";
-        assert r1.endpoint.equals(FBUtilities.getBroadcastAddressAndPort());
+        assert local.equals(FBUtilities.getBroadcastAddressAndPort());
 
         this.pendingRepair = pendingRepair;
         this.requestRanges = requestRanges;
@@ -65,7 +71,7 @@ public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamE
     }
 
     @VisibleForTesting
-    StreamPlan createStreamPlan(InetAddressAndPort dst, List<Range<Token>> differences)
+    StreamPlan createStreamPlan(InetAddressAndPort remote, List<Range<Token>> differences)
     {
         StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                           .listeners(this)
@@ -74,15 +80,15 @@ public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamE
         if (requestRanges)
         {
             // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
-            plan.requestRanges(dst, desc.keyspace, RangesAtEndpoint.toDummyList(differences),
-                               RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily);  // request ranges from the remote node
+            plan.requestRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(differences),
+                               RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily);
         }
 
         if (transferRanges)
         {
             // send ranges to the remote node if we are not performing a pull repair
             // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
-            plan.transferRanges(dst, desc.keyspace, RangesAtEndpoint.toDummyList(differences), desc.columnFamily);
+            plan.transferRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(differences), desc.columnFamily);
         }
 
         return plan;
@@ -95,13 +101,13 @@ public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamE
     @Override
     protected void startSync(List<Range<Token>> differences)
     {
-        InetAddressAndPort dst = r2.endpoint;
+        InetAddressAndPort remote = endpoint2;
 
-        String message = String.format("Performing streaming repair of %d ranges with %s", differences.size(), dst);
+        String message = String.format("Performing streaming repair of %d ranges with %s", differences.size(), remote);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
 
-        createStreamPlan(dst, differences).execute();
+        createStreamPlan(remote, differences).execute();
     }
 
     public void handleStreamEvent(StreamEvent event)
@@ -132,7 +138,7 @@ public class SymmetricLocalSyncTask extends SymmetricSyncTask implements StreamE
 
     public void onSuccess(StreamState result)
     {
-        String message = String.format("Sync complete using session %s between %s and %s on %s", desc.sessionId, r1.endpoint, r2.endpoint, desc.columnFamily);
+        String message = String.format("Sync complete using session %s between %s and %s on %s", desc.sessionId, endpoint1, endpoint2, desc.columnFamily);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         set(stat.withSummaries(result.createSummaries()));
