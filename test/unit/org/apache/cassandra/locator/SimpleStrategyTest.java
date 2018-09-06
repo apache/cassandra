@@ -48,6 +48,7 @@ import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageServiceAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static com.google.common.collect.Iterables.elementsEqual;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -222,19 +223,19 @@ public class SimpleStrategyTest
         SimpleStrategy strategy = new SimpleStrategy("ks", metadata, snitch, configOptions);
 
         Range<Token> range1 = range(400, 100);
-        Assert.assertEquals(EndpointsForToken.of(range1.right,
-                                                 Replica.fullReplica(endpoints.get(0), range1),
-                                                 Replica.fullReplica(endpoints.get(1), range1),
-                                                 Replica.transientReplica(endpoints.get(2), range1)),
-                            strategy.getNaturalReplicasForToken(tk(99)));
+        Assert.assertTrue(elementsEqual(EndpointsForToken.of(range1.right,
+                                                         Replica.fullReplica(endpoints.get(0), range1),
+                                                         Replica.fullReplica(endpoints.get(1), range1),
+                                                         Replica.transientReplica(endpoints.get(2), range1)),
+                                        strategy.getNaturalReplicasForToken(tk(99))));
 
 
         Range<Token> range2 = range(100, 200);
-        Assert.assertEquals(EndpointsForToken.of(range2.right,
+        Assert.assertTrue(elementsEqual(EndpointsForToken.of(range2.right,
                                                  Replica.fullReplica(endpoints.get(1), range2),
                                                  Replica.fullReplica(endpoints.get(2), range2),
                                                  Replica.transientReplica(endpoints.get(3), range2)),
-                            strategy.getNaturalReplicasForToken(tk(101)));
+                                        strategy.getNaturalReplicasForToken(tk(101))));
     }
 
     private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd)

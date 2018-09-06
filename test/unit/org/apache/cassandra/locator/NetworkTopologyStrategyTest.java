@@ -45,6 +45,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
 import org.apache.cassandra.service.StorageService;
 
+import static com.google.common.collect.Iterables.elementsEqual;
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.Replica.transientReplica;
 
@@ -418,15 +419,15 @@ public class NetworkTopologyStrategyTest
 
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
 
-        Assert.assertEquals(EndpointsForRange.of(fullReplica(endpoints.get(0), range(400, 100)),
-                                           fullReplica(endpoints.get(1), range(400, 100)),
-                                           transientReplica(endpoints.get(2), range(400, 100))),
-                            strategy.getNaturalReplicasForToken(tk(99)));
+        Assert.assertTrue(elementsEqual(EndpointsForRange.of(fullReplica(endpoints.get(0), range(400, 100)),
+                                                         fullReplica(endpoints.get(1), range(400, 100)),
+                                                         transientReplica(endpoints.get(2), range(400, 100))),
+                                        strategy.getNaturalReplicasForToken(tk(99))));
 
 
-        Assert.assertEquals(EndpointsForRange.of(fullReplica(endpoints.get(1), range(100, 200)),
+        Assert.assertTrue(elementsEqual(EndpointsForRange.of(fullReplica(endpoints.get(1), range(100, 200)),
                                            fullReplica(endpoints.get(2), range(100, 200)),
                                            transientReplica(endpoints.get(3), range(100, 200))),
-                            strategy.getNaturalReplicasForToken(tk(101)));
+                                        strategy.getNaturalReplicasForToken(tk(101))));
     }
 }

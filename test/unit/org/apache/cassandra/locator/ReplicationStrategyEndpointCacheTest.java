@@ -31,6 +31,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 
+import static com.google.common.collect.Iterables.elementsEqual;
+import static org.junit.Assert.assertTrue;
+
 public class ReplicationStrategyEndpointCacheTest
 {
     private TokenMetadata tmd;
@@ -73,7 +76,7 @@ public class ReplicationStrategyEndpointCacheTest
     public void runEndpointsWereCachedTest(Class stratClass, Map<String, String> configOptions) throws Exception
     {
         setup(stratClass, configOptions);
-        assert strategy.getNaturalReplicasForToken(searchToken).equals(strategy.getNaturalReplicasForToken(searchToken));
+        assertTrue(elementsEqual(strategy.getNaturalReplicasForToken(searchToken), strategy.getNaturalReplicasForToken(searchToken)));
     }
 
     @Test
@@ -98,7 +101,7 @@ public class ReplicationStrategyEndpointCacheTest
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(35)), InetAddressAndPort.getByName("127.0.0.5"));
         replicas = strategy.getNaturalReplicasForToken(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
-        assert !replicas.equals(initial);
+        assert !elementsEqual(replicas, initial);
 
         // test token removal, newly created token
         initial = strategy.getNaturalReplicasForToken(searchToken);
@@ -106,7 +109,7 @@ public class ReplicationStrategyEndpointCacheTest
         replicas = strategy.getNaturalReplicasForToken(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
         assert !replicas.endpoints().contains(InetAddressAndPort.getByName("127.0.0.5"));
-        assert !replicas.equals(initial);
+        assert !elementsEqual(replicas, initial);
 
         // test token change
         initial = strategy.getNaturalReplicasForToken(searchToken);
@@ -114,7 +117,7 @@ public class ReplicationStrategyEndpointCacheTest
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(25)), InetAddressAndPort.getByName("127.0.0.8"));
         replicas = strategy.getNaturalReplicasForToken(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
-        assert !replicas.equals(initial);
+        assert !elementsEqual(replicas, initial);
     }
 
     protected static class FakeSimpleStrategy extends SimpleStrategy

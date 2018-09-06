@@ -38,6 +38,8 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.StreamRequest;
 
+import static com.google.common.collect.Iterables.elementsEqual;
+
 public class StreamRequestTest
 {
     private static InetAddressAndPort local;
@@ -71,8 +73,8 @@ public class StreamRequestTest
                 StreamRequest decoded = StreamRequest.serializer.deserialize(in, version);
 
                 Assert.assertEquals(orig.keyspace, decoded.keyspace);
-                Assert.assertEquals(orig.full, decoded.full);
-                Assert.assertEquals(orig.transientReplicas, decoded.transientReplicas);
+                Assert.assertTrue(orig.full + " not equal to " + decoded.full, elementsEqual(orig.full, decoded.full));
+                Assert.assertTrue(orig.transientReplicas + " not equal to " + decoded.transientReplicas, elementsEqual(orig.transientReplicas, decoded.transientReplicas));
                 Assert.assertEquals(orig.columnFamilies, decoded.columnFamilies);
             }
         }
