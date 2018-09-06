@@ -50,15 +50,18 @@ import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 
 import static com.google.common.collect.Iterables.*;
+import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener;
 
 public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends ResponseResolver<E, L>
 {
     private final boolean enforceStrictLiveness;
+    private final ReadRepair<E, L> readRepair;
 
     public DataResolver(ReadCommand command, L replicaLayout, ReadRepair<E, L> readRepair, long queryStartNanoTime)
     {
-        super(command, replicaLayout, readRepair, queryStartNanoTime);
+        super(command, replicaLayout, queryStartNanoTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
+        this.readRepair = readRepair;
     }
 
     public PartitionIterator getData()
@@ -157,8 +160,14 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
         return Joiner.on(",\n").join(transform(getMessages().snapshot(), m -> m.from + " => " + m.payload.toDebugString(command, partitionKey)));
     }
 
-    private UnfilteredPartitionIterators.MergeListener wrapMergeListener(UnfilteredPartitionIterators.MergeListener partitionListener, L sources, RepairedDataTracker repairedDataTracker)
+    private UnfilteredPartitionIterators.MergeListener wrapMergeListener(UnfilteredPartitionIterators.MergeListener partitionListener,
+                                                                         L sources,
+                                                                         RepairedDataTracker repairedDataTracker)
     {
+        // Avoid wrapping no-op listeners as it doesn't throw
+        if (partitionListener == UnfilteredPartitionIterators.MergeListener.NOOP)
+            return partitionListener;
+
         return new UnfilteredPartitionIterators.MergeListener()
         {
             public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)

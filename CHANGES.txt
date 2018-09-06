@@ -1,5 +1,6 @@
 4.0
- * fix handleRepairStatusChangedNotification to remove first then add (CASSANDRA-14720)
+ * Remove mentions of transient replication from repair path (CASSANDRA-14698)
+ * Fix handleRepairStatusChangedNotification to remove first then add (CASSANDRA-14720)
  * Allow transient node to serve as a repair coordinator (CASSANDRA-14693)
  * DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot returns wrong value for size() and incorrectly calculates count (CASSANDRA-14696)
  * AbstractReplicaCollection equals and hash code should throw due to conflict between order sensitive/insensitive uses (CASSANDRA-14700)

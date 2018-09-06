@@ -44,9 +44,9 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L
 {
     private volatile MessageIn<ReadResponse> dataResponse;
 
-    public DigestResolver(ReadCommand command, L replicas, ReadRepair<E, L> readRepair, long queryStartNanoTime)
+    public DigestResolver(ReadCommand command, L replicas, long queryStartNanoTime)
     {
-        super(command, replicas, readRepair, queryStartNanoTime);
+        super(command, replicas, queryStartNanoTime);
         Preconditions.checkArgument(command instanceof SinglePartitionReadCommand,
                                     "DigestResolver can only be used with SinglePartitionReadCommand commands");
     }
@@ -95,11 +95,11 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L
             // transient replica response still contains data, which needs to be reconciled.
             DataResolver<E, L> dataResolver = new DataResolver<>(command,
                                                                  replicaLayout,
-                                                                 (ReadRepair<E, L>) NoopReadRepair.instance,
+                                                                 NoopReadRepair.instance,
                                                                  queryStartNanoTime);
 
             dataResolver.preprocess(dataResponse);
-            // Forward differences to all full nodes
+            // Reconcile with transient replicas
             for (MessageIn<ReadResponse> response : responses)
             {
                 Replica replica = replicaLayout.getReplicaFor(response.from);
