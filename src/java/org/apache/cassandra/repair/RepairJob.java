@@ -192,14 +192,14 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     // pull only if local is full
                     boolean requestRanges = !isTransient(self.endpoint);
                     // push only if remote is full; additionally check for pull repair
-                    boolean transfterRanges = !isTransient(remote.endpoint) && !session.pullRepair;
+                    boolean transferRanges = !isTransient(remote.endpoint) && !session.pullRepair;
 
                     // Nothing to do
-                    if (!requestRanges && !transfterRanges)
+                    if (!requestRanges && !transferRanges)
                         continue;
 
                     task = new LocalSyncTask(desc, self, remote, isIncremental ? desc.parentSessionId : null,
-                                             requestRanges, transfterRanges, session.previewKind);
+                                             requestRanges, transferRanges, session.previewKind);
                 }
                 else if (isTransient(r1.endpoint) || isTransient(r2.endpoint))
                 {
