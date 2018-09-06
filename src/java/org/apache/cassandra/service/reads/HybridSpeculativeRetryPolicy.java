@@ -57,9 +57,11 @@ public class HybridSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     }
 
     @Override
-    public long calculateThreshold(Snapshot latency)
+    public long calculateThreshold(Snapshot latency, long existingValue)
     {
-        return function.call(percentilePolicy.calculateThreshold(latency), fixedPolicy.calculateThreshold(latency));
+        if (latency.size() <= 0)
+            return existingValue;
+        return function.call(percentilePolicy.calculateThreshold(latency, existingValue), fixedPolicy.calculateThreshold(latency, existingValue));
     }
 
     @Override

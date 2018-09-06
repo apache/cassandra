@@ -47,8 +47,10 @@ public class PercentileSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     }
 
     @Override
-    public long calculateThreshold(Snapshot latency)
+    public long calculateThreshold(Snapshot latency, long existingValue)
     {
+        if (latency.size() <= 0)
+            return existingValue;
         return (long) latency.getValue(percentile / 100);
     }
 

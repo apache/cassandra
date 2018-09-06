@@ -28,7 +28,7 @@ public interface SpeculativeRetryPolicy
         NEVER, FIXED, PERCENTILE, HYBRID, ALWAYS
     }
 
-    long calculateThreshold(Snapshot latency);
+    long calculateThreshold(Snapshot latency, long existingValue);
 
     Kind kind();
 

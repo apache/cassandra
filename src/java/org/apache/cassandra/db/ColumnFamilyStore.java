@@ -454,12 +454,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         try
         {
-            Snapshot readLatencySnapshot = metric.coordinatorReadLatency.getSnapshot();
-            if (readLatencySnapshot.size() > 0)
-                sampleReadLatencyNanos = metadata().params.speculativeRetry.calculateThreshold(readLatencySnapshot);
-            Snapshot writeLatencySnapshot = metric.coordinatorWriteLatency.getSnapshot();
-            if (writeLatencySnapshot.size() > 0)
-                transientWriteLatencyNanos = metadata().params.speculativeWriteThreshold.calculateThreshold(writeLatencySnapshot);
+            sampleReadLatencyNanos = metadata().params.speculativeRetry.calculateThreshold(metric.coordinatorReadLatency.getSnapshot(), sampleReadLatencyNanos);
+            transientWriteLatencyNanos = metadata().params.speculativeWriteThreshold.calculateThreshold(metric.coordinatorWriteLatency.getSnapshot(), transientWriteLatencyNanos);
         }
         catch (Throwable e)
         {

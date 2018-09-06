@@ -30,7 +30,7 @@ public class NeverSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     }
 
     @Override
-    public long calculateThreshold(Snapshot latency)
+    public long calculateThreshold(Snapshot latency, long existingValue)
     {
         return Long.MAX_VALUE;
     }
