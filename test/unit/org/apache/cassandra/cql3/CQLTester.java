@@ -190,6 +190,7 @@ public abstract class CQLTester
             return;
 
         DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
 
         // Cleanup first
         try
