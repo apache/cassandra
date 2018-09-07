@@ -62,6 +62,11 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
     public abstract boolean contains(Replica replica);
 
     /**
+     * @return the number of replicas that match the predicate
+     */
+    public abstract int count(Predicate<Replica> predicate);
+
+    /**
      * @return a *eagerly constructed* copy of this collection containing the Replica that match the provided predicate.
      * An effort will be made to either return ourself, or a subList, where possible.
      * It is guaranteed that no changes to any upstream Mutable will affect the state of the result.
@@ -108,16 +113,30 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
         C asImmutableView();
 
         /**
-         * @return an Immutable clone that assumes this Mutable will never be modified again.
-         * If this is not true, behaviour is undefined.
+         * @return an Immutable clone that assumes this Mutable will never be modified again,
+         * so its contents can be reused.
+         *
+         * This Mutable should enforce that it is no longer modified.
          */
         C asSnapshot();
 
-        enum Conflict { NONE, DUPLICATE, ALL}
+        /**
+         * Passed to add() and addAll() as ignoreConflicts parameter. The meaning of conflict varies by collection type
+         * (for Endpoints, it is a duplicate InetAddressAndPort; for RangesAtEndpoint it is a duplicate Range).
+         */
+        enum Conflict
+        {
+            /** fail on addition of any such conflict */
+            NONE,
+            /** fail on addition of any such conflict where the contents differ (first occurrence and position wins) */
+            DUPLICATE,
+            /** ignore all conflicts (the first occurrence and position wins) */
+            ALL
+        }
 
         /**
          * @param replica add this replica to the end of the collection
-         * @param ignoreConflict if false, fail on any conflicting additions (as defined by C's semantics)
+         * @param ignoreConflict conflicts to ignore, see {@link Conflict}
          */
         void add(Replica replica, Conflict ignoreConflict);
 

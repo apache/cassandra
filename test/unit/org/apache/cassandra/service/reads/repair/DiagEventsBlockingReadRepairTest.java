@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Lists;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -80,8 +81,8 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica2, repair2);
 
 
-        ReplicaLayout.ForRange replicaLayout = replicaLayout(replicas, EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet())));
-        DiagnosticPartitionReadRepairHandler handler = createRepairHandler(repairs, 2, replicaLayout);
+        ReplicaPlan.ForRangeRead replicaPlan = replicaPlan(replicas, EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet())));
+        DiagnosticPartitionReadRepairHandler handler = createRepairHandler(repairs, 2, replicaPlan);
 
         Assert.assertTrue(handler.updatesByEp.isEmpty());
 
@@ -106,20 +107,20 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         Assert.assertTrue(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
     }
 
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaLayout<?, ?> replicaLayout, long queryStartNanoTime)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, long queryStartNanoTime)
     {
-        return new DiagnosticBlockingRepairHandler(command, replicaLayout, queryStartNanoTime);
+        return new DiagnosticBlockingRepairHandler(command, replicaPlan, queryStartNanoTime);
     }
 
-    private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, ReplicaLayout<?, ?> replicaLayout)
+    private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, ReplicaPlan.ForRead<?> replicaPlan)
     {
-        return new DiagnosticPartitionReadRepairHandler(key, repairs, maxBlockFor, replicaLayout);
+        return new DiagnosticPartitionReadRepairHandler<>(key, repairs, maxBlockFor, replicaPlan);
     }
 
     private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor)
     {
         EndpointsForRange replicas = EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet()));
-        return createRepairHandler(repairs, maxBlockFor, replicaLayout(replicas, replicas));
+        return createRepairHandler(repairs, maxBlockFor, replicaPlan(replicas, replicas));
     }
 
     private static class DiagnosticBlockingRepairHandler extends BlockingReadRepair implements InstrumentedReadRepair
@@ -127,9 +128,9 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         private Set<InetAddressAndPort> recipients = Collections.emptySet();
         private ReadCallback readCallback = null;
 
-        DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaLayout<?, ?> replicaLayout, long queryStartNanoTime)
+        DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, long queryStartNanoTime)
         {
-            super(command, replicaLayout, queryStartNanoTime);
+            super(command, replicaPlan, queryStartNanoTime);
             DiagnosticEventService.instance().subscribe(ReadRepairEvent.class, this::onRepairEvent);
         }
 
@@ -163,13 +164,14 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         }
     }
 
-    private static class DiagnosticPartitionReadRepairHandler<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends BlockingPartitionRepair<E, L>
+    private static class DiagnosticPartitionReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+            extends BlockingPartitionRepair<E, P>
     {
         private final Map<InetAddressAndPort, String> updatesByEp = new HashMap<>();
 
-        DiagnosticPartitionReadRepairHandler(DecoratedKey key, Map<Replica, Mutation> repairs, int maxBlockFor, L replicaLayout)
+        DiagnosticPartitionReadRepairHandler(DecoratedKey key, Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
         {
-            super(key, repairs, maxBlockFor, replicaLayout);
+            super(key, repairs, maxBlockFor, replicaPlan);
             DiagnosticEventService.instance().subscribe(PartitionRepairEvent.class, this::onRepairEvent);
         }
 

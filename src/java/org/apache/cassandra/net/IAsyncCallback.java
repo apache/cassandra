@@ -17,12 +17,6 @@
  */
 package org.apache.cassandra.net;
 
-import com.google.common.base.Predicate;
-
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
-
 /**
  * implementors of IAsyncCallback need to make sure that any public methods
  * are threadsafe with respect to response() being called from the message
@@ -31,10 +25,6 @@ import org.apache.cassandra.locator.Replica;
  */
 public interface IAsyncCallback<T>
 {
-    final Predicate<InetAddressAndPort> isAlive = FailureDetector.instance::isAlive;
-
-    final Predicate<Replica> isReplicaAlive = replica -> isAlive.apply(replica.endpoint());
-
     /**
      * @param msg response received.
      */

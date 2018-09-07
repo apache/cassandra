@@ -10,6 +10,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -70,7 +71,7 @@ public abstract  class AbstractReadRepairTest
     static Replica replica2;
     static Replica replica3;
     static EndpointsForRange replicas;
-    static ReplicaLayout<?, ?> replicaLayout;
+    static ReplicaPlan.ForRead<?> replicaPlan;
 
     static long now = TimeUnit.NANOSECONDS.toMicros(System.nanoTime());
     static DecoratedKey key;
@@ -217,7 +218,7 @@ public abstract  class AbstractReadRepairTest
         replica3 = fullReplica(target3, FULL_RANGE);
         replicas = EndpointsForRange.of(replica1, replica2, replica3);
 
-        replicaLayout = replicaLayout(ConsistencyLevel.QUORUM, replicas);
+        replicaPlan = replicaPlan(ConsistencyLevel.QUORUM, replicas);
 
         // default test values
         key  = dk(5);
@@ -245,21 +246,30 @@ public abstract  class AbstractReadRepairTest
         cfs.transientWriteLatencyNanos = 0;
     }
 
-    static ReplicaLayout.ForRange replicaLayout(EndpointsForRange replicas, EndpointsForRange targets)
+    static ReplicaPlan.ForRangeRead replicaPlan(ConsistencyLevel consistencyLevel, EndpointsForRange replicas)
     {
-        return new ReplicaLayout.ForRange(ks, ConsistencyLevel.QUORUM, ReplicaUtils.FULL_BOUNDS, replicas, targets);
+        return replicaPlan(ks, consistencyLevel, replicas, replicas);
     }
 
-    static ReplicaLayout.ForRange replicaLayout(ConsistencyLevel consistencyLevel, EndpointsForRange replicas)
+    static ReplicaPlan.ForRangeRead replicaPlan(EndpointsForRange replicas, EndpointsForRange targets)
     {
-        return new ReplicaLayout.ForRange(ks, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas);
+        return replicaPlan(ks, ConsistencyLevel.QUORUM, replicas, targets);
+    }
+    static ReplicaPlan.ForRangeRead replicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForRange replicas)
+    {
+        return replicaPlan(keyspace, consistencyLevel, replicas, replicas);
+    }
+    static ReplicaPlan.ForRangeRead replicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForRange replicas, EndpointsForRange targets)
+    {
+        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel,
+                ReplicaUtils.FULL_BOUNDS, replicas, targets);
     }
 
-    public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaLayout<?, ?> replicaLayout, long queryStartNanoTime);
+    public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, long queryStartNanoTime);
 
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReplicaLayout<?, ?> replicaLayout)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReplicaPlan.Shared<?, ?> replicaPlan)
     {
-        return createInstrumentedReadRepair(command, replicaLayout, System.nanoTime());
+        return createInstrumentedReadRepair(command, replicaPlan, System.nanoTime());
 
     }
 
@@ -270,7 +280,7 @@ public abstract  class AbstractReadRepairTest
     @Test
     public void readSpeculationCycle()
     {
-        InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaLayout(replicas, EndpointsForRange.of(replica1, replica2)));
+        InstrumentedReadRepair repair = createInstrumentedReadRepair(ReplicaPlan.shared(replicaPlan(replicas, EndpointsForRange.of(replica1, replica2))));
         ResultConsumer consumer = new ResultConsumer();
 
         Assert.assertEquals(epSet(), repair.getReadRecipients());
@@ -289,7 +299,7 @@ public abstract  class AbstractReadRepairTest
     @Test
     public void noSpeculationRequired()
     {
-        InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaLayout(replicas, EndpointsForRange.of(replica1, replica2)));
+        InstrumentedReadRepair repair = createInstrumentedReadRepair(ReplicaPlan.shared(replicaPlan(replicas, EndpointsForRange.of(replica1, replica2))));
         ResultConsumer consumer = new ResultConsumer();
 
         Assert.assertEquals(epSet(), repair.getReadRecipients());

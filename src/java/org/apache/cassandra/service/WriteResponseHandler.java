@@ -19,9 +19,7 @@ package org.apache.cassandra.service;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.ReplicaLayout;
-
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,18 +37,18 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
     private static final AtomicIntegerFieldUpdater<WriteResponseHandler> responsesUpdater
             = AtomicIntegerFieldUpdater.newUpdater(WriteResponseHandler.class, "responses");
 
-    public WriteResponseHandler(ReplicaLayout.ForToken replicaLayout,
+    public WriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan,
                                 Runnable callback,
                                 WriteType writeType,
                                 long queryStartNanoTime)
     {
-        super(replicaLayout, callback, writeType, queryStartNanoTime);
-        responses = totalBlockFor();
+        super(replicaPlan, callback, writeType, queryStartNanoTime);
+        responses = blockFor();
     }
 
-    public WriteResponseHandler(ReplicaLayout.ForToken replicaLayout, WriteType writeType, long queryStartNanoTime)
+    public WriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan, WriteType writeType, long queryStartNanoTime)
     {
-        this(replicaLayout, null, writeType, queryStartNanoTime);
+        this(replicaPlan, null, writeType, queryStartNanoTime);
     }
 
     public void response(MessageIn<T> m)
@@ -65,7 +63,7 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 
     protected int ackCount()
     {
-        return totalBlockFor() - responses;
+        return blockFor() - responses;
     }
 
     public boolean isLatencyForSnitch()

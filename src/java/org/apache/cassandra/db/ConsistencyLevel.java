@@ -251,16 +251,10 @@ public enum ConsistencyLevel
         if (this == EACH_QUORUM && keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
             return filterForEachQuorum(keyspace, liveReplicas);
 
-        /*
-         * Endpoints are expected to be restricted to live replicas, sorted by snitch preference.
-         * For LOCAL_QUORUM, move local-DC replicas in front first as we need them there whether
-         * we do read repair (since the first replica gets the data read) or not (since we'll take
-         * the blockFor first ones).
-         */
-        if (isDCLocal)
-            liveReplicas = liveReplicas.sorted(DatabaseDescriptor.getLocalComparator());
-
-        return liveReplicas.subList(0, Math.min(liveReplicas.size(), blockFor(keyspace) + (alwaysSpeculate ? 1 : 0)));
+        int count = blockFor(keyspace) + (alwaysSpeculate ? 1 : 0);
+        return isDCLocal
+                ? liveReplicas.filter(ConsistencyLevel::isLocal, count)
+                : liveReplicas.subList(0, Math.min(liveReplicas.size(), count));
     }
 
     private <E extends Endpoints<E>> E filterForEachQuorum(Keyspace keyspace, E liveReplicas)
@@ -285,7 +279,7 @@ public enum ConsistencyLevel
         });
     }
 
-    public boolean isSufficientLiveNodesForRead(Keyspace keyspace, Endpoints<?> liveReplicas)
+    public boolean isSufficientLiveReplicasForRead(Keyspace keyspace, Endpoints<?> liveReplicas)
     {
         switch (this)
         {
@@ -316,15 +310,15 @@ public enum ConsistencyLevel
         }
     }
 
-    public void assureSufficientLiveNodesForRead(Keyspace keyspace, Endpoints<?> liveReplicas) throws UnavailableException
+    public void assureSufficientLiveReplicasForRead(Keyspace keyspace, Endpoints<?> liveReplicas) throws UnavailableException
     {
-        assureSufficientLiveNodes(keyspace, liveReplicas, blockFor(keyspace), 1);
+        assureSufficientLiveReplicas(keyspace, liveReplicas, blockFor(keyspace), 1);
     }
-    public void assureSufficientLiveNodesForWrite(Keyspace keyspace, Endpoints<?> allLive, Endpoints<?> pendingWithDown) throws UnavailableException
+    public void assureSufficientLiveReplicasForWrite(Keyspace keyspace, Endpoints<?> allLive, Endpoints<?> pendingWithDown) throws UnavailableException
     {
-        assureSufficientLiveNodes(keyspace, allLive, blockForWrite(keyspace, pendingWithDown), 0);
+        assureSufficientLiveReplicas(keyspace, allLive, blockForWrite(keyspace, pendingWithDown), 0);
     }
-    public void assureSufficientLiveNodes(Keyspace keyspace, Endpoints<?> allLive, int blockFor, int blockForFullReplicas) throws UnavailableException
+    void assureSufficientLiveReplicas(Keyspace keyspace, Endpoints<?> allLive, int blockFor, int blockForFullReplicas) throws UnavailableException
     {
         switch (this)
         {
