@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +36,6 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
@@ -44,7 +44,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
-public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> implements IAsyncCallbackWithFailure<ReadResponse>
+public class ReadCallback<E extends Endpoints<E>, L extends ReplicaPlan<E, L>> implements IAsyncCallbackWithFailure<ReadResponse>
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
 
@@ -53,7 +53,7 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
     private final long queryStartNanoTime;
     // TODO: move to replica layout as well?
     final int blockfor;
-    final L replicaLayout;
+    final P replicaPlan;
     private final ReadCommand command;
     private static final AtomicIntegerFieldUpdater<ReadCallback> recievedUpdater
             = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "received");
@@ -63,19 +63,19 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
 
-    public ReadCallback(ResponseResolver resolver, int blockfor, ReadCommand command, L replicaLayout, long queryStartNanoTime)
+    public ReadCallback(ResponseResolver resolver, int blockfor, ReadCommand command, P replicaPlan, long queryStartNanoTime)
     {
         this.command = command;
         this.blockfor = blockfor;
         this.resolver = resolver;
         this.queryStartNanoTime = queryStartNanoTime;
-        this.replicaLayout = replicaLayout;
+        this.replicaPlan = replicaPlan;
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
-        assert !(command instanceof PartitionRangeReadCommand) || blockfor >= replicaLayout.selected().size();
+        assert !(command instanceof PartitionRangeReadCommand) || blockfor >= replicaPlan.contact().size();
 
         if (logger.isTraceEnabled())
-            logger.trace("Blockfor is {}; setting up requests to {}", blockfor, this.replicaLayout);
+            logger.trace("Blockfor is {}; setting up requests to {}", blockfor, this.replicaPlan);
     }
 
     public boolean await(long timePastStart, TimeUnit unit)
@@ -94,7 +94,7 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
     public void awaitResults() throws ReadFailureException, ReadTimeoutException
     {
         boolean signaled = await(command.getTimeout(), TimeUnit.MILLISECONDS);
-        boolean failed = failures > 0 && blockfor + failures > replicaLayout.selected().size();
+        boolean failed = failures > 0 && blockfor + failures > replicaPlan.contact().size();
         if (signaled && !failed)
             return;
 
@@ -111,8 +111,8 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
 
         // Same as for writes, see AbstractWriteResponseHandler
         throw failed
-            ? new ReadFailureException(replicaLayout.consistencyLevel(), received, blockfor, resolver.isDataPresent(), failureReasonByEndpoint)
-            : new ReadTimeoutException(replicaLayout.consistencyLevel(), received, blockfor, resolver.isDataPresent());
+            ? new ReadFailureException(replicaPlan.consistencyLevel(), received, blockfor, resolver.isDataPresent(), failureReasonByEndpoint)
+            : new ReadTimeoutException(replicaPlan.consistencyLevel(), received, blockfor, resolver.isDataPresent());
     }
 
     public int blockFor()
@@ -136,7 +136,7 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
      */
     private boolean waitingFor(InetAddressAndPort from)
     {
-        return !replicaLayout.consistencyLevel().isDatacenterLocal() || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from));
+        return !replicaPlan.consistencyLevel().isDatacenterLocal() || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from));
     }
 
     /**
@@ -159,7 +159,7 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
 
     public void assureSufficientLiveNodes() throws UnavailableException
     {
-        replicaLayout.consistencyLevel().assureSufficientLiveNodesForRead(replicaLayout.keyspace(), replicaLayout.selected());
+        replicaPlan.consistencyLevel().assureSufficientLiveNodesForRead(replicaPlan.keyspace(), replicaPlan.contact());
     }
 
     public boolean isLatencyForSnitch()
@@ -176,7 +176,7 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
 
         failureReasonByEndpoint.put(from, failureReason);
 
-        if (blockfor + n > replicaLayout.selected().size())
+        if (blockfor + n > replicaPlan.contact().size())
             condition.signalAll();
     }
 }

@@ -42,7 +42,7 @@ import org.apache.cassandra.db.transform.Filter;
 import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -51,13 +51,13 @@ import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 
 import static com.google.common.collect.Iterables.*;
 
-public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends ResponseResolver<E, L>
+public class DataResolver<E extends Endpoints<E>, L extends ReplicaPlan<E, L>> extends ResponseResolver<E, L>
 {
     private final boolean enforceStrictLiveness;
 
-    public DataResolver(ReadCommand command, L replicaLayout, ReadRepair<E, L> readRepair, long queryStartNanoTime)
+    public DataResolver(ReadCommand command, P replicaPlan, ReadRepair<E, L> readRepair, long queryStartNanoTime)
     {
-        super(command, replicaLayout, readRepair, queryStartNanoTime);
+        super(command, replicaPlan, readRepair, queryStartNanoTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
     }
 
@@ -80,7 +80,7 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
         Collection<MessageIn<ReadResponse>> messages = responses.snapshot();
         assert !any(messages, msg -> msg.payload.isDigestResponse());
 
-        E replicas = replicaLayout.all().keep(transform(messages, msg -> msg.from));
+        E replicas = replicaPlan.all().keep(transform(messages, msg -> msg.from));
         List<UnfilteredPartitionIterator> iters = new ArrayList<>(
         Collections2.transform(messages, msg -> msg.payload.makeIterator(command)));
         assert replicas.size() == iters.size();
@@ -118,7 +118,7 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
             command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
 
         UnfilteredPartitionIterator merged = mergeWithShortReadProtection(iters,
-                                                                          replicaLayout.withSelected(replicas),
+                                                                          replicaPlan.withSelected(replicas),
                                                                           mergedResultCounter,
                                                                           repairedDataTracker);
         FilteredPartitions filtered = FilteredPartitions.filter(merged, new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness()));
@@ -147,7 +147,7 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
          */
         if (!command.limits().isUnlimited())
             for (int i = 0; i < results.size(); i++)
-                results.set(i, ShortReadProtection.extend(sources.selected().get(i), results.get(i), command, mergedResultCounter, queryStartNanoTime, enforceStrictLiveness));
+                results.set(i, ShortReadProtection.extend(sources.contact().get(i), results.get(i), command, mergedResultCounter, queryStartNanoTime, enforceStrictLiveness));
 
         return UnfilteredPartitionIterators.merge(results, wrapMergeListener(readRepair.getMergeListener(sources), sources, repairedDataTracker));
     }
@@ -182,7 +182,7 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
                                                            table,
                                                            mergedDeletion == null ? "null" : mergedDeletion.toString(),
                                                            '[' + Joiner.on(", ").join(transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString())) + ']',
-                                                           sources.selected(),
+                                                           sources.contact(),
                                                            makeResponsesDebugString(partitionKey));
                             throw new AssertionError(details, e);
                         }
@@ -203,7 +203,7 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
                                                            table,
                                                            merged == null ? "null" : merged.toString(table),
                                                            '[' + Joiner.on(", ").join(transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString(table))) + ']',
-                                                           sources.selected(),
+                                                           sources.contact(),
                                                            makeResponsesDebugString(partitionKey));
                             throw new AssertionError(details, e);
                         }
@@ -229,7 +229,7 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
                                                            table,
                                                            merged == null ? "null" : merged.toString(table),
                                                            '[' + Joiner.on(", ").join(transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString(table))) + ']',
-                                                           sources.selected(),
+                                                           sources.contact(),
                                                            makeResponsesDebugString(partitionKey));
                             throw new AssertionError(details, e);
                         }

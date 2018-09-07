@@ -46,7 +46,7 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.ColumnMetadata;
 
 public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeListener
@@ -61,7 +61,7 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
     private final Replica[] sources;
     private final Row.Builder[] currentRows;
     private final RowDiffListener diffListener;
-    private final ReplicaLayout layout;
+    private final ReplicaPlan layout;
 
     // The partition level deletion for the merge row.
     private DeletionTime partitionLevelDeletion;
@@ -74,12 +74,12 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
 
     private final ReadRepair readRepair;
 
-    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaLayout layout, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
+    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan layout, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
     {
         this.partitionKey = partitionKey;
         this.columns = columns;
         this.isReversed = isReversed;
-        Endpoints<?> sources = layout.selected();
+        Endpoints<?> sources = layout.contact();
         this.sources = new Replica[sources.size()];
         for (int i = 0; i < sources.size(); i++)
             this.sources[i] = sources.get(i);

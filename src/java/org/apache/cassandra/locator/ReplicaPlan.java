@@ -19,14 +19,10 @@
 package org.apache.cassandra.locator;
 
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicates;
-import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -36,7 +32,6 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.UnavailableException;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
@@ -53,36 +48,36 @@ import static com.google.common.collect.Iterables.any;
  * Constitutes:
  *  - the 'natural' replicas replicating the range or token relevant for the operation
  *  - if for performing a write, any 'pending' replicas that are taking ownership of the range, and must receive updates
- *  - the 'selected' replicas, those that should be targeted for any operation
+ *  - the 'contact' replicas, those that should be targeted for any operation
  *  - 'all' replicas represents natural+pending
  *
  * @param <E> the type of Endpoints this ReplayLayout holds (either EndpointsForToken or EndpointsForRange)
  * @param <L> the type of itself, including its type parameters, for return type of modifying methods
  */
-public abstract class ReplicaLayout<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
+public abstract class ReplicaPlan<E extends Endpoints<E>, L extends ReplicaPlan<E, L>>
 {
     private volatile E all;
     protected final E natural;
     protected final E pending;
-    protected final E selected;
+    protected final E contact;
 
     protected final Keyspace keyspace;
     protected final ConsistencyLevel consistencyLevel;
 
-    private ReplicaLayout(Keyspace keyspace, ConsistencyLevel consistencyLevel, E natural, E pending, E selected)
+    private ReplicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, E natural, E pending, E contact)
     {
-        this(keyspace, consistencyLevel, natural, pending, selected, null);
+        this(keyspace, consistencyLevel, natural, pending, contact, null);
     }
 
-    private ReplicaLayout(Keyspace keyspace, ConsistencyLevel consistencyLevel, E natural, E pending, E selected, E all)
+    private ReplicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, E natural, E pending, E contact, E all)
     {
-        assert selected != null;
+        assert contact != null;
         assert pending == null || !Endpoints.haveConflicts(natural, pending);
         this.keyspace = keyspace;
         this.consistencyLevel = consistencyLevel;
         this.natural = natural;
         this.pending = pending;
-        this.selected = selected;
+        this.contact = contact;
         // if we logically have no pending endpoints (they are null), then 'all' our endpoints are natural
         if (all == null && pending == null)
             all = natural;
@@ -107,9 +102,9 @@ public abstract class ReplicaLayout<E extends Endpoints<E>, L extends ReplicaLay
         return result;
     }
 
-    public E selected()
+    public E contact()
     {
-        return selected;
+        return contact;
     }
 
     /**
@@ -138,7 +133,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>, L extends ReplicaLay
         return consistencyLevel;
     }
 
-    abstract public L withSelected(E replicas);
+    abstract public L withContact(E replicas);
 
     abstract public L withConsistencyLevel(ConsistencyLevel cl);
 
@@ -150,30 +145,30 @@ public abstract class ReplicaLayout<E extends Endpoints<E>, L extends ReplicaLay
             IEndpointSnitch snitch = keyspace.getReplicationStrategy().snitch;
             String localDC = DatabaseDescriptor.getLocalDataCenter();
 
-            more = natural.filter(replica -> !selected.contains(replica) &&
+            more = natural.filter(replica -> !contact.contains(replica) &&
                     snitch.getDatacenter(replica).equals(localDC));
         } else
         {
-            more = natural.filter(replica -> !selected.contains(replica));
+            more = natural.filter(replica -> !contact.contains(replica));
         }
 
-        return withSelected(more);
+        return withContact(more);
     }
 
-    public static class ForRange extends ReplicaLayout<EndpointsForRange, ForRange>
+    public static class ForRange extends ReplicaPlan<EndpointsForRange, ForRange>
     {
         public final AbstractBounds<PartitionPosition> range;
 
         @VisibleForTesting
-        public ForRange(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, EndpointsForRange natural, EndpointsForRange selected)
+        public ForRange(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, EndpointsForRange natural, EndpointsForRange contact)
         {
             // Range queries do not contact pending replicas
-            super(keyspace, consistencyLevel, natural, null, selected);
+            super(keyspace, consistencyLevel, natural, null, contact);
             this.range = range;
         }
 
         @Override
-        public ForRange withSelected(EndpointsForRange newSelected)
+        public ForRange withContact(EndpointsForRange newSelected)
         {
             return new ForRange(keyspace, consistencyLevel, range, natural, newSelected);
         }
@@ -181,28 +176,28 @@ public abstract class ReplicaLayout<E extends Endpoints<E>, L extends ReplicaLay
         @Override
         public ForRange withConsistencyLevel(ConsistencyLevel cl)
         {
-            return new ForRange(keyspace, cl, range, natural, selected);
+            return new ForRange(keyspace, cl, range, natural, contact);
         }
     }
 
-    public static class ForToken extends ReplicaLayout<EndpointsForToken, ForToken>
+    public static class ForToken extends ReplicaPlan<EndpointsForToken, ForToken>
     {
         public final Token token;
 
         @VisibleForTesting
-        public ForToken(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken selected)
+        public ForToken(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken contact)
         {
-            super(keyspace, consistencyLevel, natural, pending, selected);
+            super(keyspace, consistencyLevel, natural, pending, contact);
             this.token = token;
         }
 
-        public ForToken(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken selected, EndpointsForToken all)
+        public ForToken(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken contact, EndpointsForToken all)
         {
-            super(keyspace, consistencyLevel, natural, pending, selected, all);
+            super(keyspace, consistencyLevel, natural, pending, contact, all);
             this.token = token;
         }
 
-        public ForToken withSelected(EndpointsForToken newSelected)
+        public ForToken withContact(EndpointsForToken newSelected)
         {
             return new ForToken(keyspace, consistencyLevel, token, natural, pending, newSelected);
         }
@@ -210,7 +205,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>, L extends ReplicaLay
         @Override
         public ForToken withConsistencyLevel(ConsistencyLevel cl)
         {
-            return new ForToken(keyspace, cl, token, natural, pending, selected);
+            return new ForToken(keyspace, cl, token, natural, pending, contact);
         }
     }
 
@@ -218,9 +213,9 @@ public abstract class ReplicaLayout<E extends Endpoints<E>, L extends ReplicaLay
     {
         private final int requiredParticipants;
 
-        private ForPaxos(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, int requiredParticipants, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken selected, EndpointsForToken all)
+        private ForPaxos(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, int requiredParticipants, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken contact, EndpointsForToken all)
         {
-            super(keyspace, consistencyLevel, token, natural, pending, selected, all);
+            super(keyspace, consistencyLevel, token, natural, pending, contact, all);
             this.requiredParticipants = requiredParticipants;
         }
 
@@ -285,14 +280,14 @@ public abstract class ReplicaLayout<E extends Endpoints<E>, L extends ReplicaLay
 
         if (!any(natural, Replica::isTransient) && !any(pending, Replica::isTransient))
         {
-            EndpointsForToken selected = Endpoints.concat(natural, pending).filter(r -> isAlive.test(r.endpoint()));
-            return new ForToken(keyspace, consistencyLevel, token, natural, pending, selected);
+            EndpointsForToken contact = Endpoints.concat(natural, pending).filter(r -> isAlive.test(r.endpoint()));
+            return new ForToken(keyspace, consistencyLevel, token, natural, pending, contact);
         }
 
         return forWrite(keyspace, consistencyLevel, token, consistencyLevel.blockForWrite(keyspace, pending), natural, pending, isAlive);
     }
 
-    public static ReplicaLayout.ForPaxos forPaxos(Keyspace keyspace, DecoratedKey key, ConsistencyLevel consistencyForPaxos) throws UnavailableException
+    public static ReplicaPlan.ForPaxos forPaxos(Keyspace keyspace, DecoratedKey key, ConsistencyLevel consistencyForPaxos) throws UnavailableException
     {
         Token tk = key.getToken();
         EndpointsForToken natural = StorageService.getNaturalReplicasForToken(keyspace.getName(), tk);
@@ -322,9 +317,9 @@ public abstract class ReplicaLayout<E extends Endpoints<E>, L extends ReplicaLay
         int requiredParticipants = participants / 2 + 1; // See CASSANDRA-8346, CASSANDRA-833
 
         EndpointsForToken all = Endpoints.concat(natural, pending);
-        EndpointsForToken selected = all.filter(IAsyncCallback.isReplicaAlive);
-        if (selected.size() < requiredParticipants)
-            throw UnavailableException.create(consistencyForPaxos, requiredParticipants, selected.size());
+        EndpointsForToken contact = all.filter(IAsyncCallback.isReplicaAlive);
+        if (contact.size() < requiredParticipants)
+            throw UnavailableException.create(consistencyForPaxos, requiredParticipants, contact.size());
 
         // We cannot allow CAS operations with 2 or more pending endpoints, see #8346.
         // Note that we fake an impossible number of required nodes in the unavailable exception
@@ -333,9 +328,9 @@ public abstract class ReplicaLayout<E extends Endpoints<E>, L extends ReplicaLay
             throw new UnavailableException(String.format("Cannot perform LWT operation as there is more than one (%d) pending range movement", pending.size()),
                                            consistencyForPaxos,
                                            participants + 1,
-                                           selected.size());
+                                           contact.size());
 
-        return new ReplicaLayout.ForPaxos(keyspace, consistencyForPaxos, key.getToken(), requiredParticipants, natural, pending, selected, all);
+        return new ReplicaPlan.ForPaxos(keyspace, consistencyForPaxos, key.getToken(), requiredParticipants, natural, pending, contact, all);
     }
 
     /**
@@ -346,36 +341,36 @@ public abstract class ReplicaLayout<E extends Endpoints<E>, L extends ReplicaLay
     public static ForToken forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, int blockFor, EndpointsForToken natural, EndpointsForToken pending, Predicate<InetAddressAndPort> livePredicate) throws UnavailableException
     {
         EndpointsForToken all = Endpoints.concat(natural, pending);
-        EndpointsForToken selected = all
+        EndpointsForToken contact = all
                 .select()
                 .add(r -> r.isFull() && livePredicate.test(r.endpoint()))
                 .add(r -> r.isTransient() && livePredicate.test(r.endpoint()), blockFor)
                 .get();
 
-        consistencyLevel.assureSufficientLiveNodesForWrite(keyspace, selected, pending);
+        consistencyLevel.assureSufficientLiveNodesForWrite(keyspace, contact, pending);
 
-        return new ForToken(keyspace, consistencyLevel, token, natural, pending, selected, all);
+        return new ForToken(keyspace, consistencyLevel, token, natural, pending, contact, all);
     }
 
     public static ForToken forRead(Keyspace keyspace, Token token, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry)
     {
         EndpointsForToken natural = StorageProxy.getLiveSortedReplicasForToken(keyspace, token);
-        EndpointsForToken selected = consistencyLevel.filterForQuery(keyspace, natural, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE));
+        EndpointsForToken contact = consistencyLevel.filterForQuery(keyspace, natural, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE));
 
         // Throw UAE early if we don't have enough replicas.
-        consistencyLevel.assureSufficientLiveNodesForRead(keyspace, selected);
+        consistencyLevel.assureSufficientLiveNodesForRead(keyspace, contact);
 
-        return new ForToken(keyspace, consistencyLevel, token, natural, null, selected);
+        return new ForToken(keyspace, consistencyLevel, token, natural, null, contact);
     }
 
-    public static ForRange forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, EndpointsForRange natural, EndpointsForRange selected)
+    public static ForRange forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, EndpointsForRange natural, EndpointsForRange contact)
     {
-        return new ForRange(keyspace, consistencyLevel, range, natural, selected);
+        return new ForRange(keyspace, consistencyLevel, range, natural, contact);
     }
 
     public String toString()
     {
-        return "ReplicaLayout [ CL: " + consistencyLevel + " keyspace: " + keyspace + " natural: " + natural + "pending: " + pending + " selected: " + selected + " ]";
+        return "ReplicaPlan [ CL: " + consistencyLevel + " keyspace: " + keyspace + " natural: " + natural + "pending: " + pending + " contact: " + contact + " ]";
     }
 }
 

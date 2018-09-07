@@ -27,7 +27,7 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.reads.repair.TestableReadRepair;
@@ -137,8 +137,8 @@ public class DigestResolverTest extends AbstractReadResponseTest
         Assert.assertTrue(resolver.hasTransientResponse());
     }
 
-    private ReplicaLayout.ForToken plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
+    private ReplicaPlan.ForToken plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
     {
-        return new ReplicaLayout.ForToken(ks, consistencyLevel, replicas.token(), replicas, null, replicas);
+        return new ReplicaPlan.ForToken(ks, consistencyLevel, replicas.token(), replicas, null, replicas);
     }
 }

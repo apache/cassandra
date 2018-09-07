@@ -26,7 +26,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.reads.DigestResolver;
@@ -34,7 +34,7 @@ import org.apache.cassandra.service.reads.DigestResolver;
 /**
  * Bypasses the read repair path for short read protection and testing
  */
-public class NoopReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> implements ReadRepair<E, L>
+public class NoopReadRepair<E extends Endpoints<E>, L extends ReplicaPlan<E, L>> implements ReadRepair<E, L>
 {
     public static final NoopReadRepair instance = new NoopReadRepair();
 
@@ -75,7 +75,7 @@ public class NoopReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E, L
     }
 
     @Override
-    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, L replicaLayout)
+    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, P replicaPlan)
     {
 
     }

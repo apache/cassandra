@@ -20,10 +20,9 @@ package org.apache.cassandra.service.reads;
 
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -39,8 +38,6 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.ReplicaLayout;
-import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -224,13 +221,13 @@ public class ReadExecutorTest
 
     }
 
-    private ReplicaLayout.ForToken plan(EndpointsForToken targets, ConsistencyLevel consistencyLevel)
+    private ReplicaPlan.ForToken plan(EndpointsForToken targets, ConsistencyLevel consistencyLevel)
     {
         return plan(consistencyLevel, targets, targets);
     }
 
-    private ReplicaLayout.ForToken plan(ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken selected)
+    private ReplicaPlan.ForToken plan(ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken selected)
     {
-        return new ReplicaLayout.ForToken(ks, consistencyLevel, natural.token(), natural, null, selected);
+        return new ReplicaPlan.ForToken(ks, consistencyLevel, natural.token(), natural, null, selected);
     }
 }

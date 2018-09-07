@@ -26,11 +26,10 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.RateLimiter;
 
-import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -511,7 +510,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
             ReplayWriteResponseHandler(Keyspace keyspace, EndpointsForToken writeReplicas, long queryStartNanoTime)
             {
-                super(ReplicaLayout.forWriteWithDownNodes(keyspace, null, writeReplicas.token(), writeReplicas, EndpointsForToken.empty(writeReplicas.token())),
+                super(ReplicaPlan.forWriteWithDownNodes(keyspace, null, writeReplicas.token(), writeReplicas, EndpointsForToken.empty(writeReplicas.token())),
                       null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
                 Iterables.addAll(undelivered, writeReplicas.endpoints());
             }
@@ -519,7 +518,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             @Override
             protected int totalBlockFor()
             {
-                return this.replicaLayout.selected().size();
+                return this.replicaPlan.contact().size();
             }
 
             @Override

@@ -27,6 +27,7 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -48,7 +49,6 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -70,11 +70,11 @@ public class ReadRepairTest
     static Replica target3;
     static EndpointsForRange targets;
 
-    private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends BlockingPartitionRepair<E, L>
+    private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, L extends ReplicaPlan<E, L>> extends BlockingPartitionRepair<E, L>
     {
-        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, L replicaLayout)
+        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
         {
-            super(Util.dk("not a valid key"), repairs, maxBlockFor, replicaLayout);
+            super(Util.dk("not a valid key"), repairs, maxBlockFor, replicaPlan);
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();
@@ -166,8 +166,8 @@ public class ReadRepairTest
 
     private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, EndpointsForRange all, EndpointsForRange targets)
     {
-        ReplicaLayout.ForRange replicaLayout = new ReplicaLayout.ForRange(ks, ConsistencyLevel.LOCAL_QUORUM, ReplicaUtils.FULL_BOUNDS, all, targets);
-        return new InstrumentedReadRepairHandler(repairs, maxBlockFor, replicaLayout);
+        ReplicaPlan.ForRange replicaPlan = new ReplicaPlan.ForRange(ks, ConsistencyLevel.LOCAL_QUORUM, ReplicaUtils.FULL_BOUNDS, all, targets);
+        return new InstrumentedReadRepairHandler(repairs, maxBlockFor, replicaPlan);
     }
 
     @Test

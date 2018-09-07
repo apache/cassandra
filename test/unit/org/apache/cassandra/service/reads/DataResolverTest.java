@@ -24,6 +24,7 @@ import java.util.Iterator;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,7 +57,6 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -1224,7 +1224,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     }
 
     private DataResolver resolverWithVerifier(final ReadCommand command,
-                                              final ReplicaLayout.ForRange plan,
+                                              final ReplicaPlan.ForRange plan,
                                               final ReadRepair readRepair,
                                               final long queryStartNanoTime,
                                               final RepairedDataVerifier verifier)
@@ -1232,7 +1232,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         class TestableDataResolver extends DataResolver
         {
 
-            public TestableDataResolver(ReadCommand command, ReplicaLayout.ForRange plan, ReadRepair readRepair, long queryStartNanoTime)
+            public TestableDataResolver(ReadCommand command, ReplicaPlan.ForRange plan, ReadRepair readRepair, long queryStartNanoTime)
             {
                 super(command, plan, readRepair, queryStartNanoTime);
             }
@@ -1298,9 +1298,9 @@ public class DataResolverTest extends AbstractReadResponseTest
         assertEquals(update.metadata().name, cfm.name);
     }
 
-    private ReplicaLayout.ForRange plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
+    private ReplicaPlan.ForRange plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
-        return new ReplicaLayout.ForRange(ks, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas);
+        return new ReplicaPlan.ForRange(ks, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas);
     }
 
     private static void resolveAndConsume(DataResolver resolver)

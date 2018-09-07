@@ -24,6 +24,7 @@ import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,7 +41,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.repair.TestableReadRepair;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -219,8 +219,8 @@ public class DataResolverTransientTest extends AbstractReadResponseTest
 
     }
 
-    private ReplicaLayout.ForToken plan(EndpointsForToken replicas, ConsistencyLevel consistencyLevel)
+    private ReplicaPlan.ForToken plan(EndpointsForToken replicas, ConsistencyLevel consistencyLevel)
     {
-        return new ReplicaLayout.ForToken(ks, consistencyLevel, replicas.token(), replicas, null, replicas);
+        return new ReplicaPlan.ForToken(ks, consistencyLevel, replicas.token(), replicas, null, replicas);
     }
 }

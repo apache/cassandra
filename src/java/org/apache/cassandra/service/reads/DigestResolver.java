@@ -29,7 +29,7 @@ import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
-import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -40,7 +40,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.collect.Iterables.any;
 
-public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends ResponseResolver<E, L>
+public class DigestResolver<E extends Endpoints<E>, L extends ReplicaPlan<E, L>> extends ResponseResolver<E, L>
 {
     private volatile MessageIn<ReadResponse> dataResponse;
 
@@ -55,7 +55,7 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L
     public void preprocess(MessageIn<ReadResponse> message)
     {
         super.preprocess(message);
-        Replica replica = replicaLayout.getReplicaFor(message.from);
+        Replica replica = replicaPlan.getReplicaFor(message.from);
         if (dataResponse == null && !message.payload.isDigestResponse() && replica.isFull())
         {
             dataResponse = message;
@@ -76,7 +76,7 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L
     {
         return any(responses,
                 msg -> !msg.payload.isDigestResponse()
-                        && replicaLayout.getReplicaFor(msg.from).isTransient());
+                        && replicaPlan.getReplicaFor(msg.from).isTransient());
     }
 
     public PartitionIterator getData()
@@ -94,7 +94,7 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L
             // This path can be triggered only if we've got responses from full replicas and they match, but
             // transient replica response still contains data, which needs to be reconciled.
             DataResolver<E, L> dataResolver = new DataResolver<>(command,
-                                                                 replicaLayout,
+                                                                 replicaPlan,
                                                                  (ReadRepair<E, L>) NoopReadRepair.instance,
                                                                  queryStartNanoTime);
 
@@ -102,7 +102,7 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L
             // Forward differences to all full nodes
             for (MessageIn<ReadResponse> response : responses)
             {
-                Replica replica = replicaLayout.getReplicaFor(response.from);
+                Replica replica = replicaPlan.getReplicaFor(response.from);
                 if (replica.isTransient())
                     dataResolver.preprocess(response);
             }
@@ -119,7 +119,7 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L
         ByteBuffer digest = null;
         for (MessageIn<ReadResponse> message : responses.snapshot())
         {
-            if (replicaLayout.getReplicaFor(message.from).isTransient())
+            if (replicaPlan.getReplicaFor(message.from).isTransient())
                 continue;
 
             ByteBuffer newDigest = message.payload.digest(command);
