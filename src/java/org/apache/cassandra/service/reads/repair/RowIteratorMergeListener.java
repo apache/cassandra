@@ -46,21 +46,21 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.ColumnMetadata;
 
-public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeListener
+public class RowIteratorMergeListener<E extends Endpoints<E>>
+        implements UnfilteredRowIterators.MergeListener
 {
     private final DecoratedKey partitionKey;
     private final RegularAndStaticColumns columns;
     private final boolean isReversed;
     private final ReadCommand command;
-    private final ConsistencyLevel consistency;
 
     private final PartitionUpdate.Builder[] repairs;
     private final Row.Builder[] currentRows;
     private final RowDiffListener diffListener;
-    private final ReplicaLayout layout;
+    private final ReplicaPlan.ForRead<E> replicaPlan;
 
     // The partition level deletion for the merge row.
     private DeletionTime partitionLevelDeletion;
@@ -73,19 +73,18 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
 
     private final ReadRepair readRepair;
 
-    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaLayout layout, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
+    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E> replicaPlan, ReadCommand command, ReadRepair readRepair)
     {
         this.partitionKey = partitionKey;
         this.columns = columns;
         this.isReversed = isReversed;
-        this.layout = layout;
-        int size = layout.selected().size();
+        this.replicaPlan = replicaPlan;
+        int size = replicaPlan.contacts().size();
         repairs = new PartitionUpdate.Builder[size];
         currentRows = new Row.Builder[size];
         sourceDeletionTime = new DeletionTime[size];
         markerToRepair = new ClusteringBound[size];
         this.command = command;
-        this.consistency = consistency;
         this.readRepair = readRepair;
 
         this.diffListener = new RowDiffListener()
@@ -310,7 +309,7 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
     public void close()
     {
         Map<Replica, Mutation> mutations = null;
-        Endpoints<?> sources = layout.selected();
+        Endpoints<?> sources = replicaPlan.contacts();
         for (int i = 0; i < repairs.length; i++)
         {
             if (repairs[i] == null)
@@ -318,7 +317,7 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
 
             Replica source = sources.get(i);
 
-            Mutation mutation = BlockingReadRepairs.createRepairMutation(repairs[i].build(), consistency, source.endpoint(), false);
+            Mutation mutation = BlockingReadRepairs.createRepairMutation(repairs[i].build(), replicaPlan.consistencyLevel(), source.endpoint(), false);
             if (mutation == null)
                 continue;
 
@@ -330,7 +329,7 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
 
         if (mutations != null)
         {
-            readRepair.repairPartition(partitionKey, mutations, layout);
+            readRepair.repairPartition(partitionKey, mutations, replicaPlan);
         }
     }
 }

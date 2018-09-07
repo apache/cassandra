@@ -86,7 +86,7 @@ public class EndpointsForRange extends Endpoints<EndpointsForRange>
     {
         boolean hasSnapshot;
         public Mutable(Range<Token> range) { this(range, 0); }
-        public Mutable(Range<Token> range, int capacity) { super(range, new ArrayList<>(capacity), false, new LinkedHashMap<>()); }
+        public Mutable(Range<Token> range, int capacity) { super(range, new ArrayList<>(capacity), false, new LinkedHashMap<>(capacity)); }
 
         public void add(Replica replica, Conflict ignoreConflict)
         {

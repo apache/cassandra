@@ -26,12 +26,9 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.RateLimiter;
 
-import org.apache.cassandra.locator.ReplicaLayout;
-import org.apache.cassandra.locator.EndpointsForToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +51,8 @@ import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -459,36 +458,34 @@ public class BatchlogManager implements BatchlogManagerMBean
             Keyspace keyspace = Keyspace.open(ks);
             Token tk = mutation.key().getToken();
 
-            EndpointsForToken replicas = StorageService.instance.getNaturalAndPendingReplicasForToken(ks, tk);
-            Replicas.temporaryAssertFull(replicas); // TODO in CASSANDRA-14549
+            // TODO: this logic could do with revisiting at some point, as it is unclear what its rationale is
+            // we perform a local write, ignoring errors and inline in this thread (potentially slowing replay down)
+            // effectively bumping CL for locally owned writes and also potentially stalling log replay if an error occurs
+            // once we decide how it should work, it can also probably be simplified, and avoid constructing a ReplicaPlan directly
+            ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWriteLiveAndDown(keyspace, tk);
+            Replicas.temporaryAssertFull(liveAndDown.all()); // TODO in CASSANDRA-14549
 
-            EndpointsForToken.Builder liveReplicasBuilder = EndpointsForToken.builder(tk);
-            for (Replica replica : replicas)
+            Replica selfReplica = liveAndDown.all().selfIfPresent();
+            if (selfReplica != null)
+                mutation.apply();
+
+            ReplicaLayout.ForTokenWrite liveRemoteOnly = liveAndDown.filter(
+                    r -> FailureDetector.isReplicaAlive.test(r) && r != selfReplica);
+
+            for (Replica replica : liveAndDown.all())
             {
-                if (replica.isLocal())
-                {
-                    mutation.apply();
-                }
-                else if (FailureDetector.instance.isAlive(replica.endpoint()))
-                {
-                    liveReplicasBuilder.add(replica); // will try delivering directly instead of writing a hint.
-                }
-                else
-                {
-                    hintedNodes.add(replica.endpoint());
-                    HintsService.instance.write(StorageService.instance.getHostIdForEndpoint(replica.endpoint()),
-                                                Hint.create(mutation, writtenAt));
-                }
+                if (replica == selfReplica || liveRemoteOnly.all().contains(replica))
+                    continue;
+                hintedNodes.add(replica.endpoint());
+                HintsService.instance.write(StorageService.instance.getHostIdForEndpoint(replica.endpoint()),
+                        Hint.create(mutation, writtenAt));
             }
 
-            EndpointsForToken liveReplicas = liveReplicasBuilder.build();
-            if (liveReplicas.isEmpty())
-                return null;
-
-            Replicas.temporaryAssertFull(liveReplicas);
-            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(keyspace, liveReplicas, System.nanoTime());
+            ReplicaPlan.ForTokenWrite replicaPlan = new ReplicaPlan.ForTokenWrite(keyspace, ConsistencyLevel.ONE,
+                    liveRemoteOnly.pending(), liveRemoteOnly.all(), liveRemoteOnly.all(), liveRemoteOnly.all());
+            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, System.nanoTime());
             MessageOut<Mutation> message = mutation.createMessage();
-            for (Replica replica : liveReplicas)
+            for (Replica replica : liveRemoteOnly.all())
                 MessagingService.instance().sendWriteRR(message, replica, handler, false);
             return handler;
         }
@@ -509,17 +506,16 @@ public class BatchlogManager implements BatchlogManagerMBean
         {
             private final Set<InetAddressAndPort> undelivered = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-            ReplayWriteResponseHandler(Keyspace keyspace, EndpointsForToken writeReplicas, long queryStartNanoTime)
+            ReplayWriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan, long queryStartNanoTime)
             {
-                super(ReplicaLayout.forWriteWithDownNodes(keyspace, null, writeReplicas.token(), writeReplicas, EndpointsForToken.empty(writeReplicas.token())),
-                      null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
-                Iterables.addAll(undelivered, writeReplicas.endpoints());
+                super(replicaPlan, null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
+                Iterables.addAll(undelivered, replicaPlan.contacts().endpoints());
             }
 
             @Override
-            protected int totalBlockFor()
+            protected int blockFor()
             {
-                return this.replicaLayout.selected().size();
+                return this.replicaPlan.contacts().size();
             }
 
             @Override

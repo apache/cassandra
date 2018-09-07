@@ -22,7 +22,6 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -34,13 +33,14 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.net.UnknownHostException;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static com.google.common.collect.Iterables.*;
+import static com.google.common.collect.Iterables.filter;
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.Replica.transientReplica;
 
@@ -111,7 +111,7 @@ public class ReplicaCollectionTest
 
         void testEquals()
         {
-            Assert.assertTrue(Iterables.elementsEqual(canonicalList, test));
+            Assert.assertTrue(elementsEqual(canonicalList, test));
         }
 
         void testEndpoints()
@@ -144,28 +144,6 @@ public class ReplicaCollectionTest
             Assert.assertEquals(new LinkedHashSet<>(Lists.transform(canonicalList, Replica::endpoint)), test.endpoints());
         }
 
-        void testSelect(int subListDepth, int filterDepth, int sortDepth, int selectDepth)
-        {
-            TestCase<C> allMatchZeroCapacity = new TestCase<>(test.select().add(Predicates.alwaysTrue(), 0).get(), Collections.emptyList());
-            allMatchZeroCapacity.testAll(subListDepth, filterDepth, sortDepth, selectDepth - 1);
-
-            TestCase<C> noMatchFullCapacity = new TestCase<>(test.select().add(Predicates.alwaysFalse(), canonicalList.size()).get(), Collections.emptyList());
-            noMatchFullCapacity.testAll(subListDepth, filterDepth, sortDepth,selectDepth - 1);
-
-            if (canonicalList.size() <= 2)
-                return;
-
-            List<Replica> newOrderList = ImmutableList.of(canonicalList.get(2), canonicalList.get(1), canonicalList.get(0));
-            TestCase<C> newOrder = new TestCase<>(
-                    test.select()
-                            .add(r -> r == newOrderList.get(0), 3)
-                            .add(r -> r == newOrderList.get(1), 3)
-                            .add(r -> r == newOrderList.get(2), 3)
-                            .get(), newOrderList
-            );
-            newOrder.testAll(subListDepth, filterDepth, sortDepth,selectDepth - 1);
-        }
-
         private void assertSubList(C subCollection, int from, int to)
         {
             Assert.assertTrue(subCollection.isSnapshot);
@@ -182,7 +160,7 @@ public class ReplicaCollectionTest
             }
         }
 
-        void testSubList(int subListDepth, int filterDepth, int sortDepth, int selectDepth)
+        void testSubList(int subListDepth, int filterDepth, int sortDepth)
         {
             if (test.isSnapshot)
                 Assert.assertSame(test, test.subList(0, test.size()));
@@ -192,34 +170,62 @@ public class ReplicaCollectionTest
 
             TestCase<C> skipFront = new TestCase<>(test.subList(1, test.size()), canonicalList.subList(1, canonicalList.size()));
             assertSubList(skipFront.test, 1, canonicalList.size());
-            skipFront.testAll(subListDepth - 1, filterDepth, sortDepth, selectDepth);
+            skipFront.testAll(subListDepth - 1, filterDepth, sortDepth);
             TestCase<C> skipBack = new TestCase<>(test.subList(0, test.size() - 1), canonicalList.subList(0, canonicalList.size() - 1));
             assertSubList(skipBack.test, 0, canonicalList.size() - 1);
-            skipBack.testAll(subListDepth - 1, filterDepth, sortDepth, selectDepth);
+            skipBack.testAll(subListDepth - 1, filterDepth, sortDepth);
         }
 
-        void testFilter(int subListDepth, int filterDepth, int sortDepth, int selectDepth)
+        void testFilter(int subListDepth, int filterDepth, int sortDepth)
         {
             if (test.isSnapshot)
                 Assert.assertSame(test, test.filter(Predicates.alwaysTrue()));
 
             if (test.isEmpty())
                 return;
+
             // remove start
             // we recurse on the same subset in testSubList, so just corroborate we have the correct list here
-            assertSubList(test.filter(r -> r != canonicalList.get(0)), 1, canonicalList.size());
+            {
+                Predicate<Replica> removeFirst = r -> r != canonicalList.get(0);
+                assertSubList(test.filter(removeFirst), 1, canonicalList.size());
+                assertSubList(test.filter(removeFirst, 1), 1, Math.min(canonicalList.size(), 2));
+            }
 
             if (test.size() <= 1)
                 return;
+
             // remove end
             // we recurse on the same subset in testSubList, so just corroborate we have the correct list here
-            assertSubList(test.filter(r -> r != canonicalList.get(canonicalList.size() - 1)), 0, canonicalList.size() - 1);
+            {
+                int last = canonicalList.size() - 1;
+                Predicate<Replica> removeLast = r -> r != canonicalList.get(last);
+                assertSubList(test.filter(removeLast), 0, last);
+            }
 
             if (test.size() <= 2)
                 return;
+
             Predicate<Replica> removeMiddle = r -> r != canonicalList.get(canonicalList.size() / 2);
-            TestCase<C> filtered = new TestCase<>(test.filter(removeMiddle), ImmutableList.copyOf(Iterables.filter(canonicalList, removeMiddle::test)));
-            filtered.testAll(subListDepth, filterDepth - 1, sortDepth, selectDepth);
+            TestCase<C> filtered = new TestCase<>(test.filter(removeMiddle), ImmutableList.copyOf(filter(canonicalList, removeMiddle::test)));
+            filtered.testAll(subListDepth, filterDepth - 1, sortDepth);
+        }
+
+        void testCount()
+        {
+            Assert.assertEquals(0, test.count(Predicates.alwaysFalse()));
+
+            if (test.isEmpty())
+            {
+                Assert.assertEquals(0, test.count(Predicates.alwaysTrue()));
+                return;
+            }
+
+            for (int i = 0 ; i < canonicalList.size() ; ++i)
+            {
+                Replica discount = canonicalList.get(i);
+                Assert.assertEquals(canonicalList.size() - 1, test.count(r -> r != discount));
+            }
         }
 
         void testContains()
@@ -235,7 +241,7 @@ public class ReplicaCollectionTest
                 Assert.assertEquals(canonicalList.get(i), test.get(i));
         }
 
-        void testSort(int subListDepth, int filterDepth, int sortDepth, int selectDepth)
+        void testSort(int subListDepth, int filterDepth, int sortDepth)
         {
             final Comparator<Replica> comparator = (o1, o2) ->
             {
@@ -244,10 +250,10 @@ public class ReplicaCollectionTest
                 return f1 == f2 ? 0 : f1 ? 1 : -1;
             };
             TestCase<C> sorted = new TestCase<>(test.sorted(comparator), ImmutableList.sortedCopyOf(comparator, canonicalList));
-            sorted.testAll(subListDepth, filterDepth, sortDepth - 1, selectDepth);
+            sorted.testAll(subListDepth, filterDepth, sortDepth - 1);
         }
 
-        private void testAll(int subListDepth, int filterDepth, int sortDepth, int selectDepth)
+        private void testAll(int subListDepth, int filterDepth, int sortDepth)
         {
             testEndpoints();
             testOrderOfIteration();
@@ -255,19 +261,18 @@ public class ReplicaCollectionTest
             testGet();
             testEquals();
             testSize();
+            testCount();
             if (subListDepth > 0)
-                testSubList(subListDepth, filterDepth, sortDepth, selectDepth);
+                testSubList(subListDepth, filterDepth, sortDepth);
             if (filterDepth > 0)
-                testFilter(subListDepth, filterDepth, sortDepth, selectDepth);
+                testFilter(subListDepth, filterDepth, sortDepth);
             if (sortDepth > 0)
-                testSort(subListDepth, filterDepth, sortDepth, selectDepth);
-            if (selectDepth > 0)
-                testSelect(subListDepth, filterDepth, sortDepth, selectDepth);
+                testSort(subListDepth, filterDepth, sortDepth);
         }
 
         public void testAll()
         {
-            testAll(2, 2, 2, 2);
+            testAll(2, 2, 2);
         }
     }
 

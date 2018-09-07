@@ -75,7 +75,6 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
      */
     public abstract Mutable<C> newMutable(int initialCapacity);
 
-
     public C snapshot()
     {
         return isSnapshot ? self()
@@ -83,6 +82,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
                                                     : new ArrayList<>(list));
     }
 
+    /** see {@link ReplicaCollection#subList(int, int)}*/
     public final C subList(int start, int end)
     {
         List<Replica> subList;
@@ -100,11 +100,23 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         return snapshot(subList);
     }
 
+    /** see {@link ReplicaCollection#count(Predicate)}*/
+    public int count(Predicate<Replica> predicate)
+    {
+        int count = 0;
+        for (int i = 0 ; i < list.size() ; ++i)
+            if (predicate.test(list.get(i)))
+                ++count;
+        return count;
+    }
+
+    /** see {@link ReplicaCollection#filter(Predicate)}*/
     public final C filter(Predicate<Replica> predicate)
     {
         return filter(predicate, Integer.MAX_VALUE);
     }
 
+    /** see {@link ReplicaCollection#filter(Predicate, int)}*/
     public final C filter(Predicate<Replica> predicate, int limit)
     {
         if (isEmpty())
@@ -148,53 +160,8 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         return snapshot(copy);
     }
 
-    public final class Select
-    {
-        private final List<Replica> result;
-        public Select(int expectedSize)
-        {
-            this.result = new ArrayList<>(expectedSize);
-        }
-
-        /**
-         * Add matching replica to the result; this predicate should be mutually exclusive with all prior predicates.
-         * Stop once we have targetSize replicas in total, including preceding calls
-         */
-        public Select add(Predicate<Replica> predicate, int targetSize)
-        {
-            assert !Iterables.any(result, predicate::test);
-            for (int i = 0 ; result.size() < targetSize && i < list.size() ; ++i)
-                if (predicate.test(list.get(i)))
-                    result.add(list.get(i));
-            return this;
-        }
-        public Select add(Predicate<Replica> predicate)
-        {
-            return add(predicate, Integer.MAX_VALUE);
-        }
-        public C get()
-        {
-            return snapshot(result);
-        }
-    }
-
-    /**
-     * An efficient method for selecting a subset of replica via a sequence of filters.
-     *
-     * Example: select().add(filter1).add(filter2, 3).get();
-     *
-     * @return a Select object
-     */
-    public final Select select()
-    {
-        return select(list.size());
-    }
-    public final Select select(int expectedSize)
-    {
-        return new Select(expectedSize);
-    }
-
-    public final C sorted(Comparator<Replica> comparator)
+    /** see {@link ReplicaCollection#sorted(Comparator)}*/
+   public final C sorted(Comparator<Replica> comparator)
     {
         List<Replica> copy = new ArrayList<>(list);
         copy.sort(comparator);
@@ -267,9 +234,9 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         if (replicas.isEmpty())
             return extraReplicas;
         Mutable<C> mutable = replicas.newMutable(replicas.size() + extraReplicas.size());
-        mutable.addAll(replicas);
+        mutable.addAll(replicas, Mutable.Conflict.NONE);
         mutable.addAll(extraReplicas, ignoreConflicts);
-        return mutable.asImmutableView();
+        return mutable.asSnapshot();
     }
 
 }

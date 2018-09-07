@@ -36,28 +36,28 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
 
-public class TestableReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> implements ReadRepair<E, L>
+public class TestableReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+        implements ReadRepair<E, P>
 {
     public final Map<InetAddressAndPort, Mutation> sent = new HashMap<>();
 
     private final ReadCommand command;
-    private final ConsistencyLevel consistency;
 
     private boolean partitionListenerClosed = false;
     private boolean rowListenerClosed = true;
 
-    public TestableReadRepair(ReadCommand command, ConsistencyLevel consistency)
+    public TestableReadRepair(ReadCommand command)
     {
         this.command = command;
-        this.consistency = consistency;
     }
 
     @Override
-    public UnfilteredPartitionIterators.MergeListener getMergeListener(L endpoints)
+    public UnfilteredPartitionIterators.MergeListener getMergeListener(P endpoints)
     {
-        return new PartitionIteratorMergeListener(endpoints, command, consistency, this) {
+        return new PartitionIteratorMergeListener<E>(endpoints, command, this) {
             @Override
             public void close()
             {
@@ -70,7 +70,7 @@ public class TestableReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<
             {
                 assert rowListenerClosed;
                 rowListenerClosed = false;
-                return new RowIteratorMergeListener(partitionKey, columns(versions), isReversed(versions), endpoints, command, consistency, TestableReadRepair.this) {
+                return new RowIteratorMergeListener<E>(partitionKey, columns(versions), isReversed(versions), endpoints, command, TestableReadRepair.this) {
                     @Override
                     public void close()
                     {
@@ -83,7 +83,7 @@ public class TestableReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<
     }
 
     @Override
-    public void startRepair(DigestResolver<E, L> digestResolver, Consumer<PartitionIterator> resultConsumer)
+    public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
     {
 
     }
@@ -113,7 +113,7 @@ public class TestableReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<
     }
 
     @Override
-    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, L replicaLayout)
+    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, P replicaPlan)
     {
         for (Map.Entry<Replica, Mutation> entry: mutations.entrySet())
             sent.put(entry.getKey().endpoint(), entry.getValue());

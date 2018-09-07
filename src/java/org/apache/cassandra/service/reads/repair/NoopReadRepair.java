@@ -26,28 +26,29 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
 
 /**
  * Bypasses the read repair path for short read protection and testing
  */
-public class NoopReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> implements ReadRepair<E, L>
+public class NoopReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+        implements ReadRepair<E, P>
 {
     public static final NoopReadRepair instance = new NoopReadRepair();
 
     private NoopReadRepair() {}
 
     @Override
-    public UnfilteredPartitionIterators.MergeListener getMergeListener(L replicas)
+    public UnfilteredPartitionIterators.MergeListener getMergeListener(P replicas)
     {
         return UnfilteredPartitionIterators.MergeListener.NOOP;
     }
 
     @Override
-    public void startRepair(DigestResolver<E, L> digestResolver, Consumer<PartitionIterator> resultConsumer)
+    public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
     {
         resultConsumer.accept(digestResolver.getData());
     }
@@ -75,7 +76,7 @@ public class NoopReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E, L
     }
 
     @Override
-    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, L replicaLayout)
+    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, P replicaPlan)
     {
 
     }
