@@ -251,16 +251,10 @@ public enum ConsistencyLevel
         if (this == EACH_QUORUM && keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
             return filterForEachQuorum(keyspace, liveReplicas);
 
-        /*
-         * Endpoints are expected to be restricted to live replicas, sorted by snitch preference.
-         * For LOCAL_QUORUM, move local-DC replicas in front first as we need them there whether
-         * we do read repair (since the first replica gets the data read) or not (since we'll take
-         * the blockFor first ones).
-         */
-        if (isDCLocal)
-            liveReplicas = liveReplicas.sorted(DatabaseDescriptor.getLocalComparator());
-
-        return liveReplicas.subList(0, Math.min(liveReplicas.size(), blockFor(keyspace) + (alwaysSpeculate ? 1 : 0)));
+        int count = blockFor(keyspace) + (alwaysSpeculate ? 1 : 0);
+        return isDCLocal
+                ? liveReplicas.filter(ConsistencyLevel::isLocal, count)
+                : liveReplicas.subList(0, Math.min(liveReplicas.size(), count));
     }
 
     private <E extends Endpoints<E>> E filterForEachQuorum(Keyspace keyspace, E liveReplicas)
