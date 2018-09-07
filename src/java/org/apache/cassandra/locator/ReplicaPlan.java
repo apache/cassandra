@@ -39,8 +39,8 @@ public abstract class ReplicaPlan<
     // i.e., for
     //   - reads, only live and natural endpoints
     //      ==> liveOnly.natural()
-    //   - writes, includes all down, pending, full and transient nodes (liveAndDown.all())
-    //      ==> liveAndDown.natural(isFull) ++ liveAndDown.pending()
+    //   - writes, includes all down, pending, full and transient nodes
+    //      ==> liveAndDown.all()
     //   - paxos, includes all liveOnly replicas (natural+pending), for this DC if SERIAL_LOCAL
     //      ==> liveOnly.all()  (if consistencyLevel.isDCLocal(), then .filter(consistencyLevel.isLocal))
     private final E candidates;
