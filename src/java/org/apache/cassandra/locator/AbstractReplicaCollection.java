@@ -218,7 +218,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         if (replicas.isEmpty())
             return extraReplicas;
         Mutable<C> mutable = replicas.newMutable(replicas.size() + extraReplicas.size());
-        mutable.addAll(replicas);
+        mutable.addAll(replicas, Mutable.Conflict.NONE);
         mutable.addAll(extraReplicas, ignoreConflicts);
         return mutable.asSnapshot();
     }
