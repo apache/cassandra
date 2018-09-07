@@ -1919,7 +1919,7 @@ public class StorageProxy implements StorageProxyMBean
             EndpointsForRange targetReplicas = consistency.filterForQuery(keyspace, liveReplicas);
             int minResponses = Math.min(targetReplicas.size(), blockFor);
 
-            // Endpoitns for range here as well
+            // Endpoints for range here as well
             return ReplicaLayout.forRangeRead(keyspace, consistency, range,
                                               liveReplicas, targetReplicas.subList(0, minResponses));
         }
@@ -2146,9 +2146,10 @@ public class StorageProxy implements StorageProxyMBean
                 for (Replica replica : replicaLayout.selected())
                 {
                     Tracing.trace("Enqueuing request to {}", replica);
-                    MessageOut<ReadCommand> message = rangeCommand.createMessage();
+                    PartitionRangeReadCommand command = replica.isFull() ? rangeCommand : rangeCommand.copyAsTransientQuery();
+                    MessageOut<ReadCommand> message = command.createMessage();
                     if (command.isTrackingRepairedStatus() && replica.isFull())
-                        message =  message.withParameter(ParameterType.TRACK_REPAIRED_DATA, MessagingService.ONE_BYTE);
+                        message = message.withParameter(ParameterType.TRACK_REPAIRED_DATA, MessagingService.ONE_BYTE);
                     MessagingService.instance().sendRRWithFailure(message, replica.endpoint(), handler);
                 }
             }
