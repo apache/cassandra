@@ -23,7 +23,7 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -223,7 +223,7 @@ public abstract class AbstractReplicationStrategy
      */
     public RangesByEndpoint getAddressReplicas(TokenMetadata metadata)
     {
-        RangesByEndpoint.Mutable map = new RangesByEndpoint.Mutable();
+        RangesByEndpoint.Builder map = new RangesByEndpoint.Builder();
 
         for (Token token : metadata.sortedTokens())
         {
@@ -236,7 +236,7 @@ public abstract class AbstractReplicationStrategy
             }
         }
 
-        return map.asImmutableView();
+        return map.build();
     }
 
     public RangesAtEndpoint getAddressReplicas(TokenMetadata metadata, InetAddressAndPort endpoint)
@@ -260,7 +260,7 @@ public abstract class AbstractReplicationStrategy
 
     public EndpointsByRange getRangeAddresses(TokenMetadata metadata)
     {
-        EndpointsByRange.Mutable map = new EndpointsByRange.Mutable();
+        EndpointsByRange.Builder map = new EndpointsByRange.Builder();
 
         for (Token token : metadata.sortedTokens())
         {
@@ -273,7 +273,7 @@ public abstract class AbstractReplicationStrategy
             }
         }
 
-        return map.asImmutableView();
+        return map.build();
     }
 
     public RangesByEndpoint getAddressReplicas()

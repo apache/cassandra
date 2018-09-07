@@ -114,7 +114,7 @@ public class RangeRelocator
                                                                         TokenMetadata tmdBefore,
                                                                         TokenMetadata tmdAfter)
     {
-        RangesByEndpoint.Mutable endpointRanges = new RangesByEndpoint.Mutable();
+        RangesByEndpoint.Builder endpointRanges = new RangesByEndpoint.Builder();
         for (Replica toStream : streamRanges)
         {
             //If the range we are sending is full only send it to the new full replica
@@ -158,7 +158,7 @@ public class RangeRelocator
                 }
             }
         }
-        return endpointRanges.asImmutableView();
+        return endpointRanges.build();
     }
 
     public void calculateToFromStreams()

@@ -47,7 +47,7 @@ import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
-import org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.commons.lang3.StringUtils;
 
 import org.slf4j.Logger;
@@ -2975,7 +2975,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (temp.isMember(endpoint))
             temp.removeEndpoint(endpoint);
 
-        EndpointsByReplica.Mutable changedRanges = new EndpointsByReplica.Mutable();
+        EndpointsByReplica.Builder changedRanges = new EndpointsByReplica.Builder();
 
         // Go through the ranges and for each range check who will be
         // storing replicas for these ranges when the leaving endpoint
@@ -3011,7 +3011,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             changedRanges.putAll(replica, newReplicaEndpoints, Conflict.NONE);
         }
 
-        return changedRanges.asImmutableView();
+        return changedRanges.build();
     }
 
     public void onJoin(InetAddressAndPort endpoint, EndpointState epState)
@@ -3717,7 +3717,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
             else
             {
-                Iterables.addAll(option.getRanges(), getLocalReplicas(keyspace).filter(Replica::isFull).ranges());
+                Iterables.addAll(option.getRanges(), getLocalReplicas(keyspace).onlyFull().ranges());
             }
         }
         if (option.getRanges().isEmpty() || Keyspace.open(keyspace).getReplicationStrategy().getReplicationFactor().allReplicas < 2)
@@ -5028,7 +5028,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Map<InetAddressAndPort, Set<Range<Token>>> transferredRangePerKeyspace = SystemKeyspace.getTransferredRanges("Unbootstrap",
                                                                                                                          keyspace,
                                                                                                                          StorageService.instance.getTokenMetadata().partitioner);
-            RangesByEndpoint.Mutable replicasPerEndpoint = new RangesByEndpoint.Mutable();
+            RangesByEndpoint.Builder replicasPerEndpoint = new RangesByEndpoint.Builder();
             for (Map.Entry<Replica, Replica> endPointEntry : rangesWithEndpoints.flattenEntries())
             {
                 Replica local = endPointEntry.getKey();
@@ -5043,7 +5043,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 replicasPerEndpoint.put(remote.endpoint(), remote.decorateSubrange(local.range()));
             }
 
-            sessionsToStreamByKeyspace.put(keyspace, replicasPerEndpoint.asImmutableView());
+            sessionsToStreamByKeyspace.put(keyspace, replicasPerEndpoint.build());
         }
 
         StreamPlan streamPlan = new StreamPlan(StreamOperation.DECOMMISSION);

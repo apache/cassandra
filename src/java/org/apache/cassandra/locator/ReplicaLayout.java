@@ -193,6 +193,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      */
     public static ReplicaLayout.ForTokenWrite forTokenWriteLiveAndDown(Keyspace keyspace, Token token)
     {
+        // TODO: these should be cached, not the natural replicas
         // TODO: race condition to fetch these. implications??
         EndpointsForToken natural = keyspace.getReplicationStrategy().getNaturalReplicasForToken(token);
         EndpointsForToken pending = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(token, keyspace.getName());

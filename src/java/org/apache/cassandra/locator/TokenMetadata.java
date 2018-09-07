@@ -27,7 +27,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
-import org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -737,18 +737,18 @@ public class TokenMetadata
 
     public EndpointsByRange getPendingRangesMM(String keyspaceName)
     {
-        EndpointsByRange.Mutable byRange = new EndpointsByRange.Mutable();
+        EndpointsByRange.Builder byRange = new EndpointsByRange.Builder();
         PendingRangeMaps pendingRangeMaps = this.pendingRanges.get(keyspaceName);
 
         if (pendingRangeMaps != null)
         {
-            for (Map.Entry<Range<Token>, EndpointsForRange.Mutable> entry : pendingRangeMaps)
+            for (Map.Entry<Range<Token>, EndpointsForRange.Builder> entry : pendingRangeMaps)
             {
                 byRange.putAll(entry.getKey(), entry.getValue(), Conflict.ALL);
             }
         }
 
-        return byRange.asImmutableView();
+        return byRange.build();
     }
 
     /** a mutable map may be returned but caller should not modify it */

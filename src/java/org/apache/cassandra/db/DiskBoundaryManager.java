@@ -123,19 +123,19 @@ public class DiskBoundaryManager
      *
      * The final entry in the returned list will always be the partitioner maximum tokens upper key bound
      */
-    private static List<PartitionPosition> getDiskBoundaries(RangesAtEndpoint ranges, IPartitioner partitioner, Directories.DataDirectory[] dataDirectories)
+    private static List<PartitionPosition> getDiskBoundaries(RangesAtEndpoint replicas, IPartitioner partitioner, Directories.DataDirectory[] dataDirectories)
     {
         assert partitioner.splitter().isPresent();
 
         Splitter splitter = partitioner.splitter().get();
         boolean dontSplitRanges = DatabaseDescriptor.getNumTokens() > 1;
 
-        List<Splitter.WeightedRange> weightedRanges = new ArrayList<>(ranges.size());
+        List<Splitter.WeightedRange> weightedRanges = new ArrayList<>(replicas.size());
         // note that Range.sort unwraps any wraparound ranges, so we need to sort them here
-        for (Range<Token> r : Range.sort(ranges.fullRanges()))
+        for (Range<Token> r : Range.sort(replicas.onlyFull().ranges()))
             weightedRanges.add(new Splitter.WeightedRange(1.0, r));
 
-        for (Range<Token> r : Range.sort(ranges.transientRanges()))
+        for (Range<Token> r : Range.sort(replicas.onlyTransient().ranges()))
             weightedRanges.add(new Splitter.WeightedRange(0.1, r));
 
         weightedRanges.sort(Comparator.comparing(Splitter.WeightedRange::left));

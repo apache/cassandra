@@ -19,10 +19,12 @@
 package org.apache.cassandra.locator;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 public class EndpointsByReplica extends ReplicaMultimap<Replica, EndpointsForRange>
@@ -38,23 +40,25 @@ public class EndpointsByReplica extends ReplicaMultimap<Replica, EndpointsForRan
         return map.getOrDefault(range, EndpointsForRange.empty(range.range()));
     }
 
-    public static class Mutable extends ReplicaMultimap.Mutable<Replica, EndpointsForRange.Mutable>
+    public static class Builder extends ReplicaMultimap.Builder<Replica, EndpointsForRange.Builder>
     {
         @Override
-        protected EndpointsForRange.Mutable newMutable(Replica replica)
+        protected EndpointsForRange.Builder newBuilder(Replica replica)
         {
-            return new EndpointsForRange.Mutable(replica.range());
+            return new EndpointsForRange.Builder(replica.range());
         }
 
         // TODO: consider all ignoreDuplicates cases
         public void putAll(Replica range, EndpointsForRange replicas, Conflict ignoreConflicts)
         {
-            map.computeIfAbsent(range, r -> newMutable(r)).addAll(replicas, ignoreConflicts);
+            map.computeIfAbsent(range, r -> newBuilder(r)).addAll(replicas, ignoreConflicts);
         }
 
-        public EndpointsByReplica asImmutableView()
+        public EndpointsByReplica build()
         {
-            return new EndpointsByReplica(Collections.unmodifiableMap(Maps.transformValues(map, EndpointsForRange.Mutable::asImmutableView)));
+            return new EndpointsByReplica(
+                    ImmutableMap.copyOf(
+                            Maps.transformValues(this.map, EndpointsForRange.Builder::build)));
         }
     }
 

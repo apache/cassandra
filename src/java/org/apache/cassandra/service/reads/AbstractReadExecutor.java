@@ -117,26 +117,26 @@ public abstract class AbstractReadExecutor
         makeRequests(command, replicas);
     }
 
-    protected void makeTransientDataRequests(ReplicaCollection<?> replicas)
+    protected void makeTransientDataRequests(Iterable<Replica> replicas)
     {
         makeRequests(command.copyAsTransientQuery(replicas), replicas);
     }
 
-    protected void makeDigestRequests(ReplicaCollection<?> replicas)
+    protected void makeDigestRequests(Iterable<Replica> replicas)
     {
         assert all(replicas, Replica::isFull);
         // only send digest requests to full replicas, send data requests instead to the transient replicas
         makeRequests(command.copyAsDigestQuery(replicas), replicas);
     }
 
-    private void makeRequests(ReadCommand readCommand, ReplicaCollection<?> replicas)
+    private void makeRequests(ReadCommand readCommand, Iterable<Replica> replicas)
     {
         boolean hasLocalEndpoint = false;
 
-        Preconditions.checkArgument(replicas.stream().allMatch(replica -> replica.isFull() || !readCommand.isDigestQuery()),
-                                    "Can not send digest requests to transient replicas");
         for (Replica replica: replicas)
         {
+            assert replica.isFull() || readCommand.acceptsTransient();
+
             InetAddressAndPort endpoint = replica.endpoint();
             if (replica.isSelf())
             {
@@ -172,8 +172,8 @@ public abstract class AbstractReadExecutor
         EndpointsForToken selected = replicaPlan().contacts();
         EndpointsForToken fullDataRequests = selected.filter(Replica::isFull, initialDataRequestCount);
         makeFullDataRequests(fullDataRequests);
-        makeTransientDataRequests(selected.filter(Replica::isTransient));
-        makeDigestRequests(selected.filter(r -> r.isFull() && !fullDataRequests.contains(r)));
+        makeTransientDataRequests(selected.filterLazily(Replica::isTransient));
+        makeDigestRequests(selected.filterLazily(r -> r.isFull() && !fullDataRequests.contains(r)));
     }
 
     /**
