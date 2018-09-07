@@ -725,7 +725,8 @@ public class StorageProxy implements StorageProxyMBean
 
         // local writes can timeout, but cannot be dropped (see LocalMutationRunnable and CASSANDRA-6510),
         // so there is no need to hint or retry.
-        EndpointsForToken replicasToHint = StorageService.instance.getNaturalAndPendingReplicasForToken(keyspaceName, token)
+        EndpointsForToken replicasToHint = ReplicaLayout.forTokenWriteLiveAndDown(Keyspace.open(keyspaceName), token)
+                .all()
                 .filter(StorageProxy::shouldHint);
 
         submitHint(mutation, replicasToHint, null);
@@ -737,8 +738,8 @@ public class StorageProxy implements StorageProxyMBean
         Token token = mutation.key().getToken();
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
 
-        return StorageService.instance.getNaturalReplicasForToken(keyspaceName, token).endpoints().contains(local)
-               || StorageService.instance.getTokenMetadata().pendingEndpointsForToken(token, keyspaceName).endpoints().contains(local);
+        return ReplicaLayout.forTokenWriteLiveAndDown(Keyspace.open(keyspaceName), token)
+                .all().endpoints().contains(local);
     }
 
     /**
@@ -1462,7 +1463,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         Keyspace keyspace = Keyspace.open(keyspaceName);
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        EndpointsForToken replicas = StorageService.instance.getLiveNaturalReplicasForToken(keyspace, key);
+        EndpointsForToken replicas = keyspace.getReplicationStrategy().getNaturalReplicasForToken(key);
 
         // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
         replicas = replicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()));
@@ -1845,21 +1846,6 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
         }
-    }
-
-    public static EndpointsForToken getLiveSortedReplicasForToken(Keyspace keyspace, RingPosition pos)
-    {
-        return getLiveSortedReplicas(keyspace, pos).forToken(pos.getToken());
-    }
-
-    public static EndpointsForRange getLiveSortedReplicas(Keyspace keyspace, RingPosition pos)
-    {
-        EndpointsForRange liveReplicas = StorageService.instance.getLiveNaturalReplicas(keyspace, pos);
-        // Replica availability is considered by the query path
-        Preconditions.checkState(liveReplicas.isEmpty() || liveReplicas.stream().anyMatch(Replica::isFull),
-                                 "At least one full replica required for reads: " + liveReplicas);
-
-        return DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), liveReplicas);
     }
 
     /**

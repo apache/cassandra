@@ -459,11 +459,11 @@ public class BatchlogManager implements BatchlogManagerMBean
             Keyspace keyspace = Keyspace.open(ks);
             Token tk = mutation.key().getToken();
 
-            EndpointsForToken replicas = StorageService.instance.getNaturalAndPendingReplicasForToken(ks, tk);
-            Replicas.temporaryAssertFull(replicas); // TODO in CASSANDRA-14549
+            ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWriteLiveAndDown(keyspace, tk);
+            Replicas.temporaryAssertFull(liveAndDown.all()); // TODO in CASSANDRA-14549
 
             EndpointsForToken.Builder liveReplicasBuilder = EndpointsForToken.builder(tk);
-            for (Replica replica : replicas)
+            for (Replica replica : liveAndDown.all())
             {
                 if (replica.isLocal())
                 {
