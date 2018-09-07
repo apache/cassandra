@@ -124,6 +124,13 @@ public abstract class AbstractReplicationStrategy
         return endpoints;
     }
 
+    public Replica getLocalReplicaFor(RingPosition searchPosition)
+    {
+        return getNaturalReplicas(searchPosition)
+               .byEndpoint()
+               .get(FBUtilities.getBroadcastAddressAndPort());
+    }
+
     /**
      * calculate the natural endpoints for the given token
      *

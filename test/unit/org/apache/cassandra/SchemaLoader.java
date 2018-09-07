@@ -102,6 +102,8 @@ public class SchemaLoader
         String ks_nocommit = testName + "NoCommitlogSpace";
         String ks_prsi = testName + "PerRowSecondaryIndex";
         String ks_cql = testName + "cql_keyspace";
+        String ks_cql_replicated = testName + "cql_keyspace_replicated";
+        String ks_with_transient = testName + "ks_with_transient";
 
         AbstractType bytes = BytesType.instance;
 
@@ -218,16 +220,16 @@ public class SchemaLoader
         schema.add(KeyspaceMetadata.create(ks_nocommit, KeyspaceParams.simpleTransient(1), Tables.of(
                 standardCFMD(ks_nocommit, "Standard1").build())));
 
+        String simpleTable = "CREATE TABLE table1 ("
+                             + "k int PRIMARY KEY,"
+                             + "v1 text,"
+                             + "v2 int"
+                             + ")";
         // CQLKeyspace
         schema.add(KeyspaceMetadata.create(ks_cql, KeyspaceParams.simple(1), Tables.of(
 
         // Column Families
-        CreateTableStatement.parse("CREATE TABLE table1 ("
-                                   + "k int PRIMARY KEY,"
-                                   + "v1 text,"
-                                   + "v2 int"
-                                   + ")", ks_cql)
-                            .build(),
+        CreateTableStatement.parse(simpleTable, ks_cql).build(),
 
         CreateTableStatement.parse("CREATE TABLE table2 ("
                                    + "k text,"
@@ -236,6 +238,12 @@ public class SchemaLoader
                                    + "PRIMARY KEY (k, c))", ks_cql)
                             .build()
         )));
+
+        schema.add(KeyspaceMetadata.create(ks_cql_replicated, KeyspaceParams.simple(3),
+                                           Tables.of(CreateTableStatement.parse(simpleTable, ks_cql_replicated).build())));
+
+        schema.add(KeyspaceMetadata.create(ks_with_transient, KeyspaceParams.simple("3/1"),
+                                           Tables.of(CreateTableStatement.parse(simpleTable, ks_with_transient).build())));
 
         if (DatabaseDescriptor.getPartitioner() instanceof Murmur3Partitioner)
         {
