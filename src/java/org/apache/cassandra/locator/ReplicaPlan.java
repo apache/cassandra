@@ -18,109 +18,110 @@
 
 package org.apache.cassandra.locator;
 
-import java.util.Collection;
+import com.google.common.collect.Iterables;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Keyspace;
+
 import java.util.function.Predicate;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Predicates;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.UnavailableException;
-import org.apache.cassandra.net.IAsyncCallback;
-import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
-import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
-import org.apache.cassandra.utils.FBUtilities;
-
-import static com.google.common.collect.Iterables.any;
-
-/**
- * Encapsulates knowledge about the ring necessary for performing a specific operation, with static accessors
- * for building the relevant layout.
- *
- * Constitutes:
- *  - the 'natural' replicas replicating the range or token relevant for the operation
- *  - if for performing a write, any 'pending' replicas that are taking ownership of the range, and must receive updates
- *  - the 'contact' replicas, those that should be targeted for any operation
- *  - 'all' replicas represents natural+pending
- *
- * @param <E> the type of Endpoints this ReplayLayout holds (either EndpointsForToken or EndpointsForRange)
- * @param <L> the type of itself, including its type parameters, for return type of modifying methods
- */
-public abstract class ReplicaPlan<E extends Endpoints<E>, L extends ReplicaPlan<E, L>>
+public abstract class ReplicaPlan<
+        E extends Endpoints<E>,
+        L extends ReplicaLayout<E>,
+        P extends ReplicaPlan<E, ? extends L, P>>
 {
-    private volatile E all;
-    protected final E natural;
-    protected final E pending;
-    protected final E contact;
-
     protected final Keyspace keyspace;
     protected final ConsistencyLevel consistencyLevel;
 
-    private ReplicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, E natural, E pending, E contact)
-    {
-        this(keyspace, consistencyLevel, natural, pending, contact, null);
-    }
+    private final L liveAndDown;
+    private final L liveOnly;
 
-    private ReplicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, E natural, E pending, E contact, E all)
+    // all nodes we *could* contact via any mechanism, including hints
+    // i.e., for
+    //   - reads, only live and natural endpoints
+    //      ==> liveOnly.natural()
+    //   - writes, includes all down, pending, full and transient nodes (liveAndDown.all())
+    //      ==> liveAndDown.natural(isFull) ++ liveAndDown.pending()
+    //   - paxos, includes all liveOnly replicas (natural+pending), for this DC if SERIAL_LOCAL
+    //      ==> liveOnly.all()  (if consistencyLevel.isDCLocal(), then .filter(consistencyLevel.isLocal))
+    private final E candidates;
+
+    // all nodes we will contact via any mechanism, including hints
+    // i.e., for:
+    //  - reads, only live natural replicas
+    //      ==> liveOnly.natural().subList(0, blockFor + initial speculate)
+    //  - writes, includes all full, and any pending replicas, (and only any necessary transient ones to make up the difference)
+    //      ==> liveAndDown.natural().filter(isFull) ++ liveAndDown.pending() ++ liveOnly.natural.filter(isTransient, req)
+    //  - paxos, includes all liveOnly replicas (natural+pending), for this DC if SERIAL_LOCAL
+    //      ==> liveOnly.all()  (if consistencyLevel.isDCLocal(), then .filter(consistencyLevel.isLocal))
+    private final E contact;
+
+    ReplicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L liveOnly, E candidates, E contact)
     {
         assert contact != null;
-        assert pending == null || !Endpoints.haveConflicts(natural, pending);
         this.keyspace = keyspace;
         this.consistencyLevel = consistencyLevel;
-        this.natural = natural;
-        this.pending = pending;
+        this.liveAndDown = liveAndDown;
+        this.liveOnly = liveOnly;
+        this.candidates = candidates;
         this.contact = contact;
-        // if we logically have no pending endpoints (they are null), then 'all' our endpoints are natural
-        if (all == null && pending == null)
-            all = natural;
-        this.all = all;
     }
 
-    public Replica getReplicaFor(InetAddressAndPort endpoint)
+    protected abstract P copy(ConsistencyLevel newConsistencyLevel, E newContact);
+
+    public P withContact(E newContact)
     {
-        return natural.byEndpoint().get(endpoint);
+        return copy(consistencyLevel, newContact);
     }
 
-    public E natural()
+    public P withConsistencyLevel(ConsistencyLevel newConsistencylevel)
     {
-        return natural;
-    }
-
-    public E all()
-    {
-        E result = all;
-        if (result == null)
-            all = result = Endpoints.concat(natural, pending);
-        return result;
+        return copy(newConsistencylevel, contact);
     }
 
     public E contact()
     {
         return contact;
     }
-
-    /**
-     * @return the pending replicas - will be null for read layouts
-     * TODO: ideally we would enforce at compile time that read layouts have no pending to access
-     */
-    public E pending()
+    public E candidates()
     {
-        return pending;
+        return candidates;
     }
 
-    public int blockFor()
+    public L liveAndDown()
     {
-        return pending == null
-                ? consistencyLevel.blockFor(keyspace)
-                : consistencyLevel.blockForWrite(keyspace, pending);
+        return liveAndDown;
+    }
+    public L liveOnly()
+    {
+        return liveOnly;
+    }
+
+    public E allLiveUncontactedCandidates()
+    {
+        return candidates.filter(r -> !contacts(r) && isAlive(r));
+    }
+
+    public Replica firstLiveUncontactedCandidate(Predicate<Replica> extraPredicate)
+    {
+        return Iterables.tryFind(candidates, r -> extraPredicate.test(r) && !contacts(r) && isAlive(r)).orNull();
+    }
+
+    public boolean isAlive(Replica replica)
+    {
+        return liveOnly.all().endpoints().contains(replica.endpoint());
+    }
+
+    public boolean contacts(Replica replica)
+    {
+        return contact.contains(replica);
+    }
+
+    public abstract int blockFor();
+    public abstract void assureSufficientReplicas();
+
+    public Replica getReplicaFor(InetAddressAndPort endpoint)
+    {
+        return liveAndDown.all().byEndpoint().get(endpoint);
     }
 
     public Keyspace keyspace()
@@ -133,244 +134,121 @@ public abstract class ReplicaPlan<E extends Endpoints<E>, L extends ReplicaPlan<
         return consistencyLevel;
     }
 
-    abstract public L withContact(E replicas);
-
-    abstract public L withConsistencyLevel(ConsistencyLevel cl);
-
-    public L forNaturalUncontacted()
+    public String toString()
     {
-        E more;
-        if (consistencyLevel.isDatacenterLocal() && keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
-        {
-            IEndpointSnitch snitch = keyspace.getReplicationStrategy().snitch;
-            String localDC = DatabaseDescriptor.getLocalDataCenter();
-
-            more = natural.filter(replica -> !contact.contains(replica) &&
-                    snitch.getDatacenter(replica).equals(localDC));
-        } else
-        {
-            more = natural.filter(replica -> !contact.contains(replica));
-        }
-
-        return withContact(more);
+        return "ReplicaPlan [ CL: " + consistencyLevel + " keyspace: " + keyspace + " layout: " + liveAndDown + " liveOnly: " + liveOnly() + " selected:" + contact + " ]";
     }
 
-    public static class ForRange extends ReplicaPlan<EndpointsForRange, ForRange>
+    public static abstract class ForRead<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan<E, L, P>>
+            extends ReplicaPlan<E, L, P> 
     {
-        public final AbstractBounds<PartitionPosition> range;
-
-        @VisibleForTesting
-        public ForRange(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, EndpointsForRange natural, EndpointsForRange contact)
+        ForRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L liveOnly, E candidates, E contact)
         {
-            // Range queries do not contact pending replicas
-            super(keyspace, consistencyLevel, natural, null, contact);
-            this.range = range;
+            super(keyspace, consistencyLevel, liveAndDown, liveOnly, candidates, contact);
         }
-
-        @Override
-        public ForRange withContact(EndpointsForRange newSelected)
+        public int blockFor()
         {
-            return new ForRange(keyspace, consistencyLevel, range, natural, newSelected);
+            return consistencyLevel.blockFor(keyspace);
         }
-
-        @Override
-        public ForRange withConsistencyLevel(ConsistencyLevel cl)
+        public void assureSufficientReplicas()
         {
-            return new ForRange(keyspace, cl, range, natural, contact);
+            consistencyLevel.assureSufficientReplicasForRead(keyspace, liveOnly().all());
         }
     }
 
-    public static class ForToken extends ReplicaPlan<EndpointsForToken, ForToken>
+    public static class ForTokenRead extends ForRead<EndpointsForToken, ReplicaLayout.ForTokenRead, ReplicaPlan.ForTokenRead>
     {
-        public final Token token;
-
-        @VisibleForTesting
-        public ForToken(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken contact)
+        public ForTokenRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenRead liveAndDown, ReplicaLayout.ForTokenRead liveOnly, EndpointsForToken candidates, EndpointsForToken contact)
         {
-            super(keyspace, consistencyLevel, natural, pending, contact);
-            this.token = token;
-        }
-
-        public ForToken(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken contact, EndpointsForToken all)
-        {
-            super(keyspace, consistencyLevel, natural, pending, contact, all);
-            this.token = token;
-        }
-
-        public ForToken withContact(EndpointsForToken newSelected)
-        {
-            return new ForToken(keyspace, consistencyLevel, token, natural, pending, newSelected);
+            super(keyspace, consistencyLevel, liveAndDown, liveOnly, candidates, contact);
         }
 
         @Override
-        public ForToken withConsistencyLevel(ConsistencyLevel cl)
+        protected ReplicaPlan.ForTokenRead copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
         {
-            return new ForToken(keyspace, cl, token, natural, pending, contact);
+            return new ReplicaPlan.ForTokenRead(keyspace, newConsistencyLevel, liveAndDown(), liveOnly(), candidates(), newContact);
         }
     }
 
-    public static class ForPaxos extends ForToken
+    public static class ForRangeRead extends ForRead<EndpointsForRange, ReplicaLayout.ForRangeRead, ReplicaPlan.ForRangeRead>
     {
-        private final int requiredParticipants;
-
-        private ForPaxos(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, int requiredParticipants, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken contact, EndpointsForToken all)
+        public ForRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForRangeRead liveAndDown, ReplicaLayout.ForRangeRead liveOnly, EndpointsForRange candidates, EndpointsForRange contact)
         {
-            super(keyspace, consistencyLevel, token, natural, pending, contact, all);
+            super(keyspace, consistencyLevel, liveAndDown, liveOnly, candidates, contact);
+        }
+
+        @Override
+        protected ReplicaPlan.ForRangeRead copy(ConsistencyLevel newConsistencyLevel, EndpointsForRange newContact)
+        {
+            return new ReplicaPlan.ForRangeRead(keyspace, newConsistencyLevel, liveAndDown(), liveOnly(), candidates(), newContact);
+        }
+    }
+
+    public static abstract class ForWrite<E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>, P extends ReplicaPlan<E, L, P>>
+            extends ReplicaPlan<E, L, P>
+    {
+        ForWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L liveOnly, E candidates, E contact)
+        {
+            super(keyspace, consistencyLevel, liveAndDown, liveOnly, candidates, contact);
+        }
+        public int blockFor()
+        {
+            return consistencyLevel.blockForWrite(keyspace, liveAndDown().pending);
+        }
+        public void assureSufficientReplicas()
+        {
+            consistencyLevel.assureSufficientReplicasForWrite(keyspace, liveOnly().all(), liveAndDown().pending());
+        }
+    }
+
+    public static class ForTokenWrite
+            extends ForWrite<EndpointsForToken, ReplicaLayout.ForTokenWrite, ReplicaPlan.ForTokenWrite>
+    {
+        public ForTokenWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite liveOnly, EndpointsForToken candidates, EndpointsForToken contact)
+        {
+            super(keyspace, consistencyLevel, liveAndDown, liveOnly, candidates, contact);
+        }
+        @Override
+        protected ReplicaPlan.ForTokenWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
+        {
+            return new ReplicaPlan.ForTokenWrite(keyspace, newConsistencyLevel, liveAndDown(), liveOnly(), candidates(), newContact);
+        }
+    }
+
+    public static class ForPaxosWrite
+            extends ForWrite<EndpointsForToken, ReplicaLayout.ForTokenWrite, ReplicaPlan.ForPaxosWrite>
+    {
+        final int requiredParticipants;
+        ForPaxosWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite liveOnly, EndpointsForToken candidates, EndpointsForToken contact, int requiredParticipants)
+        {
+            super(keyspace, consistencyLevel, liveAndDown, liveOnly, candidates, contact);
             this.requiredParticipants = requiredParticipants;
         }
 
-        public int getRequiredParticipants()
+        @Override
+        protected ReplicaPlan.ForPaxosWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
+        {
+            return new ReplicaPlan.ForPaxosWrite(keyspace, newConsistencyLevel, liveAndDown(), liveOnly(), candidates(), newContact, requiredParticipants);
+        }
+
+        public int requiredParticipants()
         {
             return requiredParticipants;
         }
     }
 
-    public static ForToken forSingleReplica(Keyspace keyspace, Token token, Replica replica)
+    public static class ForRangeWrite
+            extends ForWrite<EndpointsForRange, ReplicaLayout.ForRangeWrite, ReplicaPlan.ForRangeWrite>
     {
-        EndpointsForToken singleReplica = EndpointsForToken.of(token, replica);
-        return new ForToken(keyspace, ConsistencyLevel.ONE, token, singleReplica, EndpointsForToken.empty(token), singleReplica, singleReplica);
-    }
-
-    public static ForRange forSingleReplica(Keyspace keyspace, AbstractBounds<PartitionPosition> range, Replica replica)
-    {
-        EndpointsForRange singleReplica = EndpointsForRange.of(replica);
-        return new ForRange(keyspace, ConsistencyLevel.ONE, range, singleReplica, singleReplica);
-    }
-
-    public static ForToken forCounterWrite(Keyspace keyspace, Token token, Replica replica)
-    {
-        return forSingleReplica(keyspace, token, replica);
-    }
-
-    public static ForToken forBatchlogWrite(Keyspace keyspace, Collection<InetAddressAndPort> endpoints) throws UnavailableException
-    {
-        // A single case we write not for range or token, but multiple mutations to many tokens
-        Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
-        EndpointsForToken natural = EndpointsForToken.copyOf(token, SystemReplicas.getSystemReplicas(endpoints));
-        EndpointsForToken pending = EndpointsForToken.empty(token);
-        ConsistencyLevel consistencyLevel = natural.size() == 1 ? ConsistencyLevel.ONE : ConsistencyLevel.TWO;
-
-        return forWriteWithDownNodes(keyspace, consistencyLevel, token, natural, pending);
-    }
-
-    public static ForToken forWriteWithDownNodes(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token) throws UnavailableException
-    {
-        return forWrite(keyspace, consistencyLevel, token, Predicates.alwaysTrue());
-    }
-
-    public static ForToken forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, Predicate<InetAddressAndPort> isAlive) throws UnavailableException
-    {
-        EndpointsForToken natural = StorageService.getNaturalReplicasForToken(keyspace.getName(), token);
-        EndpointsForToken pending = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(token, keyspace.getName());
-        return forWrite(keyspace, consistencyLevel, token, natural, pending, isAlive);
-    }
-
-    public static ForToken forWriteWithDownNodes(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, EndpointsForToken natural, EndpointsForToken pending) throws UnavailableException
-    {
-        return forWrite(keyspace, consistencyLevel, token, natural, pending, Predicates.alwaysTrue());
-    }
-
-    public static ForToken forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, EndpointsForToken natural, EndpointsForToken pending, Predicate<InetAddressAndPort> isAlive) throws UnavailableException
-    {
-        if (Endpoints.haveConflicts(natural, pending))
+        public ForRangeWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForRangeWrite liveAndDown, ReplicaLayout.ForRangeWrite liveOnly, EndpointsForRange candidates, EndpointsForRange contact)
         {
-            natural = Endpoints.resolveConflictsInNatural(natural, pending);
-            pending = Endpoints.resolveConflictsInPending(natural, pending);
+            super(keyspace, consistencyLevel, liveAndDown, liveOnly, candidates, contact);
         }
-
-        if (!any(natural, Replica::isTransient) && !any(pending, Replica::isTransient))
+        @Override
+        protected ReplicaPlan.ForRangeWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForRange newContact)
         {
-            EndpointsForToken contact = Endpoints.concat(natural, pending).filter(r -> isAlive.test(r.endpoint()));
-            return new ForToken(keyspace, consistencyLevel, token, natural, pending, contact);
+            return new ReplicaPlan.ForRangeWrite(keyspace, newConsistencyLevel, liveAndDown(), liveOnly(), candidates(), newContact);
         }
-
-        return forWrite(keyspace, consistencyLevel, token, consistencyLevel.blockForWrite(keyspace, pending), natural, pending, isAlive);
     }
 
-    public static ReplicaPlan.ForPaxos forPaxos(Keyspace keyspace, DecoratedKey key, ConsistencyLevel consistencyForPaxos) throws UnavailableException
-    {
-        Token tk = key.getToken();
-        EndpointsForToken natural = StorageService.getNaturalReplicasForToken(keyspace.getName(), tk);
-        EndpointsForToken pending = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(tk, keyspace.getName());
-        if (Endpoints.haveConflicts(natural, pending))
-        {
-            natural = Endpoints.resolveConflictsInNatural(natural, pending);
-            pending = Endpoints.resolveConflictsInPending(natural, pending);
-        }
-
-        // TODO CASSANDRA-14547
-        Replicas.temporaryAssertFull(natural);
-        Replicas.temporaryAssertFull(pending);
-
-        if (consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL)
-        {
-            // Restrict natural and pending to node in the local DC only
-            String localDc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
-            IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-            Predicate<Replica> isLocalDc = replica -> localDc.equals(snitch.getDatacenter(replica));
-
-            natural = natural.filter(isLocalDc);
-            pending = pending.filter(isLocalDc);
-        }
-
-        int participants = pending.size() + natural.size();
-        int requiredParticipants = participants / 2 + 1; // See CASSANDRA-8346, CASSANDRA-833
-
-        EndpointsForToken all = Endpoints.concat(natural, pending);
-        EndpointsForToken contact = all.filter(IAsyncCallback.isReplicaAlive);
-        if (contact.size() < requiredParticipants)
-            throw UnavailableException.create(consistencyForPaxos, requiredParticipants, contact.size());
-
-        // We cannot allow CAS operations with 2 or more pending endpoints, see #8346.
-        // Note that we fake an impossible number of required nodes in the unavailable exception
-        // to nail home the point that it's an impossible operation no matter how many nodes are live.
-        if (pending.size() > 1)
-            throw new UnavailableException(String.format("Cannot perform LWT operation as there is more than one (%d) pending range movement", pending.size()),
-                                           consistencyForPaxos,
-                                           participants + 1,
-                                           contact.size());
-
-        return new ReplicaPlan.ForPaxos(keyspace, consistencyForPaxos, key.getToken(), requiredParticipants, natural, pending, contact, all);
-    }
-
-    /**
-     * We want to send mutations to as many full replicas as we can, and just as many transient replicas
-     * as we need to meet blockFor.
-     */
-    @VisibleForTesting
-    public static ForToken forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, int blockFor, EndpointsForToken natural, EndpointsForToken pending, Predicate<InetAddressAndPort> livePredicate) throws UnavailableException
-    {
-        EndpointsForToken all = Endpoints.concat(natural, pending);
-        EndpointsForToken contact = all
-                .select()
-                .add(r -> r.isFull() && livePredicate.test(r.endpoint()))
-                .add(r -> r.isTransient() && livePredicate.test(r.endpoint()), blockFor)
-                .get();
-
-        consistencyLevel.assureSufficientReplicasForWrite(keyspace, contact, pending);
-
-        return new ForToken(keyspace, consistencyLevel, token, natural, pending, contact, all);
-    }
-
-    public static ForToken forRead(Keyspace keyspace, Token token, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry)
-    {
-        EndpointsForToken natural = StorageProxy.getLiveSortedReplicasForToken(keyspace, token);
-        EndpointsForToken contact = consistencyLevel.filterForQuery(keyspace, natural, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE));
-
-        // Throw UAE early if we don't have enough replicas.
-        consistencyLevel.assureSufficientReplicasForRead(keyspace, contact);
-
-        return new ForToken(keyspace, consistencyLevel, token, natural, null, contact);
-    }
-
-    public static ForRange forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, EndpointsForRange natural, EndpointsForRange contact)
-    {
-        return new ForRange(keyspace, consistencyLevel, range, natural, contact);
-    }
-
-    public String toString()
-    {
-        return "ReplicaPlan [ CL: " + consistencyLevel + " keyspace: " + keyspace + " natural: " + natural + "pending: " + pending + " contact: " + contact + " ]";
-    }
 }
-

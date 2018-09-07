@@ -41,6 +41,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.repair.TestableReadRepair;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -198,7 +199,7 @@ public class DataResolverTransientTest extends AbstractReadResponseTest
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk(5));
         EndpointsForToken targetReplicas = EndpointsForToken.of(key.getToken(), full(EP1), full(EP2), trans(EP3));
-        TestableReadRepair<?, ?> repair = new TestableReadRepair(command, QUORUM);
+        TestableReadRepair<?, ?, ?> repair = new TestableReadRepair(command, QUORUM);
         DataResolver resolver = new DataResolver(command, plan(targetReplicas, QUORUM), repair, 0);
 
         Assert.assertFalse(resolver.isDataPresent());
@@ -219,8 +220,8 @@ public class DataResolverTransientTest extends AbstractReadResponseTest
 
     }
 
-    private ReplicaPlan.ForToken plan(EndpointsForToken replicas, ConsistencyLevel consistencyLevel)
+    private ReplicaPlan.ForTokenRead plan(EndpointsForToken replicas, ConsistencyLevel consistencyLevel)
     {
-        return new ReplicaPlan.ForToken(ks, consistencyLevel, replicas.token(), replicas, null, replicas);
+        return new ReplicaPlan.ForTokenRead(ks, consistencyLevel, new ReplicaLayout.ForTokenRead(replicas), new ReplicaLayout.ForTokenRead(replicas), replicas, replicas);
     }
 }

@@ -4268,7 +4268,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                              .filter(endpoint -> FailureDetector.instance.isAlive(endpoint) && !FBUtilities.getBroadcastAddressAndPort().equals(endpoint))
                              .collect(Collectors.toList());
 
-        return EndpointsForRange.copyOf(SystemReplicas.getSystemReplicas(endpoints));
+        return SystemReplicas.getSystemReplicas(endpoints);
     }
     /**
      * Find the best target to stream hints to. Currently the closest peer according to the snitch

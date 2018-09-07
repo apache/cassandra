@@ -57,6 +57,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -1224,7 +1225,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     }
 
     private DataResolver resolverWithVerifier(final ReadCommand command,
-                                              final ReplicaPlan.ForRange plan,
+                                              final ReplicaPlan.ForRangeRead plan,
                                               final ReadRepair readRepair,
                                               final long queryStartNanoTime,
                                               final RepairedDataVerifier verifier)
@@ -1232,7 +1233,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         class TestableDataResolver extends DataResolver
         {
 
-            public TestableDataResolver(ReadCommand command, ReplicaPlan.ForRange plan, ReadRepair readRepair, long queryStartNanoTime)
+            public TestableDataResolver(ReadCommand command, ReplicaPlan.ForRangeRead plan, ReadRepair readRepair, long queryStartNanoTime)
             {
                 super(command, plan, readRepair, queryStartNanoTime);
             }
@@ -1298,9 +1299,12 @@ public class DataResolverTest extends AbstractReadResponseTest
         assertEquals(update.metadata().name, cfm.name);
     }
 
-    private ReplicaPlan.ForRange plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
+    private ReplicaPlan.ForRangeRead plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
-        return new ReplicaPlan.ForRange(ks, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas);
+        return new ReplicaPlan.ForRangeRead(ks, consistencyLevel,
+                new ReplicaLayout.ForRangeRead(ReplicaUtils.FULL_BOUNDS, replicas),
+                new ReplicaLayout.ForRangeRead(ReplicaUtils.FULL_BOUNDS, replicas),
+                replicas, replicas);
     }
 
     private static void resolveAndConsume(DataResolver resolver)

@@ -27,6 +27,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 
@@ -34,7 +35,8 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
  * Only performs the collection of data responses and reconciliation of them, doesn't send repair mutations
  * to replicas. This preserves write atomicity, but doesn't provide monotonic quorum reads
  */
-public class ReadOnlyReadRepair<E extends Endpoints<E>, L extends ReplicaPlan<E, L>> extends AbstractReadRepair<E, L>
+public class ReadOnlyReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
+        extends AbstractReadRepair<E, L, P>
 {
     ReadOnlyReadRepair(ReadCommand command, P replicaPlan, long queryStartNanoTime)
     {

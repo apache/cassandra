@@ -26,8 +26,9 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.locator.ReplicaPlan;
 
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +37,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -53,7 +53,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     //Count down until all responses and expirations have occured before deciding whether the ideal CL was reached.
     private AtomicInteger responsesAndExpirations;
     private final SimpleCondition condition = new SimpleCondition();
-    protected final ReplicaPlan.ForToken replicaPlan;
+    protected final ReplicaPlan.ForTokenWrite replicaPlan;
 
     protected final Runnable callback;
     protected final WriteType writeType;
@@ -76,7 +76,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
      * @param callback           A callback to be called when the write is successful.
      * @param queryStartNanoTime
      */
-    protected AbstractWriteResponseHandler(ReplicaPlan.ForToken replicaPlan,
+    protected AbstractWriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan,
                                            Runnable callback,
                                            WriteType writeType,
                                            long queryStartNanoTime)
@@ -104,7 +104,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
 
         if (!success)
         {
-            int blockedFor = totalBlockFor();
+            int blockedFor = blockFor();
             int acks = ackCount();
             // It's pretty unlikely, but we can race between exiting await above and here, so
             // that we could now have enough acks. In that case, we "lie" on the acks count to
@@ -114,9 +114,9 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
             throw new WriteTimeoutException(writeType, replicaPlan.consistencyLevel(), acks, blockedFor);
         }
 
-        if (totalBlockFor() + failures > totalEndpoints())
+        if (blockFor() + failures > candidateReplicaCount())
         {
-            throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), totalBlockFor(), writeType, failureReasonByEndpoint);
+            throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, failureReasonByEndpoint);
         }
     }
 
@@ -189,19 +189,19 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     /**
      * @return the minimum number of endpoints that must reply.
      */
-    protected int totalBlockFor()
+    protected int blockFor()
     {
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
-        return replicaPlan.consistencyLevel().blockForWrite(replicaPlan.keyspace(), replicaPlan.pending());
+        return replicaPlan.blockFor();
     }
 
     /**
      * @return the total number of endpoints the request can been sent to.
      */
-    protected int totalEndpoints()
+    protected int candidateReplicaCount()
     {
-        return replicaPlan.all().size();
+        return replicaPlan.candidates().size();
     }
 
     public ConsistencyLevel consistencyLevel()
@@ -210,7 +210,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     }
 
     /**
-     * @return true if the message counts towards the totalBlockFor() threshold
+     * @return true if the message counts towards the blockFor() threshold
      */
     protected boolean waitingFor(InetAddressAndPort from)
     {
@@ -226,11 +226,6 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
      * null message means "response from local write"
      */
     public abstract void response(MessageIn<T> msg);
-
-    public void assureSufficientLiveNodes() throws UnavailableException
-    {
-        replicaPlan.consistencyLevel().assureSufficientReplicasForWrite(replicaPlan.keyspace(), replicaPlan.all().filter(isReplicaAlive), replicaPlan.pending());
-    }
 
     protected void signal()
     {
@@ -250,7 +245,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
 
         failureReasonByEndpoint.put(from, failureReason);
 
-        if (totalBlockFor() + n > totalEndpoints())
+        if (blockFor() + n > candidateReplicaCount())
             signal();
     }
 
@@ -292,7 +287,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
      */
     public void maybeTryAdditionalReplicas(IMutation mutation, StorageProxy.WritePerformer writePerformer, String localDC)
     {
-        if (replicaPlan.all().size() == replicaPlan.contact().size())
+        if (replicaPlan.liveOnly().all().size() <= replicaPlan.contact().size())
             return;
 
         long timeout = Long.MAX_VALUE;
@@ -313,7 +308,8 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
                 for (ColumnFamilyStore cf : cfs)
                     cf.metric.speculativeWrites.inc();
 
-                writePerformer.apply(mutation, replicaPlan.forNaturalUncontacted(),
+                EndpointsForToken uncontacted = replicaPlan.allLiveUncontactedCandidates();
+                writePerformer.apply(mutation, replicaPlan.withContact(uncontacted),
                                      (AbstractWriteResponseHandler<IMutation>) this,
                                      localDC);
             }

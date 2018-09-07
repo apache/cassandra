@@ -28,16 +28,19 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 
-public class PartitionIteratorMergeListener implements UnfilteredPartitionIterators.MergeListener
+public class PartitionIteratorMergeListener<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan<E, L, P>>
+        implements UnfilteredPartitionIterators.MergeListener
 {
-    private final ReplicaPlan replicaPlan;
+    private final ReplicaPlan.ForRead<E, L, P> replicaPlan;
     private final ReadCommand command;
     private final ConsistencyLevel consistency;
     private final ReadRepair readRepair;
 
-    public PartitionIteratorMergeListener(ReplicaPlan replicaPlan, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
+    public PartitionIteratorMergeListener(ReplicaPlan.ForRead<E, L, P> replicaPlan, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
     {
         this.replicaPlan = replicaPlan;
         this.command = command;
@@ -47,7 +50,7 @@ public class PartitionIteratorMergeListener implements UnfilteredPartitionIterat
 
     public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
     {
-        return new RowIteratorMergeListener(partitionKey, columns(versions), isReversed(versions), replicaPlan, command, consistency, readRepair);
+        return new RowIteratorMergeListener<>(partitionKey, columns(versions), isReversed(versions), replicaPlan, command, consistency, readRepair);
     }
 
     protected RegularAndStaticColumns columns(List<UnfilteredRowIterator> versions)

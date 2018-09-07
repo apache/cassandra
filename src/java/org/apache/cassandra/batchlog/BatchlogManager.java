@@ -29,8 +29,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.RateLimiter;
 
-import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -510,13 +511,13 @@ public class BatchlogManager implements BatchlogManagerMBean
 
             ReplayWriteResponseHandler(Keyspace keyspace, EndpointsForToken writeReplicas, long queryStartNanoTime)
             {
-                super(ReplicaPlan.forWriteWithDownNodes(keyspace, null, writeReplicas.token(), writeReplicas, EndpointsForToken.empty(writeReplicas.token())),
+                super(ReplicaPlans.forWrite(keyspace, ConsistencyLevel.ONE, ReplicaLayout.forTokenWrite(writeReplicas, EndpointsForToken.empty(writeReplicas.token())), ReplicaPlans.writeAll),
                       null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
                 Iterables.addAll(undelivered, writeReplicas.endpoints());
             }
 
             @Override
-            protected int totalBlockFor()
+            protected int blockFor()
             {
                 return this.replicaPlan.contact().size();
             }

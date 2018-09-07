@@ -32,11 +32,13 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.service.reads.ReadCallback;
 
 public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
 {
-    private static class InstrumentedReadOnlyReadRepair<E extends Endpoints<E>, L extends ReplicaPlan<E, L>> extends ReadOnlyReadRepair implements InstrumentedReadRepair
+    private static class InstrumentedReadOnlyReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
+            extends ReadOnlyReadRepair implements InstrumentedReadRepair
     {
         public InstrumentedReadOnlyReadRepair(ReadCommand command, P replicaPlan, long queryStartNanoTime)
         {
@@ -74,7 +76,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     }
 
     @Override
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan<?, ?> replicaPlan, long queryStartNanoTime)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.ForRead<?, ?, ?> replicaPlan, long queryStartNanoTime)
     {
         return new InstrumentedReadOnlyReadRepair(command, replicaPlan, queryStartNanoTime);
     }
@@ -82,7 +84,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     @Test
     public void getMergeListener()
     {
-        ReplicaPlan<?, ?> replicaPlan = replicaPlan(replicas, replicas);
+        ReplicaPlan.ForRead<?, ?, ?> replicaPlan = replicaPlan(replicas, replicas);
         InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaPlan);
         Assert.assertSame(UnfilteredPartitionIterators.MergeListener.NOOP, repair.getMergeListener(replicaPlan));
     }
@@ -90,7 +92,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     @Test(expected = UnsupportedOperationException.class)
     public void repairPartitionFailure()
     {
-        ReplicaPlan<?, ?> replicaPlan = replicaPlan(replicas, replicas);
+        ReplicaPlan.ForRead<?, ?, ?> replicaPlan = replicaPlan(replicas, replicas);
         InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaPlan);
         repair.repairPartition(null, Collections.emptyMap(), replicaPlan);
     }

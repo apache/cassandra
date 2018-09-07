@@ -49,6 +49,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -70,7 +71,8 @@ public class ReadRepairTest
     static Replica target3;
     static EndpointsForRange targets;
 
-    private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, L extends ReplicaPlan<E, L>> extends BlockingPartitionRepair<E, L>
+    private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
+            extends BlockingPartitionRepair<E, L, P>
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
         {
@@ -166,8 +168,8 @@ public class ReadRepairTest
 
     private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, EndpointsForRange all, EndpointsForRange targets)
     {
-        ReplicaPlan.ForRange replicaPlan = new ReplicaPlan.ForRange(ks, ConsistencyLevel.LOCAL_QUORUM, ReplicaUtils.FULL_BOUNDS, all, targets);
-        return new InstrumentedReadRepairHandler(repairs, maxBlockFor, replicaPlan);
+        ReplicaPlan.ForRangeRead replicaPlan = AbstractReadRepairTest.replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, all, targets);
+        return new InstrumentedReadRepairHandler<>(repairs, maxBlockFor, replicaPlan);
     }
 
     @Test
@@ -201,7 +203,7 @@ public class ReadRepairTest
         repairs.put(target1, repair1);
         repairs.put(target2, repair2);
 
-        InstrumentedReadRepairHandler<?, ?> handler = createRepairHandler(repairs, 2,
+        InstrumentedReadRepairHandler<?, ?, ?> handler = createRepairHandler(repairs, 2,
                                                                     targets, EndpointsForRange.of(target1, target2));
 
         Assert.assertTrue(handler.mutationsSent.isEmpty());

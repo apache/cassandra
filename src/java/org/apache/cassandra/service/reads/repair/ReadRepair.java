@@ -29,17 +29,20 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
 
-public interface ReadRepair<E extends Endpoints<E>, L extends ReplicaPlan<E, L>>
+public interface ReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
 {
     public interface Factory
     {
-        <E extends Endpoints<E>, L extends ReplicaPlan<E, L>> ReadRepair<E, L> create(ReadCommand command, P replicaPlan, long queryStartNanoTime);
+        <E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
+        ReadRepair<E, L, P> create(ReadCommand command, P replicaPlan, long queryStartNanoTime);
     }
 
-    static <E extends Endpoints<E>, L extends ReplicaPlan<E, L>> ReadRepair<E, L> create(ReadCommand command, P replicaPlan, long queryStartNanoTime)
+    static <E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
+    ReadRepair<E, L, P> create(ReadCommand command, P replicaPlan, long queryStartNanoTime)
     {
         return command.metadata().params.readRepair.create(command, replicaPlan, queryStartNanoTime);
     }
@@ -55,7 +58,7 @@ public interface ReadRepair<E extends Endpoints<E>, L extends ReplicaPlan<E, L>>
      * @param digestResolver supplied so we can get the original data response
      * @param resultConsumer hook for the repair to set it's result on completion
      */
-    public void startRepair(DigestResolver<E, L> digestResolver, Consumer<PartitionIterator> resultConsumer);
+    public void startRepair(DigestResolver<E, L, P> digestResolver, Consumer<PartitionIterator> resultConsumer);
 
     /**
      * Block on the reads (or timeout) sent out in {@link ReadRepair#startRepair}

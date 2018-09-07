@@ -37,9 +37,10 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -49,7 +50,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tracing.Tracing;
 
-public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaPlan<E, L>> extends AbstractFuture<Object> implements IAsyncCallback<Object>
+public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
+        extends AbstractFuture<Object> implements IAsyncCallback<Object>
 {
     private final DecoratedKey key;
     private final P replicaPlan;
@@ -198,8 +200,8 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaPl
         if (awaitRepairs(timeout, timeoutUnit))
             return;
 
-        L newCandidates = replicaPlan.forNaturalUncontacted();
-        if (newCandidates.contact().isEmpty())
+        E newCandidates = replicaPlan.allLiveUncontactedCandidates();
+        if (newCandidates.isEmpty())
             return;
 
         PartitionUpdate update = mergeUnackedUpdates();
@@ -212,7 +214,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaPl
 
         Mutation[] versionedMutations = new Mutation[msgVersionIdx(MessagingService.current_version) + 1];
 
-        for (Replica replica : newCandidates.contact())
+        for (Replica replica : newCandidates)
         {
             int versionIdx = msgVersionIdx(MessagingService.instance().getVersion(replica.endpoint()));
 
