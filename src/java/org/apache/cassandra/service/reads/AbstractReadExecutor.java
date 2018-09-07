@@ -304,6 +304,8 @@ public abstract class AbstractReadExecutor
                     }
                 }
 
+                super.replicaPlan = replicaPlan.withContact(Endpoints.append(replicaPlan.contact(), extraReplica));
+
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);
                 logger.trace("speculating read retry on {}", extraReplica);

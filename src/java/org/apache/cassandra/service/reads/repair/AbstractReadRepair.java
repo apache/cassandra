@@ -51,7 +51,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, L extends Repli
 {
     protected final ReadCommand command;
     protected final long queryStartNanoTime;
-    protected final P replicaPlan;
+    protected P replicaPlan;
     protected final ColumnFamilyStore cfs;
 
     private volatile DigestRepair digestRepair = null;
@@ -148,6 +148,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, L extends Repli
             if (uncontacted == null)
                 return;
 
+            replicaPlan = replicaPlan.withContact(Endpoints.append(replicaPlan.contact(), uncontacted));
             Tracing.trace("Enqueuing speculative full data read to {}", uncontacted);
             sendReadCommand(uncontacted, repair.readCallback);
             ReadRepairMetrics.speculatedRead.mark();
