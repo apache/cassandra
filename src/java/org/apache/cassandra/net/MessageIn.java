@@ -347,6 +347,7 @@ public class MessageIn<T>
          * Process the buffer in a non-blocking manner. Will try to read out as much of a message(s) as possible,
          * and send any fully deserialized messages to {@link #messageConsumer}.
          */
+        @SuppressWarnings("resource")
         public void process(ByteBuf in) throws IOException
         {
             ByteBufDataInputPlus inputPlus = new ByteBufDataInputPlus(in);
