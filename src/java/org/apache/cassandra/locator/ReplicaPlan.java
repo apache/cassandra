@@ -237,18 +237,4 @@ public abstract class ReplicaPlan<
         }
     }
 
-    public static class ForRangeWrite
-            extends ForWrite<EndpointsForRange, ReplicaLayout.ForRangeWrite, ReplicaPlan.ForRangeWrite>
-    {
-        public ForRangeWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForRangeWrite liveAndDown, ReplicaLayout.ForRangeWrite liveOnly, EndpointsForRange candidates, EndpointsForRange contact)
-        {
-            super(keyspace, consistencyLevel, liveAndDown, liveOnly, candidates, contact);
-        }
-        @Override
-        protected ReplicaPlan.ForRangeWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForRange newContact)
-        {
-            return new ReplicaPlan.ForRangeWrite(keyspace, newConsistencyLevel, liveAndDown(), liveOnly(), candidates(), newContact);
-        }
-    }
-
 }

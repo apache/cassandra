@@ -152,22 +152,6 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         }
     }
 
-    public static class ForRangeWrite extends ForWrite<EndpointsForRange> implements ForRange
-    {
-        final AbstractBounds<PartitionPosition> range;
-        ForRangeWrite(AbstractBounds<PartitionPosition> range, EndpointsForRange natural, EndpointsForRange pending, EndpointsForRange all)
-        {
-            super(natural, pending, all);
-            this.range = range;
-        }
-
-        @Override
-        public AbstractBounds<PartitionPosition> range()
-        {
-            return range;
-        }
-    }
-
     public interface ForRange
     {
         public AbstractBounds<PartitionPosition> range();
