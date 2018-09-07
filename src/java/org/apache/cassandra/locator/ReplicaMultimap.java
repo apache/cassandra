@@ -25,9 +25,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
+@VisibleForTesting
 public abstract class ReplicaMultimap<K, C extends ReplicaCollection<?>>
 {
     final Map<K, C> map;
@@ -37,23 +39,29 @@ public abstract class ReplicaMultimap<K, C extends ReplicaCollection<?>>
     }
 
     public abstract C get(K key);
-    public C getIfPresent(K key) { return map.get(key); }
 
-    public static abstract class Mutable
-            <K, MutableCollection extends ReplicaCollection.Mutable<?>>
-            extends ReplicaMultimap<K, MutableCollection>
+    public static abstract class Builder
+            <K, B extends ReplicaCollection.Builder<?>>
+
     {
-        protected abstract MutableCollection newMutable(K key);
+        protected abstract B newBuilder(K key);
 
-        Mutable()
+        final Map<K, B> map;
+        Builder()
         {
-            super(new HashMap<>());
+            this.map = new HashMap<>();
         }
 
-        public MutableCollection get(K key)
+        public B get(K key)
         {
             Preconditions.checkNotNull(key);
-            return map.computeIfAbsent(key, k -> newMutable(key));
+            return map.computeIfAbsent(key, k -> newBuilder(key));
+        }
+
+        public B getIfPresent(K key)
+        {
+            Preconditions.checkNotNull(key);
+            return map.get(key);
         }
 
         public void put(K key, Replica replica)

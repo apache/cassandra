@@ -25,20 +25,17 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collector;
-import java.util.stream.Collectors;
 
 import static com.google.common.collect.Iterables.all;
-import static org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict.*;
+import static org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict.*;
 
 /**
  * A ReplicaCollection for Ranges occurring at an endpoint. All Replica will be for the same endpoint,
@@ -46,20 +43,20 @@ import static org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict.*;
  */
 public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint>
 {
-    private static final Map<Range<Token>, Replica> EMPTY_MAP = Collections.unmodifiableMap(new LinkedHashMap<>());
+    private static ReplicaMap<Range<Token>> rangeMap(ReplicaList list) { return new ReplicaMap<>(list, Replica::range); }
+    private static final ReplicaMap<Range<Token>> EMPTY_MAP = rangeMap(EMPTY_LIST);
 
     private final InetAddressAndPort endpoint;
-    private volatile Map<Range<Token>, Replica> byRange;
-    private volatile RangesAtEndpoint fullRanges;
-    private volatile RangesAtEndpoint transRanges;
 
-    private RangesAtEndpoint(InetAddressAndPort endpoint, List<Replica> list, boolean isSnapshot)
+    // volatile not needed, as all of these caching collections have final members,
+    // besides (transitively) those that cache objects that themselves have only final members
+    private ReplicaMap<Range<Token>> byRange;
+    private RangesAtEndpoint onlyFull;
+    private RangesAtEndpoint onlyTransient;
+
+    private RangesAtEndpoint(InetAddressAndPort endpoint, ReplicaList list, ReplicaMap<Range<Token>> byRange)
     {
-        this(endpoint, list, isSnapshot, null);
-    }
-    private RangesAtEndpoint(InetAddressAndPort endpoint, List<Replica> list, boolean isSnapshot, Map<Range<Token>, Replica> byRange)
-    {
-        super(list, isSnapshot);
+        super(list);
         this.endpoint = endpoint;
         this.byRange = byRange;
         assert endpoint != null;
@@ -79,36 +76,47 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
         );
     }
 
+    /**
+     * @return a set of all unique Ranges
+     * This method is threadsafe, though it is not synchronised
+     */
     public Set<Range<Token>> ranges()
     {
         return byRange().keySet();
     }
 
+    /**
+     * @return a map of all Ranges, to their owning Replica instance
+     * This method is threadsafe, though it is not synchronised
+     */
     public Map<Range<Token>, Replica> byRange()
     {
-        Map<Range<Token>, Replica> map = byRange;
+        ReplicaMap<Range<Token>> map = byRange;
         if (map == null)
-            byRange = map = buildByRange(list);
+            byRange = map = rangeMap(list);
         return map;
     }
 
     @Override
-    protected RangesAtEndpoint snapshot(List<Replica> subList)
+    protected RangesAtEndpoint snapshot(ReplicaList newList)
     {
-        if (subList.isEmpty()) return empty(endpoint);
-        return new RangesAtEndpoint(endpoint, subList, true);
+        if (newList.isEmpty()) return empty(endpoint);
+        ReplicaMap<Range<Token>> byRange = null;
+        if (this.byRange != null && list.isSubList(newList))
+            byRange = this.byRange.forSubList(newList);
+        return new RangesAtEndpoint(endpoint, newList, byRange);
     }
 
     @Override
-    public RangesAtEndpoint self()
+    public RangesAtEndpoint snapshot()
     {
         return this;
     }
 
     @Override
-    public ReplicaCollection.Mutable<RangesAtEndpoint> newMutable(int initialCapacity)
+    public ReplicaCollection.Builder<RangesAtEndpoint> newBuilder(int initialCapacity)
     {
-        return new Mutable(endpoint, initialCapacity);
+        return new Builder(endpoint, initialCapacity);
     }
 
     @Override
@@ -120,49 +128,26 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
                         replica);
     }
 
-    public RangesAtEndpoint full()
+    public RangesAtEndpoint onlyFull()
     {
-        RangesAtEndpoint coll = fullRanges;
-        if (fullRanges == null)
-            fullRanges = coll = filter(Replica::isFull);
-        return coll;
+        RangesAtEndpoint result = onlyFull;
+        if (onlyFull == null)
+            onlyFull = result = filter(Replica::isFull);
+        return result;
     }
 
-    public RangesAtEndpoint trans()
+    public RangesAtEndpoint onlyTransient()
     {
-        RangesAtEndpoint coll = transRanges;
-        if (transRanges == null)
-            transRanges = coll = filter(Replica::isTransient);
-        return coll;
-    }
-
-    public Collection<Range<Token>> fullRanges()
-    {
-        return full().ranges();
-    }
-
-    public Collection<Range<Token>> transientRanges()
-    {
-        return trans().ranges();
+        RangesAtEndpoint result = onlyTransient;
+        if (onlyTransient == null)
+            onlyTransient = result = filter(Replica::isTransient);
+        return result;
     }
 
     public boolean contains(Range<Token> range, boolean isFull)
     {
         Replica replica = byRange().get(range);
         return replica != null && replica.isFull() == isFull;
-    }
-
-    private static Map<Range<Token>, Replica> buildByRange(List<Replica> list)
-    {
-        // TODO: implement a delegating map that uses our superclass' list, and is immutable
-        Map<Range<Token>, Replica> byRange = new LinkedHashMap<>(list.size());
-        for (Replica replica : list)
-        {
-            Replica prev = byRange.put(replica.range(), replica);
-            assert prev == null : "duplicate range in RangesAtEndpoint: " + prev + " and " + replica;
-        }
-
-        return Collections.unmodifiableMap(byRange);
     }
 
     /**
@@ -201,89 +186,71 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
         return collector(ImmutableSet.of(), () -> new Builder(endpoint));
     }
 
-    public static class Mutable extends RangesAtEndpoint implements ReplicaCollection.Mutable<RangesAtEndpoint>
+    public static class Builder extends RangesAtEndpoint implements ReplicaCollection.Builder<RangesAtEndpoint>
     {
-        boolean hasSnapshot;
-        public Mutable(InetAddressAndPort endpoint) { this(endpoint, 0); }
-        public Mutable(InetAddressAndPort endpoint, int capacity) { super(endpoint, new ArrayList<>(capacity), false, new LinkedHashMap<>(capacity)); }
+        boolean built;
+        public Builder(InetAddressAndPort endpoint) { this(endpoint, 0); }
+        public Builder(InetAddressAndPort endpoint, int capacity) { this(endpoint, new ReplicaList(capacity)); }
+        private Builder(InetAddressAndPort endpoint, ReplicaList list) { super(endpoint, list, rangeMap(list)); }
 
-        public void add(Replica replica, Conflict ignoreConflict)
+        public RangesAtEndpoint.Builder add(Replica replica, Conflict ignoreConflict)
         {
-            if (hasSnapshot) throw new IllegalStateException();
+            if (built) throw new IllegalStateException();
             Preconditions.checkNotNull(replica);
             if (!Objects.equals(super.endpoint, replica.endpoint()))
                 throw new IllegalArgumentException("Replica " + replica + " has incorrect endpoint (expected " + super.endpoint + ")");
 
-            Replica prev = super.byRange.put(replica.range(), replica);
-            if (prev != null)
+            if (!super.byRange.internalPutIfAbsent(replica, list.size()))
             {
-                super.byRange.put(replica.range(), prev); // restore prev
                 switch (ignoreConflict)
                 {
                     case DUPLICATE:
-                        if (prev.equals(replica))
+                        if (byRange().get(replica.range()).equals(replica))
                             break;
                     case NONE:
-                        throw new IllegalArgumentException("Conflicting replica added (expected unique ranges): " + replica + "; existing: " + prev);
+                        throw new IllegalArgumentException("Conflicting replica added (expected unique ranges): "
+                                + replica + "; existing: " + byRange().get(replica.range()));
                     case ALL:
                 }
-                return;
+                return this;
             }
 
             list.add(replica);
+            return this;
         }
 
         @Override
-        public Map<Range<Token>, Replica> byRange()
+        public RangesAtEndpoint snapshot()
         {
-            // our internal map is modifiable, but it is unsafe to modify the map externally
-            // it would be possible to implement a safe modifiable map, but it is probably not valuable
-            return Collections.unmodifiableMap(super.byRange());
+            return snapshot(list.subList(0, list.size()));
         }
 
-        public RangesAtEndpoint get(boolean isSnapshot)
+        public RangesAtEndpoint build()
         {
-            return new RangesAtEndpoint(super.endpoint, super.list, isSnapshot, Collections.unmodifiableMap(super.byRange));
-        }
-
-        public RangesAtEndpoint asImmutableView()
-        {
-            return get(false);
-        }
-
-        public RangesAtEndpoint asSnapshot()
-        {
-            hasSnapshot = true;
-            return get(true);
+            built = true;
+            return new RangesAtEndpoint(super.endpoint, super.list, super.byRange);
         }
     }
 
-    public static class Builder extends ReplicaCollection.Builder<RangesAtEndpoint, Mutable, RangesAtEndpoint.Builder>
+    public static Builder builder(InetAddressAndPort endpoint)
     {
-        public Builder(InetAddressAndPort endpoint) { this(endpoint, 0); }
-        public Builder(InetAddressAndPort endpoint, int capacity) { super(new Mutable(endpoint, capacity)); }
+        return new Builder(endpoint);
     }
-
-    public static RangesAtEndpoint.Builder builder(InetAddressAndPort endpoint)
+    public static Builder builder(InetAddressAndPort endpoint, int capacity)
     {
-        return new RangesAtEndpoint.Builder(endpoint);
-    }
-
-    public static RangesAtEndpoint.Builder builder(InetAddressAndPort endpoint, int capacity)
-    {
-        return new RangesAtEndpoint.Builder(endpoint, capacity);
+        return new Builder(endpoint, capacity);
     }
 
     public static RangesAtEndpoint empty(InetAddressAndPort endpoint)
     {
-        return new RangesAtEndpoint(endpoint, EMPTY_LIST, true, EMPTY_MAP);
+        return new RangesAtEndpoint(endpoint, EMPTY_LIST, EMPTY_MAP);
     }
 
     public static RangesAtEndpoint of(Replica replica)
     {
-        ArrayList<Replica> one = new ArrayList<>(1);
+        ReplicaList one = new ReplicaList(1);
         one.add(replica);
-        return new RangesAtEndpoint(replica.endpoint(), one, true, Collections.unmodifiableMap(Collections.singletonMap(replica.range(), replica)));
+        return new RangesAtEndpoint(replica.endpoint(), one, rangeMap(one));
     }
 
     public static RangesAtEndpoint of(Replica ... replicas)

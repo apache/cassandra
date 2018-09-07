@@ -37,7 +37,6 @@ import org.junit.Test;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
-import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -535,10 +534,10 @@ public class MoveTest
     private void assertMaps(Map<Range<Token>, EndpointsForRange> expected, PendingRangeMaps actual)
     {
         int sizeOfActual = 0;
-        Iterator<Map.Entry<Range<Token>, EndpointsForRange.Mutable>> iterator = actual.iterator();
+        Iterator<Map.Entry<Range<Token>, EndpointsForRange.Builder>> iterator = actual.iterator();
         while(iterator.hasNext())
         {
-            Map.Entry<Range<Token>, EndpointsForRange.Mutable> actualEntry = iterator.next();
+            Map.Entry<Range<Token>, EndpointsForRange.Builder> actualEntry = iterator.next();
             assertNotNull(expected.get(actualEntry.getKey()));
             assertEquals(ImmutableSet.copyOf(expected.get(actualEntry.getKey())), ImmutableSet.copyOf(actualEntry.getValue()));
             sizeOfActual++;

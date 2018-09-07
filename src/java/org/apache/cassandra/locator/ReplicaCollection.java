@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.locator;
 
-import org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict;
-
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Set;
@@ -69,28 +67,39 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
     /**
      * @return a *eagerly constructed* copy of this collection containing the Replica that match the provided predicate.
      * An effort will be made to either return ourself, or a subList, where possible.
-     * It is guaranteed that no changes to any upstream Mutable will affect the state of the result.
+     * It is guaranteed that no changes to any upstream Builder will affect the state of the result.
      */
     public abstract C filter(Predicate<Replica> predicate);
 
     /**
      * @return a *eagerly constructed* copy of this collection containing the Replica that match the provided predicate.
      * An effort will be made to either return ourself, or a subList, where possible.
-     * It is guaranteed that no changes to any upstream Mutable will affect the state of the result.
+     * It is guaranteed that no changes to any upstream Builder will affect the state of the result.
      * Only the first maxSize items will be returned.
      */
     public abstract C filter(Predicate<Replica> predicate, int maxSize);
 
     /**
+     * @return a *lazily constructed* Iterable over this collection, containing the Replica that match the provided predicate.
+     */
+    public abstract Iterable<Replica> filterLazily(Predicate<Replica> predicate);
+
+    /**
+     * @return a *lazily constructed* Iterable over this collection, containing the Replica that match the provided predicate.
+     * Only the first maxSize matching items will be returned.
+     */
+    public abstract Iterable<Replica> filterLazily(Predicate<Replica> predicate, int maxSize);
+
+    /**
      * @return an *eagerly constructed* copy of this collection containing the Replica at positions [start..end);
      * An effort will be made to either return ourself, or a subList, where possible.
-     * It is guaranteed that no changes to any upstream Mutable will affect the state of the result.
+     * It is guaranteed that no changes to any upstream Builder will affect the state of the result.
      */
     public abstract C subList(int start, int end);
 
     /**
      * @return an *eagerly constructed* copy of this collection containing the Replica re-ordered according to this comparator
-     * It is guaranteed that no changes to any upstream Mutable will affect the state of the result.
+     * It is guaranteed that no changes to any upstream Builder will affect the state of the result.
      */
     public abstract C sorted(Comparator<Replica> comparator);
 
@@ -102,23 +111,18 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
     public abstract String toString();
 
     /**
-     * A mutable extension of a ReplicaCollection.  This is append-only, so it is safe to select a subList,
-     * or at any time take an asImmutableView() snapshot.
+     * A mutable (append-only) extension of a ReplicaCollection.
+     * All methods besides add() will return an immutable snapshot of the collection, or the matching items.
      */
-    public interface Mutable<C extends ReplicaCollection<C>> extends ReplicaCollection<C>
+    public interface Builder<C extends ReplicaCollection<C>> extends ReplicaCollection<C>
     {
         /**
-         * @return an Immutable clone that mirrors any modifications to this Mutable instance.
-         */
-        C asImmutableView();
-
-        /**
-         * @return an Immutable clone that assumes this Mutable will never be modified again,
+         * @return an Immutable clone that assumes this Builder will never be modified again,
          * so its contents can be reused.
          *
-         * This Mutable should enforce that it is no longer modified.
+         * This Builder should enforce that it is no longer modified.
          */
-        C asSnapshot();
+        public C build();
 
         /**
          * Passed to add() and addAll() as ignoreConflicts parameter. The meaning of conflict varies by collection type
@@ -138,41 +142,23 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
          * @param replica add this replica to the end of the collection
          * @param ignoreConflict conflicts to ignore, see {@link Conflict}
          */
-        void add(Replica replica, Conflict ignoreConflict);
+        Builder<C> add(Replica replica, Conflict ignoreConflict);
 
-        default public void add(Replica replica)
+        default public Builder<C> add(Replica replica)
         {
-            add(replica, Conflict.NONE);
+            return add(replica, Conflict.NONE);
         }
 
-        default public void addAll(Iterable<Replica> replicas, Conflict ignoreConflicts)
+        default public Builder<C> addAll(Iterable<Replica> replicas, Conflict ignoreConflicts)
         {
             for (Replica replica : replicas)
                 add(replica, ignoreConflicts);
+            return this;
         }
 
-        default public void addAll(Iterable<Replica> replicas)
+        default public Builder<C> addAll(Iterable<Replica> replicas)
         {
-            addAll(replicas, Conflict.NONE);
-        }
-    }
-
-    public static class Builder<C extends ReplicaCollection<C>, M extends Mutable<C>, B extends Builder<C, M, B>>
-    {
-        Mutable<C> mutable;
-        public Builder(Mutable<C> mutable) { this.mutable = mutable; }
-
-        public int size() { return mutable.size(); }
-        public B add(Replica replica) { mutable.add(replica); return (B) this; }
-        public B add(Replica replica, Conflict ignoreConflict) { mutable.add(replica, ignoreConflict); return (B) this; }
-        public B addAll(Iterable<Replica> replica) { mutable.addAll(replica); return (B) this; }
-        public B addAll(Iterable<Replica> replica, Conflict ignoreConflict) { mutable.addAll(replica, ignoreConflict); return (B) this; }
-
-        public C build()
-        {
-            C result = mutable.asSnapshot();
-            mutable = null;
-            return result;
+            return addAll(replicas, Conflict.NONE);
         }
     }
 

@@ -20,7 +20,7 @@ package org.apache.cassandra.locator;
 import java.util.*;
 import java.util.Map.Entry;
 
-import org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,7 +87,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     private static final class DatacenterEndpoints
     {
         /** List accepted endpoints get pushed into. */
-        EndpointsForRange.Mutable replicas;
+        EndpointsForRange.Builder replicas;
 
         /**
          * Racks encountered so far. Replicas are put into separate racks while possible.
@@ -101,7 +101,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         int acceptableRackRepeats;
         int transients;
 
-        DatacenterEndpoints(ReplicationFactor rf, int rackCount, int nodeCount, EndpointsForRange.Mutable replicas, Set<Pair<String, String>> racks)
+        DatacenterEndpoints(ReplicationFactor rf, int rackCount, int nodeCount, EndpointsForRange.Builder replicas, Set<Pair<String, String>> racks)
         {
             this.replicas = replicas;
             this.racks = racks;
@@ -168,7 +168,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         Token replicaStart = tokenMetadata.getPredecessor(replicaEnd);
         Range<Token> replicatedRange = new Range<>(replicaStart, replicaEnd);
 
-        EndpointsForRange.Mutable builder = new EndpointsForRange.Mutable(replicatedRange);
+        EndpointsForRange.Builder builder = new EndpointsForRange.Builder(replicatedRange);
         Set<Pair<String, String>> seenRacks = new HashSet<>();
 
         Topology topology = tokenMetadata.getTopology();
@@ -206,7 +206,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             if (dcEndpoints != null && dcEndpoints.addEndpointAndCheckIfDone(ep, location, replicatedRange))
                 --dcsToFill;
         }
-        return builder.asImmutableView();
+        return builder.build();
     }
 
     private int sizeOrZero(Multimap<?, ?> collection)

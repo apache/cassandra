@@ -19,12 +19,14 @@
 package org.apache.cassandra.locator;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 public class EndpointsByRange extends ReplicaMultimap<Range<Token>, EndpointsForRange>
@@ -40,12 +42,12 @@ public class EndpointsByRange extends ReplicaMultimap<Range<Token>, EndpointsFor
         return map.getOrDefault(range, EndpointsForRange.empty(range));
     }
 
-    public static class Mutable extends ReplicaMultimap.Mutable<Range<Token>, EndpointsForRange.Mutable>
+    public static class Builder extends ReplicaMultimap.Builder<Range<Token>, EndpointsForRange.Builder>
     {
         @Override
-        protected EndpointsForRange.Mutable newMutable(Range<Token> range)
+        protected EndpointsForRange.Builder newBuilder(Range<Token> range)
         {
-            return new EndpointsForRange.Mutable(range);
+            return new EndpointsForRange.Builder(range);
         }
 
         // TODO: consider all ignoreDuplicates cases
@@ -54,9 +56,11 @@ public class EndpointsByRange extends ReplicaMultimap<Range<Token>, EndpointsFor
             get(range).addAll(replicas, ignoreConflicts);
         }
 
-        public EndpointsByRange asImmutableView()
+        public EndpointsByRange build()
         {
-            return new EndpointsByRange(Collections.unmodifiableMap(Maps.transformValues(map, EndpointsForRange.Mutable::asImmutableView)));
+            return new EndpointsByRange(
+                    ImmutableMap.copyOf(
+                            Maps.transformValues(this.map, EndpointsForRange.Builder::build)));
         }
     }
 
