@@ -285,7 +285,7 @@ public enum ConsistencyLevel
         });
     }
 
-    public boolean isSufficientLiveNodesForRead(Keyspace keyspace, Endpoints<?> liveReplicas)
+    public boolean isSufficientReplicasForRead(Keyspace keyspace, Endpoints<?> liveReplicas)
     {
         switch (this)
         {
@@ -316,15 +316,15 @@ public enum ConsistencyLevel
         }
     }
 
-    public void assureSufficientLiveNodesForRead(Keyspace keyspace, Endpoints<?> liveReplicas) throws UnavailableException
+    public void assureSufficientReplicasForRead(Keyspace keyspace, Endpoints<?> liveReplicas) throws UnavailableException
     {
-        assureSufficientLiveNodes(keyspace, liveReplicas, blockFor(keyspace), 1);
+        assureSufficientReplicas(keyspace, liveReplicas, blockFor(keyspace), 1);
     }
-    public void assureSufficientLiveNodesForWrite(Keyspace keyspace, Endpoints<?> allLive, Endpoints<?> pendingWithDown) throws UnavailableException
+    public void assureSufficientReplicasForWrite(Keyspace keyspace, Endpoints<?> allLive, Endpoints<?> pendingWithDown) throws UnavailableException
     {
-        assureSufficientLiveNodes(keyspace, allLive, blockForWrite(keyspace, pendingWithDown), 0);
+        assureSufficientReplicas(keyspace, allLive, blockForWrite(keyspace, pendingWithDown), 0);
     }
-    public void assureSufficientLiveNodes(Keyspace keyspace, Endpoints<?> allLive, int blockFor, int blockForFullReplicas) throws UnavailableException
+    void assureSufficientReplicas(Keyspace keyspace, Endpoints<?> allLive, int blockFor, int blockForFullReplicas) throws UnavailableException
     {
         switch (this)
         {

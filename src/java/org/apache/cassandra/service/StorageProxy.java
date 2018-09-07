@@ -1963,7 +1963,7 @@ public class StorageProxy implements StorageProxyMBean
                 EndpointsForRange merged = current.all().keep(next.all().endpoints());
 
                 // Check if there is enough endpoint for the merge to be possible.
-                if (!consistency.isSufficientLiveNodesForRead(keyspace, merged))
+                if (!consistency.isSufficientReplicasForRead(keyspace, merged))
                     break;
 
                 EndpointsForRange filteredMerged = consistency.filterForQuery(keyspace, merged);

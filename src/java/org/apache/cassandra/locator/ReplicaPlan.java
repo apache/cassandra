@@ -347,7 +347,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>, L extends ReplicaPlan<
                 .add(r -> r.isTransient() && livePredicate.test(r.endpoint()), blockFor)
                 .get();
 
-        consistencyLevel.assureSufficientLiveNodesForWrite(keyspace, contact, pending);
+        consistencyLevel.assureSufficientReplicasForWrite(keyspace, contact, pending);
 
         return new ForToken(keyspace, consistencyLevel, token, natural, pending, contact, all);
     }
@@ -358,7 +358,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>, L extends ReplicaPlan<
         EndpointsForToken contact = consistencyLevel.filterForQuery(keyspace, natural, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE));
 
         // Throw UAE early if we don't have enough replicas.
-        consistencyLevel.assureSufficientLiveNodesForRead(keyspace, contact);
+        consistencyLevel.assureSufficientReplicasForRead(keyspace, contact);
 
         return new ForToken(keyspace, consistencyLevel, token, natural, null, contact);
     }
