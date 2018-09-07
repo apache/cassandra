@@ -154,11 +154,21 @@ public class ReplicaCollectionTest
             }
             else
             {
-                List<Replica> subList = this.test.list.subList(from, to);
+                AbstractReplicaCollection.ReplicaList subList = this.test.list.subList(from, to);
                 if (test.isSnapshot)
-                    Assert.assertSame(subList.getClass(), subCollection.list.getClass());
+                    Assert.assertSame(subList.contents, subCollection.list.contents);
                 Assert.assertEquals(subList, subCollection.list);
             }
+        }
+
+        private void assertSubSequence(Iterable<Replica> subSequence, int from, int to)
+        {
+            AbstractReplicaCollection.ReplicaList subList = this.test.list.subList(from, to);
+            if (!elementsEqual(subList, subSequence))
+            {
+                elementsEqual(subList, subSequence);
+            }
+            Assert.assertTrue(elementsEqual(subList, subSequence));
         }
 
         void testSubList(int subListDepth, int filterDepth, int sortDepth)
@@ -191,6 +201,8 @@ public class ReplicaCollectionTest
                 Predicate<Replica> removeFirst = r -> !r.equals(canonicalList.get(0));
                 assertSubList(test.filter(removeFirst), 1, canonicalList.size());
                 assertSubList(test.filter(removeFirst, 1), 1, Math.min(canonicalList.size(), 2));
+                assertSubSequence(test.filterLazily(removeFirst), 1, canonicalList.size());
+                assertSubSequence(test.filterLazily(removeFirst, 1), 1, Math.min(canonicalList.size(), 2));
             }
 
             if (test.size() <= 1)
@@ -202,6 +214,7 @@ public class ReplicaCollectionTest
                 int last = canonicalList.size() - 1;
                 Predicate<Replica> removeLast = r -> !r.equals(canonicalList.get(last));
                 assertSubList(test.filter(removeLast), 0, last);
+                assertSubSequence(test.filterLazily(removeLast), 0, last);
             }
 
             if (test.size() <= 2)
@@ -210,6 +223,8 @@ public class ReplicaCollectionTest
             Predicate<Replica> removeMiddle = r -> !r.equals(canonicalList.get(canonicalList.size() / 2));
             TestCase<C> filtered = new TestCase<>(test.filter(removeMiddle), ImmutableList.copyOf(filter(canonicalList, removeMiddle::test)));
             filtered.testAll(subListDepth, filterDepth - 1, sortDepth);
+            Assert.assertTrue(elementsEqual(filtered.canonicalList, test.filterLazily(removeMiddle, Integer.MAX_VALUE)));
+            Assert.assertTrue(elementsEqual(limit(filter(canonicalList, removeMiddle::test), canonicalList.size() - 2), test.filterLazily(removeMiddle, canonicalList.size() - 2)));
         }
 
         void testCount()

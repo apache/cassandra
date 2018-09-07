@@ -57,8 +57,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static com.google.common.collect.Iterables.any;
-import static com.google.common.collect.Iterables.filter;
-import static com.google.common.collect.Iterables.limit;
 import static org.apache.cassandra.db.ConsistencyLevel.EACH_QUORUM;
 import static org.apache.cassandra.db.ConsistencyLevel.eachQuorumFor;
 import static org.apache.cassandra.db.ConsistencyLevel.localQuorumFor;
@@ -169,7 +167,6 @@ public class ReplicaPlans
                 break;
         }
     }
-
 
     /**
      * Construct a ReplicaPlan for writing to exactly one node, with CL.ONE. This node is *assumed* to be alive.
@@ -391,14 +388,14 @@ public class ReplicaPlans
             assert consistencyLevel != EACH_QUORUM;
 
             ReplicaCollection.Mutable<E> contacts = liveAndDown.all().newMutable(liveAndDown.all().size());
-            contacts.addAll(filter(liveAndDown.natural(), Replica::isFull));
+            contacts.addAll(liveAndDown.natural().filterLazily(Replica::isFull));
             contacts.addAll(liveAndDown.pending());
 
             // TODO: this doesn't correctly handle LOCAL_QUORUM (or EACH_QUORUM at all)
             int liveCount = contacts.count(live.all()::contains);
             int requiredTransientCount = consistencyLevel.blockForWrite(keyspace, liveAndDown.pending()) - liveCount;
             if (requiredTransientCount > 0)
-                contacts.addAll(limit(filter(live.natural(), Replica::isTransient), requiredTransientCount));
+                contacts.addAll(live.natural().filterLazily(Replica::isTransient, requiredTransientCount));
             return contacts.asSnapshot();
         }
     };

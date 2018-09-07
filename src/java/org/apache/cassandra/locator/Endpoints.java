@@ -36,11 +36,12 @@ import java.util.Set;
  */
 public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaCollection<E>
 {
-    static final Map<InetAddressAndPort, Replica> EMPTY_MAP = Collections.unmodifiableMap(new LinkedHashMap<>());
+    static final ReplicaMap<InetAddressAndPort> endpointMap(ReplicaList list) { return new ReplicaMap<>(list, Replica::endpoint); }
+    static final ReplicaMap<InetAddressAndPort> EMPTY_MAP = endpointMap(EMPTY_LIST);
 
-    volatile Map<InetAddressAndPort, Replica> byEndpoint;
+    ReplicaMap<InetAddressAndPort> byEndpoint;
 
-    Endpoints(List<Replica> list, boolean isSnapshot, Map<InetAddressAndPort, Replica> byEndpoint)
+    Endpoints(ReplicaList list, boolean isSnapshot, ReplicaMap<InetAddressAndPort> byEndpoint)
     {
         super(list, isSnapshot);
         this.byEndpoint = byEndpoint;
@@ -54,9 +55,9 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
 
     public Map<InetAddressAndPort, Replica> byEndpoint()
     {
-        Map<InetAddressAndPort, Replica> map = byEndpoint;
+        ReplicaMap<InetAddressAndPort> map = byEndpoint;
         if (map == null)
-            byEndpoint = map = buildByEndpoint(list);
+            byEndpoint = map = endpointMap(list);
         return map;
     }
 
@@ -73,19 +74,6 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
                 && Objects.equals(
                         byEndpoint().get(replica.endpoint()),
                         replica);
-    }
-
-    private static Map<InetAddressAndPort, Replica> buildByEndpoint(List<Replica> list)
-    {
-        // TODO: implement a delegating map that uses our superclass' list, and is immutable
-        Map<InetAddressAndPort, Replica> byEndpoint = new LinkedHashMap<>(list.size());
-        for (Replica replica : list)
-        {
-            Replica prev = byEndpoint.put(replica.endpoint(), replica);
-            assert prev == null : "duplicate endpoint in EndpointsForRange: " + prev + " and " + replica;
-        }
-
-        return Collections.unmodifiableMap(byEndpoint);
     }
 
     public E withoutSelf()

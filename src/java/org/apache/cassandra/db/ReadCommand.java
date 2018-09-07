@@ -66,6 +66,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.HashingUtils;
 
+import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Iterables.filter;
+
 /**
  * General interface for storage-engine read commands (common to both range and
  * single partition commands).
@@ -326,10 +329,10 @@ public abstract class ReadCommand extends AbstractReadQuery
     /**
      * Returns a copy of this command with acceptsTransient set to true.
      */
-    public ReadCommand copyAsTransientQuery(ReplicaCollection<?> replicas)
+    public ReadCommand copyAsTransientQuery(Iterable<Replica> replicas)
     {
-        if (Iterables.any(replicas, Replica::isFull))
-            throw new IllegalArgumentException("Can't make a transient request on full replicas: " + replicas.filter(Replica::isFull));
+        if (any(replicas, Replica::isFull))
+            throw new IllegalArgumentException("Can't make a transient request on full replicas: " + Iterables.toString(filter(replicas, Replica::isFull)));
         return copyAsTransientQuery();
     }
 
@@ -348,10 +351,10 @@ public abstract class ReadCommand extends AbstractReadQuery
     /**
      * Returns a copy of this command with isDigestQuery set to true.
      */
-    public ReadCommand copyAsDigestQuery(ReplicaCollection<?> replicas)
+    public ReadCommand copyAsDigestQuery(Iterable<Replica> replicas)
     {
-        if (Iterables.any(replicas, Replica::isTransient))
-            throw new IllegalArgumentException("Can't make a digest request on a transient replica " + replicas.filter(Replica::isTransient));
+        if (any(replicas, Replica::isTransient))
+            throw new IllegalArgumentException("Can't make a digest request on a transient replica " + Iterables.toString(filter(replicas, Replica::isTransient)));
 
         return copyAsDigestQuery();
     }

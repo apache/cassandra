@@ -19,6 +19,7 @@
 package org.apache.cassandra.locator;
 
 import com.google.common.base.Preconditions;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
 import java.util.ArrayList;
@@ -37,12 +38,12 @@ import java.util.Map;
 public class EndpointsForToken extends Endpoints<EndpointsForToken>
 {
     private final Token token;
-    private EndpointsForToken(Token token, List<Replica> list, boolean isSnapshot)
+    private EndpointsForToken(Token token, ReplicaList list, boolean isSnapshot)
     {
         this(token, list, isSnapshot, null);
     }
 
-    EndpointsForToken(Token token, List<Replica> list, boolean isSnapshot, Map<InetAddressAndPort, Replica> byEndpoint)
+    EndpointsForToken(Token token, ReplicaList list, boolean isSnapshot, ReplicaMap<InetAddressAndPort> byEndpoint)
     {
         super(list, isSnapshot, byEndpoint);
         this.token = token;
@@ -67,17 +68,21 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
     }
 
     @Override
-    protected EndpointsForToken snapshot(List<Replica> subList)
+    protected EndpointsForToken snapshot(ReplicaList newList)
     {
-        if (subList.isEmpty()) return empty(token);
-        return new EndpointsForToken(token, subList, true);
+        if (newList.isEmpty()) return empty(token);
+        ReplicaMap<InetAddressAndPort> byEndpoint = null;
+        if (this.byEndpoint != null && list.isSubList(newList))
+            byEndpoint = this.byEndpoint.subList(newList);
+        return new EndpointsForToken(token, newList, true, byEndpoint);
     }
 
     public static class Mutable extends EndpointsForToken implements ReplicaCollection.Mutable<EndpointsForToken>
     {
         boolean hasSnapshot;
         public Mutable(Token token) { this(token, 0); }
-        public Mutable(Token token, int capacity) { super(token, new ArrayList<>(capacity), false, new LinkedHashMap<>(capacity)); }
+        public Mutable(Token token, int capacity) { this(token, new ReplicaList(capacity)); }
+        private Mutable(Token token, ReplicaList list) { super(token, list, false, endpointMap(list)); }
 
         public void add(Replica replica, Conflict ignoreConflict)
         {
@@ -86,17 +91,16 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
             if (!replica.range().contains(super.token))
                 throw new IllegalArgumentException("Replica " + replica + " does not contain " + super.token);
 
-            Replica prev = super.byEndpoint.put(replica.endpoint(), replica);
-            if (prev != null)
+            if (!super.byEndpoint.internalPutIfAbsent(replica, list.size()))
             {
-                super.byEndpoint.put(replica.endpoint(), prev); // restore prev
                 switch (ignoreConflict)
                 {
                     case DUPLICATE:
-                        if (prev.equals(replica))
+                        if (byEndpoint().get(replica.endpoint()).equals(replica))
                             break;
                     case NONE:
-                        throw new IllegalArgumentException("Conflicting replica added (expected unique endpoints): " + replica + "; existing: " + prev);
+                        throw new IllegalArgumentException("Conflicting replica added (expected unique endpoints): "
+                                + replica + "; existing: " + byEndpoint().get(replica.endpoint()));
                     case ALL:
                 }
                 return;
@@ -115,7 +119,7 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
 
         private EndpointsForToken get(boolean isSnapshot)
         {
-            return new EndpointsForToken(super.token, super.list, isSnapshot, Collections.unmodifiableMap(super.byEndpoint));
+            return new EndpointsForToken(super.token, super.list, isSnapshot, super.byEndpoint);
         }
 
         public EndpointsForToken asImmutableView()
@@ -153,10 +157,10 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
     public static EndpointsForToken of(Token token, Replica replica)
     {
         // we only use ArrayList or ArrayList.SubList, to ensure callsites are bimorphic
-        ArrayList<Replica> one = new ArrayList<>(1);
+        ReplicaList one = new ReplicaList(1);
         one.add(replica);
         // we can safely use singletonMap, as we only otherwise use LinkedHashMap
-        return new EndpointsForToken(token, one, true, Collections.unmodifiableMap(Collections.singletonMap(replica.endpoint(), replica)));
+        return new EndpointsForToken(token, one, true, endpointMap(one));
     }
 
     public static EndpointsForToken of(Token token, Replica ... replicas)

@@ -20,9 +20,11 @@ package org.apache.cassandra.locator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
@@ -65,7 +67,10 @@ public class SimpleStrategy extends AbstractReplicationStrategy
             if (!replicas.containsEndpoint(ep))
                 replicas.add(new Replica(ep, replicaRange, replicas.size() < rf.fullReplicas));
         }
-        return replicas.build();
+
+        // group endpoints by DC, so that we can cheaply filter them to a given DC
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        return replicas.build().sorted(Comparator.comparing(r -> snitch.getDatacenter(r.endpoint())));
     }
 
     public ReplicationFactor getReplicationFactor()

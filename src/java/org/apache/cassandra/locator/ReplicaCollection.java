@@ -82,6 +82,17 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
     public abstract C filter(Predicate<Replica> predicate, int maxSize);
 
     /**
+     * @return a *lazily constructed* Iterable over this collection, containing the Replica that match the provided predicate.
+     */
+    public abstract Iterable<Replica> filterLazily(Predicate<Replica> predicate);
+
+    /**
+     * @return a *lazily constructed* Iterable over this collection, containing the Replica that match the provided predicate.
+     * Only the first maxSize matching items will be returned.
+     */
+    public abstract Iterable<Replica> filterLazily(Predicate<Replica> predicate, int maxSize);
+
+    /**
      * @return an *eagerly constructed* copy of this collection containing the Replica at positions [start..end);
      * An effort will be made to either return ourself, or a subList, where possible.
      * It is guaranteed that no changes to any upstream Mutable will affect the state of the result.
