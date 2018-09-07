@@ -171,6 +171,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
                         if (closed)
                             return;
 
+                        buffers.maybeEnableAutoRead();
                         Uninterruptibles.sleepUninterruptibly(400, TimeUnit.MILLISECONDS);
                     }
 

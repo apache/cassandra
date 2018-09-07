@@ -189,15 +189,38 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
         if (availableBytes == 0 && closed)
             throw new EOFException();
 
-        if (!channelConfig.isAutoRead() && availableBytes < lowWaterMark)
-            channelConfig.setAutoRead(true);
-
         return availableBytes;
     }
 
     public boolean isEmpty() throws EOFException
     {
         return available() == 0;
+    }
+
+    /**
+     * Checks to see if autoRead can be (re-)enabled. The use case for this method is the {@link #queue} has been drained
+     * perfectly of all it's bytes, but the autoRead is disabled (from when the last ByteBuf came in). Instead of
+     * calling one of the read methods, which will invoke {@link #reBuffer()} and block or fail,
+     * this method may be invoked explicitly to enable the autoRead (if appropriate).
+     *
+     * @return true if, when this method returns, autoREad is enabled; else, false.
+     * @throws EOFException thrown if this instance is closed.
+     */
+    public boolean maybeEnableAutoRead() throws EOFException
+    {
+        if (closed)
+            throw new EOFException();
+
+        if (channelConfig.isAutoRead())
+            return true;
+
+        if (available() <= highWaterMark)
+        {
+            channelConfig.setAutoRead(true);
+            return true;
+        }
+
+        return false;
     }
 
     @Override

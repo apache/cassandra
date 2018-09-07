@@ -36,6 +36,9 @@ import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 
 public class RebufferingByteBufDataInputPlusTest
 {
+    private static final int LOW_WATER_MARK = 1 << 10;
+    private static final int HIGH_WATER_MARK = 1 << 11;
+
     private EmbeddedChannel channel;
     private RebufferingByteBufDataInputPlus inputPlus;
     private ByteBuf buf;
@@ -44,7 +47,7 @@ public class RebufferingByteBufDataInputPlusTest
     public void setUp()
     {
         channel = new EmbeddedChannel();
-        inputPlus = new RebufferingByteBufDataInputPlus(1 << 10, 1 << 11, channel.config());
+        inputPlus = new RebufferingByteBufDataInputPlus(LOW_WATER_MARK, HIGH_WATER_MARK, channel.config());
     }
 
     @After
@@ -270,5 +273,48 @@ public class RebufferingByteBufDataInputPlusTest
 
         long durationNanos = System.nanoTime() - startNanos;
         Assert.assertTrue(TimeUnit.MILLISECONDS.toNanos(timeoutMillis) <= durationNanos);
+    }
+
+    @Test
+    public void maybeEnableAutoRead_AlreadyEnabled() throws EOFException
+    {
+        channel.config().setAutoRead(true);
+        Assert.assertTrue(inputPlus.maybeEnableAutoRead());
+    }
+
+    @Test (expected = EOFException.class)
+    public void maybeEnableAutoRead_Closed() throws EOFException
+    {
+        inputPlus.close();
+        inputPlus.maybeEnableAutoRead();
+    }
+
+    @Test
+    public void maybeEnableAutoRead_NoBytes() throws EOFException
+    {
+        channel.config().setAutoRead(false);
+        Assert.assertTrue(inputPlus.maybeEnableAutoRead());
+    }
+
+    @Test
+    public void maybeEnableAutoRead_EnoughBytes() throws EOFException
+    {
+        buf = channel.alloc().buffer(LOW_WATER_MARK - 1);
+        buf.writerIndex(buf.capacity());
+        inputPlus.append(buf);
+        Assert.assertEquals(buf.writerIndex(), inputPlus.available());
+        channel.config().setAutoRead(false);
+        Assert.assertTrue(inputPlus.maybeEnableAutoRead());
+    }
+
+    @Test
+    public void maybeEnableAutoRead_TooManyBytes() throws EOFException
+    {
+        buf = channel.alloc().buffer(HIGH_WATER_MARK + 1);
+        buf.writerIndex(buf.capacity());
+        inputPlus.append(buf);
+        Assert.assertEquals(buf.writerIndex(), inputPlus.available());
+        channel.config().setAutoRead(false);
+        Assert.assertFalse(inputPlus.maybeEnableAutoRead());
     }
 }
