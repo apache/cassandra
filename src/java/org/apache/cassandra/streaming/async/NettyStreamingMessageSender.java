@@ -85,6 +85,8 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     private static final int DEFAULT_MAX_PARALLEL_TRANSFERS = FBUtilities.getAvailableProcessors();
     private static final int MAX_PARALLEL_TRANSFERS = Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "streaming.session.parallelTransfers", Integer.toString(DEFAULT_MAX_PARALLEL_TRANSFERS)));
 
+    private static final long DEFAULT_CLOSE_WAIT_IN_MILLIS = TimeUnit.MINUTES.toMillis(5);
+
     // a simple mechansim for allowing a degree of fairnes across multiple sessions
     private static final Semaphore fileTransferSemaphore = new Semaphore(DEFAULT_MAX_PARALLEL_TRANSFERS, true);
 
@@ -397,7 +399,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         {
             try
             {
-                session.onError(t).get(5, TimeUnit.MINUTES);
+                session.onError(t).get(DEFAULT_CLOSE_WAIT_IN_MILLIS, TimeUnit.MILLISECONDS);
             }
             catch (Exception e)
             {

@@ -37,10 +37,7 @@ import org.apache.cassandra.io.util.RebufferingInputStream;
 
 public class RebufferingByteBufDataInputPlus extends RebufferingInputStream implements ReadableByteChannel
 {
-    /**
-     * Default to a very large value.
-     */
-    private static final long DEFAULT_REBUFFER_BLOCK_IN_MILLIS = TimeUnit.DAYS.toMillis(2);
+    private static final long DEFAULT_REBUFFER_BLOCK_IN_MILLIS = TimeUnit.MINUTES.toMillis(3);
 
     /**
      * The parent, or owning, buffer of the current buffer being read from ({@link super#buffer}).
