@@ -29,6 +29,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * A collection of Endpoints for a given ring position.  This will typically reside in a ReplicaLayout,
+ * representing some subset of the endpoints for the Token or Range
+ * @param <E> The concrete type of Endpoints, that will be returned by the modifying methods
+ */
 public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaCollection<E>
 {
     static final Map<InetAddressAndPort, Replica> EMPTY_MAP = Collections.unmodifiableMap(new LinkedHashMap<>());
@@ -89,12 +94,6 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
         return filter(r -> !self.equals(r.endpoint()));
     }
 
-    public boolean containsSelf()
-    {
-        InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
-        return byEndpoint().containsKey(self);
-    }
-
     public Replica selfIfPresent()
     {
         InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
@@ -118,7 +117,7 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
     }
 
     /**
-     * @return a collection containing the Replica from this colletion for the provided endpoints, in the order of the provided endpoints
+     * @return a collection containing the Replica from this collection for the provided endpoints, in the order of the provided endpoints
      */
     public E select(Iterable<InetAddressAndPort> endpoints, boolean ignoreMissing)
     {

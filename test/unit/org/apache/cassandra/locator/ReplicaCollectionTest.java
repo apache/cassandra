@@ -163,6 +163,10 @@ public class ReplicaCollectionTest
         private void assertSubSequence(Iterable<Replica> subSequence, int from, int to)
         {
             List<Replica> subList = this.test.list.subList(from, to);
+            if (!elementsEqual(subList, subSequence))
+            {
+                elementsEqual(subList, subSequence);
+            }
             Assert.assertTrue(elementsEqual(subList, subSequence));
         }
 

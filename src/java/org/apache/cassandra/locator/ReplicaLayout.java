@@ -28,6 +28,11 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import java.util.function.Predicate;
 
+/**
+ * The relevant replicas for an operation over a given range or token.
+ *
+ * @param <E>
+ */
 public abstract class ReplicaLayout<E extends Endpoints<E>>
 {
     private final E natural;
@@ -37,10 +42,20 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         this.natural = natural;
     }
 
+    /**
+     * The 'natural' owners of the ring position(s), as implied by the current ring layout.
+     * This excludes any pending owners, i.e. those that are in the process of taking ownership of a range, but
+     * have not yet finished obtaining their view of the range.
+     */
     public final E natural()
     {
         return natural;
     }
+
+    /**
+     * All relevant owners of the ring position(s) for this operation, as implied by the current ring layout.
+     * For writes, this will include pending owners, and for reads it will be equivalent to natural()
+     */
     public E all()
     {
         return natural;
