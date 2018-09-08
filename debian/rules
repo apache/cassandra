@@ -3,7 +3,7 @@
 # Uncomment to enable verbose mode.
 #export DH_VERBOSE=1
 
-include /usr/share/dpatch/dpatch.make
+include /usr/share/quilt/quilt.make
 
 ANT = /usr/bin/ant
 VERSION = $(shell dpkg-parsechangelog | sed -ne 's/^Version: \([^-|~|+]*\).*/\1/p')
@@ -13,6 +13,7 @@ test:
 	$(ANT) test
 
 clean: unpatch
+	dh_clean build-stamp
 	dh_testdir
 	dh_testroot
 	$(ANT) realclean
@@ -24,7 +25,7 @@ clean: unpatch
 	dh_clean
 
 build: build-stamp
-build-stamp: patch-stamp
+build-stamp: $(QUILT_STAMPFN)
 	dh_testdir
 	printf "version=%s" $(VERSION) > build.properties
 
