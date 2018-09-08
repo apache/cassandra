@@ -660,9 +660,10 @@ ALTER TABLE
 Altering an existing table uses the ``ALTER TABLE`` statement:
 
 .. productionlist::
-   alter_table_statement: ALTER TABLE `table_name` `alter_table_instruction`
-   alter_table_instruction: ADD `column_name` `cql_type` ( ',' `column_name` `cql_type` )*
-                          : | DROP `column_name` ( `column_name` )*
+   alter_table_statement: ALTER TABLE [ IF EXISTS ] `table_name` `alter_table_instruction`
+   alter_table_instruction: ADD [ IF NOT EXISTS ] `column_name` `cql_type` ( ',' `column_name` `cql_type` )*
+                          : | DROP [ IF EXISTS ] `column_name` ( `column_name` )*
+                          : | RENAME [ IF EXISTS ] `column_name` TO `column_name` ( AND `column_name` TO `column_name` )*
                           : | WITH `options`
 
 For instance::
@@ -677,16 +678,23 @@ The ``ALTER TABLE`` statement can:
 - Add new column(s) to the table (through the ``ADD`` instruction). Note that the primary key of a table cannot be
   changed and thus newly added column will, by extension, never be part of the primary key. Also note that :ref:`compact
   tables <compact-tables>` have restrictions regarding column addition. Note that this is constant (in the amount of
-  data the cluster contains) time operation.
+  data the cluster contains) time operation. If the column exists, the statement will return an error, unless
+  ``ADD IF NOT EXISTS`` is used in which case the operation is a no-op.
 - Remove column(s) from the table. This drops both the column and all its content, but note that while the column
   becomes immediately unavailable, its content is only removed lazily during compaction. Please also see the warnings
   below. Due to lazy removal, the altering itself is a constant (in the amount of data removed or contained in the
-  cluster) time operation.
+  cluster) time operation. If the column does not exists, the statement will return an error, unless
+  ``DROP IF NOT EXISTS`` is used in which case the operation is a no-op.
+- Rename column(s) in the table. If the column does not exists, the statement will return an error, unless
+  ``RENAME IF NOT EXISTS`` is used in which case the operation is a no-op.
 - Change some of the table options (through the ``WITH`` instruction). The :ref:`supported options
   <create-table-options>` are the same that when creating a table (outside of ``COMPACT STORAGE`` and ``CLUSTERING
   ORDER`` that cannot be changed after creation). Note that setting any ``compaction`` sub-options has the effect of
   erasing all previous ``compaction`` options, so you need to re-specify all the sub-options if you want to keep them.
   The same note applies to the set of ``compression`` sub-options.
+
+If the table does not exists, the statement will return an error, unless ``IF EXISTS`` is used in which case
+the operation is a no-op.
 
 .. warning:: Dropping a column assumes that the timestamps used for the value of this column are "real" timestamp in
    microseconds. Using "real" timestamps in microseconds is the default is and is **strongly** recommended but as

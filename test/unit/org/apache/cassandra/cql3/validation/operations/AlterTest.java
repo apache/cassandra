@@ -25,6 +25,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.SchemaKeyspace;
 
@@ -488,5 +489,87 @@ public class AlterTest extends CQLTester
         execute("ALTER TABLE %s DROP x");
 
         assertEmpty(execute("SELECT * FROM %s"));
+    }
+
+    @Test
+    public void testAlterNonExistingTable() throws Throwable
+    {
+        createTableName();
+
+        assertTableNotExists("ALTER TABLE %s ADD col int;");
+        execute("ALTER TABLE IF EXISTS %s ADD col int;");
+
+        assertTableNotExists("ALTER TABLE %s DROP col;");
+        execute("ALTER TABLE IF EXISTS %s DROP col;");
+
+        assertTableNotExists("ALTER TABLE %s RENAME col TO col1;");
+        execute("ALTER TABLE IF EXISTS %s RENAME col TO col1;");
+
+        assertTableNotExists("ALTER TABLE %s WITH prop = 1;");
+        execute("ALTER TABLE IF EXISTS %s WITH prop = 1;");
+    }
+
+    private void assertTableNotExists(String query) throws Throwable
+    {
+        try
+        {
+            execute(query);
+            Assert.fail("Expect exception about table existence");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertEquals(String.format("Table '%s.%s' doesn't exist", keyspace(), currentTable()), e.getMessage());
+        }
+    }
+
+    @Test
+    public void testAddExistingColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, col text);");
+
+        try
+        {
+            execute("ALTER TABLE %s ADD col text;");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertEquals("Column with name 'col' already exists", e.getMessage());
+        }
+
+        execute("ALTER TABLE %s ADD IF NOT EXISTS col text;");
+    }
+
+    @Test
+    public void testDropNonExistingColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY);");
+
+        try
+        {
+            execute("ALTER TABLE %s DROP col;");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertEquals(String.format("Column col was not found in table '%s.%s'", keyspace(), currentTable()), e.getMessage());
+        }
+
+        execute("ALTER TABLE %s DROP IF EXISTS col;");
+    }
+
+    @Test
+    public void testRenameNonExistingColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY);");
+
+        try
+        {
+            execute("ALTER TABLE %s RENAME col1 TO col2;");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertEquals(String.format("Column col1 was not found in table %s.%s", keyspace(), currentTable()), e.getMessage());
+        }
+
+        execute("ALTER TABLE %s RENAME IF EXISTS col1 TO col2;");
     }
 }

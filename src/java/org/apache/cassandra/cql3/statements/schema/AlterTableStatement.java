@@ -33,6 +33,8 @@ import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import static java.lang.String.join;
 
@@ -42,13 +44,16 @@ import static com.google.common.collect.Iterables.transform;
 public abstract class AlterTableStatement extends AlterSchemaStatement
 {
     protected final String tableName;
+    protected final boolean ifTableExists;
 
-    public AlterTableStatement(String keyspaceName, String tableName)
+    public AlterTableStatement(String keyspaceName, String tableName, boolean ifTableExists)
     {
         super(keyspaceName);
         this.tableName = tableName;
+        this.ifTableExists = ifTableExists;
     }
 
+    @Override
     public Keyspaces apply(Keyspaces schema)
     {
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
@@ -58,7 +63,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                             : keyspace.getTableOrViewNullable(tableName);
 
         if (null == table)
+        {
+            if (ifTableExists)
+                return schema.withAddedOrUpdated(keyspace);
+
             throw ire("Table '%s.%s' doesn't exist", keyspaceName, tableName);
+        }
 
         if (table.isView())
             throw ire("Cannot use ALTER TABLE on a materialized view; use ALTER MATERIALIZED VIEW instead");
@@ -66,11 +76,13 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         return schema.withAddedOrUpdated(apply(keyspace, table));
     }
 
+    @Override
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
     {
         return new SchemaChange(Change.UPDATED, Target.TABLE, keyspaceName, tableName);
     }
 
+    @Override
     public void authorize(ClientState client)
     {
         client.ensureTablePermission(keyspaceName, tableName, Permission.ALTER);
@@ -82,9 +94,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.ALTER_TABLE, keyspaceName, tableName);
     }
 
+    @Override
     public String toString()
     {
-        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 
     abstract KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table);
@@ -98,9 +111,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     {
         AlterColumn(String keyspaceName, String tableName)
         {
-            super(keyspaceName, tableName);
+            super(keyspaceName, tableName, false);
         }
 
+        @Override
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
             throw ire("Altering column types is no longer supported");
@@ -108,8 +122,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     }
 
     /**
-     * ALTER TABLE <table> ADD <column> <newtype>
-     * ALTER TABLE <table> ADD (<column> <newtype>, <column1> <newtype1>, ... <columnn> <newtypen>)
+     * ALTER TABLE [ IF EXISTS ] <table> ADD <column> <newtype>
+     * ALTER TABLE [ IF EXISTS ] <table> ADD (<column> <newtype>, <column1> <newtype1>, ... <columnn> <newtypen>)
      */
     private static class AddColumns extends AlterTableStatement
     {
@@ -128,13 +142,16 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
 
         private final Collection<Column> newColumns;
+        private final boolean ifColumnNotExists;
 
-        private AddColumns(String keyspaceName, String tableName, Collection<Column> newColumns)
+        private AddColumns(String keyspaceName, String tableName, boolean ifTableExists, boolean ifColulmnNotExists, Collection<Column> newColumns)
         {
-            super(keyspaceName, tableName);
+            super(keyspaceName, tableName, ifTableExists);
+            this.ifColumnNotExists = ifColulmnNotExists;
             this.newColumns = newColumns;
         }
 
+        @Override
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
             TableMetadata.Builder tableBuilder = table.unbuild();
@@ -156,7 +173,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             boolean isStatic = column.isStatic;
 
             if (null != tableBuilder.getColumn(name))
+            {
+                if (ifColumnNotExists)
+                    return;
+
                 throw ire("Column with name '%s' already exists", name);
+            }
 
             if (isStatic && table.clusteringColumns().isEmpty())
                 throw ire("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
@@ -199,22 +221,26 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     }
 
     /**
-     * ALTER TABLE <table> DROP <column>
-     * ALTER TABLE <table> DROP ( <column>, <column1>, ... <columnn>)
+     * ALTER TABLE [ IF EXISTS ] <table> DROP [ IF EXISTS ] <column>
+     * ALTER TABLE [ IF EXISTS ] <table> DROP [ IF EXISTS ] ( <column>, <column1>, ... <columnn>)
      */
     // TODO: swap UDT refs with expanded tuples on drop
     private static class DropColumns extends AlterTableStatement
     {
         private final Collection<ColumnMetadata.Raw> removedColumns;
+        private final boolean ifColumnExists;
         private final long timestamp;
 
-        private DropColumns(String keyspaceName, String tableName, Collection<ColumnMetadata.Raw> removedColumns, long timestamp)
+        private DropColumns(String keyspaceName, String tableName, boolean ifTableExists, boolean ifColumnExists,
+                Collection<ColumnMetadata.Raw> removedColumns, long timestamp)
         {
-            super(keyspaceName, tableName);
+            super(keyspaceName, tableName, ifTableExists);
+            this.ifColumnExists = ifColumnExists;
             this.removedColumns = removedColumns;
             this.timestamp = timestamp;
         }
 
+        @Override
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
             TableMetadata.Builder builder = table.unbuild();
@@ -228,7 +254,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             ColumnMetadata currentColumn = table.getColumn(name);
             if (null == currentColumn)
+            {
+                if (ifColumnExists)
+                    return;
+
                 throw ire("Column %s was not found in table '%s'", name, table);
+            }
 
             if (currentColumn.isPrimaryKeyColumn())
                 throw ire("Cannot drop PRIMARY KEY column %s", name);
@@ -259,18 +290,22 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     }
 
     /**
-     * ALTER TABLE <table> RENAME <column> TO <column>;
+     * ALTER TABLE [ IF EXISTS ] <table> RENAME [ IF EXISTS ] <column> TO <column>;
      */
     private static class RenameColumns extends AlterTableStatement
     {
+        private final boolean ifColumnExists;
         private final Map<ColumnMetadata.Raw, ColumnMetadata.Raw> renamedColumns;
 
-        private RenameColumns(String keyspaceName, String tableName, Map<ColumnMetadata.Raw, ColumnMetadata.Raw> renamedColumns)
+        private RenameColumns(String keyspaceName, String tableName, boolean ifTableExists, boolean ifColumnExists,
+                Map<ColumnMetadata.Raw, ColumnMetadata.Raw> renamedColumns)
         {
-            super(keyspaceName, tableName);
+            super(keyspaceName, tableName, ifTableExists);
+            this.ifColumnExists = ifColumnExists;
             this.renamedColumns = renamedColumns;
         }
 
+        @Override
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
             TableMetadata.Builder tableBuilder = table.unbuild();
@@ -293,7 +328,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             ColumnMetadata column = table.getColumn(oldColumnName);
             if (null == column)
+            {
+                if (ifColumnExists)
+                    return;
+
                 throw ire("Column %s was not found in table %s", oldColumnName, table);
+            }
 
             if (!column.isPrimaryKeyColumn())
                 throw ire("Cannot rename non PRIMARY KEY column %s", oldColumnName);
@@ -331,18 +371,19 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     }
 
     /**
-     * ALTER TABLE <table> WITH <property> = <value>
+     * ALTER TABLE [ IF EXISTS ] <table> WITH <property> = <value>
      */
     private static class AlterOptions extends AlterTableStatement
     {
         private final TableAttributes attrs;
 
-        private AlterOptions(String keyspaceName, String tableName, TableAttributes attrs)
+        private AlterOptions(String keyspaceName, String tableName, boolean ifTableExists, TableAttributes attrs)
         {
-            super(keyspaceName, tableName);
+            super(keyspaceName, tableName, ifTableExists);
             this.attrs = attrs;
         }
 
+        @Override
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
             attrs.validate();
@@ -379,8 +420,11 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
 
         private final QualifiedName name;
+        private final boolean ifTableExists;
 
         private Kind kind;
+        private boolean ifColumnExists;
+        private boolean ifColumnNotExists;
 
         // ADD
         private final List<AddColumns.Column> addedColumns = new ArrayList<>();
@@ -395,11 +439,13 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         // OPTIONS
         public final TableAttributes attrs = new TableAttributes();
 
-        public Raw(QualifiedName name)
+        public Raw(QualifiedName name, boolean ifTableExists)
         {
             this.name = name;
+            this.ifTableExists = ifTableExists;
         }
 
+        @Override
         public AlterTableStatement prepare(ClientState state)
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
@@ -408,10 +454,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             switch (kind)
             {
                 case   ALTER_COLUMN: return new AlterColumn(keyspaceName, tableName);
-                case    ADD_COLUMNS: return new AddColumns(keyspaceName, tableName, addedColumns);
-                case   DROP_COLUMNS: return new DropColumns(keyspaceName, tableName, droppedColumns, timestamp);
-                case RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns);
-                case  ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs);
+                case    ADD_COLUMNS: return new AddColumns(keyspaceName, tableName, ifTableExists, ifColumnNotExists, addedColumns);
+                case   DROP_COLUMNS: return new DropColumns(keyspaceName, tableName, ifTableExists, ifColumnExists, droppedColumns, timestamp);
+                case RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, ifTableExists, ifColumnExists, renamedColumns);
+                case  ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, ifTableExists, attrs);
             }
 
             throw new AssertionError();
@@ -448,6 +494,16 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         public void attrs()
         {
             this.kind = Kind.ALTER_OPTIONS;
+        }
+
+        public void setIfColumnExists(boolean ifColumnExists)
+        {
+            this.ifColumnExists = ifColumnExists;
+        }
+
+        public void setIfColumnNotExists(boolean ifColumnNotExists)
+        {
+            this.ifColumnNotExists = ifColumnNotExists;
         }
     }
 }
