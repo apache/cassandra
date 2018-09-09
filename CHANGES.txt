@@ -1,4 +1,5 @@
 4.0
+ * Transient->Full range movements mishandle consistency level upgrade (CASSANDRA-14759)
  * ReplicaCollection follow-up (CASSANDRA-14726)
  * Transient node receives full data requests (CASSANDRA-14762)
  * Enable snapshot artifacts publish (CASSANDRA-12704)

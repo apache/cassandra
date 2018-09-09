@@ -110,7 +110,7 @@ public final class Replica implements Comparable<Replica>
         return range;
     }
 
-    public boolean isFull()
+    public final boolean isFull()
     {
         return full;
     }

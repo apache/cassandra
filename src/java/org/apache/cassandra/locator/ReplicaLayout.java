@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.locator;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
@@ -274,9 +275,29 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * See {@link ReplicaLayout#haveWriteConflicts}
      * @return a 'natural' replica collection, that has had its conflicts with pending repaired
      */
-    private static <E extends Endpoints<E>> E resolveWriteConflictsInNatural(E natural, E pending)
+    @VisibleForTesting
+    static EndpointsForToken resolveWriteConflictsInNatural(EndpointsForToken natural, EndpointsForToken pending)
     {
-        return natural.filter(r -> !r.isTransient() || !pending.contains(r.endpoint(), true));
+        EndpointsForToken.Mutable resolved = natural.newMutable(natural.size());
+        for (Replica replica : natural)
+        {
+            // always prefer the full natural replica, if there is a conflict
+            if (replica.isTransient())
+            {
+                Replica conflict = pending.byEndpoint().get(replica.endpoint());
+                if (conflict != null)
+                {
+                    // it should not be possible to have conflicts of the same replication type for the same range
+                    assert conflict.isFull();
+                    // If we have any pending transient->full movement, we need to move the full replica to our 'natural' bucket
+                    // to avoid corrupting our count
+                    resolved.add(conflict);
+                    continue;
+                }
+            }
+            resolved.add(replica);
+        }
+        return resolved.asSnapshot();
     }
 
     /**
@@ -284,7 +305,8 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * See {@link ReplicaLayout#haveWriteConflicts}
      * @return a 'pending' replica collection, that has had its conflicts with natural repaired
      */
-    private static <E extends Endpoints<E>> E resolveWriteConflictsInPending(E natural, E pending)
+    @VisibleForTesting
+    static EndpointsForToken resolveWriteConflictsInPending(EndpointsForToken natural, EndpointsForToken pending)
     {
         return pending.without(natural.endpoints());
     }
