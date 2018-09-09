@@ -123,7 +123,7 @@ public class MessageInHandler extends ChannelInboundHandlerAdapter
      * Processes incoming buffers on the netty event loop, in a non-blocking manner. If buffers are not completely consumed,
      * it is stashed in {@link #retainedInlineBuffer}, and the next incoming buffer is combined with it.
      */
-    class NonblockingBufferHandler implements BufferHandler
+    static class NonblockingBufferHandler implements BufferHandler
     {
         private final MessageInProcessor messageProcessor;
 

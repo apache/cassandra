@@ -503,7 +503,7 @@ public class MessageIn<T>
             {
                 String key = DataInputStream.readUTF(inputTracker);
                 ParameterType parameterType = ParameterType.byName.get(key);
-                long valueLength = VIntCoding.readUnsignedVInt(inputTracker);
+                VIntCoding.readUnsignedVInt(inputTracker); // we don't use the valueLength
                 messageHeader.parameters.put(parameterType, parameterType.serializer.deserialize(inputTracker, messagingVersion));
             }
         }
@@ -691,7 +691,7 @@ public class MessageIn<T>
             {
                 String key = DataInputStream.readUTF(in);
                 ParameterType parameterType = ParameterType.byName.get(key);
-                int valueLength = in.readInt();
+                in.readInt(); // we don't use the valueLength
                 parameters.put(parameterType, parameterType.serializer.deserialize(in, messagingVersion));
             }
         }

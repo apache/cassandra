@@ -324,7 +324,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                     throw new IllegalStateException("channel's transferring state is currently set to true. refusing to start new stream");
 
                 // close the DataOutputStreamPlus as we're done with it - but don't close the channel
-                try (DataOutputStreamPlus outPlus = ByteBufDataOutputStreamPlus.create(channel, 1 << 20, this::onError, 5, TimeUnit.MINUTES))
+                try (DataOutputStreamPlus outPlus = ByteBufDataOutputStreamPlus.create(channel, 1 << 20, this::onError, 2, TimeUnit.MINUTES))
                 {
                     StreamMessage.serialize(msg, outPlus, protocolVersion, session);
                     channel.flush();

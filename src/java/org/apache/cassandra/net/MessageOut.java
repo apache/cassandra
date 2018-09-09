@@ -223,7 +223,7 @@ public class MessageOut<T>
     {
         try
         {
-            UUID sessionId =  (UUID)getParameter(ParameterType.TRACE_SESSION);
+            UUID sessionId = (UUID)getParameter(ParameterType.TRACE_SESSION);
             if (sessionId != null)
             {
                 TraceState state = Tracing.instance.get(sessionId);
@@ -253,7 +253,7 @@ public class MessageOut<T>
     {
         for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
         {
-            if (((ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET)).equals(type))
+            if ((parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET)).equals(type))
             {
                 return parameters.get(ii + PARAMETER_TUPLE_PARAMETER_OFFSET);
             }
