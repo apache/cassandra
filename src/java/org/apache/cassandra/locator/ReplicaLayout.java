@@ -275,7 +275,24 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      */
     private static <E extends Endpoints<E>> E resolveWriteConflictsInNatural(E natural, E pending)
     {
-        return natural.filter(r -> !r.isTransient() || !pending.contains(r.endpoint(), true));
+        ReplicaCollection.Mutable<E> resolved = natural.newMutable(natural.size());
+        for (Replica replica : natural)
+        {
+            // always prefer the full natural replica, if there is a conflict
+            if (!replica.isFull())
+            {
+                Replica conflict = pending.byEndpoint().get(replica.endpoint());
+                if (conflict != null)
+                {
+                    // If we have any pending transient->full movement, we need to move the full replica to our 'natural' bucket
+                    // to avoid corrupting our count
+                    if (conflict.isFull()) resolved.add(new Replica(replica.endpoint(), replica.range(), true));
+                    continue;
+                }
+            }
+            resolved.add(replica);
+        }
+        return resolved.asSnapshot();
     }
 
     /**
