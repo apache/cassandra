@@ -53,15 +53,16 @@ public class BlockingReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<
     protected final Queue<BlockingPartitionRepair> repairs = new ConcurrentLinkedQueue<>();
     private final int blockFor;
 
-    BlockingReadRepair(ReadCommand command, P replicaPlan, long queryStartNanoTime)
+    BlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
     {
         super(command, replicaPlan, queryStartNanoTime);
-        this.blockFor = replicaPlan.consistencyLevel().blockFor(cfs.keyspace);
+        this.blockFor = replicaPlan().consistencyLevel().blockFor(cfs.keyspace);
     }
 
     public UnfilteredPartitionIterators.MergeListener getMergeListener(P replicaPlan)
     {
-        return new PartitionIteratorMergeListener<>(replicaPlan, command, this.replicaPlan.consistencyLevel(), this);
+        // TODO: why are we referencing a different replicaPlan here?
+        return new PartitionIteratorMergeListener<>(replicaPlan, command, this.replicaPlan().consistencyLevel(), this);
     }
 
     @Override
@@ -93,13 +94,13 @@ public class BlockingReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<
         if (timedOut)
         {
             // We got all responses, but timed out while repairing
-            int blockFor = replicaPlan.blockFor();
+            int blockFor = replicaPlan().blockFor();
             if (Tracing.isTracing())
                 Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
             else
                 logger.debug("Timeout while read-repairing after receiving all {} data and digest responses", blockFor);
 
-            throw new ReadTimeoutException(replicaPlan.consistencyLevel(), blockFor - 1, blockFor, true);
+            throw new ReadTimeoutException(replicaPlan().consistencyLevel(), blockFor - 1, blockFor, true);
         }
     }
 

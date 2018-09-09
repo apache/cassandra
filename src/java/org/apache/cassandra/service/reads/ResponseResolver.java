@@ -34,21 +34,25 @@ public abstract class ResponseResolver<E extends Endpoints<E>, L extends Replica
     protected static final Logger logger = LoggerFactory.getLogger(ResponseResolver.class);
 
     protected final ReadCommand command;
-    protected final P replicaPlan;
+    protected final ReplicaPlan.Shared<P> replicaPlan;
     protected final ReadRepair<E, L, P> readRepair;
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
     protected final Accumulator<MessageIn<ReadResponse>> responses;
     protected final long queryStartNanoTime;
 
-    public ResponseResolver(ReadCommand command, P replicaPlan, ReadRepair<E, L, P> readRepair, long queryStartNanoTime)
+    public ResponseResolver(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, ReadRepair<E, L, P> readRepair, long queryStartNanoTime)
     {
         this.command = command;
         this.replicaPlan = replicaPlan;
         this.readRepair = readRepair;
-        // TODO: calculate max possible replicas for the query (e.g. local dc queries won't contact remotes)
-        this.responses = new Accumulator<>(replicaPlan.liveAndDown().all().size());
+        this.responses = new Accumulator<>(replicaPlan.get().candidates().size());
         this.queryStartNanoTime = queryStartNanoTime;
+    }
+
+    protected P replicaPlan()
+    {
+        return replicaPlan.get();
     }
 
     public abstract boolean isDataPresent();
@@ -61,7 +65,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, L extends Replica
         }
         catch (IllegalStateException e)
         {
-            logger.error("Encountered error while trying to preprocess the message {}: %s in command {}, replicas: {}", message, command, readRepair, replicaPlan.consistencyLevel(), replicaPlan.contact());
+            logger.error("Encountered error while trying to preprocess the message {}: %s in command {}, replicas: {}", message, command, readRepair, replicaPlan().consistencyLevel(), replicaPlan().contact());
             throw e;
         }
     }

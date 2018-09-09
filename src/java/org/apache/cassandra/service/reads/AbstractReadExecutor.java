@@ -18,6 +18,7 @@
 package org.apache.cassandra.service.reads;
 
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
 
@@ -67,7 +68,7 @@ public abstract class AbstractReadExecutor
     private static final Logger logger = LoggerFactory.getLogger(AbstractReadExecutor.class);
 
     protected final ReadCommand command;
-    private         ReplicaPlan.ForTokenRead replicaPlan;
+    private   final ReplicaPlan.Shared<ReplicaPlan.ForTokenRead> replicaPlan;
     protected final ReadRepair<EndpointsForToken, ReplicaLayout.ForTokenRead, ReplicaPlan.ForTokenRead> readRepair;
     protected final DigestResolver<EndpointsForToken, ReplicaLayout.ForTokenRead, ReplicaPlan.ForTokenRead> digestResolver;
     protected final ReadCallback<EndpointsForToken, ReplicaLayout.ForTokenRead, ReplicaPlan.ForTokenRead> handler;
@@ -80,11 +81,12 @@ public abstract class AbstractReadExecutor
     AbstractReadExecutor(ColumnFamilyStore cfs, ReadCommand command, ReplicaPlan.ForTokenRead replicaPlan, int initialDataRequestCount, long queryStartNanoTime)
     {
         this.command = command;
-        this.replicaPlan = replicaPlan;
+        this.replicaPlan = new ReplicaPlan.Shared<>(replicaPlan);
         this.initialDataRequestCount = initialDataRequestCount;
-        this.readRepair = ReadRepair.create(command, replicaPlan, queryStartNanoTime);
-        this.digestResolver = new DigestResolver<>(command, replicaPlan, readRepair, queryStartNanoTime);
-        this.handler = new ReadCallback<>(digestResolver, command, replicaPlan, queryStartNanoTime);
+        // the ReadRepair and DigestResolver both need to see our updated
+        this.readRepair = ReadRepair.create(command, this.replicaPlan, queryStartNanoTime);
+        this.digestResolver = new DigestResolver<>(command, this.replicaPlan, readRepair, queryStartNanoTime);
+        this.handler = new ReadCallback<>(digestResolver, command, this.replicaPlan, queryStartNanoTime);
         this.cfs = cfs;
         this.traceState = Tracing.instance.get();
         this.queryStartNanoTime = queryStartNanoTime;
@@ -186,7 +188,6 @@ public abstract class AbstractReadExecutor
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
         SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
 
-        // Endpoints for Token
         ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(keyspace, command.partitionKey().getToken(), consistencyLevel, retry);
 
         // Speculative retry is disabled *OR*
@@ -226,7 +227,7 @@ public abstract class AbstractReadExecutor
 
     ReplicaPlan.ForTokenRead replicaPlan()
     {
-        return replicaPlan;
+        return replicaPlan();
     }
 
     void onReadTimeout() {}
@@ -304,7 +305,10 @@ public abstract class AbstractReadExecutor
                     }
                 }
 
-                super.replicaPlan = replicaPlan.withContact(Endpoints.append(replicaPlan.contact(), extraReplica));
+                // we must update the plan to include this new node, else when we come to read-repair, we may not include this
+                // speculated response in the data requests we make again, and we will not be able to 'speculate' an extra repair read,
+                // nor would we be able to speculate a new 'write' if the repair writes are insufficient
+                super.replicaPlan.set(replicaPlan.withContact(Endpoints.append(replicaPlan.contact(), extraReplica)));
 
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);
@@ -330,6 +334,7 @@ public abstract class AbstractReadExecutor
                                              ReplicaPlan.ForTokenRead replicaPlan,
                                              long queryStartNanoTime)
         {
+            // presumably, we speculate an extra data request here in case it is our data request that fails to respond
             super(cfs, command, replicaPlan, replicaPlan.contact().size() > 1 ? 2 : 1, queryStartNanoTime);
         }
 

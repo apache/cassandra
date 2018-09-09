@@ -220,8 +220,9 @@ public class DataResolverTransientTest extends AbstractReadResponseTest
 
     }
 
-    private ReplicaPlan.ForTokenRead plan(EndpointsForToken replicas, ConsistencyLevel consistencyLevel)
+    private ReplicaPlan.Shared<ReplicaPlan.ForTokenRead> plan(EndpointsForToken replicas, ConsistencyLevel consistencyLevel)
     {
-        return new ReplicaPlan.ForTokenRead(ks, consistencyLevel, new ReplicaLayout.ForTokenRead(replicas), new ReplicaLayout.ForTokenRead(replicas), replicas, replicas);
+        return new ReplicaPlan.Shared<>(new ReplicaPlan.ForTokenRead(ks, consistencyLevel,
+                new ReplicaLayout.ForTokenRead(replicas), new ReplicaLayout.ForTokenRead(replicas), replicas, replicas));
     }
 }

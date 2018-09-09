@@ -88,7 +88,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     private static class InstrumentedBlockingReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
             extends BlockingReadRepair<E, L, P> implements InstrumentedReadRepair<E, L, P>
     {
-        public InstrumentedBlockingReadRepair(ReadCommand command, P replicaPlan, long queryStartNanoTime)
+        public InstrumentedBlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
         {
             super(command, replicaPlan, queryStartNanoTime);
         }
@@ -120,7 +120,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     @Override
     public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.ForRead<?, ?, ?> replicaPlan, long queryStartNanoTime)
     {
-        return new InstrumentedBlockingReadRepair(command, replicaPlan, queryStartNanoTime);
+        return new InstrumentedBlockingReadRepair(command, new ReplicaPlan.Shared(replicaPlan), queryStartNanoTime);
     }
 
     @Test

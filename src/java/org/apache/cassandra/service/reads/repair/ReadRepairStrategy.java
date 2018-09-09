@@ -28,7 +28,7 @@ public enum ReadRepairStrategy implements ReadRepair.Factory
     NONE
     {
         public <E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
-        ReadRepair<E, L, P> create(ReadCommand command, P replicaPlan, long queryStartNanoTime)
+        ReadRepair<E, L, P> create(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
         {
             return new ReadOnlyReadRepair<>(command, replicaPlan, queryStartNanoTime);
         }
@@ -37,7 +37,7 @@ public enum ReadRepairStrategy implements ReadRepair.Factory
     BLOCKING
     {
         public <E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
-        ReadRepair<E, L, P> create(ReadCommand command, P replicaPlan, long queryStartNanoTime)
+        ReadRepair<E, L, P> create(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
         {
             return new BlockingReadRepair<>(command, replicaPlan, queryStartNanoTime);
         }

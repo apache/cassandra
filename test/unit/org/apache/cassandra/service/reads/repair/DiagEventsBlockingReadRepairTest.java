@@ -130,7 +130,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
 
         DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaPlan.ForRead<?, ?, ?> replicaPlan, long queryStartNanoTime)
         {
-            super(command, replicaPlan, queryStartNanoTime);
+            super(command, new ReplicaPlan.Shared<>(replicaPlan), queryStartNanoTime);
             DiagnosticEventService.instance().subscribe(ReadRepairEvent.class, this::onRepairEvent);
         }
 

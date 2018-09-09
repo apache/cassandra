@@ -237,4 +237,17 @@ public abstract class ReplicaPlan<
         }
     }
 
+    /**
+     * Used by AbstractReadExecutor, {Data,Digest}Resolver and ReadRepair to share a ReplicaPlan whose 'contact' replicas
+     * we progressively modify via various forms of speculation (initial speculation, rr-read and rr-write)
+     * @param <P>
+     */
+    public static class Shared<P extends ReplicaPlan<?, ?, ?>>
+    {
+        private P replicaPlan;
+        public Shared(P replicaPlan) { this.replicaPlan = replicaPlan; }
+        public void set(P newReplicaPlan) { this.replicaPlan = newReplicaPlan; }
+        public P get() { return replicaPlan; }
+    }
+
 }

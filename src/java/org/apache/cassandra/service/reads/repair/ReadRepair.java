@@ -19,6 +19,7 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.locator.Endpoints;
@@ -38,11 +39,11 @@ public interface ReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, 
     public interface Factory
     {
         <E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
-        ReadRepair<E, L, P> create(ReadCommand command, P replicaPlan, long queryStartNanoTime);
+        ReadRepair<E, L, P> create(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime);
     }
 
     static <E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
-    ReadRepair<E, L, P> create(ReadCommand command, P replicaPlan, long queryStartNanoTime)
+    ReadRepair<E, L, P> create(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
     {
         return command.metadata().params.readRepair.create(command, replicaPlan, queryStartNanoTime);
     }

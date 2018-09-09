@@ -138,11 +138,11 @@ public class DigestResolverTest extends AbstractReadResponseTest
         Assert.assertTrue(resolver.hasTransientResponse());
     }
 
-    private ReplicaPlan.ForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
+    private ReplicaPlan.Shared<ReplicaPlan.ForTokenRead> plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
     {
-        return new ReplicaPlan.ForTokenRead(ks, consistencyLevel,
+        return new ReplicaPlan.Shared<>(new ReplicaPlan.ForTokenRead(ks, consistencyLevel,
                 new ReplicaLayout.ForTokenRead(replicas),
                 new ReplicaLayout.ForTokenRead(replicas),
-                replicas, replicas);
+                replicas, replicas));
     }
 }

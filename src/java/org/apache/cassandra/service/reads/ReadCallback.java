@@ -23,12 +23,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
@@ -52,7 +52,7 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E>, P 
     final SimpleCondition condition = new SimpleCondition();
     private final long queryStartNanoTime;
     final int blockFor; // TODO: move to replica plan as well?
-    final P replicaPlan;
+    final ReplicaPlan.Shared<P> replicaPlan;
     private final ReadCommand command;
     private static final AtomicIntegerFieldUpdater<ReadCallback> recievedUpdater
             = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "received");
@@ -62,19 +62,24 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E>, P 
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
 
-    public ReadCallback(ResponseResolver resolver, ReadCommand command, P replicaPlan, long queryStartNanoTime)
+    public ReadCallback(ResponseResolver resolver, ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
     {
         this.command = command;
-        this.blockFor = replicaPlan.blockFor();
         this.resolver = resolver;
         this.queryStartNanoTime = queryStartNanoTime;
         this.replicaPlan = replicaPlan;
+        this.blockFor = replicaPlan.get().blockFor();
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
-        assert !(command instanceof PartitionRangeReadCommand) || blockFor >= replicaPlan.contact().size();
+        assert !(command instanceof PartitionRangeReadCommand) || blockFor >= replicaPlan().contact().size();
 
         if (logger.isTraceEnabled())
             logger.trace("Blockfor is {}; setting up requests to {}", blockFor, this.replicaPlan);
+    }
+
+    protected P replicaPlan()
+    {
+        return replicaPlan.get();
     }
 
     public boolean await(long timePastStart, TimeUnit unit)
@@ -93,7 +98,7 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E>, P 
     public void awaitResults() throws ReadFailureException, ReadTimeoutException
     {
         boolean signaled = await(command.getTimeout(), TimeUnit.MILLISECONDS);
-        boolean failed = failures > 0 && blockFor + failures > replicaPlan.contact().size();
+        boolean failed = failures > 0 && blockFor + failures > replicaPlan().contact().size();
         if (signaled && !failed)
             return;
 
@@ -110,8 +115,8 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E>, P 
 
         // Same as for writes, see AbstractWriteResponseHandler
         throw failed
-            ? new ReadFailureException(replicaPlan.consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint)
-            : new ReadTimeoutException(replicaPlan.consistencyLevel(), received, blockFor, resolver.isDataPresent());
+            ? new ReadFailureException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint)
+            : new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent());
     }
 
     public int blockFor()
@@ -135,7 +140,7 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E>, P 
      */
     private boolean waitingFor(InetAddressAndPort from)
     {
-        return !replicaPlan.consistencyLevel().isDatacenterLocal() || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from));
+        return !replicaPlan().consistencyLevel().isDatacenterLocal() || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from));
     }
 
     public void response(ReadResponse result)
@@ -162,7 +167,7 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E>, P 
 
         failureReasonByEndpoint.put(from, failureReason);
 
-        if (blockFor + n > replicaPlan.contact().size())
+        if (blockFor + n > replicaPlan().contact().size())
             condition.signalAll();
     }
 }

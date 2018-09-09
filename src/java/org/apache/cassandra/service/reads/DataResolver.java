@@ -56,7 +56,7 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, P 
 {
     private final boolean enforceStrictLiveness;
 
-    public DataResolver(ReadCommand command, P replicaPlan, ReadRepair<E, L, P> readRepair, long queryStartNanoTime)
+    public DataResolver(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, ReadRepair<E, L, P> readRepair, long queryStartNanoTime)
     {
         super(command, replicaPlan, readRepair, queryStartNanoTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
@@ -81,7 +81,7 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, P 
         Collection<MessageIn<ReadResponse>> messages = responses.snapshot();
         assert !any(messages, msg -> msg.payload.isDigestResponse());
 
-        E replicas = replicaPlan.liveAndDown().all().select(transform(messages, msg -> msg.from), false);
+        E replicas = replicaPlan().liveAndDown().all().select(transform(messages, msg -> msg.from), false);
         List<UnfilteredPartitionIterator> iters = new ArrayList<>(
         Collections2.transform(messages, msg -> msg.payload.makeIterator(command)));
         assert replicas.size() == iters.size();
@@ -119,7 +119,7 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, P 
             command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
 
         UnfilteredPartitionIterator merged = mergeWithShortReadProtection(iters,
-                                                                          replicaPlan.withContact(replicas),
+                                                                          replicaPlan().withContact(replicas),
                                                                           mergedResultCounter,
                                                                           repairedDataTracker);
         FilteredPartitions filtered = FilteredPartitions.filter(merged, new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness()));

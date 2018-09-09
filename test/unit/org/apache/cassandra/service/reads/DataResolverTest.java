@@ -1225,7 +1225,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     }
 
     private DataResolver resolverWithVerifier(final ReadCommand command,
-                                              final ReplicaPlan.ForRangeRead plan,
+                                              final ReplicaPlan.Shared<ReplicaPlan.ForRangeRead> plan,
                                               final ReadRepair readRepair,
                                               final long queryStartNanoTime,
                                               final RepairedDataVerifier verifier)
@@ -1233,7 +1233,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         class TestableDataResolver extends DataResolver
         {
 
-            public TestableDataResolver(ReadCommand command, ReplicaPlan.ForRangeRead plan, ReadRepair readRepair, long queryStartNanoTime)
+            public TestableDataResolver(ReadCommand command, ReplicaPlan.Shared<ReplicaPlan.ForRangeRead> plan, ReadRepair readRepair, long queryStartNanoTime)
             {
                 super(command, plan, readRepair, queryStartNanoTime);
             }
@@ -1299,12 +1299,12 @@ public class DataResolverTest extends AbstractReadResponseTest
         assertEquals(update.metadata().name, cfm.name);
     }
 
-    private ReplicaPlan.ForRangeRead plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
+    private ReplicaPlan.Shared<ReplicaPlan.ForRangeRead> plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
-        return new ReplicaPlan.ForRangeRead(ks, consistencyLevel,
+        return new ReplicaPlan.Shared<>(new ReplicaPlan.ForRangeRead(ks, consistencyLevel,
                 new ReplicaLayout.ForRangeRead(ReplicaUtils.FULL_BOUNDS, replicas),
                 new ReplicaLayout.ForRangeRead(ReplicaUtils.FULL_BOUNDS, replicas),
-                replicas, replicas);
+                replicas, replicas));
     }
 
     private static void resolveAndConsume(DataResolver resolver)

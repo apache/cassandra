@@ -40,7 +40,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     private static class InstrumentedReadOnlyReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
             extends ReadOnlyReadRepair implements InstrumentedReadRepair
     {
-        public InstrumentedReadOnlyReadRepair(ReadCommand command, P replicaPlan, long queryStartNanoTime)
+        public InstrumentedReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
         {
             super(command, replicaPlan, queryStartNanoTime);
         }
@@ -78,7 +78,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     @Override
     public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.ForRead<?, ?, ?> replicaPlan, long queryStartNanoTime)
     {
-        return new InstrumentedReadOnlyReadRepair(command, replicaPlan, queryStartNanoTime);
+        return new InstrumentedReadOnlyReadRepair(command, new ReplicaPlan.Shared(replicaPlan), queryStartNanoTime);
     }
 
     @Test

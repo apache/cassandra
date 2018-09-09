@@ -20,6 +20,7 @@ package org.apache.cassandra.service.reads;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -45,9 +46,9 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, 
 {
     private volatile MessageIn<ReadResponse> dataResponse;
 
-    public DigestResolver(ReadCommand command, P replicas, ReadRepair<E, L, P> readRepair, long queryStartNanoTime)
+    public DigestResolver(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, ReadRepair<E, L, P> readRepair, long queryStartNanoTime)
     {
-        super(command, replicas, readRepair, queryStartNanoTime);
+        super(command, replicaPlan, readRepair, queryStartNanoTime);
         Preconditions.checkArgument(command instanceof SinglePartitionReadCommand,
                                     "DigestResolver can only be used with SinglePartitionReadCommand commands");
     }
@@ -56,7 +57,7 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, 
     public void preprocess(MessageIn<ReadResponse> message)
     {
         super.preprocess(message);
-        Replica replica = replicaPlan.getReplicaFor(message.from);
+        Replica replica = replicaPlan().getReplicaFor(message.from);
         if (dataResponse == null && !message.payload.isDigestResponse() && replica.isFull())
         {
             dataResponse = message;
@@ -77,7 +78,7 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, 
     {
         return any(responses,
                 msg -> !msg.payload.isDigestResponse()
-                        && replicaPlan.getReplicaFor(msg.from).isTransient());
+                        && replicaPlan().getReplicaFor(msg.from).isTransient());
     }
 
     public PartitionIterator getData()
@@ -101,7 +102,7 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, 
             // Forward differences to all full nodes
             for (MessageIn<ReadResponse> response : responses)
             {
-                Replica replica = replicaPlan.getReplicaFor(response.from);
+                Replica replica = replicaPlan().getReplicaFor(response.from);
                 if (replica.isTransient())
                     dataResolver.preprocess(response);
             }
@@ -118,7 +119,7 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, 
         ByteBuffer digest = null;
         for (MessageIn<ReadResponse> message : responses.snapshot())
         {
-            if (replicaPlan.getReplicaFor(message.from).isTransient())
+            if (replicaPlan().getReplicaFor(message.from).isTransient())
                 continue;
 
             ByteBuffer newDigest = message.payload.digest(command);
