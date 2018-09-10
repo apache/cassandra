@@ -173,7 +173,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
     {
         boolean hasSnapshot;
         public Mutable(InetAddressAndPort endpoint) { this(endpoint, 0); }
-        public Mutable(InetAddressAndPort endpoint, int capacity) { super(endpoint, new ArrayList<>(capacity), false, new LinkedHashMap<>()); }
+        public Mutable(InetAddressAndPort endpoint, int capacity) { super(endpoint, new ArrayList<>(capacity), false, new LinkedHashMap<>(capacity)); }
 
         public void add(Replica replica, Conflict ignoreConflict)
         {

@@ -18,12 +18,11 @@
 
 package org.apache.cassandra.locator;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.google.common.collect.Collections2;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -50,13 +49,8 @@ public class SystemReplicas
         return systemReplicas.computeIfAbsent(endpoint, SystemReplicas::createSystemReplica);
     }
 
-    public static Collection<Replica> getSystemReplicas(Collection<InetAddressAndPort> endpoints)
+    public static EndpointsForRange getSystemReplicas(Collection<InetAddressAndPort> endpoints)
     {
-        List<Replica> replicas = new ArrayList<>(endpoints.size());
-        for (InetAddressAndPort endpoint: endpoints)
-        {
-            replicas.add(getSystemReplica(endpoint));
-        }
-        return replicas;
+        return EndpointsForRange.copyOf(Collections2.transform(endpoints, SystemReplicas::getSystemReplica));
     }
 }

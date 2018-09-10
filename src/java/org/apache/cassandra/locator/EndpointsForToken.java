@@ -77,7 +77,7 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
     {
         boolean hasSnapshot;
         public Mutable(Token token) { this(token, 0); }
-        public Mutable(Token token, int capacity) { super(token, new ArrayList<>(capacity), false, new LinkedHashMap<>()); }
+        public Mutable(Token token, int capacity) { super(token, new ArrayList<>(capacity), false, new LinkedHashMap<>(capacity)); }
 
         public void add(Replica replica, Conflict ignoreConflict)
         {

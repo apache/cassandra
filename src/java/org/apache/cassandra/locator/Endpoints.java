@@ -89,17 +89,38 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
         return filter(r -> !self.equals(r.endpoint()));
     }
 
+    public boolean containsSelf()
+    {
+        InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
+        return byEndpoint().containsKey(self);
+    }
+
+    public Replica selfIfPresent()
+    {
+        InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
+        return byEndpoint().get(self);
+    }
+
+    /**
+     * @return a collection without the provided endpoints, otherwise in the same order as this collection
+     */
     public E without(Set<InetAddressAndPort> remove)
     {
         return filter(r -> !remove.contains(r.endpoint()));
     }
 
+    /**
+     * @return a collection with only the provided endpoints (ignoring any not present), otherwise in the same order as this collection
+     */
     public E keep(Set<InetAddressAndPort> keep)
     {
         return filter(r -> keep.contains(r.endpoint()));
     }
 
-    public E keep(Iterable<InetAddressAndPort> endpoints)
+    /**
+     * @return a collection containing the Replica from this colletion for the provided endpoints, in the order of the provided endpoints
+     */
+    public E select(Iterable<InetAddressAndPort> endpoints, boolean ignoreMissing)
     {
         ReplicaCollection.Mutable<E> copy = newMutable(
                 endpoints instanceof Collection<?>
@@ -109,10 +130,14 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
         Map<InetAddressAndPort, Replica> byEndpoint = byEndpoint();
         for (InetAddressAndPort endpoint : endpoints)
         {
-            Replica keep = byEndpoint.get(endpoint);
-            if (keep == null)
+            Replica select = byEndpoint.get(endpoint);
+            if (select == null)
+            {
+                if (!ignoreMissing)
+                    throw new IllegalArgumentException(endpoint + " is not present in " + this);
                 continue;
-            copy.add(keep, ReplicaCollection.Mutable.Conflict.DUPLICATE);
+            }
+            copy.add(select, ReplicaCollection.Mutable.Conflict.DUPLICATE);
         }
         return copy.asSnapshot();
     }
@@ -129,6 +154,14 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
     public static <E extends Endpoints<E>> E concat(E natural, E pending)
     {
         return AbstractReplicaCollection.concat(natural, pending, Conflict.NONE);
+    }
+
+    public static <E extends Endpoints<E>> E append(E replicas, Replica extraReplica)
+    {
+        Mutable<E> mutable = replicas.newMutable(replicas.size() + 1);
+        mutable.addAll(replicas);
+        mutable.add(extraReplica, Conflict.NONE);
+        return mutable.asSnapshot();
     }
 
     public static <E extends Endpoints<E>> boolean haveConflicts(E natural, E pending)

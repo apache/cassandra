@@ -24,6 +24,7 @@ import java.util.Iterator;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -1224,7 +1225,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     }
 
     private DataResolver resolverWithVerifier(final ReadCommand command,
-                                              final ReplicaLayout.ForRange plan,
+                                              final ReplicaPlan.ForRangeRead plan,
                                               final ReadRepair readRepair,
                                               final long queryStartNanoTime,
                                               final RepairedDataVerifier verifier)
@@ -1232,7 +1233,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         class TestableDataResolver extends DataResolver
         {
 
-            public TestableDataResolver(ReadCommand command, ReplicaLayout.ForRange plan, ReadRepair readRepair, long queryStartNanoTime)
+            public TestableDataResolver(ReadCommand command, ReplicaPlan.ForRangeRead plan, ReadRepair readRepair, long queryStartNanoTime)
             {
                 super(command, plan, readRepair, queryStartNanoTime);
             }
@@ -1298,9 +1299,12 @@ public class DataResolverTest extends AbstractReadResponseTest
         assertEquals(update.metadata().name, cfm.name);
     }
 
-    private ReplicaLayout.ForRange plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
+    private ReplicaPlan.ForRangeRead plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
-        return new ReplicaLayout.ForRange(ks, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas);
+        return new ReplicaPlan.ForRangeRead(ks, consistencyLevel,
+                new ReplicaLayout.ForRangeRead(ReplicaUtils.FULL_BOUNDS, replicas),
+                new ReplicaLayout.ForRangeRead(ReplicaUtils.FULL_BOUNDS, replicas),
+                replicas, replicas);
     }
 
     private static void resolveAndConsume(DataResolver resolver)

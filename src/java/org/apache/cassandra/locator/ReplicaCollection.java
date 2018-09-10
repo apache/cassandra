@@ -62,6 +62,11 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
     public abstract boolean contains(Replica replica);
 
     /**
+     * @return the number of replicas that match the predicate
+     */
+    public abstract int count(Predicate<Replica> predicate);
+
+    /**
      * @return a *eagerly constructed* copy of this collection containing the Replica that match the provided predicate.
      * An effort will be made to either return ourself, or a subList, where possible.
      * It is guaranteed that no changes to any upstream Mutable will affect the state of the result.

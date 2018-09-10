@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.reads;
 
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -137,8 +138,11 @@ public class DigestResolverTest extends AbstractReadResponseTest
         Assert.assertTrue(resolver.hasTransientResponse());
     }
 
-    private ReplicaLayout.ForToken plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
+    private ReplicaPlan.ForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
     {
-        return new ReplicaLayout.ForToken(ks, consistencyLevel, replicas.token(), replicas, null, replicas);
+        return new ReplicaPlan.ForTokenRead(ks, consistencyLevel,
+                new ReplicaLayout.ForTokenRead(replicas),
+                new ReplicaLayout.ForTokenRead(replicas),
+                replicas, replicas);
     }
 }

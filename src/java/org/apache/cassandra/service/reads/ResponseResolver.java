@@ -24,29 +24,30 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 
-public abstract class ResponseResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
+public abstract class ResponseResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
 {
     protected static final Logger logger = LoggerFactory.getLogger(ResponseResolver.class);
 
     protected final ReadCommand command;
-    protected final L replicaLayout;
-    protected final ReadRepair<E, L> readRepair;
+    protected final P replicaPlan;
+    protected final ReadRepair<E, L, P> readRepair;
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
     protected final Accumulator<MessageIn<ReadResponse>> responses;
     protected final long queryStartNanoTime;
 
-    public ResponseResolver(ReadCommand command, L replicaLayout, ReadRepair<E, L> readRepair, long queryStartNanoTime)
+    public ResponseResolver(ReadCommand command, P replicaPlan, ReadRepair<E, L, P> readRepair, long queryStartNanoTime)
     {
         this.command = command;
-        this.replicaLayout = replicaLayout;
+        this.replicaPlan = replicaPlan;
         this.readRepair = readRepair;
         // TODO: calculate max possible replicas for the query (e.g. local dc queries won't contact remotes)
-        this.responses = new Accumulator<>(replicaLayout.all().size());
+        this.responses = new Accumulator<>(replicaPlan.liveAndDown().all().size());
         this.queryStartNanoTime = queryStartNanoTime;
     }
 
@@ -60,7 +61,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, L extends Replica
         }
         catch (IllegalStateException e)
         {
-            logger.error("Encountered error while trying to preprocess the message {}: %s in command {}, replicas: {}", message, command, readRepair, replicaLayout.consistencyLevel(), replicaLayout.selected());
+            logger.error("Encountered error while trying to preprocess the message {}: %s in command {}, replicas: {}", message, command, readRepair, replicaPlan.consistencyLevel(), replicaPlan.contact());
             throw e;
         }
     }
