@@ -26,9 +26,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 
 import java.util.function.Predicate;
 
-public abstract class ReplicaPlan<
-        E extends Endpoints<E>,
-        P extends ReplicaPlan<E, P>>
+public abstract class ReplicaPlan<E extends Endpoints<E>>
 {
     protected final Keyspace keyspace;
     protected final ConsistencyLevel consistencyLevel;
@@ -51,16 +49,6 @@ public abstract class ReplicaPlan<
         this.contact = contact;
     }
 
-    protected abstract P copy(ConsistencyLevel newConsistencyLevel, E newContact);
-
-    public P withConsistencyLevel(ConsistencyLevel newConsistencylevel)
-    {
-        return copy(newConsistencylevel, contact);
-    }
-    public P withContact(E newContact)
-    {
-        return copy(consistencyLevel, newContact);
-    }
     public E contact()
     {
         return contact;
@@ -83,8 +71,7 @@ public abstract class ReplicaPlan<
         return consistencyLevel;
     }
 
-    public static abstract class ForRead<E extends Endpoints<E>, P extends ReplicaPlan<E, P>>
-            extends ReplicaPlan<E, P>
+    public static abstract class ForRead<E extends Endpoints<E>> extends ReplicaPlan<E>
     {
         // all nodes we *could* contact via any mechanism, including hints
         // i.e., for
@@ -133,21 +120,19 @@ public abstract class ReplicaPlan<
         }
     }
 
-    public static class ForTokenRead extends ForRead<EndpointsForToken, ReplicaPlan.ForTokenRead>
+    public static class ForTokenRead extends ForRead<EndpointsForToken>
     {
         public ForTokenRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken candidates, EndpointsForToken contact)
         {
             super(keyspace, consistencyLevel, candidates, contact);
         }
-
-        @Override
-        protected ReplicaPlan.ForTokenRead copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
+        public ForTokenRead withContact(EndpointsForToken newContact)
         {
-            return new ReplicaPlan.ForTokenRead(keyspace, newConsistencyLevel, candidates(), newContact);
+            return new ForTokenRead(keyspace, consistencyLevel, candidates(), newContact);
         }
     }
 
-    public static class ForRangeRead extends ForRead<EndpointsForRange, ReplicaPlan.ForRangeRead>
+    public static class ForRangeRead extends ForRead<EndpointsForRange>
     {
         final AbstractBounds<PartitionPosition> range;
         public ForRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, EndpointsForRange candidates, EndpointsForRange contact)
@@ -157,16 +142,13 @@ public abstract class ReplicaPlan<
         }
 
         public AbstractBounds<PartitionPosition> range() { return range; }
-
-        @Override
-        protected ReplicaPlan.ForRangeRead copy(ConsistencyLevel newConsistencyLevel, EndpointsForRange newContact)
+        public ForRangeRead withContact(EndpointsForRange newContact)
         {
-            return new ReplicaPlan.ForRangeRead(keyspace, newConsistencyLevel, range, candidates(), newContact);
+            return new ForRangeRead(keyspace, consistencyLevel, range, candidates(), newContact);
         }
     }
 
-    public static abstract class ForWrite<E extends Endpoints<E>, P extends ReplicaPlan<E, P>>
-            extends ReplicaPlan<E, P>
+    public static abstract class ForWrite<E extends Endpoints<E>> extends ReplicaPlan<E>
     {
         // TODO: this is only needed because of poor isolation of concerns elsewhere - we can remove it soon, and will do so in a follow-up patch
         final E pending;
@@ -208,22 +190,27 @@ public abstract class ReplicaPlan<
         }
     }
 
-    public static class ForTokenWrite
-            extends ForWrite<EndpointsForToken, ReplicaPlan.ForTokenWrite>
+    public static class ForTokenWrite extends ForWrite<EndpointsForToken>
     {
         public ForTokenWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken liveOnly, EndpointsForToken contact)
         {
             super(keyspace, consistencyLevel, pending, liveAndDown, liveOnly, contact);
         }
-        @Override
         protected ReplicaPlan.ForTokenWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
         {
             return new ReplicaPlan.ForTokenWrite(keyspace, newConsistencyLevel, pending(), liveAndDown(), liveOnly(), newContact);
         }
+        public ForTokenWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel)
+        {
+            return copy(newConsistencylevel, contact());
+        }
+        public ForTokenWrite withContact(EndpointsForToken newContact)
+        {
+            return copy(consistencyLevel, newContact);
+        }
     }
 
-    public static class ForPaxosWrite
-            extends ForWrite<EndpointsForToken, ReplicaPlan.ForPaxosWrite>
+    public static class ForPaxosWrite extends ForWrite<EndpointsForToken>
     {
         final int requiredParticipants;
         ForPaxosWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken liveOnly, EndpointsForToken contact, int requiredParticipants)
@@ -231,13 +218,6 @@ public abstract class ReplicaPlan<
             super(keyspace, consistencyLevel, pending, liveAndDown, liveOnly, contact);
             this.requiredParticipants = requiredParticipants;
         }
-
-        @Override
-        protected ReplicaPlan.ForPaxosWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
-        {
-            return new ReplicaPlan.ForPaxosWrite(keyspace, newConsistencyLevel, pending(), liveAndDown(), liveOnly(), newContact, requiredParticipants);
-        }
-
         public int requiredParticipants()
         {
             return requiredParticipants;
@@ -249,12 +229,32 @@ public abstract class ReplicaPlan<
      * we progressively modify via various forms of speculation (initial speculation, rr-read and rr-write)
      * @param <P>
      */
-    public static class Shared<P extends ReplicaPlan<?, ?>>
+    public interface Shared<E extends Endpoints<E>, P extends ReplicaPlan<E>>
     {
-        private P replicaPlan;
-        public Shared(P replicaPlan) { this.replicaPlan = replicaPlan; }
-        public void set(P newReplicaPlan) { this.replicaPlan = newReplicaPlan; }
-        public P get() { return replicaPlan; }
+        public void addToContact(Replica replica);
+        public P get();
+        public abstract P getWithContact(E endpoints);
     }
+
+    public static class SharedForTokenRead implements Shared<EndpointsForToken, ForTokenRead>
+    {
+        private ForTokenRead replicaPlan;
+        public SharedForTokenRead(ForTokenRead replicaPlan) { this.replicaPlan = replicaPlan; }
+        public void addToContact(Replica replica) { replicaPlan = replicaPlan.withContact(Endpoints.append(replicaPlan.contact(), replica)); }
+        public ForTokenRead get() { return replicaPlan; }
+        public ForTokenRead getWithContact(EndpointsForToken newContact) { return replicaPlan.withContact(newContact); }
+    }
+
+    public static class SharedForRangeRead implements Shared<EndpointsForRange, ForRangeRead>
+    {
+        private ForRangeRead replicaPlan;
+        public SharedForRangeRead(ForRangeRead replicaPlan) { this.replicaPlan = replicaPlan; }
+        public void addToContact(Replica replica) { replicaPlan = replicaPlan.withContact(Endpoints.append(replicaPlan.contact(), replica)); }
+        public ForRangeRead get() { return replicaPlan; }
+        public ForRangeRead getWithContact(EndpointsForRange newContact) { return replicaPlan.withContact(newContact); }
+    }
+
+    public static SharedForTokenRead shared(ForTokenRead replicaPlan) { return new SharedForTokenRead(replicaPlan); }
+    public static SharedForRangeRead shared(ForRangeRead replicaPlan) { return new SharedForRangeRead(replicaPlan); }
 
 }

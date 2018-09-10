@@ -42,7 +42,6 @@ import org.apache.cassandra.db.transform.Filter;
 import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.schema.TableMetadata;
@@ -52,11 +51,11 @@ import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 
 import static com.google.common.collect.Iterables.*;
 
-public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
+public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> extends ResponseResolver<E, P>
 {
     private final boolean enforceStrictLiveness;
 
-    public DataResolver(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
+    public DataResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
     {
         super(command, replicaPlan, readRepair, queryStartNanoTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
@@ -119,7 +118,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
 
         UnfilteredPartitionIterator merged = mergeWithShortReadProtection(iters,
-                                                                          replicaPlan().withContact(replicas),
+                                                                          replicaPlan.getWithContact(replicas),
                                                                           mergedResultCounter,
                                                                           repairedDataTracker);
         FilteredPartitions filtered = FilteredPartitions.filter(merged, new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness()));

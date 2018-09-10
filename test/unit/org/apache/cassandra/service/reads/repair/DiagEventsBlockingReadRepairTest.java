@@ -107,14 +107,14 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         Assert.assertTrue(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
     }
 
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.ForRead<?, ?> replicaPlan, long queryStartNanoTime)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, long queryStartNanoTime)
     {
         return new DiagnosticBlockingRepairHandler(command, replicaPlan, queryStartNanoTime);
     }
 
-    private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, ReplicaPlan.ForRead<?, ?> replicaPlan)
+    private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, ReplicaPlan.ForRead<?> replicaPlan)
     {
-        return new DiagnosticPartitionReadRepairHandler(key, repairs, maxBlockFor, replicaPlan);
+        return new DiagnosticPartitionReadRepairHandler<>(key, repairs, maxBlockFor, replicaPlan);
     }
 
     private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor)
@@ -128,9 +128,9 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         private Set<InetAddressAndPort> recipients = Collections.emptySet();
         private ReadCallback readCallback = null;
 
-        DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaPlan.ForRead<?, ?> replicaPlan, long queryStartNanoTime)
+        DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, long queryStartNanoTime)
         {
-            super(command, new ReplicaPlan.Shared<>(replicaPlan), queryStartNanoTime);
+            super(command, replicaPlan, queryStartNanoTime);
             DiagnosticEventService.instance().subscribe(ReadRepairEvent.class, this::onRepairEvent);
         }
 
@@ -164,7 +164,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         }
     }
 
-    private static class DiagnosticPartitionReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+    private static class DiagnosticPartitionReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
             extends BlockingPartitionRepair<E, P>
     {
         private final Map<InetAddressAndPort, String> updatesByEp = new HashMap<>();

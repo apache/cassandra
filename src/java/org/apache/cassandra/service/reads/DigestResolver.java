@@ -40,11 +40,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.collect.Iterables.any;
 
-public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
+public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> extends ResponseResolver<E, P>
 {
     private volatile MessageIn<ReadResponse> dataResponse;
 
-    public DigestResolver(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
+    public DigestResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
     {
         super(command, replicaPlan, readRepair, queryStartNanoTime);
         Preconditions.checkArgument(command instanceof SinglePartitionReadCommand,

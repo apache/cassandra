@@ -89,9 +89,10 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
          * applyToRow() method of protection will not be called on the first row of the new extension iterator.
          */
         ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), partition.partitionKey().getToken(), source);
+        ReplicaPlan.SharedForTokenRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
         ShortReadRowsProtection protection = new ShortReadRowsProtection(partition.partitionKey(),
                                                                          command, source,
-                                                                         (cmd) -> executeReadCommand(cmd, replicaPlan),
+                                                                         (cmd) -> executeReadCommand(cmd, sharedReplicaPlan),
                                                                          singleResultCounter,
                                                                          mergedResultCounter);
         return Transformation.apply(MoreRows.extend(partition, protection), protection);
@@ -171,15 +172,14 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         DataRange newDataRange = cmd.dataRange().forSubRange(newBounds);
 
         ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), cmd.dataRange().keyRange(), source);
-        return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), replicaPlan);
+        return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), ReplicaPlan.shared(replicaPlan));
     }
 
-    private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-    UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, P replicaPlan)
+    private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+    UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
     {
-        ReplicaPlan.Shared<P> sharedReplicaPlan = new ReplicaPlan.Shared<>(replicaPlan);
-        DataResolver<E, P> resolver = new DataResolver<>(cmd, sharedReplicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);
-        ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, sharedReplicaPlan, queryStartNanoTime);
+        DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);
+        ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryStartNanoTime);
 
         if (source.isLocal())
             StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));

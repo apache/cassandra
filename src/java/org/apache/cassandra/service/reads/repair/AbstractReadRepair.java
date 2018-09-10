@@ -45,12 +45,12 @@ import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.tracing.Tracing;
 
-public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
         implements ReadRepair<E, P>
 {
     protected final ReadCommand command;
     protected final long queryStartNanoTime;
-    protected final ReplicaPlan.Shared<P> replicaPlan;
+    protected final ReplicaPlan.Shared<E, P> replicaPlan;
     protected final ColumnFamilyStore cfs;
 
     private volatile DigestRepair digestRepair = null;
@@ -70,7 +70,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
     }
 
     public AbstractReadRepair(ReadCommand command,
-                              ReplicaPlan.Shared<P> replicaPlan,
+                              ReplicaPlan.Shared<E, P> replicaPlan,
                               long queryStartNanoTime)
     {
         this.command = command;
@@ -152,7 +152,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
             if (uncontacted == null)
                 return;
 
-            replicaPlan.set(replicaPlan().withContact(Endpoints.append(replicaPlan().contact(), uncontacted)));
+            replicaPlan.addToContact(uncontacted);
             Tracing.trace("Enqueuing speculative full data read to {}", uncontacted);
             sendReadCommand(uncontacted, repair.readCallback);
             ReadRepairMetrics.speculatedRead.mark();

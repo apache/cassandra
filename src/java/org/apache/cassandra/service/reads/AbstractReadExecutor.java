@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Preconditions;
 
 import com.google.common.base.Predicates;
-import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.slf4j.Logger;
@@ -66,7 +65,7 @@ public abstract class AbstractReadExecutor
     private static final Logger logger = LoggerFactory.getLogger(AbstractReadExecutor.class);
 
     protected final ReadCommand command;
-    private   final ReplicaPlan.Shared<ReplicaPlan.ForTokenRead> replicaPlan;
+    private   final ReplicaPlan.SharedForTokenRead replicaPlan;
     protected final ReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead> readRepair;
     protected final DigestResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> digestResolver;
     protected final ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler;
@@ -79,7 +78,7 @@ public abstract class AbstractReadExecutor
     AbstractReadExecutor(ColumnFamilyStore cfs, ReadCommand command, ReplicaPlan.ForTokenRead replicaPlan, int initialDataRequestCount, long queryStartNanoTime)
     {
         this.command = command;
-        this.replicaPlan = new ReplicaPlan.Shared<>(replicaPlan);
+        this.replicaPlan = ReplicaPlan.shared(replicaPlan);
         this.initialDataRequestCount = initialDataRequestCount;
         // the ReadRepair and DigestResolver both need to see our updated
         this.readRepair = ReadRepair.create(command, this.replicaPlan, queryStartNanoTime);
@@ -306,7 +305,7 @@ public abstract class AbstractReadExecutor
                 // we must update the plan to include this new node, else when we come to read-repair, we may not include this
                 // speculated response in the data requests we make again, and we will not be able to 'speculate' an extra repair read,
                 // nor would we be able to speculate a new 'write' if the repair writes are insufficient
-                super.replicaPlan.set(replicaPlan.withContact(Endpoints.append(replicaPlan.contact(), extraReplica)));
+                super.replicaPlan.addToContact(extraReplica);
 
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);

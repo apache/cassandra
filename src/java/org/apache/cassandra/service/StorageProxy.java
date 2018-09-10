@@ -2081,7 +2081,7 @@ public class StorageProxy implements StorageProxyMBean
         private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
         {
             PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
-            ReplicaPlan.Shared<ReplicaPlan.ForRangeRead> sharedReplicaPlan = new ReplicaPlan.Shared<>(replicaPlan);
+            ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
             ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair
                     = ReadRepair.create(command, sharedReplicaPlan, queryStartNanoTime);
             DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver

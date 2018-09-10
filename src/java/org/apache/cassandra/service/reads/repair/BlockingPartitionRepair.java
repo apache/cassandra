@@ -49,7 +49,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tracing.Tracing;
 
-public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
         extends AbstractFuture<Object> implements IAsyncCallback<Object>
 {
     private final DecoratedKey key;

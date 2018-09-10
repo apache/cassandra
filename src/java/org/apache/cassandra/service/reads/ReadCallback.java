@@ -44,7 +44,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
-public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements IAsyncCallbackWithFailure<ReadResponse>
+public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> implements IAsyncCallbackWithFailure<ReadResponse>
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
 
@@ -52,7 +52,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     final SimpleCondition condition = new SimpleCondition();
     private final long queryStartNanoTime;
     final int blockFor; // TODO: move to replica plan as well?
-    final ReplicaPlan.Shared<P> replicaPlan;
+    final ReplicaPlan.Shared<E, P> replicaPlan;
     private final ReadCommand command;
     private static final AtomicIntegerFieldUpdater<ReadCallback> recievedUpdater
             = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "received");
@@ -62,7 +62,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
 
-    public ReadCallback(ResponseResolver resolver, ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
+    public ReadCallback(ResponseResolver resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
         this.command = command;
         this.resolver = resolver;

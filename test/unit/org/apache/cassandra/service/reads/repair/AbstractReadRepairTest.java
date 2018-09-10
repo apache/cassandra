@@ -71,7 +71,7 @@ public abstract  class AbstractReadRepairTest
     static Replica replica2;
     static Replica replica3;
     static EndpointsForRange replicas;
-    static ReplicaPlan.ForRead<?, ?> replicaPlan;
+    static ReplicaPlan.ForRead<?> replicaPlan;
 
     static long now = TimeUnit.NANOSECONDS.toMicros(System.nanoTime());
     static DecoratedKey key;
@@ -265,9 +265,9 @@ public abstract  class AbstractReadRepairTest
                 ReplicaUtils.FULL_BOUNDS, replicas, targets);
     }
 
-    public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.ForRead<?, ?> replicaPlan, long queryStartNanoTime);
+    public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, long queryStartNanoTime);
 
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReplicaPlan.ForRead<?, ?> replicaPlan)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReplicaPlan.Shared<?, ?> replicaPlan)
     {
         return createInstrumentedReadRepair(command, replicaPlan, System.nanoTime());
 
@@ -280,7 +280,7 @@ public abstract  class AbstractReadRepairTest
     @Test
     public void readSpeculationCycle()
     {
-        InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaPlan(replicas, EndpointsForRange.of(replica1, replica2)));
+        InstrumentedReadRepair repair = createInstrumentedReadRepair(ReplicaPlan.shared(replicaPlan(replicas, EndpointsForRange.of(replica1, replica2))));
         ResultConsumer consumer = new ResultConsumer();
 
         Assert.assertEquals(epSet(), repair.getReadRecipients());
@@ -299,7 +299,7 @@ public abstract  class AbstractReadRepairTest
     @Test
     public void noSpeculationRequired()
     {
-        InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaPlan(replicas, EndpointsForRange.of(replica1, replica2)));
+        InstrumentedReadRepair repair = createInstrumentedReadRepair(ReplicaPlan.shared(replicaPlan(replicas, EndpointsForRange.of(replica1, replica2))));
         ResultConsumer consumer = new ResultConsumer();
 
         Assert.assertEquals(epSet(), repair.getReadRecipients());

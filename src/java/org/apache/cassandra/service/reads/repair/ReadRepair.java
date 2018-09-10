@@ -33,16 +33,16 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
 
-public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
 {
     public interface Factory
     {
-        <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime);
+        <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+        ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime);
     }
 
-    static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-    ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
+    static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+    ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
         return command.metadata().params.readRepair.create(command, replicaPlan, queryStartNanoTime);
     }

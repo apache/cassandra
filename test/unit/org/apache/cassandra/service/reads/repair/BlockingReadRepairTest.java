@@ -45,7 +45,7 @@ import org.apache.cassandra.service.reads.ReadCallback;
 
 public class BlockingReadRepairTest extends AbstractReadRepairTest
 {
-    private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+    private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
             extends BlockingPartitionRepair<E, P>
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
@@ -73,7 +73,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         configureClass(ReadRepairStrategy.BLOCKING);
     }
 
-    private static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+    private static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
     InstrumentedReadRepairHandler<E, P> createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
     {
         return new InstrumentedReadRepairHandler<>(repairs, maxBlockFor, replicaPlan);
@@ -85,10 +85,10 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         return createRepairHandler(repairs, maxBlockFor, replicaPlan(replicas, replicas));
     }
 
-    private static class InstrumentedBlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+    private static class InstrumentedBlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
             extends BlockingReadRepair<E, P> implements InstrumentedReadRepair<E, P>
     {
-        public InstrumentedBlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
+        public InstrumentedBlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
         {
             super(command, replicaPlan, queryStartNanoTime);
         }
@@ -118,9 +118,9 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     }
 
     @Override
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.ForRead<?, ?> replicaPlan, long queryStartNanoTime)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, long queryStartNanoTime)
     {
-        return new InstrumentedBlockingReadRepair(command, new ReplicaPlan.Shared(replicaPlan), queryStartNanoTime);
+        return new InstrumentedBlockingReadRepair(command, replicaPlan, queryStartNanoTime);
     }
 
     @Test

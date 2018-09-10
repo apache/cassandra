@@ -26,7 +26,7 @@ import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.ReadCallback;
 
-public interface InstrumentedReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+public interface InstrumentedReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
         extends ReadRepair<E, P>
 {
     Set<InetAddressAndPort> getReadRecipients();

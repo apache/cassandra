@@ -37,10 +37,10 @@ import org.apache.cassandra.service.reads.ReadCallback;
 
 public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
 {
-    private static class InstrumentedReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+    private static class InstrumentedReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
             extends ReadOnlyReadRepair implements InstrumentedReadRepair
     {
-        public InstrumentedReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
+        public InstrumentedReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
         {
             super(command, replicaPlan, queryStartNanoTime);
         }
@@ -76,24 +76,24 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     }
 
     @Override
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.ForRead<?, ?> replicaPlan, long queryStartNanoTime)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, long queryStartNanoTime)
     {
-        return new InstrumentedReadOnlyReadRepair(command, new ReplicaPlan.Shared(replicaPlan), queryStartNanoTime);
+        return new InstrumentedReadOnlyReadRepair(command, replicaPlan, queryStartNanoTime);
     }
 
     @Test
     public void getMergeListener()
     {
-        ReplicaPlan.ForRead<?, ?> replicaPlan = replicaPlan(replicas, replicas);
+        ReplicaPlan.SharedForRangeRead replicaPlan = ReplicaPlan.shared(replicaPlan(replicas, replicas));
         InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaPlan);
-        Assert.assertSame(UnfilteredPartitionIterators.MergeListener.NOOP, repair.getMergeListener(replicaPlan));
+        Assert.assertSame(UnfilteredPartitionIterators.MergeListener.NOOP, repair.getMergeListener(replicaPlan.get()));
     }
 
     @Test(expected = UnsupportedOperationException.class)
     public void repairPartitionFailure()
     {
-        ReplicaPlan.ForRead<?, ?> replicaPlan = replicaPlan(replicas, replicas);
+        ReplicaPlan.SharedForRangeRead replicaPlan = ReplicaPlan.shared(replicaPlan(replicas, replicas));
         InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaPlan);
-        repair.repairPartition(null, Collections.emptyMap(), replicaPlan);
+        repair.repairPartition(null, Collections.emptyMap(), replicaPlan.get());
     }
 }

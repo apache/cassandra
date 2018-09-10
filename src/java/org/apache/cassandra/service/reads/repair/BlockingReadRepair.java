@@ -44,7 +44,7 @@ import org.apache.cassandra.tracing.Tracing;
  *  updates have been written to nodes needing correction. Breaks write
  *  atomicity in some situations
  */
-public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
         extends AbstractReadRepair<E, P>
 {
     private static final Logger logger = LoggerFactory.getLogger(BlockingReadRepair.class);
@@ -52,7 +52,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     protected final Queue<BlockingPartitionRepair> repairs = new ConcurrentLinkedQueue<>();
     private final int blockFor;
 
-    BlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
+    BlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
         super(command, replicaPlan, queryStartNanoTime);
         this.blockFor = replicaPlan().consistencyLevel().blockFor(cfs.keyspace);
