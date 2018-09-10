@@ -165,7 +165,7 @@ public abstract class ReplicaPlan<
         }
     }
 
-    public static abstract class ForWrite<E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>, P extends ReplicaPlan<E, P>>
+    public static abstract class ForWrite<E extends Endpoints<E>, P extends ReplicaPlan<E, P>>
             extends ReplicaPlan<E, P>
     {
         // TODO: this is only needed because of poor isolation of concerns elsewhere - we can remove it soon, and will do so in a follow-up patch
@@ -209,7 +209,7 @@ public abstract class ReplicaPlan<
     }
 
     public static class ForTokenWrite
-            extends ForWrite<EndpointsForToken, ReplicaLayout.ForTokenWrite, ReplicaPlan.ForTokenWrite>
+            extends ForWrite<EndpointsForToken, ReplicaPlan.ForTokenWrite>
     {
         public ForTokenWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken liveOnly, EndpointsForToken contact)
         {
@@ -223,7 +223,7 @@ public abstract class ReplicaPlan<
     }
 
     public static class ForPaxosWrite
-            extends ForWrite<EndpointsForToken, ReplicaLayout.ForTokenWrite, ReplicaPlan.ForPaxosWrite>
+            extends ForWrite<EndpointsForToken, ReplicaPlan.ForPaxosWrite>
     {
         final int requiredParticipants;
         ForPaxosWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken liveOnly, EndpointsForToken contact, int requiredParticipants)

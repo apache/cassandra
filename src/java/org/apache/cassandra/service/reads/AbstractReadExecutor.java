@@ -23,7 +23,6 @@ import com.google.common.base.Preconditions;
 
 import com.google.common.base.Predicates;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.slf4j.Logger;
@@ -226,7 +225,7 @@ public abstract class AbstractReadExecutor
 
     ReplicaPlan.ForTokenRead replicaPlan()
     {
-        return replicaPlan();
+        return replicaPlan.get();
     }
 
     void onReadTimeout() {}

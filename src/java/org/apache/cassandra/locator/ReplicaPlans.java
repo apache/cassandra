@@ -212,7 +212,7 @@ public class ReplicaPlans
         if (blockFor < contact.size())
             contact = contact.subList(0, blockFor);
 
-        ReplicaPlan.ForRangeRead result = new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, candidates.range(), candidates.all(), contact);
+        ReplicaPlan.ForRangeRead result = new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, candidates.range(), candidates.natural(), contact);
         result.assureSufficientReplicas();
         return result;
     }

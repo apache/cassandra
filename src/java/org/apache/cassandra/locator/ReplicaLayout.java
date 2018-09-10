@@ -181,6 +181,9 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         public Token token();
     }
 
+    /**
+     * Gets the 'natural' and 'pending' replicas that should receive a write to the given token.
+     */
     public static ReplicaLayout.ForTokenWrite forTokenWriteLiveAndDown(Keyspace keyspace, Token token)
     {
         // TODO: race condition to fetch these. implications??
