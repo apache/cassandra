@@ -148,7 +148,7 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
      *   2) because a movement that changes the type of replication from transient to full must be handled
      *      differently for reads and writes (with the reader treating it as transient, and writer as full)
      *
-     * The method haveConflicts() below, and resolveConflictsInX, are used to detect and resolve any issues
+     * The method {@link ReplicaLayout#haveWriteConflicts} can be used to detect and resolve any issues
      */
     public static <E extends Endpoints<E>> E concat(E natural, E pending)
     {
@@ -161,29 +161,6 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
         mutable.addAll(replicas);
         mutable.add(extraReplica, Conflict.NONE);
         return mutable.asSnapshot();
-    }
-
-    public static <E extends Endpoints<E>> boolean haveConflicts(E natural, E pending)
-    {
-        Set<InetAddressAndPort> naturalEndpoints = natural.endpoints();
-        for (InetAddressAndPort pendingEndpoint : pending.endpoints())
-        {
-            if (naturalEndpoints.contains(pendingEndpoint))
-                return true;
-        }
-        return false;
-    }
-
-    // must apply first
-    public static <E extends Endpoints<E>> E resolveConflictsInNatural(E natural, E pending)
-    {
-        return natural.filter(r -> !r.isTransient() || !pending.contains(r.endpoint(), true));
-    }
-
-    // must apply second
-    public static <E extends Endpoints<E>> E resolveConflictsInPending(E natural, E pending)
-    {
-        return pending.without(natural.endpoints());
     }
 
 }

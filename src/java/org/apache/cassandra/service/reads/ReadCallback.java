@@ -24,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +51,8 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     final SimpleCondition condition = new SimpleCondition();
     private final long queryStartNanoTime;
     final int blockFor; // TODO: move to replica plan as well?
+    // this uses a plain reference, but is initialised before handoff to any other threads; the later updates
+    // may not be visible to the threads immediately, but ReplicaPlan only contains final fields, so they will never see an uninitialised object
     final ReplicaPlan.Shared<E, P> replicaPlan;
     private final ReadCommand command;
     private static final AtomicIntegerFieldUpdater<ReadCallback> recievedUpdater

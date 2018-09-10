@@ -73,14 +73,8 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
 
     public static abstract class ForRead<E extends Endpoints<E>> extends ReplicaPlan<E>
     {
-        // all nodes we *could* contact via any mechanism, including hints
-        // i.e., for
-        //   - reads, only live and natural endpoints
-        //      ==> liveOnly.natural()
-        //   - writes, includes all down, pending, full and transient nodes
-        //      ==> liveAndDown.all()
-        //   - paxos, includes all liveOnly replicas (natural+pending), for this DC if SERIAL_LOCAL
-        //      ==> liveOnly.all()  (if consistencyLevel.isDCLocal(), then .filter(consistencyLevel.isLocal))
+        // all nodes we *could* contact; typically all natural replicas that are believed to be alive
+        // we will consult this collection to find uncontacted nodes we might contact if we doubt we will meet consistency level
         private final E candidates;
 
         ForRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, E candidates, E contact)
