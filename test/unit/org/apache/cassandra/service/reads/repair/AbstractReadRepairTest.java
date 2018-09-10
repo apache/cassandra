@@ -71,7 +71,7 @@ public abstract  class AbstractReadRepairTest
     static Replica replica2;
     static Replica replica3;
     static EndpointsForRange replicas;
-    static ReplicaPlan.ForRead<?, ?, ?> replicaPlan;
+    static ReplicaPlan.ForRead<?, ?> replicaPlan;
 
     static long now = TimeUnit.NANOSECONDS.toMicros(System.nanoTime());
     static DecoratedKey key;
@@ -248,32 +248,26 @@ public abstract  class AbstractReadRepairTest
 
     static ReplicaPlan.ForRangeRead replicaPlan(ConsistencyLevel consistencyLevel, EndpointsForRange replicas)
     {
-        return replicaPlan(ks, consistencyLevel, replicas, replicas, replicas);
+        return replicaPlan(ks, consistencyLevel, replicas, replicas);
     }
 
     static ReplicaPlan.ForRangeRead replicaPlan(EndpointsForRange replicas, EndpointsForRange targets)
     {
-        return replicaPlan(ks, ConsistencyLevel.QUORUM, replicas, replicas, targets);
+        return replicaPlan(ks, ConsistencyLevel.QUORUM, replicas, targets);
     }
     static ReplicaPlan.ForRangeRead replicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForRange replicas)
     {
-        return replicaPlan(keyspace, consistencyLevel, replicas, replicas, replicas);
+        return replicaPlan(keyspace, consistencyLevel, replicas, replicas);
     }
     static ReplicaPlan.ForRangeRead replicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForRange replicas, EndpointsForRange targets)
     {
-        return replicaPlan(keyspace, consistencyLevel, replicas, replicas, targets);
-    }
-    static ReplicaPlan.ForRangeRead replicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForRange liveAndDown, EndpointsForRange liveOnly, EndpointsForRange targets)
-    {
         return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel,
-                new ReplicaLayout.ForRangeRead(ReplicaUtils.FULL_BOUNDS, liveAndDown),
-                new ReplicaLayout.ForRangeRead(ReplicaUtils.FULL_BOUNDS, liveOnly),
-                liveOnly, targets);
+                ReplicaUtils.FULL_BOUNDS, replicas, targets);
     }
 
-    public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.ForRead<?, ?, ?> replicaPlan, long queryStartNanoTime);
+    public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.ForRead<?, ?> replicaPlan, long queryStartNanoTime);
 
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReplicaPlan.ForRead<?, ?, ?> replicaPlan)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReplicaPlan.ForRead<?, ?> replicaPlan)
     {
         return createInstrumentedReadRepair(command, replicaPlan, System.nanoTime());
 

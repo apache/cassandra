@@ -175,12 +175,12 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), replicaPlan);
     }
 
-    private <E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
+    private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
     UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, P replicaPlan)
     {
         ReplicaPlan.Shared<P> sharedReplicaPlan = new ReplicaPlan.Shared<>(replicaPlan);
-        DataResolver<E, L, P> resolver = new DataResolver<>(cmd, sharedReplicaPlan, (NoopReadRepair<E, L, P>)NoopReadRepair.instance, queryStartNanoTime);
-        ReadCallback<E, L, P> handler = new ReadCallback<>(resolver, cmd, sharedReplicaPlan, queryStartNanoTime);
+        DataResolver<E, P> resolver = new DataResolver<>(cmd, sharedReplicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);
+        ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, sharedReplicaPlan, queryStartNanoTime);
 
         if (source.isLocal())
             StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));

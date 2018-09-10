@@ -59,7 +59,7 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
 
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
-        for (Replica pending : replicaPlan.liveAndDown().pending())
+        for (Replica pending : replicaPlan.pending())
         {
             responses.get(snitch.getDatacenter(pending)).incrementAndGet();
         }

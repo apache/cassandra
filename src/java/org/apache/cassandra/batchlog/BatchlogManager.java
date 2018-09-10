@@ -458,7 +458,10 @@ public class BatchlogManager implements BatchlogManagerMBean
             Keyspace keyspace = Keyspace.open(ks);
             Token tk = mutation.key().getToken();
 
-
+            // TODO: this logic could do with revisiting at some point, as it is unclear what its rationale is
+            // we perform a local write, ignoring errors and inline in this thread (potentially slowing replay down)
+            // effectively bumping CL for locally owned writes and also potentially stalling log replay if an error occurs
+            // once we decide how it should work, it can also probably be simplified, and avoid constructing a ReplicaPlan directly
             ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWriteLiveAndDown(keyspace, tk);
             Replicas.temporaryAssertFull(liveAndDown.all()); // TODO in CASSANDRA-14549
 
@@ -479,7 +482,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
 
             ReplicaPlan.ForTokenWrite replicaPlan = new ReplicaPlan.ForTokenWrite(keyspace, ConsistencyLevel.ONE,
-                    liveRemoteOnly, liveRemoteOnly, liveRemoteOnly.all(), liveRemoteOnly.all());
+                    liveRemoteOnly.pending(), liveRemoteOnly.all(), liveRemoteOnly.all(), liveRemoteOnly.all());
             ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, System.nanoTime());
             MessageOut<Mutation> message = mutation.createMessage();
             for (Replica replica : liveRemoteOnly.all())

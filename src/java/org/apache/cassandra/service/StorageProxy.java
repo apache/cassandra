@@ -540,7 +540,7 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         MessageOut<Commit> message = new MessageOut<>(MessagingService.Verb.PAXOS_COMMIT, proposal, Commit.serializer);
-        for (Replica replica : replicaPlan.liveAndDown().all())
+        for (Replica replica : replicaPlan.liveAndDown())
         {
             InetAddressAndPort destination = replica.endpoint();
             checkHintOverload(replica);
@@ -1009,7 +1009,7 @@ public class StorageProxy implements StorageProxyMBean
 
         Batch batch = Batch.createLocal(uuid, FBUtilities.timestampMicros(), mutations);
         MessageOut<Batch> message = new MessageOut<>(MessagingService.Verb.BATCH_STORE, batch, Batch.serializer);
-        for (Replica replica : replicaPlan.liveAndDown().all())
+        for (Replica replica : replicaPlan.liveAndDown())
         {
             logger.trace("Sending batchlog store request {} to {} for {} mutations", batch.id, replica, batch.size());
 
@@ -1040,8 +1040,8 @@ public class StorageProxy implements StorageProxyMBean
     {
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
-            Replicas.temporaryAssertFull(wrapper.handler.replicaPlan.liveAndDown().all());  // TODO: CASSANDRA-14549
-            ReplicaPlan.ForTokenWrite replicas = wrapper.handler.replicaPlan.withContact(wrapper.handler.replicaPlan.liveAndDown().all());
+            Replicas.temporaryAssertFull(wrapper.handler.replicaPlan.liveAndDown());  // TODO: CASSANDRA-14549
+            ReplicaPlan.ForTokenWrite replicas = wrapper.handler.replicaPlan.withContact(wrapper.handler.replicaPlan.liveAndDown());
 
             try
             {
@@ -1059,7 +1059,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
-            EndpointsForToken sendTo = wrapper.handler.replicaPlan.liveAndDown().all();
+            EndpointsForToken sendTo = wrapper.handler.replicaPlan.liveAndDown();
             Replicas.temporaryAssertFull(sendTo); // TODO: CASSANDRA-14549
             sendToHintedReplicas(wrapper.mutation, wrapper.handler.replicaPlan.withContact(sendTo), wrapper.handler, localDataCenter, stage);
         }
@@ -1929,7 +1929,7 @@ public class StorageProxy implements StorageProxyMBean
                 // Note: it would be slightly more efficient to have CFS.getRangeSlice on the destination nodes unwraps
                 // the range if necessary and deal with it. However, we can't start sending wrapped range without breaking
                 // wire compatibility, so It's likely easier not to bother;
-                if (current.liveOnly().range().right.isMinimum())
+                if (current.range().right.isMinimum())
                     break;
 
                 ReplicaPlan.ForRangeRead next = ranges.peek();
@@ -2080,13 +2080,13 @@ public class StorageProxy implements StorageProxyMBean
          */
         private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
         {
-            PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.liveOnly().range(), isFirst);
+            PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
             ReplicaPlan.Shared<ReplicaPlan.ForRangeRead> sharedReplicaPlan = new ReplicaPlan.Shared<>(replicaPlan);
-            ReadRepair<EndpointsForRange, ReplicaLayout.ForRangeRead, ReplicaPlan.ForRangeRead> readRepair
+            ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair
                     = ReadRepair.create(command, sharedReplicaPlan, queryStartNanoTime);
-            DataResolver<EndpointsForRange, ReplicaLayout.ForRangeRead, ReplicaPlan.ForRangeRead> resolver
+            DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver
                     = new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, queryStartNanoTime);
-            ReadCallback<EndpointsForRange, ReplicaLayout.ForRangeRead, ReplicaPlan.ForRangeRead> handler
+            ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler
                     = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, queryStartNanoTime);
 
             replicaPlan.assureSufficientReplicas();

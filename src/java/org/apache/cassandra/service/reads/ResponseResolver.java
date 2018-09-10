@@ -29,19 +29,19 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 
-public abstract class ResponseResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
+public abstract class ResponseResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
 {
     protected static final Logger logger = LoggerFactory.getLogger(ResponseResolver.class);
 
     protected final ReadCommand command;
     protected final ReplicaPlan.Shared<P> replicaPlan;
-    protected final ReadRepair<E, L, P> readRepair;
+    protected final ReadRepair<E, P> readRepair;
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
     protected final Accumulator<MessageIn<ReadResponse>> responses;
     protected final long queryStartNanoTime;
 
-    public ResponseResolver(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, ReadRepair<E, L, P> readRepair, long queryStartNanoTime)
+    public ResponseResolver(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
     {
         this.command = command;
         this.replicaPlan = replicaPlan;

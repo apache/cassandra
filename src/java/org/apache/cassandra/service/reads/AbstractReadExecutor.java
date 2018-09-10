@@ -18,7 +18,6 @@
 package org.apache.cassandra.service.reads;
 
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
 
@@ -69,9 +68,9 @@ public abstract class AbstractReadExecutor
 
     protected final ReadCommand command;
     private   final ReplicaPlan.Shared<ReplicaPlan.ForTokenRead> replicaPlan;
-    protected final ReadRepair<EndpointsForToken, ReplicaLayout.ForTokenRead, ReplicaPlan.ForTokenRead> readRepair;
-    protected final DigestResolver<EndpointsForToken, ReplicaLayout.ForTokenRead, ReplicaPlan.ForTokenRead> digestResolver;
-    protected final ReadCallback<EndpointsForToken, ReplicaLayout.ForTokenRead, ReplicaPlan.ForTokenRead> handler;
+    protected final ReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead> readRepair;
+    protected final DigestResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> digestResolver;
+    protected final ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler;
     protected final TraceState traceState;
     protected final ColumnFamilyStore cfs;
     protected final long queryStartNanoTime;
@@ -284,7 +283,7 @@ public abstract class AbstractReadExecutor
                 Replica extraReplica;
                 if (handler.resolver.isDataPresent())
                 {
-                    extraReplica = replicaPlan.firstLiveUncontactedCandidate(Predicates.alwaysTrue());
+                    extraReplica = replicaPlan.firstUncontactedCandidate(Predicates.alwaysTrue());
 
                     // we should only use a SpeculatingReadExecutor if we have an extra replica to speculate against
                     assert extraReplica != null;
@@ -295,7 +294,7 @@ public abstract class AbstractReadExecutor
                 }
                 else
                 {
-                    extraReplica = replicaPlan.firstLiveUncontactedCandidate(Replica::isFull);
+                    extraReplica = replicaPlan.firstUncontactedCandidate(Replica::isFull);
                     if (extraReplica == null)
                     {
                         cfs.metric.speculativeInsufficientReplicas.inc();

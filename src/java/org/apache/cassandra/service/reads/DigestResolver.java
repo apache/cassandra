@@ -42,11 +42,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.collect.Iterables.any;
 
-public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>> extends ResponseResolver<E, L, P>
+public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
 {
     private volatile MessageIn<ReadResponse> dataResponse;
 
-    public DigestResolver(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, ReadRepair<E, L, P> readRepair, long queryStartNanoTime)
+    public DigestResolver(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
     {
         super(command, replicaPlan, readRepair, queryStartNanoTime);
         Preconditions.checkArgument(command instanceof SinglePartitionReadCommand,
@@ -95,8 +95,8 @@ public class DigestResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, 
         {
             // This path can be triggered only if we've got responses from full replicas and they match, but
             // transient replica response still contains data, which needs to be reconciled.
-            DataResolver<E, L, P> dataResolver
-                    = new DataResolver<>(command, replicaPlan, (ReadRepair<E, L, P>) NoopReadRepair.instance, queryStartNanoTime);
+            DataResolver<E, P> dataResolver
+                    = new DataResolver<>(command, replicaPlan, (ReadRepair<E, P>) NoopReadRepair.instance, queryStartNanoTime);
 
             dataResolver.preprocess(dataResponse);
             // Forward differences to all full nodes

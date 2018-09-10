@@ -35,8 +35,8 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
  * Only performs the collection of data responses and reconciliation of them, doesn't send repair mutations
  * to replicas. This preserves write atomicity, but doesn't provide monotonic quorum reads
  */
-public class ReadOnlyReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
-        extends AbstractReadRepair<E, L, P>
+public class ReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+        extends AbstractReadRepair<E, P>
 {
     ReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
     {

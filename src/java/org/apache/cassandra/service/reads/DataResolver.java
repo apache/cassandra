@@ -52,11 +52,11 @@ import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 
 import static com.google.common.collect.Iterables.*;
 
-public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>> extends ResponseResolver<E, L, P>
+public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
 {
     private final boolean enforceStrictLiveness;
 
-    public DataResolver(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, ReadRepair<E, L, P> readRepair, long queryStartNanoTime)
+    public DataResolver(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
     {
         super(command, replicaPlan, readRepair, queryStartNanoTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
@@ -81,7 +81,7 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E>, P 
         Collection<MessageIn<ReadResponse>> messages = responses.snapshot();
         assert !any(messages, msg -> msg.payload.isDigestResponse());
 
-        E replicas = replicaPlan().liveAndDown().all().select(transform(messages, msg -> msg.from), false);
+        E replicas = replicaPlan().candidates().select(transform(messages, msg -> msg.from), false);
         List<UnfilteredPartitionIterator> iters = new ArrayList<>(
         Collections2.transform(messages, msg -> msg.payload.makeIterator(command)));
         assert replicas.size() == iters.size();

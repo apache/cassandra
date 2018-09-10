@@ -153,13 +153,13 @@ public class WriteResponseHandlerTransientTest
         ReplicaLayout.ForTokenWrite layout = new ReplicaLayout.ForTokenWrite(natural, pending);
         ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, layout, layout, ReplicaPlans.writeAll);
 
-        Assert.assertEquals(EndpointsForRange.of(full(EP4), trans(EP6)), replicaPlan.liveAndDown().pending());
+        Assert.assertEquals(EndpointsForRange.of(full(EP4), trans(EP6)), replicaPlan.pending());
     }
 
     private static ReplicaPlan.ForTokenWrite expected(EndpointsForToken natural, EndpointsForToken selected)
     {
         ReplicaLayout.ForTokenWrite layout = new ReplicaLayout.ForTokenWrite(natural, EndpointsForToken.empty(dummy.getToken()));
-        return new ReplicaPlan.ForTokenWrite(ks, ConsistencyLevel.QUORUM, layout, layout, natural, selected);
+        return new ReplicaPlan.ForTokenWrite(ks, ConsistencyLevel.QUORUM, layout.pending(), layout.all(), natural, selected);
     }
 
     private static ReplicaPlan.ForTokenWrite getSpeculationContext(EndpointsForToken natural, Predicate<InetAddressAndPort> livePredicate)
@@ -172,7 +172,9 @@ public class WriteResponseHandlerTransientTest
     private static void assertSpeculationReplicas(ReplicaPlan.ForTokenWrite expected, EndpointsForToken replicas, Predicate<InetAddressAndPort> livePredicate)
     {
         ReplicaPlan.ForTokenWrite actual = getSpeculationContext(replicas, livePredicate);
-        Assert.assertEquals(expected.liveOnly().natural(), actual.liveOnly().natural());
+        Assert.assertEquals(expected.pending(), actual.pending());
+        Assert.assertEquals(expected.liveAndDown(), actual.liveAndDown());
+        Assert.assertEquals(expected.liveOnly(), actual.liveOnly());
         Assert.assertEquals(expected.contact(), actual.contact());
     }
 

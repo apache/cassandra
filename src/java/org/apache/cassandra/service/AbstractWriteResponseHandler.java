@@ -197,11 +197,13 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     }
 
     /**
+     * TODO: this method is brittle for its purpose of deciding when we should fail a query;
+     *       this needs to be CL aware, and of which nodes are live/down
      * @return the total number of endpoints the request can been sent to.
      */
     protected int candidateReplicaCount()
     {
-        return replicaPlan.candidates().size();
+        return replicaPlan.liveAndDown().size();
     }
 
     public ConsistencyLevel consistencyLevel()
@@ -287,7 +289,8 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
      */
     public void maybeTryAdditionalReplicas(IMutation mutation, StorageProxy.WritePerformer writePerformer, String localDC)
     {
-        if (replicaPlan.liveOnly().all().size() <= replicaPlan.contact().size())
+        EndpointsForToken uncontacted = replicaPlan.liveUncontacted();
+        if (uncontacted.isEmpty())
             return;
 
         long timeout = Long.MAX_VALUE;
@@ -308,7 +311,6 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
                 for (ColumnFamilyStore cf : cfs)
                     cf.metric.speculativeWrites.inc();
 
-                EndpointsForToken uncontacted = replicaPlan.allLiveUncontactedCandidates();
                 writePerformer.apply(mutation, replicaPlan.withContact(uncontacted),
                                      (AbstractWriteResponseHandler<IMutation>) this,
                                      localDC);

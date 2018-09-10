@@ -1301,10 +1301,7 @@ public class DataResolverTest extends AbstractReadResponseTest
 
     private ReplicaPlan.Shared<ReplicaPlan.ForRangeRead> plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
-        return new ReplicaPlan.Shared<>(new ReplicaPlan.ForRangeRead(ks, consistencyLevel,
-                new ReplicaLayout.ForRangeRead(ReplicaUtils.FULL_BOUNDS, replicas),
-                new ReplicaLayout.ForRangeRead(ReplicaUtils.FULL_BOUNDS, replicas),
-                replicas, replicas));
+        return new ReplicaPlan.Shared<>(new ReplicaPlan.ForRangeRead(ks, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas));
     }
 
     private static void resolveAndConsume(DataResolver resolver)

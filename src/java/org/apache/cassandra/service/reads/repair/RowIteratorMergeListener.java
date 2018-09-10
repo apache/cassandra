@@ -50,7 +50,7 @@ import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.ColumnMetadata;
 
-public class RowIteratorMergeListener<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan<E, L, P>>
+public class RowIteratorMergeListener<E extends Endpoints<E>, P extends ReplicaPlan<E, P>>
         implements UnfilteredRowIterators.MergeListener
 {
     private final DecoratedKey partitionKey;
@@ -63,7 +63,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>, L extends ReplicaL
     private final Replica[] sources;
     private final Row.Builder[] currentRows;
     private final RowDiffListener diffListener;
-    private final ReplicaPlan.ForRead<E, L, P> replicaPlan;
+    private final ReplicaPlan.ForRead<E, P> replicaPlan;
 
     // The partition level deletion for the merge row.
     private DeletionTime partitionLevelDeletion;
@@ -76,7 +76,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>, L extends ReplicaL
 
     private final ReadRepair readRepair;
 
-    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E, L, P> replicaPlan, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
+    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E, P> replicaPlan, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
     {
         this.partitionKey = partitionKey;
         this.columns = columns;

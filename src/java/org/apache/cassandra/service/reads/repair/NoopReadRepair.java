@@ -35,8 +35,8 @@ import org.apache.cassandra.service.reads.DigestResolver;
 /**
  * Bypasses the read repair path for short read protection and testing
  */
-public class NoopReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
-        implements ReadRepair<E, L, P>
+public class NoopReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+        implements ReadRepair<E, P>
 {
     public static final NoopReadRepair instance = new NoopReadRepair();
 
@@ -49,7 +49,7 @@ public class NoopReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, 
     }
 
     @Override
-    public void startRepair(DigestResolver<E, L, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
+    public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
     {
         resultConsumer.accept(digestResolver.getData());
     }

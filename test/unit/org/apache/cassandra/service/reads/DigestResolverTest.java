@@ -140,9 +140,6 @@ public class DigestResolverTest extends AbstractReadResponseTest
 
     private ReplicaPlan.Shared<ReplicaPlan.ForTokenRead> plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
     {
-        return new ReplicaPlan.Shared<>(new ReplicaPlan.ForTokenRead(ks, consistencyLevel,
-                new ReplicaLayout.ForTokenRead(replicas),
-                new ReplicaLayout.ForTokenRead(replicas),
-                replicas, replicas));
+        return new ReplicaPlan.Shared<>(new ReplicaPlan.ForTokenRead(ks, consistencyLevel, replicas, replicas));
     }
 }

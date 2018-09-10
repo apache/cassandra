@@ -232,9 +232,6 @@ public class ReadExecutorTest
 
     private ReplicaPlan.ForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken selected)
     {
-        return new ReplicaPlan.ForTokenRead(ks, consistencyLevel,
-                new ReplicaLayout.ForTokenRead(natural),
-                new ReplicaLayout.ForTokenRead(natural),
-                natural, selected);
+        return new ReplicaPlan.ForTokenRead(ks, consistencyLevel, natural, selected);
     }
 }

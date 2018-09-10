@@ -32,15 +32,15 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 
-public class PartitionIteratorMergeListener<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan<E, L, P>>
+public class PartitionIteratorMergeListener<E extends Endpoints<E>, P extends ReplicaPlan<E, P>>
         implements UnfilteredPartitionIterators.MergeListener
 {
-    private final ReplicaPlan.ForRead<E, L, P> replicaPlan;
+    private final ReplicaPlan.ForRead<E, P> replicaPlan;
     private final ReadCommand command;
     private final ConsistencyLevel consistency;
     private final ReadRepair readRepair;
 
-    public PartitionIteratorMergeListener(ReplicaPlan.ForRead<E, L, P> replicaPlan, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
+    public PartitionIteratorMergeListener(ReplicaPlan.ForRead<E, P> replicaPlan, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
     {
         this.replicaPlan = replicaPlan;
         this.command = command;

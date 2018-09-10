@@ -23,6 +23,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -180,13 +181,6 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         public Token token();
     }
 
-    public static ReplicaLayout.ForTokenWrite forSingleReplicaWrite(Token token, Replica replica)
-    {
-        // synthetically create a LiveForToken as well, without testing our liveness
-        EndpointsForToken singleReplica = EndpointsForToken.of(token, replica);
-        return new ReplicaLayout.ForTokenWrite(singleReplica, EndpointsForToken.empty(token), singleReplica);
-    }
-
     public static ReplicaLayout.ForTokenWrite forTokenWriteLiveAndDown(Keyspace keyspace, Token token)
     {
         // TODO: race condition to fetch these. implications??
@@ -205,32 +199,19 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         return new ReplicaLayout.ForTokenWrite(natural, pending);
     }
 
-    public static ReplicaLayout.ForTokenRead forSingleReplicaRead(Token token, Replica replica)
-    {
-        // synthetically create a LiveForToken as well, without testing our liveness
-        EndpointsForToken singleReplica = EndpointsForToken.of(token, replica);
-        return new ReplicaLayout.ForTokenRead(singleReplica);
-    }
-
-    public static ReplicaLayout.ForRangeRead forSingleReplicaRead(AbstractBounds<PartitionPosition> range, Replica replica)
-    {
-        // synthetically create a LiveForToken as well, without testing our liveness
-        // TODO: this EndpointsForRange.of is potentially dangerous - we should refactor AbstractBounds and Range<Token> into a single class
-        EndpointsForRange singleReplica = EndpointsForRange.of(replica);
-        return new ReplicaLayout.ForRangeRead(range, singleReplica);
-    }
-
-    public static ReplicaLayout.ForTokenRead forTokenReadLiveAndDown(Keyspace keyspace, Token token)
+    public static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(Keyspace keyspace, Token token)
     {
         EndpointsForToken replicas = keyspace.getReplicationStrategy().getNaturalReplicasForToken(token);
         replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
+        replicas = replicas.filter(FailureDetector.isReplicaAlive);
         return new ReplicaLayout.ForTokenRead(replicas);
     }
 
-    public static ReplicaLayout.ForRangeRead forRangeReadLiveAndDown(Keyspace keyspace, AbstractBounds<PartitionPosition> range)
+    public static ReplicaLayout.ForRangeRead forRangeReadLiveSorted(Keyspace keyspace, AbstractBounds<PartitionPosition> range)
     {
         EndpointsForRange replicas = keyspace.getReplicationStrategy().getNaturalReplicas(range.right);
         replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
+        replicas = replicas.filter(FailureDetector.isReplicaAlive);
         return new ReplicaLayout.ForRangeRead(range, replicas);
     }
 

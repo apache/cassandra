@@ -44,8 +44,9 @@ public class ReplicaPlans
 
     public static ReplicaPlan.ForTokenWrite forSingleReplicaWrite(Keyspace keyspace, Token token, Replica replica)
     {
-        ReplicaLayout.ForTokenWrite layout = ReplicaLayout.forSingleReplicaWrite(token, replica);
-        return new ReplicaPlan.ForTokenWrite(keyspace, ConsistencyLevel.ONE, layout, layout, layout.natural(), layout.natural());
+        EndpointsForToken one = EndpointsForToken.of(token, replica);
+        EndpointsForToken empty = EndpointsForToken.empty(token);
+        return new ReplicaPlan.ForTokenWrite(keyspace, ConsistencyLevel.ONE, empty, one, one, one);
     }
 
     public static ReplicaPlan.ForTokenWrite forForwardingCounterWrite(Keyspace keyspace, Token token, Replica replica)
@@ -94,7 +95,7 @@ public class ReplicaPlans
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite liveOnly, Selector selector) throws UnavailableException
     {
         EndpointsForToken contact = selector.select(keyspace, consistencyLevel, liveAndDown, liveOnly);
-        ReplicaPlan.ForTokenWrite result = new ReplicaPlan.ForTokenWrite(keyspace, consistencyLevel, liveAndDown, liveOnly, liveAndDown.all(), contact);
+        ReplicaPlan.ForTokenWrite result = new ReplicaPlan.ForTokenWrite(keyspace, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), liveOnly.all(), contact);
         result.assureSufficientReplicas();
         return result;
     }
@@ -175,72 +176,66 @@ public class ReplicaPlans
                     participants + 1,
                     contact.size());
 
-        return new ReplicaPlan.ForPaxosWrite(keyspace, consistencyForPaxos, liveAndDown, liveOnly, contact, contact, requiredParticipants);
+        return new ReplicaPlan.ForPaxosWrite(keyspace, consistencyForPaxos, liveAndDown.pending(), liveAndDown.all(), liveOnly.all(), contact, requiredParticipants);
     }
 
     public static ReplicaPlan.ForTokenRead forSingleReplicaRead(Keyspace keyspace, Token token, Replica replica)
     {
-        ReplicaLayout.ForTokenRead layout = ReplicaLayout.forSingleReplicaRead(token, replica);
-        return new ReplicaPlan.ForTokenRead(keyspace, ConsistencyLevel.ONE, layout, layout, layout.natural(), layout.natural());
+        EndpointsForToken one = EndpointsForToken.of(token, replica);
+        return new ReplicaPlan.ForTokenRead(keyspace, ConsistencyLevel.ONE, one, one);
     }
 
     public static ReplicaPlan.ForRangeRead forSingleReplicaRead(Keyspace keyspace, AbstractBounds<PartitionPosition> range, Replica replica)
     {
-        ReplicaLayout.ForRangeRead layout = ReplicaLayout.forSingleReplicaRead(range, replica);
-        return new ReplicaPlan.ForRangeRead(keyspace, ConsistencyLevel.ONE, layout, layout, layout.natural(), layout.natural());
+        // TODO: this is unsafe, as one.range() may be inconsistent with our supplied range; should refactor Range/AbstractBounds to single class
+        EndpointsForRange one = EndpointsForRange.of(replica);
+        return new ReplicaPlan.ForRangeRead(keyspace, ConsistencyLevel.ONE, range, one, one);
     }
 
     public static ReplicaPlan.ForTokenRead forRead(Keyspace keyspace, Token token, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry)
     {
-        ReplicaLayout.ForTokenRead liveAndDown = ReplicaLayout.forTokenReadLiveAndDown(keyspace, token);
-        ReplicaLayout.ForTokenRead liveOnly = liveAndDown.filter(FailureDetector.isReplicaAlive);
-        EndpointsForToken contact = consistencyLevel.filterForQuery(keyspace, liveOnly.all(),
+        ReplicaLayout.ForTokenRead candidates = ReplicaLayout.forTokenReadLiveSorted(keyspace, token);
+        EndpointsForToken contact = consistencyLevel.filterForQuery(keyspace, candidates.natural(),
                 retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE));
 
-        ReplicaPlan.ForTokenRead result = new ReplicaPlan.ForTokenRead(keyspace, consistencyLevel, liveAndDown, liveOnly, liveOnly.natural(), contact);
+        ReplicaPlan.ForTokenRead result = new ReplicaPlan.ForTokenRead(keyspace, consistencyLevel, candidates.natural(), contact);
         result.assureSufficientReplicas(); // Throw UAE early if we don't have enough replicas.
         return result;
     }
 
     public static ReplicaPlan.ForRangeRead forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range)
     {
-        ReplicaLayout.ForRangeRead liveAndDown = ReplicaLayout.forRangeReadLiveAndDown(keyspace, range);
-        ReplicaLayout.ForRangeRead liveOnly = liveAndDown.filter(FailureDetector.isReplicaAlive);
-        EndpointsForRange contact = consistencyLevel.filterForQuery(keyspace, liveOnly.all());
+        ReplicaLayout.ForRangeRead candidates = ReplicaLayout.forRangeReadLiveSorted(keyspace, range);
+        EndpointsForRange contact = consistencyLevel.filterForQuery(keyspace, candidates.natural());
 
         int blockFor = consistencyLevel.blockFor(keyspace);
         if (blockFor < contact.size())
             contact = contact.subList(0, blockFor);
 
-        ReplicaPlan.ForRangeRead result = new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, liveAndDown, liveOnly, liveOnly.natural(), contact);
+        ReplicaPlan.ForRangeRead result = new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, candidates.range(), candidates.all(), contact);
         result.assureSufficientReplicas();
         return result;
     }
 
     public static ReplicaPlan.ForRangeRead maybeMerge(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaPlan.ForRangeRead left, ReplicaPlan.ForRangeRead right)
     {
-        AbstractBounds<PartitionPosition> newRange = left.liveOnly().range().withNewRight(right.liveOnly().range().right);
-        ReplicaLayout.ForRangeRead mergedLiveOnly = new ReplicaLayout.ForRangeRead(
-                newRange,
-                left.liveOnly().all().keep(right.liveOnly().all().endpoints())
-        );
+        AbstractBounds<PartitionPosition> newRange = left.range().withNewRight(right.range().right);
+        EndpointsForRange mergedCandidates = left.candidates().keep(right.candidates().endpoints());
 
         // Check if there is enough endpoint for the merge to be possible.
-        if (!consistencyLevel.isSufficientReplicasForRead(keyspace, mergedLiveOnly.all()))
+        if (!consistencyLevel.isSufficientReplicasForRead(keyspace, mergedCandidates))
             return null;
 
-        ReplicaLayout.ForRangeRead mergedLiveAndDown = new ReplicaLayout.ForRangeRead(
-                newRange,
-                left.liveAndDown().all().keep(right.liveAndDown().all().endpoints())
-        );
-
-        EndpointsForRange contact = consistencyLevel.filterForQuery(keyspace, mergedLiveOnly.all());
+        EndpointsForRange contact = consistencyLevel.filterForQuery(keyspace, mergedCandidates);
+        int blockFor = consistencyLevel.blockFor(keyspace);
+        if (blockFor < contact.size())
+            contact = contact.subList(0, blockFor);
 
         // Estimate whether merging will be a win or not
         if (!DatabaseDescriptor.getEndpointSnitch().isWorthMergingForRangeQuery(contact, left.contact(), right.contact()))
             return null;
 
         // If we get there, merge this range and the next one
-        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, mergedLiveAndDown, mergedLiveOnly, mergedLiveOnly.all(), contact);
+        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, newRange, mergedCandidates, contact);
     }
 }

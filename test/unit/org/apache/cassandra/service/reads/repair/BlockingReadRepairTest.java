@@ -45,8 +45,8 @@ import org.apache.cassandra.service.reads.ReadCallback;
 
 public class BlockingReadRepairTest extends AbstractReadRepairTest
 {
-    private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
-            extends BlockingPartitionRepair<E, L, P>
+    private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+            extends BlockingPartitionRepair<E, P>
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
         {
@@ -73,8 +73,8 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         configureClass(ReadRepairStrategy.BLOCKING);
     }
 
-    private static <E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
-    InstrumentedReadRepairHandler<E, L, P> createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
+    private static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+    InstrumentedReadRepairHandler<E, P> createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
     {
         return new InstrumentedReadRepairHandler<>(repairs, maxBlockFor, replicaPlan);
     }
@@ -85,8 +85,8 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         return createRepairHandler(repairs, maxBlockFor, replicaPlan(replicas, replicas));
     }
 
-    private static class InstrumentedBlockingReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
-            extends BlockingReadRepair<E, L, P> implements InstrumentedReadRepair<E, L, P>
+    private static class InstrumentedBlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+            extends BlockingReadRepair<E, P> implements InstrumentedReadRepair<E, P>
     {
         public InstrumentedBlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
         {
@@ -118,7 +118,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     }
 
     @Override
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.ForRead<?, ?, ?> replicaPlan, long queryStartNanoTime)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.ForRead<?, ?> replicaPlan, long queryStartNanoTime)
     {
         return new InstrumentedBlockingReadRepair(command, new ReplicaPlan.Shared(replicaPlan), queryStartNanoTime);
     }
@@ -147,7 +147,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica2, repair2);
 
         ReplicaPlan.ForRangeRead replicaPlan = replicaPlan(replicas, EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet())));
-        InstrumentedReadRepairHandler<?, ?, ?> handler = createRepairHandler(repairs, 2, replicaPlan);
+        InstrumentedReadRepairHandler<?, ?> handler = createRepairHandler(repairs, 2, replicaPlan);
 
         Assert.assertTrue(handler.mutationsSent.isEmpty());
 

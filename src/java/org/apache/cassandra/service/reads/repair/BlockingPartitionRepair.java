@@ -50,7 +50,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tracing.Tracing;
 
-public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
+public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
         extends AbstractFuture<Object> implements IAsyncCallback<Object>
 {
     private final DecoratedKey key;
@@ -200,7 +200,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLa
         if (awaitRepairs(timeout, timeoutUnit))
             return;
 
-        E newCandidates = replicaPlan.allLiveUncontactedCandidates();
+        E newCandidates = replicaPlan.allUncontactedCandidates();
         if (newCandidates.isEmpty())
             return;
 

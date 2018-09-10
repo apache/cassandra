@@ -34,16 +34,16 @@ import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
 
-public interface ReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
+public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
 {
     public interface Factory
     {
-        <E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
-        ReadRepair<E, L, P> create(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime);
+        <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+        ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime);
     }
 
-    static <E extends Endpoints<E>, L extends ReplicaLayout<E>, P extends ReplicaPlan.ForRead<E, L, P>>
-    ReadRepair<E, L, P> create(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
+    static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+    ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<P> replicaPlan, long queryStartNanoTime)
     {
         return command.metadata().params.readRepair.create(command, replicaPlan, queryStartNanoTime);
     }
@@ -59,7 +59,7 @@ public interface ReadRepair<E extends Endpoints<E>, L extends ReplicaLayout<E>, 
      * @param digestResolver supplied so we can get the original data response
      * @param resultConsumer hook for the repair to set it's result on completion
      */
-    public void startRepair(DigestResolver<E, L, P> digestResolver, Consumer<PartitionIterator> resultConsumer);
+    public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer);
 
     /**
      * Block on the reads (or timeout) sent out in {@link ReadRepair#startRepair}
