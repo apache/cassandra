@@ -28,4 +28,5 @@ import org.apache.cassandra.dht.Token;
 public abstract class AbstractSyncTask extends AbstractFuture<SyncStat> implements Runnable
 {
     protected abstract void startSync(List<Range<Token>> rangesToStream);
+    public abstract NodePair nodePair();
 }

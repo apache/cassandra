@@ -20,6 +20,7 @@ package org.apache.cassandra.repair;
 import java.util.List;
 import java.util.function.Predicate;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,7 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MerkleTrees;
 
 /**
  * SymmetricRemoteSyncTask sends {@link SyncRequest} to remote(non-coordinator) node
@@ -49,7 +51,14 @@ public class SymmetricRemoteSyncTask extends SymmetricSyncTask implements Comple
 
     public SymmetricRemoteSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, PreviewKind previewKind)
     {
-        super(desc, r1, r2, previewKind);
+        super(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees), previewKind);
+    }
+
+    @VisibleForTesting
+    SymmetricRemoteSyncTask(RepairJobDesc desc, InetAddressAndPort e1, InetAddressAndPort e2,
+                            List<Range<Token>> differences, PreviewKind previewKind)
+    {
+        super(desc, e1, e2, differences, previewKind);
     }
 
     void sendRequest(RepairMessage request, InetAddressAndPort to)
@@ -62,7 +71,7 @@ public class SymmetricRemoteSyncTask extends SymmetricSyncTask implements Comple
     {
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
 
-        SyncRequest request = new SyncRequest(desc, local, r1.endpoint, r2.endpoint, differences, previewKind);
+        SyncRequest request = new SyncRequest(desc, local, endpoint1, endpoint2, differences, previewKind);
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
@@ -77,7 +86,7 @@ public class SymmetricRemoteSyncTask extends SymmetricSyncTask implements Comple
         }
         else
         {
-            setException(new RepairException(desc, previewKind, String.format("Sync failed between %s and %s", r1.endpoint, r2.endpoint)));
+            setException(new RepairException(desc, previewKind, String.format("Sync failed between %s and %s", endpoint1, endpoint2)));
         }
         finished();
     }

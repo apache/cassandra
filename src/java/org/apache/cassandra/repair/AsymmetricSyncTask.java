@@ -21,6 +21,7 @@ package org.apache.cassandra.repair;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,19 +40,27 @@ public abstract class AsymmetricSyncTask extends AbstractSyncTask
     protected final List<Range<Token>> rangesToFetch;
     protected final InetAddressAndPort fetchingNode;
     protected final PreviewKind previewKind;
+    protected final NodePair nodePair;
+
     private long startTime = Long.MIN_VALUE;
     protected volatile SyncStat stat;
 
     public AsymmetricSyncTask(RepairJobDesc desc, InetAddressAndPort fetchingNode, InetAddressAndPort fetchFrom, List<Range<Token>> rangesToFetch, PreviewKind previewKind)
     {
-        assert !fetchFrom.equals(fetchingNode) : "Fetching from self " + fetchFrom;
+        Preconditions.checkArgument(!fetchFrom.equals(fetchingNode), "Sending and receiving node are the same: %s", fetchFrom);
         this.desc = desc;
         this.fetchFrom = fetchFrom;
         this.fetchingNode = fetchingNode;
         this.rangesToFetch = rangesToFetch;
+        this.nodePair = new NodePair(fetchingNode, fetchFrom);
         // todo: make an AsymmetricSyncStat?
-        stat = new SyncStat(new NodePair(fetchingNode, fetchFrom), rangesToFetch.size());
+        stat = new SyncStat(nodePair, rangesToFetch.size());
         this.previewKind = previewKind;
+    }
+
+    public NodePair nodePair()
+    {
+        return nodePair;
     }
 
     public void run()
