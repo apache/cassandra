@@ -83,6 +83,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         public ReplicaLayout.ForTokenRead filter(Predicate<Replica> filter)
         {
             EndpointsForToken filtered = natural().filter(filter);
+            // AbstractReplicaCollection.filter returns itself if all elements match the filter
             if (filtered == natural()) return this;
             return new ReplicaLayout.ForTokenRead(filtered);
         }
@@ -107,6 +108,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         public ReplicaLayout.ForRangeRead filter(Predicate<Replica> filter)
         {
             EndpointsForRange filtered = natural().filter(filter);
+            // AbstractReplicaCollection.filter returns itself if all elements match the filter
             if (filtered == natural()) return this;
             return new ReplicaLayout.ForRangeRead(range(), filtered);
         }
@@ -162,6 +164,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         public ReplicaLayout.ForTokenWrite filter(Predicate<Replica> filter)
         {
             EndpointsForToken filtered = all().filter(filter);
+            // AbstractReplicaCollection.filter returns itself if all elements match the filter
             if (filtered == all()) return this;
             // unique by endpoint, so can for efficiency filter only on endpoint
             return new ReplicaLayout.ForTokenWrite(

@@ -82,6 +82,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
                                                     : new ArrayList<>(list));
     }
 
+    /** see {@link ReplicaCollection#subList(int, int)}*/
     public final C subList(int start, int end)
     {
         List<Replica> subList;
@@ -99,6 +100,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         return snapshot(subList);
     }
 
+    /** see {@link ReplicaCollection#count(Predicate)}*/
     public int count(Predicate<Replica> predicate)
     {
         int count = 0;
@@ -108,11 +110,13 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         return count;
     }
 
+    /** see {@link ReplicaCollection#filter(Predicate)}*/
     public final C filter(Predicate<Replica> predicate)
     {
         return filter(predicate, Integer.MAX_VALUE);
     }
 
+    /** see {@link ReplicaCollection#filter(Predicate, int)}*/
     public final C filter(Predicate<Replica> predicate, int limit)
     {
         if (isEmpty())
@@ -156,6 +160,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         return snapshot(copy);
     }
 
+    /** see {@link ReplicaCollection#sorted(Comparator)}*/
    public final C sorted(Comparator<Replica> comparator)
     {
         List<Replica> copy = new ArrayList<>(list);
