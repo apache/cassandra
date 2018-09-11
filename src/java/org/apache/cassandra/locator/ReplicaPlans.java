@@ -42,6 +42,9 @@ import static com.google.common.collect.Iterables.limit;
 public class ReplicaPlans
 {
 
+    /**
+     * Construct a ReplicaPlan for writing to exactly one node, with CL.ONE. This node is *assumed* to be alive.
+     */
     public static ReplicaPlan.ForTokenWrite forSingleReplicaWrite(Keyspace keyspace, Token token, Replica replica)
     {
         EndpointsForToken one = EndpointsForToken.of(token, replica);
@@ -49,11 +52,22 @@ public class ReplicaPlans
         return new ReplicaPlan.ForTokenWrite(keyspace, ConsistencyLevel.ONE, empty, one, one, one);
     }
 
+    /**
+     * A forwarding counter write is always sent to a single owning coordinator for the range, by the original coordinator
+     * (if it is not itself an owner)
+     */
     public static ReplicaPlan.ForTokenWrite forForwardingCounterWrite(Keyspace keyspace, Token token, Replica replica)
     {
         return forSingleReplicaWrite(keyspace, token, replica);
     }
 
+    /**
+     * Requires that the provided endpoints are alive.  Converts them to their relevant system replicas.
+     * Note that the liveAndDown collection and liveOnly are equal to the provided endpoints.
+     *
+     * The semantics are a bit weird, in that CL=ONE iff we have one node provided, and otherwise is equal to TWO.
+     * How these CL were chosen, and why we drop the CL if only one live node is available, are both unclear.
+     */
     public static ReplicaPlan.ForTokenWrite forBatchlogWrite(Keyspace keyspace, Collection<InetAddressAndPort> endpoints) throws UnavailableException
     {
         // A single case we write not for range or token, but multiple mutations to many tokens
@@ -106,6 +120,12 @@ public class ReplicaPlans
         E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L liveOnly);
     }
 
+    /**
+     * Select all nodes, transient or otherwise, as targets for the operation.
+     *
+     * This is may no longer be useful until we finish implementing transient replication support, however
+     * it can be of value to stipulate that a location writes to all nodes without regard to transient status.
+     */
     public static final Selector writeAll = new Selector()
     {
         @Override
@@ -116,6 +136,15 @@ public class ReplicaPlans
         }
     };
 
+    /**
+     * Select all full nodes, live or down, as write targets.  If there are insufficient nodes to complete the write,
+     * but there are live transient nodes, select a sufficient number of these to reach our consistency level.
+     *
+     * Pending nodes are always contacted, whether or not they are full.  When a transient replica is undergoing
+     * a pending move to a new node, if we write (transiently) to it, this write would not be replicated to the
+     * pending transient node, and so when completing the move, the write could effectively have not reached the
+     * promised consistency level.
+     */
     public static final Selector writeNormal = new Selector()
     {
         @Override
@@ -131,6 +160,7 @@ public class ReplicaPlans
             contact.addAll(filter(liveAndDown.natural(), Replica::isFull));
             contact.addAll(liveAndDown.pending());
 
+            // TODO: this doesn't correctly handle LOCAL_QUORUM (or EACH_QUORUM at all)
             int liveCount = contact.count(liveOnly.all()::contains);
             int requiredTransientCount = consistencyLevel.blockForWrite(keyspace, liveAndDown.pending()) - liveCount;
             if (requiredTransientCount > 0)
@@ -139,6 +169,12 @@ public class ReplicaPlans
         }
     };
 
+    /**
+     * Construct the plan for a paxos round - NOT the write or read consistency level for either the write or comparison,
+     * but for the paxos linearisation agreement.
+     *
+     * This will select all live nodes as the candidates for the operation.  Only the required number of participants
+     */
     public static ReplicaPlan.ForPaxosWrite forPaxos(Keyspace keyspace, DecoratedKey key, ConsistencyLevel consistencyForPaxos) throws UnavailableException
     {
         Token tk = key.getToken();
@@ -179,12 +215,18 @@ public class ReplicaPlans
         return new ReplicaPlan.ForPaxosWrite(keyspace, consistencyForPaxos, liveAndDown.pending(), liveAndDown.all(), liveOnly.all(), contact, requiredParticipants);
     }
 
+    /**
+     * Construct a plan for reading from a single node - this permits no speculation or read-repair
+     */
     public static ReplicaPlan.ForTokenRead forSingleReplicaRead(Keyspace keyspace, Token token, Replica replica)
     {
         EndpointsForToken one = EndpointsForToken.of(token, replica);
         return new ReplicaPlan.ForTokenRead(keyspace, ConsistencyLevel.ONE, one, one);
     }
 
+    /**
+     * Construct a plan for reading from a single node - this permits no speculation or read-repair
+     */
     public static ReplicaPlan.ForRangeRead forSingleReplicaRead(Keyspace keyspace, AbstractBounds<PartitionPosition> range, Replica replica)
     {
         // TODO: this is unsafe, as one.range() may be inconsistent with our supplied range; should refactor Range/AbstractBounds to single class
@@ -192,6 +234,14 @@ public class ReplicaPlans
         return new ReplicaPlan.ForRangeRead(keyspace, ConsistencyLevel.ONE, range, one, one);
     }
 
+    /**
+     * Construct a plan for reading the provided token at the provided consistency level.  This translates to a collection of
+     *   - candidates who are: alive, replicate the token, and are sorted by their snitch scores
+     *   - contact who are: the first blockFor + (retry == ALWAYS ? 1 : 0) candidates
+     *
+     * The candidate collection can be used for speculation, although at present it would break
+     * LOCAL_QUORUM and EACH_QUORUM to do so without further filtering
+     */
     public static ReplicaPlan.ForTokenRead forRead(Keyspace keyspace, Token token, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry)
     {
         ReplicaLayout.ForTokenRead candidates = ReplicaLayout.forTokenReadLiveSorted(keyspace, token);
@@ -203,33 +253,37 @@ public class ReplicaPlans
         return result;
     }
 
+    /**
+     * Construct a plan for reading the provided range at the provided consistency level.  This translates to a collection of
+     *   - candidates who are: alive, replicate the range, and are sorted by their snitch scores
+     *   - contact who are: the first blockFor candidates
+     *
+     * There is no speculation for range read queries at present, so we never 'always speculate' here, and a failed response fails the query.
+     */
     public static ReplicaPlan.ForRangeRead forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range)
     {
         ReplicaLayout.ForRangeRead candidates = ReplicaLayout.forRangeReadLiveSorted(keyspace, range);
         EndpointsForRange contact = consistencyLevel.filterForQuery(keyspace, candidates.natural());
-
-        int blockFor = consistencyLevel.blockFor(keyspace);
-        if (blockFor < contact.size())
-            contact = contact.subList(0, blockFor);
 
         ReplicaPlan.ForRangeRead result = new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, candidates.range(), candidates.natural(), contact);
         result.assureSufficientReplicas();
         return result;
     }
 
+    /**
+     * Take two range read plans for adjacent ranges, and check if it is OK (and worthwhile) to combine them into a single plan
+     */
     public static ReplicaPlan.ForRangeRead maybeMerge(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaPlan.ForRangeRead left, ReplicaPlan.ForRangeRead right)
     {
+        // TODO: should we be asserting that the ranges are adjacent?
         AbstractBounds<PartitionPosition> newRange = left.range().withNewRight(right.range().right);
         EndpointsForRange mergedCandidates = left.candidates().keep(right.candidates().endpoints());
 
-        // Check if there is enough endpoint for the merge to be possible.
+        // Check if there are enough shared endpoints for the merge to be possible.
         if (!consistencyLevel.isSufficientReplicasForRead(keyspace, mergedCandidates))
             return null;
 
         EndpointsForRange contact = consistencyLevel.filterForQuery(keyspace, mergedCandidates);
-        int blockFor = consistencyLevel.blockFor(keyspace);
-        if (blockFor < contact.size())
-            contact = contact.subList(0, blockFor);
 
         // Estimate whether merging will be a win or not
         if (!DatabaseDescriptor.getEndpointSnitch().isWorthMergingForRangeQuery(contact, left.contact(), right.contact()))
