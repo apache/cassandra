@@ -142,8 +142,8 @@ public class Client extends SimpleClient
                    case "adler32": {
                        if (options.containsKey(StartupMessage.CHECKSUM))
                            throw new RuntimeException("Multiple checksum types supplied");
-                       options.put(StartupMessage.CHECKSUM, ChecksumType.Adler32.name());
-                       checksumType = ChecksumType.Adler32;
+                       options.put(StartupMessage.CHECKSUM, ChecksumType.ADLER32.name());
+                       checksumType = ChecksumType.ADLER32;
                        break;
                    }
                }

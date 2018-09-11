@@ -131,7 +131,7 @@ public class StartupMessage extends Message.Request
         String name = options.get(CHECKSUM);
         try
         {
-            return name != null ? ChecksumType.valueOf(name) : null;
+            return name != null ? ChecksumType.valueOf(name.toUpperCase()) : null;
         }
         catch (IllegalArgumentException e)
         {
