@@ -74,6 +74,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         {
             super(natural);
         }
+
         @Override
         public Token token()
         {
@@ -157,10 +158,8 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         }
 
         @Override
-        public Token token()
-        {
-            return natural().token();
-        }
+        public Token token() { return natural().token(); }
+
         public ReplicaLayout.ForTokenWrite filter(Predicate<Replica> filter)
         {
             EndpointsForToken filtered = all().filter(filter);
@@ -189,7 +188,8 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * Gets the 'natural' and 'pending' replicas that own a given token, with no filtering or processing.
      *
      * Since a write is intended for all nodes (except, unless necessary, transient replicas), this method's
-     * only responsibility is
+     * only responsibility is to fetch the 'natural' and 'pending' replicas, then resolve any conflicts
+     * {@link ReplicaLayout#haveWriteConflicts(Endpoints, Endpoints)}
      */
     public static ReplicaLayout.ForTokenWrite forTokenWriteLiveAndDown(Keyspace keyspace, Token token)
     {
@@ -233,7 +233,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      *   In this case, things are dicier, because in theory we can trigger this change instantly.  All we need to do is
      *   drop some data, surely?
      *
-     *   Ring movements can put is in a pickle; any other node could believe us to be full when we have become transient,
+     *   Ring movements can put us in a pickle; any other node could believe us to be full when we have become transient,
      *   and perform a full data request to us that we believe ourselves capable of answering, but that we are not.
      *   If the ring is inconsistent, it's even feasible that a transient request would be made to the node that is losing
      *   its transient status, that also does not know it has yet done so, resulting in all involved nodes being unaware

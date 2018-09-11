@@ -49,27 +49,13 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         this.contact = contact;
     }
 
-    public E contact()
-    {
-        return contact;
-    }
-    public boolean contacts(Replica replica)
-    {
-        return contact.contains(replica);
-    }
-
     public abstract int blockFor();
     public abstract void assureSufficientReplicas();
 
-    public Keyspace keyspace()
-    {
-        return keyspace;
-    }
-
-    public ConsistencyLevel consistencyLevel()
-    {
-        return consistencyLevel;
-    }
+    public E contact() { return contact; }
+    public boolean contacts(Replica replica) { return contact.contains(replica); }
+    public Keyspace keyspace() { return keyspace; }
+    public ConsistencyLevel consistencyLevel() { return consistencyLevel; }
 
     public static abstract class ForRead<E extends Endpoints<E>> extends ReplicaPlan<E>
     {
@@ -83,29 +69,24 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
             this.candidates = candidates;
         }
 
-        public E candidates()
-        {
-            return candidates;
-        }
-        public int blockFor()
-        {
-            return consistencyLevel.blockFor(keyspace);
-        }
-        public void assureSufficientReplicas()
-        {
-            consistencyLevel.assureSufficientReplicasForRead(keyspace, candidates());
-        }
-        public Replica getReplicaFor(InetAddressAndPort endpoint)
-        {
-            return candidates().byEndpoint().get(endpoint);
-        }
+        public int blockFor() { return consistencyLevel.blockFor(keyspace); }
+        public void assureSufficientReplicas() { consistencyLevel.assureSufficientReplicasForRead(keyspace, candidates()); }
+
+        public E candidates() { return candidates; }
+
         public E allUncontactedCandidates()
         {
             return candidates().filter(r -> !contacts(r));
         }
+
         public Replica firstUncontactedCandidate(Predicate<Replica> extraPredicate)
         {
             return Iterables.tryFind(candidates(), r -> extraPredicate.test(r) && !contacts(r)).orNull();
+        }
+
+        public Replica getReplicaFor(InetAddressAndPort endpoint)
+        {
+            return candidates().byEndpoint().get(endpoint);
         }
 
         public String toString()
@@ -129,6 +110,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
     public static class ForRangeRead extends ForRead<EndpointsForRange>
     {
         final AbstractBounds<PartitionPosition> range;
+
         public ForRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, EndpointsForRange candidates, EndpointsForRange contact)
         {
             super(keyspace, consistencyLevel, candidates, contact);
@@ -136,6 +118,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         }
 
         public AbstractBounds<PartitionPosition> range() { return range; }
+
         public ForRangeRead withContact(EndpointsForRange newContact)
         {
             return new ForRangeRead(keyspace, consistencyLevel, range, candidates(), newContact);
@@ -157,26 +140,14 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
             this.liveOnly = liveOnly;
         }
 
-        public void assureSufficientReplicas()
-        {
-            consistencyLevel.assureSufficientReplicasForWrite(keyspace, liveOnly(), pending());
-        }
-        public int blockFor()
-        {
-            return consistencyLevel.blockForWrite(keyspace, pending());
-        }
+        public int blockFor() { return consistencyLevel.blockForWrite(keyspace, pending()); }
+        public void assureSufficientReplicas() { consistencyLevel.assureSufficientReplicasForWrite(keyspace, liveOnly(), pending()); }
 
         public E pending() { return pending; }
         public E liveAndDown() { return liveAndDown; }
         public E liveOnly() { return liveOnly; }
-        public E liveUncontacted()
-        {
-            return liveOnly().filter(r -> !contacts(r));
-        }
-        public boolean isAlive(Replica replica)
-        {
-            return liveOnly.endpoints().contains(replica.endpoint());
-        }
+        public E liveUncontacted() { return liveOnly().filter(r -> !contacts(r)); }
+        public boolean isAlive(Replica replica) { return liveOnly.endpoints().contains(replica.endpoint()); }
 
         public String toString()
         {
@@ -190,32 +161,27 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         {
             super(keyspace, consistencyLevel, pending, liveAndDown, liveOnly, contact);
         }
-        protected ReplicaPlan.ForTokenWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
+
+        private ReplicaPlan.ForTokenWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
         {
             return new ReplicaPlan.ForTokenWrite(keyspace, newConsistencyLevel, pending(), liveAndDown(), liveOnly(), newContact);
         }
-        public ForTokenWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel)
-        {
-            return copy(newConsistencylevel, contact());
-        }
-        public ForTokenWrite withContact(EndpointsForToken newContact)
-        {
-            return copy(consistencyLevel, newContact);
-        }
+
+        ForTokenWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel) { return copy(newConsistencylevel, contact()); }
+        public ForTokenWrite withContact(EndpointsForToken newContact) { return copy(consistencyLevel, newContact); }
     }
 
     public static class ForPaxosWrite extends ForWrite<EndpointsForToken>
     {
         final int requiredParticipants;
+
         ForPaxosWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken liveOnly, EndpointsForToken contact, int requiredParticipants)
         {
             super(keyspace, consistencyLevel, pending, liveAndDown, liveOnly, contact);
             this.requiredParticipants = requiredParticipants;
         }
-        public int requiredParticipants()
-        {
-            return requiredParticipants;
-        }
+
+        public int requiredParticipants() { return requiredParticipants; }
     }
 
     /**
