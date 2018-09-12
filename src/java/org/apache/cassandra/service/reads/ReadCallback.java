@@ -23,19 +23,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
@@ -44,16 +43,17 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
-public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> implements IAsyncCallbackWithFailure<ReadResponse>
+public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> implements IAsyncCallbackWithFailure<ReadResponse>
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
 
     public final ResponseResolver resolver;
     final SimpleCondition condition = new SimpleCondition();
     private final long queryStartNanoTime;
-    // TODO: move to replica layout as well?
-    final int blockfor;
-    final L replicaLayout;
+    final int blockFor; // TODO: move to replica plan as well?
+    // this uses a plain reference, but is initialised before handoff to any other threads; the later updates
+    // may not be visible to the threads immediately, but ReplicaPlan only contains final fields, so they will never see an uninitialised object
+    final ReplicaPlan.Shared<E, P> replicaPlan;
     private final ReadCommand command;
     private static final AtomicIntegerFieldUpdater<ReadCallback> recievedUpdater
             = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "received");
@@ -63,19 +63,24 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
 
-    public ReadCallback(ResponseResolver resolver, int blockfor, ReadCommand command, L replicaLayout, long queryStartNanoTime)
+    public ReadCallback(ResponseResolver resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
         this.command = command;
-        this.blockfor = blockfor;
         this.resolver = resolver;
         this.queryStartNanoTime = queryStartNanoTime;
-        this.replicaLayout = replicaLayout;
+        this.replicaPlan = replicaPlan;
+        this.blockFor = replicaPlan.get().blockFor();
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
-        assert !(command instanceof PartitionRangeReadCommand) || blockfor >= replicaLayout.selected().size();
+        assert !(command instanceof PartitionRangeReadCommand) || blockFor >= replicaPlan().contacts().size();
 
         if (logger.isTraceEnabled())
-            logger.trace("Blockfor is {}; setting up requests to {}", blockfor, this.replicaLayout);
+            logger.trace("Blockfor is {}; setting up requests to {}", blockFor, this.replicaPlan);
+    }
+
+    protected P replicaPlan()
+    {
+        return replicaPlan.get();
     }
 
     public boolean await(long timePastStart, TimeUnit unit)
@@ -94,30 +99,30 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
     public void awaitResults() throws ReadFailureException, ReadTimeoutException
     {
         boolean signaled = await(command.getTimeout(), TimeUnit.MILLISECONDS);
-        boolean failed = failures > 0 && blockfor + failures > replicaLayout.selected().size();
+        boolean failed = failures > 0 && blockFor + failures > replicaPlan().contacts().size();
         if (signaled && !failed)
             return;
 
         if (Tracing.isTracing())
         {
             String gotData = received > 0 ? (resolver.isDataPresent() ? " (including data)" : " (only digests)") : "";
-            Tracing.trace("{}; received {} of {} responses{}", new Object[]{ (failed ? "Failed" : "Timed out"), received, blockfor, gotData });
+            Tracing.trace("{}; received {} of {} responses{}", new Object[]{ (failed ? "Failed" : "Timed out"), received, blockFor, gotData });
         }
         else if (logger.isDebugEnabled())
         {
             String gotData = received > 0 ? (resolver.isDataPresent() ? " (including data)" : " (only digests)") : "";
-            logger.debug("{}; received {} of {} responses{}", new Object[]{ (failed ? "Failed" : "Timed out"), received, blockfor, gotData });
+            logger.debug("{}; received {} of {} responses{}", new Object[]{ (failed ? "Failed" : "Timed out"), received, blockFor, gotData });
         }
 
         // Same as for writes, see AbstractWriteResponseHandler
         throw failed
-            ? new ReadFailureException(replicaLayout.consistencyLevel(), received, blockfor, resolver.isDataPresent(), failureReasonByEndpoint)
-            : new ReadTimeoutException(replicaLayout.consistencyLevel(), received, blockfor, resolver.isDataPresent());
+            ? new ReadFailureException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint)
+            : new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent());
     }
 
     public int blockFor()
     {
-        return blockfor;
+        return blockFor;
     }
 
     public void response(MessageIn<ReadResponse> message)
@@ -127,24 +132,16 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
               ? recievedUpdater.incrementAndGet(this)
               : received;
 
-        if (n >= blockfor && resolver.isDataPresent())
+        if (n >= blockFor && resolver.isDataPresent())
             condition.signalAll();
     }
 
     /**
-     * @return true if the message counts towards the blockfor threshold
+     * @return true if the message counts towards the blockFor threshold
      */
     private boolean waitingFor(InetAddressAndPort from)
     {
-        return !replicaLayout.consistencyLevel().isDatacenterLocal() || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from));
-    }
-
-    /**
-     * @return the current number of received responses
-     */
-    public int getReceivedCount()
-    {
-        return received;
+        return !replicaPlan().consistencyLevel().isDatacenterLocal() || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from));
     }
 
     public void response(ReadResponse result)
@@ -155,11 +152,6 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
                                                            MessagingService.Verb.INTERNAL_RESPONSE,
                                                            MessagingService.current_version);
         response(message);
-    }
-
-    public void assureSufficientLiveNodes() throws UnavailableException
-    {
-        replicaLayout.consistencyLevel().assureSufficientLiveNodesForRead(replicaLayout.keyspace(), replicaLayout.selected());
     }
 
     public boolean isLatencyForSnitch()
@@ -176,7 +168,7 @@ public class ReadCallback<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
 
         failureReasonByEndpoint.put(from, failureReason);
 
-        if (blockfor + n > replicaLayout.selected().size())
+        if (blockFor + n > replicaPlan().contacts().size())
             condition.signalAll();
     }
 }

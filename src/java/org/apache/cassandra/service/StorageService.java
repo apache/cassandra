@@ -172,7 +172,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getLocalReplicas(String keyspaceName)
     {
-        return getReplicasForEndpoint(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
+        return Keyspace.open(keyspaceName).getReplicationStrategy()
+                .getAddressReplicas(FBUtilities.getBroadcastAddressAndPort());
     }
 
     public List<Range<Token>> getLocalAndPendingRanges(String ks)
@@ -2015,11 +2016,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     */
     private EndpointsByRange constructRangeToEndpointMap(String keyspace, List<Range<Token>> ranges)
     {
+        AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
         Map<Range<Token>, EndpointsForRange> rangeToEndpointMap = new HashMap<>(ranges.size());
         for (Range<Token> range : ranges)
-        {
-            rangeToEndpointMap.put(range, Keyspace.open(keyspace).getReplicationStrategy().getNaturalReplicas(range.right));
-        }
+            rangeToEndpointMap.put(range, strategy.getNaturalReplicas(range.right));
         return new EndpointsByRange(rangeToEndpointMap);
     }
 
@@ -3878,16 +3878,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /**
-     * Get all ranges an endpoint is responsible for (by keyspace)
-     * @param ep endpoint we are interested in.
-     * @return ranges for the specified endpoint.
-     */
-    RangesAtEndpoint getReplicasForEndpoint(String keyspaceName, InetAddressAndPort ep)
-    {
-        return Keyspace.open(keyspaceName).getReplicationStrategy().getAddressReplicas(ep);
-    }
-
-    /**
      * Get all ranges that span the ring given a set
      * of tokens. All ranges are in sorted order of
      * ranges.
@@ -3936,11 +3926,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return Replicas.stringify(getNaturalReplicasForToken(keyspaceName, cf, key), true);
     }
 
-
     @Deprecated
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key)
     {
-        EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, tokenMetadata.partitioner.getToken(key));
+        EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, key);
         List<InetAddress> inetList = new ArrayList<>(replicas.size());
         replicas.forEach(r -> inetList.add(r.endpoint().address));
         return inetList;
@@ -3948,7 +3937,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getNaturalEndpointsWithPort(String keyspaceName, ByteBuffer key)
     {
-        return Replicas.stringify(getNaturalReplicasForToken(keyspaceName, tokenMetadata.partitioner.getToken(key)), true);
+        EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, key);
+        return Replicas.stringify(replicas, true);
     }
 
     public List<String> getReplicas(String keyspaceName, String cf, String key)
@@ -3971,61 +3961,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (metadata == null)
             throw new IllegalArgumentException("Unknown table '" + cf + "' in keyspace '" + keyspaceName + "'");
 
-        return getNaturalReplicasForToken(keyspaceName, tokenMetadata.partitioner.getToken(metadata.partitionKeyType.fromString(key)));
+        return getNaturalReplicasForToken(keyspaceName, metadata.partitionKeyType.fromString(key));
     }
 
-    /**
-     * This method returns the N endpoints that are responsible for storing the
-     * specified key i.e for replication.
-     *
-     * @param keyspaceName keyspace name also known as keyspace
-     * @param pos position for which we need to find the endpoint
-     * @return the endpoint responsible for this token
-     */
-    public static EndpointsForToken getNaturalReplicasForToken(String keyspaceName, RingPosition pos)
+    public EndpointsForToken getNaturalReplicasForToken(String keyspaceName, ByteBuffer key)
     {
-        return Keyspace.open(keyspaceName).getReplicationStrategy().getNaturalReplicasForToken(pos);
-    }
-
-    /**
-     * Returns the endpoints currently responsible for storing the token plus pending ones
-     */
-    public EndpointsForToken getNaturalAndPendingReplicasForToken(String keyspaceName, Token token)
-    {
-        // TODO: race condition to fetch these. impliciations??
-        EndpointsForToken natural = getNaturalReplicasForToken(keyspaceName, token);
-        EndpointsForToken pending = tokenMetadata.pendingEndpointsForToken(token, keyspaceName);
-        if (Endpoints.haveConflicts(natural, pending))
-        {
-            natural = Endpoints.resolveConflictsInNatural(natural, pending);
-            pending = Endpoints.resolveConflictsInPending(natural, pending);
-        }
-        return Endpoints.concat(natural, pending);
-    }
-
-    /**
-     * This method attempts to return N endpoints that are responsible for storing the
-     * specified key i.e for replication.
-     *
-     * @param keyspace keyspace name also known as keyspace
-     * @param pos position for which we need to find the endpoint
-     */
-    public EndpointsForToken getLiveNaturalReplicasForToken(Keyspace keyspace, RingPosition pos)
-    {
-        return getLiveNaturalReplicas(keyspace, pos).forToken(pos.getToken());
-    }
-
-    /**
-     * This method attempts to return N endpoints that are responsible for storing the
-     * specified key i.e for replication.
-     *
-     * @param keyspace keyspace name also known as keyspace
-     * @param pos position for which we need to find the endpoint
-     */
-    public EndpointsForRange getLiveNaturalReplicas(Keyspace keyspace, RingPosition pos)
-    {
-        EndpointsForRange replicas = keyspace.getReplicationStrategy().getNaturalReplicas(pos);
-        return replicas.filter(r -> FailureDetector.instance.isAlive(r.endpoint()));
+        Token token = tokenMetadata.partitioner.getToken(key);
+        return Keyspace.open(keyspaceName).getReplicationStrategy().getNaturalReplicasForToken(token);
     }
 
     public void setLoggingLevel(String classQualifier, String rawLevel) throws Exception
@@ -4268,7 +4210,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                              .filter(endpoint -> FailureDetector.instance.isAlive(endpoint) && !FBUtilities.getBroadcastAddressAndPort().equals(endpoint))
                              .collect(Collectors.toList());
 
-        return EndpointsForRange.copyOf(SystemReplicas.getSystemReplicas(endpoints));
+        return SystemReplicas.getSystemReplicas(endpoints);
     }
     /**
      * Find the best target to stream hints to. Currently the closest peer according to the snitch

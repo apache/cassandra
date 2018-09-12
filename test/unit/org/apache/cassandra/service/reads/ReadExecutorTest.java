@@ -24,6 +24,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -224,13 +225,13 @@ public class ReadExecutorTest
 
     }
 
-    private ReplicaLayout.ForToken plan(EndpointsForToken targets, ConsistencyLevel consistencyLevel)
+    private ReplicaPlan.ForTokenRead plan(EndpointsForToken targets, ConsistencyLevel consistencyLevel)
     {
         return plan(consistencyLevel, targets, targets);
     }
 
-    private ReplicaLayout.ForToken plan(ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken selected)
+    private ReplicaPlan.ForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken selected)
     {
-        return new ReplicaLayout.ForToken(ks, consistencyLevel, natural.token(), natural, null, selected);
+        return new ReplicaPlan.ForTokenRead(ks, consistencyLevel, natural, selected);
     }
 }

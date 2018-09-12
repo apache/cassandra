@@ -24,7 +24,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 
-import com.google.common.base.Predicates;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -32,10 +31,10 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.EndpointsForRange;
-import org.apache.cassandra.locator.ReplicaUtils;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -54,7 +53,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.Replica.transientReplica;
-import static org.apache.cassandra.locator.ReplicaUtils.FULL_RANGE;
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.apache.cassandra.locator.ReplicaUtils.trans;
 
@@ -147,32 +145,35 @@ public class WriteResponseHandlerTransientTest
         dummy = DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(0));
     }
 
-    @Ignore("Throws unavailable for quorum as written")
     @Test
     public void checkPendingReplicasAreNotFiltered()
     {
-        EndpointsForToken natural = EndpointsForToken.of(dummy.getToken(), full(EP1), full(EP2), trans(EP3));
-        EndpointsForToken pending = EndpointsForToken.of(dummy.getToken(), full(EP4), full(EP5), trans(EP6));
-        ReplicaLayout.ForToken replicaLayout = ReplicaLayout.forWrite(ks, ConsistencyLevel.QUORUM, dummy.getToken(), 2, natural, pending, Predicates.alwaysTrue());
+        EndpointsForToken natural = EndpointsForToken.of(dummy.getToken(), full(EP1), full(EP2), trans(EP3), full(EP5));
+        EndpointsForToken pending = EndpointsForToken.of(dummy.getToken(), full(EP4), trans(EP6));
+        ReplicaLayout.ForTokenWrite layout = new ReplicaLayout.ForTokenWrite(natural, pending);
+        ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, layout, layout, ReplicaPlans.writeAll);
 
-        Assert.assertEquals(EndpointsForRange.of(full(EP4), full(EP5), trans(EP6)), replicaLayout.pending());
+        Assert.assertEquals(EndpointsForRange.of(full(EP4), trans(EP6)), replicaPlan.pending());
     }
 
-    private static ReplicaLayout.ForToken expected(EndpointsForToken all, EndpointsForToken selected)
+    private static ReplicaPlan.ForTokenWrite expected(EndpointsForToken natural, EndpointsForToken selected)
     {
-        return new ReplicaLayout.ForToken(ks, ConsistencyLevel.QUORUM, dummy.getToken(), all, EndpointsForToken.empty(dummy.getToken()), selected);
+        return new ReplicaPlan.ForTokenWrite(ks, ConsistencyLevel.QUORUM, EndpointsForToken.empty(dummy.getToken()), natural, natural, selected);
     }
 
-    private static ReplicaLayout.ForToken getSpeculationContext(EndpointsForToken replicas, int blockFor, Predicate<InetAddressAndPort> livePredicate)
+    private static ReplicaPlan.ForTokenWrite getSpeculationContext(EndpointsForToken natural, Predicate<InetAddressAndPort> livePredicate)
     {
-        return ReplicaLayout.forWrite(ks, ConsistencyLevel.QUORUM, dummy.getToken(), blockFor, replicas, EndpointsForToken.empty(dummy.getToken()), livePredicate);
+        ReplicaLayout.ForTokenWrite liveAndDown = new ReplicaLayout.ForTokenWrite(natural, EndpointsForToken.empty(dummy.getToken()));
+        ReplicaLayout.ForTokenWrite live = new ReplicaLayout.ForTokenWrite(natural.filter(r -> livePredicate.test(r.endpoint())), EndpointsForToken.empty(dummy.getToken()));
+        return ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, liveAndDown, live, ReplicaPlans.writeNormal);
     }
 
-    private static void assertSpeculationReplicas(ReplicaLayout.ForToken expected, EndpointsForToken replicas, int blockFor, Predicate<InetAddressAndPort> livePredicate)
+    private static void assertSpeculationReplicas(ReplicaPlan.ForTokenWrite expected, EndpointsForToken replicas, Predicate<InetAddressAndPort> livePredicate)
     {
-        ReplicaLayout.ForToken actual = getSpeculationContext(replicas, blockFor, livePredicate);
-        Assert.assertEquals(expected.natural(), actual.natural());
-        Assert.assertEquals(expected.selected(), actual.selected());
+        ReplicaPlan.ForTokenWrite actual = getSpeculationContext(replicas, livePredicate);
+        Assert.assertEquals(expected.pending(), actual.pending());
+        Assert.assertEquals(expected.live(), actual.live());
+        Assert.assertEquals(expected.contacts(), actual.contacts());
     }
 
     private static Predicate<InetAddressAndPort> dead(InetAddressAndPort... endpoints)
@@ -186,39 +187,35 @@ public class WriteResponseHandlerTransientTest
         return EndpointsForToken.of(dummy.getToken(), rr);
     }
 
-    @Ignore("Throws unavailable for quorum as written")
     @Test
     public void checkSpeculationContext()
     {
-        EndpointsForToken all = replicas(full(EP1), full(EP2), trans(EP3));
+        EndpointsForToken all = replicas(full(EP1), full(EP2), trans(EP3), full(EP4), full(EP5), trans(EP6));
         // in happy path, transient replica should be classified as a backup
-        assertSpeculationReplicas(expected(all,
-                                           replicas(full(EP1), full(EP2))),
-                                  replicas(full(EP1), full(EP2), trans(EP3)),
-                                  2, dead());
+        assertSpeculationReplicas(expected(all, replicas(full(EP1), full(EP2), full(EP4), full(EP5))),
+                                  all,
+                                  dead());
 
-        // if one of the full replicas is dead, they should all be in the initial contacts
-        assertSpeculationReplicas(expected(all,
-                                           replicas(full(EP1), trans(EP3))),
-                                  replicas(full(EP1), full(EP2), trans(EP3)),
-                                  2, dead(EP2));
+        // full replicas must always be in the contact list, and will occur first
+        assertSpeculationReplicas(expected(replicas(full(EP1), trans(EP3), full(EP4), trans(EP6)), replicas(full(EP1), full(EP2), full(EP4), full(EP5), trans(EP3), trans(EP6))),
+                                  all,
+                                  dead(EP2, EP5));
 
-        // block only for 1 full replica, use transient as backups
-        assertSpeculationReplicas(expected(all,
-                                           replicas(full(EP1))),
-                                  replicas(full(EP1), full(EP2), trans(EP3)),
-                                  1, dead(EP2));
+        // only one transient used as backup
+        assertSpeculationReplicas(expected(replicas(full(EP1), trans(EP3), full(EP4), full(EP5), trans(EP6)), replicas(full(EP1), full(EP2), full(EP4), full(EP5), trans(EP3))),
+                all,
+                dead(EP2));
     }
 
     @Test (expected = UnavailableException.class)
     public void noFullReplicas()
     {
-        getSpeculationContext(replicas(full(EP1), trans(EP2), trans(EP3)), 2, dead(EP1));
+        getSpeculationContext(replicas(full(EP1), trans(EP2), trans(EP3)), dead(EP1));
     }
 
     @Test (expected = UnavailableException.class)
     public void notEnoughTransientReplicas()
     {
-        getSpeculationContext(replicas(full(EP1), trans(EP2), trans(EP3)), 2, dead(EP2, EP3));
+        getSpeculationContext(replicas(full(EP1), trans(EP2), trans(EP3)), dead(EP2, EP3));
     }
 }

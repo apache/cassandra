@@ -24,6 +24,7 @@ import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -219,8 +220,8 @@ public class DataResolverTransientTest extends AbstractReadResponseTest
 
     }
 
-    private ReplicaLayout.ForToken plan(EndpointsForToken replicas, ConsistencyLevel consistencyLevel)
+    private ReplicaPlan.SharedForTokenRead plan(EndpointsForToken replicas, ConsistencyLevel consistencyLevel)
     {
-        return new ReplicaLayout.ForToken(ks, consistencyLevel, replicas.token(), replicas, null, replicas);
+        return ReplicaPlan.shared(new ReplicaPlan.ForTokenRead(ks, consistencyLevel, replicas, replicas));
     }
 }

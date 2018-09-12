@@ -37,9 +37,9 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -49,25 +49,26 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tracing.Tracing;
 
-public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends AbstractFuture<Object> implements IAsyncCallback<Object>
+public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+        extends AbstractFuture<Object> implements IAsyncCallback<Object>
 {
     private final DecoratedKey key;
-    private final L replicaLayout;
+    private final P replicaPlan;
     private final Map<Replica, Mutation> pendingRepairs;
     private final CountDownLatch latch;
 
     private volatile long mutationsSentTime;
 
-    public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, int maxBlockFor, L replicaLayout)
+    public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
     {
         this.key = key;
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
-        this.replicaLayout = replicaLayout;
+        this.replicaPlan = replicaPlan;
 
         // here we remove empty repair mutations from the block for total, since
         // we're not sending them mutations
         int blockFor = maxBlockFor;
-        for (Replica participant: replicaLayout.selected())
+        for (Replica participant: replicaPlan.contacts())
         {
             // remote dcs can sometimes get involved in dc-local reads. We want to repair
             // them if they do, but they shouldn't interfere with blocking the client read.
@@ -97,7 +98,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLa
 
     private boolean shouldBlockOn(InetAddressAndPort endpoint)
     {
-        return !replicaLayout.consistencyLevel().isDatacenterLocal() || isLocal(endpoint);
+        return !replicaPlan.consistencyLevel().isDatacenterLocal() || isLocal(endpoint);
     }
 
     @VisibleForTesting
@@ -105,7 +106,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLa
     {
         if (shouldBlockOn(from))
         {
-            pendingRepairs.remove(replicaLayout.getReplicaFor(from));
+            pendingRepairs.remove(replicaPlan.getReplicaFor(from));
             latch.countDown();
         }
     }
@@ -198,8 +199,8 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLa
         if (awaitRepairs(timeout, timeoutUnit))
             return;
 
-        L newCandidates = replicaLayout.forNaturalUncontacted();
-        if (newCandidates.selected().isEmpty())
+        E newCandidates = replicaPlan.uncontactedCandidates();
+        if (newCandidates.isEmpty())
             return;
 
         PartitionUpdate update = mergeUnackedUpdates();
@@ -212,7 +213,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLa
 
         Mutation[] versionedMutations = new Mutation[msgVersionIdx(MessagingService.current_version) + 1];
 
-        for (Replica replica : newCandidates.selected())
+        for (Replica replica : newCandidates)
         {
             int versionIdx = msgVersionIdx(MessagingService.instance().getVersion(replica.endpoint()));
 
@@ -220,7 +221,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLa
 
             if (mutation == null)
             {
-                mutation = BlockingReadRepairs.createRepairMutation(update, replicaLayout.consistencyLevel(), replica.endpoint(), true);
+                mutation = BlockingReadRepairs.createRepairMutation(update, replicaPlan.consistencyLevel(), replica.endpoint(), true);
                 versionedMutations[versionIdx] = mutation;
             }
 
@@ -239,7 +240,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLa
 
     Keyspace getKeyspace()
     {
-        return replicaLayout.keyspace();
+        return replicaPlan.keyspace();
     }
 
     DecoratedKey getKey()
@@ -249,6 +250,6 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, L extends ReplicaLa
 
     ConsistencyLevel getConsistency()
     {
-        return replicaLayout.consistencyLevel();
+        return replicaPlan.consistencyLevel();
     }
 }

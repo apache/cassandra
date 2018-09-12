@@ -19,7 +19,7 @@ package org.apache.cassandra.service;
 
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.MessageIn;
 
 /**
@@ -27,13 +27,13 @@ import org.apache.cassandra.net.MessageIn;
  */
 public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
 {
-    public DatacenterWriteResponseHandler(ReplicaLayout.ForToken replicaLayout,
+    public DatacenterWriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan,
                                           Runnable callback,
                                           WriteType writeType,
                                           long queryStartNanoTime)
     {
-        super(replicaLayout, callback, writeType, queryStartNanoTime);
-        assert replicaLayout.consistencyLevel().isDatacenterLocal();
+        super(replicaPlan, callback, writeType, queryStartNanoTime);
+        assert replicaPlan.consistencyLevel().isDatacenterLocal();
     }
 
     @Override
@@ -54,6 +54,6 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
     @Override
     protected boolean waitingFor(InetAddressAndPort from)
     {
-        return replicaLayout.consistencyLevel().isLocal(from);
+        return replicaPlan.consistencyLevel().isLocal(from);
     }
 }

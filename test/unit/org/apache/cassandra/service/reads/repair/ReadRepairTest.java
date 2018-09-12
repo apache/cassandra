@@ -27,6 +27,7 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -70,11 +71,12 @@ public class ReadRepairTest
     static Replica target3;
     static EndpointsForRange targets;
 
-    private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends BlockingPartitionRepair<E, L>
+    private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+            extends BlockingPartitionRepair<E, P>
     {
-        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, L replicaLayout)
+        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
         {
-            super(Util.dk("not a valid key"), repairs, maxBlockFor, replicaLayout);
+            super(Util.dk("not a valid key"), repairs, maxBlockFor, replicaPlan);
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();
@@ -166,8 +168,8 @@ public class ReadRepairTest
 
     private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, EndpointsForRange all, EndpointsForRange targets)
     {
-        ReplicaLayout.ForRange replicaLayout = new ReplicaLayout.ForRange(ks, ConsistencyLevel.LOCAL_QUORUM, ReplicaUtils.FULL_BOUNDS, all, targets);
-        return new InstrumentedReadRepairHandler(repairs, maxBlockFor, replicaLayout);
+        ReplicaPlan.ForRangeRead replicaPlan = AbstractReadRepairTest.replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, all, targets);
+        return new InstrumentedReadRepairHandler<>(repairs, maxBlockFor, replicaPlan);
     }
 
     @Test
