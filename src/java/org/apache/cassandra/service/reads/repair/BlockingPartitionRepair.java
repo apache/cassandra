@@ -199,7 +199,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
         if (awaitRepairs(timeout, timeoutUnit))
             return;
 
-        E newCandidates = replicaPlan.allUncontactedCandidates();
+        E newCandidates = replicaPlan.uncontactedCandidates();
         if (newCandidates.isEmpty())
             return;
 

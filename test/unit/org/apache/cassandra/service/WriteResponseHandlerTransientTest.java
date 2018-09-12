@@ -164,15 +164,15 @@ public class WriteResponseHandlerTransientTest
     private static ReplicaPlan.ForTokenWrite getSpeculationContext(EndpointsForToken natural, Predicate<InetAddressAndPort> livePredicate)
     {
         ReplicaLayout.ForTokenWrite liveAndDown = new ReplicaLayout.ForTokenWrite(natural, EndpointsForToken.empty(dummy.getToken()));
-        ReplicaLayout.ForTokenWrite liveOnly = new ReplicaLayout.ForTokenWrite(natural.filter(r -> livePredicate.test(r.endpoint())), EndpointsForToken.empty(dummy.getToken()));
-        return ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, liveAndDown, liveOnly, ReplicaPlans.writeNormal);
+        ReplicaLayout.ForTokenWrite live = new ReplicaLayout.ForTokenWrite(natural.filter(r -> livePredicate.test(r.endpoint())), EndpointsForToken.empty(dummy.getToken()));
+        return ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, liveAndDown, live, ReplicaPlans.writeNormal);
     }
 
     private static void assertSpeculationReplicas(ReplicaPlan.ForTokenWrite expected, EndpointsForToken replicas, Predicate<InetAddressAndPort> livePredicate)
     {
         ReplicaPlan.ForTokenWrite actual = getSpeculationContext(replicas, livePredicate);
         Assert.assertEquals(expected.pending(), actual.pending());
-        Assert.assertEquals(expected.liveOnly(), actual.liveOnly());
+        Assert.assertEquals(expected.live(), actual.live());
         Assert.assertEquals(expected.contacts(), actual.contacts());
     }
 

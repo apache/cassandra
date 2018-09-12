@@ -63,7 +63,7 @@ public class ReplicaPlans
 
     /**
      * Requires that the provided endpoints are alive.  Converts them to their relevant system replicas.
-     * Note that the liveAndDown collection and liveOnly are equal to the provided endpoints.
+     * Note that the liveAndDown collection and live are equal to the provided endpoints.
      *
      * The semantics are a bit weird, in that CL=ONE iff we have one node provided, and otherwise is equal to TWO.
      * How these CL were chosen, and why we drop the CL if only one live node is available, are both unclear.
@@ -102,14 +102,14 @@ public class ReplicaPlans
     @VisibleForTesting
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
     {
-        ReplicaLayout.ForTokenWrite liveOnly = liveAndDown.filter(isAlive);
-        return forWrite(keyspace, consistencyLevel, liveAndDown, liveOnly, selector);
+        ReplicaLayout.ForTokenWrite live = liveAndDown.filter(isAlive);
+        return forWrite(keyspace, consistencyLevel, liveAndDown, live, selector);
     }
 
-    public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite liveOnly, Selector selector) throws UnavailableException
+    public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite live, Selector selector) throws UnavailableException
     {
-        EndpointsForToken contacts = selector.select(keyspace, consistencyLevel, liveAndDown, liveOnly);
-        ReplicaPlan.ForTokenWrite result = new ReplicaPlan.ForTokenWrite(keyspace, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), liveOnly.all(), contacts);
+        EndpointsForToken contacts = selector.select(keyspace, consistencyLevel, liveAndDown, live);
+        ReplicaPlan.ForTokenWrite result = new ReplicaPlan.ForTokenWrite(keyspace, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
         result.assureSufficientReplicas();
         return result;
     }
@@ -117,7 +117,7 @@ public class ReplicaPlans
     public interface Selector
     {
         <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L liveOnly);
+        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live);
     }
 
     /**
@@ -130,7 +130,7 @@ public class ReplicaPlans
     {
         @Override
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L liveOnly)
+        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
         {
             return liveAndDown.all();
         }
@@ -149,7 +149,7 @@ public class ReplicaPlans
     {
         @Override
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L liveOnly)
+        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
         {
             if (!any(liveAndDown.all(), Replica::isTransient))
                 return liveAndDown.all();
@@ -161,10 +161,10 @@ public class ReplicaPlans
             contacts.addAll(liveAndDown.pending());
 
             // TODO: this doesn't correctly handle LOCAL_QUORUM (or EACH_QUORUM at all)
-            int liveCount = contacts.count(liveOnly.all()::contains);
+            int liveCount = contacts.count(live.all()::contains);
             int requiredTransientCount = consistencyLevel.blockForWrite(keyspace, liveAndDown.pending()) - liveCount;
             if (requiredTransientCount > 0)
-                contacts.addAll(limit(filter(liveOnly.natural(), Replica::isTransient), requiredTransientCount));
+                contacts.addAll(limit(filter(live.natural(), Replica::isTransient), requiredTransientCount));
             return contacts.asSnapshot();
         }
     };
@@ -193,13 +193,13 @@ public class ReplicaPlans
             liveAndDown = liveAndDown.filter(isLocalDc);
         }
 
-        ReplicaLayout.ForTokenWrite liveOnly = liveAndDown.filter(FailureDetector.isReplicaAlive);
+        ReplicaLayout.ForTokenWrite live = liveAndDown.filter(FailureDetector.isReplicaAlive);
 
         // TODO: this should use assureSufficientReplicas
         int participants = liveAndDown.all().size();
         int requiredParticipants = participants / 2 + 1; // See CASSANDRA-8346, CASSANDRA-833
 
-        EndpointsForToken contacts = liveOnly.all();
+        EndpointsForToken contacts = live.all();
         if (contacts.size() < requiredParticipants)
             throw UnavailableException.create(consistencyForPaxos, requiredParticipants, contacts.size());
 
@@ -212,7 +212,7 @@ public class ReplicaPlans
                     participants + 1,
                     contacts.size());
 
-        return new ReplicaPlan.ForPaxosWrite(keyspace, consistencyForPaxos, liveAndDown.pending(), liveAndDown.all(), liveOnly.all(), contacts, requiredParticipants);
+        return new ReplicaPlan.ForPaxosWrite(keyspace, consistencyForPaxos, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts, requiredParticipants);
     }
 
     /**
@@ -280,7 +280,7 @@ public class ReplicaPlans
         EndpointsForRange mergedCandidates = left.candidates().keep(right.candidates().endpoints());
 
         // Check if there are enough shared endpoints for the merge to be possible.
-        if (!consistencyLevel.isSufficientReplicasForRead(keyspace, mergedCandidates))
+        if (!consistencyLevel.isSufficientLiveReplicasForRead(keyspace, mergedCandidates))
             return null;
 
         EndpointsForRange contacts = consistencyLevel.filterForQuery(keyspace, mergedCandidates);

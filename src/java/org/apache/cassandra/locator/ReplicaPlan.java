@@ -34,11 +34,11 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
     // all nodes we will contact via any mechanism, including hints
     // i.e., for:
     //  - reads, only live natural replicas
-    //      ==> liveOnly.natural().subList(0, blockFor + initial speculate)
+    //      ==> live.natural().subList(0, blockFor + initial speculate)
     //  - writes, includes all full, and any pending replicas, (and only any necessary transient ones to make up the difference)
-    //      ==> liveAndDown.natural().filter(isFull) ++ liveAndDown.pending() ++ liveOnly.natural.filter(isTransient, req)
-    //  - paxos, includes all liveOnly replicas (natural+pending), for this DC if SERIAL_LOCAL
-    //      ==> liveOnly.all()  (if consistencyLevel.isDCLocal(), then .filter(consistencyLevel.isLocal))
+    //      ==> liveAndDown.natural().filter(isFull) ++ liveAndDown.pending() ++ live.natural.filter(isTransient, req)
+    //  - paxos, includes all live replicas (natural+pending), for this DC if SERIAL_LOCAL
+    //      ==> live.all()  (if consistencyLevel.isDCLocal(), then .filter(consistencyLevel.isLocal))
     private final E contacts;
 
     ReplicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, E contacts)
@@ -70,11 +70,11 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         }
 
         public int blockFor() { return consistencyLevel.blockFor(keyspace); }
-        public void assureSufficientReplicas() { consistencyLevel.assureSufficientReplicasForRead(keyspace, candidates()); }
+        public void assureSufficientReplicas() { consistencyLevel.assureSufficientLiveReplicasForRead(keyspace, candidates()); }
 
         public E candidates() { return candidates; }
 
-        public E allUncontactedCandidates()
+        public E uncontactedCandidates()
         {
             return candidates().filter(r -> !contacts(r));
         }
@@ -101,7 +101,8 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         {
             super(keyspace, consistencyLevel, candidates, contact);
         }
-        public ForTokenRead withContact(EndpointsForToken newContact)
+
+        ForTokenRead withContact(EndpointsForToken newContact)
         {
             return new ForTokenRead(keyspace, consistencyLevel, candidates(), newContact);
         }
@@ -119,7 +120,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
 
         public AbstractBounds<PartitionPosition> range() { return range; }
 
-        public ForRangeRead withContact(EndpointsForRange newContact)
+        ForRangeRead withContact(EndpointsForRange newContact)
         {
             return new ForRangeRead(keyspace, consistencyLevel, range, candidates(), newContact);
         }
@@ -130,42 +131,42 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         // TODO: this is only needed because of poor isolation of concerns elsewhere - we can remove it soon, and will do so in a follow-up patch
         final E pending;
         final E liveAndDown;
-        final E liveOnly;
+        final E live;
 
-        ForWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, E pending, E liveAndDown, E liveOnly, E contact)
+        ForWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, E pending, E liveAndDown, E live, E contact)
         {
             super(keyspace, consistencyLevel, contact);
             this.pending = pending;
             this.liveAndDown = liveAndDown;
-            this.liveOnly = liveOnly;
+            this.live = live;
         }
 
         public int blockFor() { return consistencyLevel.blockForWrite(keyspace, pending()); }
-        public void assureSufficientReplicas() { consistencyLevel.assureSufficientReplicasForWrite(keyspace, liveOnly(), pending()); }
+        public void assureSufficientReplicas() { consistencyLevel.assureSufficientLiveReplicasForWrite(keyspace, live(), pending()); }
 
         /** Replicas that a region of the ring is moving to; not yet ready to serve reads, but should receive writes */
         public E pending() { return pending; }
         public E liveAndDown() { return liveAndDown; }
-        public E liveOnly() { return liveOnly; }
-        public E liveUncontacted() { return liveOnly().filter(r -> !contacts(r)); }
-        public boolean isAlive(Replica replica) { return liveOnly.endpoints().contains(replica.endpoint()); }
+        public E live() { return live; }
+        public E liveUncontacted() { return live().filter(r -> !contacts(r)); }
+        public boolean isAlive(Replica replica) { return live.endpoints().contains(replica.endpoint()); }
 
         public String toString()
         {
-            return "ReplicaPlan.ForWrite [ CL: " + consistencyLevel + " keyspace: " + keyspace + " liveAndDown: " + liveAndDown + " live: " + liveOnly + " contacts: " + contacts() +  " ]";
+            return "ReplicaPlan.ForWrite [ CL: " + consistencyLevel + " keyspace: " + keyspace + " liveAndDown: " + liveAndDown + " live: " + live + " contacts: " + contacts() +  " ]";
         }
     }
 
     public static class ForTokenWrite extends ForWrite<EndpointsForToken>
     {
-        public ForTokenWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken liveOnly, EndpointsForToken contact)
+        public ForTokenWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken live, EndpointsForToken contact)
         {
-            super(keyspace, consistencyLevel, pending, liveAndDown, liveOnly, contact);
+            super(keyspace, consistencyLevel, pending, liveAndDown, live, contact);
         }
 
         private ReplicaPlan.ForTokenWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
         {
-            return new ReplicaPlan.ForTokenWrite(keyspace, newConsistencyLevel, pending(), liveAndDown(), liveOnly(), newContact);
+            return new ReplicaPlan.ForTokenWrite(keyspace, newConsistencyLevel, pending(), liveAndDown(), live(), newContact);
         }
 
         ForTokenWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel) { return copy(newConsistencylevel, contacts()); }
@@ -176,9 +177,9 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
     {
         final int requiredParticipants;
 
-        ForPaxosWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken liveOnly, EndpointsForToken contact, int requiredParticipants)
+        ForPaxosWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken live, EndpointsForToken contact, int requiredParticipants)
         {
-            super(keyspace, consistencyLevel, pending, liveAndDown, liveOnly, contact);
+            super(keyspace, consistencyLevel, pending, liveAndDown, live, contact);
             this.requiredParticipants = requiredParticipants;
         }
 
