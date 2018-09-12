@@ -108,8 +108,8 @@ public class ReplicaPlans
 
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite liveOnly, Selector selector) throws UnavailableException
     {
-        EndpointsForToken contact = selector.select(keyspace, consistencyLevel, liveAndDown, liveOnly);
-        ReplicaPlan.ForTokenWrite result = new ReplicaPlan.ForTokenWrite(keyspace, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), liveOnly.all(), contact);
+        EndpointsForToken contacts = selector.select(keyspace, consistencyLevel, liveAndDown, liveOnly);
+        ReplicaPlan.ForTokenWrite result = new ReplicaPlan.ForTokenWrite(keyspace, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), liveOnly.all(), contacts);
         result.assureSufficientReplicas();
         return result;
     }
@@ -156,16 +156,16 @@ public class ReplicaPlans
 
             assert consistencyLevel != ConsistencyLevel.EACH_QUORUM;
 
-            ReplicaCollection.Mutable<E> contact = liveAndDown.all().newMutable(liveAndDown.all().size());
-            contact.addAll(filter(liveAndDown.natural(), Replica::isFull));
-            contact.addAll(liveAndDown.pending());
+            ReplicaCollection.Mutable<E> contacts = liveAndDown.all().newMutable(liveAndDown.all().size());
+            contacts.addAll(filter(liveAndDown.natural(), Replica::isFull));
+            contacts.addAll(liveAndDown.pending());
 
             // TODO: this doesn't correctly handle LOCAL_QUORUM (or EACH_QUORUM at all)
-            int liveCount = contact.count(liveOnly.all()::contains);
+            int liveCount = contacts.count(liveOnly.all()::contains);
             int requiredTransientCount = consistencyLevel.blockForWrite(keyspace, liveAndDown.pending()) - liveCount;
             if (requiredTransientCount > 0)
-                contact.addAll(limit(filter(liveOnly.natural(), Replica::isTransient), requiredTransientCount));
-            return contact.asSnapshot();
+                contacts.addAll(limit(filter(liveOnly.natural(), Replica::isTransient), requiredTransientCount));
+            return contacts.asSnapshot();
         }
     };
 
@@ -199,9 +199,9 @@ public class ReplicaPlans
         int participants = liveAndDown.all().size();
         int requiredParticipants = participants / 2 + 1; // See CASSANDRA-8346, CASSANDRA-833
 
-        EndpointsForToken contact = liveOnly.all();
-        if (contact.size() < requiredParticipants)
-            throw UnavailableException.create(consistencyForPaxos, requiredParticipants, contact.size());
+        EndpointsForToken contacts = liveOnly.all();
+        if (contacts.size() < requiredParticipants)
+            throw UnavailableException.create(consistencyForPaxos, requiredParticipants, contacts.size());
 
         // We cannot allow CAS operations with 2 or more pending endpoints, see #8346.
         // Note that we fake an impossible number of required nodes in the unavailable exception
@@ -210,9 +210,9 @@ public class ReplicaPlans
             throw new UnavailableException(String.format("Cannot perform LWT operation as there is more than one (%d) pending range movement", liveAndDown.all().size()),
                     consistencyForPaxos,
                     participants + 1,
-                    contact.size());
+                    contacts.size());
 
-        return new ReplicaPlan.ForPaxosWrite(keyspace, consistencyForPaxos, liveAndDown.pending(), liveAndDown.all(), liveOnly.all(), contact, requiredParticipants);
+        return new ReplicaPlan.ForPaxosWrite(keyspace, consistencyForPaxos, liveAndDown.pending(), liveAndDown.all(), liveOnly.all(), contacts, requiredParticipants);
     }
 
     /**
@@ -237,7 +237,7 @@ public class ReplicaPlans
     /**
      * Construct a plan for reading the provided token at the provided consistency level.  This translates to a collection of
      *   - candidates who are: alive, replicate the token, and are sorted by their snitch scores
-     *   - contact who are: the first blockFor + (retry == ALWAYS ? 1 : 0) candidates
+     *   - contacts who are: the first blockFor + (retry == ALWAYS ? 1 : 0) candidates
      *
      * The candidate collection can be used for speculation, although at present it would break
      * LOCAL_QUORUM and EACH_QUORUM to do so without further filtering
@@ -245,10 +245,10 @@ public class ReplicaPlans
     public static ReplicaPlan.ForTokenRead forRead(Keyspace keyspace, Token token, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry)
     {
         ReplicaLayout.ForTokenRead candidates = ReplicaLayout.forTokenReadLiveSorted(keyspace, token);
-        EndpointsForToken contact = consistencyLevel.filterForQuery(keyspace, candidates.natural(),
+        EndpointsForToken contacts = consistencyLevel.filterForQuery(keyspace, candidates.natural(),
                 retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE));
 
-        ReplicaPlan.ForTokenRead result = new ReplicaPlan.ForTokenRead(keyspace, consistencyLevel, candidates.natural(), contact);
+        ReplicaPlan.ForTokenRead result = new ReplicaPlan.ForTokenRead(keyspace, consistencyLevel, candidates.natural(), contacts);
         result.assureSufficientReplicas(); // Throw UAE early if we don't have enough replicas.
         return result;
     }
@@ -256,16 +256,16 @@ public class ReplicaPlans
     /**
      * Construct a plan for reading the provided range at the provided consistency level.  This translates to a collection of
      *   - candidates who are: alive, replicate the range, and are sorted by their snitch scores
-     *   - contact who are: the first blockFor candidates
+     *   - contacts who are: the first blockFor candidates
      *
      * There is no speculation for range read queries at present, so we never 'always speculate' here, and a failed response fails the query.
      */
     public static ReplicaPlan.ForRangeRead forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range)
     {
         ReplicaLayout.ForRangeRead candidates = ReplicaLayout.forRangeReadLiveSorted(keyspace, range);
-        EndpointsForRange contact = consistencyLevel.filterForQuery(keyspace, candidates.natural());
+        EndpointsForRange contacts = consistencyLevel.filterForQuery(keyspace, candidates.natural());
 
-        ReplicaPlan.ForRangeRead result = new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, candidates.range(), candidates.natural(), contact);
+        ReplicaPlan.ForRangeRead result = new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, candidates.range(), candidates.natural(), contacts);
         result.assureSufficientReplicas();
         return result;
     }
@@ -283,13 +283,13 @@ public class ReplicaPlans
         if (!consistencyLevel.isSufficientReplicasForRead(keyspace, mergedCandidates))
             return null;
 
-        EndpointsForRange contact = consistencyLevel.filterForQuery(keyspace, mergedCandidates);
+        EndpointsForRange contacts = consistencyLevel.filterForQuery(keyspace, mergedCandidates);
 
         // Estimate whether merging will be a win or not
-        if (!DatabaseDescriptor.getEndpointSnitch().isWorthMergingForRangeQuery(contact, left.contact(), right.contact()))
+        if (!DatabaseDescriptor.getEndpointSnitch().isWorthMergingForRangeQuery(contacts, left.contacts(), right.contacts()))
             return null;
 
         // If we get there, merge this range and the next one
-        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, newRange, mergedCandidates, contact);
+        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, newRange, mergedCandidates, contacts);
     }
 }

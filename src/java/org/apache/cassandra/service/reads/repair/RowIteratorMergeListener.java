@@ -46,7 +46,6 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.ColumnMetadata;
 
@@ -81,7 +80,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         this.partitionKey = partitionKey;
         this.columns = columns;
         this.isReversed = isReversed;
-        Endpoints<?> sources = replicaPlan.contact();
+        Endpoints<?> sources = replicaPlan.contacts();
         this.sources = new Replica[sources.size()];
         for (int i = 0; i < sources.size(); i++)
             this.sources[i] = sources.get(i);

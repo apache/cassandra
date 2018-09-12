@@ -509,13 +509,13 @@ public class BatchlogManager implements BatchlogManagerMBean
             ReplayWriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan, long queryStartNanoTime)
             {
                 super(replicaPlan, null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
-                Iterables.addAll(undelivered, replicaPlan.contact().endpoints());
+                Iterables.addAll(undelivered, replicaPlan.contacts().endpoints());
             }
 
             @Override
             protected int blockFor()
             {
-                return this.replicaPlan.contact().size();
+                return this.replicaPlan.contacts().size();
             }
 
             @Override

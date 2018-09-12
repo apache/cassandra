@@ -97,7 +97,6 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
                     = new DataResolver<>(command, replicaPlan, (ReadRepair<E, P>) NoopReadRepair.instance, queryStartNanoTime);
 
             dataResolver.preprocess(dataResponse);
-            // Forward differences to all full nodes
             for (MessageIn<ReadResponse> response : responses)
             {
                 Replica replica = replicaPlan().getReplicaFor(response.from);

@@ -118,7 +118,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
 
         UnfilteredPartitionIterator merged = mergeWithShortReadProtection(iters,
-                                                                          replicaPlan.getWithContact(replicas),
+                                                                          replicaPlan.getWithContacts(replicas),
                                                                           mergedResultCounter,
                                                                           repairedDataTracker);
         FilteredPartitions filtered = FilteredPartitions.filter(merged, new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness()));
@@ -147,7 +147,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
          */
         if (!command.limits().isUnlimited())
             for (int i = 0; i < results.size(); i++)
-                results.set(i, ShortReadProtection.extend(sources.contact().get(i), results.get(i), command, mergedResultCounter, queryStartNanoTime, enforceStrictLiveness));
+                results.set(i, ShortReadProtection.extend(sources.contacts().get(i), results.get(i), command, mergedResultCounter, queryStartNanoTime, enforceStrictLiveness));
 
         return UnfilteredPartitionIterators.merge(results, wrapMergeListener(readRepair.getMergeListener(sources), sources, repairedDataTracker));
     }
@@ -182,7 +182,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                            table,
                                                            mergedDeletion == null ? "null" : mergedDeletion.toString(),
                                                            '[' + Joiner.on(", ").join(transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString())) + ']',
-                                                           sources.contact(),
+                                                           sources.contacts(),
                                                            makeResponsesDebugString(partitionKey));
                             throw new AssertionError(details, e);
                         }
@@ -203,7 +203,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                            table,
                                                            merged == null ? "null" : merged.toString(table),
                                                            '[' + Joiner.on(", ").join(transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString(table))) + ']',
-                                                           sources.contact(),
+                                                           sources.contacts(),
                                                            makeResponsesDebugString(partitionKey));
                             throw new AssertionError(details, e);
                         }
@@ -229,7 +229,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                            table,
                                                            merged == null ? "null" : merged.toString(table),
                                                            '[' + Joiner.on(", ").join(transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString(table))) + ']',
-                                                           sources.contact(),
+                                                           sources.contacts(),
                                                            makeResponsesDebugString(partitionKey));
                             throw new AssertionError(details, e);
                         }

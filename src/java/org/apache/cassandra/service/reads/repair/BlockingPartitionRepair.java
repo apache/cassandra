@@ -68,7 +68,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
         // here we remove empty repair mutations from the block for total, since
         // we're not sending them mutations
         int blockFor = maxBlockFor;
-        for (Replica participant: replicaPlan.contact())
+        for (Replica participant: replicaPlan.contacts())
         {
             // remote dcs can sometimes get involved in dc-local reads. We want to repair
             // them if they do, but they shouldn't interfere with blocking the client read.

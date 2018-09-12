@@ -111,12 +111,12 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         if (DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled())
             command.trackRepairedStatus();
 
-        for (Replica replica : replicaPlan().contact())
+        for (Replica replica : replicaPlan().contacts())
         {
             Tracing.trace("Enqueuing full data read to {}", replica);
             sendReadCommand(replica, readCallback);
         }
-        ReadRepairDiagnostics.startRepair(this, replicaPlan().contact().endpoints(), digestResolver, replicaPlan().candidates().endpoints());
+        ReadRepairDiagnostics.startRepair(this, replicaPlan().contacts().endpoints(), digestResolver, replicaPlan().candidates().endpoints());
     }
 
     public void awaitReads() throws ReadTimeoutException
@@ -152,7 +152,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
             if (uncontacted == null)
                 return;
 
-            replicaPlan.addToContact(uncontacted);
+            replicaPlan.addToContacts(uncontacted);
             Tracing.trace("Enqueuing speculative full data read to {}", uncontacted);
             sendReadCommand(uncontacted, repair.readCallback);
             ReadRepairMetrics.speculatedRead.mark();

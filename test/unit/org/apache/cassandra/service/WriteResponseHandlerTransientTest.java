@@ -173,7 +173,7 @@ public class WriteResponseHandlerTransientTest
         ReplicaPlan.ForTokenWrite actual = getSpeculationContext(replicas, livePredicate);
         Assert.assertEquals(expected.pending(), actual.pending());
         Assert.assertEquals(expected.liveOnly(), actual.liveOnly());
-        Assert.assertEquals(expected.contact(), actual.contact());
+        Assert.assertEquals(expected.contacts(), actual.contacts());
     }
 
     private static Predicate<InetAddressAndPort> dead(InetAddressAndPort... endpoints)

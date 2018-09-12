@@ -72,7 +72,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         this.blockFor = replicaPlan.get().blockFor();
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
-        assert !(command instanceof PartitionRangeReadCommand) || blockFor >= replicaPlan().contact().size();
+        assert !(command instanceof PartitionRangeReadCommand) || blockFor >= replicaPlan().contacts().size();
 
         if (logger.isTraceEnabled())
             logger.trace("Blockfor is {}; setting up requests to {}", blockFor, this.replicaPlan);
@@ -99,7 +99,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     public void awaitResults() throws ReadFailureException, ReadTimeoutException
     {
         boolean signaled = await(command.getTimeout(), TimeUnit.MILLISECONDS);
-        boolean failed = failures > 0 && blockFor + failures > replicaPlan().contact().size();
+        boolean failed = failures > 0 && blockFor + failures > replicaPlan().contacts().size();
         if (signaled && !failed)
             return;
 
@@ -168,7 +168,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
         failureReasonByEndpoint.put(from, failureReason);
 
-        if (blockFor + n > replicaPlan().contact().size())
+        if (blockFor + n > replicaPlan().contacts().size())
             condition.signalAll();
     }
 }

@@ -39,27 +39,27 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
     //      ==> liveAndDown.natural().filter(isFull) ++ liveAndDown.pending() ++ liveOnly.natural.filter(isTransient, req)
     //  - paxos, includes all liveOnly replicas (natural+pending), for this DC if SERIAL_LOCAL
     //      ==> liveOnly.all()  (if consistencyLevel.isDCLocal(), then .filter(consistencyLevel.isLocal))
-    private final E contact;
+    private final E contacts;
 
-    ReplicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, E contact)
+    ReplicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, E contacts)
     {
-        assert contact != null;
+        assert contacts != null;
         this.keyspace = keyspace;
         this.consistencyLevel = consistencyLevel;
-        this.contact = contact;
+        this.contacts = contacts;
     }
 
     public abstract int blockFor();
     public abstract void assureSufficientReplicas();
 
-    public E contact() { return contact; }
-    public boolean contacts(Replica replica) { return contact.contains(replica); }
+    public E contacts() { return contacts; }
+    public boolean contacts(Replica replica) { return contacts.contains(replica); }
     public Keyspace keyspace() { return keyspace; }
     public ConsistencyLevel consistencyLevel() { return consistencyLevel; }
 
     public static abstract class ForRead<E extends Endpoints<E>> extends ReplicaPlan<E>
     {
-        // all nodes we *could* contact; typically all natural replicas that are believed to be alive
+        // all nodes we *could* contacts; typically all natural replicas that are believed to be alive
         // we will consult this collection to find uncontacted nodes we might contact if we doubt we will meet consistency level
         private final E candidates;
 
@@ -91,7 +91,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
 
         public String toString()
         {
-            return "ReplicaPlan.ForRead [ CL: " + consistencyLevel + " keyspace: " + keyspace + " candidates: " + candidates + " contact: " + contact() + " ]";
+            return "ReplicaPlan.ForRead [ CL: " + consistencyLevel + " keyspace: " + keyspace + " candidates: " + candidates + " contacts: " + contacts() + " ]";
         }
     }
 
@@ -143,6 +143,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         public int blockFor() { return consistencyLevel.blockForWrite(keyspace, pending()); }
         public void assureSufficientReplicas() { consistencyLevel.assureSufficientReplicasForWrite(keyspace, liveOnly(), pending()); }
 
+        /** Replicas that a region of the ring is moving to; not yet ready to serve reads, but should receive writes */
         public E pending() { return pending; }
         public E liveAndDown() { return liveAndDown; }
         public E liveOnly() { return liveOnly; }
@@ -151,7 +152,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
 
         public String toString()
         {
-            return "ReplicaPlan.ForWrite [ CL: " + consistencyLevel + " keyspace: " + keyspace + " liveAndDown: " + liveAndDown + " live: " + liveOnly + " contact: " + contact() +  " ]";
+            return "ReplicaPlan.ForWrite [ CL: " + consistencyLevel + " keyspace: " + keyspace + " liveAndDown: " + liveAndDown + " live: " + liveOnly + " contacts: " + contacts() +  " ]";
         }
     }
 
@@ -167,7 +168,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
             return new ReplicaPlan.ForTokenWrite(keyspace, newConsistencyLevel, pending(), liveAndDown(), liveOnly(), newContact);
         }
 
-        ForTokenWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel) { return copy(newConsistencylevel, contact()); }
+        ForTokenWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel) { return copy(newConsistencylevel, contacts()); }
         public ForTokenWrite withContact(EndpointsForToken newContact) { return copy(consistencyLevel, newContact); }
     }
 
@@ -185,33 +186,47 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
     }
 
     /**
-     * Used by AbstractReadExecutor, {Data,Digest}Resolver and ReadRepair to share a ReplicaPlan whose 'contact' replicas
+     * Used by AbstractReadExecutor, {Data,Digest}Resolver and ReadRepair to share a ReplicaPlan whose 'contacts' replicas
      * we progressively modify via various forms of speculation (initial speculation, rr-read and rr-write)
-     * @param <P>
+     *
+     * The internal reference is not volatile, despite being shared between threads.  The initial reference provided to
+     * the constructor should be visible by the normal process of sharing data between threads (i.e. executors, etc)
+     * and any updates will either be seen or not seen, perhaps not promptly, but certainly not incompletely.
+     * The contained ReplicaPlan has only final member properties, so it cannot be seen partially initialised.
      */
     public interface Shared<E extends Endpoints<E>, P extends ReplicaPlan<E>>
     {
-        public void addToContact(Replica replica);
+        /**
+         * add the provided replica to this shared plan, by updating the internal reference
+         */
+        public void addToContacts(Replica replica);
+        /**
+         * get the shared replica plan, non-volatile (so maybe stale) but no risk of partially initialised
+         */
         public P get();
-        public abstract P getWithContact(E endpoints);
+        /**
+         * get the shared replica plan, non-volatile (so maybe stale) but no risk of partially initialised,
+         * but replace its 'contacts' with those provided
+         */
+        public abstract P getWithContacts(E endpoints);
     }
 
     public static class SharedForTokenRead implements Shared<EndpointsForToken, ForTokenRead>
     {
         private ForTokenRead replicaPlan;
-        public SharedForTokenRead(ForTokenRead replicaPlan) { this.replicaPlan = replicaPlan; }
-        public void addToContact(Replica replica) { replicaPlan = replicaPlan.withContact(Endpoints.append(replicaPlan.contact(), replica)); }
+        SharedForTokenRead(ForTokenRead replicaPlan) { this.replicaPlan = replicaPlan; }
+        public void addToContacts(Replica replica) { replicaPlan = replicaPlan.withContact(Endpoints.append(replicaPlan.contacts(), replica)); }
         public ForTokenRead get() { return replicaPlan; }
-        public ForTokenRead getWithContact(EndpointsForToken newContact) { return replicaPlan.withContact(newContact); }
+        public ForTokenRead getWithContacts(EndpointsForToken newContact) { return replicaPlan.withContact(newContact); }
     }
 
     public static class SharedForRangeRead implements Shared<EndpointsForRange, ForRangeRead>
     {
         private ForRangeRead replicaPlan;
-        public SharedForRangeRead(ForRangeRead replicaPlan) { this.replicaPlan = replicaPlan; }
-        public void addToContact(Replica replica) { replicaPlan = replicaPlan.withContact(Endpoints.append(replicaPlan.contact(), replica)); }
+        SharedForRangeRead(ForRangeRead replicaPlan) { this.replicaPlan = replicaPlan; }
+        public void addToContacts(Replica replica) { replicaPlan = replicaPlan.withContact(Endpoints.append(replicaPlan.contacts(), replica)); }
         public ForRangeRead get() { return replicaPlan; }
-        public ForRangeRead getWithContact(EndpointsForRange newContact) { return replicaPlan.withContact(newContact); }
+        public ForRangeRead getWithContacts(EndpointsForRange newContact) { return replicaPlan.withContact(newContact); }
     }
 
     public static SharedForTokenRead shared(ForTokenRead replicaPlan) { return new SharedForTokenRead(replicaPlan); }

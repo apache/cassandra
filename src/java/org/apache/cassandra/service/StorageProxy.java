@@ -145,14 +145,14 @@ public class StorageProxy implements StorageProxyMBean
          */
         counterWritePerformer = (mutation, targets, responseHandler, localDataCenter) ->
         {
-            EndpointsForToken selected = targets.contact().withoutSelf();
+            EndpointsForToken selected = targets.contacts().withoutSelf();
             Replicas.temporaryAssertFull(selected); // TODO CASSANDRA-14548
             counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter).run();
         };
 
         counterWriteOnCoordinatorPerformer = (mutation, targets, responseHandler, localDataCenter) ->
         {
-            EndpointsForToken selected = targets.contact().withoutSelf();
+            EndpointsForToken selected = targets.contacts().withoutSelf();
             Replicas.temporaryAssertFull(selected); // TODO CASSANDRA-14548
             StageManager.getStage(Stage.COUNTER_MUTATION)
                         .execute(counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter));
@@ -444,7 +444,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         PrepareCallback callback = new PrepareCallback(toPrepare.update.partitionKey(), toPrepare.update.metadata(), replicaPlan.requiredParticipants(), replicaPlan.consistencyLevel(), queryStartNanoTime);
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PREPARE, toPrepare, Commit.serializer);
-        for (Replica replica: replicaPlan.contact())
+        for (Replica replica: replicaPlan.contacts())
         {
             if (replica.isLocal())
             {
@@ -480,9 +480,9 @@ public class StorageProxy implements StorageProxyMBean
     private static boolean proposePaxos(Commit proposal, ReplicaPlan.ForPaxosWrite replicaPlan, boolean timeoutIfPartial, long queryStartNanoTime)
     throws WriteTimeoutException
     {
-        ProposeCallback callback = new ProposeCallback(replicaPlan.contact().size(), replicaPlan.requiredParticipants(), !timeoutIfPartial, replicaPlan.consistencyLevel(), queryStartNanoTime);
+        ProposeCallback callback = new ProposeCallback(replicaPlan.contacts().size(), replicaPlan.requiredParticipants(), !timeoutIfPartial, replicaPlan.consistencyLevel(), queryStartNanoTime);
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PROPOSE, proposal, Commit.serializer);
-        for (Replica replica : replicaPlan.contact())
+        for (Replica replica : replicaPlan.contacts())
         {
             if (replica.isLocal())
             {
@@ -1226,7 +1226,7 @@ public class StorageProxy implements StorageProxyMBean
 
         List<InetAddressAndPort> backPressureHosts = null;
 
-        for (Replica destination : plan.contact())
+        for (Replica destination : plan.contacts())
         {
             checkHintOverload(destination);
 
@@ -1250,7 +1250,7 @@ public class StorageProxy implements StorageProxyMBean
                     if (localDataCenter.equals(dc))
                     {
                         if (localDc == null)
-                            localDc = new ArrayList<>(plan.contact().size());
+                            localDc = new ArrayList<>(plan.contacts().size());
 
                         localDc.add(destination);
                     }
@@ -1267,7 +1267,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
 
                     if (backPressureHosts == null)
-                        backPressureHosts = new ArrayList<>(plan.contact().size());
+                        backPressureHosts = new ArrayList<>(plan.contacts().size());
 
                     backPressureHosts.add(destination.endpoint());
                 }
@@ -2094,18 +2094,18 @@ public class StorageProxy implements StorageProxyMBean
             // If enabled, request repaired data tracking info from full replicas but
             // only if there are multiple full replicas to compare results from
             if (DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled()
-                    && replicaPlan.contact().filter(Replica::isFull).size() > 1)
+                    && replicaPlan.contacts().filter(Replica::isFull).size() > 1)
             {
                 command.trackRepairedStatus();
             }
 
-            if (replicaPlan.contact().size() == 1 && replicaPlan.contact().get(0).isLocal())
+            if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isLocal())
             {
                 StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(rangeCommand, handler));
             }
             else
             {
-                for (Replica replica : replicaPlan.contact())
+                for (Replica replica : replicaPlan.contacts())
                 {
                     Tracing.trace("Enqueuing request to {}", replica);
                     MessageOut<ReadCommand> message = rangeCommand.createMessage();

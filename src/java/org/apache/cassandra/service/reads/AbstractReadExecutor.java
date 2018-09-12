@@ -94,7 +94,7 @@ public abstract class AbstractReadExecutor
         // TODO: we need this when talking with pre-3.0 nodes. So if we preserve the digest format moving forward, we can get rid of this once
         // we stop being compatible with pre-3.0 nodes.
         int digestVersion = MessagingService.current_version;
-        for (Replica replica : replicaPlan.contact())
+        for (Replica replica : replicaPlan.contacts())
             digestVersion = Math.min(digestVersion, MessagingService.instance().getVersion(replica.endpoint()));
         command.setDigestVersion(digestVersion);
     }
@@ -169,7 +169,7 @@ public abstract class AbstractReadExecutor
      */
     public void executeAsync()
     {
-        EndpointsForToken selected = replicaPlan().contact();
+        EndpointsForToken selected = replicaPlan().contacts();
         EndpointsForToken fullDataRequests = selected.filter(Replica::isFull, initialDataRequestCount);
         makeFullDataRequests(fullDataRequests);
         makeTransientDataRequests(selected.filter(Replica::isTransient));
@@ -194,15 +194,12 @@ public abstract class AbstractReadExecutor
 
         // There are simply no extra replicas to speculate.
         // Handle this separately so it can record failed attempts to speculate due to lack of replicas
-        if (replicaPlan.contact().size() == replicaPlan.candidates().size())
+        if (replicaPlan.contacts().size() == replicaPlan.candidates().size())
         {
             boolean recordFailedSpeculation = consistencyLevel != ConsistencyLevel.ALL;
             return new NeverSpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime, recordFailedSpeculation);
         }
 
-        // If CL.ALL, upgrade to AlwaysSpeculating;
-        // If We are going to contact every node anyway, ask for 2 full data requests instead of 1, for redundancy
-        // (same amount of requests in total, but we turn 1 digest request into a full blown data request)
         if (retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE))
             return new AlwaysSpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime);
         else // PERCENTILE or CUSTOM.
@@ -265,7 +262,7 @@ public abstract class AbstractReadExecutor
             // We're hitting additional targets for read repair (??).  Since our "extra" replica is the least-
             // preferred by the snitch, we do an extra data read to start with against a replica more
             // likely to reply; better to let RR fail than the entire query.
-            super(cfs, command, replicaPlan, replicaPlan.blockFor() < replicaPlan.contact().size() ? 2 : 1, queryStartNanoTime);
+            super(cfs, command, replicaPlan, replicaPlan.blockFor() < replicaPlan.contacts().size() ? 2 : 1, queryStartNanoTime);
         }
 
         public void maybeTryAdditionalReplicas()
@@ -305,7 +302,7 @@ public abstract class AbstractReadExecutor
                 // we must update the plan to include this new node, else when we come to read-repair, we may not include this
                 // speculated response in the data requests we make again, and we will not be able to 'speculate' an extra repair read,
                 // nor would we be able to speculate a new 'write' if the repair writes are insufficient
-                super.replicaPlan.addToContact(extraReplica);
+                super.replicaPlan.addToContacts(extraReplica);
 
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);
@@ -331,8 +328,9 @@ public abstract class AbstractReadExecutor
                                              ReplicaPlan.ForTokenRead replicaPlan,
                                              long queryStartNanoTime)
         {
-            // presumably, we speculate an extra data request here in case it is our data request that fails to respond
-            super(cfs, command, replicaPlan, replicaPlan.contact().size() > 1 ? 2 : 1, queryStartNanoTime);
+            // presumably, we speculate an extra data request here in case it is our data request that fails to respond,
+            // and there are no more nodes to consult
+            super(cfs, command, replicaPlan, replicaPlan.contacts().size() > 1 ? 2 : 1, queryStartNanoTime);
         }
 
         public void maybeTryAdditionalReplicas()

@@ -135,7 +135,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     public void setIdealCLResponseHandler(AbstractWriteResponseHandler handler)
     {
         this.idealCLDelegate = handler;
-        idealCLDelegate.responsesAndExpirations = new AtomicInteger(replicaPlan.contact().size());
+        idealCLDelegate.responsesAndExpirations = new AtomicInteger(replicaPlan.contacts().size());
     }
 
     /**

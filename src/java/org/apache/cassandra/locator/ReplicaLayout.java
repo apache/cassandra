@@ -257,7 +257,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * @param <E>
      * @return
      */
-    public static <E extends Endpoints<E>> boolean haveWriteConflicts(E natural, E pending)
+    static <E extends Endpoints<E>> boolean haveWriteConflicts(E natural, E pending)
     {
         Set<InetAddressAndPort> naturalEndpoints = natural.endpoints();
         for (InetAddressAndPort pendingEndpoint : pending.endpoints())
@@ -273,7 +273,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * See {@link ReplicaLayout#haveWriteConflicts}
      * @return a 'natural' replica collection, that has had its conflicts with pending repaired
      */
-    public static <E extends Endpoints<E>> E resolveWriteConflictsInNatural(E natural, E pending)
+    private static <E extends Endpoints<E>> E resolveWriteConflictsInNatural(E natural, E pending)
     {
         return natural.filter(r -> !r.isTransient() || !pending.contains(r.endpoint(), true));
     }
@@ -283,7 +283,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * See {@link ReplicaLayout#haveWriteConflicts}
      * @return a 'pending' replica collection, that has had its conflicts with natural repaired
      */
-    public static <E extends Endpoints<E>> E resolveWriteConflictsInPending(E natural, E pending)
+    private static <E extends Endpoints<E>> E resolveWriteConflictsInPending(E natural, E pending)
     {
         return pending.without(natural.endpoints());
     }
@@ -292,7 +292,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * @return the read layout for a token - this includes only live natural replicas, i.e. those that are not pending
      * and not marked down by the failure detector. these are reverse sorted by the badness score of the configured snitch
      */
-    public static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(Keyspace keyspace, Token token)
+    static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(Keyspace keyspace, Token token)
     {
         EndpointsForToken replicas = keyspace.getReplicationStrategy().getNaturalReplicasForToken(token);
         replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
@@ -305,7 +305,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * @return the read layout for a range - this includes only live natural replicas, i.e. those that are not pending
      * and not marked down by the failure detector. these are reverse sorted by the badness score of the configured snitch
      */
-    public static ReplicaLayout.ForRangeRead forRangeReadLiveSorted(Keyspace keyspace, AbstractBounds<PartitionPosition> range)
+    static ReplicaLayout.ForRangeRead forRangeReadLiveSorted(Keyspace keyspace, AbstractBounds<PartitionPosition> range)
     {
         EndpointsForRange replicas = keyspace.getReplicationStrategy().getNaturalReplicas(range.right);
         replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);

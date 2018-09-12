@@ -23,7 +23,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -65,7 +64,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
         }
         catch (IllegalStateException e)
         {
-            logger.error("Encountered error while trying to preprocess the message {}: %s in command {}, replicas: {}", message, command, readRepair, replicaPlan().consistencyLevel(), replicaPlan().contact());
+            logger.error("Encountered error while trying to preprocess the message {}: %s in command {}, replicas: {}", message, command, readRepair, replicaPlan().consistencyLevel(), replicaPlan().contacts());
             throw e;
         }
     }
