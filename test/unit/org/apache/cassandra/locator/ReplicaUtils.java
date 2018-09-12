@@ -41,4 +41,14 @@ public class ReplicaUtils
     {
         return transientReplica(endpoint, FULL_RANGE);
     }
+
+    public static Replica full(InetAddressAndPort endpoint, Token token)
+    {
+        return fullReplica(endpoint, new Range<>(token, token));
+    }
+
+    public static Replica trans(InetAddressAndPort endpoint, Token token)
+    {
+        return transientReplica(endpoint, new Range<>(token, token));
+    }
 }

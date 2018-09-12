@@ -21,7 +21,6 @@ import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.net.ParameterType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.*;
@@ -173,7 +172,8 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                              indexMetadata());
     }
 
-    public PartitionRangeReadCommand copyAsDigestQuery()
+    @Override
+    protected PartitionRangeReadCommand copyAsDigestQuery()
     {
         return new PartitionRangeReadCommand(true,
                                              digestVersion(),
@@ -187,7 +187,8 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                              indexMetadata());
     }
 
-    public PartitionRangeReadCommand copyAsTransientQuery()
+    @Override
+    protected PartitionRangeReadCommand copyAsTransientQuery()
     {
         return new PartitionRangeReadCommand(false,
                                              0,

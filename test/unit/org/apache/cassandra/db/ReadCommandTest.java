@@ -52,7 +52,9 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
@@ -679,6 +681,50 @@ public class ReadCommandTest
         withRepairedInfo.trackRepairedStatus();
         Util.getAll(withRepairedInfo);
         assertEquals(cacheHits, cfs.metric.rowCacheHit.getCount());
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void copyFullAsTransientTest()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
+        ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).build();
+        readCommand.copyAsTransientQuery(ReplicaUtils.full(FBUtilities.getBroadcastAddressAndPort()));
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void copyTransientAsDigestQuery()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
+        ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).build();
+        readCommand.copyAsDigestQuery(ReplicaUtils.trans(FBUtilities.getBroadcastAddressAndPort()));
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void copyMultipleFullAsTransientTest()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
+        DecoratedKey key = Util.dk("key");
+        Token token = key.getToken();
+        // Address is unimportant for this test
+        InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
+        ReadCommand readCommand = Util.cmd(cfs, key).build();
+        readCommand.copyAsTransientQuery(EndpointsForToken.of(token,
+                                                              ReplicaUtils.trans(addr, token),
+                                                              ReplicaUtils.full(addr, token)));
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void copyMultipleTransientAsDigestQuery()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
+        DecoratedKey key = Util.dk("key");
+        Token token = key.getToken();
+        // Address is unimportant for this test
+        InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
+        ReadCommand readCommand = Util.cmd(cfs, key).build();
+        readCommand.copyAsDigestQuery(EndpointsForToken.of(token,
+                                                           ReplicaUtils.trans(addr, token),
+                                                           ReplicaUtils.full(addr, token)));
     }
 
     private void testRepairedDataTracking(ColumnFamilyStore cfs, ReadCommand readCommand) throws IOException
