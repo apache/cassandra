@@ -57,13 +57,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         super.preprocess(message);
         Replica replica = replicaPlan().getReplicaFor(message.from);
         if (dataResponse == null && !message.payload.isDigestResponse() && replica.isFull())
-        {
             dataResponse = message;
-        }
-        else if (replica.isTransient() && message.payload.isDigestResponse())
-        {
-            throw new IllegalStateException("digest response received from transient replica");
-        }
     }
 
     @VisibleForTesting

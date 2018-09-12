@@ -1,4 +1,5 @@
 4.0
+ * Add a check for receiving digest response from transient node (CASSANDRA-14750)
  * Fail query on transient replica if coordinator only expects full data (CASSANDRA-14704)
  * Remove mentions of transient replication from repair path (CASSANDRA-14698)
  * Fix handleRepairStatusChangedNotification to remove first then add (CASSANDRA-14720)
