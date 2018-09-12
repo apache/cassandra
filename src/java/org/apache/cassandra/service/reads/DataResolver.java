@@ -50,15 +50,23 @@ import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 
 import static com.google.common.collect.Iterables.*;
+import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener;
 
 public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>> extends ResponseResolver<E, L>
 {
     private final boolean enforceStrictLiveness;
+    private final MergeListener mergeListener;
 
     public DataResolver(ReadCommand command, L replicaLayout, ReadRepair<E, L> readRepair, long queryStartNanoTime)
     {
-        super(command, replicaLayout, readRepair, queryStartNanoTime);
+        this(command, replicaLayout, readRepair.getMergeListener(replicaLayout), queryStartNanoTime);
+    }
+
+    protected DataResolver(ReadCommand command, L replicaLayout, MergeListener mergeListener, long queryStartNanoTime)
+    {
+        super(command, replicaLayout, queryStartNanoTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
+        this.mergeListener = mergeListener;
     }
 
     public PartitionIterator getData()
@@ -149,7 +157,7 @@ public class DataResolver<E extends Endpoints<E>, L extends ReplicaLayout<E, L>>
             for (int i = 0; i < results.size(); i++)
                 results.set(i, ShortReadProtection.extend(sources.selected().get(i), results.get(i), command, mergedResultCounter, queryStartNanoTime, enforceStrictLiveness));
 
-        return UnfilteredPartitionIterators.merge(results, wrapMergeListener(readRepair.getMergeListener(sources), sources, repairedDataTracker));
+        return UnfilteredPartitionIterators.merge(results, wrapMergeListener(mergeListener, sources, repairedDataTracker));
     }
 
     private String makeResponsesDebugString(DecoratedKey partitionKey)
