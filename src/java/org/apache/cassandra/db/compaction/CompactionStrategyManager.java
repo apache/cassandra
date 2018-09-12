@@ -735,13 +735,16 @@ public class CompactionStrategyManager implements INotificationConsumer
                     continue;
 
                 AbstractStrategyHolder dstHolder = holders.get(i);
-                dstHolder.addSSTables(group);
 
                 for (AbstractStrategyHolder holder : holders)
                 {
                     if (holder != dstHolder)
                         holder.removeSSTables(group);
                 }
+
+                // adding sstables into another strategy may change its level,
+                // thus it won't be removed from original LCS. We have to remove sstables first
+                dstHolder.addSSTables(group);
             }
         }
         finally
