@@ -265,7 +265,7 @@ public class ReplicaPlans
         ReplicaLayout.ForRangeRead candidates = ReplicaLayout.forRangeReadLiveSorted(keyspace, range);
         EndpointsForRange contacts = consistencyLevel.filterForQuery(keyspace, candidates.natural());
 
-        ReplicaPlan.ForRangeRead result = new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, candidates.range(), candidates.natural(), contacts);
+        ReplicaPlan.ForRangeRead result = new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, range, candidates.natural(), contacts);
         result.assureSufficientReplicas();
         return result;
     }
