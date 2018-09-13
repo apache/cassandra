@@ -36,20 +36,18 @@ public class PartitionIteratorMergeListener<E extends Endpoints<E>>
 {
     private final ReplicaPlan.ForRead<E> replicaPlan;
     private final ReadCommand command;
-    private final ConsistencyLevel consistency;
     private final ReadRepair readRepair;
 
-    public PartitionIteratorMergeListener(ReplicaPlan.ForRead<E> replicaPlan, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
+    public PartitionIteratorMergeListener(ReplicaPlan.ForRead<E> replicaPlan, ReadCommand command, ReadRepair readRepair)
     {
         this.replicaPlan = replicaPlan;
         this.command = command;
-        this.consistency = consistency;
         this.readRepair = readRepair;
     }
 
     public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
     {
-        return new RowIteratorMergeListener<>(partitionKey, columns(versions), isReversed(versions), replicaPlan, command, consistency, readRepair);
+        return new RowIteratorMergeListener<>(partitionKey, columns(versions), isReversed(versions), replicaPlan, command, readRepair);
     }
 
     protected RegularAndStaticColumns columns(List<UnfilteredRowIterator> versions)

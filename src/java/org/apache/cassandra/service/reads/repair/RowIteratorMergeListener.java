@@ -56,7 +56,6 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
     private final RegularAndStaticColumns columns;
     private final boolean isReversed;
     private final ReadCommand command;
-    private final ConsistencyLevel consistency;
 
     private final PartitionUpdate.Builder[] repairs;
     private final Replica[] sources;
@@ -75,7 +74,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
 
     private final ReadRepair readRepair;
 
-    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E> replicaPlan, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair)
+    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E> replicaPlan, ReadCommand command, ReadRepair readRepair)
     {
         this.partitionKey = partitionKey;
         this.columns = columns;
@@ -91,7 +90,6 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         sourceDeletionTime = new DeletionTime[sources.size()];
         markerToRepair = new ClusteringBound[sources.size()];
         this.command = command;
-        this.consistency = consistency;
         this.readRepair = readRepair;
 
         this.diffListener = new RowDiffListener()
@@ -333,7 +331,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
                 continue;
 
             Preconditions.checkState(!isTransient(i), "cannot read repair transient replicas");
-            Mutation mutation = BlockingReadRepairs.createRepairMutation(repairs[i].build(), consistency, sources[i].endpoint(), false);
+            Mutation mutation = BlockingReadRepairs.createRepairMutation(repairs[i].build(), replicaPlan.consistencyLevel(), sources[i].endpoint(), false);
             if (mutation == null)
                 continue;
 

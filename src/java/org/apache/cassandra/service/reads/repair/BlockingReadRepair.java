@@ -60,8 +60,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
 
     public UnfilteredPartitionIterators.MergeListener getMergeListener(P replicaPlan)
     {
-        // TODO: why are we referencing a different replicaPlan here?
-        return new PartitionIteratorMergeListener<>(replicaPlan, command, this.replicaPlan().consistencyLevel(), this);
+        return new PartitionIteratorMergeListener<>(replicaPlan, command, this);
     }
 
     @Override
