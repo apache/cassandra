@@ -252,6 +252,37 @@ public class MoveTransientTest
         calculateStreamAndFetchRangesMoveForwardBetween();
     }
 
+    @Test
+    public void testResubtract()
+    {
+        Token oneToken = new RandomPartitioner.BigIntegerToken("0001");
+        Token tenToken = new RandomPartitioner.BigIntegerToken("0010");
+        Token fiveToken = new RandomPartitioner.BigIntegerToken("0005");
+
+        Range<Token> range_1_10 = new Range<>(oneToken, tenToken);
+        Range<Token> range_1_5 = new Range<>(oneToken, tenToken);
+        Range<Token> range_5_10 = new Range<>(fiveToken, tenToken);
+
+        RangesAtEndpoint singleRange = RangesAtEndpoint.of(
+        new Replica(address01, range_1_10, true)
+        );
+
+        RangesAtEndpoint splitRanges = RangesAtEndpoint.of(
+        new Replica(address01, range_1_5, true),
+        new Replica(address01, range_5_10, true)
+        );
+
+        // forward
+        Pair<RangesAtEndpoint, RangesAtEndpoint> calculated = RangeRelocator.calculateStreamAndFetchRanges(singleRange, splitRanges);
+        assertTrue(calculated.left.toString(), calculated.left.isEmpty());
+        assertTrue(calculated.right.toString(), calculated.right.isEmpty());
+
+        // backward
+        calculated = RangeRelocator.calculateStreamAndFetchRanges(splitRanges, singleRange);
+        assertTrue(calculated.left.toString(), calculated.left.isEmpty());
+        assertTrue(calculated.right.toString(), calculated.right.isEmpty());
+    }
+
     /**
      * Construct the ring state for calculateStreamAndFetchRangesMoveBackwardBetween
      * Where are A moves from 3 to 14

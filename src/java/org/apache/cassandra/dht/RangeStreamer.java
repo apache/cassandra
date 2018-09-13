@@ -313,15 +313,14 @@ public class RangeStreamer
             throw new IllegalArgumentException("Can't ask for strict consistency and not supply tokens");
         }
 
-        return RangeStreamer.calculateRangesToFetchWithPreferredEndpoints(snitch::sortedByProximity,
-                                                                           strat,
-                                                                           fetchRanges,
-                                                                           useStrictConsistency,
-                                                                           tmd,
-                                                                           tmdAfter,
-                                                                           ALIVE_PREDICATE,
-                                                                           keyspace.getName(),
-                                                                           sourceFilters);
+        return calculateRangesToFetchWithPreferredEndpoints(snitch::sortedByProximity,
+                                                            strat,
+                                                            fetchRanges,
+                                                            useStrictConsistency,
+                                                            tmd,
+                                                            tmdAfter,
+                                                            keyspace.getName(),
+                                                            sourceFilters);
 
     }
 
