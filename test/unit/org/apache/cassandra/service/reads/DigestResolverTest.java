@@ -65,7 +65,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), full(EP2));
-        TestableReadRepair readRepair = new TestableReadRepair(command, ConsistencyLevel.QUORUM);
+        TestableReadRepair readRepair = new TestableReadRepair(command);
         DigestResolver resolver = new DigestResolver(command, plan(ConsistencyLevel.QUORUM, targetReplicas), readRepair, 0);
 
         PartitionUpdate response = update(row(1000, 4, 4), row(1000, 5, 5)).build();
@@ -105,7 +105,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), trans(EP2));
-        TestableReadRepair readRepair = new TestableReadRepair(command, ConsistencyLevel.QUORUM);
+        TestableReadRepair readRepair = new TestableReadRepair(command);
         DigestResolver resolver = new DigestResolver(command, plan(ConsistencyLevel.QUORUM, targetReplicas), readRepair, 0);
 
         PartitionUpdate response1 = update(row(1000, 4, 4), row(1000, 5, 5)).build();

@@ -45,21 +45,19 @@ public class TestableReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     public final Map<InetAddressAndPort, Mutation> sent = new HashMap<>();
 
     private final ReadCommand command;
-    private final ConsistencyLevel consistency;
 
     private boolean partitionListenerClosed = false;
     private boolean rowListenerClosed = true;
 
-    public TestableReadRepair(ReadCommand command, ConsistencyLevel consistency)
+    public TestableReadRepair(ReadCommand command)
     {
         this.command = command;
-        this.consistency = consistency;
     }
 
     @Override
     public UnfilteredPartitionIterators.MergeListener getMergeListener(P endpoints)
     {
-        return new PartitionIteratorMergeListener<E>(endpoints, command, consistency, this) {
+        return new PartitionIteratorMergeListener<E>(endpoints, command, this) {
             @Override
             public void close()
             {
@@ -72,7 +70,7 @@ public class TestableReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
             {
                 assert rowListenerClosed;
                 rowListenerClosed = false;
-                return new RowIteratorMergeListener<E>(partitionKey, columns(versions), isReversed(versions), endpoints, command, consistency, TestableReadRepair.this) {
+                return new RowIteratorMergeListener<E>(partitionKey, columns(versions), isReversed(versions), endpoints, command, TestableReadRepair.this) {
                     @Override
                     public void close()
                     {

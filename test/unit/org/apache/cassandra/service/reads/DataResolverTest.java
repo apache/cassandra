@@ -88,7 +88,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         command = Util.cmd(cfs, dk).withNowInSeconds(nowInSec).build();
         command.trackRepairedStatus();
-        readRepair = new TestableReadRepair(command, ConsistencyLevel.QUORUM);
+        readRepair = new TestableReadRepair(command);
     }
 
     private static EndpointsForRange makeReplicas(int num)
@@ -339,7 +339,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveWithBothEmpty()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        TestableReadRepair readRepair = new TestableReadRepair(command, ConsistencyLevel.QUORUM);
+        TestableReadRepair readRepair = new TestableReadRepair(command);
         DataResolver resolver = new DataResolver(command, plan(replicas, ConsistencyLevel.ALL), readRepair, System.nanoTime());
         resolver.preprocess(response(command, replicas.get(0).endpoint(), EmptyIterators.unfilteredPartition(cfm)));
         resolver.preprocess(response(command, replicas.get(1).endpoint(), EmptyIterators.unfilteredPartition(cfm)));
@@ -716,7 +716,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd, ConsistencyLevel.QUORUM);
+        TestableReadRepair readRepair = new TestableReadRepair(cmd);
         DataResolver resolver = new DataResolver(cmd, plan(replicas, ConsistencyLevel.ALL), readRepair, System.nanoTime());
 
         long[] ts = {100, 200};
@@ -768,7 +768,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd, ConsistencyLevel.QUORUM);
+        TestableReadRepair readRepair = new TestableReadRepair(cmd);
         DataResolver resolver = new DataResolver(cmd, plan(replicas, ConsistencyLevel.ALL), readRepair, System.nanoTime());
 
         long[] ts = {100, 200};
@@ -812,7 +812,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd, ConsistencyLevel.QUORUM);
+        TestableReadRepair readRepair = new TestableReadRepair(cmd);
         DataResolver resolver = new DataResolver(cmd, plan(replicas, ConsistencyLevel.ALL), readRepair, System.nanoTime());
 
         long[] ts = {100, 200};
@@ -862,7 +862,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd, ConsistencyLevel.QUORUM);
+        TestableReadRepair readRepair = new TestableReadRepair(cmd);
         DataResolver resolver = new DataResolver(cmd, plan(replicas, ConsistencyLevel.ALL), readRepair, System.nanoTime());
 
         long[] ts = {100, 200};

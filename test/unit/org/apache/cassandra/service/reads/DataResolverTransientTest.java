@@ -103,7 +103,7 @@ public class DataResolverTransientTest extends AbstractReadResponseTest
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(update.metadata(), nowInSec, key);
         EndpointsForToken targetReplicas = EndpointsForToken.of(key.getToken(), full(EP1), full(EP2), trans(EP3));
-        TestableReadRepair repair = new TestableReadRepair(command, QUORUM);
+        TestableReadRepair repair = new TestableReadRepair(command);
         DataResolver resolver = new DataResolver(command, plan(targetReplicas, ConsistencyLevel.QUORUM), repair, 0);
 
         Assert.assertFalse(resolver.isDataPresent());
@@ -172,7 +172,7 @@ public class DataResolverTransientTest extends AbstractReadResponseTest
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk(5));
         EndpointsForToken targetReplicas = EndpointsForToken.of(key.getToken(), full(EP1), full(EP2), trans(EP3));
-        TestableReadRepair repair = new TestableReadRepair(command, QUORUM);
+        TestableReadRepair repair = new TestableReadRepair(command);
         DataResolver resolver = new DataResolver(command, plan(targetReplicas, QUORUM), repair, 0);
 
         Assert.assertFalse(resolver.isDataPresent());
@@ -199,7 +199,7 @@ public class DataResolverTransientTest extends AbstractReadResponseTest
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk(5));
         EndpointsForToken targetReplicas = EndpointsForToken.of(key.getToken(), full(EP1), full(EP2), trans(EP3));
-        TestableReadRepair<?, ?> repair = new TestableReadRepair(command, QUORUM);
+        TestableReadRepair<?, ?> repair = new TestableReadRepair(command);
         DataResolver resolver = new DataResolver(command, plan(targetReplicas, QUORUM), repair, 0);
 
         Assert.assertFalse(resolver.isDataPresent());
