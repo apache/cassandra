@@ -14,15 +14,26 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-Cassandra Tools
-===============
+SSTable Tools
+=============
 
-This section describes the command line tools provided with Apache Cassandra.
+This section describes the functionality of the various sstable tools.
+
+Cassandra must be stopped before these tools are executed, or unexpected results will occur. Note: the scripts do not verify that Cassandra is stopped.
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
 
-   cqlsh
-   nodetool/nodetool
-   sstable/index
-   cassandra_stress
+   sstabledump
+   sstableexpiredblockers
+   sstablelevelreset
+   sstableloader
+   sstablemetadata
+   sstableofflinerelevel
+   sstablerepairedset
+   sstablescrub
+   sstablesplit
+   sstableupgrade
+   sstableutil
+   sstableverify
+
