@@ -672,7 +672,10 @@ public class Config
 
     public Integer auto_repair_sstable_upper_threshold = 10000;
 
-    public String auto_repair_ignore_keyspaces = "";
+    public String auto_repair_ignore_keyspaces = "system_traces,system,system_distributed,system_schema," +
+            "system_auto_repair,system_auth,pingless";
+
+    public String auto_repair_only_keyspaces = "";
 
     public Integer auto_repair_check_interval_in_sec = 300;
 

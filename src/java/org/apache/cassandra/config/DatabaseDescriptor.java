@@ -4812,6 +4812,11 @@ public class DatabaseDescriptor
         return conf.auto_repair_ignore_keyspaces;
     }
 
+    public static String getAutoRepairOnlyKeyspaces()
+    {
+        return conf.auto_repair_only_keyspaces;
+    }
+
     public static Integer getAutoRepairCheckInterval()
     {
         return conf.auto_repair_check_interval_in_sec;

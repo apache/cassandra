@@ -1419,7 +1419,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (DatabaseDescriptor.isBadQueryTracingEnabled())
         {
-            logger.info("enable badquery tracing");
+            logger.info("Enable BadQuery tracing");
             BadQuery.setup();
         }
         MonitoringService.instance.setBadQueryTracingStatus(DatabaseDescriptor.isBadQueryTracingEnabled());
@@ -1429,9 +1429,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (DatabaseDescriptor.isAutoRepairEnabled())
         {
-            logger.info("enable autorepair");
+            logger.info("Enable AutoRepair");
             AutoRepair.instance.setup();
         }
+        AutoRepairService.instance.setAutoRepairStatus(DatabaseDescriptor.isAutoRepairEnabled());
     }
 
     @VisibleForTesting

@@ -95,6 +95,7 @@ import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
+import org.apache.cassandra.service.AutoRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
@@ -127,6 +128,7 @@ public class NodeProbe implements AutoCloseable
     private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
     private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
     private static final String mnObjName = "org.apache.cassandra.db:type=MonitoringService";
+    private static final String autoRepairObjName = "org.apache.cassandra.db:type=AutoRepairService";
     private static final int defaultPort = 7199;
 
     static long JMX_NOTIFICATION_POLL_INTERVAL_SECONDS = Long.getLong("cassandra.nodetool.jmx_notification_poll_interval_seconds", TimeUnit.SECONDS.convert(5, TimeUnit.MINUTES));
@@ -142,6 +144,7 @@ public class NodeProbe implements AutoCloseable
     protected CompactionManagerMBean compactionProxy;
     protected StorageServiceMBean ssProxy;
     protected MonitoringServiceMBean monitoringProxy;
+    protected AutoRepairServiceMBean autoRepairProxy;
     protected GossiperMBean gossProxy;
     protected MemoryMXBean memProxy;
     protected GCInspectorMXBean gcProxy;
@@ -253,6 +256,8 @@ public class NodeProbe implements AutoCloseable
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
             name = new ObjectName(mnObjName);
             monitoringProxy = JMX.newMBeanProxy(mbeanServerConn, name, MonitoringServiceMBean.class);
+            name = new ObjectName(autoRepairObjName);
+            autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
             name = new ObjectName(MessagingService.MBEAN_NAME);
             msProxy = JMX.newMBeanProxy(mbeanServerConn, name, MessagingServiceMBean.class);
             name = new ObjectName(StreamManagerMBean.OBJECT_NAME);
@@ -2269,19 +2274,94 @@ public class NodeProbe implements AutoCloseable
         monitoringProxy.setBadQueryIgnoreKeyspaces(badQueryIgnoreKeyspaces);
     }
 
-    public void stopAutoRepair()
+    public boolean isAutoRepairEnabled()
     {
-        ssProxy.stopAutoRepair();
+        return autoRepairProxy.isAutoRepairEnabled();
     }
 
     public void startAutoRepair()
     {
-        ssProxy.startAutoRepair();
+        autoRepairProxy.startAutoRepair();
     }
 
-    public boolean isAutoRepairEnabled()
+    public boolean isAutoRepairStarted()
     {
-        return ssProxy.isAutoRepairEnabled();
+        return autoRepairProxy.isAutoRepairStarted();
+    }
+
+    public void stopAutoRepair()
+    {
+        autoRepairProxy.stopAutoRepair();
+    }
+
+    public void setRepairThreads(int repairThreads)
+    {
+        autoRepairProxy.setRepairThreads(repairThreads);
+    }
+
+    public int getRepairThreads()
+    {
+        return autoRepairProxy.getRepairThreads();
+    }
+
+    public void setRepairPriorityForHosts(Set<InetAddress> hosts)
+    {
+        autoRepairProxy.setRepairPriorityForHosts(hosts);
+    }
+
+    public Set<InetAddress> getRepairPriorityForHosts()
+    {
+        return autoRepairProxy.getRepairHostPriority();
+    }
+
+    public int getRepairSubRangeNum()
+    {
+        return autoRepairProxy.getRepairSubRangeNum();
+    }
+
+    public void setRepairSubRangeNum(int repairSubRanges)
+    {
+        autoRepairProxy.setRepairSubRangeNum(repairSubRanges);
+    }
+
+    public int getRepairMinFrequencyInHours()
+    {
+        return autoRepairProxy.getRepairMinFrequencyInHours();
+    }
+
+    public void setRepairMinFrequencyInHours(int repairMinFrequencyInHours)
+    {
+        autoRepairProxy.setRepairMinFrequencyInHours(repairMinFrequencyInHours);
+    }
+
+    public int getRepairSSTableCountHigherThreshold()
+    {
+        return autoRepairProxy.getRepairSSTableCountHigherThreshold();
+    }
+
+    public void setRepairSSTableCountHigherThreshold(int ssTableHigherThreshold)
+    {
+        autoRepairProxy.setRepairSSTableCountHigherThreshold(ssTableHigherThreshold);
+    }
+
+    public Set<String> getRepairIgnoreKeyspaces()
+    {
+        return autoRepairProxy.getRepairIgnoreKeyspaces();
+    }
+
+    public void setRepairIgnoreKeyspaces(Set<String> ignoreKeyspace)
+    {
+        autoRepairProxy.setRepairIgnoreKeyspaces(ignoreKeyspace);
+    }
+
+    public Set<String> getRepairOnlyKeyspaces()
+    {
+        return autoRepairProxy.getRepairOnlyKeyspaces();
+    }
+
+    public void setRepairOnlyKeyspaces(Set<String> repairOnlyKeyspaces)
+    {
+        autoRepairProxy.setRepairOnlyKeyspaces(repairOnlyKeyspaces);
     }
 }
 

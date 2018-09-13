@@ -24,6 +24,9 @@ import org.apache.cassandra.repair.AutoRepair;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import com.google.common.collect.Sets;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -41,6 +44,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 
 import java.util.UUID;
+
+import static org.apache.cassandra.repair.AutoRepairUtils.RepairTurn.*;
 
 public class AutoRepairTest extends CQLTester
 {
@@ -76,7 +81,7 @@ public class AutoRepairTest extends CQLTester
     {
         cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
         cfs.truncateBlocking();
-        StorageService.instance.startAutoRepair();
+        AutoRepairService.instance.startAutoRepair();
         executeCQL();
     }
 
@@ -91,35 +96,36 @@ public class AutoRepairTest extends CQLTester
     public void testRepairTurn() throws Throwable
     {
         UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
-        Assert.assertTrue("Expected my turn for the repair", AutoRepair.instance.myTurnToRunRepair(myId));
+        Assert.assertTrue("Expected my turn for the repair", AutoRepairUtils.myTurnToRunRepair(myId) != NOT_MY_TURN);
     }
 
     @Test
     public void testRepair() throws Throwable
     {
-        AutoRepair.instance.setMinRepairFrequencyInHours(-1);
+        AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
         AutoRepair.repair(false);
         long lastRepairTime = AutoRepair.instance.getLastRepairTime();
         //if repair was done then lastRepairTime should be non-zero
-        Assert.assertTrue("Expected lastRepairTime > 0, actual value lastRepairTime: " + lastRepairTime, lastRepairTime > 0);
+        Assert.assertTrue(String.format("Expected lastRepairTime > 0, actual value lastRepairTime %d",
+                lastRepairTime), lastRepairTime > 0);
     }
 
     @Test
     public void testTooFrequentRepairs() throws Throwable
     {
         //in the first round let repair run
-        AutoRepair.instance.setMinRepairFrequencyInHours(-1);
+        AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
         AutoRepair.repair(false);
         long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
-        Assert.assertNotSame("Expected total repaired tables > 0, actual value: " + AutoRepair.instance
-                .getTotalTablesConsideredForRepair(), AutoRepair.instance.getTotalTablesConsideredForRepair(), 0);
+        Assert.assertNotSame(String.format("Expected total repaired tables > 0, actual value %s ", AutoRepair.instance
+                .getTotalTablesConsideredForRepair()), AutoRepair.instance.getTotalTablesConsideredForRepair(), 0);
 
         //if repair was done in last 24 hours then it should not trigger another repair
-        AutoRepair.instance.setMinRepairFrequencyInHours(24);
+        AutoRepairService.instance.setRepairMinFrequencyInHours(24);
         AutoRepair.repair(false);
         long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
-        Assert.assertEquals("Expected repair time to be same, actual value lastRepairTime1: " + lastRepairTime1 + "," +
-                " lastRepairTime2: " + lastRepairTime2, lastRepairTime1, lastRepairTime2);
+        Assert.assertEquals(String.format("Expected repair time to be same, actual value lastRepairTime1 %d, " +
+                "lastRepairTime2 %d", lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
         Assert.assertEquals("Expected total repaired tables = 0, actual value: " + AutoRepair.instance
                 .getTotalTablesConsideredForRepair(), AutoRepair.instance
                 .getTotalTablesConsideredForRepair(), 0);
@@ -128,15 +134,52 @@ public class AutoRepairTest extends CQLTester
     @Test
     public void testNonFrequentRepairs() throws Throwable
     {
-        AutoRepair.instance.setMinRepairFrequencyInHours(-1);
+        AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
         AutoRepair.repair(false);
         long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
-        Assert.assertTrue("Expected lastRepairTime1 > 0, actual value lastRepairTime1: " + lastRepairTime1, lastRepairTime1 > 0);
+        Assert.assertTrue(String.format("Expected lastRepairTime1 > 0, actual value lastRepairTime1 %d",
+                lastRepairTime1), lastRepairTime1 > 0);
         UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
-        Assert.assertTrue("Expected my turn for the repair", AutoRepair.instance.myTurnToRunRepair(myId));
+        Assert.assertTrue("Expected my turn for the repair", AutoRepairUtils.myTurnToRunRepair(myId) !=
+                NOT_MY_TURN);
         AutoRepair.repair(false);
         long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
-        Assert.assertNotSame("Expected repair time to be same, actual value lastRepairTime1: " + lastRepairTime1 +
-                ", lastRepairTime2: " + lastRepairTime2, lastRepairTime1, lastRepairTime2);
+        Assert.assertNotSame(String.format("Expected repair time to be same, actual value lastRepairTime1 %d, " +
+                "lastRepairTime2 ", lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
+    }
+
+    @Test
+    public void testGetPriorityHosts() throws Throwable
+    {
+        AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
+        Assert.assertSame(String.format("Priority host count is not same, actual value %d, expected value %d",
+                AutoRepairUtils.getPriorityHosts().size(), 0), AutoRepairUtils.getPriorityHosts().size(), 0);
+        UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
+        Assert.assertTrue("Expected my turn for the repair", AutoRepairUtils.myTurnToRunRepair(myId) !=
+                NOT_MY_TURN);
+        AutoRepairUtils.addPriorityHost(Sets.newHashSet(FBUtilities.getBroadcastAddressAndPort().getAddress()));
+        AutoRepair.repair(false);
+        Assert.assertSame(String.format("Priority host count is not same actual value %d, expected value %d", AutoRepairUtils
+                .getPriorityHosts().size(), 0), AutoRepairUtils.getPriorityHosts().size(), 0);
+    }
+
+    @Test
+    public void testCheckAutoRepairStartStop() throws Throwable
+    {
+        AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
+        AutoRepairService.instance.stopAutoRepair();
+        long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
+        AutoRepair.repair(false);
+        long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
+        //Since repair has not happened, both the last repair times should be same
+        Assert.assertEquals(String.format("Expected lastRepairTime1 %d, and lastRepairTime2 %d to be same",
+                lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
+
+        AutoRepairService.instance.startAutoRepair();
+        AutoRepair.repair(false);
+        //since repair is done now, so lastRepairTime1/lastRepairTime2 and lastRepairTime3 should not be same
+        long lastRepairTime3 = AutoRepair.instance.getLastRepairTime();
+        Assert.assertNotSame(String.format("Expected lastRepairTime1 %d, and lastRepairTime3 %d to be not same",
+                lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime3);
     }
 }

@@ -98,6 +98,8 @@ public class JMXStandardsTest
                                                        .add(IllegalStateException.class)
                                                        .add(ClassNotFoundException.class)
                                                        .add(OpenDataException.class)
+                                                       // regex.Pattern is used in AutoRepairService
+                                                       .add(Pattern.class)
                                                        .build();
     /**
      * This list is a set of types under java.* and javax.*, but are too vague that could cause issues; this does not

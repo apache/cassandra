@@ -17,7 +17,8 @@
  */
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import org.apache.cassandra.repair.AutoRepair;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -27,5 +28,34 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 public class AutoRepairMetrics
 {
     private static final MetricNameFactory factory = new DefaultNameFactory("AutoRepair");
-    public static final Counter repairsInProgress = Metrics.counter(factory.createMetricName("RepairsInProgress"));
+
+    public static Gauge<Integer> repairsInProgress;
+    public static Gauge<Integer> nodeRepairTimeInSec;
+    public static Gauge<Integer> clusterRepairTimeInSec;
+
+    public static void setup()
+    {
+        repairsInProgress = Metrics.register(factory.createMetricName("RepairsInProgress"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return AutoRepair.isRepairInProgress();
+            }
+        });
+        nodeRepairTimeInSec = Metrics.register(factory.createMetricName("NodeRepairTimeInSec"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return AutoRepair.getNodeRepairTimeInSec();
+            }
+        });
+        clusterRepairTimeInSec = Metrics.register(factory.createMetricName("ClusterRepairTimeInSec"), new
+                Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return AutoRepair.getClusterRepairTimeInSec();
+            }
+        });
+    }
 }
