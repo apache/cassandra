@@ -312,6 +312,7 @@
 
 3.11.4
 Merged from 3.0:
+ * Handle failures in parallelAllSSTableOperation (cleanup/upgradesstables/etc) (CASSANDRA-14657)
  * Improve TokenMetaData cache populating performance avoid long locking (CASSANDRA-14660)
  * Fix static column order for SELECT * wildcard queries (CASSANDRA-14638)
  * sstableloader should use discovered broadcast address to connect intra-cluster (CASSANDRA-14522)
