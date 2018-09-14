@@ -1747,9 +1747,9 @@ public class NodeProbe implements AutoCloseable
         ssProxy.disableAuditLog();
     }
 
-    public void enableAuditLog(String loggerName, String includedKeyspaces ,String excludedKeyspaces ,String includedCategories ,String excludedCategories ,String includedUsers ,String excludedUsers)
+    public void enableAuditLog(String loggerName, String includedKeyspaces ,String excludedKeyspaces ,String includedCategories ,String excludedCategories ,String includedUsers ,String excludedUsers, String archiveCommand)
     {
-        ssProxy.enableAuditLog(loggerName, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
+        ssProxy.enableAuditLog(loggerName, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers, archiveCommand);
     }
 
     public void enableOldProtocolVersions()

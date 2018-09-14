@@ -1225,6 +1225,7 @@ audit_logging_options:
     # excluded_categories:
     # included_users:
     # excluded_users:
+    # archive_command:
 
 # validate tombstones on reads and compaction
 # can be either "disabled", "warn" or "exception"

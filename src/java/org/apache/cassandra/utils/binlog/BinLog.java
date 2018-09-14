@@ -19,15 +19,25 @@
 package org.apache.cassandra.utils.binlog;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +48,11 @@ import net.openhft.chronicle.queue.RollCycle;
 import net.openhft.chronicle.queue.impl.StoreFileListener;
 import net.openhft.chronicle.wire.WireOut;
 import net.openhft.chronicle.wire.WriteMarshallable;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
 
 /**
@@ -63,6 +77,10 @@ public class BinLog implements Runnable, StoreFileListener
     Thread binLogThread = new NamedThreadFactory("Binary Log thread").newThread(this);
     final WeightedQueue<ReleaseableWriteMarshallable> sampleQueue;
     private final long maxLogSize;
+    private final String archiveCommand;
+    private final ExecutorService executor;
+    public final Map<String, Future<?>> archivePending = new ConcurrentHashMap<String, Future<?>>();
+    private static final Pattern PATH = Pattern.compile("%path");
 
     /**
      * The files in the chronicle queue that have already rolled
@@ -109,6 +127,8 @@ public class BinLog implements Runnable, StoreFileListener
         appender = queue.acquireAppender();
         sampleQueue = new WeightedQueue<>(maxQueueWeight);
         this.maxLogSize = maxLogSize;
+        this.archiveCommand = DatabaseDescriptor.getAuditLoggingOptions().archive_command;
+        executor = !Strings.isNullOrEmpty(archiveCommand) ? new JMXEnabledThreadPoolExecutor("BinLogArchiver") : null;
     }
 
     /**
@@ -139,6 +159,10 @@ public class BinLog implements Runnable, StoreFileListener
         binLogThread.join();
         appender = null;
         queue = null;
+        if(executor != null) 
+        {
+            executor.shutdown();
+        }
     }
 
     /**
@@ -218,6 +242,7 @@ public class BinLog implements Runnable, StoreFileListener
                 {
                     tasks.get(ii).release();
                 }
+                processFutures();
             }
         }
 
@@ -240,17 +265,33 @@ public class BinLog implements Runnable, StoreFileListener
         while (bytesInStoreFiles > maxLogSize & !chronicleStoreFiles.isEmpty())
         {
             File toDelete = chronicleStoreFiles.poll();
-            long toDeleteLength = toDelete.length();
-            if (!toDelete.delete())
+            if (!Strings.isNullOrEmpty(archiveCommand))
             {
-                logger.error("Failed to delete chronicle store file: {} store file size: {} bytes in store files: {}. " +
-                             "You will need to clean this up manually or reset full query logging.",
-                             toDelete.getPath(), toDeleteLength, bytesInStoreFiles);
+                archivePending.put(file.getPath(), executor.submit(new WrappedRunnable()
+                {
+                    protected void runMayThrow() throws IOException
+                    {
+                        exec(PATH.matcher(archiveCommand).replaceAll(Matcher.quoteReplacement(file.getPath())));
+                    }
+                }));
+
             }
             else
             {
-                bytesInStoreFiles -= toDeleteLength;
-                logger.info("Deleted chronicle store file: {} store file size: {} bytes in store files: {} max log size: {}.", file.getPath(), toDeleteLength, bytesInStoreFiles, maxLogSize);
+                long toDeleteLength = toDelete.length();
+                if (!toDelete.delete())
+                {
+                    logger.error("Failed to delete chronicle store file: {} store file size: {} bytes in store files: {}. " +
+					             "You will need to clean this up manually or reset full query logging.",
+								 toDelete.getPath(), toDeleteLength, bytesInStoreFiles);
+				}
+			    else
+                {
+                    bytesInStoreFiles -= toDeleteLength;
+                    logger.info(
+                            "Deleted chronicle store file: {} store file size: {} bytes in store files: {} max log size: {}.",
+                            file.getPath(), toDeleteLength, bytesInStoreFiles, maxLogSize);
+                }
             }
         }
     }
@@ -268,10 +309,42 @@ public class BinLog implements Runnable, StoreFileListener
         {
             toRelease.release();
         }
+        processFutures();
     }
 
     public abstract static class ReleaseableWriteMarshallable implements WriteMarshallable
     {
         public abstract void release();
+    }
+    
+    private void exec(String command) throws IOException
+    {
+        ProcessBuilder pb = new ProcessBuilder(command.split(" "));
+        pb.redirectErrorStream(true);
+        FBUtilities.exec(pb);
+    }
+    
+    private void processFutures() {
+        for(Entry<String, Future<?>> entry : archivePending.entrySet()) {
+            try
+            {
+                entry.getValue().get();
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+            catch (ExecutionException e)
+            {
+                if (e.getCause() instanceof RuntimeException)
+                {
+                    if (e.getCause().getCause() instanceof IOException)
+                    {
+                        logger.error("Looks like the archiving of bin file {} failed. Ignoring and proceeding with execution. This might lead to disk space issues", entry.getKey(), e.getCause().getCause());
+                    }
+                }
+                throw new RuntimeException(e);
+            }
+        }
     }
 }

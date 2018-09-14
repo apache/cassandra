@@ -29,6 +29,7 @@ public class AuditLogOptions
     public String excluded_categories = StringUtils.EMPTY;
     public String included_users = StringUtils.EMPTY;
     public String excluded_users = StringUtils.EMPTY;
+    public String archive_command = StringUtils.EMPTY;
 
     /**
      * AuditLogs directory can be configured using `cassandra.logdir.audit` or default is set to `cassandra.logdir` + /audit/

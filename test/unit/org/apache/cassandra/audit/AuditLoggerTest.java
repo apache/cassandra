@@ -67,8 +67,9 @@ public class AuditLoggerTest extends CQLTester
         String excludedCategories = options.excluded_categories;
         String includedUsers = options.included_users;
         String excludedUsers = options.excluded_users;
+        String archiveCommand = options.archive_command;
 
-        StorageService.instance.enableAuditLog(loggerName, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
+        StorageService.instance.enableAuditLog(loggerName, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers, archiveCommand);
     }
 
     private void disableAuditLogOptions()
