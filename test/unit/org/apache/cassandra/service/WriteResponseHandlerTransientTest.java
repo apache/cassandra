@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -153,7 +154,8 @@ public class WriteResponseHandlerTransientTest
         ReplicaLayout.ForTokenWrite layout = new ReplicaLayout.ForTokenWrite(natural, pending);
         ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, layout, layout, ReplicaPlans.writeAll);
 
-        Assert.assertEquals(EndpointsForRange.of(full(EP4), trans(EP6)), replicaPlan.pending());
+        Assert.assertTrue(Iterables.elementsEqual(EndpointsForRange.of(full(EP4), trans(EP6)),
+                                                  replicaPlan.pending()));
     }
 
     private static ReplicaPlan.ForTokenWrite expected(EndpointsForToken natural, EndpointsForToken selected)
@@ -171,9 +173,9 @@ public class WriteResponseHandlerTransientTest
     private static void assertSpeculationReplicas(ReplicaPlan.ForTokenWrite expected, EndpointsForToken replicas, Predicate<InetAddressAndPort> livePredicate)
     {
         ReplicaPlan.ForTokenWrite actual = getSpeculationContext(replicas, livePredicate);
-        Assert.assertEquals(expected.pending(), actual.pending());
-        Assert.assertEquals(expected.live(), actual.live());
-        Assert.assertEquals(expected.contacts(), actual.contacts());
+        Assert.assertTrue(Iterables.elementsEqual(expected.pending(), actual.pending()));
+        Assert.assertTrue(Iterables.elementsEqual(expected.live(), actual.live()));
+        Assert.assertTrue(Iterables.elementsEqual(expected.contacts(), actual.contacts()));
     }
 
     private static Predicate<InetAddressAndPort> dead(InetAddressAndPort... endpoints)
