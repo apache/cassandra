@@ -21,7 +21,13 @@ package org.apache.cassandra.locator;
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Iterables;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+
+import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -31,12 +37,17 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static com.google.common.collect.Iterables.any;
@@ -173,26 +184,62 @@ public class ReplicaPlans
         return forSingleReplicaWrite(keyspace, token, replica);
     }
 
+    public static ReplicaPlan.ForTokenWrite forLocalBatchlogWrite()
+    {
+        Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
+        Keyspace systemKeypsace = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        Replica localSystemReplica = SystemReplicas.getSystemReplica(FBUtilities.getBroadcastAddressAndPort());
+
+        ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(
+        EndpointsForToken.of(token, localSystemReplica),
+        EndpointsForToken.empty(token)
+        );
+
+        return forWrite(systemKeypsace, ConsistencyLevel.ONE, liveAndDown, liveAndDown, writeAll);
+    }
+
     /**
      * Requires that the provided endpoints are alive.  Converts them to their relevant system replicas.
      * Note that the liveAndDown collection and live are equal to the provided endpoints.
-     *
-     * The semantics are a bit weird, in that CL=ONE iff we have one node provided, and otherwise is equal to TWO.
-     * How these CL were chosen, and why we drop the CL if only one live node is available, are both unclear.
      */
-    public static ReplicaPlan.ForTokenWrite forBatchlogWrite(Keyspace keyspace, Collection<InetAddressAndPort> endpoints) throws UnavailableException
+    public static ReplicaPlan.ForTokenWrite forBatchlogWrite(String localDataCenter, ConsistencyLevel consistencyLevel) throws UnavailableException
     {
         // A single case we write not for range or token, but multiple mutations to many tokens
         Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
 
+        TokenMetadata.Topology topology = StorageService.instance.getTokenMetadata().cachedOnlyTokenMap().getTopology();
+        Multimap<String, InetAddressAndPort> localEndpoints = HashMultimap.create(topology.getDatacenterRacks().get(localDataCenter));
+        String localRack = DatabaseDescriptor.getEndpointSnitch().getRack(FBUtilities.getBroadcastAddressAndPort());
+
+        // Replicas are picked manually:
+        //  - replicas should be alive according to the failure detector
+        //  - replicas should be in the local datacenter
+        //  - choose min(2, number of qualifying candiates above)
+        //  - allow the local node to be the only replica only if it's a single-node DC
+        Collection<InetAddressAndPort> chosenEndpoints = new BatchlogManager.EndpointFilter(localRack, localEndpoints).filter();
+
+        if (chosenEndpoints.isEmpty())
+        {
+            if (consistencyLevel == ConsistencyLevel.ANY)
+                chosenEndpoints = Collections.singleton(FBUtilities.getBroadcastAddressAndPort());
+            else
+                throw UnavailableException.create(ConsistencyLevel.ONE, 1, 0);
+        }
+
         ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(
-                SystemReplicas.getSystemReplicas(endpoints).forToken(token),
+                SystemReplicas.getSystemReplicas(chosenEndpoints).forToken(token),
                 EndpointsForToken.empty(token)
         );
-        ConsistencyLevel consistencyLevel = liveAndDown.all().size() == 1 ? ConsistencyLevel.ONE : ConsistencyLevel.TWO;
+
+        // Batchlog is hosted by either one node or two nodes from different racks.
+        consistencyLevel = liveAndDown.all().size() == 1 ? ConsistencyLevel.ONE : ConsistencyLevel.TWO;
+
+        Keyspace systemKeypsace = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
 
         // assume that we have already been given live endpoints, and skip applying the failure detector
-        return forWrite(keyspace, consistencyLevel, liveAndDown, liveAndDown, writeAll);
+        ReplicaPlan.ForTokenWrite result = forWrite(systemKeypsace, consistencyLevel, liveAndDown, liveAndDown, writeAll);
+        result.assureSufficientReplicas();
+        return result;
     }
 
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, Selector selector) throws UnavailableException
