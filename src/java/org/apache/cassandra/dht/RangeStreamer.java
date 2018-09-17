@@ -654,12 +654,6 @@ public class RangeStreamer
                 if (logger.isTraceEnabled())
                     logger.trace("{}ing from {} ranges {}", description, source, StringUtils.join(remaining, ", "));
 
-                //At the other end the distinction between full and transient is ignored it just used the transient status
-                //of the Replica objects we send to determine what to send. The real reason we have this split down to
-                //StreamRequest is that on completion StreamRequest is used to write to the system table tracking
-                //what has already been streamed. At that point since we only have the local Replica instances so we don't
-                //know what we got from the remote. We preserve that here by splitting based on the remotes transient
-                //status.
                 InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
                 RangesAtEndpoint full = remaining.stream()
                         .filter(pair -> pair.remote.isFull())

@@ -1285,6 +1285,9 @@ public final class SystemKeyspace
                         keyspace);
     }
 
+    /**
+     * List of the streamed ranges, where transientness is encoded based on the source, where range was streamed from.
+     */
     public static synchronized RangesAtEndpoint getAvailableRanges(String keyspace, IPartitioner partitioner)
     {
         String query = "SELECT * FROM system.%s WHERE keyspace_name=?";

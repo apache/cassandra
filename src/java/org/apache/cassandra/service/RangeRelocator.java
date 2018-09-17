@@ -224,9 +224,8 @@ public class RangeRelocator
                             .filter(pair -> pair.remote.isTransient())
                             .map(pair -> pair.local)
                             .collect(RangesAtEndpoint.collector(localAddress));
-                    RangesAtEndpoint ranges = RangesAtEndpoint.concat(full, trans);
                     logger.debug("Will request range {} of keyspace {} from endpoint {}", rangesToFetch.get(address), keyspace, address);
-                    streamPlan.requestRanges(address, keyspace, ranges);
+                    streamPlan.requestRanges(address, keyspace, full, trans);
                 });
 
                 logger.debug("Keyspace {}: work map {}.", keyspace, rangesToFetch);
