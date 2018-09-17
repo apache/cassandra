@@ -276,8 +276,8 @@ public class LegacyLayoutTest
 
         Row.Builder builder;
         builder = BTreeRow.unsortedBuilder(0);
-        builder.newRow(new Clustering(UTF8Serializer.instance.serialize("a")));
-        builder.addCell(BufferCell.live(table, v, 0L, Int32Serializer.instance.serialize(1), null));
+        builder.newRow(new BufferClustering(UTF8Serializer.instance.serialize("a")));
+        builder.addCell(BufferCell.live(v, 0L, Int32Serializer.instance.serialize(1), null));
         builder.addComplexDeletion(bug, new DeletionTime(1L, 1));
         Row row = builder.build();
 
