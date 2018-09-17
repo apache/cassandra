@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -47,6 +48,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;
@@ -60,29 +62,59 @@ import static org.apache.cassandra.service.StorageServiceTest.assertMultimapEqua
  */
 public class BootstrapTransientTest
 {
-    static InetAddressAndPort aAddress;
-    static InetAddressAndPort bAddress;
-    static InetAddressAndPort cAddress;
-    static InetAddressAndPort dAddress;
+    static InetAddressAndPort address02;
+    static InetAddressAndPort address03;
+    static InetAddressAndPort address04;
+    static InetAddressAndPort address05;
 
     @BeforeClass
     public static void setUpClass() throws Exception
     {
-        aAddress = InetAddressAndPort.getByName("127.0.0.1");
-        bAddress = InetAddressAndPort.getByName("127.0.0.2");
-        cAddress = InetAddressAndPort.getByName("127.0.0.3");
-        dAddress = InetAddressAndPort.getByName("127.0.0.4");
+        address02 = InetAddressAndPort.getByName("127.0.0.2");
+        address03 = InetAddressAndPort.getByName("127.0.0.3");
+        address04 = InetAddressAndPort.getByName("127.0.0.4");
+        address05 = InetAddressAndPort.getByName("127.0.0.5");
     }
 
     private final List<InetAddressAndPort> downNodes = new ArrayList<>();
-    Predicate<Replica> alivePredicate = replica -> !downNodes.contains(replica.endpoint());
+
+    final RangeStreamer.SourceFilter alivePredicate = new RangeStreamer.SourceFilter()
+    {
+        public boolean apply(Replica replica)
+        {
+            return !downNodes.contains(replica.endpoint());
+        }
+
+        public String message(Replica replica)
+        {
+            return "Down nodes: " + downNodes;
+        }
+    };
+
+    final RangeStreamer.SourceFilter sourceFilterDownNodesPredicate = new RangeStreamer.SourceFilter()
+    {
+        public boolean apply(Replica replica)
+        {
+            return !sourceFilterDownNodes.contains(replica.endpoint());
+        }
+
+        public String message(Replica replica)
+        {
+            return "Source filter down nodes" + sourceFilterDownNodes;
+        }
+    };
 
     private final List<InetAddressAndPort> sourceFilterDownNodes = new ArrayList<>();
-    private final Collection<Predicate<Replica>> sourceFilters = Collections.singleton(replica -> !sourceFilterDownNodes.contains(replica.endpoint()));
+
+    private final Collection<RangeStreamer.SourceFilter> sourceFilters = Arrays.asList(alivePredicate,
+                                                                                       sourceFilterDownNodesPredicate,
+                                                                                       new RangeStreamer.ExcludeLocalNodeFilter()
+                                                                                       );
 
     @After
     public void clearDownNode()
     {
+        // TODO: actually use these
         downNodes.clear();
         sourceFilterDownNodes.clear();
     }
@@ -93,27 +125,43 @@ public class BootstrapTransientTest
         DatabaseDescriptor.daemonInitialization();
     }
 
-    Token tenToken = new OrderPreservingPartitioner.StringToken("00010");
+    Token tenToken    = new OrderPreservingPartitioner.StringToken("00010");
     Token twentyToken = new OrderPreservingPartitioner.StringToken("00020");
     Token thirtyToken = new OrderPreservingPartitioner.StringToken("00030");
     Token fourtyToken = new OrderPreservingPartitioner.StringToken("00040");
 
-    Range<Token> aRange = new Range<>(thirtyToken, tenToken);
-    Range<Token> bRange = new Range<>(tenToken, twentyToken);
-    Range<Token> cRange = new Range<>(twentyToken, thirtyToken);
-    Range<Token> dRange = new Range<>(thirtyToken, fourtyToken);
+    Range<Token> range30_10 = new Range<>(thirtyToken, tenToken);
+    Range<Token> range10_20 = new Range<>(tenToken, twentyToken);
+    Range<Token> range20_30 = new Range<>(twentyToken, thirtyToken);
+    Range<Token> range30_40 = new Range<>(thirtyToken, fourtyToken);
 
-    RangesAtEndpoint toFetch = RangesAtEndpoint.of(new Replica(dAddress, dRange, true),
-                                                   new Replica(dAddress, cRange, true),
-                                                   new Replica(dAddress, bRange, false));
+    RangesAtEndpoint toFetch = RangesAtEndpoint.of(new Replica(address05, range30_40, true),
+                                                   new Replica(address05, range20_30, true),
+                                                   new Replica(address05, range10_20, false));
 
+
+
+    public EndpointsForRange endpoints(Replica... replicas)
+    {
+        assert replicas.length > 0;
+
+        Range<Token> range = replicas[0].range();
+        EndpointsForRange.Builder builder = EndpointsForRange.builder(range);
+        for (Replica r : replicas)
+        {
+            assert r.range().equals(range);
+            builder.add(r);
+        }
+
+        return builder.build();
+    }
     @Test
     public void testRangeStreamerRangesToFetch() throws Exception
     {
         EndpointsByReplica expectedResult = new EndpointsByReplica(ImmutableMap.of(
-        fullReplica(dAddress, dRange), EndpointsForRange.builder(aRange).add(fullReplica(bAddress, aRange)).add(transientReplica(cAddress, aRange)).build(),
-        fullReplica(dAddress, cRange), EndpointsForRange.builder(cRange).add(fullReplica(cAddress, cRange)).add(transientReplica(bAddress, cRange)).build(),
-        transientReplica(dAddress, bRange), EndpointsForRange.builder(bRange).add(transientReplica(aAddress, bRange)).build()));
+        transientReplica(address05, range10_20), endpoints(transientReplica(address02, range10_20)),
+        fullReplica(address05, range20_30), endpoints(transientReplica(address03, range20_30), fullReplica(address04, range20_30)),
+        fullReplica(address05, range30_40), endpoints(transientReplica(address04, range30_10), fullReplica(address02, range30_10))));
 
         invokeCalculateRangesToFetchWithPreferredEndpoints(toFetch, constructTMDs(), expectedResult);
     }
@@ -121,11 +169,11 @@ public class BootstrapTransientTest
     private Pair<TokenMetadata, TokenMetadata> constructTMDs()
     {
         TokenMetadata tmd = new TokenMetadata();
-        tmd.updateNormalToken(aRange.right, aAddress);
-        tmd.updateNormalToken(bRange.right, bAddress);
-        tmd.updateNormalToken(cRange.right, cAddress);
+        tmd.updateNormalToken(range30_10.right, address02);
+        tmd.updateNormalToken(range10_20.right, address03);
+        tmd.updateNormalToken(range20_30.right, address04);
         TokenMetadata updated = tmd.cloneOnlyTokenMap();
-        updated.updateNormalToken(dRange.right, dAddress);
+        updated.updateNormalToken(range30_40.right, address05);
 
         return Pair.create(tmd, updated);
     }
@@ -137,14 +185,13 @@ public class BootstrapTransientTest
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
 
         EndpointsByReplica result = RangeStreamer.calculateRangesToFetchWithPreferredEndpoints((address, replicas) -> replicas,
-                                                                                                                   simpleStrategy(tmds.left),
-                                                                                                                   toFetch,
-                                                                                                                   true,
-                                                                                                                   tmds.left,
-                                                                                                                   tmds.right,
-                                                                                                                   alivePredicate,
-                                                                                                                   "OldNetworkTopologyStrategyTest",
-                                                                                                                   sourceFilters);
+                                                                                               simpleStrategy(tmds.left),
+                                                                                               toFetch,
+                                                                                               true,
+                                                                                               tmds.left,
+                                                                                               tmds.right,
+                                                                                               "OldNetworkTopologyStrategyTest",
+                                                                                               sourceFilters);
         result.asMap().forEach((replica, list) -> System.out.printf("Replica %s, sources %s%n", replica, list));
         assertMultimapEqualsIgnoreOrder(expectedResult, result);
 

@@ -125,21 +125,19 @@ public class BootStrapperTest
         s.addRanges(keyspaceName, Keyspace.open(keyspaceName).getReplicationStrategy().getPendingAddressRanges(tmd, myToken, myEndpoint));
 
 
-        Collection<Multimap<InetAddressAndPort, FetchReplica>> toFetch = s.toFetch().get(keyspaceName);
+        Multimap<InetAddressAndPort, FetchReplica> toFetch = s.toFetch().get(keyspaceName);
 
         // Check we get get RF new ranges in total
-        long rangesCount = toFetch.stream()
-               .map(Multimap::values)
-               .flatMap(Collection::stream)
-               .map(f -> f.remote)
-               .map(Replica::range)
-               .count();
+        long rangesCount = toFetch.values().stream()
+                                  .map(f -> f.remote)
+                                  .map(Replica::range)
+                                  .count();
         assertEquals(replicationFactor, rangesCount);
 
         // there isn't any point in testing the size of these collections for any specific size.  When a random partitioner
         // is used, they will vary.
-        assert toFetch.stream().map(Multimap::values).flatMap(Collection::stream).count() > 0;
-        assert toFetch.stream().map(Multimap::keySet).map(Collection::stream).noneMatch(myEndpoint::equals);
+        assert toFetch.values().size() > 0;
+        assert toFetch.keys().stream().noneMatch(myEndpoint::equals);
         return s;
     }
 

@@ -84,7 +84,7 @@ public class RangeFetchMapCalculator
     private final Set<Range<Token>> trivialRanges;
 
     public RangeFetchMapCalculator(EndpointsByRange rangesWithSources,
-                                   Collection<Predicate<Replica>> sourceFilters,
+                                   Collection<RangeStreamer.SourceFilter> sourceFilters,
                                    String keyspace)
     {
         this.rangesWithSources = rangesWithSources;
