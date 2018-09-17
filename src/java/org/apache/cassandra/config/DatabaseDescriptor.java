@@ -991,7 +991,7 @@ public class DatabaseDescriptor
         snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
         EndpointSnitchInfo.create();
 
-        localDC = snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+        localDC = snitch.getLocalDatacenter();
         localComparator = (replica1, replica2) -> {
             boolean local1 = localDC.equals(snitch.getDatacenter(replica1));
             boolean local2 = localDC.equals(snitch.getDatacenter(replica2));

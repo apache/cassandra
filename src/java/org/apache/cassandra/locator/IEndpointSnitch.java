@@ -19,6 +19,8 @@ package org.apache.cassandra.locator;
 
 import java.util.Set;
 
+import org.apache.cassandra.utils.FBUtilities;
+
 /**
  * This interface helps determine location of node in the datacenter relative to another node.
  * Give a node A and another node B it can tell if A and B are on the same rack or in the same
@@ -28,14 +30,30 @@ import java.util.Set;
 public interface IEndpointSnitch
 {
     /**
-     * returns a String representing the rack this endpoint belongs to
+     * returns a String representing the rack the given endpoint belongs to
      */
     public String getRack(InetAddressAndPort endpoint);
 
     /**
-     * returns a String representing the datacenter this endpoint belongs to
+     * returns a String representing the rack current endpoint belongs to
+     */
+    default public String getLocalRack()
+    {
+        return getRack(FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    /**
+     * returns a String representing the datacenter the given endpoint belongs to
      */
     public String getDatacenter(InetAddressAndPort endpoint);
+
+    /**
+     * returns a String representing the datacenter current endpoint belongs to
+     */
+    default public String getLocalDatacenter()
+    {
+        return getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+    }
 
     default public String getDatacenter(Replica replica)
     {

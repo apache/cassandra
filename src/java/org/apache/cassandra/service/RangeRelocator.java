@@ -185,8 +185,7 @@ public class RangeRelocator
 
                 //In the single node token move there is nothing to do and Range subtraction is broken
                 //so it's easier to just identify this case up front.
-                if (tokenMetaClone.getTopology().getDatacenterEndpoints().get(DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort()
-)).size() > 1)
+                if (tokenMetaClone.getTopology().getDatacenterEndpoints().get(DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter()).size() > 1)
                 {
                     // getting collection of the currently used ranges by this keyspace
                     RangesAtEndpoint currentReplicas = strategy.getAddressReplicas(localAddress);
