@@ -164,9 +164,27 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                                          P sources,
                                                                          RepairedDataTracker repairedDataTracker)
     {
-        // Avoid wrapping no-op listeners as it doesn't throw
+        // Avoid wrapping no-op listener as it doesn't throw, unless we're tracking repaired status
+        // in which case we need to inject the tracker & verify on close
         if (partitionListener == UnfilteredPartitionIterators.MergeListener.NOOP)
-            return partitionListener;
+        {
+            if (repairedDataTracker == null)
+                return partitionListener;
+
+            return new UnfilteredPartitionIterators.MergeListener()
+            {
+
+                public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
+                {
+                    return UnfilteredRowIterators.MergeListener.NOOP;
+                }
+
+                public void close()
+                {
+                    repairedDataTracker.verify();
+                }
+            };
+        }
 
         return new UnfilteredPartitionIterators.MergeListener()
         {
