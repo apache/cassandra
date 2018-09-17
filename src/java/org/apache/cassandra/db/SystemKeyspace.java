@@ -1288,24 +1288,25 @@ public final class SystemKeyspace
     /**
      * List of the streamed ranges, where transientness is encoded based on the source, where range was streamed from.
      */
-    public static synchronized RangesAtEndpoint getAvailableRanges(String keyspace, IPartitioner partitioner)
+    public static synchronized Pair<Set<Range<Token>>, Set<Range<Token>>> getAvailableRanges(String keyspace, IPartitioner partitioner)
     {
         String query = "SELECT * FROM system.%s WHERE keyspace_name=?";
         UntypedResultSet rs = executeInternal(format(query, AVAILABLE_RANGES_V2), keyspace);
-        InetAddressAndPort endpoint = InetAddressAndPort.getLocalHost();
-        RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(endpoint);
+
+        Set<Range<Token>> full = new HashSet<>();
+        Set<Range<Token>> trans = new HashSet<>();
         for (UntypedResultSet.Row row : rs)
         {
             Optional.ofNullable(row.getSet("full_ranges", BytesType.instance))
                     .ifPresent(full_ranges -> full_ranges.stream()
                             .map(buf -> byteBufferToRange(buf, partitioner))
-                            .forEach(range -> builder.add(fullReplica(endpoint, range))));
+                            .forEach(full::add));
             Optional.ofNullable(row.getSet("transient_ranges", BytesType.instance))
                     .ifPresent(transient_ranges -> transient_ranges.stream()
                             .map(buf -> byteBufferToRange(buf, partitioner))
-                            .forEach(range -> builder.add(transientReplica(endpoint, range))));
+                            .forEach(trans::add));
         }
-        return builder.build();
+        return Pair.create(full, trans);
     }
 
     public static void resetAvailableRanges()

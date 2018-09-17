@@ -57,6 +57,7 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.base.Predicates.and;
 import static com.google.common.base.Predicates.not;
@@ -627,16 +628,21 @@ public class RangeStreamer
             sources.asMap().forEach((source, fetchReplicas) -> {
 
                 // filter out already streamed ranges
-                RangesAtEndpoint available = stateStore.getAvailableRanges(keyspace, metadata.partitioner);
+                Pair<Set<Range<Token>>, Set<Range<Token>>> available = stateStore.getAvailableRanges(keyspace, metadata.partitioner);
 
                 Predicate<FetchReplica> isAvailable = fetch -> {
-                    Replica availableRange =  available.byRange().get(fetch.local.range());
-                    if (availableRange == null)
+                    boolean isInFull = available.left.contains(fetch.local.range());
+                    boolean isInTrans = available.right.contains(fetch.local.range());
+
+                    if (!isInFull && !isInTrans)
                         //Range is unavailable
                         return false;
+
+                    assert isInFull != isInTrans : "Range can't be simultaneously full and transient: " + isInFull + " " + isInTrans;
+
                     if (fetch.local.isFull())
                         //For full, pick only replicas with matching transientness
-                        return availableRange.isFull() == fetch.remote.isFull();
+                        return isInFull == fetch.remote.isFull();
 
                     // Any transient or full will do
                     return true;
@@ -644,11 +650,11 @@ public class RangeStreamer
 
                 List<FetchReplica> remaining = fetchReplicas.stream().filter(not(isAvailable)).collect(Collectors.toList());
 
-                if (remaining.size() < available.size())
+                if (remaining.size() < available.left.size() + available.right.size())
                 {
                     List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
                     logger.info("Some ranges of {} are already available. Skipping streaming those ranges. Skipping {}. Fully available {} Transiently available {}",
-                                fetchReplicas, skipped, available.filter(Replica::isFull).ranges(), available.filter(Replica::isTransient).ranges());
+                                fetchReplicas, skipped, available.left, available.right);
                 }
 
                 if (logger.isTraceEnabled())
