@@ -70,6 +70,16 @@ public class StreamPlan
     /**
      * Request data in {@code keyspace} and {@code ranges} from specific node.
      *
+     * Here, we have to encode both _local_ range transientness (encoded in Replica itself, in RangesAtEndpoint)
+     * and _remote_ (source) range transientmess, which is encoded by splitting ranges into full and transient.
+     *
+     * At the other end the distinction between full and transient is ignored it just used the transient status
+     * of the Replica objects we send to determine what to send. The real reason we have this split down to
+     * StreamRequest is that on completion StreamRequest is used to write to the system table tracking
+     * what has already been streamed. At that point since we only have the local Replica instances so we don't
+     * know what we got from the remote. We preserve that here by splitting based on the remotes transient
+     * status.
+     * 
      * @param from endpoint address to fetch data from.
      * @param keyspace name of keyspace
      * @param fullRanges ranges to fetch that from provides the full version of
@@ -94,10 +104,9 @@ public class StreamPlan
     public StreamPlan requestRanges(InetAddressAndPort from, String keyspace, RangesAtEndpoint fullRanges, RangesAtEndpoint transientRanges, String... columnFamilies)
     {
         //It should either be a dummy address for repair or if it's a bootstrap/move/rebuild it should be this node
-        assert all(fullRanges, Replica::isLocal) || all(fullRanges, range -> range.endpoint().getHostAddress(true).equals("0.0.0.0:0")) :
-             fullRanges.toString();
-        assert all(transientRanges, Replica::isLocal) || all(transientRanges, range -> range.endpoint().getHostAddress(true).equals("0.0.0.0:0")) :
-        transientRanges.toString();
+        assert all(fullRanges, Replica::isLocal) || RangesAtEndpoint.isDummyList(fullRanges) : fullRanges.toString();
+        assert all(transientRanges, Replica::isLocal) || RangesAtEndpoint.isDummyList(transientRanges) : transientRanges.toString();
+
         StreamSession session = coordinator.getOrCreateNextSession(from);
         session.addStreamRequest(keyspace, fullRanges, transientRanges, Arrays.asList(columnFamilies));
         return this;
