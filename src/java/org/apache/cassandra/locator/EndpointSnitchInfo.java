@@ -53,12 +53,12 @@ public class EndpointSnitchInfo implements EndpointSnitchInfoMBean
 
     public String getDatacenter()
     {
-        return DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+        return DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
     }
 
     public String getRack()
     {
-        return DatabaseDescriptor.getEndpointSnitch().getRack(FBUtilities.getBroadcastAddressAndPort());
+        return DatabaseDescriptor.getEndpointSnitch().getLocalRack();
     }
 
     public String getSnitchName()

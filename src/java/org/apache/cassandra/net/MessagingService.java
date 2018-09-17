@@ -1696,13 +1696,13 @@ public final class MessagingService implements MessagingServiceMBean
             case all:
                 break;
             case dc:
-                if (snitch.getDatacenter(address).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort())))
+                if (snitch.getDatacenter(address).equals(snitch.getLocalDatacenter()))
                     return false;
                 break;
             case rack:
                 // for rack then check if the DC's are the same.
-                if (snitch.getRack(address).equals(snitch.getRack(FBUtilities.getBroadcastAddressAndPort()))
-                    && snitch.getDatacenter(address).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort())))
+                if (snitch.getRack(address).equals(snitch.getLocalRack())
+                    && snitch.getDatacenter(address).equals(snitch.getLocalDatacenter()))
                     return false;
                 break;
         }

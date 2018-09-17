@@ -138,7 +138,7 @@ public abstract class AbstractReadExecutor
         for (Replica replica: replicas)
         {
             InetAddressAndPort endpoint = replica.endpoint();
-            if (replica.isLocal())
+            if (replica.isSelf())
             {
                 hasLocalEndpoint = true;
                 continue;

@@ -1060,8 +1060,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void gossipSnitchInfo()
     {
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        String dc = snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort());
-        String rack = snitch.getRack(FBUtilities.getBroadcastAddressAndPort());
+        String dc = snitch.getLocalDatacenter();
+        String rack = snitch.getLocalRack();
         Gossiper.instance.addLocalApplicationState(ApplicationState.DC, StorageService.instance.valueFactory.datacenter(dc));
         Gossiper.instance.addLocalApplicationState(ApplicationState.RACK, StorageService.instance.valueFactory.rack(rack));
     }
@@ -1835,7 +1835,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private boolean isLocalDC(InetAddressAndPort targetHost)
     {
         String remoteDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(targetHost);
-        String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+        String localDC = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
         return remoteDC.equals(localDC);
     }
 
@@ -4073,7 +4073,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             PendingRangeCalculatorService.instance.blockUntilFinished();
 
-            String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+            String dc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
 
             if (operationMode != Mode.LEAVING) // If we're already decommissioning there is no point checking RF/pending ranges
             {

@@ -357,7 +357,7 @@ public class RangeFetchMapCalculator
             {
                 sourceFound = true;
                 // if we pass filters, it means that we don't filter away localhost and we can count it as a source:
-                if (replica.isLocal())
+                if (replica.isSelf())
                     continue; // but don't add localhost to the graph to avoid streaming locally
                 final Vertex endpointVertex = new EndpointVertex(replica.endpoint());
                 capacityGraph.insertVertex(rangeVertex);

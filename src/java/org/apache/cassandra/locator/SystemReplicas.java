@@ -41,8 +41,6 @@ public class SystemReplicas
     /**
      * There are a few places where a system function borrows write path functionality, but doesn't otherwise
      * fit into normal replication strategies (ie: hints and batchlog). So here we provide a replica instance
-     * @param endpoint
-     * @return
      */
     public static Replica getSystemReplica(InetAddressAndPort endpoint)
     {
@@ -51,6 +49,9 @@ public class SystemReplicas
 
     public static EndpointsForRange getSystemReplicas(Collection<InetAddressAndPort> endpoints)
     {
+        if (endpoints.isEmpty())
+            return EndpointsForRange.empty(FULL_RANGE);
+
         return EndpointsForRange.copyOf(Collections2.transform(endpoints, SystemReplicas::getSystemReplica));
     }
 }
