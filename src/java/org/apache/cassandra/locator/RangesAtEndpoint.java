@@ -37,6 +37,7 @@ import java.util.Set;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict.*;
 
 /**
@@ -300,6 +301,11 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
         return ranges.stream()
                 .map(range -> new Replica(dummy, range, true))
                 .collect(collector(dummy));
+    }
+
+    public static boolean isDummyList(RangesAtEndpoint ranges)
+    {
+        return all(ranges, range -> range.endpoint().getHostAddress(true).equals("0.0.0.0:0"));
     }
 
     /**

@@ -34,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.RangeRelocator;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 
@@ -368,7 +369,7 @@ public class OldNetworkTopologyStrategyTest
         RangesAtEndpoint currentRanges = strategy.getAddressReplicas().get(movingNode);
         RangesAtEndpoint updatedRanges = strategy.getPendingAddressRanges(tokenMetadataAfterMove, tokensAfterMove[movingNodeIdx], movingNode);
 
-        return asRanges(StorageService.calculateStreamAndFetchRanges(currentRanges, updatedRanges));
+        return asRanges(RangeRelocator.calculateStreamAndFetchRanges(currentRanges, updatedRanges));
     }
 
     private static Map<String, String> optsWithRF(int rf)

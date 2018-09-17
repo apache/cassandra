@@ -195,18 +195,26 @@ public class RangeFetchMapCalculatorTest
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3");
 
         //Return false for all except 127.0.0.5
-        final Predicate<Replica> filter = replica ->
+        final RangeStreamer.SourceFilter filter = new RangeStreamer.SourceFilter()
         {
-            try
+            public boolean apply(Replica replica)
             {
-                if (replica.endpoint().equals(InetAddressAndPort.getByName("127.0.0.5")))
-                    return false;
-                else
+                try
+                {
+                    if (replica.endpoint().equals(InetAddressAndPort.getByName("127.0.0.5")))
+                        return false;
+                    else
+                        return true;
+                }
+                catch (UnknownHostException e)
+                {
                     return true;
+                }
             }
-            catch (UnknownHostException e)
+
+            public String message(Replica replica)
             {
-                return true;
+                return "Doesn't match 127.0.0.5";
             }
         };
 
@@ -230,7 +238,18 @@ public class RangeFetchMapCalculatorTest
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.2");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3");
 
-        final Predicate<Replica> allDeadFilter = replica -> false;
+        final RangeStreamer.SourceFilter allDeadFilter = new RangeStreamer.SourceFilter()
+        {
+            public boolean apply(Replica replica)
+            {
+                return false;
+            }
+
+            public String message(Replica replica)
+            {
+                return "All dead";
+            }
+        };
 
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(rangesWithSources.asImmutableView(), Arrays.asList(allDeadFilter), "Test");
         calculator.getRangeFetchMap();
@@ -263,18 +282,26 @@ public class RangeFetchMapCalculatorTest
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.2", "127.0.0.59");
 
         //Reject only 127.0.0.3 and accept everyone else
-        final Predicate<Replica> localHostFilter = replica ->
+        final RangeStreamer.SourceFilter localHostFilter = new RangeStreamer.SourceFilter()
         {
-            try
+            public boolean apply(Replica replica)
             {
-                if (replica.endpoint().equals(InetAddressAndPort.getByName("127.0.0.3")))
-                    return false;
-                else
+                try
+                {
+                    if (replica.endpoint().equals(InetAddressAndPort.getByName("127.0.0.3")))
+                        return false;
+                    else
+                        return true;
+                }
+                catch (UnknownHostException e)
+                {
                     return true;
+                }
             }
-            catch (UnknownHostException e)
+
+            public String message(Replica replica)
             {
-                return true;
+                return "Not 127.0.0.3";
             }
         };
 
@@ -318,18 +345,26 @@ public class RangeFetchMapCalculatorTest
         // and a trivial one:
         addTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.3");
 
-        Predicate<Replica> filter = replica ->
+        RangeStreamer.SourceFilter filter = new RangeStreamer.SourceFilter()
         {
-            try
+            public boolean apply(Replica replica)
             {
-                if (replica.endpoint().equals(InetAddressAndPort.getByName("127.0.0.3")))
-                    return false;
+                try
+                {
+                    if (replica.endpoint().equals(InetAddressAndPort.getByName("127.0.0.3")))
+                        return false;
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                return true;
             }
-            catch (UnknownHostException e)
+
+            public String message(Replica replica)
             {
-                throw new RuntimeException(e);
+                return "Not 127.0.0.3";
             }
-            return true;
         };
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(rangesWithSources.asImmutableView(), Collections.singleton(filter), "Test");
         Multimap<InetAddressAndPort, Range<Token>> optMap = calculator.getRangeFetchMapForNonTrivialRanges();

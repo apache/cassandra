@@ -20,7 +20,8 @@ package org.apache.cassandra.dht;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.locator.RangesAtEndpoint;
+import com.google.common.collect.Streams;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +39,7 @@ public class StreamStateStore implements StreamEventHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamStateStore.class);
 
-    public RangesAtEndpoint getAvailableRanges(String keyspace, IPartitioner partitioner)
+    public SystemKeyspace.AvailableRanges getAvailableRanges(String keyspace, IPartitioner partitioner)
     {
         return SystemKeyspace.getAvailableRanges(keyspace, partitioner);
     }
@@ -54,8 +55,11 @@ public class StreamStateStore implements StreamEventHandler
     @VisibleForTesting
     public boolean isDataAvailable(String keyspace, Token token)
     {
-        RangesAtEndpoint availableRanges = getAvailableRanges(keyspace, token.getPartitioner());
-        return availableRanges.ranges().stream().anyMatch(range -> range.contains(token));
+        SystemKeyspace.AvailableRanges availableRanges = getAvailableRanges(keyspace, token.getPartitioner());
+
+        return Streams.concat(availableRanges.full.stream(),
+                              availableRanges.trans.stream())
+                      .anyMatch(range -> range.contains(token));
     }
 
     /**
