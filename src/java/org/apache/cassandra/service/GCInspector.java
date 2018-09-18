@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
-import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,6 +46,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.utils.JavaVersionDependent;
 import org.apache.cassandra.utils.StatusLogger;
 
 public class GCInspector implements NotificationListener, GCInspectorMXBean
@@ -55,31 +55,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     private static final Logger logger = LoggerFactory.getLogger(GCInspector.class);
     private volatile long gcLogThreshholdInMs = DatabaseDescriptor.getGCLogThreshold();
     private volatile long gcWarnThreasholdInMs = DatabaseDescriptor.getGCWarnThreshold();
-
-    /*
-     * The field from java.nio.Bits that tracks the total number of allocated
-     * bytes of direct memory requires via ByteBuffer.allocateDirect that have not been GCed.
-     */
-    final static Field BITS_TOTAL_CAPACITY;
-
-    
-    static
-    {
-        Field temp = null;
-        try
-        {
-            Class<?> bitsClass = Class.forName("java.nio.Bits");
-            Field f = bitsClass.getDeclaredField("totalCapacity");
-            f.setAccessible(true);
-            temp = f;
-        }
-        catch (Throwable t)
-        {
-            logger.debug("Error accessing field of java.nio.Bits", t);
-            //Don't care, will just return the dummy value -1 if we can't get at the field in this JVM
-        }
-        BITS_TOTAL_CAPACITY = temp;
-    }
+    private static final long bitsTotalCapacity = JavaVersionDependent.getNioBitsTotalCapacity();
 
     static final class State
     {
@@ -322,17 +298,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     private static long getAllocatedDirectMemory()
     {
-        if (BITS_TOTAL_CAPACITY == null) return -1;
-        try
-        {
-            return BITS_TOTAL_CAPACITY.getLong(null);
-        }
-        catch (Throwable t)
-        {
-            logger.trace("Error accessing field of java.nio.Bits", t);
-            //Don't care how or why we failed to get the value in this JVM. Return -1 to indicate failure
-            return -1;
-        }
+        return bitsTotalCapacity;
     }
 
     public void setGcWarnThresholdInMs(long threshold)
