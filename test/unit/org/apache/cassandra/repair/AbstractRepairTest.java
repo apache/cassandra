@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.UUIDGen;
 @Ignore
 public abstract class AbstractRepairTest
 {
-    protected static final InetAddressAndPort COORDINATOR;
+    public static final InetAddressAndPort COORDINATOR;
     protected static final InetAddressAndPort PARTICIPANT1;
     protected static final InetAddressAndPort PARTICIPANT2;
     protected static final InetAddressAndPort PARTICIPANT3;
@@ -77,7 +77,7 @@ public abstract class AbstractRepairTest
 
     protected static final Set<Range<Token>> ALL_RANGES = ImmutableSet.of(RANGE1, RANGE2, RANGE3);
 
-    protected static UUID registerSession(ColumnFamilyStore cfs, boolean isIncremental, boolean isGlobal)
+    public static UUID registerSession(ColumnFamilyStore cfs, boolean isIncremental, boolean isGlobal)
     {
         UUID sessionId = UUIDGen.getTimeUUID();
 
