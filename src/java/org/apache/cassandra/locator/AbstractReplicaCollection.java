@@ -230,6 +230,9 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
     {
         private final Function<Replica, K> toKey;
         private final ReplicaList list;
+        // we maintain a map of key -> index in our list; this lets us share with subLists (or between Mutable and snapshots)
+        // since we only need to corroborate that the list index we find is within the bounds of our list
+        // (if not, it's a shared map, and the key only occurs in one of our ancestors)
         private final ObjectIntOpenHashMap<K> map;
         private Set<K> keySet;
         private Set<Entry<K, Replica>> entrySet;
@@ -292,6 +295,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             this.list = list;
             this.map = map;
         }
+
         public ReplicaMap(ReplicaList list, Function<Replica, K> toKey, ObjectIntOpenHashMap<K> map)
         {
             this.toKey = toKey;
@@ -299,6 +303,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             this.map = map;
         }
 
+        // to be used only by subclasses of AbstractReplicaCollection
         boolean internalPutIfAbsent(Replica replica, int index) { return putIfAbsent(map, toKey, replica, index); }
 
         @Override
@@ -310,6 +315,8 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         public Replica get(Object key)
         {
             int index = map.get((K)key) - 1;
+            // since this map can be shared between sublists (or snapshots of mutables)
+            // we have to first corroborate that the index we've found is actually within our list's bounds
             if (index < list.begin || index >= list.begin + list.size)
                 return null;
             return list.contents[index];
@@ -344,7 +351,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             return list.size();
         }
 
-        public ReplicaMap<K> subList(ReplicaList subList)
+        ReplicaMap<K> isSubList(ReplicaList subList)
         {
             assert subList.contents == list.contents;
             return new ReplicaMap<>(subList, toKey, map);

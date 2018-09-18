@@ -22,12 +22,9 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Iterables.all;
@@ -81,7 +78,7 @@ public class EndpointsForRange extends Endpoints<EndpointsForRange>
         if (newList.isEmpty()) return empty(range);
         ReplicaMap<InetAddressAndPort> byEndpoint = null;
         if (this.byEndpoint != null && list.isSubList(newList))
-            byEndpoint = this.byEndpoint.subList(newList);
+            byEndpoint = this.byEndpoint.isSubList(newList);
         return new EndpointsForRange(range, newList, true, byEndpoint);
     }
 
