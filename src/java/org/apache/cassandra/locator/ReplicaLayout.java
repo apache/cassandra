@@ -289,6 +289,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
                     // If we have any pending transient->full movement, we need to move the full replica to our 'natural' bucket
                     // to avoid corrupting our count
                     resolved.add(conflict);
+                    continue;
                 }
             }
             resolved.add(replica);
