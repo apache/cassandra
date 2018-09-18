@@ -27,7 +27,7 @@ import com.google.common.collect.Multimap;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Assert;
 import org.junit.Test;
@@ -147,7 +147,6 @@ public class ReplicaCollectionTest
 
         private void assertSubList(C subCollection, int from, int to)
         {
-            Assert.assertTrue(subCollection.isSnapshot);
             if (from == to)
             {
                 Assert.assertTrue(subCollection.isEmpty());
@@ -155,7 +154,7 @@ public class ReplicaCollectionTest
             else
             {
                 AbstractReplicaCollection.ReplicaList subList = this.test.list.subList(from, to);
-                if (test.isSnapshot)
+                if (!(test instanceof ReplicaCollection.Builder<?>))
                     Assert.assertSame(subList.contents, subCollection.list.contents);
                 Assert.assertEquals(subList, subCollection.list);
             }
@@ -173,7 +172,7 @@ public class ReplicaCollectionTest
 
         void testSubList(int subListDepth, int filterDepth, int sortDepth)
         {
-            if (test.isSnapshot)
+            if (!(test instanceof ReplicaCollection.Builder<?>))
                 Assert.assertSame(test, test.subList(0, test.size()));
 
             if (test.isEmpty())
@@ -189,7 +188,7 @@ public class ReplicaCollectionTest
 
         void testFilter(int subListDepth, int filterDepth, int sortDepth)
         {
-            if (test.isSnapshot)
+            if (!(test instanceof ReplicaCollection.Builder<?>))
                 Assert.assertSame(test, test.filter(Predicates.alwaysTrue()));
 
             if (test.isEmpty())
@@ -380,7 +379,7 @@ public class ReplicaCollectionTest
     public void testMutableRangesAtEndpoint()
     {
         ImmutableList<Replica> canonical1 = RANGES_AT_ENDPOINT.subList(0, RANGES_AT_ENDPOINT.size());
-        RangesAtEndpoint.Mutable test = new RangesAtEndpoint.Mutable(RANGES_AT_ENDPOINT.get(0).endpoint(), canonical1.size());
+        RangesAtEndpoint.Builder test = new RangesAtEndpoint.Builder(RANGES_AT_ENDPOINT.get(0).endpoint(), canonical1.size());
         test.addAll(canonical1, Conflict.NONE);
         try
         {   // incorrect range
@@ -402,13 +401,11 @@ public class ReplicaCollectionTest
 
         new RangesAtEndpointTestCase(test, canonical1).testAll();
 
-        RangesAtEndpoint view = test.asImmutableView();
-        RangesAtEndpoint snapshot = view.subList(0, view.size());
+        RangesAtEndpoint snapshot = test.subList(0, test.size());
 
         ImmutableList<Replica> canonical2 = RANGES_AT_ENDPOINT;
         test.addAll(canonical2.reverse(), Conflict.DUPLICATE);
         new TestCase<>(snapshot, canonical1).testAll();
-        new TestCase<>(view, canonical2).testAll();
         new TestCase<>(test, canonical2).testAll();
     }
 
@@ -433,7 +430,7 @@ public class ReplicaCollectionTest
     public void testMutableEndpointsForRange()
     {
         ImmutableList<Replica> canonical1 = ENDPOINTS_FOR_X.subList(0, ENDPOINTS_FOR_X.size() - 1);
-        EndpointsForRange.Mutable test = new EndpointsForRange.Mutable(R1, canonical1.size());
+        EndpointsForRange.Builder test = new EndpointsForRange.Builder(R1, canonical1.size());
         test.addAll(canonical1, Conflict.NONE);
         try
         {   // incorrect range
@@ -455,13 +452,11 @@ public class ReplicaCollectionTest
 
         new TestCase<>(test, canonical1).testAll();
 
-        EndpointsForRange view = test.asImmutableView();
-        EndpointsForRange snapshot = view.subList(0, view.size());
+        EndpointsForRange snapshot = test.subList(0, test.size());
 
         ImmutableList<Replica> canonical2 = ENDPOINTS_FOR_X;
         test.addAll(canonical2.reverse(), Conflict.DUPLICATE);
         new TestCase<>(snapshot, canonical1).testAll();
-        new TestCase<>(view, canonical2).testAll();
         new TestCase<>(test, canonical2).testAll();
     }
 
@@ -478,7 +473,7 @@ public class ReplicaCollectionTest
     public void testMutableEndpointsForToken()
     {
         ImmutableList<Replica> canonical1 = ENDPOINTS_FOR_X.subList(0, ENDPOINTS_FOR_X.size() - 1);
-        EndpointsForToken.Mutable test = new EndpointsForToken.Mutable(tk(1), canonical1.size());
+        EndpointsForToken.Builder test = new EndpointsForToken.Builder(tk(1), canonical1.size());
         test.addAll(canonical1, Conflict.NONE);
         try
         {   // incorrect range
@@ -500,13 +495,11 @@ public class ReplicaCollectionTest
 
         new TestCase<>(test, canonical1).testAll();
 
-        EndpointsForToken view = test.asImmutableView();
-        EndpointsForToken snapshot = view.subList(0, view.size());
+        EndpointsForToken snapshot = test.subList(0, test.size());
 
         ImmutableList<Replica> canonical2 = ENDPOINTS_FOR_X;
         test.addAll(canonical2.reverse(), Conflict.DUPLICATE);
         new TestCase<>(snapshot, canonical1).testAll();
-        new TestCase<>(view, canonical2).testAll();
         new TestCase<>(test, canonical2).testAll();
     }
 }

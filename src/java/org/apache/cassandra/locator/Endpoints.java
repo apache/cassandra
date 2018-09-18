@@ -18,13 +18,10 @@
 
 package org.apache.cassandra.locator;
 
-import org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.utils.FBUtilities;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -43,9 +40,9 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
     // besides (transitively) those that cache objects that themselves have only final members
     ReplicaMap<InetAddressAndPort> byEndpoint;
 
-    Endpoints(ReplicaList list, boolean isSnapshot, ReplicaMap<InetAddressAndPort> byEndpoint)
+    Endpoints(ReplicaList list, ReplicaMap<InetAddressAndPort> byEndpoint)
     {
-        super(list, isSnapshot);
+        super(list);
         this.byEndpoint = byEndpoint;
     }
 
@@ -111,7 +108,7 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
      */
     public E select(Iterable<InetAddressAndPort> endpoints, boolean ignoreMissing)
     {
-        ReplicaCollection.Mutable<E> copy = newMutable(
+        Builder<E> copy = newBuilder(
                 endpoints instanceof Collection<?>
                         ? ((Collection<InetAddressAndPort>) endpoints).size()
                         : size()
@@ -126,9 +123,9 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
                     throw new IllegalArgumentException(endpoint + " is not present in " + this);
                 continue;
             }
-            copy.add(select, ReplicaCollection.Mutable.Conflict.DUPLICATE);
+            copy.add(select, Builder.Conflict.DUPLICATE);
         }
-        return copy.asSnapshot();
+        return copy.build();
     }
 
     /**
@@ -147,10 +144,10 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
 
     public static <E extends Endpoints<E>> E append(E replicas, Replica extraReplica)
     {
-        Mutable<E> mutable = replicas.newMutable(replicas.size() + 1);
-        mutable.addAll(replicas);
-        mutable.add(extraReplica, Conflict.NONE);
-        return mutable.asSnapshot();
+        Builder<E> builder = replicas.newBuilder(replicas.size() + 1);
+        builder.addAll(replicas);
+        builder.add(extraReplica, Conflict.NONE);
+        return builder.build();
     }
 
 }

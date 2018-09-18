@@ -392,7 +392,7 @@ public class MoveTransientTest
     @Test
     public void testMoveForwardBetweenCalculateRangesToFetchWithPreferredEndpoints() throws Exception
     {
-        EndpointsByReplica.Mutable expectedResult = new EndpointsByReplica.Mutable();
+        EndpointsByReplica.Builder expectedResult = new EndpointsByReplica.Builder();
 
         InetAddressAndPort cOrB = (downNodes.contains(address03) || sourceFilterDownNodes.contains(address03)) ? address02 : address03;
 
@@ -406,7 +406,7 @@ public class MoveTransientTest
 
         invokeCalculateRangesToFetchWithPreferredEndpoints(calculateStreamAndFetchRangesMoveForwardBetween().right,
                                                            constructTMDsMoveForwardBetween(),
-                                                           expectedResult.asImmutableView());
+                                                           expectedResult.build());
     }
 
     @Test
@@ -469,7 +469,7 @@ public class MoveTransientTest
     @Test
     public void testMoveBackwardBetweenCalculateRangesToFetchWithPreferredEndpoints() throws Exception
     {
-        EndpointsByReplica.Mutable expectedResult = new EndpointsByReplica.Mutable();
+        EndpointsByReplica.Builder expectedResult = new EndpointsByReplica.Builder();
 
         //Need to pull the full replica and the transient replica that is losing the range
         expectedResult.put(fullReplica(address01, nineToken, elevenToken), fullReplica(address05, nineToken, elevenToken));
@@ -477,7 +477,7 @@ public class MoveTransientTest
 
         invokeCalculateRangesToFetchWithPreferredEndpoints(calculateStreamAndFetchRangesMoveBackwardBetween().right,
                                                            constructTMDsMoveBackwardBetween(),
-                                                           expectedResult.asImmutableView());
+                                                           expectedResult.build());
 
     }
 
@@ -503,18 +503,18 @@ public class MoveTransientTest
     public void testMoveBackwardCalculateRangesToFetchWithPreferredEndpoints() throws Exception
     {
         //Moving backwards should fetch nothing and fetch ranges is emptys so this doesn't test a ton
-        EndpointsByReplica.Mutable expectedResult = new EndpointsByReplica.Mutable();
+        EndpointsByReplica.Builder expectedResult = new EndpointsByReplica.Builder();
 
         invokeCalculateRangesToFetchWithPreferredEndpoints(calculateStreamAndFetchRangesMoveBackward().right,
                                                            constructTMDsMoveBackward(),
-                                                           expectedResult.asImmutableView());
+                                                           expectedResult.build());
 
     }
 
     @Test
     public void testMoveForwardCalculateRangesToFetchWithPreferredEndpoints() throws Exception
     {
-        EndpointsByReplica.Mutable expectedResult = new EndpointsByReplica.Mutable();
+        EndpointsByReplica.Builder expectedResult = new EndpointsByReplica.Builder();
 
         InetAddressAndPort cOrBAddress = (downNodes.contains(address03) || sourceFilterDownNodes.contains(address03)) ? address02 : address03;
 
@@ -524,7 +524,7 @@ public class MoveTransientTest
 
         invokeCalculateRangesToFetchWithPreferredEndpoints(calculateStreamAndFetchRangesMoveForward().right,
                                                            constructTMDsMoveForward(),
-                                                           expectedResult.asImmutableView());
+                                                           expectedResult.build());
 
     }
 
@@ -626,7 +626,7 @@ public class MoveTransientTest
     public void testMoveForwardBetweenCalculateRangesToStreamWithPreferredEndpoints() throws Exception
     {
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
-        RangesByEndpoint.Mutable expectedResult = new RangesByEndpoint.Mutable();
+        RangesByEndpoint.Builder expectedResult = new RangesByEndpoint.Builder();
 
         //Need to pull the full replica and the transient replica that is losing the range
         expectedResult.put(address02, transientReplica(address02, nineToken, elevenToken));
@@ -634,13 +634,13 @@ public class MoveTransientTest
 
         invokeCalculateRangesToStreamWithPreferredEndpoints(calculateStreamAndFetchRangesMoveForwardBetween().left,
                                                             constructTMDsMoveForwardBetween(),
-                                                            expectedResult.asImmutableView());
+                                                            expectedResult.build());
     }
 
     @Test
     public void testMoveBackwardBetweenCalculateRangesToStreamWithPreferredEndpoints() throws Exception
     {
-        RangesByEndpoint.Mutable expectedResult = new RangesByEndpoint.Mutable();
+        RangesByEndpoint.Builder expectedResult = new RangesByEndpoint.Builder();
 
         expectedResult.put(address02, fullReplica(address02, fourteenToken, oneToken));
 
@@ -651,30 +651,30 @@ public class MoveTransientTest
 
         invokeCalculateRangesToStreamWithPreferredEndpoints(calculateStreamAndFetchRangesMoveBackwardBetween().left,
                                                             constructTMDsMoveBackwardBetween(),
-                                                            expectedResult.asImmutableView());
+                                                            expectedResult.build());
     }
 
     @Test
     public void testMoveBackwardCalculateRangesToStreamWithPreferredEndpoints() throws Exception
     {
-        RangesByEndpoint.Mutable expectedResult = new RangesByEndpoint.Mutable();
+        RangesByEndpoint.Builder expectedResult = new RangesByEndpoint.Builder();
         expectedResult.put(address03, fullReplica(address03, twoToken, threeToken));
         expectedResult.put(address04, transientReplica(address04, twoToken, threeToken));
 
         invokeCalculateRangesToStreamWithPreferredEndpoints(calculateStreamAndFetchRangesMoveBackward().left,
                                                             constructTMDsMoveBackward(),
-                                                            expectedResult.asImmutableView());
+                                                            expectedResult.build());
     }
 
     @Test
     public void testMoveForwardCalculateRangesToStreamWithPreferredEndpoints() throws Exception
     {
         //Nothing to stream moving forward because we are acquiring more range not losing range
-        RangesByEndpoint.Mutable expectedResult = new RangesByEndpoint.Mutable();
+        RangesByEndpoint.Builder expectedResult = new RangesByEndpoint.Builder();
 
         invokeCalculateRangesToStreamWithPreferredEndpoints(calculateStreamAndFetchRangesMoveForward().left,
                                                             constructTMDsMoveForward(),
-                                                            expectedResult.asImmutableView());
+                                                            expectedResult.build());
     }
 
     private void invokeCalculateRangesToStreamWithPreferredEndpoints(RangesAtEndpoint toStream,

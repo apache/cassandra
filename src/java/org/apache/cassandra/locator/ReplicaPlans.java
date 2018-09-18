@@ -41,8 +41,8 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
-import org.apache.cassandra.utils.FBUtilities;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -387,7 +387,7 @@ public class ReplicaPlans
 
             assert consistencyLevel != EACH_QUORUM;
 
-            ReplicaCollection.Mutable<E> contacts = liveAndDown.all().newMutable(liveAndDown.all().size());
+            ReplicaCollection.Builder<E> contacts = liveAndDown.all().newBuilder(liveAndDown.all().size());
             contacts.addAll(liveAndDown.natural().filterLazily(Replica::isFull));
             contacts.addAll(liveAndDown.pending());
 
@@ -396,7 +396,7 @@ public class ReplicaPlans
             int requiredTransientCount = consistencyLevel.blockForWrite(keyspace, liveAndDown.pending()) - liveCount;
             if (requiredTransientCount > 0)
                 contacts.addAll(live.natural().filterLazily(Replica::isTransient, requiredTransientCount));
-            return contacts.asSnapshot();
+            return contacts.build();
         }
     };
 

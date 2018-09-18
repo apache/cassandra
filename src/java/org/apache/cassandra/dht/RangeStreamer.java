@@ -39,7 +39,7 @@ import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -418,7 +418,7 @@ public class RangeStreamer
          endpoints -> snitchGetSortedListByProximity.apply(localAddress, endpoints);
 
          //This list of replicas is just candidates. With strict consistency it's going to be a narrow list.
-         EndpointsByReplica.Mutable rangesToFetchWithPreferredEndpoints = new EndpointsByReplica.Mutable();
+         EndpointsByReplica.Builder rangesToFetchWithPreferredEndpoints = new EndpointsByReplica.Builder();
          for (Replica toFetch : fetchRanges)
          {
              //Replica that is sufficient to provide the data we need
@@ -539,7 +539,7 @@ public class RangeStreamer
                  }
              }
          }
-         return rangesToFetchWithPreferredEndpoints.asImmutableView();
+         return rangesToFetchWithPreferredEndpoints.build();
      }
 
     /**
@@ -573,14 +573,14 @@ public class RangeStreamer
         //the surface area to test and introduce bugs.
         //In the future it's possible we could run it twice once for full ranges with only full replicas
         //and once with transient ranges and all replicas. Then merge the result.
-        EndpointsByRange.Mutable unwrapped = new EndpointsByRange.Mutable();
+        EndpointsByRange.Builder unwrapped = new EndpointsByRange.Builder();
         for (Map.Entry<Replica, Replica> entry : rangesWithSources.flattenEntries())
         {
             Replicas.temporaryAssertFull(entry.getValue());
             unwrapped.put(entry.getKey().range(), entry.getValue());
         }
 
-        EndpointsByRange unwrappedView = unwrapped.asImmutableView();
+        EndpointsByRange unwrappedView = unwrapped.build();
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(unwrappedView, sourceFilters, keyspace);
         Multimap<InetAddressAndPort, Range<Token>> rangeFetchMapMap = calculator.getRangeFetchMap();
         logger.info("Output from RangeFetchMapCalculator for keyspace {}", keyspace);

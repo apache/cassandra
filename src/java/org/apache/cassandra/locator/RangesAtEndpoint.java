@@ -35,7 +35,7 @@ import java.util.Set;
 import java.util.stream.Collector;
 
 import static com.google.common.collect.Iterables.all;
-import static org.apache.cassandra.locator.ReplicaCollection.Mutable.Conflict.*;
+import static org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict.*;
 
 /**
  * A ReplicaCollection for Ranges occurring at an endpoint. All Replica will be for the same endpoint,
@@ -54,13 +54,13 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
     private RangesAtEndpoint onlyFull;
     private RangesAtEndpoint onlyTransient;
 
-    private RangesAtEndpoint(InetAddressAndPort endpoint, ReplicaList list, boolean isSnapshot)
+    private RangesAtEndpoint(InetAddressAndPort endpoint, ReplicaList list)
     {
-        this(endpoint, list, isSnapshot, null);
+        this(endpoint, list, null);
     }
-    private RangesAtEndpoint(InetAddressAndPort endpoint, ReplicaList list, boolean isSnapshot, ReplicaMap<Range<Token>> byRange)
+    private RangesAtEndpoint(InetAddressAndPort endpoint, ReplicaList list, ReplicaMap<Range<Token>> byRange)
     {
-        super(list, isSnapshot);
+        super(list);
         this.endpoint = endpoint;
         this.byRange = byRange;
         assert endpoint != null;
@@ -100,19 +100,19 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
         ReplicaMap<Range<Token>> byRange = null;
         if (this.byRange != null && list.isSubList(newList))
             byRange = this.byRange.isSubList(newList);
-        return new RangesAtEndpoint(endpoint, newList, true, byRange);
+        return new RangesAtEndpoint(endpoint, newList, byRange);
     }
 
     @Override
-    public RangesAtEndpoint self()
+    public RangesAtEndpoint snapshot()
     {
         return this;
     }
 
     @Override
-    public ReplicaCollection.Mutable<RangesAtEndpoint> newMutable(int initialCapacity)
+    public ReplicaCollection.Builder<RangesAtEndpoint> newBuilder(int initialCapacity)
     {
-        return new Mutable(endpoint, initialCapacity);
+        return new Builder(endpoint, initialCapacity);
     }
 
     @Override
@@ -182,16 +182,16 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
         return collector(ImmutableSet.of(), () -> new Builder(endpoint));
     }
 
-    public static class Mutable extends RangesAtEndpoint implements ReplicaCollection.Mutable<RangesAtEndpoint>
+    public static class Builder extends RangesAtEndpoint implements ReplicaCollection.Builder<RangesAtEndpoint>
     {
-        boolean hasSnapshot;
-        public Mutable(InetAddressAndPort endpoint) { this(endpoint, 0); }
-        public Mutable(InetAddressAndPort endpoint, int capacity) { this(endpoint, new ReplicaList(capacity)); }
-        private Mutable(InetAddressAndPort endpoint, ReplicaList list) { super(endpoint, list, false, rangeMap(list)); }
+        boolean built;
+        public Builder(InetAddressAndPort endpoint) { this(endpoint, 0); }
+        public Builder(InetAddressAndPort endpoint, int capacity) { this(endpoint, new ReplicaList(capacity)); }
+        private Builder(InetAddressAndPort endpoint, ReplicaList list) { super(endpoint, list, rangeMap(list)); }
 
-        public void add(Replica replica, Conflict ignoreConflict)
+        public RangesAtEndpoint.Builder add(Replica replica, Conflict ignoreConflict)
         {
-            if (hasSnapshot) throw new IllegalStateException();
+            if (built) throw new IllegalStateException();
             Preconditions.checkNotNull(replica);
             if (!Objects.equals(super.endpoint, replica.endpoint()))
                 throw new IllegalArgumentException("Replica " + replica + " has incorrect endpoint (expected " + super.endpoint + ")");
@@ -208,10 +208,11 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
                                 + replica + "; existing: " + byRange().get(replica.range()));
                     case ALL:
                 }
-                return;
+                return this;
             }
 
             list.add(replica);
+            return this;
         }
 
         @Override
@@ -222,49 +223,38 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
             return Collections.unmodifiableMap(super.byRange());
         }
 
-        public RangesAtEndpoint get(boolean isSnapshot)
+        @Override
+        public RangesAtEndpoint snapshot()
         {
-            return new RangesAtEndpoint(super.endpoint, super.list, isSnapshot, super.byRange);
+            return snapshot(list.subList(0, list.size()));
         }
 
-        public RangesAtEndpoint asImmutableView()
+        public RangesAtEndpoint build()
         {
-            return get(false);
-        }
-
-        public RangesAtEndpoint asSnapshot()
-        {
-            hasSnapshot = true;
-            return get(true);
+            built = true;
+            return new RangesAtEndpoint(super.endpoint, super.list, super.byRange);
         }
     }
 
-    public static class Builder extends ReplicaCollection.Builder<RangesAtEndpoint, Mutable, RangesAtEndpoint.Builder>
+    public static Builder builder(InetAddressAndPort endpoint)
     {
-        public Builder(InetAddressAndPort endpoint) { this(endpoint, 0); }
-        public Builder(InetAddressAndPort endpoint, int capacity) { super(new Mutable(endpoint, capacity)); }
+        return new Builder(endpoint);
     }
-
-    public static RangesAtEndpoint.Builder builder(InetAddressAndPort endpoint)
+    public static Builder builder(InetAddressAndPort endpoint, int capacity)
     {
-        return new RangesAtEndpoint.Builder(endpoint);
-    }
-
-    public static RangesAtEndpoint.Builder builder(InetAddressAndPort endpoint, int capacity)
-    {
-        return new RangesAtEndpoint.Builder(endpoint, capacity);
+        return new Builder(endpoint, capacity);
     }
 
     public static RangesAtEndpoint empty(InetAddressAndPort endpoint)
     {
-        return new RangesAtEndpoint(endpoint, EMPTY_LIST, true, EMPTY_MAP);
+        return new RangesAtEndpoint(endpoint, EMPTY_LIST, EMPTY_MAP);
     }
 
     public static RangesAtEndpoint of(Replica replica)
     {
         ReplicaList one = new ReplicaList(1);
         one.add(replica);
-        return new RangesAtEndpoint(replica.endpoint(), one, true, rangeMap(one));
+        return new RangesAtEndpoint(replica.endpoint(), one, rangeMap(one));
     }
 
     public static RangesAtEndpoint of(Replica ... replicas)

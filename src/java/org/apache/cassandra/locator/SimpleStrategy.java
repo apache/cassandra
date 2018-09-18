@@ -57,20 +57,21 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         Range<Token> replicaRange = new Range<>(replicaStart, replicaEnd);
         Iterator<Token> iter = TokenMetadata.ringIterator(ring, token, false);
 
-        EndpointsForRange.Builder replicas = EndpointsForRange.builder(replicaRange, rf.allReplicas);
+        EndpointsForRange.Builder replicas = new EndpointsForRange.Builder(replicaRange, rf.allReplicas);
 
         // Add the token at the index by default
         while (replicas.size() < rf.allReplicas && iter.hasNext())
         {
             Token tk = iter.next();
             InetAddressAndPort ep = metadata.getEndpoint(tk);
-            if (!replicas.containsEndpoint(ep))
+            if (!replicas.endpoints().contains(ep))
                 replicas.add(new Replica(ep, replicaRange, replicas.size() < rf.fullReplicas));
         }
 
         // group endpoints by DC, so that we can cheaply filter them to a given DC
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        return replicas.build().sorted(Comparator.comparing(r -> snitch.getDatacenter(r.endpoint())));
+        return replicas.build()
+                       .sorted(Comparator.comparing(r -> snitch.getDatacenter(r.endpoint())));
     }
 
     public ReplicationFactor getReplicationFactor()

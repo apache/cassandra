@@ -39,21 +39,28 @@ public abstract class ReplicaMultimap<K, C extends ReplicaCollection<?>>
     public abstract C get(K key);
     public C getIfPresent(K key) { return map.get(key); }
 
-    public static abstract class Mutable
-            <K, MutableCollection extends ReplicaCollection.Mutable<?>>
-            extends ReplicaMultimap<K, MutableCollection>
-    {
-        protected abstract MutableCollection newMutable(K key);
+    public static abstract class Builder
+            <K, B extends ReplicaCollection.Builder<?>>
 
-        Mutable()
+    {
+        protected abstract B newBuilder(K key);
+
+        final Map<K, B> map;
+        Builder()
         {
-            super(new HashMap<>());
+            this.map = new HashMap<>();
         }
 
-        public MutableCollection get(K key)
+        public B get(K key)
         {
             Preconditions.checkNotNull(key);
-            return map.computeIfAbsent(key, k -> newMutable(key));
+            return map.computeIfAbsent(key, k -> newBuilder(key));
+        }
+
+        public B getIfPresent(K key)
+        {
+            Preconditions.checkNotNull(key);
+            return map.get(key);
         }
 
         public void put(K key, Replica replica)

@@ -34,14 +34,14 @@ import java.util.Map;
 public class EndpointsForToken extends Endpoints<EndpointsForToken>
 {
     private final Token token;
-    private EndpointsForToken(Token token, ReplicaList list, boolean isSnapshot)
+    private EndpointsForToken(Token token, ReplicaList list)
     {
-        this(token, list, isSnapshot, null);
+        this(token, list, null);
     }
 
-    EndpointsForToken(Token token, ReplicaList list, boolean isSnapshot, ReplicaMap<InetAddressAndPort> byEndpoint)
+    EndpointsForToken(Token token, ReplicaList list, ReplicaMap<InetAddressAndPort> byEndpoint)
     {
-        super(list, isSnapshot, byEndpoint);
+        super(list, byEndpoint);
         this.token = token;
         assert token != null;
     }
@@ -52,13 +52,13 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
     }
 
     @Override
-    public Mutable newMutable(int initialCapacity)
+    public Builder newBuilder(int initialCapacity)
     {
-        return new Mutable(token, initialCapacity);
+        return new Builder(token, initialCapacity);
     }
 
     @Override
-    public EndpointsForToken self()
+    public EndpointsForToken snapshot()
     {
         return this;
     }
@@ -70,19 +70,19 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
         ReplicaMap<InetAddressAndPort> byEndpoint = null;
         if (this.byEndpoint != null && list.isSubList(newList))
             byEndpoint = this.byEndpoint.isSubList(newList);
-        return new EndpointsForToken(token, newList, true, byEndpoint);
+        return new EndpointsForToken(token, newList, byEndpoint);
     }
 
-    public static class Mutable extends EndpointsForToken implements ReplicaCollection.Mutable<EndpointsForToken>
+    public static class Builder extends EndpointsForToken implements ReplicaCollection.Builder<EndpointsForToken>
     {
-        boolean hasSnapshot;
-        public Mutable(Token token) { this(token, 0); }
-        public Mutable(Token token, int capacity) { this(token, new ReplicaList(capacity)); }
-        private Mutable(Token token, ReplicaList list) { super(token, list, false, endpointMap(list)); }
+        boolean built;
+        public Builder(Token token) { this(token, 0); }
+        public Builder(Token token, int capacity) { this(token, new ReplicaList(capacity)); }
+        private Builder(Token token, ReplicaList list) { super(token, list, endpointMap(list)); }
 
-        public void add(Replica replica, Conflict ignoreConflict)
+        public EndpointsForToken.Builder add(Replica replica, Conflict ignoreConflict)
         {
-            if (hasSnapshot) throw new IllegalStateException();
+            if (built) throw new IllegalStateException();
             Preconditions.checkNotNull(replica);
             if (!replica.range().contains(super.token))
                 throw new IllegalArgumentException("Replica " + replica + " does not contain " + super.token);
@@ -99,10 +99,11 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
                                 + replica + "; existing: " + byEndpoint().get(replica.endpoint()));
                     case ALL:
                 }
-                return;
+                return this;
             }
 
             list.add(replica);
+            return this;
         }
 
         @Override
@@ -113,27 +114,17 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
             return Collections.unmodifiableMap(super.byEndpoint());
         }
 
-        private EndpointsForToken get(boolean isSnapshot)
+        @Override
+        public EndpointsForToken snapshot()
         {
-            return new EndpointsForToken(super.token, super.list, isSnapshot, super.byEndpoint);
+            return snapshot(list.subList(0, list.size()));
         }
 
-        public EndpointsForToken asImmutableView()
+        public EndpointsForToken build()
         {
-            return get(false);
+            built = true;
+            return new EndpointsForToken(super.token, super.list, super.byEndpoint);
         }
-
-        public EndpointsForToken asSnapshot()
-        {
-            hasSnapshot = true;
-            return get(true);
-        }
-    }
-
-    public static class Builder extends ReplicaCollection.Builder<EndpointsForToken, Mutable, EndpointsForToken.Builder>
-    {
-        public Builder(Token token) { this(token, 0); }
-        public Builder(Token token, int capacity) { super (new Mutable(token, capacity)); }
     }
 
     public static Builder builder(Token token)
@@ -147,7 +138,7 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
 
     public static EndpointsForToken empty(Token token)
     {
-        return new EndpointsForToken(token, EMPTY_LIST, true, EMPTY_MAP);
+        return new EndpointsForToken(token, EMPTY_LIST, EMPTY_MAP);
     }
 
     public static EndpointsForToken of(Token token, Replica replica)
@@ -156,7 +147,7 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
         ReplicaList one = new ReplicaList(1);
         one.add(replica);
         // we can safely use singletonMap, as we only otherwise use LinkedHashMap
-        return new EndpointsForToken(token, one, true, endpointMap(one));
+        return new EndpointsForToken(token, one, endpointMap(one));
     }
 
     public static EndpointsForToken of(Token token, Replica ... replicas)

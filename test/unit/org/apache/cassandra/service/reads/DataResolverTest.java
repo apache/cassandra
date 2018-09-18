@@ -57,7 +57,6 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -1186,10 +1185,10 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void responsesFromTransientReplicasAreNotTracked()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        EndpointsForRange.Mutable mutable = replicas.newMutable(2);
+        EndpointsForRange.Builder mutable = replicas.newBuilder(2);
         mutable.add(replicas.get(0));
         mutable.add(Replica.transientReplica(replicas.get(1).endpoint(), replicas.range()));
-        replicas = mutable.asSnapshot();
+        replicas = mutable.build();
 
         TestRepairedDataVerifier verifier = new TestRepairedDataVerifier();
         ByteBuffer digest1 = ByteBufferUtil.bytes("digest1");

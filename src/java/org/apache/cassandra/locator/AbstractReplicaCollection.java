@@ -47,12 +47,12 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
 {
     protected static final ReplicaList EMPTY_LIST = new ReplicaList(); // since immutable, can safely return this to avoid megamorphic callsites
 
-    public static <C extends ReplicaCollection<C>, B extends Builder<C, ?, B>> Collector<Replica, B, C> collector(Set<Collector.Characteristics> characteristics, Supplier<B> supplier)
+    public static <C extends ReplicaCollection<C>, B extends Builder<C>> Collector<Replica, B, C> collector(Set<Collector.Characteristics> characteristics, Supplier<B> supplier)
     {
         return new Collector<Replica, B, C>()
         {
             private final BiConsumer<B, Replica> accumulator = Builder::add;
-            private final BinaryOperator<B> combiner = (a, b) -> { a.addAll(b.mutable); return a; };
+            private final BinaryOperator<B> combiner = (a, b) -> { a.addAll(b); return a; };
             private final Function<B, C> finisher = Builder::build;
             public Supplier<B> supplier() { return supplier; }
             public BiConsumer<B, Replica> accumulator() { return accumulator; }
@@ -230,7 +230,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
     {
         private final Function<Replica, K> toKey;
         private final ReplicaList list;
-        // we maintain a map of key -> index in our list; this lets us share with subLists (or between Mutable and snapshots)
+        // we maintain a map of key -> index in our list; this lets us share with subLists (or between Builder and snapshots)
         // since we only need to corroborate that the list index we find is within the bounds of our list
         // (if not, it's a shared map, and the key only occurs in one of our ancestors)
         private final ObjectIntOpenHashMap<K> map;
@@ -359,33 +359,27 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
     }
 
     protected final ReplicaList list;
-    final boolean isSnapshot;
-    AbstractReplicaCollection(ReplicaList list, boolean isSnapshot)
+    AbstractReplicaCollection(ReplicaList list)
     {
         this.list = list;
-        this.isSnapshot = isSnapshot;
     }
 
-    // if subList == null, should return self (or a clone thereof)
-    protected abstract C snapshot(ReplicaList newList);
-    protected abstract C self();
     /**
-     * construct a new Mutable of our own type, so that we can concatenate
+     * construct a new Builder of our own type, so that we can concatenate
      * TODO: this isn't terribly pretty, but we need sometimes to select / merge two Endpoints of unknown type;
      */
-    public abstract Mutable<C> newMutable(int initialCapacity);
+    public abstract Builder<C> newBuilder(int initialCapacity);
 
-    public C snapshot()
-    {
-        return isSnapshot ? self()
-                          : snapshot(list.isEmpty() ? EMPTY_LIST
-                                                    : list);
-    }
+    // if subList == null, should return self (or a clone thereof)
+    abstract C snapshot(ReplicaList newList);
+    // return this object, if it is an immutable snapshot, otherwise returns a copy with these properties
+    public abstract C snapshot();
 
     /** see {@link ReplicaCollection#subList(int, int)}*/
     public final C subList(int start, int end)
     {
-        if (isSnapshot && start == 0 && end == size()) return self();
+        if (start == 0 && end == size())
+            return snapshot();
 
         ReplicaList subList;
         if (start == end) subList = EMPTY_LIST;
@@ -531,16 +525,16 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         return Iterables.toString(list);
     }
 
-    static <C extends AbstractReplicaCollection<C>> C concat(C replicas, C extraReplicas, Mutable.Conflict ignoreConflicts)
+    static <C extends AbstractReplicaCollection<C>> C concat(C replicas, C extraReplicas, Builder.Conflict ignoreConflicts)
     {
         if (extraReplicas.isEmpty())
             return replicas;
         if (replicas.isEmpty())
             return extraReplicas;
-        Mutable<C> mutable = replicas.newMutable(replicas.size() + extraReplicas.size());
-        mutable.addAll(replicas, Mutable.Conflict.NONE);
-        mutable.addAll(extraReplicas, ignoreConflicts);
-        return mutable.asSnapshot();
+        Builder<C> builder = replicas.newBuilder(replicas.size() + extraReplicas.size());
+        builder.addAll(replicas, Builder.Conflict.NONE);
+        builder.addAll(extraReplicas, ignoreConflicts);
+        return builder.build();
     }
 
 }
