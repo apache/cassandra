@@ -1,4 +1,5 @@
 4.0
+ * Introduce RangesAtEndpoint.unwrap to simplify StreamSession.addTransferRanges (CASSANDRA-14770)
  * LOCAL_QUORUM may speculate to non-local nodes, resulting in Timeout instead of Unavailable (CASSANDRA-14735)
  * Avoid creating empty compaction tasks after truncate (CASSANDRA-14780)
  * Fail incremental repair prepare phase if it encounters sstables from un-finalized sessions (CASSANDRA-14763)
