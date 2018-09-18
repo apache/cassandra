@@ -188,7 +188,32 @@ public class LegacySSTableTest
     }
 
     @Test
-    public void verifyOldSSTables() throws Exception
+    public void test14766() throws Exception
+    {
+        /*
+         * During upgrades from 2.1 to 3.0, reading from old sstables in reverse order could omit the very last row if the
+         * last indexed block had only two Unfiltered-s. See CASSANDRA-14766 for details.
+         *
+         * The sstable used here has two indexed blocks, with 2 cells/rows of ~500 bytes each, with column index interval of 1kb.
+         * Without the fix SELECT * returns 4 rows in ASC order, but only 3 rows in DESC order, omitting the last one.
+         */
+
+        QueryProcessor.executeInternal("CREATE TABLE legacy_tables.legacy_ka_14766 (pk int, ck int, value text, PRIMARY KEY (pk, ck));");
+        loadLegacyTable("legacy_%s_14766%s", "ka", "");
+
+        UntypedResultSet rs;
+
+        // read all rows in ASC order, expect all 4 to be returned
+        rs = QueryProcessor.executeInternal("SELECT * FROM legacy_tables.legacy_ka_14766 WHERE pk = 0 ORDER BY ck ASC;");
+        Assert.assertEquals(4, rs.size());
+
+        // read all rows in DESC order, expect all 4 to be returned
+        rs = QueryProcessor.executeInternal("SELECT * FROM legacy_tables.legacy_ka_14766 WHERE pk = 0 ORDER BY ck DESC;");
+        Assert.assertEquals(4, rs.size());
+    }
+
+    @Test
+    public void testVerifyOldSSTables() throws Exception
     {
         for (String legacyVersion : legacyVersions)
         {
