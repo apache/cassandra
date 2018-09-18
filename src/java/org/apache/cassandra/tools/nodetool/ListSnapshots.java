@@ -47,7 +47,7 @@ public class ListSnapshots extends NodeToolCmd
             }
 
             final long trueSnapshotsSize = probe.trueSnapshotsSize();
-            final String format = "%-20s%-29s%-29s%-19s%-19s%n";
+            final String format = "%-40s %-29s %-29s %-19s %-19s%n";
             // display column names only once
             final List<String> indexNames = snapshotDetails.entrySet().iterator().next().getValue().getTabularType().getIndexNames();
             System.out.printf(format, (Object[]) indexNames.toArray(new String[indexNames.size()]));
