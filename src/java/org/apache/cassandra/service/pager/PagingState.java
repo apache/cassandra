@@ -46,7 +46,7 @@ public class PagingState
 
     public PagingState(ByteBuffer partitionKey, RowMark rowMark, int remaining, int remainingInPartition)
     {
-        this.partitionKey = partitionKey;
+        this.partitionKey = partitionKey == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : partitionKey;
         this.rowMark = rowMark;
         this.remaining = remaining;
         this.remainingInPartition = remainingInPartition;
