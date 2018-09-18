@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.repair;
 
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -30,33 +29,35 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.repair.AbstractRepairTest;
+import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -87,6 +88,7 @@ public class PendingAntiCompactionTest
     {
         SchemaLoader.prepareServer();
         local = InetAddressAndPort.getByName("127.0.0.1");
+        ActiveRepairService.instance.consistent.local.start();
     }
 
     @Before
@@ -126,6 +128,13 @@ public class PendingAntiCompactionTest
             result.abort();  // prevent ref leak complaints
             return ListenableFutureTask.create(() -> {}, null);
         }
+    }
+
+    private UUID prepareSession()
+    {
+        UUID sessionID = AbstractRepairTest.registerSession(cfs, true, true);
+        LocalSessionAccessor.prepareUnsafe(sessionID, AbstractRepairTest.COORDINATOR, Sets.newHashSet(AbstractRepairTest.COORDINATOR));
+        return sessionID;
     }
 
     /**
@@ -239,7 +248,7 @@ public class PendingAntiCompactionTest
     }
 
     @Test
-    public void pendingRepairSSTablesAreNotAcquired() throws Exception
+    public void finalizedPendingRepairSSTablesAreNotAcquired() throws Exception
     {
         cfs.disableAutoCompaction();
         makeSSTables(2);
@@ -251,7 +260,9 @@ public class PendingAntiCompactionTest
         Assert.assertTrue(repaired.intersects(FULL_RANGE));
         Assert.assertTrue(unrepaired.intersects(FULL_RANGE));
 
-        repaired.descriptor.getMetadataSerializer().mutateRepairMetadata(repaired.descriptor, 0, UUIDGen.getTimeUUID(), false);
+        UUID sessionId = prepareSession();
+        LocalSessionAccessor.finalizeUnsafe(sessionId);
+        repaired.descriptor.getMetadataSerializer().mutateRepairMetadata(repaired.descriptor, 0, sessionId, false);
         repaired.reloadSSTableMetadata();
         Assert.assertTrue(repaired.isPendingRepair());
 
@@ -263,6 +274,29 @@ public class PendingAntiCompactionTest
         Assert.assertEquals(1, result.txn.originals().size());
         Assert.assertTrue(result.txn.originals().contains(unrepaired));
         result.abort();  // releases sstable refs
+    }
+
+    @Test
+    public void conflictingSessionAcquisitionFailure() throws Exception
+    {
+        cfs.disableAutoCompaction();
+        makeSSTables(2);
+
+        List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
+        Assert.assertEquals(2, sstables.size());
+        SSTableReader repaired = sstables.get(0);
+        SSTableReader unrepaired = sstables.get(1);
+        Assert.assertTrue(repaired.intersects(FULL_RANGE));
+        Assert.assertTrue(unrepaired.intersects(FULL_RANGE));
+
+        UUID sessionId = prepareSession();
+        repaired.descriptor.getMetadataSerializer().mutateRepairMetadata(repaired.descriptor, 0, sessionId, false);
+        repaired.reloadSSTableMetadata();
+        Assert.assertTrue(repaired.isPendingRepair());
+
+        PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, UUIDGen.getTimeUUID());
+        PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
+        Assert.assertNull(result);
     }
 
     @Test
