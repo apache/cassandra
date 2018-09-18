@@ -77,4 +77,3 @@ lib/jsr223/scala/*.jar
 doc/source/configuration/cassandra_config_file.rst
 doc/source/tools/nodetool
 
-audit
