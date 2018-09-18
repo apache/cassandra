@@ -165,6 +165,37 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
         return Collections.unmodifiableMap(byRange);
     }
 
+    /**
+     * @return if there are no wrap around ranges contained in this RangesAtEndpoint, return self;
+     * otherwise, return a RangesAtEndpoint covering the same logical portions of the ring, but with those ranges unwrapped
+     */
+    public RangesAtEndpoint unwrap()
+    {
+        int wrapAroundCount = 0;
+        for (Replica replica : this)
+        {
+            if (replica.range().isWrapAround())
+                ++wrapAroundCount;
+        }
+
+        assert wrapAroundCount <= 1;
+        if (wrapAroundCount == 0)
+            return snapshot();
+
+        RangesAtEndpoint.Builder builder = builder(endpoint, size() + wrapAroundCount);
+        for (Replica replica : this)
+        {
+            if (!replica.range().isWrapAround())
+            {
+                builder.add(replica);
+                continue;
+            }
+            for (Range<Token> range : replica.range().unwrap())
+                builder.add(replica.decorateSubrange(range));
+        }
+        return builder.build();
+    }
+
     public static Collector<Replica, Builder, RangesAtEndpoint> collector(InetAddressAndPort endpoint)
     {
         return collector(ImmutableSet.of(), () -> new Builder(endpoint));

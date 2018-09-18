@@ -33,6 +33,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -65,7 +66,7 @@ public class ReplicaCollectionTest
             R2 = range(1, 2);
             R3 = range(2, 3);
             R4 = range(3, 4);
-            R5 = range(4, 5);
+            R5 = range(4, 0);
             BROADCAST_RANGE = range(10, 11);
             NULL_RANGE = range(10000, 10001);
         }
@@ -187,7 +188,7 @@ public class ReplicaCollectionTest
             // remove start
             // we recurse on the same subset in testSubList, so just corroborate we have the correct list here
             {
-                Predicate<Replica> removeFirst = r -> r != canonicalList.get(0);
+                Predicate<Replica> removeFirst = r -> !r.equals(canonicalList.get(0));
                 assertSubList(test.filter(removeFirst), 1, canonicalList.size());
                 assertSubList(test.filter(removeFirst, 1), 1, Math.min(canonicalList.size(), 2));
             }
@@ -199,14 +200,14 @@ public class ReplicaCollectionTest
             // we recurse on the same subset in testSubList, so just corroborate we have the correct list here
             {
                 int last = canonicalList.size() - 1;
-                Predicate<Replica> removeLast = r -> r != canonicalList.get(last);
+                Predicate<Replica> removeLast = r -> !r.equals(canonicalList.get(last));
                 assertSubList(test.filter(removeLast), 0, last);
             }
 
             if (test.size() <= 2)
                 return;
 
-            Predicate<Replica> removeMiddle = r -> r != canonicalList.get(canonicalList.size() / 2);
+            Predicate<Replica> removeMiddle = r -> !r.equals(canonicalList.get(canonicalList.size() / 2));
             TestCase<C> filtered = new TestCase<>(test.filter(removeMiddle), ImmutableList.copyOf(filter(canonicalList, removeMiddle::test)));
             filtered.testAll(subListDepth, filterDepth - 1, sortDepth);
         }
@@ -224,7 +225,7 @@ public class ReplicaCollectionTest
             for (int i = 0 ; i < canonicalList.size() ; ++i)
             {
                 Replica discount = canonicalList.get(i);
-                Assert.assertEquals(canonicalList.size() - 1, test.count(r -> r != discount));
+                Assert.assertEquals(canonicalList.size() - 1, test.count(r -> !r.equals(discount)));
             }
         }
 
@@ -245,15 +246,15 @@ public class ReplicaCollectionTest
         {
             final Comparator<Replica> comparator = (o1, o2) ->
             {
-                boolean f1 = o1 == canonicalList.get(0);
-                boolean f2 = o2 == canonicalList.get(0);
+                boolean f1 = o1.equals(canonicalList.get(0));
+                boolean f2 = o2.equals(canonicalList.get(0));
                 return f1 == f2 ? 0 : f1 ? 1 : -1;
             };
             TestCase<C> sorted = new TestCase<>(test.sorted(comparator), ImmutableList.sortedCopyOf(comparator, canonicalList));
             sorted.testAll(subListDepth, filterDepth, sortDepth - 1);
         }
 
-        private void testAll(int subListDepth, int filterDepth, int sortDepth)
+        void testAll(int subListDepth, int filterDepth, int sortDepth)
         {
             testEndpoints();
             testOrderOfIteration();
@@ -312,11 +313,34 @@ public class ReplicaCollectionTest
             Assert.assertEquals(new LinkedHashSet<>(Lists.transform(canonicalList, Replica::range)), test.ranges());
         }
 
-        @Override
-        public void testAll()
+        public void testUnwrap(int subListDepth, int filterDepth, int sortDepth)
         {
-            super.testAll();
+            List<Replica> canonUnwrap = new ArrayList<>();
+            for (Replica replica : canonicalList)
+                for (Range<Token> range : replica.range().unwrap())
+                    canonUnwrap.add(replica.decorateSubrange(range));
+            RangesAtEndpoint testUnwrap = test.unwrap();
+            if (testUnwrap == test)
+            {
+                Assert.assertEquals(canonicalList, canonUnwrap);
+            }
+            else
+            {
+                new RangesAtEndpointTestCase(testUnwrap, canonUnwrap)
+                        .testAllExceptUnwrap(subListDepth, filterDepth, sortDepth);
+            }
+        }
+
+        void testAllExceptUnwrap(int subListDepth, int filterDepth, int sortDepth)
+        {
+            super.testAll(subListDepth, filterDepth, sortDepth);
             testRanges();
+        }
+
+        void testAll(int subListDepth, int filterDepth, int sortDepth)
+        {
+            testAllExceptUnwrap(subListDepth, filterDepth, sortDepth);
+            testUnwrap(subListDepth, filterDepth, sortDepth);
         }
     }
 
