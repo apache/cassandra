@@ -279,15 +279,16 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         for (Replica replica : natural)
         {
             // always prefer the full natural replica, if there is a conflict
-            if (!replica.isFull())
+            if (replica.isTransient())
             {
                 Replica conflict = pending.byEndpoint().get(replica.endpoint());
                 if (conflict != null)
                 {
+                    // it should not be possible to have conflicts of the same replication type for the same range
+                    assert conflict.isFull();
                     // If we have any pending transient->full movement, we need to move the full replica to our 'natural' bucket
                     // to avoid corrupting our count
-                    if (conflict.isFull()) resolved.add(new Replica(replica.endpoint(), replica.range(), true));
-                    continue;
+                    resolved.add(conflict);
                 }
             }
             resolved.add(replica);
