@@ -39,6 +39,8 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
     static final ReplicaMap<InetAddressAndPort> endpointMap(ReplicaList list) { return new ReplicaMap<>(list, Replica::endpoint); }
     static final ReplicaMap<InetAddressAndPort> EMPTY_MAP = endpointMap(EMPTY_LIST);
 
+    // volatile not needed, as has only final members,
+    // besides (transitively) those that cache objects that themselves have only final members
     ReplicaMap<InetAddressAndPort> byEndpoint;
 
     Endpoints(ReplicaList list, boolean isSnapshot, ReplicaMap<InetAddressAndPort> byEndpoint)

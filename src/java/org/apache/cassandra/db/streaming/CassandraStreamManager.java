@@ -142,7 +142,7 @@ public class CassandraStreamManager implements TableStreamManager
             }).refs);
 
 
-            List<Range<Token>> normalizedFullRanges = Range.normalize(replicas.filter(Replica::isFull).ranges());
+            List<Range<Token>> normalizedFullRanges = Range.normalize(replicas.onlyFull().ranges());
             List<Range<Token>> normalizedAllRanges = Range.normalize(replicas.ranges());
             //Create outgoing file streams for ranges possibly skipping repaired ranges in sstables
             List<OutgoingStream> streams = new ArrayList<>(refs.size());

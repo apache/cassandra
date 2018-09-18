@@ -47,9 +47,12 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
     private static final ReplicaMap<Range<Token>> EMPTY_MAP = rangeMap(EMPTY_LIST);
 
     private final InetAddressAndPort endpoint;
+
+    // volatile not needed, as all of these caching collections have final members,
+    // besides (transitively) those that cache objects that themselves have only final members
     private ReplicaMap<Range<Token>> byRange;
-    private volatile RangesAtEndpoint fullRanges;
-    private volatile RangesAtEndpoint transRanges;
+    private RangesAtEndpoint onlyFull;
+    private RangesAtEndpoint onlyTransient;
 
     private RangesAtEndpoint(InetAddressAndPort endpoint, ReplicaList list, boolean isSnapshot)
     {
@@ -121,30 +124,20 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
                         replica);
     }
 
-    public RangesAtEndpoint full()
+    public RangesAtEndpoint onlyFull()
     {
-        RangesAtEndpoint coll = fullRanges;
-        if (fullRanges == null)
-            fullRanges = coll = filter(Replica::isFull);
-        return coll;
+        RangesAtEndpoint result = onlyFull;
+        if (onlyFull == null)
+            onlyFull = result = filter(Replica::isFull);
+        return result;
     }
 
-    public RangesAtEndpoint trans()
+    public RangesAtEndpoint onlyTransient()
     {
-        RangesAtEndpoint coll = transRanges;
-        if (transRanges == null)
-            transRanges = coll = filter(Replica::isTransient);
-        return coll;
-    }
-
-    public Collection<Range<Token>> fullRanges()
-    {
-        return full().ranges();
-    }
-
-    public Collection<Range<Token>> transientRanges()
-    {
-        return trans().ranges();
+        RangesAtEndpoint result = onlyTransient;
+        if (onlyTransient == null)
+            onlyTransient = result = filter(Replica::isTransient);
+        return result;
     }
 
     public boolean contains(Range<Token> range, boolean isFull)
