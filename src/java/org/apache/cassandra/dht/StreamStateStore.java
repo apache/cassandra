@@ -59,7 +59,8 @@ public class StreamStateStore implements StreamEventHandler
         Pair<Set<Range<Token>>, Set<Range<Token>>> availableRanges = getAvailableRanges(keyspace, token.getPartitioner());
 
         return Streams.concat(availableRanges.left.stream(),
-                              availableRanges.right.stream()).anyMatch(range -> range.contains(token));
+                              availableRanges.right.stream())
+                      .anyMatch(range -> range.contains(token));
     }
 
     /**
