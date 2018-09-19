@@ -256,6 +256,10 @@ public class RangeStreamer
         this.snitch = snitch;
         this.stateStore = stateStore;
         streamPlan.listeners(this.stateStore);
+
+        // We're _always_ filtering out a local node and down sources
+        addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
+        addSourceFilter(new RangeStreamer.ExcludeLocalNodeFilter());
     }
 
     public void addSourceFilter(SourceFilter filter)

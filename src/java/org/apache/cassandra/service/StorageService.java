@@ -1227,8 +1227,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                        streamStateStore,
                                                        false,
                                                        DatabaseDescriptor.getStreamingConnectionsPerHost());
-            streamer.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
-            streamer.addSourceFilter(new RangeStreamer.ExcludeLocalNodeFilter());
             if (sourceDc != null)
                 streamer.addSourceFilter(new RangeStreamer.SingleDatacenterFilter(DatabaseDescriptor.getEndpointSnitch(), sourceDc));
 
