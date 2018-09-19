@@ -19,6 +19,7 @@
 package org.apache.cassandra.locator;
 
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
@@ -57,9 +58,13 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Iterables.filter;
 import static org.apache.cassandra.db.ConsistencyLevel.EACH_QUORUM;
-import static org.apache.cassandra.db.ConsistencyLevel.eachQuorumFor;
+import static org.apache.cassandra.db.ConsistencyLevel.eachQuorumForRead;
+import static org.apache.cassandra.db.ConsistencyLevel.eachQuorumForWrite;
 import static org.apache.cassandra.db.ConsistencyLevel.localQuorumFor;
+import static org.apache.cassandra.db.ConsistencyLevel.localQuorumForOurDc;
+import static org.apache.cassandra.locator.Replicas.addToCountPerDc;
 import static org.apache.cassandra.locator.Replicas.countInOurDc;
 import static org.apache.cassandra.locator.Replicas.countPerDc;
 
@@ -77,7 +82,7 @@ public class ReplicaPlans
             case LOCAL_ONE:
                 return countInOurDc(liveReplicas).hasAtleast(1, 1);
             case LOCAL_QUORUM:
-                return countInOurDc(liveReplicas).hasAtleast(consistencyLevel.blockFor(keyspace), 1);
+                return countInOurDc(liveReplicas).hasAtleast(localQuorumForOurDc(keyspace), 1);
             case EACH_QUORUM:
                 if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
                 {
@@ -143,7 +148,7 @@ public class ReplicaPlans
                     Collection<String> dcs = ((NetworkTopologyStrategy) keyspace.getReplicationStrategy()).getDatacenters();
                     for (ObjectObjectCursor<String, Replicas.ReplicaCount> entry : countPerDc(dcs, allLive))
                     {
-                        int dcBlockFor = ConsistencyLevel.localQuorumFor(keyspace, entry.key);
+                        int dcBlockFor = localQuorumFor(keyspace, entry.key);
                         Replicas.ReplicaCount dcCount = entry.value;
                         if (!dcCount.hasAtleast(dcBlockFor, 0))
                             throw UnavailableException.create(consistencyLevel, entry.key, dcBlockFor, dcCount.allReplicas(), 0, dcCount.fullReplicas());
@@ -340,7 +345,7 @@ public class ReplicaPlans
 
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite live, Selector selector) throws UnavailableException
     {
-        EndpointsForToken contacts = selector.select(keyspace, consistencyLevel, liveAndDown, live);
+        EndpointsForToken contacts = selector.select(keyspace, liveAndDown, live);
         assureSufficientLiveReplicasForWrite(keyspace, consistencyLevel, live.all(), liveAndDown.pending());
         return new ReplicaPlan.ForTokenWrite(keyspace, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
     }
@@ -348,20 +353,20 @@ public class ReplicaPlans
     public interface Selector
     {
         <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live);
+        E select(Keyspace keyspace, L liveAndDown, L live);
     }
 
     /**
      * Select all nodes, transient or otherwise, as targets for the operation.
      *
-     * This is may no longer be useful until we finish implementing transient replication support, however
+     * This is may no longer be useful once we finish implementing transient replication support, however
      * it can be of value to stipulate that a location writes to all nodes without regard to transient status.
      */
     public static final Selector writeAll = new Selector()
     {
         @Override
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
+        E select(Keyspace keyspace, L liveAndDown, L live)
         {
             return liveAndDown.all();
         }
@@ -380,22 +385,33 @@ public class ReplicaPlans
     {
         @Override
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
+        E select(Keyspace keyspace, L liveAndDown, L live)
         {
             if (!any(liveAndDown.all(), Replica::isTransient))
                 return liveAndDown.all();
 
-            assert consistencyLevel != EACH_QUORUM;
-
             ReplicaCollection.Builder<E> contacts = liveAndDown.all().newBuilder(liveAndDown.all().size());
-            contacts.addAll(liveAndDown.natural().filterLazily(Replica::isFull));
+            contacts.addAll(filter(liveAndDown.natural(), Replica::isFull));
             contacts.addAll(liveAndDown.pending());
 
-            // TODO: this doesn't correctly handle LOCAL_QUORUM (or EACH_QUORUM at all)
-            int liveCount = contacts.count(live.all()::contains);
-            int requiredTransientCount = consistencyLevel.blockForWrite(keyspace, liveAndDown.pending()) - liveCount;
-            if (requiredTransientCount > 0)
-                contacts.addAll(live.natural().filterLazily(Replica::isTransient, requiredTransientCount));
+            /**
+             * Per CASSANDRA-14768, we ensure we write to at least a QUORUM of nodes in every DC,
+             * regardless of how many responses we need to wait for and our requested consistencyLevel.
+             * This is to minimally surprise users with transient replication; with normal writes, we
+             * soft-ensure that we reach QUORUM in all DCs we are able to, by writing to every node;
+             * even if we don't wait for ACK, we have in both cases sent sufficient messages.
+              */
+            ObjectIntOpenHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
+            addToCountPerDc(requiredPerDc, live.natural().filter(Replica::isFull), -1);
+            addToCountPerDc(requiredPerDc, live.pending(), -1);
+
+            IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+            for (Replica replica : filter(live.natural(), Replica::isTransient))
+            {
+                String dc = snitch.getDatacenter(replica);
+                if (requiredPerDc.addTo(dc, -1) >= 0)
+                    contacts.add(replica);
+            }
             return contacts.build();
         }
     };
@@ -453,7 +469,7 @@ public class ReplicaPlans
     private static <E extends Endpoints<E>> E contactForEachQuorumRead(Keyspace keyspace, E candidates)
     {
         assert keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy;
-        ObjectIntOpenHashMap<String> perDc = eachQuorumFor(keyspace);
+        ObjectIntOpenHashMap<String> perDc = eachQuorumForRead(keyspace);
 
         final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         return candidates.filter(replica -> {
