@@ -87,7 +87,7 @@ public class RangeStreamer
     /* streaming description */
     private final String description;
     private final Map<String, Multimap<InetAddressAndPort, FetchReplica>> toFetch = new HashMap<>();
-    private final Set<SourceFilter> sourceFilters = new HashSet<>();
+    private final List<SourceFilter> sourceFilters = new ArrayList<>();
     private final StreamPlan streamPlan;
     private final boolean useStrictConsistency;
     private final IEndpointSnitch snitch;
