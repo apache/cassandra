@@ -69,7 +69,7 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
         if (newList.isEmpty()) return empty(token);
         ReplicaMap<InetAddressAndPort> byEndpoint = null;
         if (this.byEndpoint != null && list.isSubList(newList))
-            byEndpoint = this.byEndpoint.isSubList(newList);
+            byEndpoint = this.byEndpoint.forSubList(newList);
         return new EndpointsForToken(token, newList, byEndpoint);
     }
 

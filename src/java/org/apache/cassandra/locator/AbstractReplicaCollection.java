@@ -351,7 +351,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             return list.size();
         }
 
-        ReplicaMap<K> isSubList(ReplicaList subList)
+        ReplicaMap<K> forSubList(ReplicaList subList)
         {
             assert subList.contents == list.contents;
             return new ReplicaMap<>(subList, toKey, map);
@@ -370,7 +370,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
      */
     public abstract Builder<C> newBuilder(int initialCapacity);
 
-    // if subList == null, should return self (or a clone thereof)
+    // return a new "sub-collection" with some sub-selection of the contents of this collection
     abstract C snapshot(ReplicaList newList);
     // return this object, if it is an immutable snapshot, otherwise returns a copy with these properties
     public abstract C snapshot();

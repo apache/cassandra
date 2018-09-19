@@ -99,7 +99,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
         if (newList.isEmpty()) return empty(endpoint);
         ReplicaMap<Range<Token>> byRange = null;
         if (this.byRange != null && list.isSubList(newList))
-            byRange = this.byRange.isSubList(newList);
+            byRange = this.byRange.forSubList(newList);
         return new RangesAtEndpoint(endpoint, newList, byRange);
     }
 
