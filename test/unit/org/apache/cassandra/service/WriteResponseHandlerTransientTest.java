@@ -173,9 +173,15 @@ public class WriteResponseHandlerTransientTest
     private static void assertSpeculationReplicas(ReplicaPlan.ForTokenWrite expected, EndpointsForToken replicas, Predicate<InetAddressAndPort> livePredicate)
     {
         ReplicaPlan.ForTokenWrite actual = getSpeculationContext(replicas, livePredicate);
-        Assert.assertTrue(Iterables.elementsEqual(expected.pending(), actual.pending()));
-        Assert.assertTrue(Iterables.elementsEqual(expected.live(), actual.live()));
-        Assert.assertTrue(Iterables.elementsEqual(expected.contacts(), actual.contacts()));
+        assertEquals(expected.pending(), actual.pending());
+        assertEquals(expected.live(), actual.live());
+        assertEquals(expected.contacts(), actual.contacts());
+    }
+
+    private static void assertEquals(ReplicaCollection<?> a, ReplicaCollection<?> b)
+    {
+        if (!Iterables.elementsEqual(a, b))
+            Assert.assertTrue(a + " vs " + b, false);
     }
 
     private static Predicate<InetAddressAndPort> dead(InetAddressAndPort... endpoints)
