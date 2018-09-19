@@ -407,7 +407,7 @@ public class RangeStreamer
              //Replica that is sufficient to provide the data we need
              //With strict consistency and transient replication we may end up with multiple types
              //so this isn't used with strict consistency
-             Predicate<Replica> isSufficient = r -> (toFetch.isTransient() || r.isFull());
+             Predicate<Replica> isSufficient = r -> toFetch.isTransient() || r.isFull();
 
              logger.debug("To fetch {}", toFetch);
              for (Range<Token> range : rangeAddresses.keySet())
@@ -436,6 +436,7 @@ public class RangeStreamer
                          Set<InetAddressAndPort> endpointsStillReplicated = newEndpoints.endpoints();
                          // Remove new endpoints from old endpoints based on address
                          oldEndpoints = oldEndpoints.filter(r -> !endpointsStillReplicated.contains(r.endpoint()));
+                         oldEndpoints.filter(testSourceFilters);
 
                          if (oldEndpoints.size() > 1)
                              throw new AssertionError("Expected <= 1 endpoint but found " + oldEndpoints);
@@ -446,16 +447,14 @@ public class RangeStreamer
                          //The old behavior where we might be asked to fetch ranges we don't need shouldn't occur anymore.
                          //So it's an error if we don't find what we need.
                          if (oldEndpoints.isEmpty() && toFetch.isTransient())
-                         {
                              throw new AssertionError("If there are no endpoints to fetch from then we must be transitioning from transient to full for range " + toFetch);
-                         }
 
-                         if (!any(oldEndpoints, isSufficient))
+                         if (toFetch.isFull() && (oldEndpoints.isEmpty() || oldEndpoints.get(0).isTransient()))
                          {
                              // need an additional replica
                              EndpointsForRange endpointsForRange = sorted.apply(rangeAddresses.get(range));
                              // include all our filters, to ensure we include a matching node
-                             Optional<Replica> fullReplica = Iterables.<Replica>tryFind(endpointsForRange, and(isSufficient, testSourceFilters)).toJavaUtil();
+                             Optional<Replica> fullReplica = Iterables.<Replica>tryFind(endpointsForRange, and(Replica::isFull, testSourceFilters)).toJavaUtil();
                              if (fullReplica.isPresent())
                                  oldEndpoints = Endpoints.concat(oldEndpoints, EndpointsForRange.of(fullReplica.get()));
                              else
@@ -473,7 +472,7 @@ public class RangeStreamer
                      }
 
                      //Apply testSourceFilters that were given to us, and establish everything remaining is alive for the strict case
-                     sources = oldEndpoints.filter(testSourceFilters);
+                     sources = oldEndpoints;
                  }
                  else
                  {
