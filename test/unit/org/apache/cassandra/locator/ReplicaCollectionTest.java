@@ -46,50 +46,10 @@ import static com.google.common.collect.Iterables.*;
 import static com.google.common.collect.Iterables.filter;
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.Replica.transientReplica;
+import static org.apache.cassandra.locator.ReplicaUtils.*;
 
 public class ReplicaCollectionTest
 {
-
-    static final InetAddressAndPort EP1, EP2, EP3, EP4, EP5, BROADCAST_EP, NULL_EP;
-    static final Range<Token> R1, R2, R3, R4, R5, BROADCAST_RANGE, NULL_RANGE;
-    static final List<InetAddressAndPort> ALL_EP;
-    static final List<Range<Token>> ALL_R;
-    static
-    {
-        try
-        {
-            EP1 = InetAddressAndPort.getByName("127.0.0.1");
-            EP2 = InetAddressAndPort.getByName("127.0.0.2");
-            EP3 = InetAddressAndPort.getByName("127.0.0.3");
-            EP4 = InetAddressAndPort.getByName("127.0.0.4");
-            EP5 = InetAddressAndPort.getByName("127.0.0.5");
-            BROADCAST_EP = FBUtilities.getBroadcastAddressAndPort();
-            NULL_EP = InetAddressAndPort.getByName("127.255.255.255");
-            R1 = range(0, 1);
-            R2 = range(1, 2);
-            R3 = range(2, 3);
-            R4 = range(3, 4);
-            R5 = range(4, 0);
-            BROADCAST_RANGE = range(10, 11);
-            NULL_RANGE = range(10000, 10001);
-            ALL_EP = ImmutableList.of(EP1, EP2, EP3, EP4, EP5, BROADCAST_EP);
-            ALL_R = ImmutableList.of(R1, R2, R3, R4, R5, BROADCAST_RANGE);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    static Token tk(long t)
-    {
-        return new Murmur3Partitioner.LongToken(t);
-    }
-
-    static Range<Token> range(long left, long right)
-    {
-        return new Range<>(tk(left), tk(right));
-    }
 
     static class TestCase<C extends AbstractReplicaCollection<C>>
     {
