@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.locator;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
@@ -273,7 +274,8 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * See {@link ReplicaLayout#haveWriteConflicts}
      * @return a 'natural' replica collection, that has had its conflicts with pending repaired
      */
-    private static <E extends Endpoints<E>> E resolveWriteConflictsInNatural(E natural, E pending)
+    @VisibleForTesting
+    static <E extends Endpoints<E>> E resolveWriteConflictsInNatural(E natural, E pending)
     {
         ReplicaCollection.Mutable<E> resolved = natural.newMutable(natural.size());
         for (Replica replica : natural)
@@ -302,7 +304,8 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * See {@link ReplicaLayout#haveWriteConflicts}
      * @return a 'pending' replica collection, that has had its conflicts with natural repaired
      */
-    private static <E extends Endpoints<E>> E resolveWriteConflictsInPending(E natural, E pending)
+    @VisibleForTesting
+    static <E extends Endpoints<E>> E resolveWriteConflictsInPending(E natural, E pending)
     {
         return pending.without(natural.endpoints());
     }
