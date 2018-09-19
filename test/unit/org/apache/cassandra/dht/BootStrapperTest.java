@@ -128,11 +128,7 @@ public class BootStrapperTest
         Multimap<InetAddressAndPort, FetchReplica> toFetch = s.toFetch().get(keyspaceName);
 
         // Check we get get RF new ranges in total
-        long rangesCount = toFetch.values().stream()
-                                  .map(f -> f.remote)
-                                  .map(Replica::range)
-                                  .count();
-        assertEquals(replicationFactor, rangesCount);
+        assertEquals(replicationFactor, toFetch.size());
 
         // there isn't any point in testing the size of these collections for any specific size.  When a random partitioner
         // is used, they will vary.
