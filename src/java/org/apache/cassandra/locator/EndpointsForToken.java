@@ -107,14 +107,6 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
         }
 
         @Override
-        public Map<InetAddressAndPort, Replica> byEndpoint()
-        {
-            // our internal map is modifiable, but it is unsafe to modify the map externally
-            // it would be possible to implement a safe modifiable map, but it is probably not valuable
-            return Collections.unmodifiableMap(super.byEndpoint());
-        }
-
-        @Override
         public EndpointsForToken snapshot()
         {
             return snapshot(list.subList(0, list.size()));

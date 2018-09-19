@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
 import java.util.AbstractMap;
@@ -260,6 +261,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             @Override
             public boolean contains(Object o)
             {
+                Preconditions.checkNotNull(o);
                 if (!(o instanceof Entry<?, ?>)) return false;
                 return Objects.equals(get(((Entry) o).getKey()), ((Entry) o).getValue());
             }
@@ -309,11 +311,13 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         @Override
         public boolean containsKey(Object key)
         {
+            Preconditions.checkNotNull(key);
             return get((K)key) != null;
         }
 
         public Replica get(Object key)
         {
+            Preconditions.checkNotNull(key);
             int index = map.get((K)key) - 1;
             // since this map can be shared between sublists (or snapshots of mutables)
             // we have to first corroborate that the index we've found is actually within our list's bounds

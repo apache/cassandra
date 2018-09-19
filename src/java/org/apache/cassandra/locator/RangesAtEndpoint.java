@@ -216,14 +216,6 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
         }
 
         @Override
-        public Map<Range<Token>, Replica> byRange()
-        {
-            // our internal map is modifiable, but it is unsafe to modify the map externally
-            // it would be possible to implement a safe modifiable map, but it is probably not valuable
-            return Collections.unmodifiableMap(super.byRange());
-        }
-
-        @Override
         public RangesAtEndpoint snapshot()
         {
             return snapshot(list.subList(0, list.size()));
