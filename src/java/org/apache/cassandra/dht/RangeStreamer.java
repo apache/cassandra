@@ -644,8 +644,6 @@ public class RangeStreamer
                         //Range is unavailable
                         return false;
 
-                    assert isInFull != isInTrans : "Range can't be simultaneously full and transient: " + isInFull + " " + isInTrans;
-
                     if (fetch.local.isFull())
                         //For full, pick only replicas with matching transientness
                         return isInFull == fetch.remote.isFull();
