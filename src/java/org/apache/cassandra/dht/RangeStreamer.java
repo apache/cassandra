@@ -267,6 +267,23 @@ public class RangeStreamer
         sourceFilters.add(filter);
     }
 
+    // Creates error message from source filters
+    private static String buildErrorMessage(Collection<SourceFilter> sourceFilters, ReplicaCollection<?> replicas)
+    {
+        StringBuilder failureMessage = new StringBuilder();
+        for (Replica r : replicas)
+        {
+            for (SourceFilter filter : sourceFilters)
+            {
+                if (!filter.apply(r))
+                {
+                    failureMessage.append(filter.message(r));
+                    break;
+                }
+            }
+        }
+        return failureMessage.toString();
+    }
     /**
      * Add ranges to be streamed for given keyspace.
      *
@@ -448,21 +465,7 @@ public class RangeStreamer
                          //We have to check the source filters here to see if they will remove any replicas
                          //required for strict consistency
                          if (!all(oldEndpoints, testSourceFilters))
-                         {
-                             StringBuilder failureMessage = new StringBuilder();
-                             for (Replica r : oldEndpoints)
-                             {
-                                 for (SourceFilter filter : sourceFilters)
-                                 {
-                                     if (!filter.apply(r))
-                                     {
-                                         failureMessage.append(filter.message(r));
-                                         break;
-                                     }
-                                 }
-                             }
-                             throw new IllegalStateException("Necessary replicas for strict consistency were removed by source filters: " + failureMessage);
-                         }
+                             throw new IllegalStateException("Necessary replicas for strict consistency were removed by source filters: " + buildErrorMessage(sourceFilters, oldEndpoints));
                      }
                      else
                      {
