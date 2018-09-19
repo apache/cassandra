@@ -305,7 +305,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
 
     public static boolean isDummyList(RangesAtEndpoint ranges)
     {
-        return all(ranges, Replica::isLocal) || all(ranges, range -> range.endpoint().getHostAddress(true).equals("0.0.0.0:0"));
+        return all(ranges, range -> range.endpoint().getHostAddress(true).equals("0.0.0.0:0"));
     }
 
     /**
