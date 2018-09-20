@@ -1435,8 +1435,8 @@ public class StorageProxy implements StorageProxyMBean
             Keyspace keyspace = Keyspace.open(keyspaceName);
             Token tk = cm.key().getToken();
 
-            ReplicaPlans.forWrite(keyspace, cm.consistency(), tk, ReplicaPlans.writeAll)
-                    .assureSufficientReplicas();
+            // we build this ONLY to perform the sufficiency check that happens on construction
+            ReplicaPlans.forWrite(keyspace, cm.consistency(), tk, ReplicaPlans.writeAll);
 
             // Forward the actual update to the chosen leader replica
             AbstractWriteResponseHandler<IMutation> responseHandler = new WriteResponseHandler<>(ReplicaPlans.forForwardingCounterWrite(keyspace, tk, replica),
@@ -2087,8 +2087,6 @@ public class StorageProxy implements StorageProxyMBean
                     = new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, queryStartNanoTime);
             ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler
                     = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, queryStartNanoTime);
-
-            replicaPlan.assureSufficientReplicas();
 
             // If enabled, request repaired data tracking info from full replicas but
             // only if there are multiple full replicas to compare results from

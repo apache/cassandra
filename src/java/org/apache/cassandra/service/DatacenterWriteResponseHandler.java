@@ -18,15 +18,20 @@
 package org.apache.cassandra.service;
 
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.locator.InOurDcTester;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.MessageIn;
+
+import java.util.function.Predicate;
 
 /**
  * This class blocks for a quorum of responses _in the local datacenter only_ (CL.LOCAL_QUORUM).
  */
 public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
 {
+    private final Predicate<InetAddressAndPort> waitingFor = InOurDcTester.endpoints();
+
     public DatacenterWriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan,
                                           Runnable callback,
                                           WriteType writeType,
@@ -54,6 +59,6 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
     @Override
     protected boolean waitingFor(InetAddressAndPort from)
     {
-        return replicaPlan.consistencyLevel().isLocal(from);
+        return waitingFor.test(from);
     }
 }
