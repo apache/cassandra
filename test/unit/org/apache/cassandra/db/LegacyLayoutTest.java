@@ -253,12 +253,12 @@ public class LegacyLayoutTest
     }
 
     @Test
-    public void testStaticRangeTombstoneRoundTripDroppedColumn() throws Throwable
+    public void testCollectionDeletionRoundTripForDroppedColumn() throws Throwable
     {
         // this variant of the bug deletes a row with the same clustering key value as the name of the static collection
-        QueryProcessor.executeInternal(String.format("CREATE TABLE \"%s\".legacy_static_rt_rt_dc (pk int, ck1 text, v int, s set<text>, primary key (pk, ck1))", KEYSPACE));
+        QueryProcessor.executeInternal(String.format("CREATE TABLE \"%s\".legacy_rt_rt_dc (pk int, ck1 text, v int, s set<text>, primary key (pk, ck1))", KEYSPACE));
         Keyspace keyspace = Keyspace.open(KEYSPACE);
-        CFMetaData table = keyspace.getColumnFamilyStore("legacy_static_rt_rt_dc").metadata;
+        CFMetaData table = keyspace.getColumnFamilyStore("legacy_rt_rt_dc").metadata;
         ColumnDefinition v = table.getColumnDefinition(new ColumnIdentifier("v", false));
         ColumnDefinition bug = table.getColumnDefinition(new ColumnIdentifier("s", false));
 
@@ -277,7 +277,7 @@ public class LegacyLayoutTest
              DataOutputBuffer serialized21 = new DataOutputBuffer())
         {
             LegacyLayout.serializeAsLegacyPartition(null, upd.unfilteredIterator(), serialized21, MessagingService.VERSION_21);
-            QueryProcessor.executeInternal(String.format("ALTER TABLE \"%s\".legacy_static_rt_rt_dc DROP s", KEYSPACE));
+            QueryProcessor.executeInternal(String.format("ALTER TABLE \"%s\".legacy_rt_rt_dc DROP s", KEYSPACE));
             try (DataInputBuffer in = new DataInputBuffer(serialized21.buffer(), false))
             {
                 try (UnfilteredRowIterator deser21 = LegacyLayout.deserializeLegacyPartition(in, MessagingService.VERSION_21, SerializationHelper.Flag.LOCAL, upd.partitionKey().getKey());
