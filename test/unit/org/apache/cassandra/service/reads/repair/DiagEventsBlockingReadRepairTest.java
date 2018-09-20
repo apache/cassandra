@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import com.google.common.collect.Lists;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -43,7 +44,6 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepairEvent.ReadRepairEventType;
@@ -169,9 +169,15 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
     {
         private final Map<InetAddressAndPort, String> updatesByEp = new HashMap<>();
 
+        private static Predicate<InetAddressAndPort> isLocal()
+        {
+            List<InetAddressAndPort> candidates = targets;
+            return e -> candidates.contains(e);
+        }
+
         DiagnosticPartitionReadRepairHandler(DecoratedKey key, Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
         {
-            super(key, repairs, maxBlockFor, replicaPlan);
+            super(key, repairs, maxBlockFor, replicaPlan, isLocal());
             DiagnosticEventService.instance().subscribe(PartitionRepairEvent.class, this::onRepairEvent);
         }
 
@@ -183,19 +189,6 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
 
         protected void sendRR(MessageOut<Mutation> message, InetAddressAndPort endpoint)
         {
-        }
-
-        List<InetAddressAndPort> candidates = targets;
-
-        protected List<InetAddressAndPort> getCandidateEndpoints()
-        {
-            return candidates;
-        }
-
-        @Override
-        protected boolean isLocal(InetAddressAndPort endpoint)
-        {
-            return targets.contains(endpoint);
         }
     }
 }

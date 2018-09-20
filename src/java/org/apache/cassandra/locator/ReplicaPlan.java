@@ -50,7 +50,6 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
     }
 
     public abstract int blockFor();
-    public abstract void assureSufficientReplicas();
 
     public E contacts() { return contacts; }
     public boolean contacts(Replica replica) { return contacts.contains(replica); }
@@ -70,7 +69,6 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         }
 
         public int blockFor() { return consistencyLevel.blockFor(keyspace); }
-        public void assureSufficientReplicas() { consistencyLevel.assureSufficientLiveReplicasForRead(keyspace, candidates()); }
 
         public E candidates() { return candidates; }
 
@@ -142,7 +140,6 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         }
 
         public int blockFor() { return consistencyLevel.blockForWrite(keyspace, pending()); }
-        public void assureSufficientReplicas() { consistencyLevel.assureSufficientLiveReplicasForWrite(keyspace, live(), pending()); }
 
         /** Replicas that a region of the ring is moving to; not yet ready to serve reads, but should receive writes */
         public E pending() { return pending; }

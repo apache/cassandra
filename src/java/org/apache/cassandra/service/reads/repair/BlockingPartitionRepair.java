@@ -23,9 +23,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.AbstractFuture;
@@ -41,6 +43,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.InOurDcTester;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
@@ -56,14 +59,21 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
     private final P replicaPlan;
     private final Map<Replica, Mutation> pendingRepairs;
     private final CountDownLatch latch;
+    private final Predicate<InetAddressAndPort> shouldBlockOn;
 
     private volatile long mutationsSentTime;
 
     public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
     {
+        this(key, repairs, maxBlockFor, replicaPlan,
+                replicaPlan.consistencyLevel().isDatacenterLocal() ? InOurDcTester.endpoints() : Predicates.alwaysTrue());
+    }
+    public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan, Predicate<InetAddressAndPort> shouldBlockOn)
+    {
         this.key = key;
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
         this.replicaPlan = replicaPlan;
+        this.shouldBlockOn = shouldBlockOn;
 
         // here we remove empty repair mutations from the block for total, since
         // we're not sending them mutations
@@ -72,7 +82,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
         {
             // remote dcs can sometimes get involved in dc-local reads. We want to repair
             // them if they do, but they shouldn't interfere with blocking the client read.
-            if (!repairs.containsKey(participant) && shouldBlockOn(participant.endpoint()))
+            if (!repairs.containsKey(participant) && shouldBlockOn.test(participant.endpoint()))
                 blockFor--;
         }
 
@@ -91,20 +101,9 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
     }
 
     @VisibleForTesting
-    boolean isLocal(InetAddressAndPort endpoint)
-    {
-        return ConsistencyLevel.isLocal(endpoint);
-    }
-
-    private boolean shouldBlockOn(InetAddressAndPort endpoint)
-    {
-        return !replicaPlan.consistencyLevel().isDatacenterLocal() || isLocal(endpoint);
-    }
-
-    @VisibleForTesting
     void ack(InetAddressAndPort from)
     {
-        if (shouldBlockOn(from))
+        if (shouldBlockOn.test(from))
         {
             pendingRepairs.remove(replicaPlan.getReplicaFor(from));
             latch.countDown();
@@ -161,7 +160,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
             sendRR(mutation.createMessage(MessagingService.Verb.READ_REPAIR), destination.endpoint());
             ColumnFamilyStore.metricsFor(tableId).readRepairRequests.mark();
 
-            if (!shouldBlockOn(destination.endpoint()))
+            if (!shouldBlockOn.test(destination.endpoint()))
                 pendingRepairs.remove(destination);
             ReadRepairDiagnostics.sendInitialRepair(this, destination.endpoint(), mutation);
         }
