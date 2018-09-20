@@ -24,6 +24,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.math.IntMath;
 
+import org.apache.cassandra.db.rows.Cell;
+
 import static org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder.AddResult.ACCUMULATED;
 import static org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder.AddResult.INSERTED;
 
@@ -99,7 +101,12 @@ public class StreamingTombstoneHistogramBuilder
      */
     public void update(int p, int m)
     {
+        assert p >= 0 : "expiration time must not be negative";
+
         p = roundKey(p, roundSeconds);
+        if (p == Cell.NO_DELETION_TIME) {
+            return;
+        }
 
         if (spool.capacity > 0)
         {
@@ -595,12 +602,19 @@ public class StreamingTombstoneHistogramBuilder
         }
     }
 
-    private static int roundKey(int p, int roundSeconds)
+    private static int roundKey(int point, int roundSeconds)
     {
-        int d = p % roundSeconds;
+        int d = point % roundSeconds;
         if (d > 0)
-            return p + (roundSeconds - d);
+        {
+            point += roundSeconds - d;
+            if (point < 0) {
+                // math overflow happen because of point was close to max possible value
+                return Cell.NO_DELETION_TIME;
+            }
+            return point;
+        }
         else
-            return p;
+            return point;
     }
 }

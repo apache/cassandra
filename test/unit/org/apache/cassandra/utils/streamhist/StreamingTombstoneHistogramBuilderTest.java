@@ -25,6 +25,7 @@ import java.util.stream.IntStream;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
@@ -165,6 +166,30 @@ public class StreamingTombstoneHistogramBuilderTest
     {
         StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 0, 1);
         IntStream.range(Integer.MAX_VALUE - 30, Integer.MAX_VALUE).forEach(builder::update);
+    }
+
+    @Test
+    public void testMathOverflowDuringRoundingOfLargeTimestamp() throws Exception
+    {
+        StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 10, 60);
+        int[] samples = new int[] {
+            Cell.MAX_DELETION_TIME, // should be ignored because of we always do rounding to upper bound
+            Cell.MAX_DELETION_TIME - 60,
+            59, 60, 119, 180, 181, 300, 400
+        };
+        for (int i = 0 ; i < samples.length ; i++)
+            builder.update(samples[i]);
+
+        TombstoneHistogram histogram = builder.build();
+
+        System.out.println(asMap(histogram));
+
+        assertEquals(asMap(histogram).size(), 5);
+        assertEquals(asMap(histogram).get(180).intValue(), 4);
+        assertEquals(asMap(histogram).get(240).intValue(), 1);
+        assertEquals(asMap(histogram).get(300).intValue(), 1);
+        assertEquals(asMap(histogram).get(420).intValue(), 1);
+        assertEquals(asMap(histogram).get(Integer.MAX_VALUE - Integer.MAX_VALUE % 60).intValue(), 1);
     }
 
     private Map<Integer, Integer> asMap(TombstoneHistogram histogram)
