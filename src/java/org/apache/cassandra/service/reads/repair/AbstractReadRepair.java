@@ -84,8 +84,24 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         return replicaPlan.get();
     }
 
-    void sendReadCommand(Replica to, ReadCallback readCallback)
+    void sendReadCommand(Replica to, ReadCallback readCallback, boolean speculative)
     {
+        ReadCommand command = this.command;
+        if (to.isTransient())
+        {
+            // It's OK to send queries to transient nodes during RR, as we may have contacted them for their data request initially
+            // So long as we don't use these to generate repair mutations, we're fine, and this is enforced by requiring
+            // ReadOnlyReadRepair for transient keyspaces.
+            command = command.copyAsTransientQuery(to);
+        }
+
+        if (Tracing.isTracing())
+        {
+            String type;
+            if (speculative) type = to.isFull() ? "speculative full" : "speculative transient";
+            else type = to.isFull() ? "full" : "transient";
+            Tracing.trace("Enqueuing {} data read to {}", type, to);
+        }
         MessageOut<ReadCommand> message = command.createMessage();
         // if enabled, request additional info about repaired data from any full replicas
         if (command.isTrackingRepairedStatus() && to.isFull())
@@ -112,10 +128,8 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
             command.trackRepairedStatus();
 
         for (Replica replica : replicaPlan().contacts())
-        {
-            Tracing.trace("Enqueuing full data read to {}", replica);
-            sendReadCommand(replica, readCallback);
-        }
+            sendReadCommand(replica, readCallback, false);
+
         ReadRepairDiagnostics.startRepair(this, replicaPlan(), digestResolver);
     }
 
@@ -153,8 +167,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
                 return;
 
             replicaPlan.addToContacts(uncontacted);
-            Tracing.trace("Enqueuing speculative full data read to {}", uncontacted);
-            sendReadCommand(uncontacted, repair.readCallback);
+            sendReadCommand(uncontacted, repair.readCallback, true);
             ReadRepairMetrics.speculatedRead.mark();
             ReadRepairDiagnostics.speculatedRead(this, uncontacted.endpoint(), replicaPlan());
         }

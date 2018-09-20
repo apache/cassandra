@@ -91,7 +91,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         ReadCallback readCallback = null;
 
         @Override
-        void sendReadCommand(Replica to, ReadCallback callback)
+        void sendReadCommand(Replica to, ReadCallback callback, boolean speculative)
         {
             assert readCallback == null || readCallback == callback;
             readCommandRecipients.add(to.endpoint());
