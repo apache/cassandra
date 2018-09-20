@@ -274,7 +274,7 @@ public abstract class AbstractReadExecutor
                 speculated = true;
 
                 ReplicaPlan.ForTokenRead replicaPlan = replicaPlan();
-                ReadCommand retryCommand = command;
+                ReadCommand retryCommand;
                 Replica extraReplica;
                 if (handler.resolver.isDataPresent())
                 {
@@ -290,6 +290,7 @@ public abstract class AbstractReadExecutor
                 else
                 {
                     extraReplica = replicaPlan.firstUncontactedCandidate(Replica::isFull);
+                    retryCommand = command;
                     if (extraReplica == null)
                     {
                         cfs.metric.speculativeInsufficientReplicas.inc();
