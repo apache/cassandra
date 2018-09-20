@@ -102,8 +102,8 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         {
             MessagingService.instance().incrementDroppedMessages(message, message.getLifetimeInMS());
             throw new InvalidRequestException(String.format("Attempted to serve %s data request from %s node in %s",
-                                                            replica.isTransient() ? "transient" : "full",
                                                             command.acceptsTransient() ? "transient" : "full",
+                                                            replica.isTransient() ? "transient" : "full",
                                                             this));
         }
     }
