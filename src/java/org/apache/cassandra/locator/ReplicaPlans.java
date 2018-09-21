@@ -245,80 +245,6 @@ public class ReplicaPlans
         return result;
     }
 
-    private static Collection<InetAddressAndPort> filterBatchlogEndpoints(String localRack,
-                                                                         Multimap<String, InetAddressAndPort> endpoints)
-    {
-        return filterBatchlogEndpoints(localRack,
-                                       endpoints,
-                                       Collections::shuffle,
-                                       FailureDetector.isEndpointAlive,
-                                       ThreadLocalRandom.current()::nextInt);
-    }
-
-    // Collect a list of candidates for batchlog hosting. If possible these will be two nodes from different racks.
-    public static Collection<InetAddressAndPort> filterBatchlogEndpoints(String localRack,
-                                                                         Multimap<String, InetAddressAndPort> endpoints,
-                                                                         Consumer<List<?>> shuffle,
-                                                                         Predicate<InetAddressAndPort> isAlive,
-                                                                         Function<Integer, Integer> indexPicker)
-    {
-        // special case for single-node data centers
-        if (endpoints.values().size() == 1)
-            return endpoints.values();
-
-        // strip out dead endpoints and localhost
-        ListMultimap<String, InetAddressAndPort> validated = ArrayListMultimap.create();
-        for (Map.Entry<String, InetAddressAndPort> entry : endpoints.entries())
-        {
-            InetAddressAndPort addr = entry.getValue();
-            if (!addr.equals(FBUtilities.getBroadcastAddressAndPort()) && isAlive.test(addr))
-                validated.put(entry.getKey(), entry.getValue());
-        }
-
-        if (validated.size() <= 2)
-            return validated.values();
-
-        if (validated.size() - validated.get(localRack).size() >= 2)
-        {
-            // we have enough endpoints in other racks
-            validated.removeAll(localRack);
-        }
-
-        if (validated.keySet().size() == 1)
-        {
-            /*
-             * we have only 1 `other` rack to select replicas from (whether it be the local rack or a single non-local rack)
-             * pick two random nodes from there; we are guaranteed to have at least two nodes in the single remaining rack
-             * because of the preceding if block.
-             */
-            List<InetAddressAndPort> otherRack = Lists.newArrayList(validated.values());
-            shuffle.accept(otherRack);
-            return otherRack.subList(0, 2);
-        }
-
-        // randomize which racks we pick from if more than 2 remaining
-        Collection<String> racks;
-        if (validated.keySet().size() == 2)
-        {
-            racks = validated.keySet();
-        }
-        else
-        {
-            racks = Lists.newArrayList(validated.keySet());
-            shuffle.accept((List<?>) racks);
-        }
-
-        // grab a random member of up to two racks
-        List<InetAddressAndPort> result = new ArrayList<>(2);
-        for (String rack : Iterables.limit(racks, 2))
-        {
-            List<InetAddressAndPort> rackMembers = validated.get(rack);
-            result.add(rackMembers.get(indexPicker.apply(rackMembers.size())));
-        }
-
-        return result;
-    }
-
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, Selector selector) throws UnavailableException
     {
         return forWrite(keyspace, consistencyLevel, ReplicaLayout.forTokenWriteLiveAndDown(keyspace, token), selector);
@@ -558,5 +484,79 @@ public class ReplicaPlans
 
         // If we get there, merge this range and the next one
         return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, newRange, mergedCandidates, contacts);
+    }
+
+    private static Collection<InetAddressAndPort> filterBatchlogEndpoints(String localRack,
+                                                                          Multimap<String, InetAddressAndPort> endpoints)
+    {
+        return filterBatchlogEndpoints(localRack,
+                                       endpoints,
+                                       Collections::shuffle,
+                                       FailureDetector.isEndpointAlive,
+                                       ThreadLocalRandom.current()::nextInt);
+    }
+
+    // Collect a list of candidates for batchlog hosting. If possible these will be two nodes from different racks.
+    public static Collection<InetAddressAndPort> filterBatchlogEndpoints(String localRack,
+                                                                         Multimap<String, InetAddressAndPort> endpoints,
+                                                                         Consumer<List<?>> shuffle,
+                                                                         Predicate<InetAddressAndPort> isAlive,
+                                                                         Function<Integer, Integer> indexPicker)
+    {
+        // special case for single-node data centers
+        if (endpoints.values().size() == 1)
+            return endpoints.values();
+
+        // strip out dead endpoints and localhost
+        ListMultimap<String, InetAddressAndPort> validated = ArrayListMultimap.create();
+        for (Map.Entry<String, InetAddressAndPort> entry : endpoints.entries())
+        {
+            InetAddressAndPort addr = entry.getValue();
+            if (!addr.equals(FBUtilities.getBroadcastAddressAndPort()) && isAlive.test(addr))
+                validated.put(entry.getKey(), entry.getValue());
+        }
+
+        if (validated.size() <= 2)
+            return validated.values();
+
+        if (validated.size() - validated.get(localRack).size() >= 2)
+        {
+            // we have enough endpoints in other racks
+            validated.removeAll(localRack);
+        }
+
+        if (validated.keySet().size() == 1)
+        {
+            /*
+             * we have only 1 `other` rack to select replicas from (whether it be the local rack or a single non-local rack)
+             * pick two random nodes from there; we are guaranteed to have at least two nodes in the single remaining rack
+             * because of the preceding if block.
+             */
+            List<InetAddressAndPort> otherRack = Lists.newArrayList(validated.values());
+            shuffle.accept(otherRack);
+            return otherRack.subList(0, 2);
+        }
+
+        // randomize which racks we pick from if more than 2 remaining
+        Collection<String> racks;
+        if (validated.keySet().size() == 2)
+        {
+            racks = validated.keySet();
+        }
+        else
+        {
+            racks = Lists.newArrayList(validated.keySet());
+            shuffle.accept((List<?>) racks);
+        }
+
+        // grab a random member of up to two racks
+        List<InetAddressAndPort> result = new ArrayList<>(2);
+        for (String rack : Iterables.limit(racks, 2))
+        {
+            List<InetAddressAndPort> rackMembers = validated.get(rack);
+            result.add(rackMembers.get(indexPicker.apply(rackMembers.size())));
+        }
+
+        return result;
     }
 }
