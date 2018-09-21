@@ -38,6 +38,7 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class StorageServiceTest
 {
@@ -106,19 +107,30 @@ public class StorageServiceTest
     public static <K, C extends ReplicaCollection<? extends C>>  void assertMultimapEqualsIgnoreOrder(ReplicaMultimap<K, C> a, ReplicaMultimap<K, C> b)
     {
         if (!a.keySet().equals(b.keySet()))
-            assertEquals(a, b);
+            fail(formatNeq(a, b));
         for (K key : a.keySet())
         {
             C ac = a.get(key);
             C bc = b.get(key);
             if (ac.size() != bc.size())
-                assertEquals(a, b);
+                fail(formatNeq(a, b));
             for (Replica r : ac)
             {
                 if (!bc.contains(r))
-                    assertEquals(a, b);
+                    fail(formatNeq(a, b));
             }
         }
+    }
+
+    public static String formatNeq(Object v1, Object v2)
+    {
+        return "\nExpected: " + formatClassAndValue(v1) + "\n but was: " + formatClassAndValue(v2);
+    }
+
+    public static String formatClassAndValue(Object value)
+    {
+        String className = value == null ? "null" : value.getClass().getName();
+        return className + "<" + String.valueOf(value) + ">";
     }
 
     @Test
