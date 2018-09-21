@@ -162,6 +162,23 @@ references:
         cd /tmp/cassandra
         ant testclasslist -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt || $TEST_SUCCESS_OVERRIDE
 
+  run_parallel_unit_tests_gen_coverage: &run_parallel_unit_tests_gen_coverage
+    run:
+      name: Run Unit Tests with test coverage
+      no_output_timeout: 15m
+      command: |
+        #Skip all syncing to disk to avoid performance issues in flaky CI environments
+        export CASSANDRA_SKIP_SYNC=true
+
+        time cp -rp ~/cassandra /tmp
+        cd /tmp/cassandra
+
+        # Generate unique exec file for each running container
+        export JACOCO_EXECFILE=/home/cassandra/cassandra/build/jacoco/partials/partial-unit_tests-${CIRCLE_NODE_INDEX}.exec
+
+        ant jacoco-run -Dtaskname=testclasslist -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt -Djacoco.partialexecfile=${JACOCO_EXECFILE} || $TEST_SUCCESS_OVERRIDE
+        find $(dirname ${JACOCO_EXECFILE}) -ls
+
   # Determine which tests to run on this node
   # Requires environment variables set for the job
   #   DTEST_TESTS arguments for selecting dtests to run
@@ -204,6 +221,37 @@ references:
         export CASSANDRA_SKIP_SYNC=true
         set -o pipefail && cd ~/cassandra-dtest && (pytest --log-level="INFO" ${DTEST_TESTS} --junit-xml=/tmp/results/dtests/pytest_result_${DTEST_SUFFIX}.xml -s --cassandra-dir=/home/cassandra/cassandra --skip-resource-intensive-tests --keep-test-dir $SPLIT_TESTS 2>&1 || $TEST_SUCCESS_OVERRIDE) | tee /tmp/dtest/stdout.txt
 
+  # Run parallel tests, requires same environment variables as determine_parallel_dtests_to_run
+  run_parallel_dtests_gen_coverage: &run_parallel_dtests_gen_coverage
+    run:
+      name: Run dtests
+      no_output_timeout: 15m
+      command: |
+        echo "cat /tmp/split_dtest_tests_${DTEST_SUFFIX}_final.txt"
+        cat /tmp/split_dtest_tests_${DTEST_SUFFIX}_final.txt
+
+        cd ~/cassandra-dtest
+        mkdir -p /tmp/dtest
+
+        echo "env: $(env)"
+        echo "** done env"
+        mkdir -p /tmp/results/dtests
+        # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
+        export SPLIT_TESTS=`cat /tmp/split_dtest_tests_${DTEST_SUFFIX}_final.txt`
+        #Skip all syncing to disk to avoid performance issues in flaky CI environments
+        export CASSANDRA_SKIP_SYNC=true
+
+        # Generate unique exec file for each running container
+        export JACOCO_EXECFILE=/home/cassandra/cassandra/build/jacoco/partials/partial-dtest_${DTEST_SUFFIX}-${CIRCLE_NODE_INDEX}.exec
+
+        set -o pipefail && cd ~/cassandra-dtest && (pytest --log-level="INFO" ${DTEST_TESTS} --junit-xml=/tmp/results/dtests/pytest_result_${DTEST_SUFFIX}.xml -s --cassandra-dir=/home/cassandra/cassandra --skip-resource-intensive-tests --keep-test-dir  --enable-jacoco-code-coverage $SPLIT_TESTS 2>&1 || $TEST_SUCCESS_OVERRIDE) | tee /tmp/dtest/stdout.txt
+
+  persist_jacoco_workspace: &persist_jacoco_workspace
+    persist_to_workspace:
+      root: /home/cassandra
+      paths:
+        - cassandra/build/jacoco/partials
+
 default_jobs: &default_jobs
   jobs:
     - build
@@ -231,6 +279,49 @@ with_dtest_jobs_only: &with_dtest_jobs_only
     - dtests-no-vnodes:
         requires:
           - build
+
+unittest-test-coverage: &unittest-test-coverage
+  jobs:
+    - build
+    - unit_tests_gen_coverage:
+        requires:
+          - build
+    - coverage_report:
+        requires:
+          - unit_tests_gen_coverage
+
+with_dtests_jobs-test-coverage: &with_dtest_jobs-test-coverage
+  jobs:
+    - build
+    - unit_tests_gen_coverage:
+        requires:
+          - build
+    - dtests-with-vnodes_gen_coverage:
+        requires:
+          - build
+    - dtests-no-vnodes_gen_coverage:
+        requires:
+          - build
+    - coverage_report:
+        requires:
+          - unit_tests_gen_coverage
+          - dtests-with-vnodes_gen_coverage
+          - dtests-no-vnodes_gen_coverage
+
+with_dtest_jobs_only-test-coverage: &with_dtest_jobs_only-test-coverage
+  jobs:
+    - build
+    - dtests-with-vnodes_gen_coverage:
+        requires:
+          - build
+    - dtests-no-vnodes_gen_coverage:
+        requires:
+          - build
+    - coverage_report:
+        requires:
+          - dtests-with-vnodes_gen_coverage
+          - dtests-no-vnodes_gen_coverage
+
 
 workflows:
   version: 2
@@ -294,6 +385,28 @@ jobs:
           path: /tmp/cassandra/build/test/logs
           destination: logs
 
+  unit_tests_gen_coverage:
+    <<: *env_settings
+    <<: *container_config
+    environment:
+      TEST_SUCCESS_OVERRIDE: /bin/true
+    shell: /bin/bash -eo pipefail -l
+    steps:
+      - *attach_workspace
+      - *configure_java
+      - *log_environment
+      - *determine_parallel_unit_tests_to_run
+      - *run_parallel_unit_tests_gen_coverage
+      - store_test_results:
+          path: /tmp/cassandra/build/test/output/
+      - store_artifacts:
+          path: /tmp/cassandra/build/test/output
+          destination: junitxml
+      - store_artifacts:
+          path: /tmp/cassandra/build/test/logs
+          destination: logs
+      - *persist_jacoco_workspace
+
   dtests-with-vnodes:
     <<: *env_settings
     <<: *container_config
@@ -341,3 +454,86 @@ jobs:
       - store_artifacts:
           path: ~/cassandra-dtest/logs
           destination: dtest_no_vnodes_logs
+
+  dtests-with-vnodes_gen_coverage:
+    <<: *env_settings
+    <<: *container_config
+    environment:
+      DTEST_TESTS: --use-vnodes --num-tokens=32
+      DTEST_SUFFIX: with_vnodes
+      TEST_SUCCESS_OVERRIDE: /bin/true
+    shell: /bin/bash -eo pipefail -l
+    steps:
+      - *attach_workspace
+      - *clone_dtest
+      - *configure_java
+      - *configure_dtest_python
+      - *log_environment
+      - *determine_parallel_dtests_to_run
+      - *run_parallel_dtests_gen_coverage
+      - store_test_results:
+          path: /tmp/results
+      - store_artifacts:
+          path: /tmp/dtest
+          destination: dtest_with_vnodes
+      - store_artifacts:
+          path: ~/cassandra-dtest/logs
+          destination: dtest_with_vnodes_logs
+      - *persist_jacoco_workspace
+
+  dtests-no-vnodes_gen_coverage:
+    <<: *env_settings
+    <<: *container_config
+    environment:
+      DTEST_TESTS: ""  # default is test with no vnodes
+      DTEST_SUFFIX: without_vnodes
+      TEST_SUCCESS_OVERRIDE: /bin/true
+    shell: /bin/bash -eo pipefail -l
+    steps:
+      - *attach_workspace
+      - *clone_dtest
+      - *configure_java
+      - *configure_dtest_python
+      - *log_environment
+      - *determine_parallel_dtests_to_run
+      - *run_parallel_dtests_gen_coverage
+      - store_test_results:
+          path: /tmp/results
+      - store_artifacts:
+          path: /tmp/dtest
+          destination: dtest_no_vnodes
+      - store_artifacts:
+          path: ~/cassandra-dtest/logs
+          destination: dtest_no_vnodes_logs
+      - *persist_jacoco_workspace
+
+  # Generate a code coverage report from the partial data stored under
+  # ~/cassandra/build/jacococ.  Any previous jobs *must* apply the
+  # *persist_jacoco_workspace step, and the job spec must set all tasks that
+  # generate coverage information as a dependency.
+  coverage_report:
+    <<: *env_settings
+    parallelism: 1  # This job doesn't benefit from parallelism
+    <<: *container_config
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    steps:
+      - *attach_workspace
+      - *configure_java
+      - run:
+          name: Generate code coverage report
+          no_output_timeout: 15m
+          command: |
+            cd ~/cassandra
+            find build/jacoco -ls
+            ant jacoco-report
+            # It took 20 mins to upload all of the artifacts from a full
+            # coverage run, so create an archive fork download instead.
+            mkdir -p build/jacoco-report
+            rsync -a build/jacoco build/jacoco-report/cassandra-coverage-${CIRCLE_SHA1} --exclude '*.exec'
+            mkdir -p build/jacoco-report-tgz
+            cd build/jacoco-report
+            tar cfz ../jacoco-report-tgz/cassandra-coverage-${CIRCLE_SHA1}.tar.gz cassandra-coverage-${CIRCLE_SHA1}
+      - store_artifacts:
+          path: /home/cassandra/cassandra/build/jacoco-report-tgz
+          destination: jacoco
