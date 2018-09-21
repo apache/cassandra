@@ -72,9 +72,12 @@ public class StreamingTombstoneHistogramBuilder
     // voluntarily give up resolution for speed
     private final int roundSeconds;
 
+    private final int maxExpirationTimeInSeconds;
+
     public StreamingTombstoneHistogramBuilder(int maxBinSize, int maxSpoolSize, int roundSeconds)
     {
         this.roundSeconds = roundSeconds;
+        this.maxExpirationTimeInSeconds = getMaxExpirationTimeInSeconds(roundSeconds);
         this.bin = new DataHolder(maxBinSize + 1, roundSeconds);
         distances = new DistanceHolder(maxBinSize);
 
@@ -103,10 +106,7 @@ public class StreamingTombstoneHistogramBuilder
     {
         assert p >= 0 : "expiration time must not be negative";
 
-        p = roundKey(p, roundSeconds);
-        if (p == Cell.NO_DELETION_TIME) {
-            return;
-        }
+        p = roundKey(p, roundSeconds, maxExpirationTimeInSeconds);
 
         if (spool.capacity > 0)
         {
@@ -263,18 +263,21 @@ public class StreamingTombstoneHistogramBuilder
         private static final long EMPTY = Long.MAX_VALUE;
         private final long[] data;
         private final int roundSeconds;
+        private final int maxExpirationTimeInSeconds;
 
         DataHolder(int maxCapacity, int roundSeconds)
         {
             data = new long[maxCapacity];
             Arrays.fill(data, EMPTY);
             this.roundSeconds = roundSeconds;
+            this.maxExpirationTimeInSeconds = getMaxExpirationTimeInSeconds(roundSeconds);
         }
 
         DataHolder(DataHolder holder)
         {
             data = Arrays.copyOf(holder.data, holder.data.length);
             roundSeconds = holder.roundSeconds;
+            this.maxExpirationTimeInSeconds = getMaxExpirationTimeInSeconds(roundSeconds);
         }
 
         NeighboursAndResult addValue(int point, int delta)
@@ -334,7 +337,7 @@ public class StreamingTombstoneHistogramBuilder
 
             //let's evaluate in long values to handle overflow in multiplication
             int newPoint = (int) (((long) point1 * value1 + (long) point2 * value2) / (value1 + value2));
-            newPoint = roundKey(newPoint, roundSeconds);
+            newPoint = roundKey(newPoint, roundSeconds, maxExpirationTimeInSeconds);
             data[index] = wrap(newPoint, sum);
 
             System.arraycopy(data, index + 2, data, index + 1, data.length - index - 2);
@@ -602,19 +605,23 @@ public class StreamingTombstoneHistogramBuilder
         }
     }
 
-    private static int roundKey(int point, int roundSeconds)
+    private static int roundKey(int point, int roundSeconds, int maxExpirationTimeInSeconds)
     {
         int d = point % roundSeconds;
         if (d > 0)
         {
             point += roundSeconds - d;
-            if (point < 0) {
+            if (point < 0)
                 // math overflow happen because of point was close to max possible value
-                return Cell.NO_DELETION_TIME;
-            }
+                return maxExpirationTimeInSeconds;
             return point;
         }
         else
             return point;
     }
+
+    private static int getMaxExpirationTimeInSeconds(int roundSeconds) {
+        return Integer.MAX_VALUE - Integer.MAX_VALUE % roundSeconds;
+    }
+
 }

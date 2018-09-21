@@ -173,7 +173,7 @@ public class StreamingTombstoneHistogramBuilderTest
     {
         StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 10, 60);
         int[] samples = new int[] {
-            Cell.MAX_DELETION_TIME, // should be ignored because of we always do rounding to upper bound
+            Cell.MAX_DELETION_TIME, // should be reduced to max possible time of expiration
             Cell.MAX_DELETION_TIME - 60,
             59, 60, 119, 180, 181, 300, 400
         };
@@ -189,7 +189,7 @@ public class StreamingTombstoneHistogramBuilderTest
         assertEquals(asMap(histogram).get(240).intValue(), 1);
         assertEquals(asMap(histogram).get(300).intValue(), 1);
         assertEquals(asMap(histogram).get(420).intValue(), 1);
-        assertEquals(asMap(histogram).get(Integer.MAX_VALUE - Integer.MAX_VALUE % 60).intValue(), 1);
+        assertEquals(asMap(histogram).get(Integer.MAX_VALUE - Integer.MAX_VALUE % 60).intValue(), 2);
     }
 
     private Map<Integer, Integer> asMap(TombstoneHistogram histogram)
