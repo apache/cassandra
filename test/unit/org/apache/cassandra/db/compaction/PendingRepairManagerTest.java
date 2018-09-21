@@ -27,6 +27,7 @@ import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
 import org.apache.cassandra.utils.FBUtilities;
@@ -299,5 +300,19 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         mutateRepaired(sstable, repairID, false);
         prm.addSSTable(sstable);
         Assert.assertTrue(prm.hasDataForSession(repairID));
+    }
+
+    @Test
+    public void noEmptyCompactionTask()
+    {
+        PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
+        SSTableReader sstable = makeSSTable(false);
+        UUID id = UUID.randomUUID();
+        mutateRepaired(sstable, id, false);
+        prm.getOrCreate(sstable);
+        cfs.truncateBlocking();
+        Assert.assertFalse(cfs.getSSTables(SSTableSet.LIVE).iterator().hasNext());
+        Assert.assertNull(cfs.getCompactionStrategyManager().getNextBackgroundTask(0));
+
     }
 }

@@ -136,7 +136,7 @@ class PendingRepairManager
         return getOrCreate(sstable.getSSTableMetadata().pendingRepair);
     }
 
-    private synchronized void removeSession(UUID sessionID)
+    private synchronized void removeSessionIfEmpty(UUID sessionID)
     {
         if (!strategies.containsKey(sessionID) || !strategies.get(sessionID).getSSTables().isEmpty())
             return;
@@ -147,8 +147,11 @@ class PendingRepairManager
 
     synchronized void removeSSTable(SSTableReader sstable)
     {
-        for (AbstractCompactionStrategy strategy : strategies.values())
-            strategy.removeSSTable(sstable);
+        for (Map.Entry<UUID, AbstractCompactionStrategy> entry : strategies.entrySet())
+        {
+            entry.getValue().removeSSTable(sstable);
+            removeSessionIfEmpty(entry.getKey());
+        }
     }
 
 
@@ -207,6 +210,8 @@ class PendingRepairManager
                 strategy.replaceSSTables(groupRemoved, groupAdded);
             else
                 strategy.addSSTables(groupAdded);
+
+            removeSessionIfEmpty(entry.getKey());
         }
     }
 
@@ -464,7 +469,7 @@ class PendingRepairManager
                 }
                 if (completed)
                 {
-                    removeSession(sessionID);
+                    removeSessionIfEmpty(sessionID);
                 }
             }
         }
