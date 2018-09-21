@@ -119,8 +119,8 @@ public class BatchlogEndpointFilterTest
     private Collection<InetAddressAndPort> filterBatchlogEndpoints(Multimap<String, InetAddressAndPort> endpoints)
     {
         return ReplicaPlans.filterBatchlogEndpoints(LOCAL, endpoints,
-                                                    // Do not shuffle
-                                                    coll -> {},
+                                                    // Reverse instead of shuffle
+                                                    Collections::reverse,
                                                     // Always alive
                                                     (addr) -> true,
                                                     // Always pick the last
