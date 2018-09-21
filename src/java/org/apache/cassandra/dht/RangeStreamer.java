@@ -29,6 +29,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsByReplica;
@@ -646,11 +647,11 @@ public class RangeStreamer
             sources.asMap().forEach((source, fetchReplicas) -> {
 
                 // filter out already streamed ranges
-                Pair<Set<Range<Token>>, Set<Range<Token>>> available = stateStore.getAvailableRanges(keyspace, metadata.partitioner);
+                SystemKeyspace.AvailableRanges available = stateStore.getAvailableRanges(keyspace, metadata.partitioner);
 
                 Predicate<FetchReplica> isAvailable = fetch -> {
-                    boolean isInFull = available.left.contains(fetch.local.range());
-                    boolean isInTrans = available.right.contains(fetch.local.range());
+                    boolean isInFull = available.full.contains(fetch.local.range());
+                    boolean isInTrans = available.trans.contains(fetch.local.range());
 
                     if (!isInFull && !isInTrans)
                         //Range is unavailable
@@ -666,11 +667,11 @@ public class RangeStreamer
 
                 List<FetchReplica> remaining = fetchReplicas.stream().filter(not(isAvailable)).collect(Collectors.toList());
 
-                if (remaining.size() < available.left.size() + available.right.size())
+                if (remaining.size() < available.full.size() + available.trans.size())
                 {
                     List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
                     logger.info("Some ranges of {} are already available. Skipping streaming those ranges. Skipping {}. Fully available {} Transiently available {}",
-                                fetchReplicas, skipped, available.left, available.right);
+                                fetchReplicas, skipped, available.full, available.trans);
                 }
 
                 if (logger.isTraceEnabled())

@@ -32,12 +32,11 @@ import javax.management.openmbean.TabularData;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.ListenableFuture;
-import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.locator.Replica;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1288,13 +1287,13 @@ public final class SystemKeyspace
     /**
      * List of the streamed ranges, where transientness is encoded based on the source, where range was streamed from.
      */
-    public static synchronized Pair<Set<Range<Token>>, Set<Range<Token>>> getAvailableRanges(String keyspace, IPartitioner partitioner)
+    public static synchronized AvailableRanges getAvailableRanges(String keyspace, IPartitioner partitioner)
     {
         String query = "SELECT * FROM system.%s WHERE keyspace_name=?";
         UntypedResultSet rs = executeInternal(format(query, AVAILABLE_RANGES_V2), keyspace);
 
-        Set<Range<Token>> full = new HashSet<>();
-        Set<Range<Token>> trans = new HashSet<>();
+        ImmutableSet.Builder<Range<Token>> full = new ImmutableSet.Builder<>();
+        ImmutableSet.Builder<Range<Token>> trans = new ImmutableSet.Builder<>();
         for (UntypedResultSet.Row row : rs)
         {
             Optional.ofNullable(row.getSet("full_ranges", BytesType.instance))
@@ -1306,7 +1305,19 @@ public final class SystemKeyspace
                             .map(buf -> byteBufferToRange(buf, partitioner))
                             .forEach(trans::add));
         }
-        return Pair.create(full, trans);
+        return new AvailableRanges(full.build(), trans.build());
+    }
+
+    public static class AvailableRanges
+    {
+        public Set<Range<Token>> full;
+        public Set<Range<Token>> trans;
+
+        private AvailableRanges(Set<Range<Token>> full, Set<Range<Token>> trans)
+        {
+            this.full = full;
+            this.trans = trans;
+        }
     }
 
     public static void resetAvailableRanges()
