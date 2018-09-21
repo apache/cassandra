@@ -190,6 +190,18 @@ public class StreamingTombstoneHistogramBuilderTest
         assertEquals(asMap(histogram).get(Cell.MAX_DELETION_TIME).intValue(), 2);
     }
 
+    @Test(expected = AssertionError.class)
+    public void shouldCheckThatPointIsNotNegative() throws Exception
+    {
+        new StreamingTombstoneHistogramBuilder(5, 10, 60).update(-13);
+    }
+
+    @Test(expected = AssertionError.class)
+    public void shouldCheckThatPointIsLessThanNoDeletionTime() throws Exception
+    {
+        new StreamingTombstoneHistogramBuilder(5, 10, 60).update(Cell.NO_DELETION_TIME);
+    }
+
     private Map<Integer, Integer> asMap(TombstoneHistogram histogram)
     {
         Map<Integer, Integer> result = new HashMap<>();

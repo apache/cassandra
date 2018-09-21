@@ -102,6 +102,7 @@ public class StreamingTombstoneHistogramBuilder
     public void update(int p, int m)
     {
         assert p >= 0 : "expiration time must not be negative";
+        assert p <= Cell.MAX_DELETION_TIME : "expiration time should be less than or equals to Cell.MAX_DELETION_TIME";
 
         p = roundKey(p, roundSeconds);
 
