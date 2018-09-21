@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
@@ -44,11 +45,16 @@ import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
@@ -220,13 +226,8 @@ public class ReplicaPlans
         //  - allow the local node to be the only replica only if it's a single-node DC
         Collection<InetAddressAndPort> chosenEndpoints = filterBatchlogEndpoints(localRack, localEndpoints);
 
-        if (chosenEndpoints.isEmpty())
-        {
-            if (consistencyLevel == ConsistencyLevel.ANY)
-                chosenEndpoints = Collections.singleton(FBUtilities.getBroadcastAddressAndPort());
-            else
-                throw UnavailableException.create(ConsistencyLevel.ONE, 1, 0);
-        }
+        if (chosenEndpoints.isEmpty() && isAny)
+            chosenEndpoints = Collections.singleton(FBUtilities.getBroadcastAddressAndPort());
 
         ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(
                 SystemReplicas.getSystemReplicas(chosenEndpoints).forToken(token),
