@@ -205,38 +205,41 @@ references:
         set -o pipefail && cd ~/cassandra-dtest && (pytest --log-level="INFO" ${DTEST_TESTS} --junit-xml=/tmp/results/dtests/pytest_result_${DTEST_SUFFIX}.xml -s --cassandra-dir=/home/cassandra/cassandra --skip-resource-intensive-tests --keep-test-dir $SPLIT_TESTS 2>&1 || $TEST_SUCCESS_OVERRIDE) | tee /tmp/dtest/stdout.txt
 
 default_jobs: &default_jobs
-        jobs:
-            - build
-            - unit_tests:
-                  requires:
-                      - build
+  jobs:
+    - build
+    - unit_tests:
+        requires:
+          - build
 with_dtests_jobs: &with_dtest_jobs
-        jobs:
-            - build
-            - unit_tests:
-                  requires:
-                      - build
-            - dtests-with-vnodes:
-                  requires:
-                      - build
-            - dtests-no-vnodes:
-                  requires:
-                      - build
+  jobs:
+    - build
+    - unit_tests:
+        requires:
+          - build
+    - dtests-with-vnodes:
+        requires:
+          - build
+    - dtests-no-vnodes:
+        requires:
+          - build
 with_dtest_jobs_only: &with_dtest_jobs_only
-        jobs:
-            - build
-            - dtests-with-vnodes:
-                  requires:
-                      - build
-            - dtests-no-vnodes:
-                  requires:
-                      - build
+  jobs:
+    - build
+    - dtests-with-vnodes:
+        requires:
+          - build
+    - dtests-no-vnodes:
+        requires:
+          - build
 
 workflows:
-    version: 2
-    build_and_run_tests: *default_jobs
-    #build_and_run_tests: *with_dtest_jobs_only
-    #build_and_run_tests: *with_dtest_jobs
+  version: 2
+  build_and_run_tests: *default_jobs
+  # build_and_run_tests: *with_dtest_jobs_only
+  # build_and_run_tests: *with_dtest_jobs
+  # build_and_run_tests: *unittest-test-coverage
+  # build_and_run_tests: *with_dtest_jobs_only-test-coverage
+  # build_and_run_tests: *with_dtest_jobs-test-coverage
 
 jobs:
   build:
@@ -268,10 +271,10 @@ jobs:
             fi
           no_output_timeout: 15m
       - persist_to_workspace:
-            root: /home/cassandra
-            paths:
-                - cassandra
-                - .m2
+          root: /home/cassandra
+          paths:
+            - cassandra
+            - .m2
   unit_tests:
     <<: *env_settings
     <<: *container_config
