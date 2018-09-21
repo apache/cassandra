@@ -603,19 +603,17 @@ public class StreamingTombstoneHistogramBuilder
     private static int roundKey(int point, int roundSeconds)
     {
         int d = point % roundSeconds;
-        if (d > 0)
-        {
-            point += roundSeconds - d;
-            if (point == Cell.MAX_DELETION_TIME)
-                // the rounding should not be a reason to mark point as unexpirable
-                point =  Cell.MAX_DELETION_TIME;
-            else if (point < 0)
-                // math overflow happen because of point was close to max possible value
-                return  Cell.MAX_DELETION_TIME;
+        if (d == 0)
             return point;
-        }
-        else
-            return point;
+
+        point += roundSeconds - d;
+        if (point > Cell.MAX_DELETION_TIME)
+            // the rounding should not be a reason to mark point as unexpirable
+            return Cell.MAX_DELETION_TIME;
+        else if (point < 0)
+            // math overflow happen because of point was close to max possible value
+            return  Cell.MAX_DELETION_TIME;
+        return point;
     }
 
 }

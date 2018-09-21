@@ -173,8 +173,7 @@ public class StreamingTombstoneHistogramBuilderTest
     {
         StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 10, 60);
         int[] samples = new int[] {
-            Cell.MAX_DELETION_TIME - 2, // should be missed as result of INTEGER math overflow on rounding
-            Cell.MAX_DELETION_TIME - 59, // should not be missed in result of rounding to Cell.NO_DELETION_TIME
+            Cell.MAX_DELETION_TIME - 2, // should not be missed as result of INTEGER math overflow on rounding
             59, 60, 119, 180, 181, 300, 400
         };
         for (int i = 0 ; i < samples.length ; i++)
@@ -187,7 +186,22 @@ public class StreamingTombstoneHistogramBuilderTest
         assertEquals(asMap(histogram).get(240).intValue(), 1);
         assertEquals(asMap(histogram).get(300).intValue(), 1);
         assertEquals(asMap(histogram).get(420).intValue(), 1);
-        assertEquals(asMap(histogram).get(Cell.MAX_DELETION_TIME).intValue(), 2);
+        assertEquals(asMap(histogram).get(Cell.MAX_DELETION_TIME).intValue(), 1);
+    }
+
+    @Test
+    public void testThatPointIsNotMissedBecauseOfRoundingToNoDeletionTime() throws Exception
+    {
+        int pointThatRoundedToNoDeletion = Cell.NO_DELETION_TIME - 2;
+        assert pointThatRoundedToNoDeletion + pointThatRoundedToNoDeletion % 3 == Cell.NO_DELETION_TIME : "test data should be valid";
+
+        StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 10, 3);
+        builder.update(pointThatRoundedToNoDeletion);
+
+        TombstoneHistogram histogram = builder.build();
+
+        assertEquals(asMap(histogram).size(), 1);
+        assertEquals(asMap(histogram).get(Cell.MAX_DELETION_TIME).intValue(), 1);
     }
 
     @Test(expected = AssertionError.class)
@@ -196,16 +210,11 @@ public class StreamingTombstoneHistogramBuilderTest
         new StreamingTombstoneHistogramBuilder(5, 10, 60).update(-13);
     }
 
-    @Test(expected = AssertionError.class)
-    public void shouldCheckThatPointIsLessThanNoDeletionTime() throws Exception
-    {
-        new StreamingTombstoneHistogramBuilder(5, 10, 60).update(Cell.NO_DELETION_TIME);
-    }
-
     private Map<Integer, Integer> asMap(TombstoneHistogram histogram)
     {
         Map<Integer, Integer> result = new HashMap<>();
         histogram.forEach(result::put);
         return result;
     }
+
 }
