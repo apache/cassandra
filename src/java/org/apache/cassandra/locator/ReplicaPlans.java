@@ -201,8 +201,10 @@ public class ReplicaPlans
     /**
      * Requires that the provided endpoints are alive.  Converts them to their relevant system replicas.
      * Note that the liveAndDown collection and live are equal to the provided endpoints.
+     *
+     * @param isAny if batch consistency level is ANY, in which case a local node will be picked
      */
-    public static ReplicaPlan.ForTokenWrite forBatchlogWrite(String localDataCenter, ConsistencyLevel consistencyLevel) throws UnavailableException
+    public static ReplicaPlan.ForTokenWrite forBatchlogWrite(String localDataCenter, boolean isAny) throws UnavailableException
     {
         // A single case we write not for range or token, but multiple mutations to many tokens
         Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
@@ -232,7 +234,7 @@ public class ReplicaPlans
         );
 
         // Batchlog is hosted by either one node or two nodes from different racks.
-        consistencyLevel = liveAndDown.all().size() == 1 ? ConsistencyLevel.ONE : ConsistencyLevel.TWO;
+        ConsistencyLevel consistencyLevel = liveAndDown.all().size() == 1 ? ConsistencyLevel.ONE : ConsistencyLevel.TWO;
 
         Keyspace systemKeypsace = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
 

@@ -921,7 +921,7 @@ public class StorageProxy implements StorageProxyMBean
                     batchConsistencyLevel = consistency_level;
             }
 
-            ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forBatchlogWrite(localDataCenter, batchConsistencyLevel);
+            ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forBatchlogWrite(localDataCenter, batchConsistencyLevel == ConsistencyLevel.ANY);
 
             final UUID batchUUID = UUIDGen.getTimeUUID();
             BatchlogResponseHandler.BatchlogCleanup cleanup = new BatchlogResponseHandler.BatchlogCleanup(mutations.size(),
