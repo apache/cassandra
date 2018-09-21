@@ -191,8 +191,8 @@ public class ReplicaPlans
         Replica localSystemReplica = SystemReplicas.getSystemReplica(FBUtilities.getBroadcastAddressAndPort());
 
         ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(
-        EndpointsForToken.of(token, localSystemReplica),
-        EndpointsForToken.empty(token)
+                EndpointsForToken.of(token, localSystemReplica),
+                EndpointsForToken.empty(token)
         );
 
         return forWrite(systemKeypsace, ConsistencyLevel.ONE, liveAndDown, liveAndDown, writeAll);
