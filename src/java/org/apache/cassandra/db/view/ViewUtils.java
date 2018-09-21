@@ -67,7 +67,7 @@ public final class ViewUtils
         EndpointsForToken naturalBaseReplicas = replicationStrategy.getNaturalReplicasForToken(baseToken);
         EndpointsForToken naturalViewReplicas = replicationStrategy.getNaturalReplicasForToken(viewToken);
 
-        Optional<Replica> localReplica = Iterables.tryFind(naturalViewReplicas, Replica::isLocal).toJavaUtil();
+        Optional<Replica> localReplica = Iterables.tryFind(naturalViewReplicas, Replica::isSelf).toJavaUtil();
         if (localReplica.isPresent())
             return localReplica;
 
@@ -93,7 +93,7 @@ public final class ViewUtils
         int baseIdx = -1;
         for (int i=0; i<baseReplicas.size(); i++)
         {
-            if (baseReplicas.get(i).isLocal())
+            if (baseReplicas.get(i).isSelf())
             {
                 baseIdx = i;
                 break;

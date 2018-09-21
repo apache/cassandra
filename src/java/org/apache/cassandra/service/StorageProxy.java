@@ -448,7 +448,7 @@ public class StorageProxy implements StorageProxyMBean
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PREPARE, toPrepare, Commit.serializer);
         for (Replica replica: replicaPlan.contacts())
         {
-            if (replica.isLocal())
+            if (replica.isSelf())
             {
                 StageManager.getStage(MessagingService.verbStages.get(MessagingService.Verb.PAXOS_PREPARE)).execute(new Runnable()
                 {
@@ -486,7 +486,7 @@ public class StorageProxy implements StorageProxyMBean
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PROPOSE, proposal, Commit.serializer);
         for (Replica replica : replicaPlan.contacts())
         {
-            if (replica.isLocal())
+            if (replica.isSelf())
             {
                 StageManager.getStage(MessagingService.verbStages.get(MessagingService.Verb.PAXOS_PROPOSE)).execute(new Runnable()
                 {
@@ -551,7 +551,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (shouldBlock)
                 {
-                    if (replica.isLocal())
+                    if (replica.isSelf())
                         commitPaxosLocal(replica, message, responseHandler);
                     else
                         MessagingService.instance().sendWriteRR(message, replica, responseHandler, allowHints && shouldHint(replica));
@@ -809,7 +809,7 @@ public class StorageProxy implements StorageProxyMBean
                     // When local node is the endpoint we can just apply the mutation locally,
                     // unless there are pending endpoints, in which case we want to do an ordinary
                     // write so the view mutation is sent to the pending endpoint
-                    if (pairedEndpoint.get().isLocal() && StorageService.instance.isJoined()
+                    if (pairedEndpoint.get().isSelf() && StorageService.instance.isJoined()
                         && pendingReplicas.isEmpty())
                     {
                         try
@@ -1015,7 +1015,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             logger.trace("Sending batchlog store request {} to {} for {} mutations", batch.id, replica, batch.size());
 
-            if (replica.isLocal())
+            if (replica.isSelf())
                 performLocally(Stage.MUTATION, replica, Optional.empty(), () -> BatchlogManager.store(batch), handler);
             else
                 MessagingService.instance().sendRR(message, replica.endpoint(), handler);
@@ -1031,7 +1031,7 @@ public class StorageProxy implements StorageProxyMBean
             if (logger.isTraceEnabled())
                 logger.trace("Sending batchlog remove request {} to {}", uuid, target);
 
-            if (target.isLocal())
+            if (target.isSelf())
                 performLocally(Stage.MUTATION, target, () -> BatchlogManager.remove(uuid));
             else
                 MessagingService.instance().sendOneWay(message, target.endpoint());
@@ -1207,7 +1207,7 @@ public class StorageProxy implements StorageProxyMBean
 
             if (plan.isAlive(destination))
             {
-                if (destination.isLocal())
+                if (destination.isSelf())
                 {
                     insertLocal = true;
                     localReplica = destination;
@@ -1400,7 +1400,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         Replica replica = findSuitableReplica(cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency());
 
-        if (replica.isLocal())
+        if (replica.isSelf())
         {
             return applyCounterMutationOnCoordinator(cm, localDataCenter, queryStartNanoTime);
         }
@@ -2072,7 +2072,7 @@ public class StorageProxy implements StorageProxyMBean
                 command.trackRepairedStatus();
             }
 
-            if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isLocal())
+            if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
             {
                 StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(rangeCommand, handler));
             }
@@ -2342,7 +2342,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         if (!DatabaseDescriptor.hintedHandoffEnabled())
             return false;
-        if (replica.isTransient() || replica.isLocal())
+        if (replica.isTransient() || replica.isSelf())
             return false;
 
         Set<String> disabledDCs = DatabaseDescriptor.hintedHandoffDisabledDCs();
