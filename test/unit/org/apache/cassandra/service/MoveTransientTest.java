@@ -105,7 +105,7 @@ public class MoveTransientTest
 
         public String message(Replica replica)
         {
-            return "Source filter down nodes" + sourceFilterDownNodes;
+            return "Source filter down nodes: " + sourceFilterDownNodes;
         }
     };
 

@@ -246,6 +246,21 @@ public class RangeStreamer
                          boolean connectSequentially,
                          int connectionsPerHost)
     {
+        this(metadata, tokens, address, streamOperation, useStrictConsistency, snitch, stateStore,
+             FailureDetector.instance, connectSequentially, connectionsPerHost);
+    }
+
+    RangeStreamer(TokenMetadata metadata,
+                  Collection<Token> tokens,
+                  InetAddressAndPort address,
+                  StreamOperation streamOperation,
+                  boolean useStrictConsistency,
+                  IEndpointSnitch snitch,
+                  StreamStateStore stateStore,
+                  IFailureDetector failureDetector,
+                  boolean connectSequentially,
+                  int connectionsPerHost)
+    {
         Preconditions.checkArgument(streamOperation == StreamOperation.BOOTSTRAP || streamOperation == StreamOperation.REBUILD, streamOperation);
         this.metadata = metadata;
         this.tokens = tokens;
@@ -258,7 +273,7 @@ public class RangeStreamer
         streamPlan.listeners(this.stateStore);
 
         // We're _always_ filtering out a local node and down sources
-        addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
+        addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(failureDetector));
         addSourceFilter(new RangeStreamer.ExcludeLocalNodeFilter());
     }
 
@@ -318,7 +333,8 @@ public class RangeStreamer
             workMap = getOptimizedWorkMap(fetchMap, sourceFilters, keyspaceName);
         }
 
-        assert toFetch.put(keyspaceName, workMap) == null : "Keyspace is already added to fetch map";
+        if (toFetch.put(keyspaceName, workMap) != null)
+            throw new IllegalArgumentException("Keyspace is already added to fetch map");
 
         if (logger.isTraceEnabled())
         {
@@ -415,7 +431,7 @@ public class RangeStreamer
                  if (!range.contains(toFetch.range()))
                      continue;
 
-                 EndpointsForRange oldEndpoints = rangeAddresses.get(range);
+                 final EndpointsForRange oldEndpoints = sorted.apply(rangeAddresses.get(range));
 
                  //Ultimately we populate this with whatever is going to be fetched from to satisfy toFetch
                  //It could be multiple endpoints and we must fetch from all of them if they are there
@@ -424,62 +440,58 @@ public class RangeStreamer
                  EndpointsForRange sources;
                  if (useStrictConsistency)
                  {
-                     //Start with two sets of who replicates the range before and who replicates it after
-                     EndpointsForRange newEndpoints = strat.calculateNaturalReplicas(toFetch.range().right, tmdAfter);
-                     logger.debug("Old endpoints {}", oldEndpoints);
-                     logger.debug("New endpoints {}", newEndpoints);
-
+                     EndpointsForRange strictEndpoints;
                      //Due to CASSANDRA-5953 we can have a higher RF then we have endpoints.
                      //So we need to be careful to only be strict when endpoints == RF
                      if (oldEndpoints.size() == strat.getReplicationFactor().allReplicas)
                      {
-                         Set<InetAddressAndPort> endpointsStillReplicated = newEndpoints.endpoints();
-                         // Remove new endpoints from old endpoints based on address
-                         oldEndpoints = oldEndpoints.filter(r -> !endpointsStillReplicated.contains(r.endpoint()));
-                         oldEndpoints.filter(testSourceFilters);
+                         //Start with two sets of who replicates the range before and who replicates it after
+                         EndpointsForRange newEndpoints = strat.calculateNaturalReplicas(toFetch.range().right, tmdAfter);
+                         logger.debug("Old endpoints {}", oldEndpoints);
+                         logger.debug("New endpoints {}", newEndpoints);
 
-                         if (oldEndpoints.size() > 1)
-                             throw new AssertionError("Expected <= 1 endpoint but found " + oldEndpoints);
+                         // Remove new endpoints from old endpoints based on address
+                         strictEndpoints = oldEndpoints.without(newEndpoints.endpoints());
+
+                         //We have to check the source filters here to see if they will remove any replicas
+                         //required for strict consistency
+                         if (!all(strictEndpoints, testSourceFilters))
+                             throw new IllegalStateException("Necessary replicas for strict consistency were removed by source filters: " + buildErrorMessage(sourceFilters, strictEndpoints));
+
+                         if (strictEndpoints.size() > 1)
+                             throw new AssertionError("Expected <= 1 endpoint but found " + strictEndpoints);
 
                          //If we are transitioning from transient to full and and the set of replicas for the range is not changing
                          //we might end up with no endpoints to fetch from by address. In that case we can pick any full replica safely
                          //since we are already a transient replica and the existing replica remains.
                          //The old behavior where we might be asked to fetch ranges we don't need shouldn't occur anymore.
                          //So it's an error if we don't find what we need.
-                         if (oldEndpoints.isEmpty() && toFetch.isTransient())
+                         if (strictEndpoints.isEmpty() && toFetch.isTransient())
                              throw new AssertionError("If there are no endpoints to fetch from then we must be transitioning from transient to full for range " + toFetch);
 
-                         if (toFetch.isFull() && (oldEndpoints.isEmpty() || oldEndpoints.get(0).isTransient()))
+                         if (!any(strictEndpoints, isSufficient))
                          {
-                             // need an additional replica
-                             EndpointsForRange endpointsForRange = sorted.apply(rangeAddresses.get(range));
-                             // include all our filters, to ensure we include a matching node
-                             Optional<Replica> fullReplica = Iterables.<Replica>tryFind(endpointsForRange, and(Replica::isFull, testSourceFilters)).toJavaUtil();
+                             // need an additional replica; include all our filters, to ensure we include a matching node
+                             Optional<Replica> fullReplica = Iterables.<Replica>tryFind(oldEndpoints, and(isSufficient, testSourceFilters)).toJavaUtil();
                              if (fullReplica.isPresent())
-                                 oldEndpoints = Endpoints.concat(oldEndpoints, EndpointsForRange.of(fullReplica.get()));
+                                 strictEndpoints = Endpoints.concat(strictEndpoints, EndpointsForRange.of(fullReplica.get()));
                              else
-                                 throw new IllegalStateException("Couldn't find any matching sufficient replica out of " + endpointsForRange);
+                                 throw new IllegalStateException("Couldn't find any matching sufficient replica out of " + buildErrorMessage(sourceFilters, oldEndpoints));
                          }
-
-                         //We have to check the source filters here to see if they will remove any replicas
-                         //required for strict consistency
-                         if (!all(oldEndpoints, testSourceFilters))
-                             throw new IllegalStateException("Necessary replicas for strict consistency were removed by source filters: " + buildErrorMessage(sourceFilters, oldEndpoints));
                      }
                      else
                      {
-                         oldEndpoints = sorted.apply(oldEndpoints.filter(and(isSufficient, testSourceFilters)));
+                         strictEndpoints = sorted.apply(oldEndpoints.filter(and(isSufficient, testSourceFilters)));
                      }
 
-                     //Apply testSourceFilters that were given to us, and establish everything remaining is alive for the strict case
-                     sources = oldEndpoints;
+                     sources = strictEndpoints;
                  }
                  else
                  {
                      //Without strict consistency we have given up on correctness so no point in fetching from
                      //a random full + transient replica since it's also likely to lose data
                      //Also apply testSourceFilters that were given to us so we can safely select a single source
-                     sources = sorted.apply(rangeAddresses.get(range).filter(and(isSufficient, testSourceFilters)));
+                     sources = sorted.apply(oldEndpoints.filter(and(isSufficient, testSourceFilters)));
                      //Limit it to just the first possible source, we don't need more than one and downstream
                      //will fetch from every source we supply
                      sources = sources.size() > 0 ? sources.subList(0, 1) : sources;
@@ -504,7 +516,7 @@ public class RangeStreamer
                  throw new IllegalStateException(String.format("Multiple strict sources found for %s, sources: %s", toFetch, addressList));
 
              //We must have enough stuff to fetch from
-             if ((toFetch.isFull() && !any(addressList, Replica::isFull)) || addressList.isEmpty())
+             if (!any(addressList, isSufficient))
              {
                  if (strat.getReplicationFactor().allReplicas == 1)
                  {

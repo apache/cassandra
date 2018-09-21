@@ -253,8 +253,6 @@ public class RangeRelocator
      */
     public static Pair<RangesAtEndpoint, RangesAtEndpoint> calculateStreamAndFetchRanges(RangesAtEndpoint currentRanges, RangesAtEndpoint updatedRanges)
     {
-        // FIXME: transient replication
-        // this should always be the local node, except for tests TODO: assert this
         RangesAtEndpoint.Builder toStream = RangesAtEndpoint.builder(currentRanges.endpoint());
         RangesAtEndpoint.Builder toFetch  = RangesAtEndpoint.builder(currentRanges.endpoint());
         logger.debug("Calculating toStream");
