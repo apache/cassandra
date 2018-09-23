@@ -1613,6 +1613,7 @@
       <structure name="JaCoCo Cassandara Coverage Report">
         <classfiles>
           <fileset dir="${build.classes.main}">
+            <exclude name="**/Cql_*.class"/>
             <include name="**/*.class"/>
           </fileset>
         </classfiles>
