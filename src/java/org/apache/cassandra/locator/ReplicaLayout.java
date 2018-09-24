@@ -275,9 +275,9 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * @return a 'natural' replica collection, that has had its conflicts with pending repaired
      */
     @VisibleForTesting
-    static <E extends Endpoints<E>> E resolveWriteConflictsInNatural(E natural, E pending)
+    static EndpointsForToken resolveWriteConflictsInNatural(EndpointsForToken natural, EndpointsForToken pending)
     {
-        ReplicaCollection.Mutable<E> resolved = natural.newMutable(natural.size());
+        EndpointsForToken.Mutable resolved = natural.newMutable(natural.size());
         for (Replica replica : natural)
         {
             // always prefer the full natural replica, if there is a conflict
@@ -305,7 +305,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * @return a 'pending' replica collection, that has had its conflicts with natural repaired
      */
     @VisibleForTesting
-    static <E extends Endpoints<E>> E resolveWriteConflictsInPending(E natural, E pending)
+    static EndpointsForToken resolveWriteConflictsInPending(EndpointsForToken natural, EndpointsForToken pending)
     {
         return pending.without(natural.endpoints());
     }
