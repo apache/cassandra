@@ -315,6 +315,8 @@
 
 3.11.4
 Merged from 3.0:
+ * Fix purging semi-expired RT boundaries in reversed iterators (CASSANDRA-14672)
+ * DESC order reads can fail to return the last Unfiltered in the partition (CASSANDRA-14766)
  * Fix corrupted collection deletions for dropped columns in 3.0 <-> 2.{1,2} messages (CASSANDRA-14568)
  * Fix corrupted static collection deletions in 3.0 <-> 2.{1,2} messages (CASSANDRA-14568)
  * Handle failures in parallelAllSSTableOperation (cleanup/upgradesstables/etc) (CASSANDRA-14657)
