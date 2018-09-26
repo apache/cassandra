@@ -454,13 +454,13 @@ public class RangeStreamer
                          // Remove new endpoints from old endpoints based on address
                          strictEndpoints = oldEndpoints.without(newEndpoints.endpoints());
 
+                         if (strictEndpoints.size() > 1)
+                             throw new AssertionError("Expected <= 1 endpoint but found " + strictEndpoints);
+
                          //We have to check the source filters here to see if they will remove any replicas
                          //required for strict consistency
                          if (!all(strictEndpoints, testSourceFilters))
                              throw new IllegalStateException("Necessary replicas for strict consistency were removed by source filters: " + buildErrorMessage(sourceFilters, strictEndpoints));
-
-                         if (strictEndpoints.size() > 1)
-                             throw new AssertionError("Expected <= 1 endpoint but found " + strictEndpoints);
 
                          //If we are transitioning from transient to full and and the set of replicas for the range is not changing
                          //we might end up with no endpoints to fetch from by address. In that case we can pick any full replica safely
