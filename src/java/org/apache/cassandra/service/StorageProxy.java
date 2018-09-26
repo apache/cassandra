@@ -625,7 +625,7 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, OverloadedException, WriteTimeoutException, WriteFailureException
     {
         Tracing.trace("Determining replicas for mutation");
-        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
 
         long startTime = System.nanoTime();
 
@@ -757,7 +757,7 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
         Tracing.trace("Determining replicas for mutation");
-        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
 
         long startTime = System.nanoTime();
 
