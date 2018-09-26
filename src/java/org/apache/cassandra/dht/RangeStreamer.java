@@ -104,7 +104,7 @@ public class RangeStreamer
         {
             Preconditions.checkNotNull(local);
             Preconditions.checkNotNull(remote);
-            assert local.isLocal() && !remote.isLocal();
+            assert local.isSelf() && !remote.isSelf();
             this.local = local;
             this.remote = remote;
         }
@@ -203,7 +203,7 @@ public class RangeStreamer
         @Override
         public boolean apply(Replica replica)
         {
-            return !replica.isLocal();
+            return !replica.isSelf();
         }
 
         @Override
@@ -553,8 +553,8 @@ public class RangeStreamer
         {
             for (Replica source : e.getValue())
             {
-                assert e.getKey().isLocal();
-                assert !source.isLocal();
+                assert (e.getKey()).isSelf();
+                assert !source.isSelf();
                 workMap.put(source.endpoint(), new FetchReplica(e.getKey(), source));
             }
         }
