@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.QueryValidationException;
@@ -791,6 +792,37 @@ public class CustomIndexTest extends CQLTester
         assertEquals(1, index.beginCalls);
         assertEquals(1, index.finishCalls);
     }
+
+    @Test
+    public void rangeTombstoneTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s(k int, c int, v int, v2 int, PRIMARY KEY(k,c))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SecondaryIndexManager indexManager = cfs.indexManager;
+
+        // Insert a single range tombstone
+        execute("DELETE FROM %s WHERE k=1 and c > 2");
+        cfs.forceBlockingFlush();
+
+        // Create the index, which won't automatically start building
+        String indexName = "range_tombstone_idx";
+        createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(v) USING '%s'",
+                                  indexName, StubIndex.class.getName()));
+        String indexName2 = "range_tombstone_idx2";
+        createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(v2) USING '%s'",
+                                  indexName2, StubIndex.class.getName()));
+
+        StubIndex index = (StubIndex) indexManager.getIndexByName(indexName);
+        StubIndex index2 = (StubIndex) indexManager.getIndexByName(indexName2);
+
+        // Index the partition
+        DecoratedKey targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(1));
+        indexManager.indexPartition(targetKey, Sets.newHashSet(index, index2), 1);
+
+        // and both indexes should have the same range tombstone
+        assertEquals(index.rangeTombstones, index2.rangeTombstones);
+    }
+
 
     // Used for index creation above
     public static class BrokenCustom2I extends StubIndex
