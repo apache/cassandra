@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -148,6 +149,11 @@ public class StoredResultSet implements ResultHandler.ComparableResultSet
             return row.equals(((StoredComparableRow)other).row);
         }
 
+        public int hashCode()
+        {
+            return Objects.hash(row, cds);
+        }
+
         public String toString()
         {
             return row.stream().map(ByteBufferUtil::bytesToHex).collect(Collectors.joining(","));
@@ -198,6 +204,11 @@ public class StoredResultSet implements ResultHandler.ComparableResultSet
             return defs.equals(((StoredComparableColumnDefinitions)other).defs);
         }
 
+        public int hashCode()
+        {
+            return Objects.hash(defs, wasFailed, failureException);
+        }
+
         public String toString()
         {
             return defs.toString();
@@ -227,6 +238,11 @@ public class StoredResultSet implements ResultHandler.ComparableResultSet
             if (!(other instanceof StoredComparableDefinition))
                 return false;
             return p.equals(((StoredComparableDefinition)other).p);
+        }
+
+        public int hashCode()
+        {
+            return Objects.hash(p);
         }
 
         public String toString()
