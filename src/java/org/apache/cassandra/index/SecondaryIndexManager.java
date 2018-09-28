@@ -899,7 +899,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                         {
                             Iterator<RangeTombstone> iter = deletionInfo.rangeIterator(false);
                             while (iter.hasNext())
-                                indexers.forEach(indexer -> indexer.rangeTombstone(iter.next()));
+                            {
+                                RangeTombstone rt = iter.next();
+                                indexers.forEach(indexer -> indexer.rangeTombstone(rt));
+                            }
                         }
 
                         indexers.forEach(Index.Indexer::finish);
