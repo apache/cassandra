@@ -257,7 +257,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         for (SyncTask task : syncTasks)
         {
             if (!task.isLocal())
-                session.trackSyncCompletion(Pair.create(desc, task.nodePair()), (AsymmetricRemoteSyncTask) task);
+                session.trackSyncCompletion(Pair.create(desc, task.nodePair()), (CompletableRemoteSyncTask) task);
             taskExecutor.submit(task);
         }
 
