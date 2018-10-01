@@ -484,7 +484,6 @@ public class RepairJobTest
                                                                                             false,
                                                                                             PreviewKind.ALL));
 
-        System.out.println("tasks = " + tasks);
         assertEquals(3, tasks.size());
         SyncTask task = tasks.get(pair(addr1, addr2));
         assertTrue(task.isLocal());
