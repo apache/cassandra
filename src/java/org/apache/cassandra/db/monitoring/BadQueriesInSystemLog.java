@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.monitoring;
 
+import com.codahale.metrics.Gauge;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.BadQueryMetrics;
@@ -60,6 +61,7 @@ public class BadQueriesInSystemLog implements IBadQueryReporter
                 5,
                 DatabaseDescriptor.getBadQueryLoggingInterval(),
                 TimeUnit.SECONDS);
+        BadQueryMetrics.setup();
     }
 
     @VisibleForTesting
@@ -91,8 +93,13 @@ public class BadQueriesInSystemLog implements IBadQueryReporter
         {
             BAD_QUERY_CATEGORY_QUEUES.get(queryType).offer(operationDetails);
             CURRENT_SAMPLES.get(queryType).incrementAndGet();
-            BadQueryMetrics.totalBadQueries.inc();
         }
+    }
+
+    @Override
+    public int getStats(BadQuery.BadQueryCategory type)
+    {
+        return CURRENT_SAMPLES.get(type).get();
     }
 
     /**
@@ -114,7 +121,6 @@ public class BadQueriesInSystemLog implements IBadQueryReporter
                     cleanupDone = true;
                 }
                 logger.warn(String.format("%s detected: %s", type.toString(), bq.toString()));
-                BadQueryMetrics.totalBadQueries.dec();
             }
             //reset sample count so we get next batch of bad queries
             CURRENT_SAMPLES.get(type).set(0);

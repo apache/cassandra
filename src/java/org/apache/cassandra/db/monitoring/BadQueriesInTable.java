@@ -131,6 +131,7 @@ public class BadQueriesInTable implements IBadQueryReporter
                 5,
                 DatabaseDescriptor.getBadQueryLoggingInterval(),
                 TimeUnit.SECONDS);
+        BadQueryMetrics.setup();
     }
 
     @Override
@@ -143,8 +144,13 @@ public class BadQueriesInTable implements IBadQueryReporter
         {
             BAD_QUERY_CATEGORY_QUEUES.get(queryType).offer(operationDetails);
             CURRENT_SAMPLES.get(queryType).incrementAndGet();
-            BadQueryMetrics.totalBadQueries.inc();
         }
+    }
+
+    @Override
+    public int getStats(BadQuery.BadQueryCategory type)
+    {
+        return CURRENT_SAMPLES.get(type).get();
     }
 
     /**
@@ -176,7 +182,6 @@ public class BadQueriesInTable implements IBadQueryReporter
                                         ByteBufferUtil.bytes(bq.getKey()),
                                         ByteBufferUtil.bytes(bq.getDetails()))),
                                               Dispatcher.RequestTime.forImmediateExecution());
-                BadQueryMetrics.totalBadQueries.dec();
             }
             //reset sample count so we get next batch of bad queries
             CURRENT_SAMPLES.get(type).set(0);

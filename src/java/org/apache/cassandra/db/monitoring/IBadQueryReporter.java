@@ -40,4 +40,12 @@ public interface IBadQueryReporter
      * @param operation operation category.
      */
     void reportBadQuery(BadQuery.BadQueryCategory type, final BadQueryTypes operation);
+
+    /**
+     * get bad query stats.
+     *
+     * @param type      badquery category.
+     * @return current stats for given category.
+     */
+    int getStats(BadQuery.BadQueryCategory type);
 }
