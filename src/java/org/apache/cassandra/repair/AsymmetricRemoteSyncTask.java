@@ -41,15 +41,9 @@ import org.apache.cassandra.utils.MerkleTrees;
  */
 public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRemoteSyncTask
 {
-    public AsymmetricRemoteSyncTask(RepairJobDesc desc, InetAddressAndPort fetchNode, InetAddressAndPort fetchFrom,
-                                    List<Range<Token>> rangesToFetch, PreviewKind previewKind)
+    public AsymmetricRemoteSyncTask(RepairJobDesc desc, InetAddressAndPort to, InetAddressAndPort from, List<Range<Token>> differences, PreviewKind previewKind)
     {
-        super(desc, fetchNode, fetchFrom, rangesToFetch, previewKind);
-    }
-
-    public AsymmetricRemoteSyncTask(RepairJobDesc desc, TreeResponse to, TreeResponse from, PreviewKind previewKind)
-    {
-        this(desc, to.endpoint, from.endpoint, MerkleTrees.difference(to.trees, from.trees), previewKind);
+        super(desc, to, from, differences, previewKind);
     }
 
     public void startSync()
@@ -71,5 +65,14 @@ public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRem
         {
             setException(new RepairException(desc, previewKind, String.format("Sync failed between %s and %s", nodePair.coordinator, nodePair.peer)));
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        return "AsymmetricRemoteSyncTask{" +
+               "rangesToSync=" + rangesToSync +
+               ", nodePair=" + nodePair +
+               '}';
     }
 }

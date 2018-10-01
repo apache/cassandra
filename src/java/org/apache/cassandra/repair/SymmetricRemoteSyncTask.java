@@ -47,16 +47,9 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
 {
     private static final Logger logger = LoggerFactory.getLogger(SymmetricRemoteSyncTask.class);
 
-    public SymmetricRemoteSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, PreviewKind previewKind)
+    public SymmetricRemoteSyncTask(RepairJobDesc desc, InetAddressAndPort r1, InetAddressAndPort r2, List<Range<Token>> differences, PreviewKind previewKind)
     {
-        super(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees), previewKind);
-    }
-
-    @VisibleForTesting
-    SymmetricRemoteSyncTask(RepairJobDesc desc, InetAddressAndPort e1, InetAddressAndPort e2,
-                            List<Range<Token>> differences, PreviewKind previewKind)
-    {
-        super(desc, e1, e2, differences, previewKind);
+        super(desc, r1, r2, differences, previewKind);
     }
 
     void sendRequest(RepairMessage request, InetAddressAndPort to)
@@ -88,5 +81,14 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
             setException(new RepairException(desc, previewKind, String.format("Sync failed between %s and %s", nodePair.coordinator, nodePair.peer)));
         }
         finished();
+    }
+
+    @Override
+    public String toString()
+    {
+        return "SymmetricRemoteSyncTask{" +
+               "rangesToSync=" + rangesToSync +
+               ", nodePair=" + nodePair +
+               '}';
     }
 }

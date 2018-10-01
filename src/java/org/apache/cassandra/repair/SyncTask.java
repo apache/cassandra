@@ -87,6 +87,10 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
         startSync();
     }
 
+    public boolean isLocal()
+    {
+        return false;
+    }
 
     protected void finished()
     {
