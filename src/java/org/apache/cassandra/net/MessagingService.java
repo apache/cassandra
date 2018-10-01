@@ -736,14 +736,19 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void maybeAddLatency(IAsyncCallback cb, InetAddressAndPort address, long latency)
     {
-        if (cb.isLatencyForSnitch())
-            addLatency(address, latency);
+        if (cb.latencyMeasurementType() != LatencyMeasurementType.IGNORE)
+            addLatency(address, latency, cb.latencyMeasurementType());
     }
 
     public void addLatency(InetAddressAndPort address, long latency)
     {
+        addLatency(address, latency, LatencyMeasurementType.READ);
+    }
+
+    private void addLatency(InetAddressAndPort address, long latency, LatencyMeasurementType usable)
+    {
         for (ILatencySubscriber subscriber : subscribers)
-            subscriber.receiveTiming(address, latency);
+            subscriber.receiveTiming(address, latency, usable);
     }
 
     /**

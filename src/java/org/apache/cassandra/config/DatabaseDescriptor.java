@@ -20,6 +20,7 @@ package org.apache.cassandra.config;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.net.*;
 import java.nio.file.FileStore;
 import java.nio.file.NoSuchFileException;
@@ -1026,6 +1027,13 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException("Missing endpoint_snitch directive", false);
         }
+
+        if (conf.dynamic_snitch_reset_interval_in_ms != null)
+            logger.warn("dynamic_snitch_reset_interval_in_ms has been deprecated and should be removed from cassandra.yaml");
+
+        if (!conf.dynamic_snitch_class_name.equals("org.apache.cassandra.locator.dynamicsnitch.DynamicEndpointSnitchHistogram"))
+            logger.warn("Using the non standard DynamicSnitch is unsupported. Use at your own risk!");
+
         snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
         EndpointSnitchInfo.create();
 
@@ -1099,7 +1107,24 @@ public class DatabaseDescriptor
         if (!snitchClassName.contains("."))
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
         IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch");
-        return dynamic ? new DynamicEndpointSnitch(snitch) : snitch;
+        if (dynamic)
+        {
+            Class<DynamicEndpointSnitch> cls = FBUtilities.classForName(conf.dynamic_snitch_class_name,
+                                                                        "dynamicSnitch");
+            try
+            {
+                return cls.getConstructor(IEndpointSnitch.class).newInstance(snitch);
+            }
+            catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | InstantiationException e)
+            {
+                logger.error("Failed to construct Dynamic Snitch", e);
+                throw new ConfigurationException(
+                    String.format("Constructor for dynamic_snitch_class_name '%s' is inaccessible.",
+                                  conf.dynamic_snitch_class_name)
+                );
+            }
+        }
+        return snitch;
     }
 
     public static IAuthenticator getAuthenticator()
@@ -2105,13 +2130,13 @@ public class DatabaseDescriptor
         conf.dynamic_snitch_update_interval_in_ms = dynamicUpdateInterval;
     }
 
-    public static int getDynamicResetInterval()
+    public static int getDynamicLatencyProbeInterval()
     {
-        return conf.dynamic_snitch_reset_interval_in_ms;
+        return conf.dynamic_snitch_latency_probe_interval_in_ms;
     }
-    public static void setDynamicResetInterval(int dynamicResetInterval)
+    public static void setDynamicLatencyProbeInterval(int latencyProbeInterval)
     {
-        conf.dynamic_snitch_reset_interval_in_ms = dynamicResetInterval;
+        conf.dynamic_snitch_latency_probe_interval_in_ms = latencyProbeInterval;
     }
 
     public static double getDynamicBadnessThreshold()

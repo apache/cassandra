@@ -187,7 +187,13 @@ public class StartupClusterConnectivityChecker
         {
             public boolean isLatencyForSnitch()
             {
-                return false;
+                return true;
+            }
+
+            @Override
+            public LatencyMeasurementType latencyMeasurementType()
+            {
+                return LatencyMeasurementType.PROBE;
             }
 
             public void response(MessageIn msg)

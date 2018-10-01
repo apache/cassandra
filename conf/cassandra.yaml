@@ -970,10 +970,10 @@ endpoint_snitch: SimpleSnitch
 
 # controls how often to perform the more expensive part of host score
 # calculation
-dynamic_snitch_update_interval_in_ms: 100 
-# controls how often to reset all host scores, allowing a bad host to
-# possibly recover
-dynamic_snitch_reset_interval_in_ms: 600000
+dynamic_snitch_update_interval_in_ms: 100
+# controls how often this node is permitted to send a latency probe to
+# determine if previously slow nodes have recovered. Set to -1 to disable
+dynamic_snitch_latency_probe_interval_in_ms: 1000
 # if set greater than zero, this will allow
 # 'pinning' of replicas to hosts in order to increase cache capacity.
 # The badness threshold will control how much worse the pinned host has to be

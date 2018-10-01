@@ -45,7 +45,7 @@ public abstract class AbstractPaxosCallback<T> implements IAsyncCallback<T>
         this.queryStartNanoTime = queryStartNanoTime;
     }
 
-    public boolean isLatencyForSnitch()
+    public boolean latency()
     {
         return false;
     }

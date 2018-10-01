@@ -31,10 +31,22 @@ public interface IAsyncCallback<T>
     void response(MessageIn<T> msg);
 
     /**
+     * @deprecated Use {@link #latencyMeasurementType()}. This is left for backwards
+     *             compatibility with existing IAsyncCallback implementations but will
+     *             be removed at a future date.
      * @return true if this callback is on the read path and its latency should be
      * given as input to the dynamic snitch.
      */
+    @Deprecated
     boolean isLatencyForSnitch();
+
+    /**
+     * @return Whether this callback has useful latency information for the dynamic snitch,
+     * especially on the read path.
+     */
+    default LatencyMeasurementType latencyMeasurementType() {
+        return isLatencyForSnitch() ? LatencyMeasurementType.READ : LatencyMeasurementType.IGNORE;
+    }
 
     default boolean supportsBackPressure()
     {

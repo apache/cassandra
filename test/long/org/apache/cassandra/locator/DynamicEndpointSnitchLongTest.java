@@ -26,6 +26,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.dynamicsnitch.DynamicEndpointSnitchHistogram;
+import org.apache.cassandra.net.LatencyMeasurementType;
 import org.apache.cassandra.service.StorageService;
 
 import org.apache.cassandra.utils.FBUtilities;
@@ -51,7 +53,7 @@ public class DynamicEndpointSnitchLongTest
             // do this because SS needs to be initialized before DES can work properly.
             StorageService.instance.unsafeInitialize();
             SimpleSnitch ss = new SimpleSnitch();
-            DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
+            DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitchHistogram(ss, String.valueOf(ss.hashCode()));
             InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
 
             EndpointsForRange.Builder replicasBuilder = EndpointsForRange.builder(ReplicaUtils.FULL_RANGE);
@@ -101,7 +103,7 @@ public class DynamicEndpointSnitchLongTest
             {
                 Replica host = hosts.get(random.nextInt(hosts.size()));
                 int score = random.nextInt(SCORE_RANGE);
-                dsnitch.receiveTiming(host.endpoint(), score);
+                dsnitch.receiveTiming(host.endpoint(), score, LatencyMeasurementType.READ);
             }
         }
     }
