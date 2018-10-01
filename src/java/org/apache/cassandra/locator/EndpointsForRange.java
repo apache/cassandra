@@ -24,8 +24,6 @@ import org.apache.cassandra.dht.Token;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
 
 import static com.google.common.collect.Iterables.all;
 
@@ -37,10 +35,6 @@ import static com.google.common.collect.Iterables.all;
 public class EndpointsForRange extends Endpoints<EndpointsForRange>
 {
     private final Range<Token> range;
-    private EndpointsForRange(Range<Token> range, ReplicaList list)
-    {
-        this(range, list, null);
-    }
     private EndpointsForRange(Range<Token> range, ReplicaList list, ReplicaMap<InetAddressAndPort> byEndpoint)
     {
         super(list, byEndpoint);

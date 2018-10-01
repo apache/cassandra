@@ -93,7 +93,9 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         public void add(Replica replica)
         {
             // can only add to full array - if we have sliced it, we must be a snapshot
-            assert begin == 0;
+            if (begin != 0)
+                throw new IllegalStateException();
+
             if (size == contents.length)
             {
                 int newSize;
@@ -133,6 +135,8 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             return Arrays.stream(contents, begin, begin + size);
         }
 
+        // we implement our own iterator, because it is trivial to do so, and in monomorphic call sites
+        // will compile down to almost optimal indexed for loop
         @Override
         public Iterator<Replica> iterator()
         {
@@ -149,11 +153,14 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
                 @Override
                 public Replica next()
                 {
+                    if (!hasNext()) throw new IllegalStateException();
                     return contents[i++];
                 }
             };
         }
 
+        // we implement our own iterator, because it is trivial to do so, and in monomorphic call sites
+        // will compile down to almost optimal indexed for loop
         public <K> Iterator<K> transformIterator(Function<Replica, K> function)
         {
             return new Iterator<K>()
@@ -174,6 +181,9 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             };
         }
 
+        // we implement our own iterator, because it is trivial to do so, and in monomorphic call sites
+        // will compile down to almost optimal indexed for loop
+        // in this case, especially, it is impactful versus Iterables.limit(Iterables.filter())
         private Iterator<Replica> filterIterator(Predicate<Replica> predicate, int limit)
         {
             return new Iterator<Replica>()
@@ -213,10 +223,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
                 return false;
             ReplicaList that = (ReplicaList) to;
             if (this.size != that.size) return false;
-            for (int i = 0 ; i < size ; ++i)
-                if (!this.get(i).equals(that.get(i)))
-                    return false;
-            return true;
+            return Iterables.elementsEqual(this, that);
         }
     }
 
@@ -238,7 +245,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         private Set<K> keySet;
         private Set<Entry<K, Replica>> entrySet;
 
-        abstract class AbstractImmutableSet<K> extends AbstractSet<K>
+        abstract class AbstractImmutableSet<T> extends AbstractSet<T>
         {
             @Override
             public boolean removeAll(Collection<?> c) { throw new UnsupportedOperationException(); }
@@ -273,29 +280,18 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             }
         }
 
-        private static <K> boolean putIfAbsent(ObjectIntOpenHashMap<K> map, Function<Replica, K> toKey, Replica replica, int index)
-        {
-            K key = toKey.apply(replica);
-            int otherIndex = map.put(key, index + 1);
-            if (otherIndex == 0)
-                return true;
-            map.put(key, otherIndex);
-            return false;
-        }
-
         public ReplicaMap(ReplicaList list, Function<Replica, K> toKey)
         {
             // 8*0.65 => RF=5; 16*0.65 ==> RF=10
             // use list capacity if empty, otherwise use actual list size
-            ObjectIntOpenHashMap<K> map = new ObjectIntOpenHashMap<>(list.size == 0 ? list.contents.length : list.size, 0.65f);
+            this.toKey = toKey;
+            this.map = new ObjectIntOpenHashMap<>(list.size == 0 ? list.contents.length : list.size, 0.65f);
+            this.list = list;
             for (int i = list.begin ; i < list.begin + list.size ; ++i)
             {
-                boolean inserted = putIfAbsent(map, toKey, list.contents[i], i);
+                boolean inserted = internalPutIfAbsent(list.contents[i], i);
                 assert inserted;
             }
-            this.toKey = toKey;
-            this.list = list;
-            this.map = map;
         }
 
         public ReplicaMap(ReplicaList list, Function<Replica, K> toKey, ObjectIntOpenHashMap<K> map)
@@ -306,7 +302,15 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         }
 
         // to be used only by subclasses of AbstractReplicaCollection
-        boolean internalPutIfAbsent(Replica replica, int index) { return putIfAbsent(map, toKey, replica, index); }
+        boolean internalPutIfAbsent(Replica replica, int index)
+        {
+            K key = toKey.apply(replica);
+            int otherIndex = map.put(key, index + 1);
+            if (otherIndex == 0)
+                return true;
+            map.put(key, otherIndex);
+            return false;
+        }
 
         @Override
         public boolean containsKey(Object key)

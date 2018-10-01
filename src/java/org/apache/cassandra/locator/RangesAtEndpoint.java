@@ -54,10 +54,6 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
     private RangesAtEndpoint onlyFull;
     private RangesAtEndpoint onlyTransient;
 
-    private RangesAtEndpoint(InetAddressAndPort endpoint, ReplicaList list)
-    {
-        this(endpoint, list, null);
-    }
     private RangesAtEndpoint(InetAddressAndPort endpoint, ReplicaList list, ReplicaMap<Range<Token>> byRange)
     {
         super(list);
@@ -80,11 +76,19 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
         );
     }
 
+    /**
+     * @return a set of all unique Ranges
+     * This method is threadsafe, though it is not synchronised
+     */
     public Set<Range<Token>> ranges()
     {
         return byRange().keySet();
     }
 
+    /**
+     * @return a map of all Ranges, to their owning Replica instance
+     * This method is threadsafe, though it is not synchronised
+     */
     public Map<Range<Token>, Replica> byRange()
     {
         ReplicaMap<Range<Token>> map = byRange;

@@ -19,6 +19,7 @@
 package org.apache.cassandra.locator;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import java.util.Collections;
@@ -48,11 +49,9 @@ public class RangesByEndpoint extends ReplicaMultimap<InetAddressAndPort, Ranges
 
         public RangesByEndpoint build()
         {
-            Map<InetAddressAndPort, RangesAtEndpoint> map =
-                    Collections.unmodifiableMap(
-                            new HashMap<>(
-                                    Maps.transformValues(this.map, RangesAtEndpoint.Builder::build)));
-            return new RangesByEndpoint(map);
+            return new RangesByEndpoint(
+                    ImmutableMap.copyOf(
+                            Maps.transformValues(this.map, RangesAtEndpoint.Builder::build)));
         }
     }
 

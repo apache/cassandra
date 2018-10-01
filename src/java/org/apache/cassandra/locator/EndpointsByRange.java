@@ -19,6 +19,7 @@
 package org.apache.cassandra.locator;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -57,11 +58,9 @@ public class EndpointsByRange extends ReplicaMultimap<Range<Token>, EndpointsFor
 
         public EndpointsByRange build()
         {
-            Map<Range<Token>, EndpointsForRange> map =
-                    Collections.unmodifiableMap(
-                            new HashMap<>(
-                                    Maps.transformValues(this.map, EndpointsForRange.Builder::build)));
-            return new EndpointsByRange(map);
+            return new EndpointsByRange(
+                    ImmutableMap.copyOf(
+                            Maps.transformValues(this.map, EndpointsForRange.Builder::build)));
         }
     }
 

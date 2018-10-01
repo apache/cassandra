@@ -33,7 +33,7 @@ import java.util.Set;
  */
 public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaCollection<E>
 {
-    static final ReplicaMap<InetAddressAndPort> endpointMap(ReplicaList list) { return new ReplicaMap<>(list, Replica::endpoint); }
+    static ReplicaMap<InetAddressAndPort> endpointMap(ReplicaList list) { return new ReplicaMap<>(list, Replica::endpoint); }
     static final ReplicaMap<InetAddressAndPort> EMPTY_MAP = endpointMap(EMPTY_LIST);
 
     // volatile not needed, as has only final members,

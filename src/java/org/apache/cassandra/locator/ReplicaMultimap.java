@@ -25,9 +25,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
+@VisibleForTesting
 public abstract class ReplicaMultimap<K, C extends ReplicaCollection<?>>
 {
     final Map<K, C> map;
@@ -37,7 +39,6 @@ public abstract class ReplicaMultimap<K, C extends ReplicaCollection<?>>
     }
 
     public abstract C get(K key);
-    public C getIfPresent(K key) { return map.get(key); }
 
     public static abstract class Builder
             <K, B extends ReplicaCollection.Builder<?>>

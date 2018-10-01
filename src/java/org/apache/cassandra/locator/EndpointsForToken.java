@@ -23,8 +23,6 @@ import org.apache.cassandra.dht.Token;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
 
 /**
  * A ReplicaCollection where all Replica are required to cover a range that fully contains the token() defined in the builder().
@@ -34,10 +32,6 @@ import java.util.Map;
 public class EndpointsForToken extends Endpoints<EndpointsForToken>
 {
     private final Token token;
-    private EndpointsForToken(Token token, ReplicaList list)
-    {
-        this(token, list, null);
-    }
 
     EndpointsForToken(Token token, ReplicaList list, ReplicaMap<InetAddressAndPort> byEndpoint)
     {
