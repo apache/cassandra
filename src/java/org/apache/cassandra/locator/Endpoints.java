@@ -60,12 +60,6 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
         return map;
     }
 
-    public boolean contains(InetAddressAndPort endpoint, boolean isFull)
-    {
-        Replica replica = byEndpoint().get(endpoint);
-        return replica != null && replica.isFull() == isFull;
-    }
-
     @Override
     public boolean contains(Replica replica)
     {

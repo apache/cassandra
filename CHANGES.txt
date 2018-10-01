@@ -1,4 +1,5 @@
 4.0
+ * Transient->Full range movements mishandle consistency level upgrade (CASSANDRA-14759)
  * Enable snapshot artifacts publish (CASSANDRA-12704)
  * Introduce RangesAtEndpoint.unwrap to simplify StreamSession.addTransferRanges (CASSANDRA-14770)
  * LOCAL_QUORUM may speculate to non-local nodes, resulting in Timeout instead of Unavailable (CASSANDRA-14735)
