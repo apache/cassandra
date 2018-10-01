@@ -106,7 +106,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
     public final ListeningExecutorService taskExecutor = MoreExecutors.listeningDecorator(DebuggableThreadPoolExecutor.createCachedThreadpoolWithMaxSize("RepairJobTask"));
-    private final boolean optimiseStreams;
+    public final boolean optimiseStreams;
 
     private volatile boolean terminated = false;
 
@@ -189,12 +189,12 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         return commonRange.endpoints;
     }
 
-    public void waitForValidation(Pair<RepairJobDesc, InetAddressAndPort> key, ValidationTask task)
+    public void trackValidationCompletion(Pair<RepairJobDesc, InetAddressAndPort> key, ValidationTask task)
     {
         validating.put(key, task);
     }
 
-    public void waitForSync(Pair<RepairJobDesc, SyncNodePair> key, CompletableRemoteSyncTask task)
+    public void trackSyncCompletion(Pair<RepairJobDesc, SyncNodePair> key, CompletableRemoteSyncTask task)
     {
         syncingTasks.put(key, task);
     }
@@ -305,7 +305,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         List<ListenableFuture<RepairResult>> jobs = new ArrayList<>(cfnames.length);
         for (String cfname : cfnames)
         {
-            RepairJob job = new RepairJob(this, cfname, isIncremental, previewKind, optimiseStreams);
+            RepairJob job = new RepairJob(this, cfname);
             executor.execute(job);
             jobs.add(job);
         }

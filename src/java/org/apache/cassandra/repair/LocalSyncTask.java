@@ -52,15 +52,9 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     private static final Logger logger = LoggerFactory.getLogger(LocalSyncTask.class);
 
     private final UUID pendingRepair;
-    private final boolean requestRanges;
-    private final boolean transferRanges;
 
-    public LocalSyncTask(RepairJobDesc desc, TreeResponse local, TreeResponse remote, UUID pendingRepair,
-                         boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
-    {
-        this(desc, local.endpoint, remote.endpoint, MerkleTrees.difference(local.trees, remote.trees),
-             pendingRepair, requestRanges, transferRanges, previewKind);
-    }
+    protected final boolean requestRanges;
+    protected final boolean transferRanges;
 
     public LocalSyncTask(RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote,
                          List<Range<Token>> diff, UUID pendingRepair,
@@ -76,8 +70,10 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     }
 
     @VisibleForTesting
-    StreamPlan createStreamPlan(InetAddressAndPort remote, List<Range<Token>> differences)
+    StreamPlan createStreamPlan()
     {
+        InetAddressAndPort remote =  nodePair.peer;
+
         StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                           .listeners(this)
                           .flushBeforeTransfer(pendingRepair == null);
@@ -85,7 +81,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         if (requestRanges)
         {
             // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
-            plan.requestRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(differences),
+            plan.requestRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(rangesToSync),
                                RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily);
         }
 
@@ -93,7 +89,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         {
             // send ranges to the remote node if we are not performing a pull repair
             // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
-            plan.transferRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(differences), desc.columnFamily);
+            plan.transferRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(rangesToSync), desc.columnFamily);
         }
 
         return plan;
@@ -112,7 +108,13 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
 
-        createStreamPlan(remote, rangesToSync).execute();
+        createStreamPlan().execute();
+    }
+
+    @Override
+    public boolean isLocal()
+    {
+        return true;
     }
 
     public void handleStreamEvent(StreamEvent event)
@@ -154,5 +156,16 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     {
         setException(t);
         finished();
+    }
+
+    @Override
+    public String toString()
+    {
+        return "LocalSyncTask{" +
+               "requestRanges=" + requestRanges +
+               ", transferRanges=" + transferRanges +
+               ", rangesToSync=" + rangesToSync +
+               ", nodePair=" + nodePair +
+               '}';
     }
 }
