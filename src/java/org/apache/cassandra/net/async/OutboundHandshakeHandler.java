@@ -101,9 +101,10 @@ public class OutboundHandshakeHandler extends ByteToMessageDecoder
      * containing the streaming protocol version, is all that is required.
      */
     @Override
-    public void channelActive(final ChannelHandlerContext ctx) throws Exception
+    public void channelActive(final ChannelHandlerContext ctx)
     {
-        FirstHandshakeMessage msg = new FirstHandshakeMessage(messagingVersion, mode, params.compress);
+        boolean largeMessages = params.connectionId.type() == OutboundConnectionIdentifier.ConnectionType.LARGE_MESSAGE;
+        FirstHandshakeMessage msg = new FirstHandshakeMessage(messagingVersion, mode, params.compress, largeMessages);
         logger.trace("starting handshake with peer {}, msg = {}", connectionId.connectionAddress(), msg);
         ctx.writeAndFlush(msg.encode(ctx.alloc())).addListener(future -> firstHandshakeMessageListener(future, ctx));
 
@@ -197,8 +198,10 @@ public class OutboundHandshakeHandler extends ByteToMessageDecoder
         if (params.compress)
             pipeline.addLast(NettyFactory.OUTBOUND_COMPRESSOR_HANDLER_NAME, NettyFactory.createLz4Encoder(messagingVersion));
 
-        ChannelWriter channelWriter = ChannelWriter.create(channel, params.messageResultConsumer, params.coalescingStrategy);
-        pipeline.addLast("messageOutHandler", new MessageOutHandler(connectionId, messagingVersion, channelWriter, params.backlogSupplier));
+        ChannelWriter channelWriter = ChannelWriter.create(channel, params);
+        if (channelWriter.requiresSerializerInPipeline())
+            pipeline.addLast("messageOutHandler", new MessageOutHandler(connectionId, messagingVersion, channelWriter, params.backlogSupplier));
+
         pipeline.remove(this);
         return channelWriter;
     }

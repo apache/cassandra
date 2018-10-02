@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.netty.buffer.ByteBuf;
@@ -36,6 +37,8 @@ import org.apache.cassandra.io.util.RebufferingInputStream;
 
 public class RebufferingByteBufDataInputPlus extends RebufferingInputStream implements ReadableByteChannel
 {
+    private static final long DEFAULT_REBUFFER_BLOCK_IN_MILLIS = TimeUnit.MINUTES.toMillis(3);
+
     /**
      * The parent, or owning, buffer of the current buffer being read from ({@link super#buffer}).
      */
@@ -51,10 +54,16 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
     private final int lowWaterMark;
     private final int highWaterMark;
     private final ChannelConfig channelConfig;
+    private final long rebufferBlockInMillis;
 
     private volatile boolean closed;
 
     public RebufferingByteBufDataInputPlus(int lowWaterMark, int highWaterMark, ChannelConfig channelConfig)
+    {
+        this (lowWaterMark, highWaterMark, channelConfig, DEFAULT_REBUFFER_BLOCK_IN_MILLIS);
+    }
+
+    public RebufferingByteBufDataInputPlus(int lowWaterMark, int highWaterMark, ChannelConfig channelConfig, long rebufferBlockInMillis)
     {
         super(Unpooled.EMPTY_BUFFER.nioBuffer());
 
@@ -65,6 +74,7 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
         this.lowWaterMark = lowWaterMark;
         this.highWaterMark = highWaterMark;
         this.channelConfig = channelConfig;
+        this.rebufferBlockInMillis = rebufferBlockInMillis;
         queue = new LinkedBlockingQueue<>();
         queuedByteCount = new AtomicInteger();
     }
@@ -117,7 +127,7 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
 
         try
         {
-            currentBuf = queue.take();
+            currentBuf = queue.poll(rebufferBlockInMillis, TimeUnit.MILLISECONDS);
             int bytes;
             // if we get an explicitly empty buffer, we treat that as an indicator that the input is closed
             if (currentBuf == null || (bytes = currentBuf.readableBytes()) == 0)
@@ -129,7 +139,6 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
             buffer = currentBuf.nioBuffer(currentBuf.readerIndex(), bytes);
             assert buffer.remaining() == bytes;
             queuedByteCount.addAndGet(-bytes);
-            return;
         }
         catch (InterruptedException ie)
         {
@@ -177,10 +186,38 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
         if (availableBytes == 0 && closed)
             throw new EOFException();
 
-        if (!channelConfig.isAutoRead() && availableBytes < lowWaterMark)
-            channelConfig.setAutoRead(true);
-
         return availableBytes;
+    }
+
+    public boolean isEmpty() throws EOFException
+    {
+        return available() == 0;
+    }
+
+    /**
+     * Checks to see if autoRead can be (re-)enabled. The use case for this method is the {@link #queue} has been drained
+     * perfectly of all it's bytes, but the autoRead is disabled (from when the last ByteBuf came in). Instead of
+     * calling one of the read methods, which will invoke {@link #reBuffer()} and block or fail,
+     * this method may be invoked explicitly to enable the autoRead (if appropriate).
+     *
+     * @return true if, when this method returns, autoREad is enabled; else, false.
+     * @throws EOFException thrown if this instance is closed.
+     */
+    public boolean maybeEnableAutoRead() throws EOFException
+    {
+        if (closed)
+            throw new EOFException();
+
+        if (channelConfig.isAutoRead())
+            return true;
+
+        if (available() <= highWaterMark)
+        {
+            channelConfig.setAutoRead(true);
+            return true;
+        }
+
+        return false;
     }
 
     @Override

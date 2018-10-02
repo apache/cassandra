@@ -18,12 +18,7 @@
 
 package org.apache.cassandra.net.async;
 
-import java.io.IOException;
-import java.util.HashMap;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -45,8 +40,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ParameterType;
-import org.apache.cassandra.tracing.Tracing;
 
 public class MessageOutHandlerTest
 {
@@ -75,13 +68,21 @@ public class MessageOutHandlerTest
                                                                                        InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", 0));
         OutboundMessagingConnection omc = new NonSendingOutboundMessagingConnection(connectionId, null, Optional.empty());
         channel = new EmbeddedChannel();
-        channelWriter = ChannelWriter.create(channel, omc::handleMessageResult, Optional.empty());
+
+        OutboundConnectionParams params = OutboundConnectionParams.builder()
+                                                                  .messageResultConsumer(omc::handleMessageResult)
+                                                                  .coalescingStrategy(Optional.empty())
+                                                                  .protocolVersion(MessagingService.current_version)
+                                                                  .connectionId(connectionId)
+                                                                  .build();
+
+        channelWriter = ChannelWriter.create(channel, params);
         handler = new MessageOutHandler(connectionId, MESSAGING_VERSION, channelWriter, () -> null, flushThreshold);
         channel.pipeline().addLast(handler);
     }
 
     @Test
-    public void write_NoFlush() throws ExecutionException, InterruptedException, TimeoutException
+    public void write_NoFlush()
     {
         MessageOut message = new MessageOut(MessagingService.Verb.ECHO);
         ChannelFuture future = channel.write(new QueuedMessage(message, 42));
@@ -100,7 +101,7 @@ public class MessageOutHandlerTest
     }
 
     @Test
-    public void serializeMessage() throws IOException
+    public void serializeMessage()
     {
         channelWriter.pendingMessageCount.set(1);
         QueuedMessage msg = new QueuedMessage(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), 1);
@@ -213,31 +214,6 @@ public class MessageOutHandlerTest
     }
 
     @Test
-    public void captureTracingInfo_ForceException()
-    {
-        MessageOut message = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
-                             .withParameter(ParameterType.TRACE_SESSION, new byte[9]);
-        handler.captureTracingInfo(new QueuedMessage(message, 42));
-    }
-
-    @Test
-    public void captureTracingInfo_UnknownSession()
-    {
-        UUID uuid = UUID.randomUUID();
-        MessageOut message = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
-                             .withParameter(ParameterType.TRACE_SESSION, uuid);
-        handler.captureTracingInfo(new QueuedMessage(message, 42));
-    }
-
-    @Test
-    public void captureTracingInfo_KnownSession()
-    {
-        Tracing.instance.newSession(new HashMap<>());
-        MessageOut message = new MessageOut(MessagingService.Verb.REQUEST_RESPONSE);
-        handler.captureTracingInfo(new QueuedMessage(message, 42));
-    }
-
-    @Test
     public void userEventTriggered_RandomObject()
     {
         Assert.assertTrue(channel.isOpen());
@@ -275,7 +251,7 @@ public class MessageOutHandlerTest
         private ChannelHandlerContext ctx;
 
         @Override
-        public void handlerAdded(final ChannelHandlerContext ctx) throws Exception
+        public void handlerAdded(final ChannelHandlerContext ctx)
         {
             this.ctx = ctx;
         }

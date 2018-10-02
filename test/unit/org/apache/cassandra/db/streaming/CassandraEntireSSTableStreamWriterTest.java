@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -114,7 +115,7 @@ public class CassandraEntireSSTableStreamWriterTest
         CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
 
         EmbeddedChannel channel = new EmbeddedChannel();
-        ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(session, channel, 1024 * 1024);
+        ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(channel, 1024 * 1024, throwable -> {}, 30, TimeUnit.SECONDS);
         writer.write(out);
 
         Queue msgs = channel.outboundMessages();
@@ -133,7 +134,7 @@ public class CassandraEntireSSTableStreamWriterTest
         // This is needed as Netty releases the ByteBuffers as soon as the channel is flushed
         ByteBuf serializedFile = Unpooled.buffer(8192);
         EmbeddedChannel channel = createMockNettyChannel(serializedFile);
-        ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(session, channel, 1024 * 1024);
+        ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(channel, 1024 * 1024, throwable -> {}, 30, TimeUnit.SECONDS);
 
         writer.write(out);
 

@@ -19,8 +19,11 @@
 package org.apache.cassandra.net.async;
 
 import java.io.IOException;
-import java.util.Optional;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -40,6 +43,7 @@ import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.CoalescingStrategies;
 import org.apache.cassandra.utils.CoalescingStrategies.CoalescingStrategy;
@@ -137,7 +141,6 @@ abstract class ChannelWriter
     static final AttributeKey<Boolean> PURGE_MESSAGES_CHANNEL_ATTR = AttributeKey.newInstance("purgeMessages");
 
     protected final Channel channel;
-    private volatile boolean closed;
 
     /** Number of currently pending messages on this channel. */
     final AtomicLong pendingMessageCount = new AtomicLong(0);
@@ -154,7 +157,9 @@ abstract class ChannelWriter
      */
     private final MessageResult messageResult = new MessageResult();
 
-    protected ChannelWriter(Channel channel, Consumer<MessageResult> messageResultConsumer)
+    private volatile boolean closed;
+
+    ChannelWriter(Channel channel, Consumer<MessageResult> messageResultConsumer)
     {
         this.channel = channel;
         this.messageResultConsumer = messageResultConsumer;
@@ -165,11 +170,14 @@ abstract class ChannelWriter
      * Creates a new {@link ChannelWriter} using the (assumed properly connected) provided channel, and using coalescing
      * based on the provided strategy.
      */
-    static ChannelWriter create(Channel channel, Consumer<MessageResult> messageResultConsumer, Optional<CoalescingStrategy> coalescingStrategy)
+    static ChannelWriter create(Channel channel, OutboundConnectionParams params)
     {
-        return coalescingStrategy.isPresent()
-               ? new CoalescingChannelWriter(channel, messageResultConsumer, coalescingStrategy.get())
-               : new SimpleChannelWriter(channel, messageResultConsumer);
+        if (params.connectionId.type() == OutboundConnectionIdentifier.ConnectionType.LARGE_MESSAGE)
+            return new LargeMessageChannelWriter(channel, params.messageResultConsumer, params.protocolVersion, params.connectionId);
+
+        return params.coalescingStrategy.isPresent()
+               ? new CoalescingChannelWriter(channel, params.messageResultConsumer, params.coalescingStrategy.get())
+               : new SimpleChannelWriter(channel, params.messageResultConsumer);
     }
 
     /**
@@ -188,7 +196,7 @@ abstract class ChannelWriter
      */
     boolean write(QueuedMessage message, boolean checkWritability)
     {
-        if ( (checkWritability && (channel.isWritable()) || !channel.isOpen()) || !checkWritability)
+        if ((checkWritability && (channel.isWritable()) || !channel.isOpen()) || !checkWritability)
         {
             write0(message).addListener(f -> handleMessageFuture(f, message, true));
             return true;
@@ -200,6 +208,8 @@ abstract class ChannelWriter
      * Handles the future of sending a particular message on this {@link ChannelWriter}.
      * <p>
      * Note: this is called from the netty event loop, so there is no race across multiple execution of this method.
+     * However, in {@link LargeMessageChannelWriter}, this method is called from the (single-threaded)
+     * {@link LargeMessageChannelWriter#svc}, but we are still protected from the race conditions.
      */
     @VisibleForTesting
     void handleMessageFuture(Future<? super Void> future, QueuedMessage msg, boolean allowReconnect)
@@ -238,8 +248,7 @@ abstract class ChannelWriter
             if (msg == null)
                 break;
 
-            pendingMessageCount.incrementAndGet();
-            ChannelFuture future = channel.write(msg);
+            ChannelFuture future = write0(msg);
             future.addListener(f -> handleMessageFuture(f, msg, allowReconnect));
             count++;
         }
@@ -249,6 +258,16 @@ abstract class ChannelWriter
             channel.flush();
 
         return count;
+    }
+
+    /**
+     * Indicates this implementation requires a handler in the netty pipeline to perform the message serialization.
+     * If false, the expectation is the implementation will perform the serialization itself, outside of the pipeline;
+     * most implementations should not do this.
+     */
+    boolean requiresSerializerInPipeline()
+    {
+        return true;
     }
 
     void close()
@@ -277,7 +296,6 @@ abstract class ChannelWriter
         channel.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
     }
 
-    @VisibleForTesting
     boolean isClosed()
     {
         return closed;
@@ -335,6 +353,146 @@ abstract class ChannelWriter
         void onTriggeredFlush(ChannelHandlerContext ctx)
         {
             // Don't actually flush on "normal" flush calls to the channel.
+        }
+    }
+
+    /**
+     * A specialized implementation for handling large messages, as defined by
+     * {@link OutboundMessagingPool#LARGE_MESSAGE_THRESHOLD}. The idea here is that we do not want to allocate a
+     * large buffer to serialize into as that would cause bad memory pressure: imagine a message that's 100MB
+     * in size, and, worse yet, then we would allocate one buffer per the message fan out.
+     *
+     * Here we serialize into a {@link ByteBufDataOutputStreamPlus}, which chunks the message into
+     * n {@link #DEFAULT_BUFFER_SIZE} allocations, and it also manages the amount of unacknowledgeded data in the channel.
+     * This saves us from allocating the one huge buffer as well as making sure we do not naively dump all the serialized
+     * data into the channel, across multiple, smaller blocks.
+     */
+    @VisibleForTesting
+    static class LargeMessageChannelWriter extends ChannelWriter
+    {
+        private static final int DEFAULT_BUFFER_SIZE = 16 * 1024;
+        private final ThreadPoolExecutor svc;
+        private final int messagingVersion;
+        private final OutboundConnectionIdentifier connectionId;
+
+        LargeMessageChannelWriter(Channel channel, Consumer<MessageResult> messageResultConsumer,
+                                  int messagingVersion, OutboundConnectionIdentifier connectionId)
+        {
+            super(channel, messageResultConsumer);
+            this.messagingVersion = messagingVersion;
+            this.connectionId = connectionId;
+
+            String threadName = "MessagingService-NettyOutbound-" + connectionId.remote().toString() + "-LargeMessages";
+            svc = new ThreadPoolExecutor(1, 1, 5L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), new NamedThreadFactory(threadName));
+            svc.allowCoreThreadTimeOut(true);
+        }
+
+        boolean requiresSerializerInPipeline()
+        {
+            return false;
+        }
+
+        @Override
+        protected ChannelFuture write0(QueuedMessage message)
+        {
+            pendingMessageCount.incrementAndGet();
+            ChannelPromise promise = channel.newPromise();
+            svc.submit(new LargeMessageWriteTask(message, promise));
+
+            return promise;
+        }
+
+        @Override
+        void onMessageProcessed(ChannelHandlerContext ctx)
+        {
+            throw new AssertionError("shouldn't get to this method via the intended use of this class");
+        }
+
+        @Override
+        void onTriggeredFlush(ChannelHandlerContext ctx)
+        {
+            throw new AssertionError("shouldn't get to this method via the intended use of this class");
+        }
+
+        public void close()
+        {
+            super.close();
+            svc.shutdownNow();
+        }
+
+        private class LargeMessageWriteTask implements Runnable
+        {
+            private final QueuedMessage currentMessage;
+
+            private final ChannelPromise promise;
+
+            // a poor-man's thread-safe version of netty's PromiseCombiner.
+            private final List<Future> promises;
+
+            private LargeMessageWriteTask(QueuedMessage currentMessage, ChannelPromise aggregatePromise)
+            {
+                this.currentMessage = currentMessage;
+                this.promise = aggregatePromise;
+                promises = new LinkedList<>();
+            }
+
+            @Override
+            public void run()
+            {
+                try (ByteBufDataOutputStreamPlus output = ByteBufDataOutputStreamPlus.create(channel, DEFAULT_BUFFER_SIZE,
+                                                                                             this::handleError, 30, TimeUnit.SECONDS, this::handleFuture))
+                {
+                    currentMessage.message.serialize(output, messagingVersion, connectionId, currentMessage.id, currentMessage.timestampNanos);
+                    output.flush();
+
+                    // need to wait until *all* promises are created & return successfully before we can declare success on this message.
+                    for (Future<?> future : promises)
+                    {
+                        // optimize for the success path
+                        if (future.isSuccess())
+                            continue;
+
+                        if (!future.awaitUninterruptibly(30, TimeUnit.SECONDS))
+                            throw new IOException("future failed to fulfilled within the time limit");
+
+                        if (!future.isSuccess())
+                            throw future.cause();
+                    }
+                    promise.trySuccess();
+                }
+                catch (Throwable t)
+                {
+                    promise.tryFailure(new IOException(t));
+                }
+                finally
+                {
+                    pendingMessageCount.decrementAndGet();
+                }
+            }
+
+            /**
+             * Callback from {@link ByteBufDataOutputStreamPlus} when it sends a buffer to the netty channel.
+             *
+             * Note: called on the same thread as {@link #run()}.
+             */
+            void handleFuture(Future promise)
+            {
+                promises.add(promise);
+            }
+
+            /**
+             * Callback from {@link ByteBufDataOutputStreamPlus} when an error occurs trying to writing *within* the pipeline.
+             * Think of this method as an express mechanism to know when the pipeline fails, such that we don't need
+             * to have {@link #run()} wait for all the futures to be created (they might never be created).
+             *
+             * Note: invoked on the netty event loop.
+             */
+            void handleError(Throwable t)
+            {
+                // failing the promise here will eventually lead back to OMC.handleMessageResult, which closes the channel,
+                // and closes this ChannelWriter eventually, as well.
+                promise.tryFailure(t);
+            }
         }
     }
 

@@ -19,12 +19,9 @@
 package org.apache.cassandra.net.async;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,15 +34,8 @@ import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.UnsupportedMessageTypeException;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
-
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ParameterType;
-import org.apache.cassandra.tracing.TraceState;
-import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.utils.NoSpamLogger;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.config.Config.PROPERTY_PREFIX;
 
@@ -72,11 +62,6 @@ class MessageOutHandler extends ChannelDuplexHandler
     // reatining the pre 4.0 property name for backward compatibility.
     private static final String AUTO_FLUSH_PROPERTY = PROPERTY_PREFIX + "otc_buffer_size";
     static final int AUTO_FLUSH_THRESHOLD = Integer.getInteger(AUTO_FLUSH_PROPERTY, DEFAULT_AUTO_FLUSH_THRESHOLD);
-
-    /**
-     * The amount of prefix data, in bytes, before the serialized message.
-     */
-    private static final int MESSAGE_PREFIX_SIZE = 12;
 
     private final OutboundConnectionIdentifier connectionId;
 
@@ -131,7 +116,7 @@ class MessageOutHandler extends ChannelDuplexHandler
             // frame size includes the magic and and other values *before* the actual serialized message.
             // note: don't even bother to check the compressed size (if compression is enabled for the channel),
             // cuz if it's this large already, we're probably screwed anyway
-            long currentFrameSize = MESSAGE_PREFIX_SIZE + msg.message.serializedSize(targetMessagingVersion);
+            long currentFrameSize = MessageOut.MESSAGE_PREFIX_SIZE + (long)msg.message.serializedSize(targetMessagingVersion);
             if (currentFrameSize > Integer.MAX_VALUE || currentFrameSize < 0)
             {
                 promise.tryFailure(new IllegalStateException(String.format("%s illegal frame size: %d, ignoring message", connectionId, currentFrameSize)));
@@ -140,8 +125,17 @@ class MessageOutHandler extends ChannelDuplexHandler
 
             out = ctx.alloc().ioBuffer((int)currentFrameSize);
 
-            captureTracingInfo(msg);
-            serializeMessage(msg, out);
+            @SuppressWarnings("resource")
+            ByteBufDataOutputPlus outputPlus = new ByteBufDataOutputPlus(out);
+            msg.message.serialize(outputPlus, targetMessagingVersion, connectionId, msg.id, msg.timestampNanos);
+
+            // next few lines are for debugging ... massively helpful!!
+            // if we allocated too much buffer for this message, we'll log here.
+            // if we allocated to little buffer space, we would have hit an exception when trying to write more bytes to it
+            if (out.isWritable())
+                errorLogger.error("{} reported message size {}, actual message size {}, msg {}",
+                                  connectionId, out.capacity(), out.writerIndex(), msg.message);
+
             ctx.write(out, promise);
 
             // check to see if we should flush based on buffered size
@@ -158,7 +152,7 @@ class MessageOutHandler extends ChannelDuplexHandler
         }
         finally
         {
-            // Make sure we signal the outChanel even in case of errors.
+            // Make sure we signal the outChannel even in case of errors.
             channelWriter.onMessageProcessed(ctx);
         }
     }
@@ -189,68 +183,11 @@ class MessageOutHandler extends ChannelDuplexHandler
         return false;
     }
 
-    /**
-     * Record any tracing data, if enabled on this message.
-     */
-    @VisibleForTesting
-    void captureTracingInfo(QueuedMessage msg)
-    {
-        try
-        {
-            UUID sessionId =  (UUID)msg.message.getParameter(ParameterType.TRACE_SESSION);
-            if (sessionId != null)
-            {
-                TraceState state = Tracing.instance.get(sessionId);
-                String message = String.format("Sending %s message to %s, size = %d bytes",
-                                               msg.message.verb, connectionId.connectionAddress(),
-                                               msg.message.serializedSize(targetMessagingVersion) + MESSAGE_PREFIX_SIZE);
-                // session may have already finished; see CASSANDRA-5668
-                if (state == null)
-                {
-                    Tracing.TraceType traceType = (Tracing.TraceType)msg.message.getParameter(ParameterType.TRACE_TYPE);
-                    traceType = traceType == null ? Tracing.TraceType.QUERY : traceType;
-                    Tracing.instance.trace(ByteBuffer.wrap(UUIDGen.decompose(sessionId)), message, traceType.getTTL());
-                }
-                else
-                {
-                    state.trace(message);
-                    if (msg.message.verb == MessagingService.Verb.REQUEST_RESPONSE)
-                        Tracing.instance.doneWithNonLocalSession(state);
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            logger.warn("{} failed to capture the tracing info for an outbound message, ignoring", connectionId, e);
-        }
-    }
-
-    private void serializeMessage(QueuedMessage msg, ByteBuf out) throws IOException
-    {
-        out.writeInt(MessagingService.PROTOCOL_MAGIC);
-        out.writeInt(msg.id);
-
-        // int cast cuts off the high-order half of the timestamp, which we can assume remains
-        // the same between now and when the recipient reconstructs it.
-        out.writeInt((int) NanoTimeToCurrentTimeMillis.convert(msg.timestampNanos));
-        @SuppressWarnings("resource")
-        DataOutputPlus outStream = new ByteBufDataOutputPlus(out);
-        msg.message.serialize(outStream, targetMessagingVersion);
-
-        // next few lines are for debugging ... massively helpful!!
-        // if we allocated too much buffer for this message, we'll log here.
-        // if we allocated to little buffer space, we would have hit an exception when trying to write more bytes to it
-        if (out.isWritable())
-            errorLogger.error("{} reported message size {}, actual message size {}, msg {}",
-                         connectionId, out.capacity(), out.writerIndex(), msg.message);
-    }
-
     @Override
     public void flush(ChannelHandlerContext ctx)
     {
         channelWriter.onTriggeredFlush(ctx);
     }
-
 
     /**
      * {@inheritDoc}

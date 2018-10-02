@@ -72,6 +72,7 @@ public class OutboundMessagingConnectionTest
 
     private IEndpointSnitch snitch;
     private ServerEncryptionOptions encryptionOptions;
+    private OutboundConnectionParams params;
 
     @BeforeClass
     public static void before()
@@ -85,7 +86,14 @@ public class OutboundMessagingConnectionTest
         connectionId = OutboundConnectionIdentifier.small(LOCAL_ADDR, REMOTE_ADDR);
         omc = new OutboundMessagingConnection(connectionId, null, Optional.empty(), new AllowAllInternodeAuthenticator());
         channel = new EmbeddedChannel();
-        omc.setChannelWriter(ChannelWriter.create(channel, omc::handleMessageResult, Optional.empty()));
+
+        params = OutboundConnectionParams.builder()
+                                         .messageResultConsumer(omc::handleMessageResult)
+                                         .coalescingStrategy(Optional.empty())
+                                         .protocolVersion(MessagingService.current_version)
+                                         .connectionId(connectionId)
+                                         .build();
+        omc.setChannelWriter(ChannelWriter.create(channel, params));
 
         snitch = DatabaseDescriptor.getEndpointSnitch();
         encryptionOptions = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
@@ -213,7 +221,7 @@ public class OutboundMessagingConnectionTest
         ScheduledFuture<?> connectionTimeoutFuture = new TestScheduledFuture();
         Assert.assertFalse(connectionTimeoutFuture.isCancelled());
         omc.setConnectionTimeoutFuture(connectionTimeoutFuture);
-        ChannelWriter channelWriter = ChannelWriter.create(channel, omc::handleMessageResult, Optional.empty());
+        ChannelWriter channelWriter = ChannelWriter.create(channel, params);
         omc.setChannelWriter(channelWriter);
 
         omc.close(softClose);
@@ -362,7 +370,7 @@ public class OutboundMessagingConnectionTest
     @Test
     public void finishHandshake_GOOD()
     {
-        ChannelWriter channelWriter = ChannelWriter.create(channel, omc::handleMessageResult, Optional.empty());
+        ChannelWriter channelWriter = ChannelWriter.create(channel, params);
         HandshakeResult result = HandshakeResult.success(channelWriter, MESSAGING_VERSION);
         ScheduledFuture<?> connectionTimeoutFuture = new TestScheduledFuture();
         Assert.assertFalse(connectionTimeoutFuture.isCancelled());
@@ -381,7 +389,7 @@ public class OutboundMessagingConnectionTest
     @Test
     public void finishHandshake_GOOD_ButClosed()
     {
-        ChannelWriter channelWriter = ChannelWriter.create(channel, omc::handleMessageResult, Optional.empty());
+        ChannelWriter channelWriter = ChannelWriter.create(channel, params);
         HandshakeResult result = HandshakeResult.success(channelWriter, MESSAGING_VERSION);
         ScheduledFuture<?> connectionTimeoutFuture = new TestScheduledFuture();
         Assert.assertFalse(connectionTimeoutFuture.isCancelled());
@@ -448,7 +456,7 @@ public class OutboundMessagingConnectionTest
     @Test
     public void reconnectWithNewIp_HappyPath()
     {
-        ChannelWriter channelWriter = ChannelWriter.create(channel, omc::handleMessageResult, Optional.empty());
+        ChannelWriter channelWriter = ChannelWriter.create(channel, params);
         omc.setChannelWriter(channelWriter);
         omc.setState(READY);
         OutboundConnectionIdentifier originalId = omc.getConnectionId();

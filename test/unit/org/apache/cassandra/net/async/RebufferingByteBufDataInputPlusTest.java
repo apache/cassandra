@@ -22,6 +22,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -35,6 +36,9 @@ import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 
 public class RebufferingByteBufDataInputPlusTest
 {
+    private static final int LOW_WATER_MARK = 1 << 10;
+    private static final int HIGH_WATER_MARK = 1 << 11;
+
     private EmbeddedChannel channel;
     private RebufferingByteBufDataInputPlus inputPlus;
     private ByteBuf buf;
@@ -43,7 +47,7 @@ public class RebufferingByteBufDataInputPlusTest
     public void setUp()
     {
         channel = new EmbeddedChannel();
-        inputPlus = new RebufferingByteBufDataInputPlus(1 << 10, 1 << 11, channel.config());
+        inputPlus = new RebufferingByteBufDataInputPlus(LOW_WATER_MARK, HIGH_WATER_MARK, channel.config());
     }
 
     @After
@@ -216,8 +220,8 @@ public class RebufferingByteBufDataInputPlusTest
         BufferedDataOutputStreamPlus writer = new BufferedDataOutputStreamPlus(wbc);
         inputPlus.consumeUntil(writer, len);
 
-        Assert.assertEquals(String.format("Test with {} buffers starting at {} consuming {} bytes", nBuffs, startOffset,
-                                          len), len, wbc.writtenBytes.readableBytes());
+        Assert.assertEquals(String.format("Test with %d buffers starting at %d consuming %d bytes", nBuffs, startOffset, len),
+                            len, wbc.writtenBytes.readableBytes());
 
         Assert.assertArrayEquals(expectedBytes, wbc.writtenBytes.array());
     }
@@ -232,7 +236,7 @@ public class RebufferingByteBufDataInputPlusTest
              writtenBytes = Unpooled.buffer(initialCapacity);
         }
 
-        public int write(ByteBuffer src) throws IOException
+        public int write(ByteBuffer src)
         {
             int size = src.remaining();
             writtenBytes.writeBytes(src);
@@ -244,9 +248,73 @@ public class RebufferingByteBufDataInputPlusTest
             return isOpen;
         }
 
-        public void close() throws IOException
+        public void close()
         {
             isOpen = false;
         }
-    };
+    }
+
+    @Test
+    public void rebufferTimeout() throws IOException
+    {
+        long timeoutMillis = 1000;
+        inputPlus = new RebufferingByteBufDataInputPlus(10, 20, channel.config(), timeoutMillis);
+
+        long startNanos = System.nanoTime();
+        try
+        {
+            inputPlus.readInt();
+            Assert.fail("should not have been able to read from the queue");
+        }
+        catch (EOFException eof)
+        {
+            // this is the success case, and is expected. any other exception is a failure.
+        }
+
+        long durationNanos = System.nanoTime() - startNanos;
+        Assert.assertTrue(TimeUnit.MILLISECONDS.toNanos(timeoutMillis) <= durationNanos);
+    }
+
+    @Test
+    public void maybeEnableAutoRead_AlreadyEnabled() throws EOFException
+    {
+        channel.config().setAutoRead(true);
+        Assert.assertTrue(inputPlus.maybeEnableAutoRead());
+    }
+
+    @Test (expected = EOFException.class)
+    public void maybeEnableAutoRead_Closed() throws EOFException
+    {
+        inputPlus.close();
+        inputPlus.maybeEnableAutoRead();
+    }
+
+    @Test
+    public void maybeEnableAutoRead_NoBytes() throws EOFException
+    {
+        channel.config().setAutoRead(false);
+        Assert.assertTrue(inputPlus.maybeEnableAutoRead());
+    }
+
+    @Test
+    public void maybeEnableAutoRead_EnoughBytes() throws EOFException
+    {
+        buf = channel.alloc().buffer(LOW_WATER_MARK - 1);
+        buf.writerIndex(buf.capacity());
+        inputPlus.append(buf);
+        Assert.assertEquals(buf.writerIndex(), inputPlus.available());
+        channel.config().setAutoRead(false);
+        Assert.assertTrue(inputPlus.maybeEnableAutoRead());
+    }
+
+    @Test
+    public void maybeEnableAutoRead_TooManyBytes() throws EOFException
+    {
+        buf = channel.alloc().buffer(HIGH_WATER_MARK + 1);
+        buf.writerIndex(buf.capacity());
+        inputPlus.append(buf);
+        Assert.assertEquals(buf.writerIndex(), inputPlus.available());
+        channel.config().setAutoRead(false);
+        Assert.assertFalse(inputPlus.maybeEnableAutoRead());
+    }
 }
