@@ -20,6 +20,8 @@ package org.apache.cassandra.db.columniterator;
 import java.io.IOException;
 import java.util.*;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -314,18 +316,32 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             if (super.hasNextInternal())
                 return true;
 
-            // We have nothing more for our current block, move the next one (so the one before on disk).
-            int nextBlockIdx = indexState.currentBlockIdx() - 1;
-            if (nextBlockIdx < 0 || nextBlockIdx < lastBlockIdx)
-                return false;
+            while (true)
+            {
+                // We have nothing more for our current block, move the next one (so the one before on disk).
+                int nextBlockIdx = indexState.currentBlockIdx() - 1;
+                if (nextBlockIdx < 0 || nextBlockIdx < lastBlockIdx)
+                    return false;
 
-            // The slice start can be in 
-            indexState.setToBlock(nextBlockIdx);
-            readCurrentBlock(true, nextBlockIdx != lastBlockIdx);
-            // since that new block is within the bounds we've computed in setToSlice(), we know there will
-            // always be something matching the slice unless we're on the lastBlockIdx (in which case there
-            // may or may not be results, but if there isn't, we're done for the slice).
-            return iterator.hasNext();
+                // The slice start can be in
+                indexState.setToBlock(nextBlockIdx);
+                readCurrentBlock(true, nextBlockIdx != lastBlockIdx);
+
+                // for pre-3.0 storage formats, index blocks that only contain a single row and that row crosses
+                // index boundaries, the iterator will be empty even though we haven't read everything we're intending
+                // to read. In that case, we want to read the next index block. This shouldn't be possible in 3.0+
+                // formats (see next comment)
+                if (!iterator.hasNext() && nextBlockIdx > lastBlockIdx)
+                {
+                    Preconditions.checkState(!sstable.descriptor.version.storeRows());
+                    continue;
+                }
+
+                // for 3.0+ storage formats, since that new block is within the bounds we've computed in setToSlice(),
+                // we know there will always be something matching the slice unless we're on the lastBlockIdx (in which
+                // case there may or may not be results, but if there isn't, we're done for the slice).
+                return iterator.hasNext();
+            }
         }
 
         /**
