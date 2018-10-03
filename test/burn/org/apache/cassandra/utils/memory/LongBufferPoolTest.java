@@ -27,11 +27,13 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.DynamicList;
 
 import static org.junit.Assert.*;
@@ -39,6 +41,12 @@ import static org.junit.Assert.*;
 public class LongBufferPoolTest
 {
     private static final Logger logger = LoggerFactory.getLogger(LongBufferPoolTest.class);
+
+    @BeforeClass
+    public static void setup() throws Exception
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Test
     public void testAllocate() throws InterruptedException, ExecutionException
@@ -409,6 +417,7 @@ public class LongBufferPoolTest
 
     public static void main(String[] args) throws InterruptedException, ExecutionException
     {
+        LongBufferPoolTest.setup(); // beforeTest will not be run by JUnit from main
         new LongBufferPoolTest().testAllocate(Runtime.getRuntime().availableProcessors(), TimeUnit.HOURS.toNanos(2L), 16 << 20);
     }
 
