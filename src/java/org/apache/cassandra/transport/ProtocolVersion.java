@@ -26,8 +26,6 @@ import java.util.Optional;
 
 import org.apache.commons.lang3.ArrayUtils;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-
 /**
  * The native (CQL binary) protocol version.
  *
@@ -95,7 +93,7 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
         return versions;
     }
 
-    public static ProtocolVersion decode(int versionNum)
+    public static ProtocolVersion decode(int versionNum, boolean allowOlderProtocols)
     {
         ProtocolVersion ret = versionNum >= MIN_SUPPORTED_VERSION.num && versionNum <= MAX_SUPPORTED_VERSION.num
                               ? SUPPORTED_VERSIONS[versionNum - MIN_SUPPORTED_VERSION.num]
@@ -116,7 +114,7 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
             throw new ProtocolException(invalidVersionMessage(versionNum), MAX_SUPPORTED_VERSION);
         }
 
-        if (!DatabaseDescriptor.getNativeTransportAllowOlderProtocols() && ret.isSmallerThan(CURRENT))
+        if (!allowOlderProtocols && ret.isSmallerThan(CURRENT))
             throw new ProtocolException(String.format("Rejecting Protocol Version %s < %s.", ret, ProtocolVersion.CURRENT));
 
         return ret;
