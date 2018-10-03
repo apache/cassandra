@@ -278,7 +278,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
     @VisibleForTesting
     static EndpointsForToken resolveWriteConflictsInNatural(EndpointsForToken natural, EndpointsForToken pending)
     {
-        EndpointsForToken.Mutable resolved = natural.newMutable(natural.size());
+        EndpointsForToken.Builder resolved = natural.newBuilder(natural.size());
         for (Replica replica : natural)
         {
             // always prefer the full natural replica, if there is a conflict
@@ -297,7 +297,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
             }
             resolved.add(replica);
         }
-        return resolved.asSnapshot();
+        return resolved.build();
     }
 
     /**
