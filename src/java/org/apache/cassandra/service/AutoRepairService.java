@@ -25,6 +25,7 @@ import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 public class AutoRepairService implements AutoRepairServiceMBean
@@ -37,8 +38,9 @@ public class AutoRepairService implements AutoRepairServiceMBean
     private int repairSubRangeNum;
     private int repairMinFrequencyInHours;
     private int sstableCountHigherThreshold;
-    private Set<String> ignoreKeyspaces = Collections.emptySet();
-    private Set<String> repairOnlyKeyspaces = Collections.emptySet();
+    private Pattern ignoreKeyspaces;
+    private Pattern repairOnlyKeyspaces;
+    private long autoRepairTableMaxRepairTimeInSec;
 
     public static final AutoRepairService instance = new AutoRepairService();
 
@@ -141,26 +143,38 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
-    public Set<String> getRepairIgnoreKeyspaces()
+    public Pattern getRepairIgnoreKeyspaces()
     {
         return ignoreKeyspaces;
     }
 
     @Override
-    public void setRepairIgnoreKeyspaces(Set<String> keyspaces)
+    public void setRepairIgnoreKeyspaces(Pattern ignoreKeyspaceRegex)
     {
-        ignoreKeyspaces = keyspaces;
+        ignoreKeyspaces = ignoreKeyspaceRegex;
     }
 
     @Override
-    public Set<String> getRepairOnlyKeyspaces()
+    public Pattern getRepairOnlyKeyspaces()
     {
         return repairOnlyKeyspaces;
     }
 
     @Override
-    public void setRepairOnlyKeyspaces(Set<String> repairOnlyKeyspaces)
+    public void setRepairOnlyKeyspaces(Pattern repairOnlyKeyspacesRegex)
     {
-        this.repairOnlyKeyspaces = repairOnlyKeyspaces;
+        this.repairOnlyKeyspaces = repairOnlyKeyspacesRegex;
+    }
+
+    @Override
+    public long getAutoRepairTableMaxRepairTimeInSec()
+    {
+        return autoRepairTableMaxRepairTimeInSec;
+    }
+
+    @Override
+    public void setAutoRepairTableMaxRepairTimeInSec(long autoRepairTableMaxRepairTimeInSec)
+    {
+        this.autoRepairTableMaxRepairTimeInSec = autoRepairTableMaxRepairTimeInSec;
     }
 }

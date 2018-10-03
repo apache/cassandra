@@ -4831,4 +4831,9 @@ public class DatabaseDescriptor
     {
         return conf.auto_repair_ignore_dc;
     }
+
+    public static long getAutoRepairTableMaxRepairTimeInSec()
+    {
+        return conf.auto_repair_table_max_repair_time_in_sec;
+    }
 }

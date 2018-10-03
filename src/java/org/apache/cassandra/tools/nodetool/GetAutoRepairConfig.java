@@ -33,11 +33,13 @@ public class GetAutoRepairConfig extends NodeToolCmd
             StringBuilder sb = new StringBuilder();
             sb.append("repair threads: " + probe.getRepairThreads());
             sb.append("\nnumber of repair subranges: " + probe.getRepairSubRangeNum());
-            sb.append("\nignore keyspaces list: " + Joiner.on(',').skipNulls().join(probe.getRepairIgnoreKeyspaces()));
-            sb.append("\nrepair only keyspaces list: " + Joiner.on(',').skipNulls().join(probe.getRepairOnlyKeyspaces()));
+            sb.append("\nignore keyspaces: " + probe.getRepairIgnoreKeyspaces());
+            sb.append("\nrepair only keyspaces: " + probe.getRepairOnlyKeyspaces());
             sb.append("\npriority hosts: " + Joiner.on(',').skipNulls().join(probe.getRepairPriorityForHosts()));
             sb.append("\nminimum repair frequency in hours: " + probe.getRepairMinFrequencyInHours());
             sb.append("\nsstable count higher threshold: " + probe.getRepairSSTableCountHigherThreshold());
+            sb.append("\ntable max repair time in sec: " + probe
+                    .getAutoRepairTableMaxRepairTimeInSec());
             System.out.println(sb.toString());
         }
         else

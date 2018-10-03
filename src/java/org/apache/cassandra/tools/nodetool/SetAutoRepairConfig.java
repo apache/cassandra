@@ -38,8 +38,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
 {
     @Arguments(title = "<autorepairparam> <value>", usage = "<autorepairparam> <value>",
             description = "autorepair param and value.\nPossible autorepair parameters are as following: " +
-                    "[repairthreads|repairsubranges|repairpriorityhost" +
-                    "|sstablehigherthreshold|autorepairignorekeyspaces|minrepairfreqinhours|autorepaironlykeyspaces]",
+                    "[threads|subranges|minrepairfreqinhours|sstablehigherthreshold|ignorekeyspacesregex|repairOnlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost]",
             required = true)
     private List<String> args = new ArrayList<>();
 
@@ -56,11 +55,11 @@ public class SetAutoRepairConfig extends NodeToolCmd
             return;
         }
 
-        if (paramType.equals("repairthreads"))
+        if (paramType.equals("threads"))
         {
             probe.setRepairThreads(Integer.parseInt(paramVal));
         }
-        else if (paramType.equals("repairsubranges"))
+        else if (paramType.equals("subranges"))
         {
             probe.setRepairSubRangeNum(Integer.parseInt(paramVal));
         }
@@ -72,15 +71,19 @@ public class SetAutoRepairConfig extends NodeToolCmd
         {
             probe.setRepairSSTableCountHigherThreshold(Integer.parseInt(paramVal));
         }
-        else if (paramType.equals("autorepairignorekeyspaces"))
+        else if (paramType.equals("ignorekeyspacesregex"))
         {
-            probe.setRepairIgnoreKeyspaces(Sets.newHashSet(Splitter.on(',').trimResults().split(paramVal)));
+            probe.setRepairIgnoreKeyspaces(paramVal);
         }
-        else if (paramType.equals("autorepaironlykeyspaces"))
+        else if (paramType.equals("repairOnlykeyspacesregex"))
         {
-            probe.setRepairOnlyKeyspaces(Sets.newHashSet(Splitter.on(',').trimResults().split(paramVal)));
+            probe.setRepairOnlyKeyspaces(paramVal);
         }
-        else if (paramType.equals("repairpriorityhost"))
+        else if (paramType.equals("tablemaxrepairtimeinsec"))
+        {
+            probe.setAutoRepairTableMaxRepairTimeInSec(Long.parseLong(paramVal));
+        }
+        else if (paramType.equals("priorityhost"))
         {
             Set<InetAddress> hosts = new HashSet<>();
             for (String host : Splitter.on(',').split(paramVal))

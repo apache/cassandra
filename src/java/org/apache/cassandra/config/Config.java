@@ -672,8 +672,7 @@ public class Config
 
     public Integer auto_repair_sstable_upper_threshold = 10000;
 
-    public String auto_repair_ignore_keyspaces = "system_traces,system,system_distributed,system_schema," +
-            "system_auto_repair,system_auth,pingless";
+    public String auto_repair_ignore_keyspaces = "system.*|.*staging.*|.*test.*|health|pingless";
 
     public String auto_repair_only_keyspaces = "";
 
@@ -683,6 +682,7 @@ public class Config
 
     public String auto_repair_ignore_dc = "phx2";
 
+    public Long auto_repair_table_max_repair_time_in_sec = 6 * 60 * 60L;
     /**
      * When a node first starts up it intially considers all other peers as DOWN and is disconnected from all of them.
      * To be useful as a coordinator (and not introduce latency penalties on restart) this node must have successfully

@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public interface AutoRepairServiceMBean
 {
@@ -98,22 +99,32 @@ public interface AutoRepairServiceMBean
     public void setRepairSSTableCountHigherThreshold(int ssTableHigherThreshold);
 
     /**
-     * Get repair ignore keyspaces list
+     * Get repair ignore keyspaces regex
      */
-    public Set<String> getRepairIgnoreKeyspaces();
+    public Pattern getRepairIgnoreKeyspaces();
 
     /**
-     * Set repair ignore keyspaces list
+     * Set repair ignore keyspaces regex
      */
-    public void setRepairIgnoreKeyspaces(Set<String> ignoreKeyspace);
+    public void setRepairIgnoreKeyspaces(Pattern ignoreKeyspaceRegex);
 
     /**
-     * Get repair only keyspaces list to repair only specified keyspace
+     * Get repair only keyspaces regex to repair only specified keyspace
      */
-    public Set<String> getRepairOnlyKeyspaces();
+    public Pattern getRepairOnlyKeyspaces();
 
     /**
-     * Set repair only keyspaces list
+     * Set repair only keyspaces regex
      */
-    public void setRepairOnlyKeyspaces(Set<String> repairOnlyKeyspaces);
+    public void setRepairOnlyKeyspaces(Pattern repairOnlyKeyspacesRegex);
+
+    /**
+     * Get table max repair time in sec
+     */
+    public long getAutoRepairTableMaxRepairTimeInSec();
+
+    /**
+     * Set table max repair time in sec
+     */
+    public void setAutoRepairTableMaxRepairTimeInSec(long autoRepairTableMaxRepairTimeInSec);
 }

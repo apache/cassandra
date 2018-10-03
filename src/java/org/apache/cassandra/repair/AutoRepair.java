@@ -57,6 +57,20 @@ import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.ProgressListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.text.SimpleDateFormat;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.UUID;
+
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import static org.apache.cassandra.repair.AutoRepairUtils.RepairTurn.*;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
@@ -86,6 +100,8 @@ public class AutoRepair
     static int nodeRepairTimeInSec = 0;
     static int clusterRepairTimeInSec = 0;
     static int repairInProgress = 0;
+    static int repairTableSkipCount = 0;
+    static int repairTableFailureCount = 0;
     static Set<String> ignoreDCs = new HashSet<>();
 
     public static AutoRepair instance = new AutoRepair();
@@ -121,6 +137,16 @@ public class AutoRepair
         return repairInProgress;
     }
 
+    public static int getRepairSkippedTablesCount()
+    {
+        return repairTableSkipCount;
+    }
+
+    public static int getRepairFailedTablesCount()
+    {
+        return repairTableFailureCount;
+    }
+
     public void setup()
     {
         AutoRepairMetrics.setup();
@@ -130,23 +156,18 @@ public class AutoRepair
                 .getAutoRepairSSTableUpperThreshold());
         AutoRepairService.instance.setRepairMinFrequencyInHours(DatabaseDescriptor
                 .getAutoRepairMinRepairFrequencyInHours());
+        AutoRepairService.instance.setAutoRepairTableMaxRepairTimeInSec(DatabaseDescriptor
+                .getAutoRepairTableMaxRepairTimeInSec());
+
         if (DatabaseDescriptor.getAutoRepairIgnoreKeyspaces().length() > 0)
         {
-            Set<String> keyspaceToIgnore = new HashSet<>();
-            for (String keyspace : DatabaseDescriptor.getAutoRepairIgnoreKeyspaces().split(","))
-            {
-                keyspaceToIgnore.add(keyspace);
-            }
-            AutoRepairService.instance.setRepairIgnoreKeyspaces(keyspaceToIgnore);
+            AutoRepairService.instance.setRepairIgnoreKeyspaces(Pattern.compile(DatabaseDescriptor
+                    .getAutoRepairIgnoreKeyspaces()));
         }
         if (DatabaseDescriptor.getAutoRepairOnlyKeyspaces().length() > 0)
         {
-            Set<String> onlyKeyspacesToRepair = new HashSet<>();
-            for (String keyspace : DatabaseDescriptor.getAutoRepairOnlyKeyspaces().split(","))
-            {
-                onlyKeyspacesToRepair.add(keyspace);
-            }
-            AutoRepairService.instance.setRepairOnlyKeyspaces(onlyKeyspacesToRepair);
+            AutoRepairService.instance.setRepairOnlyKeyspaces(Pattern.compile(DatabaseDescriptor
+                    .getAutoRepairOnlyKeyspaces()));
         }
         if (DatabaseDescriptor.getAutoRepairIgnoreDC().length() > 0)
         {
@@ -220,8 +241,8 @@ public class AutoRepair
                 AutoRepairUtils.updateRepairStatus(myId, RepairCurrentStatus.REPAIR_NOT_DONE);
                 int repairKeyspaceCount = 0;
                 int repairTableSuccessCount = 0;
-                int repairTableFailureCount = 0;
-                int repairTableSkipCount = 0;
+                repairTableFailureCount = 0;
+                repairTableSkipCount = 0;
                 repairInProgress = 1;
                 for (Keyspace keyspace : Keyspace.all())
                 {
@@ -259,6 +280,7 @@ public class AutoRepair
                             }
 
                             logger.info("Repair table {}.{}", keyspaceName, tableName);
+                            long tableStartTime = System.currentTimeMillis();
                             //now run full repair on this table
                             Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);
                             boolean tableRepairSuccess = true;
@@ -268,6 +290,13 @@ public class AutoRepair
                             int totalProcessedSubRanges = 0;
                             for (Range<Token> token : tokens)
                             {
+                                if (AutoRepairUtils.tableMaxRepairTimeExceeded(tableStartTime))
+                                {
+                                    repairTableSkipCount++;
+                                    logger.info("Table took too much time to repair hence skipping it {}.{}",
+                                            keyspaceName, tableName);
+                                    break;
+                                }
                                 Murmur3Partitioner.LongToken l = (Murmur3Partitioner.LongToken) (token.left);
                                 Murmur3Partitioner.LongToken r = (Murmur3Partitioner.LongToken) (token.right);
                                 Token parentStartToken = StorageService.instance.getTokenMetadata()

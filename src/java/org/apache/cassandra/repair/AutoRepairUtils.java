@@ -364,27 +364,21 @@ public class AutoRepairUtils
 
     public static boolean shouldRepair(String keyspace)
     {
-        if (AutoRepairService.instance.getRepairOnlyKeyspaces().size() > 0)
+        if (AutoRepairService.instance.getRepairOnlyKeyspaces() != null)
         {
-            for (String onlyKeyspaceToRepair : AutoRepairService.instance.getRepairOnlyKeyspaces())
-            {
-                if (keyspace.toLowerCase().startsWith(onlyKeyspaceToRepair.toLowerCase()))
-                {
-                    return true;
-                }
-            }
-            return false;
+            return AutoRepairService.instance.getRepairOnlyKeyspaces().matcher(keyspace).matches();
         }
-        else
+        else if (AutoRepairService.instance.getRepairIgnoreKeyspaces() != null)
         {
-            for (String ignore : AutoRepairService.instance.getRepairIgnoreKeyspaces())
-            {
-                if (keyspace.toLowerCase().startsWith(ignore.toLowerCase()))
-                {
-                    return false;
-                }
-            }
-            return true;
+            return !AutoRepairService.instance.getRepairIgnoreKeyspaces().matcher(keyspace).matches();
         }
+        return true;
+    }
+
+    public static boolean tableMaxRepairTimeExceeded(long startTime)
+    {
+        long tableRepairTimeSoFar = TimeUnit.MILLISECONDS.toSeconds
+                (System.currentTimeMillis() - startTime);
+        return AutoRepairService.instance.getAutoRepairTableMaxRepairTimeInSec() < tableRepairTimeSoFar;
     }
 }

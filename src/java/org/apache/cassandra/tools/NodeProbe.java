@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 import javax.management.JMX;
@@ -2344,24 +2345,34 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setRepairSSTableCountHigherThreshold(ssTableHigherThreshold);
     }
 
-    public Set<String> getRepairIgnoreKeyspaces()
+    public String getRepairIgnoreKeyspaces()
     {
-        return autoRepairProxy.getRepairIgnoreKeyspaces();
+        return autoRepairProxy.getRepairIgnoreKeyspaces() == null? "" : autoRepairProxy.getRepairIgnoreKeyspaces().toString();
     }
 
-    public void setRepairIgnoreKeyspaces(Set<String> ignoreKeyspace)
+    public void setRepairIgnoreKeyspaces(String ignoreKeyspaceRegex)
     {
-        autoRepairProxy.setRepairIgnoreKeyspaces(ignoreKeyspace);
+        autoRepairProxy.setRepairIgnoreKeyspaces(Pattern.compile(ignoreKeyspaceRegex));
     }
 
-    public Set<String> getRepairOnlyKeyspaces()
+    public String getRepairOnlyKeyspaces()
     {
-        return autoRepairProxy.getRepairOnlyKeyspaces();
+        return autoRepairProxy.getRepairOnlyKeyspaces() == null? "" : autoRepairProxy.getRepairOnlyKeyspaces().toString();
     }
 
-    public void setRepairOnlyKeyspaces(Set<String> repairOnlyKeyspaces)
+    public void setRepairOnlyKeyspaces(String repairOnlyKeyspacesRegex)
     {
-        autoRepairProxy.setRepairOnlyKeyspaces(repairOnlyKeyspaces);
+        autoRepairProxy.setRepairOnlyKeyspaces(Pattern.compile(repairOnlyKeyspacesRegex));
+    }
+
+    public long getAutoRepairTableMaxRepairTimeInSec()
+    {
+        return autoRepairProxy.getAutoRepairTableMaxRepairTimeInSec();
+    }
+
+    public void setAutoRepairTableMaxRepairTimeInSec(long autoRepairTableMaxRepairTimeInSec)
+    {
+        autoRepairProxy.setAutoRepairTableMaxRepairTimeInSec(autoRepairTableMaxRepairTimeInSec);
     }
 }
 
