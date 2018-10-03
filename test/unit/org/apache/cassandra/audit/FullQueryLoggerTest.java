@@ -443,7 +443,7 @@ public class FullQueryLoggerTest extends CQLTester
 
                 assertEquals(1L, wire.read(QUERY_START_TIME).int64());
 
-                ProtocolVersion protocolVersion = ProtocolVersion.decode(wire.read(PROTOCOL_VERSION).int32());
+                ProtocolVersion protocolVersion = ProtocolVersion.decode(wire.read(PROTOCOL_VERSION).int32(), true);
                 assertEquals(ProtocolVersion.CURRENT, protocolVersion);
 
                 QueryOptions queryOptions = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wire.read(QUERY_OPTIONS).bytes()), protocolVersion);
@@ -517,7 +517,7 @@ public class FullQueryLoggerTest extends CQLTester
 
                 assertEquals(1L, wire.read(QUERY_START_TIME).int64());
 
-                ProtocolVersion protocolVersion = ProtocolVersion.decode(wire.read(PROTOCOL_VERSION).int32());
+                ProtocolVersion protocolVersion = ProtocolVersion.decode(wire.read(PROTOCOL_VERSION).int32(), true);
                 assertEquals(ProtocolVersion.CURRENT, protocolVersion);
 
                 QueryOptions queryOptions = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wire.read(QUERY_OPTIONS).bytes()), protocolVersion);
