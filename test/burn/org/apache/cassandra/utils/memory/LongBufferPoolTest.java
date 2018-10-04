@@ -125,10 +125,15 @@ public class LongBufferPoolTest
         logger.info("Overriding configured BufferPool.MEMORY_USAGE_THRESHOLD={} and enabling BufferPool.DEBUG", poolSize);
         BufferPool.MEMORY_USAGE_THRESHOLD = poolSize;
         BufferPool.DEBUG = true;
-        // sum(1..n) = n/2 * (n + 1); we set zero to CHUNK_SIZE, so have n=threadCount-1
-        int targetSizeQuanta = ((threadCount) * (threadCount - 1)) / 2;
-        // fix targetSizeQuanta at 1/64th our poolSize, so that we only consciously exceed our pool size limit
-        targetSizeQuanta = (targetSizeQuanta * poolSize) / 64;
+
+        // Divide the poolSize across our threads, deliberately over-subscribing it.  Threads
+        // allocate a different amount of memory each - 1*quanta, 2*quanta, ... N*quanta.
+        // Thread0 is always going to be a single CHUNK, then to allocate increasing amounts
+        // using their own algorithm the targetSize should be poolSize / targetSizeQuanta.
+        //
+        // This should divide double the poolSize across the working threads,
+        // plus CHUNK_SIZE for thread0 and 1/10 poolSize for the burn producer/consumer pair.
+        final int targetSizeQuanta = 2 * poolSize / sum1toN(threadCount - 1);
 
         {
             // setup some high churn allocate/deallocate, without any checking
@@ -366,11 +371,6 @@ public class LongBufferPoolTest
 
                     return checks.get(index);
                 }
-
-                private int sum1toN(int n)
-                {
-                    return (n * (n + 1)) / 2;
-                }
             }));
         }
 
@@ -526,4 +526,8 @@ public class LongBufferPoolTest
         }
     }
 
+    private int sum1toN(int n)
+    {
+        return (n * (n + 1)) / 2;
+    }
 }
