@@ -233,6 +233,26 @@ public class LegacySSTableTest
     }
 
     @Test
+    public void test14803() throws Exception
+    {
+        /*
+         * During upgrades from 2.1 to 3.0, reading from old sstables in reverse order could return early if the sstable
+         * reverse iterator encounters an indexed block that only covers a single row, and that row starts in the next
+         * indexed block.
+         */
+
+        QueryProcessor.executeInternal("CREATE TABLE legacy_tables.legacy_ka_14803 (k int, c int, v1 blob, v2 blob, PRIMARY KEY (k, c));");
+        loadLegacyTable("legacy_%s_14803%s", "ka", "");
+
+        UntypedResultSet forward = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM legacy_tables.legacy_ka_14803 WHERE k=100"));
+        UntypedResultSet reverse = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM legacy_tables.legacy_ka_14803 WHERE k=100 ORDER BY c DESC"));
+
+        logger.info("{} - {}", forward.size(), reverse.size());
+        Assert.assertFalse(forward.isEmpty());
+        Assert.assertEquals(forward.size(), reverse.size());
+    }
+
+    @Test
     public void testVerifyOldSSTables() throws Exception
     {
         for (String legacyVersion : legacyVersions)
