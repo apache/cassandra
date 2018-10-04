@@ -1345,6 +1345,14 @@
     </testmacro>
   </target>
 
+  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+    ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest -Dtest.methods=testAllocate
+  -->
+  <target name="burn-testsome" depends="build-test" description="Execute specific burn unit tests" >
+    <testmacro inputdir="${test.burn.src}" timeout="${test.burn.timeout}">
+      <test name="${test.name}" methods="${test.methods}"/>
+    </testmacro>
+  </target>
   <target name="test-compression" depends="build-test" description="Execute unit tests with sstable compression enabled">
     <property name="compressed_yaml" value="${build.test.dir}/cassandra.compressed.yaml"/>
     <concat destfile="${compressed_yaml}">
@@ -1739,6 +1747,31 @@
               </fileset>
           </classpath>
           <arg value=".*microbench.*${benchmark.name}"/>
+      </java>
+  </target>
+
+  <!-- run arbitrary mains in tests, for example to run the long running memory tests with lots of memory pressure
+      ant run-main -Dmainclass=org.apache.cassandra.utils.memory.LongBufferPoolTest -Dvmargs="-Xmx30m -XX:-UseGCOverheadLimit"
+  -->
+  <target name="run-main" depends="build-test">
+      <property name="mainclass" value="" />
+      <property name="vmargs" value="" />
+      <property name="args" value="" />
+      <java classname="${mainclass}"
+            fork="true"
+            failonerror="true">
+          <jvmarg value="-server" />
+          <jvmarg value="-ea" />
+          <jvmarg line="${vmargs}" />
+          <arg line="${args}" />
+          <classpath>
+              <path refid="cassandra.classpath" />
+              <pathelement location="${test.classes}"/>
+              <pathelement location="${test.conf}"/>
+              <fileset dir="${test.lib}">
+                  <include name="**/*.jar" />
+              </fileset>
+          </classpath>
       </java>
   </target>
 
