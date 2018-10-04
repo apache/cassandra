@@ -97,6 +97,7 @@ public class LongBufferPoolTest
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount + 2);
         List<Future<Boolean>> ret = new ArrayList<>(threadCount);
         long prevPoolSize = BufferPool.MEMORY_USAGE_THRESHOLD;
+        logger.info("Overriding configured BufferPool.MEMORY_USAGE_THRESHOLD={} and enabling BufferPool.DEBUG", poolSize);
         BufferPool.MEMORY_USAGE_THRESHOLD = poolSize;
         BufferPool.DEBUG = true;
         // sum(1..n) = n/2 * (n + 1); we set zero to CHUNK_SIZE, so have n=threadCount-1
@@ -360,7 +361,9 @@ public class LongBufferPoolTest
 
         assertEquals(0, executorService.shutdownNow().size());
 
+        logger.info("Reverting BufferPool.MEMORY_USAGE_THRESHOLD={}", prevPoolSize);
         BufferPool.MEMORY_USAGE_THRESHOLD = prevPoolSize;
+        BufferPool.DEBUG = false;
         for (Future<Boolean> r : ret)
             assertTrue(r.get());
 
@@ -399,6 +402,14 @@ public class LongBufferPoolTest
                 ex.printStackTrace();
                 return false;
             }
+            catch (Throwable tr) // for java.lang.OutOfMemoryError
+            {
+                logger.error("Got throwable {}, current chunk {}",
+                             tr.getMessage(),
+                             BufferPool.currentChunk());
+                tr.printStackTrace();
+                return false;
+            }
             finally
             {
                 cleanup();
@@ -407,9 +418,19 @@ public class LongBufferPoolTest
         }
     }
 
-    public static void main(String[] args) throws InterruptedException, ExecutionException
+    public static void main(String[] args)
     {
-        new LongBufferPoolTest().testAllocate(Runtime.getRuntime().availableProcessors(), TimeUnit.HOURS.toNanos(2L), 16 << 20);
+        try
+        {
+            new LongBufferPoolTest().testAllocate(Runtime.getRuntime().availableProcessors(),
+                                                  TimeUnit.HOURS.toNanos(2L), 16 << 20);
+            System.exit(0);
+        }
+        catch (Throwable tr)
+        {
+            System.out.println(String.format("Test failed - %s", tr.getMessage()));
+            System.exit(1); // Force exit so that non-daemon threads like REQUEST-SCHEDULER do not hang the process on failure
+        }
     }
 
     /**
