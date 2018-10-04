@@ -426,6 +426,9 @@ public class CassandraDaemon
         // Native transport
         nativeTransportService = new NativeTransportService();
 
+        // load blacklisted partitions into cache
+        StorageService.instance.refreshBlacklistedPartitionsCache();
+
         completeSetup();
     }
 

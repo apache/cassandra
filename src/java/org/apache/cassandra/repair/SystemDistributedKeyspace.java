@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +37,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.BlacklistedPartition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -71,6 +73,8 @@ public final class SystemDistributedKeyspace
     public static final String PARENT_REPAIR_HISTORY = "parent_repair_history";
 
     public static final String VIEW_BUILD_STATUS = "view_build_status";
+
+    public static final String BLACKLISTED_PARTITIONS = "blacklisted_partitions";
 
     private static final TableMetadata RepairHistory =
         parse(REPAIR_HISTORY,
@@ -119,6 +123,15 @@ public final class SystemDistributedKeyspace
                      + "status text,"
                      + "PRIMARY KEY ((keyspace_name, view_name), host_id))");
 
+    private static final TableMetadata BlacklistedPartitions =
+        parse(BLACKLISTED_PARTITIONS,
+              "Blacklisted Partitions",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "columnfamily_name text,"
+              + "partition_key text,"
+              + "PRIMARY KEY ((keyspace_name, columnfamily_name), partition_key))");
+
     private static TableMetadata parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
@@ -129,7 +142,7 @@ public final class SystemDistributedKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(3), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus));
+        return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(3), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, BlacklistedPartitions));
     }
 
     public static void startParentRepair(UUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
@@ -305,6 +318,42 @@ public final class SystemDistributedKeyspace
         String buildReq = "DELETE FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
         QueryProcessor.executeInternal(format(buildReq, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, VIEW_BUILD_STATUS), keyspaceName, viewName);
         forceBlockingFlush(VIEW_BUILD_STATUS);
+    }
+
+    /**
+     * Reads blacklisted partitions from system_distributed.blacklisted_partitions table
+     * @return
+     */
+    public static Set<BlacklistedPartition> getBlacklistedPartitions()
+    {
+        String query = "SELECT keyspace_name, columnfamily_name, partition_key FROM %s.%s";
+        UntypedResultSet results;
+        try
+        {
+            results = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, BLACKLISTED_PARTITIONS),
+                                             ConsistencyLevel.ONE);
+        }
+        catch (Exception e)
+        {
+            logger.error("Error querying blacklisted partitions");
+            return Collections.emptySet();
+        }
+
+        Set<BlacklistedPartition> blacklistedPartitions = new HashSet<>();
+        for (UntypedResultSet.Row row : results)
+        {
+            try
+            {
+                blacklistedPartitions.add(new BlacklistedPartition(row.getString("keyspace_name"), row.getString("columnfamily_name"), row.getString("partition_key")));
+            }
+            catch (IllegalArgumentException ex)
+            {
+                // exception could arise incase of invalid keyspace/table. We shall continue to try reading other
+                // blacklisted partitions
+                logger.warn("Exception parsing blacklisted partition. {}", ex.getMessage());
+            }
+        }
+        return blacklistedPartitions;
     }
 
     private static void processSilent(String fmtQry, String... values)
