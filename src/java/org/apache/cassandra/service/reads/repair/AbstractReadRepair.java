@@ -25,6 +25,9 @@ import com.google.common.base.Preconditions;
 
 import com.codahale.metrics.Meter;
 import com.google.common.base.Predicates;
+
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -40,6 +43,7 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParameterType;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
@@ -87,6 +91,13 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
     void sendReadCommand(Replica to, ReadCallback readCallback, boolean speculative)
     {
         ReadCommand command = this.command;
+
+        if (to.isSelf())
+        {
+            StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(command, readCallback));
+            return;
+        }
+
         if (to.isTransient())
         {
             // It's OK to send queries to transient nodes during RR, as we may have contacted them for their data request initially
