@@ -30,8 +30,10 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
@@ -102,12 +104,24 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
             else type = to.isFull() ? "full" : "transient";
             Tracing.trace("Enqueuing {} data read to {}", type, to);
         }
-        MessageOut<ReadCommand> message = command.createMessage();
-        // if enabled, request additional info about repaired data from any full replicas
-        if (command.isTrackingRepairedStatus() && to.isFull())
-            message = message.withParameter(ParameterType.TRACK_REPAIRED_DATA, MessagingService.ONE_BYTE);
 
-        MessagingService.instance().sendRRWithFailure(message, to.endpoint(), readCallback);
+        if (to.isSelf())
+        {
+            try (ReadExecutionController executionController = command.executionController();
+                 UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
+            {
+                readCallback.response(command.createResponse(iterator));
+            }
+        }
+        else
+        {
+            MessageOut<ReadCommand> message = command.createMessage();
+            // if enabled, request additional info about repaired data from any full replicas
+            if (command.isTrackingRepairedStatus() && to.isFull())
+                message = message.withParameter(ParameterType.TRACK_REPAIRED_DATA, MessagingService.ONE_BYTE);
+
+            MessagingService.instance().sendRRWithFailure(message, to.endpoint(), readCallback);
+        }
     }
 
     abstract Meter getRepairMeter();
