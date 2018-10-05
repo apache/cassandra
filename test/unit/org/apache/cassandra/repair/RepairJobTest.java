@@ -30,7 +30,7 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Sets;
-import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -66,10 +66,11 @@ public class RepairJobTest
     static Range<Token> range3 = range(4, 5);
     static RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), "ks", "cf", Arrays.asList());
 
-    @AfterClass
-    public static void reset()
+    @After
+    public void reset()
     {
         FBUtilities.reset();
+        DatabaseDescriptor.setBroadcastAddress(addr1.address);
     }
 
     static
@@ -132,14 +133,14 @@ public class RepairJobTest
     }
 
     @Test
-    public void testStanardSyncTransient()
+    public void testStandardSyncTransient()
     {
         // Do not stream towards transient nodes
-        testStanardSyncTransient(true);
-        testStanardSyncTransient(false);
+        testStandardSyncTransient(true);
+        testStandardSyncTransient(false);
     }
 
-    public void testStanardSyncTransient(boolean pullRepair)
+    public void testStandardSyncTransient(boolean pullRepair)
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, range1, "same", range2, "same", range3, "same"),
                                                          treeResponse(addr2, range1, "different", range2, "same", range3, "different"));
@@ -162,14 +163,14 @@ public class RepairJobTest
     }
 
     @Test
-    public void testStanardSyncLocalTransient()
+    public void testStandardSyncLocalTransient()
     {
         // Do not stream towards transient nodes
-        testStanardSyncLocalTransient(true);
-        testStanardSyncLocalTransient(false);
+        testStandardSyncLocalTransient(true);
+        testStandardSyncLocalTransient(false);
     }
 
-    public void testStanardSyncLocalTransient(boolean pullRepair)
+    public void testStandardSyncLocalTransient(boolean pullRepair)
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, range1, "same", range2, "same", range3, "same"),
                                                          treeResponse(addr2, range1, "different", range2, "same", range3, "different"));
@@ -308,12 +309,10 @@ public class RepairJobTest
             // Local only if addr1 is a coordinator
             assertEquals(task.isLocal(), pair.coordinator.equals(addr1));
 
-            // Symmetric only if there are no transient participants
-            assertEquals(String.format("Coordinator: %s\n, Peer: %s\n",
-                                       pair.coordinator,
-                                       pair.peer),
-                         (!pair.coordinator.equals(addr1) && !pair.peer.equals(addr1)) &&
-                         (isTransient.test(pair.coordinator) || isTransient.test(pair.peer)),
+            boolean isRemote = !pair.coordinator.equals(addr1) && !pair.peer.equals(addr1);
+            boolean involvesTransient = isTransient.test(pair.coordinator) || isTransient.test(pair.peer);
+            assertEquals(String.format("Coordinator: %s\n, Peer: %s\n",pair.coordinator, pair.peer),
+                         isRemote && involvesTransient,
                          task instanceof AsymmetricRemoteSyncTask);
 
             // All ranges to be synchronised
@@ -400,6 +399,18 @@ public class RepairJobTest
     @Test
     public void testLocalAndRemoteTransient()
     {
+        testLocalAndRemoteTransient(false);
+    }
+
+    @Test
+    public void testLocalAndRemoteTransientPullRepair()
+    {
+        testLocalAndRemoteTransient(true);
+    }
+
+    private static void testLocalAndRemoteTransient(boolean pullRepair)
+    {
+        DatabaseDescriptor.setBroadcastAddress(addr4.address);
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, range1, "one", range2, "one", range3, "one"),
                                                          treeResponse(addr2, range1, "two", range2, "two", range3, "two"),
                                                          treeResponse(addr3, range1, "three", range2, "three", range3, "three"),
@@ -411,7 +422,7 @@ public class RepairJobTest
                                                                                     addr4, // local
                                                                                     ep -> ep.equals(addr4) || ep.equals(addr5), // transient
                                                                                     false,
-                                                                                    true,
+                                                                                    pullRepair,
                                                                                     PreviewKind.ALL));
 
         assertNull(tasks.get(pair(addr4, addr5)));
@@ -458,13 +469,20 @@ public class RepairJobTest
                                                                                             false,
                                                                                             PreviewKind.ALL));
 
+        for (SyncTask task : tasks.values())
+            assertTrue(task instanceof AsymmetricRemoteSyncTask);
+
         assertEquals(Arrays.asList(range1), tasks.get(pair(addr1, addr3)).rangesToSync);
-        assertEquals(Arrays.asList(range2), tasks.get(pair(addr1, addr2)).rangesToSync);
+        // addr1 can get range2 from either addr2 or addr3 but not from both
+        assertStreamRangeFromEither(tasks, Arrays.asList(range2),
+                                    addr1, addr2, addr3);
 
         assertEquals(Arrays.asList(range1), tasks.get(pair(addr2, addr3)).rangesToSync);
         assertEquals(Arrays.asList(range2), tasks.get(pair(addr2, addr1)).rangesToSync);
 
-        assertEquals(Arrays.asList(range1), tasks.get(pair(addr3, addr2)).rangesToSync);
+        // addr3 can get range1 from either addr1 or addr2 but not from both
+        assertStreamRangeFromEither(tasks, Arrays.asList(range1),
+                                    addr3, addr2, addr1);
         assertEquals(Arrays.asList(range2), tasks.get(pair(addr3, addr1)).rangesToSync);
     }
 
@@ -491,13 +509,51 @@ public class RepairJobTest
         assertTrue(((LocalSyncTask)task).requestRanges);
         assertFalse(((LocalSyncTask)task).transferRanges);
 
-        task = tasks.get(pair(addr2, addr1));
-        assertFalse(task.isLocal());
-        assertElementEquals(Arrays.asList(range3), task.rangesToSync);
+        assertStreamRangeFromEither(tasks, Arrays.asList(range3),
+                                    addr2, addr1, addr3);
 
         task = tasks.get(pair(addr2, addr3));
         assertFalse(task.isLocal());
         assertElementEquals(Arrays.asList(range1), task.rangesToSync);
+    }
+
+    // Asserts that ranges are streamed from one of the nodes but not from the both
+    public static void assertStreamRangeFromEither(Map<SyncNodePair, SyncTask> tasks, List<Range<Token>> ranges,
+                                                   InetAddressAndPort target, InetAddressAndPort either, InetAddressAndPort or)
+    {
+        InetAddressAndPort streamsFrom;
+        InetAddressAndPort doesntStreamFrom;
+        if (tasks.containsKey(pair(target, either)))
+        {
+            streamsFrom = either;
+            doesntStreamFrom = or;
+        }
+        else
+        {
+            doesntStreamFrom = either;
+            streamsFrom = or;
+        }
+
+        SyncTask task = tasks.get(pair(target, streamsFrom));
+        assertTrue(task instanceof AsymmetricRemoteSyncTask);
+        assertElementEquals(ranges, task.rangesToSync);
+        assertDoesntStreamRangeFrom(tasks, ranges, target, doesntStreamFrom);
+    }
+
+    public static void assertDoesntStreamRangeFrom(Map<SyncNodePair, SyncTask> tasks, List<Range<Token>> ranges,
+                                                   InetAddressAndPort target, InetAddressAndPort source)
+    {
+        Set<Range<Token>> rangeSet = new HashSet<>(ranges);
+        SyncTask task = tasks.get(pair(target, source));
+        if (task == null)
+            return; // Doesn't stream anything
+
+        for (Range<Token> range : task.rangesToSync)
+        {
+            assertFalse(String.format("%s shouldn't stream %s from %s",
+                                      target, range, source),
+                        rangeSet.contains(range));
+        }
     }
 
     public static <T> void assertElementEquals(Collection<T> col1, Collection<T> col2)
