@@ -21,7 +21,9 @@ import java.io.*;
 import java.util.*;
 
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -47,6 +49,9 @@ import static org.junit.Assert.fail;
  */
 public class CompressedInputStreamTest
 {
+    @Rule
+    public TemporaryFolder tempFolder = new TemporaryFolder();
+
     @BeforeClass
     public static void setupDD()
     {
@@ -109,7 +114,7 @@ public class CompressedInputStreamTest
         assert valuesToCheck != null && valuesToCheck.length > 0;
 
         // write compressed data file of longs
-        File parentDir = FileUtils.getTempDir();
+        File parentDir = tempFolder.newFolder();
         Descriptor desc = new Descriptor(parentDir, "ks", "cf", 1);
         File tmp = new File(desc.filenameFor(Component.DATA));
         MetadataCollector collector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
