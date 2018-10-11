@@ -120,6 +120,7 @@ public class SharedExecutorPool
             executor.awaitTermination(60, TimeUnit.SECONDS);
         }
 
+        // Make sure the pooled workers waiting for reuse are not left hanging
         for (SEPWorker worker : workers)
             worker.kill();
     }
