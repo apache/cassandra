@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -73,6 +74,7 @@ public class SharedExecutorPool
     final ConcurrentSkipListMap<Long, SEPWorker> spinning = new ConcurrentSkipListMap<>();
     // the collection of threads that have been asked to stop/deschedule - new workers are scheduled from here last
     final ConcurrentSkipListMap<Long, SEPWorker> descheduled = new ConcurrentSkipListMap<>();
+    final List<SEPWorker> workers = new CopyOnWriteArrayList<>();
 
     public SharedExecutorPool(String poolName)
     {
@@ -91,7 +93,7 @@ public class SharedExecutorPool
                 return;
 
         if (!work.isStop())
-            new SEPWorker(workerId.incrementAndGet(), work, this);
+            workers.add(new SEPWorker(workerId.incrementAndGet(), work, this));
     }
 
     void maybeStartSpinningWorker()
@@ -108,5 +110,17 @@ public class SharedExecutorPool
         SEPExecutor executor = new SEPExecutor(this, maxConcurrency, maxQueuedTasks, jmxPath, name);
         executors.add(executor);
         return executor;
+    }
+
+    public void shutdown() throws InterruptedException
+    {
+        for (SEPExecutor executor : executors)
+        {
+            executor.shutdownNow();
+            executor.awaitTermination(60, TimeUnit.SECONDS);
+        }
+
+        for (SEPWorker worker : workers)
+            worker.kill();
     }
 }
