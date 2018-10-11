@@ -24,8 +24,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-
-import com.google.common.annotations.VisibleForTesting;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
 
@@ -77,6 +76,8 @@ public class SharedExecutorPool
     // the collection of threads that have been asked to stop/deschedule - new workers are scheduled from here last
     final ConcurrentSkipListMap<Long, SEPWorker> descheduled = new ConcurrentSkipListMap<>();
 
+    volatile boolean shuttingDown = false;
+
     public SharedExecutorPool(String poolName)
     {
         this.poolName = poolName;
@@ -113,13 +114,31 @@ public class SharedExecutorPool
         return executor;
     }
 
-    @VisibleForTesting
-    public static void shutdownSharedPool() throws InterruptedException
+    public void shutdown() throws InterruptedException
     {
-        for (SEPExecutor executor : SHARED.executors)
-            executor.shutdown();
+        shuttingDown = true;
+        for (SEPExecutor executor : executors)
+            executor.shutdownNow();
 
-        for (SEPExecutor executor : SHARED.executors)
-            executor.awaitTermination(60, TimeUnit.SECONDS);
+        terminateWorkers();
+
+        long until = System.nanoTime() + TimeUnit.MINUTES.toNanos(1L);
+        for (SEPExecutor executor : executors)
+            executor.shutdown.await(until - System.nanoTime(), TimeUnit.NANOSECONDS);
+    }
+
+    void terminateWorkers()
+    {
+        assert shuttingDown;
+
+        // To terminate our workers, we only need to unpark thread to make it runnable again,
+        // so that the pool.shuttingDown boolean is checked. If work was already in the process
+        // of being scheduled, worker will terminate upon running the task.
+        Map.Entry<Long, SEPWorker> e;
+        while (null != (e = descheduled.pollFirstEntry()))
+            e.getValue().assign(Work.SPINNING, false);
+
+        while (null != (e = spinning.pollFirstEntry()))
+            LockSupport.unpark(e.getValue().thread);
     }
 }

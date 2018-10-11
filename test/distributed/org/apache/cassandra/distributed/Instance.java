@@ -345,7 +345,7 @@ public class Instance extends InvokableInstance
                     BufferPool::shutdownLocalCleaner,
                     Ref::shutdownReferenceReaper,
                     StageManager::shutdownAndWait,
-                    SharedExecutorPool::shutdownSharedPool,
+                    SharedExecutorPool.SHARED::shutdown,
                     Memtable.MEMORY_POOL::shutdown,
                     ScheduledExecutors::shutdownAndWait);
             error = shutdownAndWait(error, ActiveRepairService.repairCommandExecutor);
