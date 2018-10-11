@@ -74,6 +74,9 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         {
             while (true)
             {
+                if (isDead())
+                    return;
+
                 if (isSpinning() && !selfAssign())
                 {
                     doWaitSpin();
@@ -126,10 +129,6 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 if (!selfAssign())
                     startSpinning();
             }
-        }
-        catch (PoolStoppedException e)
-        {
-            // Fall-through
         }
         catch (Throwable t)
         {
@@ -310,6 +309,11 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         return get().isSpinning();
     }
 
+    private boolean isDead()
+    {
+        return get().isDead();
+    }
+
     private boolean stop()
     {
         return get().isStop() && compareAndSet(Work.STOP_SIGNALLED, Work.STOPPED);
@@ -349,43 +353,13 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
      * -> SPINNING|(ASSIGNED)
      */
 
-    static class Work
+    static final class Work
     {
         static final Work STOP_SIGNALLED = new Work();
         static final Work STOPPED = new Work();
         static final Work SPINNING = new Work();
         static final Work WORKING = new Work();
-        static final Work DEAD = new Work () {
-            boolean canAssign(boolean self)
-            {
-                throw new PoolStoppedException();
-            }
-
-            boolean isSpinning()
-            {
-                throw new PoolStoppedException();
-            }
-
-            boolean isWorking()
-            {
-                throw new PoolStoppedException();
-            }
-
-            boolean isStop()
-            {
-                throw new PoolStoppedException();
-            }
-
-            boolean isStopped()
-            {
-                throw new PoolStoppedException();
-            }
-
-            boolean isAssigned()
-            {
-                throw new PoolStoppedException();
-            }
-        };
+        static final Work DEAD = new Work ();
 
         final SEPExecutor assigned;
 
@@ -427,13 +401,14 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
             return this == Work.STOPPED;
         }
 
+        boolean isDead()
+        {
+            return this == Work.DEAD;
+        }
+
         boolean isAssigned()
         {
             return assigned != null;
         }
-    }
-
-    private static final class PoolStoppedException extends RuntimeException
-    {
     }
 }

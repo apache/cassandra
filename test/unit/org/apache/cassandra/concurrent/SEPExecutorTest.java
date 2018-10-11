@@ -61,8 +61,7 @@ public class SEPExecutorTest
             if (thread.toString().contains(MAGIC))
             {
                 System.out.println(thread);
-                System.out.println(Arrays.toString(thread.getStackTrace()));
-                Assert.fail();
+                Assert.fail(thread + " is still running " + Arrays.toString(thread.getStackTrace()));
             }
         }
     }
