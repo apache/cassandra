@@ -42,7 +42,6 @@ public class SEPExecutorTest
 
     private static void shutdownOnce(int run) throws Throwable
     {
-        List<ExecutorService> list = new ArrayList<>();
         SharedExecutorPool SHARED = new SharedExecutorPool("SharedPool");
         String MAGIC = "IRREPETABLE_MAGIC_STRING";
         OutputStream nullOutputStream = new OutputStream() {
@@ -53,14 +52,13 @@ public class SEPExecutorTest
         for (int idx = 0; idx < 20; idx++)
         {
             ExecutorService es = SHARED.newExecutor(10, Integer.MAX_VALUE, "STAGE", run + MAGIC + idx);
-            list.add(es);
             es.execute(() -> nullPrintSteam.println("TEST" + es));
         }
 
         SHARED.shutdown();
         for (Thread thread : Thread.getAllStackTraces().keySet())
         {
-            if (thread.toString().contains("STAGE"))
+            if (thread.toString().contains(MAGIC))
             {
                 System.out.println(thread);
                 System.out.println(Arrays.toString(thread.getStackTrace()));

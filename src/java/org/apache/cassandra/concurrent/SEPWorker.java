@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.concurrent;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -34,7 +33,6 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     private static final Logger logger = LoggerFactory.getLogger(SEPWorker.class);
     private static final boolean SET_THREAD_NAME = Boolean.parseBoolean(System.getProperty("cassandra.set_sep_thread_name", "true"));
 
-    final CountDownLatch stopLatch = new CountDownLatch(1);
     final Long workerId;
     final Thread thread;
     final SharedExecutorPool pool;
@@ -131,7 +129,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         }
         catch (PoolStoppedException e)
         {
-            stopLatch.countDown();
+            // Fall-through
         }
         catch (Throwable t)
         {
@@ -190,7 +188,6 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     {
         set(Work.DEAD);
         LockSupport.unpark(thread);
-        stopLatch.await();
         thread.join();
     }
 
