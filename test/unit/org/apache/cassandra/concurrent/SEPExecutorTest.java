@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.concurrent;
 
-import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Arrays;
@@ -26,6 +25,8 @@ import java.util.concurrent.ExecutorService;
 
 import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.cassandra.utils.FBUtilities;
 
 public class SEPExecutorTest
 {
@@ -40,25 +41,25 @@ public class SEPExecutorTest
 
     private static void shutdownOnce(int run) throws Throwable
     {
-        SharedExecutorPool SHARED = new SharedExecutorPool("SharedPool");
+        SharedExecutorPool sharedPool = new SharedExecutorPool("SharedPool");
         String MAGIC = "IRREPETABLE_MAGIC_STRING";
         OutputStream nullOutputStream = new OutputStream() {
-            public void write(int b) throws IOException { }
+            public void write(int b) { }
         };
         PrintStream nullPrintSteam = new PrintStream(nullOutputStream);
 
         for (int idx = 0; idx < 20; idx++)
         {
-            ExecutorService es = SHARED.newExecutor(10, Integer.MAX_VALUE, "STAGE", run + MAGIC + idx);
+            ExecutorService es = sharedPool.newExecutor(FBUtilities.getAvailableProcessors(), Integer.MAX_VALUE, "STAGE", run + MAGIC + idx);
+            // Write to black hole
             es.execute(() -> nullPrintSteam.println("TEST" + es));
         }
 
-        SHARED.shutdown();
+        sharedPool.shutdown();
         for (Thread thread : Thread.getAllStackTraces().keySet())
         {
             if (thread.toString().contains(MAGIC))
             {
-                System.out.println(thread);
                 Assert.fail(thread + " is still running " + Arrays.toString(thread.getStackTrace()));
             }
         }
