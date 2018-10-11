@@ -341,8 +341,8 @@ public class Instance extends InvokableInstance
                     Ref::shutdownReferenceReaper,
                     Memtable.MEMORY_POOL::shutdown,
                     StageManager::shutdownAndWait,
-                    SharedExecutorPool::shutdownSharedPool,
                     MessagingService.instance()::shutdown,
+                    SharedExecutorPool.SHARED::shutdown,
                     ScheduledExecutors::shutdownAndWait);
             Throwables.maybeFail(error);
         });
