@@ -20,7 +20,7 @@ package org.apache.cassandra.db.columniterator;
 import java.io.IOException;
 import java.util.*;
 
-import com.google.common.base.Preconditions;
+import com.google.common.base.Verify;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
@@ -79,6 +79,8 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         protected boolean skipFirstIteratedItem;
         protected boolean skipLastIteratedItem;
 
+        protected Unfiltered mostRecentlyEmitted = null;
+
         private ReverseReader(FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
@@ -122,7 +124,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 // Note that we can reuse that buffer between slices (we could alternatively re-read from disk
                 // every time, but that feels more wasteful) so we want to include everything from the beginning.
                 // We can stop at the slice end however since any following slice will be before that.
-                loadFromDisk(null, slice.end(), true, false, false);
+                loadFromDisk(null, slice.end(), false, false, null, null);
             }
             setIterator(slice);
         }
@@ -155,7 +157,9 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         {
             if (!hasNext())
                 throw new NoSuchElementException();
-            return iterator.next();
+            Unfiltered next = iterator.next();
+            mostRecentlyEmitted = next;
+            return next;
         }
 
         protected boolean stopReadingDisk()
@@ -163,13 +167,20 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             return false;
         }
 
+        // checks if left prefix precedes right prefix
+        private boolean precedes(ClusteringPrefix left, ClusteringPrefix right)
+        {
+            return metadata().comparator.compare(left, right) < 0;
+        }
+
         // Reads the unfiltered from disk and load them into the reader buffer. It stops reading when either the partition
         // is fully read, or when stopReadingDisk() returns true.
         protected void loadFromDisk(Slice.Bound start,
                                     Slice.Bound end,
-                                    boolean includeFirst,
                                     boolean hasPreviousBlock,
-                                    boolean hasNextBlock) throws IOException
+                                    boolean hasNextBlock,
+                                    ClusteringPrefix currentFirstName,
+                                    ClusteringPrefix nextLastName) throws IOException
         {
             // start != null means it's the block covering the beginning of the slice, so it has to be the last block for this slice.
             assert start == null || !hasNextBlock;
@@ -220,14 +231,80 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                    && !stopReadingDisk())
             {
                 Unfiltered unfiltered = deserializer.readNext();
-                // We may get empty row for the same reason expressed on UnfilteredSerializer.deserializeOne.
-                if (!unfiltered.isEmpty() && (!isFirst || includeFirst))
-                    buffer.add(unfiltered);
 
-                isFirst = false;
+                if (isFirst && openMarker == null
+                    && currentFirstName != null && nextLastName != null
+                    && (precedes(currentFirstName, nextLastName) || precedes(unfiltered.clustering(), currentFirstName)))
+                {
+                    // Range tombstones spanning multiple index blocks when reading legacy sstables need special handling.
+                    // Pre-3.0, the column index didn't encode open markers. Instead, open range tombstones were rewritten
+                    // at the start of index blocks they at least partially covered. These rewritten RTs found at the
+                    // beginning of index blocks need to be handled as though they were an open marker, otherwise iterator
+                    // validation will fail and/or some rows will be excluded from the result. These rewritten RTs can be
+                    // detected based on their relation to the current index block and the next one depending on what wrote
+                    // the sstable. For sstables coming from a memtable flush, a rewritten RT will have a clustering value
+                    // less than the first name of its index block. For sstables coming from compaction, the index block
+                    // first name will be the RT open bound, which will be less than the last name of the next block. So,
+                    // here we compare the first name of this block to the last name of the next block to detect the
+                    // compaction case, and clustering value of the unfiltered we just read to the index block's first name
+                    // to detect the flush case.
+                    Verify.verify(!sstable.descriptor.version.storeRows());
+                    Verify.verify(openMarker == null);
+                    Verify.verify(!skipLastIteratedItem);
+                    Verify.verify(unfiltered.isRangeTombstoneMarker());
+                    buffer.add(unfiltered);
+                    if (hasNextBlock)
+                        skipLastIteratedItem = true;
+                }
+                else if (isFirst && nextLastName != null && !precedes(nextLastName, unfiltered.clustering()))
+                {
+                    // When dealing with old format sstable, we have the problem that a row can span 2 index block, i.e. it can
+                    // start at the end of a block and end at the beginning of the next one. That's not a problem per se for
+                    // UnfilteredDeserializer.OldFormatSerializer, since it always read rows entirely, even if they span index
+                    // blocks, but as we reading index block in reverse we must be careful to not read the end of the row at
+                    // beginning of a block before we're reading the beginning of that row. So what we do is that if we detect
+                    // that the row starting this block is also the row ending the next one we're read (previous on disk), then
+                    // we'll skip that first result and  let it be read with the next block.
+                    Verify.verify(!sstable.descriptor.version.storeRows());
+                    isFirst = false;
+                }
+                else if (unfiltered.isEmpty())
+                {
+                    isFirst = false;
+                }
+                else
+                {
+                    buffer.add(unfiltered);
+                    isFirst = false;
+                }
 
                 if (unfiltered.isRangeTombstoneMarker())
                     updateOpenMarker((RangeTombstoneMarker)unfiltered);
+            }
+
+            if (!sstable.descriptor.version.storeRows()
+                && deserializer.hasNext()
+                && (end == null || deserializer.compareNextTo(end) < 0))
+            {
+                // Range tombstone start and end bounds are stored together in legacy sstables. When we read one, we
+                // stash the closing bound until we reach the appropriate place to emit it, which is immediately before
+                // the next unfiltered with a greater clustering.
+                // If SSTRI considers the block exhausted before encountering such a clustering though, this end marker
+                // will never be emitted. So here we just check if there's a closing bound left in the deserializer.
+                // If there is, we compare it against the most recently emitted unfiltered (i.e.: the last unfiltered
+                // that this RT would enclose. And we have to do THAT comparison because the last name field on the
+                // current index block will be whatever was written at the end of the index block (i.e. the last name
+                // physically in the block), not the closing bound of the range tombstone (i.e. the last name logically
+                // in the block). If all this indicates that there is indeed a range tombstone we're missing, we add it
+                // to the buffer and update the open marker field.
+                Unfiltered unfiltered = deserializer.readNext();
+                RangeTombstoneMarker marker = unfiltered.isRangeTombstoneMarker() ? (RangeTombstoneMarker) unfiltered : null;
+                if (marker != null && marker.isClose(false)
+                    && (mostRecentlyEmitted == null || precedes(marker.clustering(), mostRecentlyEmitted.clustering())))
+                {
+                    buffer.add(marker);
+                    updateOpenMarker(marker);
+                }
             }
 
             // If we have an open marker, we should close it before finishing
@@ -333,7 +410,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 // formats (see next comment)
                 if (!iterator.hasNext() && nextBlockIdx > lastBlockIdx)
                 {
-                    Preconditions.checkState(!sstable.descriptor.version.storeRows());
+                    Verify.verify(!sstable.descriptor.version.storeRows());
                     continue;
                 }
 
@@ -362,26 +439,21 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             boolean canIncludeSliceStart = !hasNextBlock;
             boolean canIncludeSliceEnd = !hasPreviousBlock;
 
-            // When dealing with old format sstable, we have the problem that a row can span 2 index block, i.e. it can
-            // start at the end of a block and end at the beginning of the next one. That's not a problem per se for
-            // UnfilteredDeserializer.OldFormatSerializer, since it always read rows entirely, even if they span index
-            // blocks, but as we reading index block in reverse we must be careful to not read the end of the row at
-            // beginning of a block before we're reading the beginning of that row. So what we do is that if we detect
-            // that the row starting this block is also the row ending the next one we're read (previous on disk), then
-            // we'll skip that first result and  let it be read with the next block.
-            boolean includeFirst = true;
+            ClusteringPrefix currentFirstName = null;
+            ClusteringPrefix nextLastName = null;
             if (!sstable.descriptor.version.storeRows() && currentBlock > 0)
             {
-                ClusteringPrefix lastOfNext = indexState.index(currentBlock - 1).lastName;
-                ClusteringPrefix firstOfCurrent = indexState.index(currentBlock).firstName;
-                includeFirst = metadata().comparator.compare(lastOfNext, firstOfCurrent) != 0;
+                currentFirstName = indexState.index(currentBlock).firstName;
+                nextLastName = indexState.index(currentBlock - 1).lastName;
             }
 
             loadFromDisk(canIncludeSliceStart ? slice.start() : null,
                          canIncludeSliceEnd ? slice.end() : null,
-                         includeFirst,
                          hasPreviousBlock,
-                         hasNextBlock);
+                         hasNextBlock,
+                         currentFirstName,
+                         nextLastName
+            );
             setIterator(slice);
         }
 
