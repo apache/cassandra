@@ -214,8 +214,8 @@ public class TableMetrics
     public final Counter speculativeInsufficientReplicas;
     public final Gauge<Long> speculativeSampleLatencyNanos;
 
-    public final Counter speculativeWrites;
-    public final Gauge<Long> speculativeWriteLatencyNanos;
+    public final Counter additionalWrites;
+    public final Gauge<Long> additionalWriteLatencyNanos;
 
     /**
      * Metrics for inconsistencies detected between repaired data sets across replicas. These
@@ -843,8 +843,8 @@ public class TableMetrics
         speculativeInsufficientReplicas = createTableCounter("SpeculativeInsufficientReplicas");
         speculativeSampleLatencyNanos = createTableGauge("SpeculativeSampleLatencyNanos", () -> cfs.sampleReadLatencyNanos);
 
-        speculativeWrites = createTableCounter("SpeculativeWrites");
-        speculativeWriteLatencyNanos = createTableGauge("SpeculativeWriteLatencyNanos", () -> cfs.transientWriteLatencyNanos);
+        additionalWrites = createTableCounter("AdditionalWrites");
+        additionalWriteLatencyNanos = createTableGauge("AdditionalWriteLatencyNanos", () -> cfs.additionalWriteLatencyNanos);
 
         keyCacheHitRate = Metrics.register(factory.createMetricName("KeyCacheHitRate"),
                                            aliasFactory.createMetricName("KeyCacheHitRate"),

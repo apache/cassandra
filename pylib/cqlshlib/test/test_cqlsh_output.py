@@ -623,7 +623,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND memtable_flush_period_in_ms = 0
                 AND min_index_interval = 128
                 AND speculative_retry = '99PERCENTILE'
-                AND speculative_write_threshold = '99PERCENTILE';
+                AND additional_write_policy = '99PERCENTILE';
 
         """ % quote_name(get_keyspace()))
 

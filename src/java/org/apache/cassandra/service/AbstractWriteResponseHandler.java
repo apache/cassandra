@@ -298,7 +298,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
                                               .map(Schema.instance::getColumnFamilyStoreInstance)
                                               .collect(Collectors.toList());
         for (ColumnFamilyStore cf : cfs)
-            timeout = Math.min(timeout, cf.transientWriteLatencyNanos);
+            timeout = Math.min(timeout, cf.additionalWriteLatencyNanos);
 
         // no latency information, or we're overloaded
         if (timeout > TimeUnit.MILLISECONDS.toNanos(mutation.getTimeout()))
@@ -309,7 +309,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
             if (!condition.await(timeout, TimeUnit.NANOSECONDS))
             {
                 for (ColumnFamilyStore cf : cfs)
-                    cf.metric.speculativeWrites.inc();
+                    cf.metric.additionalWrites.inc();
 
                 writePerformer.apply(mutation, replicaPlan.withContact(uncontacted),
                                      (AbstractWriteResponseHandler<IMutation>) this,
