@@ -463,7 +463,7 @@ A table supports the following options:
 | ``speculative_retry``          | *simple* | 99PERCENTILE| :ref:`Speculative retry options                           |
 |                                |          |             | <speculative-retry-options>`.                             |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
-| ``speculative_write_threshold``| *simple* | 99PERCENTILE| :ref:`Speculative retry options                           |
+| ``additional_write_policy``    | *simple* | 99PERCENTILE| :ref:`Speculative retry options                           |
 |                                |          |             | <speculative-retry-options>`.                             |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
 | ``gc_grace_seconds``           | *simple* | 864000      | Time to wait before garbage collecting tombstones         |
@@ -496,7 +496,7 @@ Speculative retry options
 By default, Cassandra read coordinators only query as many replicas as necessary to satisfy
 consistency levels: one for consistency level ``ONE``, a quorum for ``QUORUM``, and so on.
 ``speculative_retry`` determines when coordinators may query additional replicas, which is useful
-when replicas are slow or unresponsive.  ``speculative_write_threshold`` specifies the threshold at which
+when replicas are slow or unresponsive.  ``additional_write_policy`` specifies the threshold at which
 a cheap quorum write will be upgraded to include transient replicas.  The following are legal values (case-insensitive):
 
 ============================ ======================== =============================================================================

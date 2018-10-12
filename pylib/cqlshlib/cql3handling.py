@@ -49,7 +49,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('max_index_interval', None),
         ('default_time_to_live', None),
         ('speculative_retry', None),
-        ('speculative_write_threshold', None),
+        ('additional_write_policy', None),
         ('memtable_flush_period_in_ms', None),
         ('cdc', None),
         ('read_repair', None),

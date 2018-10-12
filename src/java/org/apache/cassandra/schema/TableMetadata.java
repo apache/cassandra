@@ -834,9 +834,9 @@ public final class TableMetadata
             return this;
         }
 
-        public Builder speculativeWriteThreshold(SpeculativeRetryPolicy val)
+        public Builder additionalWritePolicy(SpeculativeRetryPolicy val)
         {
-            params.speculativeWriteThreshold(val);
+            params.additionalWritePolicy(val);
             return this;
         }
 
