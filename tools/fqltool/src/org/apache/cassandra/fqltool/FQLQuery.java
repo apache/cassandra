@@ -22,9 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
 import com.google.common.primitives.Longs;
 
 import com.datastax.driver.core.BatchStatement;
@@ -35,7 +32,6 @@ import org.apache.cassandra.audit.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.binlog.BinLog;
 
 public abstract class FQLQuery implements Comparable<FQLQuery>
@@ -117,10 +113,10 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         @Override
         public String toString()
         {
-            return String.format("%s%nQuery = %s, Values = %s",
+            return String.format("%s: Query: [%s], valuecount : %d",
                                  super.toString(),
                                  query,
-                                 values.stream().map(ByteBufferUtil::bytesToHex).collect(Collectors.joining(",")));
+                                 values.size());
         }
 
         public Statement toStatement()
@@ -240,9 +236,9 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
 
         public String toString()
         {
-            StringBuilder sb = new StringBuilder(super.toString()).append("\nbatch: ").append(batchType).append('\n');
+            StringBuilder sb = new StringBuilder(super.toString()).append(" batch: ").append(batchType).append(':');
             for (Single q : queries)
-                sb.append(q.toString()).append('\n');
+                sb.append(q.toString()).append(',');
             sb.append("end batch");
             return sb.toString();
         }
