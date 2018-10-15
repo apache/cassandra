@@ -1,10 +1,10 @@
 default_env_vars: &default_env_vars
-    JAVA_HOME: /usr/local/openjdk8u154-cassandra-b02
-    ANT_HOME: /usr/local/apache-ant-1.10.1
+    JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+    ANT_HOME: /usr/share/ant
     LANG: en_US.UTF-8
-    JDK_HOME: /usr/local/openjdk8u154-cassandra-b02
-    JAVA8_HOME: /usr/local/openjdk8u154-cassandra-b02
-    JAVA7_HOME: /usr/local/openjdk7u82-cassandra-b02
+    JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+    JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+    JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     KEEP_TEST_DIR: true
     DEFAULT_DIR: /home/cassandra/cassandra-dtest
     PYTHONIOENCODING: utf-8
@@ -68,7 +68,7 @@ workflows:
     build_and_run_tests: *default_jobs
     #build_and_run_tests: *with_dtest_jobs_only
     #build_and_run_tests: *with_dtest_jobs
-docker_image: &docker_image kjellman/cassandra-test:0.4.3
+docker_image: &docker_image spod/cassandra-testing-ubuntu18-java11
 version: 2
 jobs:
   build:
@@ -219,7 +219,7 @@ jobs:
             export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
             export CASS_DRIVER_NO_EXTENSIONS=true
             export CASS_DRIVER_NO_CYTHON=true
-            pip3 install --exists-action w -r ~/cassandra-dtest/requirements.txt
+            pip3 install --upgrade -r ~/cassandra-dtest/requirements.txt
             pip3 freeze
       - run:
           name: Determine Tests to Run
@@ -297,7 +297,7 @@ jobs:
             export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
             export CASS_DRIVER_NO_EXTENSIONS=true
             export CASS_DRIVER_NO_CYTHON=true
-            pip3 install --exists-action w -r ~/cassandra-dtest/requirements.txt
+            pip3 install --upgrade -r ~/cassandra-dtest/requirements.txt
             pip3 freeze
       - run:
           name: Determine Tests to Run
