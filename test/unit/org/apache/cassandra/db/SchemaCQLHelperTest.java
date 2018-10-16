@@ -302,9 +302,7 @@ public class SchemaCQLHelperTest extends CQLTester
                .minIndexInterval(6)
                .maxIndexInterval(7)
                .memtableFlushPeriod(8)
-               .speculativeRetry(AlwaysSpeculativeRetryPolicy.INSTANCE)
                .additionalWritePolicy(NeverSpeculativeRetryPolicy.INSTANCE)
-               .extensions(ImmutableMap.of("ext1", ByteBuffer.wrap("val1".getBytes())))
                .recordColumnDrop(ColumnMetadata.regularColumn(keyspace, table, "reg1", AsciiType.instance),
                                  FBUtilities.timestampMicros());
 
