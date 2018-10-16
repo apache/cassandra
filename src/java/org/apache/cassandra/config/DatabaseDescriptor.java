@@ -770,8 +770,8 @@ public class DatabaseDescriptor
         if (conf.blacklisted_partitions_cache_refresh_period_in_sec <= 0)
             throw new ConfigurationException("blacklisted_partitions_cache_refresh_period_in_sec must be positive", false);
 
-        if(conf.blacklisted_partitions_cache_size_warn_threshold_in_mb < 0)
-            throw new ConfigurationException("blacklisted_partitions_cache_size_warn_threshold_in_mb must not be negative", false);
+        if (conf.blacklisted_partitions_cache_size_limit_in_mb < 0)
+            throw new ConfigurationException("blacklisted_partitions_cache_size_limit_in_mb must not be negative", false);
 
         validateMaxConcurrentAutoUpgradeTasksConf(conf.max_concurrent_automatic_sstable_upgrades);
     }
@@ -2708,19 +2708,19 @@ public class DatabaseDescriptor
         conf.report_unconfirmed_repaired_data_mismatches = enabled;
     }
 
-    public static long getBlackListedPartitionsCacheSizeWarnThresholdInMB()
+    public static int getBlackListedPartitionsCacheSizeLimitInMB()
     {
-        return conf.blacklisted_partitions_cache_size_warn_threshold_in_mb;
+        return conf.blacklisted_partitions_cache_size_limit_in_mb;
     }
 
-    public static void setBlackListedPartitionsCacheSizeWarnThresholdInMB(long val)
+    public static void setBlackListedPartitionsCacheSizeLimitInMB(int val)
     {
         if (val < 0)
         {
-            throw new ConfigurationException("blacklisted_partitions_cache_size_warn_threshold_in_mb cannot be less than 0", false);
+            throw new ConfigurationException("blacklisted_partitions_cache_size_limit_in_mb cannot be less than 0", false);
         }
 
-        conf.blacklisted_partitions_cache_size_warn_threshold_in_mb = val;
+        conf.blacklisted_partitions_cache_size_limit_in_mb = val;
     }
 
     public static long getBlacklistedPartitionsCacheRefreshInSec()

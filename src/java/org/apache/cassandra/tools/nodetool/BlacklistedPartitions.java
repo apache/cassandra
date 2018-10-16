@@ -19,12 +19,30 @@
 package org.apache.cassandra.tools.nodetool;
 
 import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
-@Command(name = "refreshblacklistedpartitionscache", description = "Refresh blacklisted partitions cache from system_distributed.blacklisted_partitions table")
-public class RefreshBlacklistedPartitionsCache extends NodeTool.NodeToolCmd
+@Command(name = "blacklistedpartitions", description = "Refresh blacklisted partitions cache from system_distributed.blacklisted_partitions table")
+public class BlacklistedPartitions extends NodeTool.NodeToolCmd
 {
+    @Option(title = "refresh_cache", name = { "--refresh-cache"}, description = "Refresh blacklisted partitions cache. Default = false.")
+    private boolean refreshCache = false;
+
+    @Option(title = "cache_size_limit_in_mb", name = {"--cache-size-limit-in-mb"}, description = "Limit (in MB) on size of blacklisted partitions cache. Default = no change")
+    private int cacheSizeLimitInMB = -1;
+
     @Override
-    public void execute(NodeProbe probe) { probe.refreshBlacklistedPartitionsCache(); }
+    public void execute(NodeProbe probe)
+    {
+        if (cacheSizeLimitInMB >= 0)
+        {
+            probe.setBlacklistedPartitionsCacheSizeLimit(cacheSizeLimitInMB);
+        }
+
+        if (refreshCache)
+        {
+            probe.refreshBlacklistedPartitionsCache();
+        }
+    }
 }

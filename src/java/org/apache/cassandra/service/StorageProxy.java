@@ -1553,7 +1553,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (BlacklistedPartitionCache.instance.contains(query.metadata().id, query.partitionKey()))
                 {
-                    throw new InvalidRequestException("Cannot perform READ on a blacklisted partition");
+                    throw new InvalidRequestException(String.format("Cannot perform READ on a blacklisted partition: %s", query.partitionKey().toString()));
                 }
             }
         }

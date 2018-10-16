@@ -32,6 +32,8 @@ import org.apache.cassandra.schema.TableId;
 
 /**
  * Cache that loads blacklisted partitions from system_distributed.blacklisted_partitions table
+ * This does not intentionally use AutoSavingCache since this is orthogonal to how AutoSavingCache works, i.e.
+ * BlacklistedPartitionCache does not perdiodically save its state to disk, rather, it builds its state from disk.
  */
 public class BlacklistedPartitionCache
 {
@@ -50,26 +52,10 @@ public class BlacklistedPartitionCache
 
     /**
      * Loads blacklisted partitions from system_distributed.blacklisted partitions table.
-     * Also logs a warning if cache size exceeds the set threshold.
      */
     public void refreshCache()
     {
         this.blacklistedPartitions = SystemDistributedKeyspace.getBlacklistedPartitions();
-
-        // attempt to compute cache size only if there is a warn threshold configured
-        if (DatabaseDescriptor.getBlackListedPartitionsCacheSizeWarnThresholdInMB() > 0)
-        {
-            long cacheSize = 0;
-            for (BlacklistedPartition blacklistedPartition : blacklistedPartitions)
-            {
-                cacheSize += blacklistedPartition.unsharedHeapSize();
-            }
-
-            if (cacheSize / (1024 * 1024) >= DatabaseDescriptor.getBlackListedPartitionsCacheSizeWarnThresholdInMB())
-            {
-                logger.warn(String.format("BlacklistedPartition cache size (%d) MB exceeds threshold size (%d) MB", cacheSize / (1024 * 1024), DatabaseDescriptor.getBlackListedPartitionsCacheSizeWarnThresholdInMB()));
-            }
-        }
     }
 
     /**

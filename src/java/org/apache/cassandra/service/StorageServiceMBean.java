@@ -689,4 +689,5 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getCorruptedTombstoneStrategy();
     public void setCorruptedTombstoneStrategy(String strategy);
     public void refreshBlacklistedPartitionsCache();
+    public void setBlacklistedPartitionsCacheSizeLimit(int sizeInMB);
 }

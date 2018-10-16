@@ -1762,7 +1762,15 @@ public class NodeProbe implements AutoCloseable
         ssProxy.disableNativeTransportOldProtocolVersions();
     }
 
-    public void refreshBlacklistedPartitionsCache() { ssProxy.refreshBlacklistedPartitionsCache(); }
+    public void setBlacklistedPartitionsCacheSizeLimit(int cacheSizeInMB)
+    {
+        ssProxy.setBlacklistedPartitionsCacheSizeLimit(cacheSizeInMB);
+    }
+
+    public void refreshBlacklistedPartitionsCache()
+    {
+        ssProxy.refreshBlacklistedPartitionsCache();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

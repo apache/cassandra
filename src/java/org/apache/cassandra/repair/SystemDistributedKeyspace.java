@@ -321,7 +321,8 @@ public final class SystemDistributedKeyspace
     }
 
     /**
-     * Reads blacklisted partitions from system_distributed.blacklisted_partitions table
+     * Reads blacklisted partitions from system_distributed.blacklisted_partitions table.
+     * Stops reading partitions upon exceeding the cache size limit by logging a warning.
      * @return
      */
     public static Set<BlacklistedPartition> getBlacklistedPartitions()
@@ -335,16 +336,26 @@ public final class SystemDistributedKeyspace
         }
         catch (Exception e)
         {
-            logger.error("Error querying blacklisted partitions");
+            logger.error("Error querying blacklisted partitions", e);
             return Collections.emptySet();
         }
 
         Set<BlacklistedPartition> blacklistedPartitions = new HashSet<>();
+        int cacheSize = 0;
         for (UntypedResultSet.Row row : results)
         {
             try
             {
-                blacklistedPartitions.add(new BlacklistedPartition(row.getString("keyspace_name"), row.getString("columnfamily_name"), row.getString("partition_key")));
+                BlacklistedPartition blacklistedPartition = new BlacklistedPartition(row.getString("keyspace_name"), row.getString("columnfamily_name"), row.getString("partition_key"));
+
+                // check if adding this blacklisted partition would increase cache size beyond the set limit.
+                cacheSize += blacklistedPartition.unsharedHeapSize();
+                if (cacheSize / (1024 * 1024) > DatabaseDescriptor.getBlackListedPartitionsCacheSizeLimitInMB())
+                {
+                    logger.warn("BlacklistedPartitions cache size limit of {} MB reached. Unable to load more blacklisted partitions. BlacklistedPartitions cache working in degraded mode.", DatabaseDescriptor.getBlackListedPartitionsCacheSizeLimitInMB());
+                    break;
+                }
+                blacklistedPartitions.add(blacklistedPartition);
             }
             catch (IllegalArgumentException ex)
             {
@@ -354,6 +365,8 @@ public final class SystemDistributedKeyspace
             }
         }
         return blacklistedPartitions;
+
+
     }
 
     private static void processSilent(String fmtQry, String... values)

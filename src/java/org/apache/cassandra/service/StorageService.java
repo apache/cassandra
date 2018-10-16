@@ -5382,4 +5382,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         BlacklistedPartitionCache.instance.refreshCache();
     }
+
+    /**
+     * Sets limit on blacklisted partitions cache size
+     * @param cacheSizeInMB
+     */
+    public void setBlacklistedPartitionsCacheSizeLimit(int cacheSizeInMB)
+    {
+        if (cacheSizeInMB >= 0)
+        {
+            DatabaseDescriptor.setBlackListedPartitionsCacheSizeLimitInMB(cacheSizeInMB);
+        }
+    }
 }

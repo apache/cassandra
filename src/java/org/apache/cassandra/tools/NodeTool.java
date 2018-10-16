@@ -194,7 +194,7 @@ public class NodeTool
                 DisableAuditLog.class,
                 EnableOldProtocolVersions.class,
                 DisableOldProtocolVersions.class,
-                RefreshBlacklistedPartitionsCache.class
+                BlacklistedPartitions.class
         );
 
         Cli.CliBuilder<Runnable> builder = Cli.builder("nodetool");
