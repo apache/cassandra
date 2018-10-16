@@ -29,6 +29,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
@@ -105,9 +106,11 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     {
         @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
         UnfilteredRowIterator iter = sstable.iterator(partitionKey(), filter.getSlices(metadata()), selectedColumns, filter.isReversed(), isForThrift, listener);
-        return isForThrift && applyThriftTransformation
-               ? ThriftResultsMerger.maybeWrap(iter, nowInSec)
-               : iter;
+
+        if (isForThrift && applyThriftTransformation)
+            iter = ThriftResultsMerger.maybeWrap(iter, nowInSec);
+
+        return RTBoundValidator.validate(iter, RTBoundValidator.Stage.SSTABLE, false);
     }
 
     @Override
