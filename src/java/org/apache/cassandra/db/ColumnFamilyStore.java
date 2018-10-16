@@ -41,7 +41,6 @@ import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.*;
@@ -72,7 +71,6 @@ import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.metrics.Sampler.Sample;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
@@ -1777,7 +1775,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             try (PrintStream out = new PrintStream(schemaFile))
             {
-                for (String s: TableCQLHelper.dumpReCreateStatements(metadata()))
+                for (String s: SchemaCQLHelper.dumpReCreateStatements(metadata()))
                     out.println(s);
             }
         }

@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
@@ -84,6 +85,11 @@ public final class Types implements Iterable<UserType>
     public Iterator<UserType> iterator()
     {
         return types.values().iterator();
+    }
+
+    public List<UserType> dependencyOrder()
+    {
+        return topologicalOrder(types.values(), (udt1, udt2) -> udt1.referencesUserType(udt2.name));
     }
 
     public Iterable<UserType> referencingUserType(ByteBuffer name)
@@ -233,6 +239,43 @@ public final class Types implements Iterable<UserType>
             types.forEach(this::add);
             return this;
         }
+    }
+
+    private static <T> List<T> topologicalOrder(Collection<T> elements, BiPredicate<T, T> hasDependency)
+    {
+        Map<T, Integer> vertices = Maps.newHashMapWithExpectedSize(elements.size());
+        for (T element : elements)
+            vertices.put(element, 0);
+
+        Multimap<T, T> adjacencyList = HashMultimap.create();
+
+        for (T e1 : elements)
+            for (T e2 : elements)
+                if (e1 != e2 && hasDependency.test(e1, e2))
+                    adjacencyList.put(e2, e1);
+
+        /*
+         * resolve dependencies in topological order, using Kahn's algorithm
+         */
+        adjacencyList.values().forEach(vertex -> vertices.put(vertex, vertices.get(vertex) + 1));
+
+        Queue<T> noDeps = new LinkedList<>(); // elements with 0 dependencies
+        for (Map.Entry<T, Integer> entry : vertices.entrySet())
+            if (entry.getValue() == 0)
+                noDeps.add(entry.getKey());
+        ArrayList<T> result = new ArrayList<T>(elements.size());
+
+        while (!noDeps.isEmpty())
+        {
+            T vertex = noDeps.remove();
+
+            for (T dependent : adjacencyList.get(vertex))
+                if (vertices.replace(dependent, vertices.get(dependent) - 1) == 1)
+                    noDeps.add(dependent);
+
+            result.add(vertex);
+        }
+        return ImmutableList.copyOf(result);
     }
 
     public static final class RawBuilder

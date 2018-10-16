@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -33,6 +35,7 @@ import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.TableParams.Option;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 
@@ -137,6 +140,9 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(Option.CDC))
             builder.cdc(getBoolean(Option.CDC.toString(), false));
 
+        if(hasOption(Option.EXTENSIONS))
+            builder.extensions(getExtensions(getMap(Option.EXTENSIONS.toString())));
+
         if (hasOption(Option.READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(Option.READ_REPAIR)));
 
@@ -154,6 +160,16 @@ public final class TableAttributes extends PropertyDefinitions
         {
             throw new SyntaxException(String.format("Invalid double value %s for crc_check_chance.'", value));
         }
+    }
+
+    private Map<String, ByteBuffer> getExtensions(Map<String, String> ext)
+    {
+        return ext.entrySet()
+                  .stream()
+                  .collect(Collectors.toMap(
+                      e -> e.getKey(),
+                      e -> ByteBufferUtil.hexToBytes(e.getValue().startsWith("0x") ? e.getValue().substring(2) : e.getValue())
+                  ));
     }
 
     private double getDouble(Option option)

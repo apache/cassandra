@@ -26,6 +26,9 @@ import java.util.*;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
+
+import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.service.reads.NeverSpeculativeRetryPolicy;
 import org.junit.Assert;
 import org.junit.Before;
@@ -47,7 +50,7 @@ import org.json.simple.parser.JSONParser;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class TableCQLHelperTest extends CQLTester
+public class SchemaCQLHelperTest extends CQLTester
 {
     @Before
     public void defineSchema() throws ConfigurationException
@@ -56,12 +59,48 @@ public class TableCQLHelperTest extends CQLTester
     }
 
     @Test
+    public void testFunctionValid() throws Throwable
+    {
+        String keyspace = "schema_cql_helper_test";
+        String funcName = "test_function";
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), Tables.none(), Types.none());
+        execute(String.format("CREATE FUNCTION %s.%s(state tuple<int, bigint>, val int) "+
+                              "CALLED ON NULL INPUT "  +
+                              "RETURNS tuple<int, bigint> " +
+                              "LANGUAGE java AS '/* $$'' ''''*/return state;';", keyspace, funcName));
+        UDFunction f = Keyspace.open(keyspace).getMetadata().functions.udfs().findFirst().get();
+        String create = SchemaCQLHelper.toCQL(f);
+        execute(String.format("DROP FUNCTION %s.%s", keyspace, funcName));
+        execute(create);
+        UDFunction after = Keyspace.open(keyspace).getMetadata().functions.udfs().findFirst().get();
+        Assert.assertEquals(f, after);
+    }
+
+    @Test
+    public void testTableValid() throws Exception
+    {
+        String keyspace = "schema_cql_helper_test";
+        String table = "test_cql_validity";
+        TableMetadata cfm =
+        TableMetadata.builder(keyspace, table)
+                     .addPartitionKeyColumn("pk1", IntegerType.instance)
+                     .addClusteringColumn("ck1", IntegerType.instance)
+                     .addRegularColumn("reg1", ListType.getInstance(IntegerType.instance, false))
+                     .addRegularColumn("reg2", MapType.getInstance(AsciiType.instance, IntegerType.instance, true))
+                     .build();
+        String cql = SchemaCQLHelper.getTableMetadataAsCQL(cfm, false, true);
+        TableMetadata recfm = CreateTableStatement.parse(cql, keyspace).build();
+        Assert.assertEquals(cfm, recfm);
+    }
+
+    @Test
     public void testUserTypesCQL()
     {
         String keyspace = "cql_test_keyspace_user_types";
         String table = "test_table_user_types";
 
-        UserType typeA = new UserType(keyspace, ByteBufferUtil.bytes("a"),
+        // it sorts by alphabetical, make sure this is not first to ensure that it is displayed in dependency order instead
+        UserType typeA = new UserType(keyspace, ByteBufferUtil.bytes("d"),
                                       Arrays.asList(FieldIdentifier.forUnquoted("a1"),
                                                     FieldIdentifier.forUnquoted("a2"),
                                                     FieldIdentifier.forUnquoted("a3")),
@@ -89,22 +128,22 @@ public class TableCQLHelperTest extends CQLTester
                                       true);
 
         TableMetadata cfm =
-            TableMetadata.builder(keyspace, table)
-                         .addPartitionKeyColumn("pk1", IntegerType.instance)
-                         .addClusteringColumn("ck1", IntegerType.instance)
-                         .addRegularColumn("reg1", typeC)
-                         .addRegularColumn("reg2", ListType.getInstance(IntegerType.instance, false))
-                         .addRegularColumn("reg3", MapType.getInstance(AsciiType.instance, IntegerType.instance, true))
-                         .build();
+        TableMetadata.builder(keyspace, table)
+                     .addPartitionKeyColumn("pk1", IntegerType.instance)
+                     .addClusteringColumn("ck1", IntegerType.instance)
+                     .addRegularColumn("reg1", typeC)
+                     .addRegularColumn("reg2", ListType.getInstance(IntegerType.instance, false))
+                     .addRegularColumn("reg3", MapType.getInstance(AsciiType.instance, IntegerType.instance, true))
+                     .build();
 
         SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), Tables.of(cfm), Types.of(typeA, typeB, typeC));
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertEquals(ImmutableList.of("CREATE TYPE cql_test_keyspace_user_types.a (a1 varint, a2 varint, a3 varint);",
-                                      "CREATE TYPE cql_test_keyspace_user_types.b (b1 a, b2 a, b3 a);",
-                                      "CREATE TYPE cql_test_keyspace_user_types.c (c1 b, c2 b, c3 b);"),
-                     TableCQLHelper.getUserTypesAsCQL(cfs.metadata()));
+        assertEquals(ImmutableList.of("CREATE TYPE cql_test_keyspace_user_types.d (\n\ta1 varint,\n\ta2 varint,\n\ta3 varint\n);",
+                                      "CREATE TYPE cql_test_keyspace_user_types.b (\n\tb1 d,\n\tb2 d,\n\tb3 d\n);",
+                                      "CREATE TYPE cql_test_keyspace_user_types.c (\n\tc1 b,\n\tc2 b,\n\tc3 b\n);"),
+                     SchemaCQLHelper.getUserTypesAsCQL(cfs.metadata()));
     }
 
     @Test
@@ -140,16 +179,16 @@ public class TableCQLHelperTest extends CQLTester
         assertEquals(ImmutableList.of("ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg1 USING TIMESTAMP 10000;",
                                       "ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg3 USING TIMESTAMP 30000;",
                                       "ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg2 USING TIMESTAMP 20000;"),
-                     TableCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
+                     SchemaCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
 
-        assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
+        assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_dropped_columns.test_table_dropped_columns (\n" +
         "\tpk1 varint,\n" +
         "\tck1 varint,\n" +
         "\treg1 varint,\n" +
         "\treg3 varint,\n" +
         "\treg2 varint,\n" +
-        "\tPRIMARY KEY (pk1, ck1))"));
+        "\tPRIMARY KEY (pk1, ck1)\n)"));
     }
 
     @Test
@@ -183,24 +222,24 @@ public class TableCQLHelperTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
         // when re-adding, column is present in CREATE, then in DROP and then in ADD again, to record DROP with a proper timestamp
-        assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
+        assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_readded_columns.test_table_readded_columns (\n" +
         "\tpk1 varint,\n" +
         "\tck1 varint,\n" +
         "\treg2 varint static,\n" +
         "\treg1 varint,\n" +
         "\treg3 varint,\n" +
-        "\tPRIMARY KEY (pk1, ck1))"));
+        "\tPRIMARY KEY (pk1, ck1)\n)"));
 
         assertEquals(ImmutableList.of("ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns DROP reg1 USING TIMESTAMP 10000;",
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns ADD reg1 varint;",
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns DROP reg2 USING TIMESTAMP 20000;",
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns ADD reg2 varint static;"),
-                     TableCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
+                     SchemaCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
     }
 
     @Test
-    public void testCfmColumnsCQL()
+    public void testCfmColumnsCQL() throws Throwable
     {
         String keyspace = "cql_test_keyspace_create_table";
         String table = "test_table_create_table";
@@ -219,8 +258,10 @@ public class TableCQLHelperTest extends CQLTester
         SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), metadata);
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+        TableMetadata md = cfs.metadata();
+        Assert.assertEquals(md, metadata.build());
 
-        assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
+        assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_create_table.test_table_create_table (\n" +
         "\tpk1 varint,\n" +
         "\tpk2 ascii,\n" +
@@ -230,13 +271,19 @@ public class TableCQLHelperTest extends CQLTester
         "\treg1 ascii,\n" +
         "\treg2 frozen<list<varint>>,\n" +
         "\treg3 map<ascii, varint>,\n" +
-        "\tPRIMARY KEY ((pk1, pk2), ck1, ck2))\n" +
-        "\tWITH ID = " + cfs.metadata.id + "\n" +
+        "\tPRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
+        ") WITH ID = " + cfs.metadata.id + "\n" +
         "\tAND CLUSTERING ORDER BY (ck1 DESC, ck2 ASC)"));
+
+        execute(String.format("DROP TABLE %s.%s;", keyspace, table));
+        String create = SchemaCQLHelper.getTableMetadataAsCQL(md, false, true);
+        execute(create);
+        TableMetadata created = Keyspace.open(keyspace).getColumnFamilyStore(table).metadata();
+        Assert.assertEquals(md, created);
     }
 
     @Test
-    public void testCfmOptionsCQL()
+    public void testCfmOptionsCQL() throws Throwable
     {
         String keyspace = "cql_test_keyspace_options";
         String table = "test_table_options";
@@ -264,24 +311,13 @@ public class TableCQLHelperTest extends CQLTester
         SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), builder);
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+        TableMetadata metadata = cfs.metadata();
 
-        assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).endsWith(
-        "AND bloom_filter_fp_chance = 1.0\n" +
-        "\tAND crc_check_chance = 0.3\n" +
-        "\tAND default_time_to_live = 4\n" +
-        "\tAND gc_grace_seconds = 5\n" +
-        "\tAND min_index_interval = 6\n" +
-        "\tAND max_index_interval = 7\n" +
-        "\tAND memtable_flush_period_in_ms = 8\n" +
-        "\tAND speculative_retry = 'ALWAYS'\n" +
-        "\tAND additional_write_policy = 'NEVER'\n" +
-        "\tAND comment = 'comment'\n" +
-        "\tAND caching = { 'keys': 'ALL', 'rows_per_partition': 'NONE' }\n" +
-        "\tAND compaction = { 'max_threshold': '32', 'min_threshold': '4', 'sstable_size_in_mb': '1', 'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy' }\n" +
-        "\tAND compression = { 'chunk_length_in_kb': '64', 'min_compress_ratio': '2.0', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor' }\n" +
-        "\tAND cdc = false\n" +
-        "\tAND extensions = { 'ext1': 0x76616c31 };"
-        ));
+        execute(String.format("DROP TABLE %s.%s;", keyspace, table));
+        String create = SchemaCQLHelper.getTableMetadataAsCQL(metadata, false, true);
+        execute(create);
+        TableMetadata created = Keyspace.open(keyspace).getColumnFamilyStore(table).metadata();
+        Assert.assertEquals(metadata.params, created.params);
     }
 
     @Test
@@ -324,12 +360,12 @@ public class TableCQLHelperTest extends CQLTester
         SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), builder);
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
-
         assertEquals(ImmutableList.of("CREATE INDEX \"indexName\" ON cql_test_keyspace_3.test_table_3 (values(reg1));",
                                       "CREATE INDEX \"indexName2\" ON cql_test_keyspace_3.test_table_3 (keys(reg1));",
                                       "CREATE INDEX \"indexName3\" ON cql_test_keyspace_3.test_table_3 (entries(reg1));",
                                       "CREATE CUSTOM INDEX \"indexName4\" ON cql_test_keyspace_3.test_table_3 (entries(reg1)) USING 'org.apache.cassandra.index.sasi.SASIIndex';"),
-                     TableCQLHelper.getIndexesAsCQL(cfs.metadata()));
+                     SchemaCQLHelper.getIndexesAsCQL(cfs.metadata()));
+
     }
 
     private final static String SNAPSHOT = "testsnapshot";
@@ -362,10 +398,10 @@ public class TableCQLHelperTest extends CQLTester
         cfs.snapshot(SNAPSHOT);
 
         String schema = Files.toString(cfs.getDirectories().getSnapshotSchemaFile(SNAPSHOT), Charset.defaultCharset());
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (a1 varint, a2 varint, a3 varint);", keyspace(), typeA)));
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (a1 varint, a2 varint, a3 varint);", keyspace(), typeA)));
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (b1 frozen<%s>, b2 frozen<%s>, b3 frozen<%s>);", keyspace(), typeB, typeA, typeA, typeA)));
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (c1 frozen<%s>, c2 frozen<%s>, c3 frozen<%s>);", keyspace(), typeC, typeB, typeB, typeB)));
+        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (\n\ta1 varint,\n\ta2 varint,\n\ta3 varint\n);", keyspace(), typeA)));
+        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (\n\ta1 varint,\n\ta2 varint,\n\ta3 varint\n);", keyspace(), typeA)));
+        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (\n\tb1 frozen<%s>,\n\tb2 frozen<%s>,\n\tb3 frozen<%s>\n);", keyspace(), typeB, typeA, typeA, typeA)));
+        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (\n\tc1 frozen<%s>,\n\tc2 frozen<%s>,\n\tc3 frozen<%s>\n);", keyspace(), typeC, typeB, typeB, typeB)));
 
         schema = schema.substring(schema.indexOf("CREATE TABLE")); // trim to ensure order
 
@@ -377,8 +413,7 @@ public class TableCQLHelperTest extends CQLTester
                                      "\treg2 int,\n" +
                                      "\treg3 int,\n" +
                                      "\treg1 " + typeC + ",\n" +
-                                     "\tPRIMARY KEY ((pk1, pk2), ck1, ck2))\n" +
-                                     "\tWITH ID = " + cfs.metadata.id + "\n" +
+                                     "\tPRIMARY KEY ((pk1, pk2), ck1, ck2)\n) WITH ID = " + cfs.metadata.id + "\n" +
                                      "\tAND CLUSTERING ORDER BY (ck1 ASC, ck2 DESC)"));
 
         schema = schema.substring(schema.indexOf("ALTER"));
@@ -421,14 +456,14 @@ public class TableCQLHelperTest extends CQLTester
                 ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
                 cfs.snapshot(SNAPSHOT);
                 String schema = Files.toString(cfs.getDirectories().getSnapshotSchemaFile(SNAPSHOT), Charset.defaultCharset());
-
+                logger.error(schema);
                 // When both column and it's type are dropped, the type in column definition gets substituted with a tuple
                 assertTrue(schema.startsWith("CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
                                              "\tpk1 varint,\n" +
                                              "\tck1 varint,\n" +
                                              "\treg2 varint,\n" +
                                              "\treg1 frozen<tuple<frozen<tuple<varint, varint, varint>>, frozen<tuple<varint, varint, varint>>, frozen<tuple<varint, varint, varint>>>>,\n" +
-                                             "\tPRIMARY KEY (pk1, ck1))"));
+                                             "\tPRIMARY KEY (pk1, ck1)\n)"));
                 assertTrue(schema.contains("ALTER TABLE " + keyspace() + "." + tableName + " DROP reg1 USING TIMESTAMP 10000;"));
             }
             catch (Exception e)
