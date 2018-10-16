@@ -57,7 +57,11 @@ Any partition key mentioned against a non-existent keyspace name and table name 
 Cache gets refreshed in following ways
 - During Cassandra start up
 - Scheduled cache refresh at a default interval of 10 minutes (can be overridden using ``blacklisted_partitions_cache_refresh_period_in_sec`` yaml property)
-- Using nodetool refreshblacklistedpartitionscache
+- Using ``nodetool blacklistedpartitions --refresh-cache``
 
-There is no bound on how much on-heap memory this cache can occupy - so be cautious on how many keys you would want to blacklist.
-``blacklisted_partitions_cache_size_warn_threshold_in_mb`` yaml property can be used to be notified (via warning logs) if cache size exceeds the set threshold.
+Cache size is bounded, set by ``blacklisted_partitions_cache_size_limit_in_mb`` yaml property (defaulted to 100 MB).
+As cache loads blacklisted partitions from ``system_distributed.blacklisted_partitions``, it checks if cache size exceeds the size limit.
+The moment cache size exceeeds the size limit, no more partitions are loaded into the cache, and only those partitions that have been loaded so far would be blacklisted.
+A warning would be logged to indicate the same.
+Size limit on the cache can be changed using the yaml property, or dynamically using below nodetool command
+``nodetool blacklistedpartitions --cache-size-limit-in-mb=150 --refreshcache``
