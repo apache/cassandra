@@ -253,6 +253,32 @@ public class LegacySSTableTest
     }
 
     @Test
+    public void testMultiBlockRangeTombstones() throws Exception
+    {
+        /**
+         * During upgrades from 2.1 to 3.0, reading old sstables in reverse order would generate invalid sequences of
+         * range tombstone bounds if their range tombstones spanned multiple column index blocks. The read would fail
+         * in different ways depending on whether the 2.1 tables were produced by a flush or a compaction.
+         */
+
+        String version = "ka";
+        for (String tableFmt : new String[]{"legacy_%s_compacted_multi_block_rt%s", "legacy_%s_flushed_multi_block_rt%s"})
+        {
+            String table = String.format(tableFmt, version, "");
+            QueryProcessor.executeOnceInternal(String.format("CREATE TABLE legacy_tables.%s " +
+                                                             "(k int, c1 int, c2 int, v1 blob, v2 blob, " +
+                                                             "PRIMARY KEY (k, c1, c2))", table));
+            loadLegacyTable(tableFmt, version, "");
+
+            UntypedResultSet forward = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM legacy_tables.%s WHERE k=100", table));
+            UntypedResultSet reverse = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM legacy_tables.%s WHERE k=100 ORDER BY c1 DESC, c2 DESC", table));
+
+            Assert.assertFalse(forward.isEmpty());
+            Assert.assertEquals(table, forward.size(), reverse.size());
+        }
+    }
+
+    @Test
     public void testVerifyOldSSTables() throws Exception
     {
         for (String legacyVersion : legacyVersions)
