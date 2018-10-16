@@ -64,7 +64,7 @@ public class SchemaCQLHelperTest extends CQLTester
         String keyspace = "schema_cql_helper_test";
         String funcName = "test_function";
         SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), Tables.none(), Types.none());
-        execute(String.format("CREATE FUNCTION %s.%s(state tuple<int, bigint>, val int) "+
+        execute(String.format("CREATE FUNCTION %s.%s(state tuple<int, bigint>, \"vAl\" int) "+
                               "CALLED ON NULL INPUT "  +
                               "RETURNS tuple<int, bigint> " +
                               "LANGUAGE java AS '/* $$'' ''''*/return state;';", keyspace, funcName));
@@ -182,7 +182,7 @@ public class SchemaCQLHelperTest extends CQLTester
                      SchemaCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
 
         assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true).startsWith(
-        "CREATE TABLE IF NOT EXISTS cql_test_keyspace_dropped_columns.test_table_dropped_columns (\n" +
+        "CREATE TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns (\n" +
         "\tpk1 varint,\n" +
         "\tck1 varint,\n" +
         "\treg1 varint,\n" +
@@ -223,7 +223,7 @@ public class SchemaCQLHelperTest extends CQLTester
 
         // when re-adding, column is present in CREATE, then in DROP and then in ADD again, to record DROP with a proper timestamp
         assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true).startsWith(
-        "CREATE TABLE IF NOT EXISTS cql_test_keyspace_readded_columns.test_table_readded_columns (\n" +
+        "CREATE TABLE cql_test_keyspace_readded_columns.test_table_readded_columns (\n" +
         "\tpk1 varint,\n" +
         "\tck1 varint,\n" +
         "\treg2 varint static,\n" +
@@ -262,7 +262,7 @@ public class SchemaCQLHelperTest extends CQLTester
         Assert.assertEquals(md, metadata.build());
 
         assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true).startsWith(
-        "CREATE TABLE IF NOT EXISTS cql_test_keyspace_create_table.test_table_create_table (\n" +
+        "CREATE TABLE cql_test_keyspace_create_table.test_table_create_table (\n" +
         "\tpk1 varint,\n" +
         "\tpk2 ascii,\n" +
         "\tck1 varint,\n" +
@@ -375,7 +375,7 @@ public class SchemaCQLHelperTest extends CQLTester
         String typeB = createType("CREATE TYPE %s (b1 frozen<" + typeA + ">, b2 frozen<" + typeA + ">, b3 frozen<" + typeA + ">);");
         String typeC = createType("CREATE TYPE %s (c1 frozen<" + typeB + ">, c2 frozen<" + typeB + ">, c3 frozen<" + typeB + ">);");
 
-        String tableName = createTable("CREATE TABLE IF NOT EXISTS %s (" +
+        String tableName = createTable("CREATE TABLE %s (" +
                                        "pk1 varint," +
                                        "pk2 ascii," +
                                        "ck1 varint," +
@@ -403,7 +403,7 @@ public class SchemaCQLHelperTest extends CQLTester
 
         schema = schema.substring(schema.indexOf("CREATE TABLE")); // trim to ensure order
 
-        assertTrue(schema.startsWith("CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
+        assertTrue(schema.startsWith("CREATE TABLE " + keyspace() + "." + tableName + " (\n" +
                                      "\tpk1 varint,\n" +
                                      "\tpk2 ascii,\n" +
                                      "\tck1 varint,\n" +
@@ -439,7 +439,7 @@ public class SchemaCQLHelperTest extends CQLTester
         String typeA = createType("CREATE TYPE %s (a1 varint, a2 varint, a3 varint);");
         String typeB = createType("CREATE TYPE %s (b1 frozen<" + typeA + ">, b2 frozen<" + typeA + ">, b3 frozen<" + typeA + ">);");
 
-        String tableName = createTable("CREATE TABLE IF NOT EXISTS %s (" +
+        String tableName = createTable("CREATE TABLE %s (" +
                                        "pk1 varint," +
                                        "ck1 varint," +
                                        "reg1 frozen<" + typeB + ">," +
@@ -456,7 +456,7 @@ public class SchemaCQLHelperTest extends CQLTester
                 String schema = Files.toString(cfs.getDirectories().getSnapshotSchemaFile(SNAPSHOT), Charset.defaultCharset());
                 logger.error(schema);
                 // When both column and it's type are dropped, the type in column definition gets substituted with a tuple
-                assertTrue(schema.startsWith("CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
+                assertTrue(schema.startsWith("CREATE TABLE " + keyspace() + "." + tableName + " (\n" +
                                              "\tpk1 varint,\n" +
                                              "\tck1 varint,\n" +
                                              "\treg2 varint,\n" +
