@@ -323,6 +323,8 @@
 
 3.11.4
 Merged from 3.0:
+ * Expand range tombstone validation checks to multiple interim request stages (CASSANDRA-14824)
+ * Reverse order reads can return incomplete results (CASSANDRA-14803)
  * Avoid calling iter.next() in a loop when notifying indexers about range tombstones (CASSANDRA-14794)
  * Fix purging semi-expired RT boundaries in reversed iterators (CASSANDRA-14672)
  * DESC order reads can fail to return the last Unfiltered in the partition (CASSANDRA-14766)

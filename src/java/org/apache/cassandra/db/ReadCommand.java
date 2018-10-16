@@ -40,6 +40,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.RTBoundCloser;
 import org.apache.cassandra.db.transform.RTBoundValidator;
+import org.apache.cassandra.db.transform.RTBoundValidator.Stage;
 import org.apache.cassandra.db.transform.StoppingTransformation;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.UnknownIndexException;
@@ -374,7 +375,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.
-        iterator = Transformation.apply(iterator, new RTBoundValidator(true));
+        iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
 
         return isDigestQuery()
              ? ReadResponse.createDigestResponse(iterator, this)
@@ -451,11 +452,12 @@ public abstract class ReadCommand extends AbstractReadQuery
             repairedDataInfo = new RepairedDataInfo();
 
         UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
+        iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
 
         try
         {
             iterator = withStateTracking(iterator);
-            iterator = withoutPurgeableTombstones(iterator, cfs);
+            iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs), Stage.PURGED, false);
             iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
 
             // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
@@ -475,9 +477,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             iterator = limits().filter(iterator, nowInSec(), selectsFullPartition());
 
             // because of the above, we need to append an aritifical end bound if the source iterator was stopped short by a counter.
-            iterator = Transformation.apply(iterator, new RTBoundCloser());
-
-            return iterator;
+            return RTBoundCloser.close(iterator);
         }
         catch (RuntimeException | Error e)
         {

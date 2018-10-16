@@ -27,6 +27,7 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.BaseRowIterator;
+import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -262,7 +263,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 @SuppressWarnings("resource") // We close on exception and on closing the result returned by this method
                 Memtable.MemtableUnfilteredPartitionIterator iter = memtable.makePartitionIterator(columnFilter(), dataRange());
                 oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, iter.getMinLocalDeletionTime());
-                inputCollector.addMemtableIterator(iter);
+                inputCollector.addMemtableIterator(RTBoundValidator.validate(iter, RTBoundValidator.Stage.MEMTABLE, false));
             }
 
             SSTableReadsListener readCountUpdater = newReadCountUpdater();
@@ -270,7 +271,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
             {
                 @SuppressWarnings("resource") // We close on exception and on closing the result returned by this method
                 UnfilteredPartitionIterator iter = sstable.getScanner(columnFilter(), dataRange(), readCountUpdater);
-                inputCollector.addSSTableIterator(sstable, iter);
+                inputCollector.addSSTableIterator(sstable, RTBoundValidator.validate(iter, RTBoundValidator.Stage.SSTABLE, false));
 
                 if (!sstable.isRepaired())
                     oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, sstable.getMinLocalDeletionTime());
