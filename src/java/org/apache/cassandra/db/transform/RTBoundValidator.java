@@ -19,6 +19,7 @@ package org.apache.cassandra.db.transform;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
@@ -32,29 +33,45 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
  */
 public final class RTBoundValidator extends Transformation<UnfilteredRowIterator>
 {
+    public enum Stage { MEMTABLE, SSTABLE, MERGED, PURGED, PROCESSED }
+
+    private final Stage stage;
     private final boolean enforceIsClosed;
 
-    public RTBoundValidator(boolean enforceIsClosed)
+    private RTBoundValidator(Stage stage, boolean enforceIsClosed)
     {
+        this.stage = stage;
         this.enforceIsClosed = enforceIsClosed;
+    }
+
+    public static UnfilteredPartitionIterator validate(UnfilteredPartitionIterator partitions, Stage stage, boolean enforceIsClosed)
+    {
+        return Transformation.apply(partitions, new RTBoundValidator(stage, enforceIsClosed));
+    }
+
+    public static UnfilteredRowIterator validate(UnfilteredRowIterator partition, Stage stage, boolean enforceIsClosed)
+    {
+        return Transformation.apply(partition, new RowsTransformation(stage, partition.metadata(), partition.isReverseOrder(), enforceIsClosed));
     }
 
     @Override
     public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
     {
-        return Transformation.apply(partition, new RowsTransformation(partition.metadata(), partition.isReverseOrder(), enforceIsClosed));
+        return Transformation.apply(partition, new RowsTransformation(stage, partition.metadata(), partition.isReverseOrder(), enforceIsClosed));
     }
 
     private final static class RowsTransformation extends Transformation
     {
+        private final Stage stage;
         private final CFMetaData metadata;
         private final boolean isReverseOrder;
         private final boolean enforceIsClosed;
 
         private DeletionTime openMarkerDeletionTime;
 
-        private RowsTransformation(CFMetaData metadata, boolean isReverseOrder, boolean enforceIsClosed)
+        private RowsTransformation(Stage stage, CFMetaData metadata, boolean isReverseOrder, boolean enforceIsClosed)
         {
+            this.stage = stage;
             this.metadata = metadata;
             this.isReverseOrder = isReverseOrder;
             this.enforceIsClosed = enforceIsClosed;
@@ -98,8 +115,8 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
 
         private IllegalStateException ise(String why)
         {
-            String message = String.format("UnfilteredRowIterator for %s.%s has an illegal RT bounds sequence: %s",
-                                           metadata.ksName, metadata.cfName, why);
+            String message = String.format("%s UnfilteredRowIterator for %s.%s has an illegal RT bounds sequence: %s",
+                                           stage, metadata.ksName, metadata.cfName, why);
             throw new IllegalStateException(message);
         }
     }
