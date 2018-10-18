@@ -77,11 +77,6 @@ public class MockMessagingServiceTest
                 assertEquals(MessagingService.Verb.ECHO, msg.verb);
                 assertEquals(echoMessageIn.payload, msg.payload);
             }
-
-            public boolean isLatencyForSnitch()
-            {
-                return false;
-            }
         });
 
         // we must have intercepted the outgoing message at this point

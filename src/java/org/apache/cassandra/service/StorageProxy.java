@@ -2189,11 +2189,6 @@ public class StorageProxy implements StorageProxyMBean
                 versions.put(message.from, message.payload);
                 latch.countDown();
             }
-
-            public boolean isLatencyForSnitch()
-            {
-                return false;
-            }
         };
         // an empty message acts as a request to the SchemaVersionVerbHandler.
         MessageOut message = new MessageOut(MessagingService.Verb.SCHEMA_CHECK);

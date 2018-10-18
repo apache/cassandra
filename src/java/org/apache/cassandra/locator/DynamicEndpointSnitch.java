@@ -423,8 +423,9 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
 
         IAsyncCallback latencyProbeHandler = new IAsyncCallback()
         {
-            public boolean isLatencyForSnitch() { return true; }
+            @Override
             public LatencyMeasurementType latencyMeasurementType() { return LatencyMeasurementType.PROBE; }
+            @Override
             public void response(MessageIn msg) { }
         };
 

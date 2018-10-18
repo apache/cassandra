@@ -45,11 +45,6 @@ public abstract class AbstractPaxosCallback<T> implements IAsyncCallback<T>
         this.queryStartNanoTime = queryStartNanoTime;
     }
 
-    public boolean latency()
-    {
-        return false;
-    }
-
     public int getResponseCount()
     {
         return (int) (targets - latch.getCount());

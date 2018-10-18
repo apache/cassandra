@@ -126,6 +126,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return blockFor;
     }
 
+    @Override
     public void response(MessageIn<ReadResponse> message)
     {
         resolver.preprocess(message);
@@ -155,9 +156,10 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         response(message);
     }
 
-    public boolean isLatencyForSnitch()
+    @Override
+    public LatencyMeasurementType latencyMeasurementType()
     {
-        return true;
+        return LatencyMeasurementType.READ;
     }
 
     @Override

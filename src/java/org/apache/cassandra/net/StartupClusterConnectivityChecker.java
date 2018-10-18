@@ -185,17 +185,13 @@ public class StartupClusterConnectivityChecker
     {
         IAsyncCallback responseHandler = new IAsyncCallback()
         {
-            public boolean isLatencyForSnitch()
-            {
-                return true;
-            }
-
             @Override
             public LatencyMeasurementType latencyMeasurementType()
             {
                 return LatencyMeasurementType.PROBE;
             }
 
+            @Override
             public void response(MessageIn msg)
             {
                 if (acks.incrementAndCheck(msg.from))
