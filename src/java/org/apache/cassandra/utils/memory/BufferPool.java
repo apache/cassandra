@@ -237,23 +237,23 @@ public class BufferPool
         /** Return a chunk, the caller will take owership of the parent chunk. */
         public Chunk get()
         {
-            while (true)
-            {
-                Chunk chunk = chunks.poll();
-                if (chunk != null)
-                    return chunk;
+            Chunk chunk = chunks.poll();
+            if (chunk != null)
+                return chunk;
 
-                if (!allocateMoreChunks())
-                    // give it one last attempt, in case someone else allocated before us
-                    return chunks.poll();
-            }
+            chunk = allocateMoreChunks();
+            if (chunk != null)
+                return chunk;
+
+            // another thread may have just allocated last macro chunk, so make one final attempt before returning null
+            return chunks.poll();
         }
 
         /**
          * This method might be called by multiple threads and that's fine if we add more
          * than one chunk at the same time as long as we don't exceed the MEMORY_USAGE_THRESHOLD.
          */
-        private boolean allocateMoreChunks()
+        private Chunk allocateMoreChunks()
         {
             while (true)
             {
@@ -262,7 +262,7 @@ public class BufferPool
                 {
                     noSpamLogger.info("Maximum memory usage reached ({} bytes), cannot allocate chunk of {} bytes",
                                       MEMORY_USAGE_THRESHOLD, MACRO_CHUNK_SIZE);
-                    return false;
+                    return null;
                 }
                 if (memoryUsage.compareAndSet(cur, cur + MACRO_CHUNK_SIZE))
                     break;
@@ -272,15 +272,18 @@ public class BufferPool
             Chunk chunk = new Chunk(allocateDirectAligned(MACRO_CHUNK_SIZE));
             chunk.acquire(null);
             macroChunks.add(chunk);
-            for (int i = 0 ; i < MACRO_CHUNK_SIZE ; i += CHUNK_SIZE)
+
+            final Chunk callerChunk = new Chunk(chunk.get(CHUNK_SIZE));
+            if (DEBUG)
+                debug.register(callerChunk);
+            for (int i = CHUNK_SIZE ; i < MACRO_CHUNK_SIZE; i += CHUNK_SIZE)
             {
                 Chunk add = new Chunk(chunk.get(CHUNK_SIZE));
                 chunks.add(add);
                 if (DEBUG)
                     debug.register(add);
             }
-
-            return true;
+            return callerChunk;
         }
 
         public void recycle(Chunk chunk)
