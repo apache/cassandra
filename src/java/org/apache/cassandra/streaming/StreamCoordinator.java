@@ -135,7 +135,8 @@ public class StreamCoordinator
         if (sessionsToConnect.hasNext())
         {
             StreamSession next = sessionsToConnect.next();
-            logger.debug("Connecting next session {} with {}.", next.planId(), next.peer.toString());
+            if (logger.isDebugEnabled())
+                logger.debug("Connecting next session {} with {}.", next.planId(), next.peer.toString());
             startSession(next);
         }
         else
@@ -281,7 +282,8 @@ public class StreamCoordinator
             // create
             if (streamSessions.size() < connectionsPerHost)
             {
-                StreamSession session = new StreamSession(streamOperation, peer, factory, streamSessions.size(), pendingRepair, previewKind);
+                StreamSession session = new StreamSession(streamOperation, peer, factory, streamSessions.size(),
+                                                          pendingRepair, previewKind);
                 streamSessions.put(++lastReturned, session);
                 return session;
             }

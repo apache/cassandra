@@ -111,7 +111,8 @@ public abstract class UnfilteredPartitionIterators
         return FilteredPartitions.filter(iterator, nowInSec);
     }
 
-    public static UnfilteredPartitionIterator merge(final List<? extends UnfilteredPartitionIterator> iterators, final int nowInSec, final MergeListener listener)
+    @SuppressWarnings("resource")
+    public static UnfilteredPartitionIterator merge(final List<? extends UnfilteredPartitionIterator> iterators, final MergeListener listener)
     {
         assert listener != null;
         assert !iterators.isEmpty();
@@ -135,6 +136,7 @@ public abstract class UnfilteredPartitionIterators
                 toMerge.set(idx, current);
             }
 
+            @SuppressWarnings("resource")
             protected UnfilteredRowIterator getReduced()
             {
                 UnfilteredRowIterators.MergeListener rowListener = listener.getRowMergeListener(partitionKey, toMerge);
@@ -153,7 +155,7 @@ public abstract class UnfilteredPartitionIterators
                     }
                 }
 
-                return UnfilteredRowIterators.merge(toMerge, nowInSec, rowListener);
+                return UnfilteredRowIterators.merge(toMerge, rowListener);
             }
 
             protected void onKeyChange()
@@ -190,7 +192,8 @@ public abstract class UnfilteredPartitionIterators
         };
     }
 
-    public static UnfilteredPartitionIterator mergeLazily(final List<? extends UnfilteredPartitionIterator> iterators, final int nowInSec)
+    @SuppressWarnings("resource")
+    public static UnfilteredPartitionIterator mergeLazily(final List<? extends UnfilteredPartitionIterator> iterators)
     {
         assert !iterators.isEmpty();
 
@@ -214,7 +217,7 @@ public abstract class UnfilteredPartitionIterators
                 {
                     protected UnfilteredRowIterator initializeIterator()
                     {
-                        return UnfilteredRowIterators.merge(toMerge, nowInSec);
+                        return UnfilteredRowIterators.merge(toMerge);
                     }
                 };
             }

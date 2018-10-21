@@ -31,6 +31,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelConfig;
 import io.netty.util.ReferenceCountUtil;
+import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.RebufferingInputStream;
 
 public class RebufferingByteBufDataInputPlus extends RebufferingInputStream implements ReadableByteChannel
@@ -248,5 +249,43 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
     public ByteBufAllocator getAllocator()
     {
         return channelConfig.getAllocator();
+    }
+
+    /**
+     * Consumes bytes in the stream until the given length
+     *
+     * @param writer
+     * @param len
+     * @return
+     * @throws IOException
+     */
+    public long consumeUntil(BufferedDataOutputStreamPlus writer, long len) throws IOException
+    {
+        long copied = 0; // number of bytes copied
+        while (copied < len)
+        {
+            if (buffer.remaining() == 0)
+            {
+                try
+                {
+                    reBuffer();
+                }
+                catch (EOFException e)
+                {
+                    throw new EOFException("EOF after " + copied + " bytes out of " + len);
+                }
+                if (buffer.remaining() == 0 && copied < len)
+                    throw new AssertionError("reBuffer() failed to return data");
+            }
+
+            int originalLimit = buffer.limit();
+            int toCopy = (int) Math.min(len - copied, buffer.remaining());
+            buffer.limit(buffer.position() + toCopy);
+            int written = writer.applyToChannel(c -> c.write(buffer));
+            buffer.limit(originalLimit);
+            copied += written;
+        }
+
+        return copied;
     }
 }

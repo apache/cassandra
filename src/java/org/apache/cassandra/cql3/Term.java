@@ -124,6 +124,18 @@ public interface Term
         {
             return getText();
         }
+
+        @Override
+        public int hashCode()
+        {
+            return getText().hashCode();
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            return this == o || (o instanceof Raw && getText().equals(((Raw) o).getText()));
+        }
     }
 
     public abstract class MultiColumnRaw extends Term.Raw

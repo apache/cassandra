@@ -37,10 +37,10 @@ import org.apache.cassandra.utils.AbstractIterator;
 public class DelimiterAnalyzer extends AbstractAnalyzer
 {
 
-    private static final Map<AbstractType<?>,Charset> VALID_ANALYZABLE_TYPES = new HashMap<AbstractType<?>,Charset>()
+    private static final Map<AbstractType<?>, Charset> VALID_ANALYZABLE_TYPES = new HashMap<AbstractType<?>, Charset>()
     {{
-            put(UTF8Type.instance, StandardCharsets.UTF_8);
-            put(AsciiType.instance, StandardCharsets.US_ASCII);
+        put(UTF8Type.instance, StandardCharsets.UTF_8);
+        put(AsciiType.instance, StandardCharsets.US_ASCII);
     }};
 
     private char delimiter;
@@ -104,5 +104,11 @@ public class DelimiterAnalyzer extends AbstractAnalyzer
     public boolean isTokenizing()
     {
         return true;
+    }
+
+    @Override
+    public boolean isCompatibleWith(AbstractType<?> validator)
+    {
+        return VALID_ANALYZABLE_TYPES.containsKey(validator);
     }
 }

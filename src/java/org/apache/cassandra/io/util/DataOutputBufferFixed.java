@@ -58,7 +58,7 @@ public class DataOutputBufferFixed extends DataOutputBuffer
      * @see org.apache.cassandra.io.util.DataOutputBuffer#reallocate(long)
      */
     @Override
-    protected void reallocate(long newSize)
+    protected void expandToFit(long newSize)
     {
         throw new BufferOverflowException();
     }

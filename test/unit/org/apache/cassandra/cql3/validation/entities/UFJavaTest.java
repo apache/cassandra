@@ -106,15 +106,15 @@ public class UFJavaTest extends CQLTester
         catch (InvalidRequestException e)
         {
             Assert.assertTrue(e.getMessage(), e.getMessage().contains("Java source compilation failed"));
-            Assert.assertTrue(e.getMessage(), e.getMessage().contains("foobarbaz cannot be resolved to a type"));
+            Assert.assertTrue(e.getMessage(), e.getMessage().contains("foobarbaz cannot be resolved"));
         }
     }
 
     @Test
     public void testJavaFunctionInvalidReturn() throws Throwable
     {
-        assertInvalidMessage("system keyspace is not user-modifiable",
-                             "CREATE OR REPLACE FUNCTION jfir(val double) " +
+        assertInvalidMessage("cannot convert from long to Double",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".jfir(val double) " +
                              "RETURNS NULL ON NULL INPUT " +
                              "RETURNS double " +
                              "LANGUAGE JAVA\n" +

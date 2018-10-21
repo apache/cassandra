@@ -1,0 +1,34 @@
+--- a/bin/cassandra
++++ b/bin/cassandra
+@@ -171,7 +171,7 @@
+     props="$3"
+     class="$4"
+     cassandra_parms="-Dlogback.configurationFile=logback.xml"
+-    cassandra_parms="$cassandra_parms -Dcassandra.logdir=$CASSANDRA_HOME/logs"
++    cassandra_parms="$cassandra_parms -Dcassandra.logdir=/var/log/cassandra"
+     cassandra_parms="$cassandra_parms -Dcassandra.storagedir=$cassandra_storagedir"
+ 
+     if [ "x$pidpath" != "x" ]; then
+--- a/conf/cassandra-env.sh
++++ b/conf/cassandra-env.sh
+@@ -93,16 +93,16 @@
+     echo "$JVM_OPTS" | grep -q "^-[X]log:gc"
+     if [ "$?" = "1" ] ; then # [X] to prevent ccm from replacing this line
+         # only add -Xlog:gc if it's not mentioned in jvm-server.options file
+-        mkdir -p ${CASSANDRA_HOME}/logs
+-        JVM_OPTS="$JVM_OPTS -Xlog:gc=info,heap*=trace,age*=debug,safepoint=info,promotion*=trace:file=${CASSANDRA_HOME}/logs/gc.log:time,uptime,pid,tid,level:filecount=10,filesize=10485760"
++        mkdir -p /var/log/cassandra
++        JVM_OPTS="$JVM_OPTS -Xlog:gc=info,heap*=trace,age*=debug,safepoint=info,promotion*=trace:file=/var/log/cassandra/gc.log:time,uptime,pid,tid,level:filecount=10,filesize=10485760"
+     fi
+ else
+     # Java 8
+     echo "$JVM_OPTS" | grep -q "^-[X]loggc"
+     if [ "$?" = "1" ] ; then # [X] to prevent ccm from replacing this line
+         # only add -Xlog:gc if it's not mentioned in jvm-server.options file
+-        mkdir -p ${CASSANDRA_HOME}/logs
+-        JVM_OPTS="$JVM_OPTS -Xloggc:${CASSANDRA_HOME}/logs/gc.log"
++        mkdir -p /var/log/cassandra
++        JVM_OPTS="$JVM_OPTS -Xloggc:/var/log/cassandra/gc.log"
+     fi
+ fi
+ 

@@ -19,38 +19,47 @@ package org.apache.cassandra.dht;
 
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Streams;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamRequest;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * Store and update available ranges (data already received) to system keyspace.
  */
 public class StreamStateStore implements StreamEventHandler
 {
-    public Set<Range<Token>> getAvailableRanges(String keyspace, IPartitioner partitioner)
+    private static final Logger logger = LoggerFactory.getLogger(StreamStateStore.class);
+
+    public SystemKeyspace.AvailableRanges getAvailableRanges(String keyspace, IPartitioner partitioner)
     {
         return SystemKeyspace.getAvailableRanges(keyspace, partitioner);
     }
 
     /**
-     * Check if given token's data is available in this node.
+     * Check if given token's data is available in this node. This doesn't handle transientness in a useful way
+     * so it's only used by a legacy test
      *
      * @param keyspace keyspace name
      * @param token token to check
      * @return true if given token in the keyspace is already streamed and ready to be served.
      */
+    @VisibleForTesting
     public boolean isDataAvailable(String keyspace, Token token)
     {
-        Set<Range<Token>> availableRanges = getAvailableRanges(keyspace, token.getPartitioner());
-        for (Range<Token> range : availableRanges)
-        {
-            if (range.contains(token))
-                return true;
-        }
-        return false;
+        SystemKeyspace.AvailableRanges availableRanges = getAvailableRanges(keyspace, token.getPartitioner());
+
+        return Streams.concat(availableRanges.full.stream(),
+                              availableRanges.trans.stream())
+                      .anyMatch(range -> range.contains(token));
     }
 
     /**
@@ -73,7 +82,7 @@ public class StreamStateStore implements StreamEventHandler
                 }
                 for (StreamRequest request : se.requests)
                 {
-                    SystemKeyspace.updateAvailableRanges(request.keyspace, request.ranges);
+                    SystemKeyspace.updateAvailableRanges(request.keyspace, request.full.ranges(), request.transientReplicas.ranges());
                 }
             }
         }

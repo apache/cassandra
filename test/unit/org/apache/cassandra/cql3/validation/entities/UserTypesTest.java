@@ -109,9 +109,9 @@ public class UserTypesTest extends CQLTester
         String myType = KEYSPACE + '.' + typename;
 
         // non-frozen UDTs in a table PK
-        assertInvalidMessage("Invalid non-frozen user-defined type for PRIMARY KEY component k",
+        assertInvalidMessage("Invalid non-frozen user-defined type \"" + myType + "\" for PRIMARY KEY column 'k'",
                 "CREATE TABLE " + KEYSPACE + ".wrong (k " + myType + " PRIMARY KEY , v int)");
-        assertInvalidMessage("Invalid non-frozen user-defined type for PRIMARY KEY component k2",
+        assertInvalidMessage("Invalid non-frozen user-defined type \"" + myType + "\" for PRIMARY KEY column 'k2'",
                 "CREATE TABLE " + KEYSPACE + ".wrong (k1 int, k2 " + myType + ", v int, PRIMARY KEY (k1, k2))");
 
         // non-frozen UDTs in a collection
@@ -620,7 +620,7 @@ public class UserTypesTest extends CQLTester
     private void assertInvalidAlterDropStatements(String t) throws Throwable
     {
         assertInvalidMessage("Cannot alter user type " + typeWithKs(t), "ALTER TYPE " + typeWithKs(t) + " RENAME foo TO bar;");
-        assertInvalidMessage("Cannot drop user type " + typeWithKs(t), "DROP TYPE " + typeWithKs(t) + ';');
+        assertInvalidMessage("Cannot drop user type '" + typeWithKs(t), "DROP TYPE " + typeWithKs(t) + ';');
     }
 
     @Test

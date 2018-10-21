@@ -118,7 +118,7 @@ public class TokenMetadataTest
             }
 
             @Override
-            public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2)
+            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
                 return 0;
             }
@@ -165,7 +165,7 @@ public class TokenMetadataTest
             }
 
             @Override
-            public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2)
+            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
                 return 0;
             }
@@ -216,7 +216,7 @@ public class TokenMetadataTest
             }
 
             @Override
-            public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2)
+            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
                 return 0;
             }
@@ -263,7 +263,7 @@ public class TokenMetadataTest
             }
 
             @Override
-            public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2)
+            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
                 return 0;
             }

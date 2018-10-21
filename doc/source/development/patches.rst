@@ -62,18 +62,26 @@ There are currently multiple Cassandra versions maintained in individual branche
 ======= ======
 Version Policy
 ======= ======
-3.x     Tick-tock (see below)
-3.0     Bug fixes only
-2.2     Bug fixes only
+4.0     Code freeze (see below)
+3.11    Critical bug fixes only
+3.0     Critical bug fixes only
+2.2     Critical bug fixes only
 2.1     Critical bug fixes only
 ======= ======
 
 Corresponding branches in git are easy to recognize as they are named ``cassandra-<release>`` (e.g. ``cassandra-3.0``). The ``trunk`` branch is an exception, as it contains the most recent commits from all other branches and is used for creating new branches for future tick-tock releases.
 
-Tick-Tock Releases
-""""""""""""""""""
+4.0 Code Freeze
+"""""""""""""""
 
-New releases created as part of the `tick-tock release process <http://www.planetcassandra.org/blog/cassandra-2-2-3-0-and-beyond/>`_ will either focus on stability (odd version numbers) or introduce new features (even version numbers). Any code for new Cassandra features you should be based on the latest, unreleased 3.x branch with even version number or based on trunk.
+Patches for new features are currently not accepted for 4.0 or any earlier versions. Starting with the code freeze in September, all efforts should focus on stabilizing the 4.0 branch before the first official release. During that time, only the following patches will be considered for acceptance:
+
+ * Bug fixes
+ * Measurable performance improvements
+ * Changes not distributed as part of the release such as:
+ * Testing related improvements and fixes
+ * Build and infrastructure related changes
+ * Documentation
 
 Bug Fixes
 """""""""

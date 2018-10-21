@@ -55,6 +55,8 @@ public abstract class Version
 
     public abstract boolean hasPendingRepair();
 
+    public abstract boolean hasIsTransient();
+
     public abstract boolean hasMetadataChecksum();
 
     /**

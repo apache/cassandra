@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.service.reads;
 
-import java.util.Collections;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlans;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -39,7 +42,7 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.StorageProxy;
@@ -47,8 +50,9 @@ import org.apache.cassandra.tracing.Tracing;
 
 public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
 {
+    private static final Logger logger = LoggerFactory.getLogger(ShortReadPartitionsProtection.class);
     private final ReadCommand command;
-    private final InetAddressAndPort source;
+    private final Replica source;
 
     private final DataLimits.Counter singleResultCounter; // unmerged per-source counter
     private final DataLimits.Counter mergedResultCounter; // merged end-result counter
@@ -59,7 +63,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
     private final long queryStartNanoTime;
 
-    public ShortReadPartitionsProtection(ReadCommand command, InetAddressAndPort source,
+    public ShortReadPartitionsProtection(ReadCommand command, Replica source,
                                          DataLimits.Counter singleResultCounter,
                                          DataLimits.Counter mergedResultCounter,
                                          long queryStartNanoTime)
@@ -84,9 +88,11 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
          * If we don't apply the transformation *after* extending the partition with MoreRows,
          * applyToRow() method of protection will not be called on the first row of the new extension iterator.
          */
+        ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), partition.partitionKey().getToken(), source);
+        ReplicaPlan.SharedForTokenRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
         ShortReadRowsProtection protection = new ShortReadRowsProtection(partition.partitionKey(),
                                                                          command, source,
-                                                                         this::executeReadCommand,
+                                                                         (cmd) -> executeReadCommand(cmd, sharedReplicaPlan),
                                                                          singleResultCounter,
                                                                          mergedResultCounter);
         return Transformation.apply(MoreRows.extend(partition, protection), protection);
@@ -140,9 +146,9 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
         ColumnFamilyStore.metricsFor(command.metadata().id).shortReadProtectionRequests.mark();
         Tracing.trace("Requesting {} extra rows from {} for short read protection", toQuery, source);
+        logger.info("Requesting {} extra rows from {} for short read protection", toQuery, source);
 
-        PartitionRangeReadCommand cmd = makeFetchAdditionalPartitionReadCommand(toQuery);
-        return executeReadCommand(cmd);
+        return makeAndExecuteFetchAdditionalPartitionReadCommand(toQuery);
     }
 
     // Counts the number of rows for regular queries and the number of groups for GROUP BY queries
@@ -153,7 +159,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
                : counter.counted();
     }
 
-    private PartitionRangeReadCommand makeFetchAdditionalPartitionReadCommand(int toQuery)
+    private UnfilteredPartitionIterator makeAndExecuteFetchAdditionalPartitionReadCommand(int toQuery)
     {
         PartitionRangeReadCommand cmd = (PartitionRangeReadCommand) command;
 
@@ -165,19 +171,26 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
                                                       : new ExcludingBounds<>(lastPartitionKey, bounds.right);
         DataRange newDataRange = cmd.dataRange().forSubRange(newBounds);
 
-        return cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange);
+        ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), cmd.dataRange().keyRange(), source);
+        return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), ReplicaPlan.shared(replicaPlan));
     }
 
-    private UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd)
+    private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+    UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
     {
-        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        DataResolver resolver = new DataResolver(keyspace, cmd, ConsistencyLevel.ONE, 1, queryStartNanoTime, NoopReadRepair.instance);
-        ReadCallback handler = new ReadCallback(resolver, ConsistencyLevel.ONE, cmd, Collections.singletonList(source), queryStartNanoTime, NoopReadRepair.instance);
+        DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);
+        ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryStartNanoTime);
 
-        if (StorageProxy.canDoLocalRequest(source))
+        if (source.isSelf())
+        {
             StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
+        }
         else
-            MessagingService.instance().sendRRWithFailure(cmd.createMessage(), source, handler);
+        {
+            if (source.isTransient())
+                cmd = cmd.copyAsTransientQuery(source);
+            MessagingService.instance().sendRRWithFailure(cmd.createMessage(), source.endpoint(), handler);
+        }
 
         // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.
         handler.awaitResults();

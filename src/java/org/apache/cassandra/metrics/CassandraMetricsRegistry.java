@@ -19,13 +19,20 @@ package org.apache.cassandra.metrics;
 
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+
+import javax.management.MBeanServer;
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
 
 import com.codahale.metrics.*;
 import com.google.common.annotations.VisibleForTesting;
-
-import javax.management.*;
 
 /**
  * Makes integrating 3.0 metrics API with 2.0.
@@ -36,6 +43,7 @@ import javax.management.*;
 public class CassandraMetricsRegistry extends MetricRegistry
 {
     public static final CassandraMetricsRegistry Metrics = new CassandraMetricsRegistry();
+    private final Map<String, ThreadPoolMetrics> threadPoolMetrics = new ConcurrentHashMap<>();
 
     private final MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
 
@@ -119,6 +127,27 @@ public class CassandraMetricsRegistry extends MetricRegistry
         }
     }
 
+    public Collection<ThreadPoolMetrics> allThreadPoolMetrics()
+    {
+        return Collections.unmodifiableCollection(threadPoolMetrics.values());
+    }
+
+    public Optional<ThreadPoolMetrics> getThreadPoolMetrics(String poolName)
+    {
+        return Optional.ofNullable(threadPoolMetrics.get(poolName));
+    }
+
+    ThreadPoolMetrics register(ThreadPoolMetrics metrics)
+    {
+        threadPoolMetrics.put(metrics.poolName, metrics);
+        return metrics;
+    }
+
+    void remove(ThreadPoolMetrics metrics)
+    {
+        threadPoolMetrics.remove(metrics.poolName, metrics);
+    }
+
     public <T extends Metric> T register(MetricName name, MetricName aliasName, T metric)
     {
         T ret = register(name, metric);
@@ -153,29 +182,25 @@ public class CassandraMetricsRegistry extends MetricRegistry
         AbstractBean mbean;
 
         if (metric instanceof Gauge)
-        {
             mbean = new JmxGauge((Gauge<?>) metric, name);
-        } else if (metric instanceof Counter)
-        {
+        else if (metric instanceof Counter)
             mbean = new JmxCounter((Counter) metric, name);
-        } else if (metric instanceof Histogram)
-        {
+        else if (metric instanceof Histogram)
             mbean = new JmxHistogram((Histogram) metric, name);
-        } else if (metric instanceof Meter)
-        {
-            mbean = new JmxMeter((Meter) metric, name, TimeUnit.SECONDS);
-        } else if (metric instanceof Timer)
-        {
+        else if (metric instanceof Timer)
             mbean = new JmxTimer((Timer) metric, name, TimeUnit.SECONDS, TimeUnit.MICROSECONDS);
-        } else
-        {
+        else if (metric instanceof Metered)
+            mbean = new JmxMeter((Metered) metric, name, TimeUnit.SECONDS);
+        else
             throw new IllegalArgumentException("Unknown metric type: " + metric.getClass());
-        }
 
         try
         {
             mBeanServer.registerMBean(mbean, name);
-        } catch (Exception ignored) {}
+        }
+        catch (Exception ignored)
+        {
+        }
     }
 
     private void registerAlias(MetricName existingName, MetricName aliasName)

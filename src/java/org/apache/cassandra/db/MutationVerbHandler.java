@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.util.Iterator;
 
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -38,7 +37,7 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
         Tracing.trace("Payload application resulted in WriteTimeout, not replying");
     }
 
-    public void doVerb(MessageIn<Mutation> message, int id)  throws IOException
+    public void doVerb(MessageIn<Mutation> message, int id)
     {
         // Check if there were any forwarding headers in this message
         InetAddressAndPort from = (InetAddressAndPort)message.parameters.get(ParameterType.FORWARD_FROM);
@@ -69,7 +68,7 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
         }
     }
 
-    private static void forwardToLocalNodes(Mutation mutation, MessagingService.Verb verb, ForwardToContainer forwardTo, InetAddressAndPort from) throws IOException
+    private static void forwardToLocalNodes(Mutation mutation, MessagingService.Verb verb, ForwardToContainer forwardTo, InetAddressAndPort from)
     {
         // tell the recipients who to send their ack to
         MessageOut<Mutation> message = new MessageOut<>(verb, mutation, Mutation.serializer).withParameter(ParameterType.FORWARD_FROM, from);

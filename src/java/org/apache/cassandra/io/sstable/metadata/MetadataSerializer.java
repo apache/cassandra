@@ -221,7 +221,8 @@ public class MetadataSerializer implements IMetadataSerializer
 
     public void mutateLevel(Descriptor descriptor, int newLevel) throws IOException
     {
-        logger.trace("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), newLevel);
+        if (logger.isTraceEnabled())
+            logger.trace("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), newLevel);
         Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
         StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
         // mutate level
@@ -229,14 +230,15 @@ public class MetadataSerializer implements IMetadataSerializer
         rewriteSSTableMetadata(descriptor, currentComponents);
     }
 
-    public void mutateRepaired(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair) throws IOException
+    public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException
     {
-        logger.trace("Mutating {} to repairedAt time {} and pendingRepair {}",
-                     descriptor.filenameFor(Component.STATS), newRepairedAt, newPendingRepair);
+        if (logger.isTraceEnabled())
+            logger.trace("Mutating {} to repairedAt time {} and pendingRepair {}",
+                         descriptor.filenameFor(Component.STATS), newRepairedAt, newPendingRepair);
         Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
         StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
         // mutate time & id
-        currentComponents.put(MetadataType.STATS, stats.mutateRepairedAt(newRepairedAt).mutatePendingRepair(newPendingRepair));
+        currentComponents.put(MetadataType.STATS, stats.mutateRepairedMetadata(newRepairedAt, newPendingRepair, isTransient));
         rewriteSSTableMetadata(descriptor, currentComponents);
     }
 

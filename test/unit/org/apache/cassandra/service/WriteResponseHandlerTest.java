@@ -20,12 +20,14 @@ package org.apache.cassandra.service;
 
 
 import java.net.InetAddress;
-import java.util.Collection;
-import java.util.List;
+import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.base.Predicates;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -38,9 +40,13 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -49,12 +55,26 @@ public class WriteResponseHandlerTest
 {
     static Keyspace ks;
     static ColumnFamilyStore cfs;
-    static List<InetAddressAndPort> targets;
+    static EndpointsForToken targets;
+    static EndpointsForToken pending;
+
+    private static Replica full(String name)
+    {
+        try
+        {
+            return ReplicaUtils.full(InetAddressAndPort.getByName(name));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new AssertionError(e);
+        }
+    }
 
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
         SchemaLoader.loadSchema();
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         // Register peers with expected DC for NetworkTopologyStrategy.
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();
@@ -77,17 +97,12 @@ public class WriteResponseHandlerTest
                     return "datacenter2";
             }
 
-            public List<InetAddressAndPort> getSortedListByProximity(InetAddressAndPort address, Collection<InetAddressAndPort> unsortedAddress)
+            public <C extends ReplicaCollection<? extends C>> C sortedByProximity(InetAddressAndPort address, C replicas)
             {
-                return null;
+                return replicas;
             }
 
-            public void sortByProximity(InetAddressAndPort address, List<InetAddressAndPort> addresses)
-            {
-
-            }
-
-            public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2)
+            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
                 return 0;
             }
@@ -97,7 +112,7 @@ public class WriteResponseHandlerTest
 
             }
 
-            public boolean isWorthMergingForRangeQuery(List<InetAddressAndPort> merged, List<InetAddressAndPort> l1, List<InetAddressAndPort> l2)
+            public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2)
             {
                 return false;
             }
@@ -106,8 +121,10 @@ public class WriteResponseHandlerTest
         SchemaLoader.createKeyspace("Foo", KeyspaceParams.nts("datacenter1", 3, "datacenter2", 3), SchemaLoader.standardCFMD("Foo", "Bar"));
         ks = Keyspace.open("Foo");
         cfs = ks.getColumnFamilyStore("Bar");
-        targets = ImmutableList.of(InetAddressAndPort.getByName("127.1.0.255"), InetAddressAndPort.getByName("127.1.0.254"), InetAddressAndPort.getByName("127.1.0.253"),
-                                   InetAddressAndPort.getByName("127.2.0.255"), InetAddressAndPort.getByName("127.2.0.254"), InetAddressAndPort.getByName("127.2.0.253"));
+        targets = EndpointsForToken.of(DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(0)),
+                                       full("127.1.0.255"), full("127.1.0.254"), full("127.1.0.253"),
+                                       full("127.2.0.255"), full("127.2.0.254"), full("127.2.0.253"));
+        pending = EndpointsForToken.empty(DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(0)));
     }
 
     @Before
@@ -197,7 +214,7 @@ public class WriteResponseHandlerTest
     @Test
     public void failedIdealCLIncrementsStat() throws Throwable
     {
-
+        ks.metric.idealCLWriteLatency.totalLatency.dec(ks.metric.idealCLWriteLatency.totalLatency.getCount());
         AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
 
         //Succeed in local DC
@@ -220,16 +237,12 @@ public class WriteResponseHandlerTest
 
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, long queryStartTime)
     {
-        return ks.getReplicationStrategy().getWriteResponseHandler(targets, ImmutableList.of(), cl, new Runnable() {
-            public void run()
-            {
-
-            }
-        }, WriteType.SIMPLE, queryStartTime, ideal);
+        return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, targets, pending, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
+                                                                   null, WriteType.SIMPLE, queryStartTime, ideal);
     }
 
     private static MessageIn createDummyMessage(int target)
     {
-        return MessageIn.create(targets.get(target), null, null,  null, 0, 0L);
+        return MessageIn.create(targets.get(target).endpoint(), null, null,  null, 0, 0L);
     }
 }

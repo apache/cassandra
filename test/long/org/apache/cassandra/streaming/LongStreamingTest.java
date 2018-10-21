@@ -29,18 +29,17 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.io.sstable.SSTableLoader;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
@@ -121,8 +120,8 @@ public class LongStreamingTest
             private String ks;
             public void init(String keyspace)
             {
-                for (Range<Token> range : StorageService.instance.getLocalRanges(KS))
-                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
+                for (Replica range : StorageService.instance.getLocalReplicas(KS))
+                    addRangeForEndpoint(range.range(), FBUtilities.getBroadcastAddressAndPort());
 
                 this.ks = keyspace;
             }
@@ -148,8 +147,8 @@ public class LongStreamingTest
             private String ks;
             public void init(String keyspace)
             {
-                for (Range<Token> range : StorageService.instance.getLocalRanges(KS))
-                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
+                for (Replica range : StorageService.instance.getLocalReplicas(KS))
+                    addRangeForEndpoint(range.range(), FBUtilities.getBroadcastAddressAndPort());
 
                 this.ks = keyspace;
             }

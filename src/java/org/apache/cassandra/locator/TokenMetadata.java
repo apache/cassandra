@@ -27,6 +27,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,6 +88,7 @@ public class TokenMetadata
     // (don't need to record Token here since it's still part of tokenToEndpointMap until it's done leaving)
     private final Set<InetAddressAndPort> leavingEndpoints = new HashSet<>();
     // this is a cache of the calculation from {tokenToEndpointMap, bootstrapTokens, leavingEndpoints}
+    // NOTE: this may contain ranges that conflict with the those implied by sortedTokens when a range is changing its transient status
     private final ConcurrentMap<String, PendingRangeMaps> pendingRanges = new ConcurrentHashMap<String, PendingRangeMaps>();
 
     // nodes which are migrating to the new tokens in the ring
@@ -733,24 +735,20 @@ public class TokenMetadata
         return sortedTokens;
     }
 
-    public Multimap<Range<Token>, InetAddressAndPort> getPendingRangesMM(String keyspaceName)
+    public EndpointsByRange getPendingRangesMM(String keyspaceName)
     {
-        Multimap<Range<Token>, InetAddressAndPort> map = HashMultimap.create();
+        EndpointsByRange.Builder byRange = new EndpointsByRange.Builder();
         PendingRangeMaps pendingRangeMaps = this.pendingRanges.get(keyspaceName);
 
         if (pendingRangeMaps != null)
         {
-            for (Map.Entry<Range<Token>, List<InetAddressAndPort>> entry : pendingRangeMaps)
+            for (Map.Entry<Range<Token>, EndpointsForRange.Builder> entry : pendingRangeMaps)
             {
-                Range<Token> range = entry.getKey();
-                for (InetAddressAndPort address : entry.getValue())
-                {
-                    map.put(range, address);
-                }
+                byRange.putAll(entry.getKey(), entry.getValue(), Conflict.ALL);
             }
         }
 
-        return map;
+        return byRange.build();
     }
 
     /** a mutable map may be returned but caller should not modify it */
@@ -759,17 +757,18 @@ public class TokenMetadata
         return this.pendingRanges.get(keyspaceName);
     }
 
-    public List<Range<Token>> getPendingRanges(String keyspaceName, InetAddressAndPort endpoint)
+    public RangesAtEndpoint getPendingRanges(String keyspaceName, InetAddressAndPort endpoint)
     {
-        List<Range<Token>> ranges = new ArrayList<>();
-        for (Map.Entry<Range<Token>, InetAddressAndPort> entry : getPendingRangesMM(keyspaceName).entries())
+        RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(endpoint);
+        for (Map.Entry<Range<Token>, Replica> entry : getPendingRangesMM(keyspaceName).flattenEntries())
         {
-            if (entry.getValue().equals(endpoint))
+            Replica replica = entry.getValue();
+            if (replica.endpoint().equals(endpoint))
             {
-                ranges.add(entry.getKey());
+                builder.add(replica);
             }
         }
-        return ranges;
+        return builder.build();
     }
 
      /**
@@ -800,6 +799,8 @@ public class TokenMetadata
         // avoid race between both branches - do not use a lock here as this will block any other unrelated operations!
         synchronized (pendingRanges)
         {
+            TokenMetadataDiagnostics.pendingRangeCalculationStarted(this, keyspaceName);
+
             if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty())
             {
                 if (logger.isTraceEnabled())
@@ -856,25 +857,27 @@ public class TokenMetadata
     {
         PendingRangeMaps newPendingRanges = new PendingRangeMaps();
 
-        Multimap<InetAddressAndPort, Range<Token>> addressRanges = strategy.getAddressRanges(metadata);
+        RangesByEndpoint addressRanges = strategy.getAddressReplicas(metadata);
 
         // Copy of metadata reflecting the situation after all leave operations are finished.
         TokenMetadata allLeftMetadata = removeEndpoints(metadata.cloneOnlyTokenMap(), leavingEndpoints);
 
         // get all ranges that will be affected by leaving nodes
-        Set<Range<Token>> affectedRanges = new HashSet<Range<Token>>();
+        Set<Range<Token>> removeAffectedRanges = new HashSet<>();
         for (InetAddressAndPort endpoint : leavingEndpoints)
-            affectedRanges.addAll(addressRanges.get(endpoint));
+            removeAffectedRanges.addAll(addressRanges.get(endpoint).ranges());
 
         // for each of those ranges, find what new nodes will be responsible for the range when
         // all leaving nodes are gone.
-        for (Range<Token> range : affectedRanges)
+        for (Range<Token> range : removeAffectedRanges)
         {
-            Set<InetAddressAndPort> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, metadata));
-            Set<InetAddressAndPort> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, allLeftMetadata));
-            for (InetAddressAndPort address : Sets.difference(newEndpoints, currentEndpoints))
+            EndpointsForRange currentReplicas = strategy.calculateNaturalReplicas(range.right, metadata);
+            EndpointsForRange newReplicas = strategy.calculateNaturalReplicas(range.right, allLeftMetadata);
+            for (Replica replica : newReplicas)
             {
-                newPendingRanges.addPendingRange(range, address);
+                if (currentReplicas.endpoints().contains(replica.endpoint()))
+                    continue;
+                newPendingRanges.addPendingRange(range, replica);
             }
         }
 
@@ -889,9 +892,9 @@ public class TokenMetadata
             Collection<Token> tokens = bootstrapAddresses.get(endpoint);
 
             allLeftMetadata.updateNormalTokens(tokens, endpoint);
-            for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+            for (Replica replica : strategy.getAddressReplicas(allLeftMetadata, endpoint))
             {
-                newPendingRanges.addPendingRange(range, endpoint);
+                newPendingRanges.addPendingRange(replica.range(), replica);
             }
             allLeftMetadata.removeEndpoint(endpoint);
         }
@@ -904,38 +907,43 @@ public class TokenMetadata
         for (Pair<Token, InetAddressAndPort> moving : movingEndpoints)
         {
             //Calculate all the ranges which will could be affected. This will include the ranges before and after the move.
-            Set<Range<Token>> moveAffectedRanges = new HashSet<>();
+            Set<Replica> moveAffectedReplicas = new HashSet<>();
             InetAddressAndPort endpoint = moving.right; // address of the moving node
             //Add ranges before the move
-            for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+            for (Replica replica : strategy.getAddressReplicas(allLeftMetadata, endpoint))
             {
-                moveAffectedRanges.add(range);
+                moveAffectedReplicas.add(replica);
             }
 
             allLeftMetadata.updateNormalToken(moving.left, endpoint);
             //Add ranges after the move
-            for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+            for (Replica replica : strategy.getAddressReplicas(allLeftMetadata, endpoint))
             {
-                moveAffectedRanges.add(range);
+                moveAffectedReplicas.add(replica);
             }
 
-            for(Range<Token> range : moveAffectedRanges)
+            for (Replica replica : moveAffectedReplicas)
             {
-                Set<InetAddressAndPort> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, metadata));
-                Set<InetAddressAndPort> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, allLeftMetadata));
+                Set<InetAddressAndPort> currentEndpoints = strategy.calculateNaturalReplicas(replica.range().right, metadata).endpoints();
+                Set<InetAddressAndPort> newEndpoints = strategy.calculateNaturalReplicas(replica.range().right, allLeftMetadata).endpoints();
                 Set<InetAddressAndPort> difference = Sets.difference(newEndpoints, currentEndpoints);
-                for(final InetAddressAndPort address : difference)
+                for (final InetAddressAndPort address : difference)
                 {
-                    Collection<Range<Token>> newRanges = strategy.getAddressRanges(allLeftMetadata).get(address);
-                    Collection<Range<Token>> oldRanges = strategy.getAddressRanges(metadata).get(address);
-                    //We want to get rid of any ranges which the node is currently getting.
-                    newRanges.removeAll(oldRanges);
+                    RangesAtEndpoint newReplicas = strategy.getAddressReplicas(allLeftMetadata, address);
+                    RangesAtEndpoint oldReplicas = strategy.getAddressReplicas(metadata, address);
 
-                    for(Range<Token> newRange : newRanges)
+                    // Filter out the things that are already replicated
+                    newReplicas = newReplicas.filter(r -> !oldReplicas.contains(r));
+                    for (Replica newReplica : newReplicas)
                     {
-                        for(Range<Token> pendingRange : newRange.subtractAll(oldRanges))
+                        // for correctness on write, we need to treat ranges that are becoming full differently
+                        // to those that are presently transient; however reads must continue to use the current view
+                        // for ranges that are becoming transient. We could choose to ignore them here, but it's probably
+                        // cleaner to ensure this is dealt with at point of use, where we can make a conscious decision
+                        // about which to use
+                        for (Replica pendingReplica : newReplica.subtractSameReplication(oldReplicas))
                         {
-                            newPendingRanges.addPendingRange(pendingRange, address);
+                            newPendingRanges.addPendingRange(pendingReplica.range(), pendingReplica);
                         }
                     }
                 }
@@ -1204,11 +1212,11 @@ public class TokenMetadata
         return sb.toString();
     }
 
-    public Collection<InetAddressAndPort> pendingEndpointsFor(Token token, String keyspaceName)
+    public EndpointsForToken pendingEndpointsForToken(Token token, String keyspaceName)
     {
         PendingRangeMaps pendingRangeMaps = this.pendingRanges.get(keyspaceName);
         if (pendingRangeMaps == null)
-            return Collections.emptyList();
+            return EndpointsForToken.empty(token);
 
         return pendingRangeMaps.pendingEndpointsFor(token);
     }
@@ -1216,9 +1224,11 @@ public class TokenMetadata
     /**
      * @deprecated retained for benefit of old tests
      */
-    public Collection<InetAddressAndPort> getWriteEndpoints(Token token, String keyspaceName, Collection<InetAddressAndPort> naturalEndpoints)
+    @Deprecated
+    public EndpointsForToken getWriteEndpoints(Token token, String keyspaceName, EndpointsForToken natural)
     {
-        return ImmutableList.copyOf(Iterables.concat(naturalEndpoints, pendingEndpointsFor(token, keyspaceName)));
+        EndpointsForToken pending = pendingEndpointsForToken(token, keyspaceName);
+        return ReplicaLayout.forTokenWrite(natural, pending).all();
     }
 
     /** @return an endpoint to token multimap representation of tokenToEndpointMap (a copy) */

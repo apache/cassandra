@@ -79,7 +79,7 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
     {
         super(corePoolSize, maxPoolSize, keepAliveTime, unit, workQueue, threadFactory);
         super.prestartAllCoreThreads();
-        metrics = new ThreadPoolMetrics(this, jmxPath, threadFactory.id);
+        metrics = new ThreadPoolMetrics(this, jmxPath, threadFactory.id).register();
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         mbeanName = "org.apache.cassandra." + jmxPath + ":type=" + threadFactory.id;

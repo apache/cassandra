@@ -19,7 +19,10 @@
 package org.apache.cassandra.utils;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.Inet6Address;
@@ -44,7 +47,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.jmx.remote.security.JMXPluggableAuthenticator;
 import org.apache.cassandra.auth.jmx.AuthenticationProxy;
 
 public class JMXServerUtils
@@ -248,18 +250,34 @@ public class JMXServerUtils
 
     private static void logJmxSslConfig(SslRMIServerSocketFactory serverFactory)
     {
-        logger.debug("JMX SSL configuration. { protocols: [{}], cipher_suites: [{}], require_client_auth: {} }",
-                     serverFactory.getEnabledProtocols() == null
-                     ? "'JVM defaults'"
-                     : Arrays.stream(serverFactory.getEnabledProtocols()).collect(Collectors.joining("','", "'", "'")),
-                     serverFactory.getEnabledCipherSuites() == null
-                     ? "'JVM defaults'"
-                     : Arrays.stream(serverFactory.getEnabledCipherSuites()).collect(Collectors.joining("','", "'", "'")),
-                     serverFactory.getNeedClientAuth());
+        if (logger.isDebugEnabled())
+            logger.debug("JMX SSL configuration. { protocols: [{}], cipher_suites: [{}], require_client_auth: {} }",
+                         serverFactory.getEnabledProtocols() == null
+                         ? "'JVM defaults'"
+                         : Arrays.stream(serverFactory.getEnabledProtocols()).collect(Collectors.joining("','", "'", "'")),
+                         serverFactory.getEnabledCipherSuites() == null
+                         ? "'JVM defaults'"
+                         : Arrays.stream(serverFactory.getEnabledCipherSuites()).collect(Collectors.joining("','", "'", "'")),
+                         serverFactory.getNeedClientAuth());
     }
 
     private static class JMXPluggableAuthenticatorWrapper implements JMXAuthenticator
     {
+        private static final MethodHandle ctorHandle;
+        static
+        {
+            try
+            {
+                Class c = Class.forName("com.sun.jmx.remote.security.JMXPluggableAuthenticator");
+                Constructor ctor = c.getDeclaredConstructor(Map.class);
+                ctorHandle = MethodHandles.lookup().unreflectConstructor(ctor);
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
         final Map<?, ?> env;
         private JMXPluggableAuthenticatorWrapper(Map<?, ?> env)
         {
@@ -268,8 +286,15 @@ public class JMXServerUtils
 
         public Subject authenticate(Object credentials)
         {
-            JMXPluggableAuthenticator authenticator = new JMXPluggableAuthenticator(env);
-            return authenticator.authenticate(credentials);
+            try
+            {
+                JMXAuthenticator authenticator = (JMXAuthenticator) ctorHandle.invoke(env);
+                return authenticator.authenticate(credentials);
+            }
+            catch (Throwable e)
+            {
+                throw new RuntimeException(e);
+            }
         }
     }
 }

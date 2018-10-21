@@ -38,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
+import org.apache.cassandra.audit.FullQueryLoggerOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -59,6 +60,7 @@ import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.net.BackPressureStrategy;
 import org.apache.cassandra.net.RateBasedBackPressure;
@@ -73,6 +75,12 @@ import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
 
 public class DatabaseDescriptor
 {
+    static
+    {
+        // This static block covers most usages
+        FBUtilities.preventIllegalAccessWarnings();
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
 
     /**
@@ -116,7 +124,7 @@ public class DatabaseDescriptor
     private static long indexSummaryCapacityInMB;
 
     private static String localDC;
-    private static Comparator<InetAddressAndPort> localComparator;
+    private static Comparator<Replica> localComparator;
     private static EncryptionContext encryptionContext;
     private static boolean hasLoggedConfig;
 
@@ -708,6 +716,15 @@ public class DatabaseDescriptor
                                             "server_encryption_options.internode_encryption = " + conf.server_encryption_options.internode_encryption, false);
         }
 
+        if (conf.stream_entire_sstables)
+        {
+            if (conf.server_encryption_options.enabled || conf.server_encryption_options.optional)
+            {
+                logger.warn("Internode encryption enabled. Disabling zero copy SSTable transfers for streaming.");
+                conf.stream_entire_sstables = false;
+            }
+        }
+
         if (conf.max_value_size_in_mb <= 0)
             throw new ConfigurationException("max_value_size_in_mb must be positive", false);
         else if (conf.max_value_size_in_mb >= 2048)
@@ -975,19 +992,15 @@ public class DatabaseDescriptor
         snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
         EndpointSnitchInfo.create();
 
-        localDC = snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort());
-        localComparator = new Comparator<InetAddressAndPort>()
-        {
-            public int compare(InetAddressAndPort endpoint1, InetAddressAndPort endpoint2)
-            {
-                boolean local1 = localDC.equals(snitch.getDatacenter(endpoint1));
-                boolean local2 = localDC.equals(snitch.getDatacenter(endpoint2));
-                if (local1 && !local2)
-                    return -1;
-                if (local2 && !local1)
-                    return 1;
-                return 0;
-            }
+        localDC = snitch.getLocalDatacenter();
+        localComparator = (replica1, replica2) -> {
+            boolean local1 = localDC.equals(snitch.getDatacenter(replica1));
+            boolean local2 = localDC.equals(snitch.getDatacenter(replica2));
+            if (local1 && !local2)
+                return -1;
+            if (local2 && !local1)
+                return 1;
+            return 0;
         };
     }
 
@@ -1851,6 +1864,26 @@ public class DatabaseDescriptor
         conf.native_transport_max_concurrent_connections_per_ip = native_transport_max_concurrent_connections_per_ip;
     }
 
+    public static boolean useNativeTransportLegacyFlusher()
+    {
+        return conf.native_transport_flush_in_batches_legacy;
+    }
+
+    public static boolean getNativeTransportAllowOlderProtocols()
+    {
+        return conf.native_transport_allow_older_protocols;
+    }
+
+    public static void setNativeTransportAllowOlderProtocols(boolean isEnabled)
+    {
+        conf.native_transport_allow_older_protocols = isEnabled;
+    }
+
+    public static int getNativeTransportFrameBlockSize()
+    {
+        return conf.native_transport_frame_block_size_in_kb * 1024;
+    }
+
     public static double getCommitLogSyncGroupWindow()
     {
         return conf.commitlog_sync_group_window_in_ms;
@@ -1864,6 +1897,14 @@ public class DatabaseDescriptor
     public static int getCommitLogSyncPeriod()
     {
         return conf.commitlog_sync_period_in_ms;
+    }
+
+    public static long getPeriodicCommitLogSyncBlock()
+    {
+        Integer blockMillis = conf.periodic_commitlog_sync_lag_block_in_ms;
+        return blockMillis == null
+               ? (long)(getCommitLogSyncPeriod() * 1.5)
+               : blockMillis;
     }
 
     public static void setCommitLogSyncPeriod(int periodMillis)
@@ -2260,12 +2301,17 @@ public class DatabaseDescriptor
         return conf.streaming_connections_per_host;
     }
 
+    public static boolean streamEntireSSTables()
+    {
+        return conf.stream_entire_sstables;
+    }
+
     public static String getLocalDataCenter()
     {
         return localDC;
     }
 
-    public static Comparator<InetAddressAndPort> getLocalComparator()
+    public static Comparator<Replica> getLocalComparator()
     {
         return localComparator;
     }
@@ -2416,6 +2462,16 @@ public class DatabaseDescriptor
         return conf.enable_materialized_views;
     }
 
+    public static boolean isTransientReplicationEnabled()
+    {
+        return conf.enable_transient_replication;
+    }
+
+    public static void setTransientReplicationEnabledUnsafe(boolean enabled)
+    {
+        conf.enable_transient_replication = enabled;
+    }
+
     public static long getUserDefinedFunctionFailTimeout()
     {
         return conf.user_defined_function_fail_timeout;
@@ -2508,6 +2564,16 @@ public class DatabaseDescriptor
         return conf.back_pressure_enabled;
     }
 
+    public static boolean diagnosticEventsEnabled()
+    {
+        return conf.diagnostic_events_enabled;
+    }
+
+    public static void setDiagnosticEventsEnabled(boolean enabled)
+    {
+        conf.diagnostic_events_enabled = enabled;
+    }
+
     @VisibleForTesting
     public static void setBackPressureStrategy(BackPressureStrategy strategy)
     {
@@ -2539,9 +2605,9 @@ public class DatabaseDescriptor
         return conf.repair_command_pool_full_strategy;
     }
 
-    public static String getFullQueryLogPath()
+    public static FullQueryLoggerOptions getFullQueryLogOptions()
     {
-        return  conf.full_query_log_dir;
+        return  conf.full_query_logging_options;
     }
 
     public static int getBlockForPeersPercentage()
@@ -2595,5 +2661,45 @@ public class DatabaseDescriptor
     public static void setAuditLoggingOptions(AuditLogOptions auditLoggingOptions)
     {
         conf.audit_logging_options = auditLoggingOptions;
+    }
+
+    public static Config.CorruptedTombstoneStrategy getCorruptedTombstoneStrategy()
+    {
+        return conf.corrupted_tombstone_strategy;
+    }
+
+    public static void setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy strategy)
+    {
+        conf.corrupted_tombstone_strategy = strategy;
+    }
+
+    public static boolean getRepairedDataTrackingForRangeReadsEnabled()
+    {
+        return conf.repaired_data_tracking_for_range_reads_enabled;
+    }
+
+    public static void setRepairedDataTrackingForRangeReadsEnabled(boolean enabled)
+    {
+        conf.repaired_data_tracking_for_range_reads_enabled = enabled;
+    }
+
+    public static boolean getRepairedDataTrackingForPartitionReadsEnabled()
+    {
+        return conf.repaired_data_tracking_for_partition_reads_enabled;
+    }
+
+    public static void setRepairedDataTrackingForPartitionReadsEnabled(boolean enabled)
+    {
+        conf.repaired_data_tracking_for_partition_reads_enabled = enabled;
+    }
+
+    public static boolean reportUnconfirmedRepairedDataMismatches()
+    {
+        return conf.report_unconfirmed_repaired_data_mismatches;
+    }
+
+    public static void reportUnconfirmedRepairedDataMismatches(boolean enabled)
+    {
+        conf.report_unconfirmed_repaired_data_mismatches = enabled;
     }
 }

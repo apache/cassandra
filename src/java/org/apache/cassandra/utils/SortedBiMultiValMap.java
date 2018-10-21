@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
-import java.util.Comparator;
+import java.util.Collection;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -36,40 +36,15 @@ public class SortedBiMultiValMap<K, V> extends BiMultiValMap<K, V>
         return new SortedBiMultiValMap<K, V>(new TreeMap<K,V>(), TreeMultimap.<V, K>create());
     }
 
-    public static <K, V> SortedBiMultiValMap<K, V> create(Comparator<K> keyComparator, Comparator<V> valueComparator)
-    {
-        if (keyComparator == null)
-            keyComparator = defaultComparator();
-        if (valueComparator == null)
-            valueComparator = defaultComparator();
-        return new SortedBiMultiValMap<K, V>(new TreeMap<K,V>(keyComparator), TreeMultimap.<V, K>create(valueComparator, keyComparator));
-    }
-
     public static <K extends Comparable<K>, V extends Comparable<V>> SortedBiMultiValMap<K, V> create(BiMultiValMap<K, V> map)
     {
         SortedBiMultiValMap<K, V> newMap = SortedBiMultiValMap.<K,V>create();
-        newMap.forwardMap.putAll(map);
-        newMap.reverseMap.putAll(map.inverse());
+        newMap.forwardMap.putAll(map.forwardMap);
+        // Put each individual TreeSet instead of Multimap#putAll(Multimap) to get linear complexity
+        // See CASSANDRA-14660
+        for (Entry<V, Collection<K>> entry : map.inverse().asMap().entrySet())
+            newMap.reverseMap.putAll(entry.getKey(), entry.getValue());
         return newMap;
     }
 
-    public static <K, V> SortedBiMultiValMap<K, V> create(BiMultiValMap<K, V> map, Comparator<K> keyComparator, Comparator<V> valueComparator)
-    {
-        SortedBiMultiValMap<K, V> newMap = create(keyComparator, valueComparator);
-        newMap.forwardMap.putAll(map);
-        newMap.reverseMap.putAll(map.inverse());
-        return newMap;
-    }
-
-    private static <T> Comparator<T> defaultComparator()
-    {
-        return new Comparator<T>()
-        {
-            @SuppressWarnings("unchecked")
-            public int compare(T o1, T o2)
-            {
-                return ((Comparable<T>) o1).compareTo(o2);
-            }
-        };
-    }
 }

@@ -18,32 +18,66 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
 
-public class NoopReadRepair implements ReadRepair
+/**
+ * Bypasses the read repair path for short read protection and testing
+ */
+public class NoopReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+        implements ReadRepair<E, P>
 {
     public static final NoopReadRepair instance = new NoopReadRepair();
 
     private NoopReadRepair() {}
 
-    public UnfilteredPartitionIterators.MergeListener getMergeListener(InetAddressAndPort[] endpoints)
+    @Override
+    public UnfilteredPartitionIterators.MergeListener getMergeListener(P replicas)
     {
         return UnfilteredPartitionIterators.MergeListener.NOOP;
     }
 
-    public void startRepair(DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints, List<InetAddressAndPort> contactedEndpoints, Consumer<PartitionIterator> resultConsumer)
+    @Override
+    public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
     {
         resultConsumer.accept(digestResolver.getData());
     }
 
-    public void awaitRepair() throws ReadTimeoutException
+    public void awaitReads() throws ReadTimeoutException
     {
+    }
+
+    @Override
+    public void maybeSendAdditionalReads()
+    {
+
+    }
+
+    @Override
+    public void maybeSendAdditionalWrites()
+    {
+
+    }
+
+    @Override
+    public void awaitWrites()
+    {
+
+    }
+
+    @Override
+    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, P replicaPlan)
+    {
+
     }
 }

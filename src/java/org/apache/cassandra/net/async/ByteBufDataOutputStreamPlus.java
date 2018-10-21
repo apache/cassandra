@@ -20,11 +20,14 @@ package org.apache.cassandra.net.async;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -35,6 +38,7 @@ import io.netty.util.concurrent.Future;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import org.apache.cassandra.streaming.StreamSession;
 
 /**
@@ -49,6 +53,7 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
     private final StreamSession session;
     private final Channel channel;
     private final int bufferSize;
+    private final Logger logger = LoggerFactory.getLogger(ByteBufDataOutputStreamPlus.class);
 
     /**
      * Tracks how many bytes we've written to the netty channel. This more or less follows the channel's
@@ -70,7 +75,6 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
         this.channel = channel;
         this.currentBuf = buffer;
         this.bufferSize = bufferSize;
-
         channelRateLimiter = new Semaphore(channel.config().getWriteBufferHighWaterMark(), true);
     }
 
@@ -114,8 +118,9 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
         doFlush(buffer.position());
 
         int byteCount = buf.readableBytes();
+
         if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, byteCount, 5, TimeUnit.MINUTES))
-            throw new IOException("outbound channel was not writable");
+            throw new IOException(String.format("outbound channel was not writable. Failed to acquire sufficient permits %d", byteCount));
 
         // the (possibly naive) assumption that we should always flush after each incoming buf
         ChannelFuture channelFuture = channel.writeAndFlush(buf);
@@ -135,6 +140,53 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
         return channelFuture;
     }
 
+    /**
+     * Writes all data in file channel to stream BUFFER_SIZE at a time.
+     * Closes file channel when done
+     *
+     * @param f
+     * @return number of bytes transferred
+     * @throws IOException
+     */
+    public long writeToChannel(FileChannel f, StreamRateLimiter limiter) throws IOException
+    {
+        final long length = f.size();
+        long bytesTransferred = 0;
+
+        try
+        {
+            while (bytesTransferred < length)
+            {
+                int toRead = (int) Math.min(bufferSize, length - bytesTransferred);
+                NonClosingDefaultFileRegion fileRegion = new NonClosingDefaultFileRegion(f, bytesTransferred, toRead);
+
+                if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, toRead, 5, TimeUnit.MINUTES))
+                    throw new IOException(String.format("outbound channel was not writable. Failed to acquire sufficient permits %d", toRead));
+
+                limiter.acquire(toRead);
+
+                bytesTransferred += toRead;
+                final boolean shouldClose = (bytesTransferred == length); // this is the last buffer, can safely close channel
+
+                channel.writeAndFlush(fileRegion).addListener(future -> {
+                    handleBuffer(future, toRead);
+
+                    if ((shouldClose || !future.isSuccess()) && f.isOpen())
+                        f.close();
+                });
+                logger.trace("{} of {} (toRead {} cs {})", bytesTransferred, length, toRead, f.isOpen());
+            }
+
+            return bytesTransferred;
+        } catch (Exception e)
+        {
+            if (f.isOpen())
+                f.close();
+
+            throw e;
+        }
+    }
+
     @Override
     protected void doFlush(int count) throws IOException
     {
@@ -145,7 +197,7 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
             currentBuf.writerIndex(byteCount);
 
             if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, byteCount, 2, TimeUnit.MINUTES))
-                throw new IOException("outbound channel was not writable");
+                throw new IOException(String.format("outbound channel was not writable. Failed to acquire sufficient permits %d", byteCount));
 
             channel.writeAndFlush(currentBuf).addListener(future -> handleBuffer(future, byteCount));
             currentBuf = channel.alloc().directBuffer(bufferSize, bufferSize);
@@ -161,7 +213,7 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
     private void handleBuffer(Future<? super Void> future, int bytesWritten)
     {
         channelRateLimiter.release(bytesWritten);
-
+        logger.trace("bytesWritten {} {} because {}", bytesWritten, (future.isSuccess() == true) ? "Succeeded" : "Failed", future.cause());
         if (!future.isSuccess() && channel.isOpen())
             session.onError(future.cause());
     }

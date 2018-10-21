@@ -50,7 +50,7 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.statements.IndexTarget;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -899,7 +899,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                         {
                             Iterator<RangeTombstone> iter = deletionInfo.rangeIterator(false);
                             while (iter.hasNext())
-                                indexers.forEach(indexer -> indexer.rangeTombstone(iter.next()));
+                            {
+                                RangeTombstone rt = iter.next();
+                                indexers.forEach(indexer -> indexer.rangeTombstone(rt));
+                            }
                         }
 
                         indexers.forEach(Index.Indexer::finish);

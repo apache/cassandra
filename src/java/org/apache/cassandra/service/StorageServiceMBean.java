@@ -33,7 +33,6 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.metrics.TableMetrics.Sampler;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -217,6 +216,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public List<String> getNaturalEndpointsWithPort(String keyspaceName, String cf, String key);
     @Deprecated public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key);
     public List<String> getNaturalEndpointsWithPort(String keysapceName, ByteBuffer key);
+
+    public List<String> getReplicas(String keyspaceName, String cf, String key);
 
     /**
      * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead.
@@ -507,6 +508,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void stopNativeTransport();
     public void startNativeTransport();
     public boolean isNativeTransportRunning();
+    public void enableNativeTransportOldProtocolVersions();
+    public void disableNativeTransportOldProtocolVersions();
 
     // allows a node that have been started without joining the ring to join it
     public void joinRing() throws IOException;
@@ -628,7 +631,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void setTraceProbability(double probability);
 
-    public Map<String, Map<String, CompositeData>> samplePartitions(long duration, int capacity, int count, List<String> samplers) throws OpenDataException;
+    public Map<String, List<CompositeData>> samplePartitions(int duration, int capacity, int count, List<String> samplers) throws OpenDataException;
 
     /**
      * Returns the configured tracing probability.
@@ -683,4 +686,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void disableAuditLog();
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories, String includedUsers, String excludedUsers) throws ConfigurationException;
     public boolean isAuditLogEnabled();
+    public String getCorruptedTombstoneStrategy();
+    public void setCorruptedTombstoneStrategy(String strategy);
 }

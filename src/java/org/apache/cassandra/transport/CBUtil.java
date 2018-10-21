@@ -580,4 +580,10 @@ public abstract class CBUtil
         return bytes;
     }
 
+    public static int readUnsignedShort(ByteBuf buf)
+    {
+        int ch1 = buf.readByte() & 0xFF;
+        int ch2 = buf.readByte() & 0xFF;
+        return (ch1 << 8) + (ch2);
+    }
 }

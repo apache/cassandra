@@ -9,6 +9,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -19,6 +21,8 @@ import org.apache.cassandra.db.rows.AbstractCell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TTLTest extends CQLTester
@@ -31,6 +35,18 @@ public class TTLTest extends CQLTester
     public static final String SIMPLE_CLUSTERING = "table2";
     public static final String COMPLEX_NOCLUSTERING = "table3";
     public static final String COMPLEX_CLUSTERING = "table4";
+    private Config.CorruptedTombstoneStrategy corruptTombstoneStrategy;
+    @Before
+    public void before()
+    {
+        corruptTombstoneStrategy = DatabaseDescriptor.getCorruptedTombstoneStrategy();
+    }
+
+    @After
+    public void after()
+    {
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(corruptTombstoneStrategy);
+    }
 
     @Test
     public void testTTLPerRequestLimit() throws Throwable
@@ -167,9 +183,12 @@ public class TTLTest extends CQLTester
     @Test
     public void testRecoverOverflowedExpirationWithScrub() throws Throwable
     {
+        // this tests writes corrupt tombstones on purpose, disable the strategy:
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.disabled);
         baseTestRecoverOverflowedExpiration(false, false);
         baseTestRecoverOverflowedExpiration(true, false);
         baseTestRecoverOverflowedExpiration(true, true);
+        // we reset the corrupted ts strategy after each test in @After above
     }
 
     public void testCapExpirationDateOverflowPolicy(ExpirationDateOverflowHandling.ExpirationDateOverflowPolicy policy) throws Throwable

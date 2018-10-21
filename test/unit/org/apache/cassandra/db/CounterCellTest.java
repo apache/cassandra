@@ -27,14 +27,16 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Cells;
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.serializers.AsciiSerializer;
 import org.apache.cassandra.utils.*;
 
 import static org.junit.Assert.*;
@@ -134,43 +136,43 @@ public class CounterCellTest
         // both deleted, diff deletion time, same ts
         left = createDeleted(cfs, col, 2, 5);
         right = createDeleted(cfs, col, 2, 10);
-        assert Cells.reconcile(left, right, 10) == right;
+        assert Cells.reconcile(left, right) == right;
 
         // diff ts
         right = createLegacyCounterCell(cfs, col, 1, 10);
-        assert Cells.reconcile(left, right, 10) == left;
+        assert Cells.reconcile(left, right) == left;
 
         // < tombstone
         left = createDeleted(cfs, col, 6, 6);
         right = createLegacyCounterCell(cfs, col, 1, 5);
-        assert Cells.reconcile(left, right, 10) == left;
+        assert Cells.reconcile(left, right) == left;
 
         // > tombstone
         left = createDeleted(cfs, col, 1, 1);
         right = createLegacyCounterCell(cfs, col, 1, 5);
-        assert Cells.reconcile(left, right, 10) == left;
+        assert Cells.reconcile(left, right) == left;
 
         // == tombstone
         left = createDeleted(cfs, col, 8, 8);
         right = createLegacyCounterCell(cfs, col, 1, 8);
-        assert Cells.reconcile(left, right, 10) == left;
+        assert Cells.reconcile(left, right) == left;
 
         // live + live
         left = createLegacyCounterCell(cfs, col, 1, 2);
         right = createLegacyCounterCell(cfs, col, 3, 5);
-        Cell reconciled = Cells.reconcile(left, right, 10);
+        Cell reconciled = Cells.reconcile(left, right);
         assertEquals(CounterContext.instance().total(reconciled.value()), 4);
         assertEquals(reconciled.timestamp(), 5L);
 
         // Add, don't change TS
         Cell addTen = createLegacyCounterCell(cfs, col, 10, 4);
-        reconciled = Cells.reconcile(reconciled, addTen, 10);
+        reconciled = Cells.reconcile(reconciled, addTen);
         assertEquals(CounterContext.instance().total(reconciled.value()), 14);
         assertEquals(reconciled.timestamp(), 5L);
 
         // Add w/new TS
         Cell addThree = createLegacyCounterCell(cfs, col, 3, 7);
-        reconciled = Cells.reconcile(reconciled, addThree, 10);
+        reconciled = Cells.reconcile(reconciled, addThree);
         assertEquals(CounterContext.instance().total(reconciled.value()), 17);
         assertEquals(reconciled.timestamp(), 7L);
 
@@ -178,7 +180,7 @@ public class CounterCellTest
         assert reconciled.localDeletionTime() == Integer.MAX_VALUE;
 
         Cell deleted = createDeleted(cfs, col, 8, 8);
-        reconciled = Cells.reconcile(reconciled, deleted, 10);
+        reconciled = Cells.reconcile(reconciled, deleted);
         assert reconciled.localDeletionTime() == 8;
     }
 
@@ -280,4 +282,24 @@ public class CounterCellTest
 
         Assert.assertEquals(hasher1.hash(), hasher2.hash());
     }
+
+    @Test
+    public void testDigestWithEmptyCells() throws Exception
+    {
+        // For DB-1881
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
+
+        ColumnMetadata emptyColDef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val2"));
+        BufferCell emptyCell = BufferCell.live(emptyColDef, 0, ByteBuffer.allocate(0));
+
+        Row.Builder builder = BTreeRow.unsortedBuilder();
+        builder.newRow(Clustering.make(AsciiSerializer.instance.serialize("test")));
+        builder.addCell(emptyCell);
+        Row row = builder.build();
+
+        Hasher hasher = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+        row.digest(hasher);
+        assertNotNull(hasher.hash());
+    }
+
 }

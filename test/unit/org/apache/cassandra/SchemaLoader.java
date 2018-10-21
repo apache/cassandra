@@ -27,28 +27,28 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
-import org.apache.cassandra.cql3.statements.CreateTableStatement;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.index.sasi.SASIIndex;
-import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
-import org.junit.After;
-import org.junit.BeforeClass;
-
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.statements.IndexTarget;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.index.sasi.SASIIndex;
+import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import org.junit.After;
+import org.junit.BeforeClass;
 
 public class SchemaLoader
 {
@@ -102,6 +102,8 @@ public class SchemaLoader
         String ks_nocommit = testName + "NoCommitlogSpace";
         String ks_prsi = testName + "PerRowSecondaryIndex";
         String ks_cql = testName + "cql_keyspace";
+        String ks_cql_replicated = testName + "cql_keyspace_replicated";
+        String ks_with_transient = testName + "ks_with_transient";
 
         AbstractType bytes = BytesType.instance;
 
@@ -126,7 +128,7 @@ public class SchemaLoader
                 KeyspaceParams.simple(1),
                 Tables.of(
                 // Column Families
-                standardCFMD(ks1, "Standard1").compaction(CompactionParams.scts(compactionOptions)).build(),
+                standardCFMD(ks1, "Standard1").compaction(CompactionParams.stcs(compactionOptions)).build(),
                 standardCFMD(ks1, "Standard2").build(),
                 standardCFMD(ks1, "Standard3").build(),
                 standardCFMD(ks1, "Standard4").build(),
@@ -218,16 +220,16 @@ public class SchemaLoader
         schema.add(KeyspaceMetadata.create(ks_nocommit, KeyspaceParams.simpleTransient(1), Tables.of(
                 standardCFMD(ks_nocommit, "Standard1").build())));
 
+        String simpleTable = "CREATE TABLE table1 ("
+                             + "k int PRIMARY KEY,"
+                             + "v1 text,"
+                             + "v2 int"
+                             + ")";
         // CQLKeyspace
         schema.add(KeyspaceMetadata.create(ks_cql, KeyspaceParams.simple(1), Tables.of(
 
         // Column Families
-        CreateTableStatement.parse("CREATE TABLE table1 ("
-                                   + "k int PRIMARY KEY,"
-                                   + "v1 text,"
-                                   + "v2 int"
-                                   + ")", ks_cql)
-                            .build(),
+        CreateTableStatement.parse(simpleTable, ks_cql).build(),
 
         CreateTableStatement.parse("CREATE TABLE table2 ("
                                    + "k text,"
@@ -236,6 +238,12 @@ public class SchemaLoader
                                    + "PRIMARY KEY (k, c))", ks_cql)
                             .build()
         )));
+
+        schema.add(KeyspaceMetadata.create(ks_cql_replicated, KeyspaceParams.simple(3),
+                                           Tables.of(CreateTableStatement.parse(simpleTable, ks_cql_replicated).build())));
+
+        schema.add(KeyspaceMetadata.create(ks_with_transient, KeyspaceParams.simple("3/1"),
+                                           Tables.of(CreateTableStatement.parse(simpleTable, ks_with_transient).build())));
 
         if (DatabaseDescriptor.getPartitioner() instanceof Murmur3Partitioner)
         {

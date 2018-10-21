@@ -50,6 +50,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
 
@@ -70,6 +71,44 @@ public class VIntCoding
             return firstByte;
 
         int size = numberOfExtraBytesToRead(firstByte);
+        long retval = firstByte & firstByteValueMask(size);
+        for (int ii = 0; ii < size; ii++)
+        {
+            byte b = input.readByte();
+            retval <<= 8;
+            retval |= b & 0xff;
+        }
+
+        return retval;
+    }
+
+    /**
+     * Note this method is the same as {@link #readUnsignedVInt(DataInput)},
+     * except that we do *not* block if there are not enough bytes in the buffer
+     * to reconstruct the value.
+     *
+     * @return -1 if there are not enough bytes in the input to read the value; else, the vint unsigned value.
+     */
+    public static long readUnsignedVInt(ByteBuf input)
+    {
+        if (!input.isReadable())
+            return -1;
+
+        input.markReaderIndex();
+        int firstByte = input.readByte();
+
+        //Bail out early if this is one byte, necessary or it fails later
+        if (firstByte >= 0)
+            return firstByte;
+
+        int size = numberOfExtraBytesToRead(firstByte);
+
+        if (input.readableBytes() < size)
+        {
+            input.resetReaderIndex();
+            return -1;
+        }
+
         long retval = firstByte & firstByteValueMask(size);
         for (int ii = 0; ii < size; ii++)
         {

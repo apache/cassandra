@@ -1,0 +1,28 @@
+--- a/conf/cassandra.yaml
++++ b/conf/cassandra.yaml
+@@ -197,13 +197,13 @@
+ # directories are specified, Cassandra will spread data evenly across 
+ # them by partitioning the token ranges.
+ # If not set, the default directory is $CASSANDRA_HOME/data/data.
+-# data_file_directories:
+-#     - /var/lib/cassandra/data
++data_file_directories:
++    - /var/lib/cassandra/data
+ 
+ # commit log.  when running on magnetic HDD, this should be a
+ # separate spindle than the data directories.
+ # If not set, the default directory is $CASSANDRA_HOME/data/commitlog.
+-# commitlog_directory: /var/lib/cassandra/commitlog
++commitlog_directory: /var/lib/cassandra/commitlog
+ 
+ # Enable / disable CDC functionality on a per-node basis. This modifies the logic used
+ # for write path allocation rejection (standard: never reject. cdc: reject Mutation
+@@ -366,7 +366,7 @@
+ 
+ # saved caches
+ # If not set, the default directory is $CASSANDRA_HOME/data/saved_caches.
+-# saved_caches_directory: /var/lib/cassandra/saved_caches
++saved_caches_directory: /var/lib/cassandra/saved_caches
+ 
+ # commitlog_sync may be either "periodic", "group", or "batch." 
+ # 

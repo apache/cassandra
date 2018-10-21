@@ -22,6 +22,7 @@ import java.util.Set;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -102,6 +103,8 @@ public class KeyspaceMetrics
     public final Counter speculativeFailedRetries;
     /** Needed to speculate, but didn't have enough replicas **/
     public final Counter speculativeInsufficientReplicas;
+    /** Needed to write to a transient replica to satisfy quorum **/
+    public final Counter additionalWrites;
     /** Number of started repairs as coordinator on this keyspace */
     public final Counter repairsStarted;
     /** Number of completed repairs as coordinator on this keyspace */
@@ -120,6 +123,24 @@ public class KeyspaceMetrics
     public final Histogram bytesValidated;
     /** histogram over the number of partitions we have validated */
     public final Histogram partitionsValidated;
+
+    /*
+     * Metrics for inconsistencies detected between repaired data sets across replicas. These
+     * are tracked on the coordinator.
+     */
+
+    /**
+     * Incremented where an inconsistency is detected and there are no pending repair sessions affecting
+     * the data being read, indicating a genuine mismatch between replicas' repaired data sets.
+     */
+    public final Meter confirmedRepairedInconsistencies;
+    /**
+     * Incremented where an inconsistency is detected, but there are pending & uncommitted repair sessions
+     * in play on at least one replica. This may indicate a false positive as the inconsistency could be due to
+     * replicas marking the repair session as committed at slightly different times and so some consider it to
+     * be part of the repaired set whilst others do not.
+     */
+    public final Meter unconfirmedRepairedInconsistencies;
 
     public final MetricNameFactory factory;
     private Keyspace keyspace;
@@ -268,41 +289,12 @@ public class KeyspaceMetrics
         writeFailedIdealCL = Metrics.counter(factory.createMetricName("WriteFailedIdealCL"));
         idealCLWriteLatency = new LatencyMetrics(factory, "IdealCLWrite");
 
-        speculativeRetries = createKeyspaceCounter("SpeculativeRetries", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.speculativeRetries.getCount();
-            }
-        });
-        speculativeFailedRetries = createKeyspaceCounter("SpeculativeFailedRetries", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.speculativeFailedRetries.getCount();
-            }
-        });
-        speculativeInsufficientReplicas = createKeyspaceCounter("SpeculativeInsufficientReplicas", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.speculativeInsufficientReplicas.getCount();
-            }
-        });
-        repairsStarted = createKeyspaceCounter("RepairJobsStarted", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.repairsStarted.getCount();
-            }
-        });
-        repairsCompleted = createKeyspaceCounter("RepairJobsCompleted", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.repairsCompleted.getCount();
-            }
-        });
+        speculativeRetries = createKeyspaceCounter("SpeculativeRetries", metric -> metric.speculativeRetries.getCount());
+        speculativeFailedRetries = createKeyspaceCounter("SpeculativeFailedRetries", metric -> metric.speculativeFailedRetries.getCount());
+        speculativeInsufficientReplicas = createKeyspaceCounter("SpeculativeInsufficientReplicas", metric -> metric.speculativeInsufficientReplicas.getCount());
+        additionalWrites = createKeyspaceCounter("AdditionalWrites", metric -> metric.additionalWrites.getCount());
+        repairsStarted = createKeyspaceCounter("RepairJobsStarted", metric -> metric.repairsStarted.getCount());
+        repairsCompleted = createKeyspaceCounter("RepairJobsCompleted", metric -> metric.repairsCompleted.getCount());
         repairTime = Metrics.timer(factory.createMetricName("RepairTime"));
         repairPrepareTime = Metrics.timer(factory.createMetricName("RepairPrepareTime"));
         anticompactionTime = Metrics.timer(factory.createMetricName("AntiCompactionTime"));
@@ -310,6 +302,9 @@ public class KeyspaceMetrics
         repairSyncTime = Metrics.timer(factory.createMetricName("RepairSyncTime"));
         partitionsValidated = Metrics.histogram(factory.createMetricName("PartitionsValidated"), false);
         bytesValidated = Metrics.histogram(factory.createMetricName("BytesValidated"), false);
+
+        confirmedRepairedInconsistencies = Metrics.meter(factory.createMetricName("RepairedDataInconsistenciesConfirmed"));
+        unconfirmedRepairedInconsistencies = Metrics.meter(factory.createMetricName("RepairedDataInconsistenciesUnconfirmed"));
     }
 
     /**

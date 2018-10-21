@@ -621,11 +621,11 @@ public interface Row extends Unfiltered, Collection<ColumnData>
         private final List<ColumnData> dataBuffer = new ArrayList<>();
         private final ColumnDataReducer columnDataReducer;
 
-        public Merger(int size, int nowInSec, boolean hasComplex)
+        public Merger(int size, boolean hasComplex)
         {
             this.rows = new Row[size];
             this.columnDataIterators = new ArrayList<>(size);
-            this.columnDataReducer = new ColumnDataReducer(size, nowInSec, hasComplex);
+            this.columnDataReducer = new ColumnDataReducer(size, hasComplex);
         }
 
         public void clear()
@@ -645,6 +645,7 @@ public interface Row extends Unfiltered, Collection<ColumnData>
             lastRowSet = i;
         }
 
+        @SuppressWarnings("resource")
         public Row merge(DeletionTime activeDeletion)
         {
             // If for this clustering we have only one row version and have no activeDeletion (i.e. nothing to filter out),
@@ -710,8 +711,6 @@ public interface Row extends Unfiltered, Collection<ColumnData>
 
         private static class ColumnDataReducer extends MergeIterator.Reducer<ColumnData, ColumnData>
         {
-            private final int nowInSec;
-
             private ColumnMetadata column;
             private final List<ColumnData> versions;
 
@@ -721,13 +720,12 @@ public interface Row extends Unfiltered, Collection<ColumnData>
             private final List<Iterator<Cell>> complexCells;
             private final CellReducer cellReducer;
 
-            public ColumnDataReducer(int size, int nowInSec, boolean hasComplex)
+            public ColumnDataReducer(int size, boolean hasComplex)
             {
-                this.nowInSec = nowInSec;
                 this.versions = new ArrayList<>(size);
                 this.complexBuilder = hasComplex ? ComplexColumnData.builder() : null;
                 this.complexCells = hasComplex ? new ArrayList<>(size) : null;
-                this.cellReducer = new CellReducer(nowInSec);
+                this.cellReducer = new CellReducer();
             }
 
             public void setActiveDeletion(DeletionTime activeDeletion)
@@ -756,6 +754,7 @@ public interface Row extends Unfiltered, Collection<ColumnData>
                 return AbstractTypeVersionComparator.INSTANCE.compare(column.type, dataColumn.type) < 0;
             }
 
+            @SuppressWarnings("resource")
             protected ColumnData getReduced()
             {
                 if (column.isSimple())
@@ -765,7 +764,7 @@ public interface Row extends Unfiltered, Collection<ColumnData>
                     {
                         Cell cell = (Cell)data;
                         if (!activeDeletion.deletes(cell))
-                            merged = merged == null ? cell : Cells.reconcile(merged, cell, nowInSec);
+                            merged = merged == null ? cell : Cells.reconcile(merged, cell);
                     }
                     return merged;
                 }
@@ -812,15 +811,8 @@ public interface Row extends Unfiltered, Collection<ColumnData>
 
         private static class CellReducer extends MergeIterator.Reducer<Cell, Cell>
         {
-            private final int nowInSec;
-
             private DeletionTime activeDeletion;
             private Cell merged;
-
-            public CellReducer(int nowInSec)
-            {
-                this.nowInSec = nowInSec;
-            }
 
             public void setActiveDeletion(DeletionTime activeDeletion)
             {
@@ -831,7 +823,7 @@ public interface Row extends Unfiltered, Collection<ColumnData>
             public void reduce(int idx, Cell cell)
             {
                 if (!activeDeletion.deletes(cell))
-                    merged = merged == null ? cell : Cells.reconcile(merged, cell, nowInSec);
+                    merged = merged == null ? cell : Cells.reconcile(merged, cell);
             }
 
             protected Cell getReduced()

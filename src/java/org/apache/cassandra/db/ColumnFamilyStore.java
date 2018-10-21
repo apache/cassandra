@@ -30,7 +30,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
-import javax.annotation.Nullable;
 import javax.management.*;
 import javax.management.openmbean.*;
 
@@ -42,7 +41,7 @@ import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.clearspring.analytics.stream.Counter;
+import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.*;
@@ -65,29 +64,26 @@ import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
-import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.metrics.Sampler;
+import org.apache.cassandra.metrics.Sampler.Sample;
+import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.metrics.TableMetrics;
-import org.apache.cassandra.metrics.TableMetrics.Sampler;
 import org.apache.cassandra.repair.TableRepairManager;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.TopKSampler.SamplerResult;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
@@ -145,22 +141,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                                             new NamedThreadFactory("MemtableReclaimMemory"),
                                                                                             "internal");
 
-    private static final String[] COUNTER_NAMES = new String[]{"raw", "count", "error", "string"};
+    private static final String[] COUNTER_NAMES = new String[]{"table", "count", "error", "value"};
     private static final String[] COUNTER_DESCS = new String[]
-    { "partition key in raw hex bytes",
-      "value of this partition for given sampler",
-      "value is within the error bounds plus or minus of this",
-      "the partition key turned into a human readable format" };
+    { "keyspace.tablename",
+      "number of occurances",
+      "error bounds",
+      "value" };
     private static final CompositeType COUNTER_COMPOSITE_TYPE;
-    private static final TabularType COUNTER_TYPE;
-
-    private static final String[] SAMPLER_NAMES = new String[]{"cardinality", "partitions"};
-    private static final String[] SAMPLER_DESCS = new String[]
-    { "cardinality of partitions",
-      "list of counter results" };
 
     private static final String SAMPLING_RESULTS_NAME = "SAMPLING_RESULTS";
-    private static final CompositeType SAMPLING_RESULT;
 
     public static final String SNAPSHOT_TRUNCATE_PREFIX = "truncated";
     public static final String SNAPSHOT_DROP_PREFIX = "dropped";
@@ -171,13 +160,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             OpenType<?>[] counterTypes = new OpenType[] { SimpleType.STRING, SimpleType.LONG, SimpleType.LONG, SimpleType.STRING };
             COUNTER_COMPOSITE_TYPE = new CompositeType(SAMPLING_RESULTS_NAME, SAMPLING_RESULTS_NAME, COUNTER_NAMES, COUNTER_DESCS, counterTypes);
-            COUNTER_TYPE = new TabularType(SAMPLING_RESULTS_NAME, SAMPLING_RESULTS_NAME, COUNTER_COMPOSITE_TYPE, COUNTER_NAMES);
-
-            OpenType<?>[] samplerTypes = new OpenType[] { SimpleType.LONG, COUNTER_TYPE };
-            SAMPLING_RESULT = new CompositeType(SAMPLING_RESULTS_NAME, SAMPLING_RESULTS_NAME, SAMPLER_NAMES, SAMPLER_DESCS, samplerTypes);
         } catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -218,12 +203,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private final Directories directories;
 
     public final TableMetrics metric;
-    public volatile long sampleLatencyNanos;
+    public volatile long sampleReadLatencyNanos;
+    public volatile long additionalWriteLatencyNanos;
 
     private final CassandraTableWriteHandler writeHandler;
     private final CassandraStreamManager streamManager;
 
     private final TableRepairManager repairManager;
+
+    private final SSTableImporter sstableImporter;
 
     private volatile boolean compactionSpaceCheck = true;
 
@@ -395,7 +383,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         viewManager = keyspace.viewManager.forTable(metadata.id);
         metric = new TableMetrics(this);
         fileIndexGenerator.set(generation);
-        sampleLatencyNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getReadRpcTimeout() / 2);
+        sampleReadLatencyNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getReadRpcTimeout() / 2);
+        additionalWriteLatencyNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getWriteRpcTimeout() / 2);
 
         logger.info("Initializing {}.{}", keyspace.getName(), name);
 
@@ -458,13 +447,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         writeHandler = new CassandraTableWriteHandler(this);
         streamManager = new CassandraStreamManager(this);
         repairManager = new CassandraTableRepairManager(this);
+        sstableImporter = new SSTableImporter(this);
     }
 
     public void updateSpeculationThreshold()
     {
         try
         {
-            sampleLatencyNanos = metadata().params.speculativeRetry.calculateThreshold(metric.coordinatorReadLatency);
+            sampleReadLatencyNanos = metadata().params.speculativeRetry.calculateThreshold(metric.coordinatorReadLatency.getSnapshot(), sampleReadLatencyNanos);
+            additionalWriteLatencyNanos = metadata().params.additionalWritePolicy.calculateThreshold(metric.coordinatorWriteLatency.getSnapshot(), additionalWriteLatencyNanos);
         }
         catch (Throwable e)
         {
@@ -497,15 +488,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return directories;
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, int sstableLevel, SerializationHeader header, LifecycleTransaction txn)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, int sstableLevel, SerializationHeader header, LifecycleTransaction txn)
     {
         MetadataCollector collector = new MetadataCollector(metadata().comparator).sstableLevel(sstableLevel);
-        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, collector, header, txn);
+        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, collector, header, txn);
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, MetadataCollector metadataCollector, SerializationHeader header, LifecycleTransaction txn)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, MetadataCollector metadataCollector, SerializationHeader header, LifecycleTransaction txn)
     {
-        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, metadataCollector, header, indexManager.listIndexes(), txn);
+        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadataCollector, header, indexManager.listIndexes(), txn);
     }
 
     public boolean supportsEarlyOpen()
@@ -701,239 +692,43 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     @Deprecated
     public void loadNewSSTables()
     {
-        ImportOptions options = ImportOptions.options().resetLevel(true).build();
-        importNewSSTables(options);
-    }
 
-    /**
-     * Iterates over all keys in the sstable index and invalidates the row cache
-     *
-     * also counts the number of tokens that should be on each disk in JBOD-config to minimize the amount of data compaction
-     * needs to move around
-     */
-    @VisibleForTesting
-    static File findBestDiskAndInvalidateCaches(ColumnFamilyStore cfs, Descriptor desc, String srcPath, boolean clearCaches, boolean jbodCheck) throws IOException
-    {
-        int boundaryIndex = 0;
-        DiskBoundaries boundaries = cfs.getDiskBoundaries();
-        boolean shouldCountKeys = boundaries.positions != null && jbodCheck;
-        if (!cfs.isRowCacheEnabled() || !clearCaches)
-        {
-            if (srcPath == null) // user has dropped the sstables in the data directory, use it directly
-                return desc.directory;
-            if (boundaries.directories != null && boundaries.directories.size() == 1) // only a single data directory, use it without counting keys
-                return cfs.directories.getLocationForDisk(boundaries.directories.get(0));
-            if (!shouldCountKeys) // for non-random partitioners positions can be null, get the directory with the most space available
-                return cfs.directories.getWriteableLocationToLoadFile(new File(desc.baseFilename()));
-        }
-
-        long count = 0;
-        int maxIndex = 0;
-        long maxCount = 0;
-
-        try (KeyIterator iter = new KeyIterator(desc, cfs.metadata()))
-        {
-            while (iter.hasNext())
-            {
-                DecoratedKey decoratedKey = iter.next();
-                if (clearCaches)
-                    cfs.invalidateCachedPartition(decoratedKey);
-                if (shouldCountKeys)
-                {
-                    while (boundaries.positions.get(boundaryIndex).compareTo(decoratedKey) < 0)
-                    {
-                        logger.debug("{} has {} keys in {}", desc, count, boundaries.positions.get(boundaryIndex));
-                        if (count > maxCount)
-                        {
-                            maxIndex = boundaryIndex;
-                            maxCount = count;
-                        }
-                        boundaryIndex++;
-                        count = 0;
-                    }
-                    count++;
-                }
-            }
-            if (shouldCountKeys)
-            {
-                if (count > maxCount)
-                    maxIndex = boundaryIndex;
-                logger.debug("{} has {} keys in {}", desc, count, boundaries.positions.get(boundaryIndex));
-            }
-        }
-        File dir;
-        if (srcPath == null)
-            dir = desc.directory;
-        else if (shouldCountKeys)
-            dir = cfs.directories.getLocationForDisk(boundaries.directories.get(maxIndex));
-        else
-            dir = cfs.directories.getWriteableLocationToLoadFile(new File(desc.baseFilename()));
-        return dir;
+        SSTableImporter.Options options = SSTableImporter.Options.options().resetLevel(true).build();
+        sstableImporter.importNewSSTables(options);
     }
 
     /**
      * #{@inheritDoc}
      */
-    public void importNewSSTables(String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck, boolean extendedVerify)
+    public synchronized List<String> importNewSSTables(Set<String> srcPaths, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean extendedVerify)
     {
-        ImportOptions options = ImportOptions.options(srcPath)
-                                             .resetLevel(resetLevel)
-                                             .clearRepaired(clearRepaired)
-                                             .verifySSTables(verifySSTables)
-                                             .verifyTokens(verifyTokens)
-                                             .invalidateCaches(invalidateCaches)
-                                             .jbodCheck(jbodCheck)
-                                             .extendedVerify(extendedVerify).build();
+        SSTableImporter.Options options = SSTableImporter.Options.options(srcPaths)
+                                                                 .resetLevel(resetLevel)
+                                                                 .clearRepaired(clearRepaired)
+                                                                 .verifySSTables(verifySSTables)
+                                                                 .verifyTokens(verifyTokens)
+                                                                 .invalidateCaches(invalidateCaches)
+                                                                 .extendedVerify(extendedVerify).build();
 
-        this.importNewSSTables(options);
+        return sstableImporter.importNewSSTables(options);
     }
 
-    @VisibleForTesting
-    synchronized void importNewSSTables(ImportOptions options)
+    Descriptor getUniqueDescriptorFor(Descriptor descriptor, File targetDirectory)
     {
-        logger.info("Loading new SSTables for {}/{}: {}",
-                    keyspace.getName(), name, options);
-
-        File dir = null;
-        if (options.srcPath != null && !options.srcPath.isEmpty())
+        Descriptor newDescriptor;
+        do
         {
-            dir = new File(options.srcPath);
-            if (!dir.exists())
-            {
-                throw new RuntimeException(String.format("Directory %s does not exist", options.srcPath));
-            }
-            if (!Directories.verifyFullPermissions(dir, options.srcPath))
-            {
-                throw new RuntimeException("Insufficient permissions on directory " + options.srcPath);
-            }
+            newDescriptor = new Descriptor(descriptor.version,
+                                           targetDirectory,
+                                           descriptor.ksname,
+                                           descriptor.cfname,
+                                           // Increment the generation until we find a filename that doesn't exist. This is needed because the new
+                                           // SSTables that are being loaded might already use these generation numbers.
+                                           fileIndexGenerator.incrementAndGet(),
+                                           descriptor.formatType);
         }
-
-        Set<Descriptor> currentDescriptors = new HashSet<>();
-        for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
-            currentDescriptors.add(sstable.descriptor);
-        Set<SSTableReader> newSSTables = new HashSet<>();
-        Directories.SSTableLister lister = dir == null ?
-                directories.sstableLister(Directories.OnTxnErr.IGNORE).skipTemporary(true) :
-                directories.sstableLister(dir, Directories.OnTxnErr.IGNORE).skipTemporary(true);
-
-        // verify first to avoid starting to copy sstables to the data directories and then have to abort.
-        if (options.verifySSTables || options.verifyTokens)
-        {
-            for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
-            {
-                Descriptor descriptor = entry.getKey();
-                SSTableReader reader = null;
-                try
-                {
-                    reader = SSTableReader.open(descriptor, entry.getValue(), metadata);
-                    Verifier.Options verifierOptions = Verifier.options().extendedVerification(options.extendedVerify)
-                                                                         .checkOwnsTokens(options.verifyTokens)
-                                                                         .invokeDiskFailurePolicy(false)
-                                                                         .mutateRepairStatus(false).build();
-                    try (Verifier verifier = new Verifier(this, reader, false, verifierOptions))
-                    {
-                        verifier.verify();
-                    }
-                }
-                catch (Throwable t)
-                {
-                    throw new RuntimeException("Can't import sstable "+descriptor, t);
-                }
-                finally
-                {
-                    if (reader != null)
-                        reader.selfRef().release();
-                }
-            }
-        }
-
-        for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
-        {
-            Descriptor descriptor = entry.getKey();
-
-            if (currentDescriptors.contains(descriptor))
-                continue; // old (initialized) SSTable found, skipping
-
-            if (!descriptor.isCompatible())
-                throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
-                        descriptor.getFormat().getLatestVersion(),
-                        descriptor));
-
-            File targetDirectory;
-            try
-            {
-                if (new File(descriptor.filenameFor(Component.STATS)).exists())
-                {
-                    if (options.resetLevel)
-                    {
-                        descriptor.getMetadataSerializer().mutateLevel(descriptor, 0);
-                    }
-                    if (options.clearRepaired)
-                    {
-                        descriptor.getMetadataSerializer().mutateRepaired(descriptor,
-                                                                          ActiveRepairService.UNREPAIRED_SSTABLE,
-                                                                          null);
-                    }
-                }
-                targetDirectory = findBestDiskAndInvalidateCaches(this, descriptor, options.srcPath, options.invalidateCaches, options.jbodCheck);
-                logger.debug("{} will get copied to {}", descriptor, targetDirectory);
-            }
-            catch (IOException e)
-            {
-                logger.error("{} is corrupt, can't import", descriptor, e);
-                throw new RuntimeException(e);
-            }
-
-            Descriptor newDescriptor;
-            do
-            {
-                newDescriptor = new Descriptor(descriptor.version,
-                                               // If source dir is not provided, then we are just loading from data directory, so use same data directory otherwise
-                                               // get the most suitable location to load into
-                                               targetDirectory,
-                                               descriptor.ksname,
-                                               descriptor.cfname,
-                                               // Increment the generation until we find a filename that doesn't exist. This is needed because the new
-                                               // SSTables that are being loaded might already use these generation numbers.
-                                               fileIndexGenerator.incrementAndGet(),
-                                               descriptor.formatType);
-            }
-            while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
-
-            logger.info("Renaming new SSTable {} to {}", descriptor, newDescriptor);
-            SSTableWriter.rename(descriptor, newDescriptor, entry.getValue());
-
-            SSTableReader reader;
-            try
-            {
-                reader = SSTableReader.open(newDescriptor, entry.getValue(), metadata);
-            }
-            catch (Throwable t)
-            {
-                for (SSTableReader sstable : newSSTables)
-                    sstable.selfRef().release();
-                // log which sstables we have copied so far, so that the operator can remove them
-                if (options.srcPath != null)
-                    logger.error("Aborting import of sstables. {} copied, {} was corrupt", newSSTables, newDescriptor);
-                throw new RuntimeException(newDescriptor+" is corrupt, can't import", t);
-            }
-            newSSTables.add(reader);
-        }
-
-        if (newSSTables.isEmpty())
-        {
-            logger.info("No new SSTables were found for {}/{}", keyspace.getName(), name);
-            return;
-        }
-
-        logger.info("Loading new SSTables and building secondary indexes for {}/{}: {}", keyspace.getName(), name, newSSTables);
-
-        try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
-        {
-            data.addSSTables(newSSTables);
-        }
-
-        logger.info("Done loading load new SSTables for {}/{}", keyspace.getName(), name);
+        while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
+        return newDescriptor;
     }
 
     public void rebuildSecondaryIndex(String idxName)
@@ -984,7 +779,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return newSSTableDescriptor(directory, format.info.getLatestVersion(), format);
     }
 
-    private Descriptor newSSTableDescriptor(File directory, Version version, SSTableFormat.Type format)
+    public Descriptor newSSTableDescriptor(File directory, Version version, SSTableFormat.Type format)
     {
         return new Descriptor(version,
                               directory,
@@ -1469,7 +1264,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             long timeDelta = mt.put(update, indexer, opGroup);
             DecoratedKey key = update.partitionKey();
             invalidateCachedPartition(key);
-            metric.samplers.get(Sampler.WRITES).addSample(key.getKey(), key.hashCode(), 1);
+            metric.topWritePartitionFrequency.addSample(key.getKey(), 1);
+            if (metric.topWritePartitionSize.isEnabled()) // dont compute datasize if not needed
+                metric.topWritePartitionSize.addSample(key.getKey(), update.dataSize());
             StorageHook.instance.reportWrite(metadata.id, update);
             metric.writeLatency.addNano(System.nanoTime() - start);
             // CASSANDRA-11117 - certain resolution paths on memtable put can result in very
@@ -1606,7 +1403,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // cleanup size estimation only counts bytes for keys local to this node
         long expectedFileSize = 0;
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace.getName());
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).ranges();
         for (SSTableReader sstable : sstables)
         {
             List<SSTableReader.PartitionPositionBounds> positions = sstable.getPositionsForRanges(ranges);
@@ -1845,30 +1642,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-
-    public void beginLocalSampling(String sampler, int capacity)
+    public void beginLocalSampling(String sampler, int capacity, int durationMillis)
     {
-        metric.samplers.get(Sampler.valueOf(sampler)).beginSampling(capacity);
+        metric.samplers.get(SamplerType.valueOf(sampler)).beginSampling(capacity, durationMillis);
     }
 
-    public CompositeData finishLocalSampling(String sampler, int count) throws OpenDataException
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public List<CompositeData> finishLocalSampling(String sampler, int count) throws OpenDataException
     {
-        SamplerResult<ByteBuffer> samplerResults = metric.samplers.get(Sampler.valueOf(sampler))
-                .finishSampling(count);
-        TabularDataSupport result = new TabularDataSupport(COUNTER_TYPE);
-        for (Counter<ByteBuffer> counter : samplerResults.topK)
+        Sampler samplerImpl = metric.samplers.get(SamplerType.valueOf(sampler));
+        List<Sample> samplerResults = samplerImpl.finishSampling(count);
+        List<CompositeData> result = new ArrayList<>(count);
+        for (Sample counter : samplerResults)
         {
             //Not duplicating the buffer for safety because AbstractSerializer and ByteBufferUtil.bytesToHex
             //don't modify position or limit
-            ByteBuffer key = counter.getItem();
-            result.put(new CompositeDataSupport(COUNTER_COMPOSITE_TYPE, COUNTER_NAMES, new Object[] {
-                    ByteBufferUtil.bytesToHex(key), // raw
-                    counter.getCount(),  // count
-                    counter.getError(),  // error
-                    metadata().partitionKeyType.getString(key) })); // string
+            result.add(new CompositeDataSupport(COUNTER_COMPOSITE_TYPE, COUNTER_NAMES, new Object[] {
+                    keyspace.getName() + "." + name,
+                    counter.count,
+                    counter.error,
+                    samplerImpl.toString(counter.value) })); // string
         }
-        return new CompositeDataSupport(SAMPLING_RESULT, SAMPLER_NAMES, new Object[]{
-                samplerResults.cardinality, result});
+        return result;
     }
 
     public boolean isCompactionDiskSpaceCheckEnabled()
@@ -1883,7 +1678,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void cleanupCache()
     {
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace.getName());
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).ranges();
 
         for (Iterator<RowCacheKey> keyIter = CacheService.instance.rowCache.keyIterator();
              keyIter.hasNext(); )
@@ -2002,7 +1797,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 ephemeralSnapshotMarker.getParentFile().mkdirs();
 
             Files.createFile(ephemeralSnapshotMarker.toPath());
-            logger.trace("Created ephemeral snapshot marker file on {}.", ephemeralSnapshotMarker.getAbsolutePath());
+            if (logger.isTraceEnabled())
+                logger.trace("Created ephemeral snapshot marker file on {}.", ephemeralSnapshotMarker.getAbsolutePath());
         }
         catch (IOException e)
         {
@@ -2745,12 +2541,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getDirectories().trueSnapshotsSize();
     }
 
-    @VisibleForTesting
-    void resetFileIndexGenerator()
-    {
-        fileIndexGenerator.set(0);
-    }
-
     /**
      * Returns a ColumnFamilyStore by id if it exists, null otherwise
      * Differently from others, this method does not throw exception if the table does not exist.
@@ -2821,117 +2611,4 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return neverPurgeTombstones;
     }
-
-    public static class ImportOptions
-    {
-        public final String srcPath;
-        public final boolean resetLevel;
-        public final boolean clearRepaired;
-        public final boolean verifySSTables;
-        public final boolean verifyTokens;
-        public final boolean invalidateCaches;
-        public final boolean jbodCheck;
-        public final boolean extendedVerify;
-
-        public ImportOptions(String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck, boolean extendedVerify)
-        {
-            this.srcPath = srcPath;
-            this.resetLevel = resetLevel;
-            this.clearRepaired = clearRepaired;
-            this.verifySSTables = verifySSTables;
-            this.verifyTokens = verifyTokens;
-            this.invalidateCaches = invalidateCaches;
-            this.jbodCheck = jbodCheck;
-            this.extendedVerify = extendedVerify;
-        }
-
-        public static Builder options(@Nullable String srcDir)
-        {
-            return new Builder(srcDir);
-        }
-
-        public static Builder options()
-        {
-            return options(null);
-        }
-
-        @Override
-        public String toString()
-        {
-            return "ImportOptions{" +
-                   "srcPath='" + srcPath + '\'' +
-                   ", resetLevel=" + resetLevel +
-                   ", clearRepaired=" + clearRepaired +
-                   ", verifySSTables=" + verifySSTables +
-                   ", verifyTokens=" + verifyTokens +
-                   ", invalidateCaches=" + invalidateCaches +
-                   ", extendedVerify=" + extendedVerify +
-                   '}';
-        }
-
-        static class Builder
-        {
-            private final String srcPath;
-            private boolean resetLevel = false;
-            private boolean clearRepaired = false;
-            private boolean verifySSTables = false;
-            private boolean verifyTokens = false;
-            private boolean invalidateCaches = false;
-            private boolean jbodCheck = false;
-            private boolean extendedVerify = false;
-
-            private Builder(String srcPath)
-            {
-                this.srcPath = srcPath;
-            }
-
-            public Builder resetLevel(boolean value)
-            {
-                resetLevel = value;
-                return this;
-            }
-
-            public Builder clearRepaired(boolean value)
-            {
-                clearRepaired = value;
-                return this;
-            }
-
-            public Builder verifySSTables(boolean value)
-            {
-                verifySSTables = value;
-                return this;
-            }
-
-            public Builder verifyTokens(boolean value)
-            {
-                verifyTokens = value;
-                return this;
-            }
-
-            public Builder invalidateCaches(boolean value)
-            {
-                invalidateCaches = value;
-                return this;
-            }
-
-            public Builder jbodCheck(boolean value)
-            {
-                jbodCheck = value;
-                return this;
-            }
-
-            public Builder extendedVerify(boolean value)
-            {
-                extendedVerify = value;
-                return this;
-            }
-
-            public ImportOptions build()
-            {
-                return new ImportOptions(srcPath, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, jbodCheck, extendedVerify);
-            }
-        }
-    }
-
 }

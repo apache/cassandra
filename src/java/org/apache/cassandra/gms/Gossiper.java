@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -380,6 +381,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             markDead(endpoint, epState);
         }
+
+        GossiperDiagnostics.convicted(this, endpoint, phi);
     }
 
     /**
@@ -397,6 +400,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
         markDead(endpoint, epState);
         FailureDetector.instance.forceConviction(endpoint);
+        GossiperDiagnostics.markedAsShutdown(this, endpoint);
     }
 
     /**
@@ -427,6 +431,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         quarantineEndpoint(endpoint);
         if (logger.isDebugEnabled())
             logger.debug("evicting {} from gossip", endpoint);
+        GossiperDiagnostics.evictedFromMembership(this, endpoint);
     }
 
     /**
@@ -452,6 +457,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         MessagingService.instance().destroyConnectionPool(endpoint);
         if (logger.isDebugEnabled())
             logger.debug("removing endpoint {}", endpoint);
+        GossiperDiagnostics.removedEndpoint(this, endpoint);
     }
 
     /**
@@ -473,6 +479,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private void quarantineEndpoint(InetAddressAndPort endpoint, long quarantineExpiration)
     {
         justRemovedEndpoints.put(endpoint, quarantineExpiration);
+        GossiperDiagnostics.quarantinedEndpoint(this, endpoint, quarantineExpiration);
     }
 
     /**
@@ -484,6 +491,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // remember, quarantineEndpoint will effectively already add QUARANTINE_DELAY, so this is 2x
         logger.debug("");
         quarantineEndpoint(endpoint, System.currentTimeMillis() + QUARANTINE_DELAY);
+        GossiperDiagnostics.replacementQuarantine(this, endpoint);
     }
 
     /**
@@ -497,6 +505,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         removeEndpoint(endpoint);
         evictFromMembership(endpoint);
         replacementQuarantine(endpoint);
+        GossiperDiagnostics.replacedEndpoint(this, endpoint);
     }
 
     /**
@@ -687,7 +696,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (firstSynSendAt == 0)
             firstSynSendAt = System.nanoTime();
         MessagingService.instance().sendOneWay(message, to);
-        return seeds.contains(to);
+
+        boolean isSeed = seeds.contains(to);
+        GossiperDiagnostics.sendGossipDigestSyn(this, to);
+        return isSeed;
     }
 
     /* Sends a Gossip message to a live member and returns true if the recipient was a seed */
@@ -888,6 +900,31 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return endpointStateMap.size();
     }
 
+    Map<InetAddressAndPort, EndpointState> getEndpointStateMap()
+    {
+        return ImmutableMap.copyOf(endpointStateMap);
+    }
+
+    Map<InetAddressAndPort, Long> getJustRemovedEndpoints()
+    {
+        return ImmutableMap.copyOf(justRemovedEndpoints);
+    }
+
+    Map<InetAddressAndPort, Long> getUnreachableEndpoints()
+    {
+        return ImmutableMap.copyOf(unreachableEndpoints);
+    }
+
+    Set<InetAddressAndPort> getSeedsInShadowRound()
+    {
+        return ImmutableSet.copyOf(seedsInShadowRound);
+    }
+
+    long getLastProcessedMessageAt()
+    {
+        return lastProcessedMessageAt;
+    }
+
     public UUID getHostId(InetAddressAndPort endpoint)
     {
         return getHostId(endpoint, endpointStateMap);
@@ -1027,6 +1064,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         };
 
         MessagingService.instance().sendRR(echoMessage, addr, echoHandler);
+
+        GossiperDiagnostics.markedAlive(this, addr, localState);
     }
 
     @VisibleForTesting
@@ -1045,6 +1084,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             subscriber.onAlive(addr, localState);
         if (logger.isTraceEnabled())
             logger.trace("Notified {}", subscribers);
+
+        GossiperDiagnostics.realMarkedAlive(this, addr, localState);
     }
 
     @VisibleForTesting
@@ -1060,6 +1101,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             subscriber.onDead(addr, localState);
         if (logger.isTraceEnabled())
             logger.trace("Notified {}", subscribers);
+
+        GossiperDiagnostics.markedDead(this, addr, localState);
     }
 
     /**
@@ -1100,6 +1143,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // check this at the end so nodes will learn about the endpoint
         if (isShutdown(ep))
             markAsShutdown(ep);
+
+        GossiperDiagnostics.majorStateChangeHandled(this, ep, epState);
     }
 
     public boolean isAlive(InetAddressAndPort endpoint)
@@ -1833,4 +1878,50 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.info("No gossip backlog; proceeding");
     }
 
+    /**
+     * Blockingly wait for all live nodes to agree on the current schema version.
+     *
+     * @param maxWait maximum time to wait for schema agreement
+     * @param unit TimeUnit of maxWait
+     * @return true if agreement was reached, false if not
+     */
+    public boolean waitForSchemaAgreement(long maxWait, TimeUnit unit, BooleanSupplier abortCondition)
+    {
+        int waited = 0;
+        int toWait = 50;
+
+        Set<InetAddressAndPort> members = getLiveTokenOwners();
+
+        while (true)
+        {
+            if (nodesAgreeOnSchema(members))
+                return true;
+
+            if (waited >= unit.toMillis(maxWait) || abortCondition.getAsBoolean())
+                return false;
+
+            Uninterruptibles.sleepUninterruptibly(toWait, TimeUnit.MILLISECONDS);
+            waited += toWait;
+            toWait = Math.min(1000, toWait * 2);
+        }
+    }
+
+    private boolean nodesAgreeOnSchema(Collection<InetAddressAndPort> nodes)
+    {
+        UUID expectedVersion = null;
+
+        for (InetAddressAndPort node : nodes)
+        {
+            EndpointState state = getEndpointStateForEndpoint(node);
+            UUID remoteVersion = state.getSchemaVersion();
+
+            if (null == expectedVersion)
+                expectedVersion = remoteVersion;
+
+            if (null == expectedVersion || !expectedVersion.equals(remoteVersion))
+                return false;
+        }
+
+        return true;
+    }
 }

@@ -24,6 +24,7 @@ import java.util.Set;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -74,7 +75,7 @@ public class ListRolesStatement extends AuthorizationStatement
             throw new InvalidRequestException(String.format("%s doesn't exist", grantee));
     }
 
-    public void checkAccess(ClientState state) throws InvalidRequestException
+    public void authorize(ClientState state) throws InvalidRequestException
     {
     }
 

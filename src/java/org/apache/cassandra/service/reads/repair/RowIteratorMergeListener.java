@@ -19,9 +19,14 @@
 package org.apache.cassandra.service.reads.repair;
 
 import java.util.Arrays;
+import java.util.Map;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
@@ -39,21 +44,23 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowDiffListener;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.ColumnMetadata;
 
-public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeListener
+public class RowIteratorMergeListener<E extends Endpoints<E>>
+        implements UnfilteredRowIterators.MergeListener
 {
     private final DecoratedKey partitionKey;
     private final RegularAndStaticColumns columns;
     private final boolean isReversed;
-    private final InetAddressAndPort[] sources;
     private final ReadCommand command;
 
     private final PartitionUpdate.Builder[] repairs;
-
     private final Row.Builder[] currentRows;
     private final RowDiffListener diffListener;
+    private final ReplicaPlan.ForRead<E> replicaPlan;
 
     // The partition level deletion for the merge row.
     private DeletionTime partitionLevelDeletion;
@@ -64,20 +71,21 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
     // For each source, record if there is an open range to send as repair, and from where.
     private final ClusteringBound[] markerToRepair;
 
-    private final RepairListener repairListener;
+    private final ReadRepair readRepair;
 
-    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, InetAddressAndPort[] sources, ReadCommand command, RepairListener repairListener)
+    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E> replicaPlan, ReadCommand command, ReadRepair readRepair)
     {
         this.partitionKey = partitionKey;
         this.columns = columns;
         this.isReversed = isReversed;
-        this.sources = sources;
-        repairs = new PartitionUpdate.Builder[sources.length];
-        currentRows = new Row.Builder[sources.length];
-        sourceDeletionTime = new DeletionTime[sources.length];
-        markerToRepair = new ClusteringBound[sources.length];
+        this.replicaPlan = replicaPlan;
+        int size = replicaPlan.contacts().size();
+        repairs = new PartitionUpdate.Builder[size];
+        currentRows = new Row.Builder[size];
+        sourceDeletionTime = new DeletionTime[size];
+        markerToRepair = new ClusteringBound[size];
         this.command = command;
-        this.repairListener = repairListener;
+        this.readRepair = readRepair;
 
         this.diffListener = new RowDiffListener()
         {
@@ -239,12 +247,12 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
                     if (!marker.isBoundary() && marker.isOpen(isReversed)) // (1)
                     {
                         assert currentDeletion.equals(marker.openDeletionTime(isReversed))
-                            : String.format("currentDeletion=%s, marker=%s", currentDeletion, marker.toString(command.metadata()));
+                        : String.format("currentDeletion=%s, marker=%s", currentDeletion, marker.toString(command.metadata()));
                     }
                     else // (2)
                     {
                         assert marker.isClose(isReversed) && currentDeletion.equals(marker.closeDeletionTime(isReversed))
-                            : String.format("currentDeletion=%s, marker=%s", currentDeletion, marker.toString(command.metadata()));
+                        : String.format("currentDeletion=%s, marker=%s", currentDeletion, marker.toString(command.metadata()));
                     }
 
                     // and so unless it's a boundary whose opening deletion time is still equal to the current
@@ -300,22 +308,28 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
 
     public void close()
     {
-        RepairListener.PartitionRepair repair = null;
+        Map<Replica, Mutation> mutations = null;
+        Endpoints<?> sources = replicaPlan.contacts();
         for (int i = 0; i < repairs.length; i++)
         {
             if (repairs[i] == null)
                 continue;
 
-            if (repair == null)
-            {
-                repair = repairListener.startPartitionRepair();
-            }
-            repair.reportMutation(sources[i], new Mutation(repairs[i].build()));
+            Replica source = sources.get(i);
+
+            Mutation mutation = BlockingReadRepairs.createRepairMutation(repairs[i].build(), replicaPlan.consistencyLevel(), source.endpoint(), false);
+            if (mutation == null)
+                continue;
+
+            if (mutations == null)
+                mutations = Maps.newHashMapWithExpectedSize(sources.size());
+
+            mutations.put(source, mutation);
         }
 
-        if (repair != null)
+        if (mutations != null)
         {
-            repair.finish();
+            readRepair.repairPartition(partitionKey, mutations, replicaPlan);
         }
     }
 }

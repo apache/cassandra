@@ -240,9 +240,7 @@ final class HintsDispatchExecutor
                 }
                 catch (FSReadError e)
                 {
-                    logger.error("Failed to dispatch hints file {}: file is corrupted ({})",
-                                 descriptor.fileName(),
-                                 e.getMessage());
+                    logger.error(String.format("Failed to dispatch hints file %s: file is corrupted", descriptor.fileName()), e);
                     store.cleanUp(descriptor);
                     store.blacklist(descriptor);
                     throw e;
@@ -307,5 +305,15 @@ final class HintsDispatchExecutor
                 logger.info("Finished converting hints file {}", descriptor.fileName());
             }
         }
+    }
+
+    public boolean isPaused()
+    {
+        return isPaused.get();
+    }
+
+    public boolean hasScheduledDispatches()
+    {
+        return !scheduledDispatches.isEmpty();
     }
 }

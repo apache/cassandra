@@ -73,7 +73,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
         Map<Unit, UnitInfo<Unit>> unitInfos = createUnitInfos(groups);
         if (groups.size() < replicas)
         {
-            // We need at least replicas groups to do allocation correctly. If there aren't enough, 
+            // We need at least replicas groups to do allocation correctly. If there aren't enough,
             // use random allocation.
             // This part of the code should only be reached via the RATATest. StrategyAdapter should disallow
             // token allocation in this case as the algorithm is not able to cover the behavior of NetworkTopologyStrategy.
@@ -132,7 +132,9 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
             }
         }
 
-        return ImmutableList.copyOf(unitToTokens.get(newUnit));
+        ImmutableList<Token> newTokens = ImmutableList.copyOf(unitToTokens.get(newUnit));
+        TokenAllocatorDiagnostics.unitedAdded(this, numTokens, unitToTokens, sortedTokens, newTokens, newUnit);
+        return newTokens;
     }
 
     private Collection<Token> generateRandomTokens(Unit newUnit, int numTokens)
@@ -148,6 +150,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
                 unitToTokens.put(newUnit, token);
             }
         }
+        TokenAllocatorDiagnostics.randomTokensGenerated(this, numTokens, unitToTokens, sortedTokens, newUnit, tokens);
         return tokens;
     }
 
@@ -176,6 +179,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
             curr = curr.next;
         } while (curr != first);
 
+        TokenAllocatorDiagnostics.tokenInfosCreated(this, unitToTokens, first);
         return first;
     }
 
@@ -526,6 +530,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
     {
         Collection<Token> tokens = unitToTokens.removeAll(n);
         sortedTokens.keySet().removeAll(tokens);
+        TokenAllocatorDiagnostics.unitRemoved(this, n, unitToTokens, sortedTokens);
     }
 
     public int unitCount()

@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
+import org.apache.cassandra.audit.FullQueryLoggerOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 
 /**
@@ -152,6 +153,9 @@ public class Config
     public int native_transport_max_frame_size_in_mb = 256;
     public volatile long native_transport_max_concurrent_connections = -1L;
     public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
+    public boolean native_transport_flush_in_batches_legacy = false;
+    public volatile boolean native_transport_allow_older_protocols = true;
+    public int native_transport_frame_block_size_in_kb = 32;
 
     /**
      * Max size of values in SSTables, in MegaBytes.
@@ -204,6 +208,7 @@ public class Config
     public int commitlog_segment_size_in_mb = 32;
     public ParameterizedClass commitlog_compression;
     public int commitlog_max_compression_buffers_in_pool = 3;
+    public Integer periodic_commitlog_sync_lag_block_in_ms;
     public TransparentDataEncryptionOptions transparent_data_encryption_options = new TransparentDataEncryptionOptions();
 
     public Integer max_mutation_size_in_kb;
@@ -336,6 +341,8 @@ public class Config
 
     public boolean enable_materialized_views = true;
 
+    public boolean enable_transient_replication = false;
+
     /**
      * Optionally disable asynchronous UDF execution.
      * Disabling asynchronous UDF execution also implicitly disables the security-manager!
@@ -373,16 +380,39 @@ public class Config
     public RepairCommandPoolFullStrategy repair_command_pool_full_strategy = RepairCommandPoolFullStrategy.queue;
     public int repair_command_pool_size = concurrent_validations;
 
-    public String full_query_log_dir = null;
-
     // parameters to adjust how much to delay startup until a certain amount of the cluster is connect to and marked alive
     public int block_for_peers_percentage = 70;
     public int block_for_peers_timeout_in_secs = 10;
     public volatile boolean automatic_sstable_upgrade = false;
     public volatile int max_concurrent_automatic_sstable_upgrades = 1;
+    public boolean stream_entire_sstables = true;
 
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
+    public volatile FullQueryLoggerOptions full_query_logging_options = new FullQueryLoggerOptions();
 
+    public CorruptedTombstoneStrategy corrupted_tombstone_strategy = CorruptedTombstoneStrategy.disabled;
+
+    public volatile boolean diagnostic_events_enabled = false;
+
+    /**
+     * flags for enabling tracking repaired state of data during reads
+     * separate flags for range & single partition reads as single partition reads are only tracked
+     * when CL > 1 and a digest mismatch occurs. Currently, range queries don't use digests so if
+     * enabled for range reads, all such reads will include repaired data tracking. As this adds
+     * some overhead, operators may wish to disable it whilst still enabling it for partition reads
+     */
+    public volatile boolean repaired_data_tracking_for_range_reads_enabled = false;
+    public volatile boolean repaired_data_tracking_for_partition_reads_enabled = false;
+    /* If true, unconfirmed mismatches (those which cannot be considered conclusive proof of out of
+     * sync repaired data due to the presence of pending repair sessions, or unrepaired partition
+     * deletes) will increment a metric, distinct from confirmed mismatches. If false, unconfirmed
+     * mismatches are simply ignored by the coordinator.
+     * This is purely to allow operators to avoid potential signal:noise issues as these types of
+     * mismatches are considerably less actionable than their confirmed counterparts. Setting this
+     * to true only disables the incrementing of the counters when an unconfirmed mismatch is found
+     * and has no other effect on the collection or processing of the repaired data.
+     */
+    public volatile boolean report_unconfirmed_repaired_data_mismatches = false;
 
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
@@ -466,6 +496,13 @@ public class Config
     {
         queue,
         reject
+    }
+
+    public enum CorruptedTombstoneStrategy
+    {
+        disabled,
+        warn,
+        exception
     }
 
     private static final List<String> SENSITIVE_KEYS = new ArrayList<String>() {{

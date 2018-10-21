@@ -17,13 +17,10 @@
  */
 package org.apache.cassandra.utils;
 
-import java.lang.management.ManagementFactory;
-import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
-import javax.management.*;
 
 import org.apache.cassandra.cache.*;
-
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 
 import org.slf4j.Logger;
@@ -64,20 +61,18 @@ public class StatusLogger
 
     private static void logStatus()
     {
-        MBeanServer server = ManagementFactory.getPlatformMBeanServer();
-
         // everything from o.a.c.concurrent
-        logger.info(String.format("%-25s%10s%10s%15s%10s%18s", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All Time Blocked"));
+        logger.info(String.format("%-28s%10s%10s%15s%10s%18s", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All Time Blocked"));
 
-        for (Map.Entry<String, String> tpool : ThreadPoolMetrics.getJmxThreadPools(server).entries())
+        for (ThreadPoolMetrics tpool : CassandraMetricsRegistry.Metrics.allThreadPoolMetrics())
         {
-            logger.info(String.format("%-25s%10s%10s%15s%10s%18s%n",
-                                      tpool.getValue(),
-                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "ActiveTasks"),
-                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "PendingTasks"),
-                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "CompletedTasks"),
-                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "CurrentlyBlockedTasks"),
-                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "TotalBlockedTasks")));
+            logger.info(String.format("%-28s%10s%10s%15s%10s%18s",
+                                      tpool.poolName,
+                                      tpool.activeTasks.getValue(),
+                                      tpool.pendingTasks.getValue(),
+                                      tpool.completedTasks.getValue(),
+                                      tpool.currentBlocked.getCount(),
+                                      tpool.totalBlocked.getCount()));
         }
 
         // one offs

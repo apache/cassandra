@@ -31,8 +31,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
+import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -187,7 +188,13 @@ public class AuditLogManager
     /**
      * Logs Batch queries to both FQL and standard audit logger.
      */
-    public void logBatch(String batchTypeName, List<Object> queryOrIdList, List<List<ByteBuffer>> values, List<ParsedStatement.Prepared> prepared, QueryOptions options, QueryState state, long queryStartTimeMillis)
+    public void logBatch(BatchStatement.Type type,
+                         List<Object> queryOrIdList,
+                         List<List<ByteBuffer>> values,
+                         List<QueryHandler.Prepared> prepared,
+                         QueryOptions options,
+                         QueryState state,
+                         long queryStartTimeMillis)
     {
         if (isAuditingEnabled())
         {
@@ -201,20 +208,20 @@ public class AuditLogManager
         if (isFQLEnabled())
         {
             List<String> queryStrings = new ArrayList<>(queryOrIdList.size());
-            for (ParsedStatement.Prepared prepStatment : prepared)
+            for (QueryHandler.Prepared prepStatment : prepared)
             {
                 queryStrings.add(prepStatment.rawCQLStatement);
             }
-            fullQueryLogger.logBatch(batchTypeName, queryStrings, values, options, queryStartTimeMillis);
+            fullQueryLogger.logBatch(type, queryStrings, values, options, state, queryStartTimeMillis);
         }
     }
 
-    private static List<AuditLogEntry> buildEntriesForBatch(List<Object> queryOrIdList, List<ParsedStatement.Prepared> prepared, QueryState state, QueryOptions options, long queryStartTimeMillis)
+    private static List<AuditLogEntry> buildEntriesForBatch(List<Object> queryOrIdList, List<QueryHandler.Prepared> prepared, QueryState state, QueryOptions options, long queryStartTimeMillis)
     {
         List<AuditLogEntry> auditLogEntries = new ArrayList<>(queryOrIdList.size() + 1);
         UUID batchId = UUID.randomUUID();
         String queryString = String.format("BatchId:[%s] - BATCH of [%d] statements", batchId, queryOrIdList.size());
-        AuditLogEntry entry = new AuditLogEntry.Builder(state.getClientState())
+        AuditLogEntry entry = new AuditLogEntry.Builder(state)
                               .setOperation(queryString)
                               .setOptions(options)
                               .setTimestamp(queryStartTimeMillis)
@@ -226,7 +233,7 @@ public class AuditLogManager
         for (int i = 0; i < queryOrIdList.size(); i++)
         {
             CQLStatement statement = prepared.get(i).statement;
-            entry = new AuditLogEntry.Builder(state.getClientState())
+            entry = new AuditLogEntry.Builder(state)
                     .setType(statement.getAuditLogContext().auditLogEntryType)
                     .setOperation(prepared.get(i).rawCQLStatement)
                     .setTimestamp(queryStartTimeMillis)
@@ -286,7 +293,7 @@ public class AuditLogManager
         oldLogger.stop();
     }
 
-    public void configureFQL(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize)
+    public void configureFQL(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
     {
         if (path.equals(auditLogger.path()))
             throw new IllegalArgumentException(String.format("fullquerylogger path (%s) cannot be the same as the " +
@@ -294,7 +301,7 @@ public class AuditLogManager
                                                              path,
                                                              auditLogger.path()));
 
-        fullQueryLogger.configure(path, rollCycle, blocking, maxQueueWeight, maxLogSize);
+        fullQueryLogger.configure(path, rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
     }
 
     public void resetFQL(String fullQueryLogPath)

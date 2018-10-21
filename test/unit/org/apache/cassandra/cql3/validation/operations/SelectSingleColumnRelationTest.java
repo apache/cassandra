@@ -206,7 +206,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     @Test
     public void testClusteringColumnRelationsWithClusteringOrder() throws Throwable
     {
-        createTable("CREATE TABLE %s (a text, b int, c int, d int, primary key(a, b, c)) WITH CLUSTERING ORDER BY (b DESC);");
+        createTable("CREATE TABLE %s (a text, b int, c int, d int, primary key(a, b, c)) WITH CLUSTERING ORDER BY (b DESC, c ASC);");
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 1, 5, 1);
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 2, 6, 2);
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 3, 7, 3);

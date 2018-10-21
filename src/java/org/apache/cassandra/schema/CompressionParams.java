@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
@@ -84,6 +85,7 @@ public final class CompressionParams
     private final double minCompressRatio;  // In configuration we store min ratio, the input parameter.
     private final ImmutableMap<String, String> otherOptions; // Unrecognized options, can be used by the compressor
 
+    // TODO: deprecated, should now be carefully removed. Doesn't affect schema code as it isn't included in equals() and hashCode()
     private volatile double crcCheckChance = 1.0;
 
     public static CompressionParams fromMap(Map<String, String> opts)
@@ -548,20 +550,17 @@ public final class CompressionParams
     public boolean equals(Object obj)
     {
         if (obj == this)
-        {
             return true;
-        }
-        else if (obj == null || obj.getClass() != getClass())
-        {
+
+        if (!(obj instanceof CompressionParams))
             return false;
-        }
 
         CompressionParams cp = (CompressionParams) obj;
-        return new EqualsBuilder()
-            .append(sstableCompressor, cp.sstableCompressor)
-            .append(chunkLength(), cp.chunkLength())
-            .append(otherOptions, cp.otherOptions)
-            .isEquals();
+
+        return Objects.equal(sstableCompressor, cp.sstableCompressor)
+            && chunkLength == cp.chunkLength
+            && otherOptions.equals(cp.otherOptions)
+            && minCompressRatio == cp.minCompressRatio;
     }
 
     @Override
@@ -569,8 +568,9 @@ public final class CompressionParams
     {
         return new HashCodeBuilder(29, 1597)
             .append(sstableCompressor)
-            .append(chunkLength())
+            .append(chunkLength)
             .append(otherOptions)
+            .append(minCompressRatio)
             .toHashCode();
     }
 

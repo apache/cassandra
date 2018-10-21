@@ -682,7 +682,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
             }
 
             // Verify throttled data after merge
-            Partition partition = ImmutableBTreePartition.create(UnfilteredRowIterators.merge(unfilteredRowIterators, FBUtilities.nowInSeconds()));
+            Partition partition = ImmutableBTreePartition.create(UnfilteredRowIterators.merge(unfilteredRowIterators));
 
             int nowInSec = FBUtilities.nowInSeconds();
 

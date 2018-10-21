@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
 import org.junit.Assert;
@@ -34,13 +35,19 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
 import org.apache.cassandra.service.StorageService;
+
+import static org.apache.cassandra.locator.Replica.fullReplica;
+import static org.apache.cassandra.locator.Replica.transientReplica;
 
 public class NetworkTopologyStrategyTest
 {
@@ -51,6 +58,7 @@ public class NetworkTopologyStrategyTest
     public static void setupDD()
     {
         DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
 
     @Test
@@ -68,13 +76,14 @@ public class NetworkTopologyStrategyTest
 
         // Set the localhost to the tokenmetadata. Embedded cassandra way?
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
-        assert strategy.getReplicationFactor("DC1") == 3;
-        assert strategy.getReplicationFactor("DC2") == 2;
-        assert strategy.getReplicationFactor("DC3") == 1;
+        assert strategy.getReplicationFactor("DC1").allReplicas == 3;
+        assert strategy.getReplicationFactor("DC2").allReplicas == 2;
+        assert strategy.getReplicationFactor("DC3").allReplicas == 1;
         // Query for the natural hosts
-        ArrayList<InetAddressAndPort> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
-        assert 6 == endpoints.size();
-        assert 6 == new HashSet<>(endpoints).size(); // ensure uniqueness
+        EndpointsForToken replicas = strategy.getNaturalReplicasForToken(new StringToken("123"));
+        assert 6 == replicas.size();
+        assert 6 == replicas.endpoints().size(); // ensure uniqueness
+        assert 6 == new HashSet<>(replicas.byEndpoint().values()).size(); // ensure uniqueness
     }
 
     @Test
@@ -92,13 +101,14 @@ public class NetworkTopologyStrategyTest
 
         // Set the localhost to the tokenmetadata. Embedded cassandra way?
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
-        assert strategy.getReplicationFactor("DC1") == 3;
-        assert strategy.getReplicationFactor("DC2") == 3;
-        assert strategy.getReplicationFactor("DC3") == 0;
+        assert strategy.getReplicationFactor("DC1").allReplicas == 3;
+        assert strategy.getReplicationFactor("DC2").allReplicas == 3;
+        assert strategy.getReplicationFactor("DC3").allReplicas == 0;
         // Query for the natural hosts
-        ArrayList<InetAddressAndPort> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
-        assert 6 == endpoints.size();
-        assert 6 == new HashSet<>(endpoints).size(); // ensure uniqueness
+        EndpointsForToken replicas = strategy.getNaturalReplicasForToken(new StringToken("123"));
+        assert 6 == replicas.size();
+        assert 6 == replicas.endpoints().size(); // ensure uniqueness
+        assert 6 == new HashSet<>(replicas.byEndpoint().values()).size(); // ensure uniqueness
     }
 
     @Test
@@ -137,12 +147,13 @@ public class NetworkTopologyStrategyTest
 
         for (String testToken : new String[]{"123456", "200000", "000402", "ffffff", "400200"})
         {
-            List<InetAddressAndPort> endpoints = strategy.calculateNaturalEndpoints(new StringToken(testToken), metadata);
-            Set<InetAddressAndPort> epSet = new HashSet<>(endpoints);
+            EndpointsForRange replicas = strategy.calculateNaturalReplicas(new StringToken(testToken), metadata);
+            Set<InetAddressAndPort> endpointSet = replicas.endpoints();
 
-            Assert.assertEquals(totalRF, endpoints.size());
-            Assert.assertEquals(totalRF, epSet.size());
-            logger.debug("{}: {}", testToken, endpoints);
+            Assert.assertEquals(totalRF, replicas.size());
+            Assert.assertEquals(totalRF, new HashSet<>(replicas.byEndpoint().values()).size());
+            Assert.assertEquals(totalRF, endpointSet.size());
+            logger.debug("{}: {}", testToken, replicas);
         }
     }
 
@@ -209,7 +220,7 @@ public class NetworkTopologyStrategyTest
         {
             Token token = Murmur3Partitioner.instance.getRandomToken(rand);
             List<InetAddressAndPort> expected = calculateNaturalEndpoints(token, tokenMetadata, datacenters, snitch);
-            List<InetAddressAndPort> actual = nts.calculateNaturalEndpoints(token, tokenMetadata);
+            List<InetAddressAndPort> actual = new ArrayList<>(nts.calculateNaturalReplicas(token, tokenMetadata).endpoints());
             if (endpointsDiffer(expected, actual))
             {
                 System.err.println("Endpoints mismatch for token " + token);
@@ -372,5 +383,51 @@ public class NetworkTopologyStrategyTest
     {
         Integer replicas = datacenters.get(dc);
         return replicas == null ? 0 : replicas;
+    }
+
+    private static Token tk(long t)
+    {
+        return new LongToken(t);
+    }
+
+    private static Range<Token> range(long l, long r)
+    {
+        return new Range<>(tk(l), tk(r));
+    }
+
+    @Test
+    public void testTransientReplica() throws Exception
+    {
+        IEndpointSnitch snitch = new SimpleSnitch();
+        DatabaseDescriptor.setEndpointSnitch(snitch);
+
+        List<InetAddressAndPort> endpoints = Lists.newArrayList(InetAddressAndPort.getByName("127.0.0.1"),
+                                                                InetAddressAndPort.getByName("127.0.0.2"),
+                                                                InetAddressAndPort.getByName("127.0.0.3"),
+                                                                InetAddressAndPort.getByName("127.0.0.4"));
+
+        Multimap<InetAddressAndPort, Token> tokens = HashMultimap.create();
+        tokens.put(endpoints.get(0), tk(100));
+        tokens.put(endpoints.get(1), tk(200));
+        tokens.put(endpoints.get(2), tk(300));
+        tokens.put(endpoints.get(3), tk(400));
+        TokenMetadata metadata = new TokenMetadata();
+        metadata.updateNormalTokens(tokens);
+
+        Map<String, String> configOptions = new HashMap<String, String>();
+        configOptions.put(snitch.getDatacenter((InetAddressAndPort) null), "3/1");
+
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
+
+        Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(0), range(400, 100)),
+                                               fullReplica(endpoints.get(1), range(400, 100)),
+                                               transientReplica(endpoints.get(2), range(400, 100))),
+                            strategy.getNaturalReplicasForToken(tk(99)));
+
+
+        Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(1), range(100, 200)),
+                                               fullReplica(endpoints.get(2), range(100, 200)),
+                                               transientReplica(endpoints.get(3), range(100, 200))),
+                            strategy.getNaturalReplicasForToken(tk(101)));
     }
 }

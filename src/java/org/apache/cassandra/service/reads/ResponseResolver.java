@@ -20,37 +20,55 @@ package org.apache.cassandra.service.reads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 
-public abstract class ResponseResolver
+public abstract class ResponseResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
 {
     protected static final Logger logger = LoggerFactory.getLogger(ResponseResolver.class);
 
-    protected final Keyspace keyspace;
     protected final ReadCommand command;
-    protected final ConsistencyLevel consistency;
-    protected final ReadRepair readRepair;
+    protected final ReplicaPlan.Shared<E, P> replicaPlan;
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
     protected final Accumulator<MessageIn<ReadResponse>> responses;
+    protected final long queryStartNanoTime;
 
-    public ResponseResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair, int maxResponseCount)
+    public ResponseResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
-        this.keyspace = keyspace;
         this.command = command;
-        this.consistency = consistency;
-        this.readRepair = readRepair;
-        this.responses = new Accumulator<>(maxResponseCount);
+        this.replicaPlan = replicaPlan;
+        this.responses = new Accumulator<>(replicaPlan.get().candidates().size());
+        this.queryStartNanoTime = queryStartNanoTime;
+    }
+
+    protected P replicaPlan()
+    {
+        return replicaPlan.get();
     }
 
     public abstract boolean isDataPresent();
 
     public void preprocess(MessageIn<ReadResponse> message)
     {
-        responses.add(message);
+        if (replicaPlan().getReplicaFor(message.from).isTransient() &&
+            message.payload.isDigestResponse())
+            throw new IllegalArgumentException("Digest response received from transient replica");
+
+        try
+        {
+            responses.add(message);
+        }
+        catch (IllegalStateException e)
+        {
+            logger.error("Encountered error while trying to preprocess the message {}, in command {}, replica plan: {}",
+                         message, command, replicaPlan);
+            throw e;
+        }
     }
 
     public Accumulator<MessageIn<ReadResponse>> getMessages()

@@ -252,11 +252,11 @@ public class TriggerExecutor
         }
     }
 
-    public synchronized ITrigger loadTriggerInstance(String triggerName) throws Exception
+    public synchronized ITrigger loadTriggerInstance(String triggerClass) throws Exception
     {
         // double check.
-        if (cachedTriggers.get(triggerName) != null)
-            return cachedTriggers.get(triggerName);
-        return (ITrigger) customClassLoader.loadClass(triggerName).getConstructor().newInstance();
+        if (cachedTriggers.get(triggerClass) != null)
+            return cachedTriggers.get(triggerClass);
+        return (ITrigger) customClassLoader.loadClass(triggerClass).getConstructor().newInstance();
     }
 }

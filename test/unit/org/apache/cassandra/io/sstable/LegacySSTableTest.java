@@ -22,6 +22,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
@@ -54,6 +55,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OutgoingStream;
@@ -63,6 +65,8 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
+import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -172,8 +176,49 @@ public class LegacySSTableTest
             {
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
-                    sstable.descriptor.getMetadataSerializer().mutateRepaired(sstable.descriptor, 1234, UUID.randomUUID());
+                    sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1234, NO_PENDING_REPAIR, false);
                     sstable.reloadSSTableMetadata();
+                    assertEquals(1234, sstable.getRepairedAt());
+                    if (sstable.descriptor.version.hasPendingRepair())
+                        assertEquals(NO_PENDING_REPAIR, sstable.getPendingRepair());
+                }
+
+                boolean isTransient = false;
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                {
+                    UUID random = UUID.randomUUID();
+                    sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, UNREPAIRED_SSTABLE, random, isTransient);
+                    sstable.reloadSSTableMetadata();
+                    assertEquals(UNREPAIRED_SSTABLE, sstable.getRepairedAt());
+                    if (sstable.descriptor.version.hasPendingRepair())
+                        assertEquals(random, sstable.getPendingRepair());
+                    if (sstable.descriptor.version.hasIsTransient())
+                        assertEquals(isTransient, sstable.isTransient());
+
+                    isTransient = !isTransient;
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testMutateLevel() throws Exception
+    {
+        // we need to make sure we write old version metadata in the format for that version
+        for (String legacyVersion : legacyVersions)
+        {
+            logger.info("Loading legacy version: {}", legacyVersion);
+            truncateLegacyTables(legacyVersion);
+            loadLegacyTables(legacyVersion);
+            CacheService.instance.invalidateKeyCache();
+
+            for (ColumnFamilyStore cfs : Keyspace.open("legacy_tables").getColumnFamilyStores())
+            {
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                {
+                    sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 1234);
+                    sstable.reloadSSTableMetadata();
+                    assertEquals(1234, sstable.getSSTableLevel());
                 }
             }
         }
@@ -291,6 +336,7 @@ public class LegacySSTableTest
         List<OutgoingStream> streams = Lists.newArrayList(new CassandraOutgoingFile(StreamOperation.OTHER,
                                                                                     sstable.ref(),
                                                                                     sstable.getPositionsForRanges(ranges),
+                                                                                    ranges,
                                                                                     sstable.estimatedKeysForRanges(ranges)));
         new StreamPlan(StreamOperation.OTHER).transferStreams(FBUtilities.getBroadcastAddressAndPort(), streams).execute().get();
     }

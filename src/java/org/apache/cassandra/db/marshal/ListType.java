@@ -20,7 +20,6 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Lists;
@@ -29,20 +28,15 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.CollectionSerializer;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.ListSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ListType<T> extends CollectionType<List<T>>
 {
-    private static final Logger logger = LoggerFactory.getLogger(ListType.class);
-
     // interning instances
-    private static final ConcurrentMap<AbstractType<?>, ListType> instances = new ConcurrentHashMap<>();
-    private static final ConcurrentMap<AbstractType<?>, ListType> frozenInstances = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<AbstractType<?>, ListType> instances = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<AbstractType<?>, ListType> frozenInstances = new ConcurrentHashMap<>();
 
     private final AbstractType<T> elements;
     public final ListSerializer<T> serializer;
@@ -57,13 +51,13 @@ public class ListType<T> extends CollectionType<List<T>>
         return getInstance(l.get(0), true);
     }
 
-    public static <T> ListType<T> getInstance(AbstractType<T> elements, final boolean isMultiCell)
+    public static <T> ListType<T> getInstance(AbstractType<T> elements, boolean isMultiCell)
     {
-        ConcurrentMap<AbstractType<?>, ListType> internMap = isMultiCell ? instances : frozenInstances;
+        ConcurrentHashMap<AbstractType<?>, ListType> internMap = isMultiCell ? instances : frozenInstances;
         ListType<T> t = internMap.get(elements);
-        if (t == null)
-            t = internMap.computeIfAbsent(elements, k -> new ListType<>(k, isMultiCell) );
-        return t;
+        return null == t
+             ? internMap.computeIfAbsent(elements, k -> new ListType<>(k, isMultiCell))
+             : t;
     }
 
     private ListType(AbstractType<T> elements, boolean isMultiCell)
@@ -75,9 +69,26 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
-    public boolean referencesUserType(String userTypeName)
+    public boolean referencesUserType(ByteBuffer name)
     {
-        return getElementsType().referencesUserType(userTypeName);
+        return elements.referencesUserType(name);
+    }
+
+    @Override
+    public ListType<?> withUpdatedUserType(UserType udt)
+    {
+        if (!referencesUserType(udt.name))
+            return this;
+
+        (isMultiCell ? instances : frozenInstances).remove(elements);
+
+        return getInstance(elements.withUpdatedUserType(udt), isMultiCell);
+    }
+
+    @Override
+    public AbstractType<?> expandUserTypes()
+    {
+        return getInstance(elements.expandUserTypes(), isMultiCell);
     }
 
     @Override

@@ -38,18 +38,6 @@ elif [ -r "$CASSANDRA_INCLUDE" ]; then
     . "$CASSANDRA_INCLUDE"
 fi
 
-# Use JAVA_HOME if set, otherwise look for java in PATH
-if [ -x "$JAVA_HOME/bin/java" ]; then
-    JAVA="$JAVA_HOME/bin/java"
-else
-    JAVA="`which java`"
-fi
-
-if [ "x$JAVA" = "x" ]; then
-    echo "Java executable not found (hint: set JAVA_HOME)" >&2
-    exit 1
-fi
-
 if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
     echo "You must set the CASSANDRA_CONF and CLASSPATH vars" >&2
     exit 1
@@ -61,7 +49,7 @@ if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
     MAX_HEAP_SIZE_SAVE=$MAX_HEAP_SIZE
     . "$CASSANDRA_CONF/cassandra-env.sh"
     MAX_HEAP_SIZE=$MAX_HEAP_SIZE_SAVE
-    JVM_OPTS=$JVM_OPTS_SAVE
+    JVM_OPTS="$JVM_OPTS_SAVE"
 fi
 
 # JMX Port passed via cmd line args (-p 9999 / --port 9999 / --port=9999)
@@ -91,6 +79,11 @@ do
       fi
       JVM_ARGS="$JVM_ARGS -Dssl.enable=true $SSL_ARGS"
       ;;
+    --archive-command)
+      # archive-command can be multi-word, we need to special handle that in POSIX shell
+      ARCHIVE_COMMAND="$2"
+      shift
+      ;;
     -D*)
       JVM_ARGS="$JVM_ARGS $1"
       ;;
@@ -105,10 +98,19 @@ if [ "x$MAX_HEAP_SIZE" = "x" ]; then
     MAX_HEAP_SIZE="128m"
 fi
 
-"$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
-        -Dcassandra.storagedir="$cassandra_storagedir" \
-        -Dlogback.configurationFile=logback-tools.xml \
-        $JVM_ARGS \
-        org.apache.cassandra.tools.NodeTool -p $JMX_PORT $ARGS
+CMD=$(echo "$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
+            -XX:ParallelGCThreads=1 \
+            -Dcassandra.storagedir="$cassandra_storagedir" \
+            -Dlogback.configurationFile=logback-tools.xml \
+            $JVM_ARGS \
+            org.apache.cassandra.tools.NodeTool -p $JMX_PORT $ARGS)
+
+if [ "x$ARCHIVE_COMMAND" != "x" ]
+then
+  exec $CMD "--archive-command" "${ARCHIVE_COMMAND}"
+else
+  exec $CMD
+fi
+
 
 # vi:ai sw=4 ts=4 tw=0 et

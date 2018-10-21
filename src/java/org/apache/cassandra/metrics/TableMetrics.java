@@ -17,20 +17,20 @@
  */
 package org.apache.cassandra.metrics;
 
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
-
-import com.codahale.metrics.*;
-import com.codahale.metrics.Timer;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
@@ -39,11 +39,21 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.metrics.Sampler.SamplerType;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.TopKSampler;
 
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.RatioGauge;
+import com.codahale.metrics.Timer;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
 
 /**
  * Metrics for {@link ColumnFamilyStore}.
@@ -204,9 +214,36 @@ public class TableMetrics
     public final Counter speculativeInsufficientReplicas;
     public final Gauge<Long> speculativeSampleLatencyNanos;
 
+    public final Counter additionalWrites;
+    public final Gauge<Long> additionalWriteLatencyNanos;
+
+    /**
+     * Metrics for inconsistencies detected between repaired data sets across replicas. These
+     * are tracked on the coordinator.
+     */
+    // Incremented where an inconsistency is detected and there are no pending repair sessions affecting
+    // the data being read, indicating a genuine mismatch between replicas' repaired data sets.
+    public final TableMeter confirmedRepairedInconsistencies;
+    // Incremented where an inconsistency is detected, but there are pending & uncommitted repair sessions
+    // in play on at least one replica. This may indicate a false positive as the inconsistency could be due to
+    // replicas marking the repair session as committed at slightly different times and so some consider it to
+    // be part of the repaired set whilst others do not.
+    public final TableMeter unconfirmedRepairedInconsistencies;
+
     public final static LatencyMetrics globalReadLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Read");
     public final static LatencyMetrics globalWriteLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Write");
     public final static LatencyMetrics globalRangeLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Range");
+
+    /** When sampler activated, will track the most frequently read partitions **/
+    public final Sampler<ByteBuffer> topReadPartitionFrequency;
+    /** When sampler activated, will track the most frequently written to partitions **/
+    public final Sampler<ByteBuffer> topWritePartitionFrequency;
+    /** When sampler activated, will track the largest mutations **/
+    public final Sampler<ByteBuffer> topWritePartitionSize;
+    /** When sampler activated, will track the most frequent partitions with cas contention **/
+    public final Sampler<ByteBuffer> topCasPartitionContention;
+    /** When sampler activated, will track the slowest local reads **/
+    public final Sampler<String> topLocalReadQueryTime;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
@@ -218,7 +255,7 @@ public class TableMetrics
             Keyspace k = Schema.instance.getKeyspaceInstance(keyspace);
             if (SchemaConstants.DISTRIBUTED_KEYSPACE_NAME.equals(k.getName()))
                 continue;
-            if (k.getReplicationStrategy().getReplicationFactor() < 2)
+            if (k.getReplicationStrategy().getReplicationFactor().allReplicas < 2)
                 continue;
 
             for (ColumnFamilyStore cf : k.getColumnFamilyStores())
@@ -281,7 +318,7 @@ public class TableMetrics
     public final Meter readRepairRequests;
     public final Meter shortReadProtectionRequests;
 
-    public final Map<Sampler, TopKSampler<ByteBuffer>> samplers;
+    public final EnumMap<SamplerType, Sampler<?>> samplers;
     /**
      * stores metrics that will be rolled into a single global metric
      */
@@ -342,11 +379,48 @@ public class TableMetrics
         factory = new TableMetricNameFactory(cfs, "Table");
         aliasFactory = new TableMetricNameFactory(cfs, "ColumnFamily");
 
-        samplers = Maps.newHashMap();
-        for (Sampler sampler : Sampler.values())
+        samplers = new EnumMap<>(SamplerType.class);
+        topReadPartitionFrequency = new FrequencySampler<ByteBuffer>()
         {
-            samplers.put(sampler, new TopKSampler<>());
-        }
+            public String toString(ByteBuffer value)
+            {
+                return cfs.metadata().partitionKeyType.getString(value);
+            }
+        };
+        topWritePartitionFrequency = new FrequencySampler<ByteBuffer>()
+        {
+            public String toString(ByteBuffer value)
+            {
+                return cfs.metadata().partitionKeyType.getString(value);
+            }
+        };
+        topWritePartitionSize = new MaxSampler<ByteBuffer>()
+        {
+            public String toString(ByteBuffer value)
+            {
+                return cfs.metadata().partitionKeyType.getString(value);
+            }
+        };
+        topCasPartitionContention = new FrequencySampler<ByteBuffer>()
+        {
+            public String toString(ByteBuffer value)
+            {
+                return cfs.metadata().partitionKeyType.getString(value);
+            }
+        };
+        topLocalReadQueryTime = new MaxSampler<String>()
+        {
+            public String toString(String value)
+            {
+                return value;
+            }
+        };
+
+        samplers.put(SamplerType.READS, topReadPartitionFrequency);
+        samplers.put(SamplerType.WRITES, topWritePartitionFrequency);
+        samplers.put(SamplerType.WRITE_SIZE, topWritePartitionSize);
+        samplers.put(SamplerType.CAS_CONTENTIONS, topCasPartitionContention);
+        samplers.put(SamplerType.LOCAL_READ_TIME, topLocalReadQueryTime);
 
         memtableColumnsCount = createTableGauge("MemtableColumnsCount", new Gauge<Long>()
         {
@@ -767,13 +841,11 @@ public class TableMetrics
         speculativeRetries = createTableCounter("SpeculativeRetries");
         speculativeFailedRetries = createTableCounter("SpeculativeFailedRetries");
         speculativeInsufficientReplicas = createTableCounter("SpeculativeInsufficientReplicas");
-        speculativeSampleLatencyNanos = createTableGauge("SpeculativeSampleLatencyNanos", new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return cfs.sampleLatencyNanos;
-            }
-        });
+        speculativeSampleLatencyNanos = createTableGauge("SpeculativeSampleLatencyNanos", () -> cfs.sampleReadLatencyNanos);
+
+        additionalWrites = createTableCounter("AdditionalWrites");
+        additionalWriteLatencyNanos = createTableGauge("AdditionalWriteLatencyNanos", () -> cfs.additionalWriteLatencyNanos);
+
         keyCacheHitRate = Metrics.register(factory.createMetricName("KeyCacheHitRate"),
                                            aliasFactory.createMetricName("KeyCacheHitRate"),
                                            new RatioGauge()
@@ -863,6 +935,9 @@ public class TableMetrics
 
         readRepairRequests = Metrics.meter(factory.createMetricName("ReadRepairRequests"));
         shortReadProtectionRequests = Metrics.meter(factory.createMetricName("ShortReadProtectionRequests"));
+
+        confirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesConfirmed", cfs.keyspace.metric.confirmedRepairedInconsistencies);
+        unconfirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesUnconfirmed", cfs.keyspace.metric.unconfirmedRepairedInconsistencies);
     }
 
     public void updateSSTableIterated(int count)
@@ -1032,6 +1107,21 @@ public class TableMetrics
                                             globalAliasFactory.createMetricName(alias)));
     }
 
+    protected TableMeter createTableMeter(String name, Meter keyspaceMeter)
+    {
+        return createTableMeter(name, name, keyspaceMeter);
+    }
+
+    protected TableMeter createTableMeter(String name, String alias, Meter keyspaceMeter)
+    {
+        Meter meter = Metrics.meter(factory.createMetricName(name), aliasFactory.createMetricName(alias));
+        register(name, alias, meter);
+        return new TableMeter(meter,
+                              keyspaceMeter,
+                              Metrics.meter(globalFactory.createMetricName(name),
+                                            globalAliasFactory.createMetricName(alias)));
+    }
+
     /**
      * Registers a metric to be removed when unloading CF.
      * @return true if first time metric with that name has been registered
@@ -1042,6 +1132,25 @@ public class TableMetrics
         allTableMetrics.get(name).add(metric);
         all.put(name, alias);
         return ret;
+    }
+
+    public static class TableMeter
+    {
+        public final Meter[] all;
+        public final Meter table;
+        private TableMeter(Meter table, Meter keyspace, Meter global)
+        {
+            this.table = table;
+            this.all = new Meter[]{table, keyspace, global};
+        }
+
+        public void mark()
+        {
+            for (Meter meter : all)
+            {
+                meter.mark();
+            }
+        }
     }
 
     public static class TableHistogram
@@ -1154,10 +1263,5 @@ public class TableMetrics
             mbeanName.append(",name=").append(metricName);
             return new CassandraMetricsRegistry.MetricName(groupName, type, metricName, "all", mbeanName.toString());
         }
-    }
-
-    public enum Sampler
-    {
-        READS, WRITES
     }
 }

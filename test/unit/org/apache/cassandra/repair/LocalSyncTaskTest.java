@@ -20,10 +20,11 @@ package org.apache.cassandra.repair;
 
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -40,8 +41,11 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.streaming.StreamCoordinator;
+import org.apache.cassandra.streaming.DefaultConnectionFactory;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -56,6 +60,7 @@ import static org.junit.Assert.assertTrue;
 public class LocalSyncTaskTest extends AbstractRepairTest
 {
     private static final IPartitioner partitioner = Murmur3Partitioner.instance;
+    private static final InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
     public static final String KEYSPACE1 = "DifferencerTest";
     public static final String CF_STANDARD = "Standard1";
     public static ColumnFamilyStore cfs;
@@ -73,13 +78,12 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     }
 
     /**
-     * When there is no difference between two, LocalSyncTask should return stats with 0 difference.
+     * When there is no difference between two, SymmetricLocalSyncTask should return stats with 0 difference.
      */
     @Test
     public void testNoDifference() throws Throwable
     {
-        final InetAddressAndPort ep1 = InetAddressAndPort.getByName("127.0.0.1");
-        final InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.1");
+        final InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.2");
 
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
         RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), KEYSPACE1, "Standard1", Arrays.asList(range));
@@ -90,9 +94,10 @@ public class LocalSyncTaskTest extends AbstractRepairTest
 
         // difference the trees
         // note: we reuse the same endpoint which is bogus in theory but fine here
-        TreeResponse r1 = new TreeResponse(ep1, tree1);
+        TreeResponse r1 = new TreeResponse(local, tree1);
         TreeResponse r2 = new TreeResponse(ep2, tree2);
-        LocalSyncTask task = new LocalSyncTask(desc, r1, r2, NO_PENDING_REPAIR, false, PreviewKind.NONE);
+        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+                                               NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
         task.run();
 
         assertEquals(0, task.get().numberOfDifferences);
@@ -114,7 +119,6 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         RepairJobDesc desc = new RepairJobDesc(parentRepairSession, UUID.randomUUID(), KEYSPACE1, "Standard1", Arrays.asList(range));
 
         MerkleTrees tree1 = createInitialTree(desc);
-
         MerkleTrees tree2 = createInitialTree(desc);
 
         // change a range in one of the trees
@@ -128,13 +132,24 @@ public class LocalSyncTaskTest extends AbstractRepairTest
 
         // difference the trees
         // note: we reuse the same endpoint which is bogus in theory but fine here
-        TreeResponse r1 = new TreeResponse(InetAddressAndPort.getByName("127.0.0.1"), tree1);
+        TreeResponse r1 = new TreeResponse(local, tree1);
         TreeResponse r2 = new TreeResponse(InetAddressAndPort.getByName("127.0.0.2"), tree2);
-        LocalSyncTask task = new LocalSyncTask(desc, r1, r2, NO_PENDING_REPAIR, false, PreviewKind.NONE);
-        task.run();
+        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+                                               NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
+        DefaultConnectionFactory.MAX_CONNECT_ATTEMPTS = 1;
+        DefaultConnectionFactory.MAX_WAIT_TIME_NANOS = TimeUnit.SECONDS.toNanos(2);
+        try
+        {
+            task.run();
+        }
+        finally
+        {
+            DefaultConnectionFactory.MAX_WAIT_TIME_NANOS = TimeUnit.SECONDS.toNanos(30);
+            DefaultConnectionFactory.MAX_CONNECT_ATTEMPTS = 3;
+        }
 
         // ensure that the changed range was recorded
-        assertEquals("Wrong differing ranges", interesting.size(), task.getCurrentStat().numberOfDifferences);
+        assertEquals("Wrong differing ranges", interesting.size(), task.stat.numberOfDifferences);
     }
 
     @Test
@@ -144,14 +159,23 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
-        TreeResponse r1 = new TreeResponse(PARTICIPANT1, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+        TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
-        LocalSyncTask task = new LocalSyncTask(desc, r1, r2, NO_PENDING_REPAIR, false, PreviewKind.NONE);
-        StreamPlan plan = task.createStreamPlan(PARTICIPANT1, Lists.newArrayList(RANGE1));
+        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+                                               NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
+        StreamPlan plan = task.createStreamPlan();
 
         assertEquals(NO_PENDING_REPAIR, plan.getPendingRepair());
         assertTrue(plan.getFlushBeforeTransfer());
+    }
+
+    private static void assertNumInOut(StreamPlan plan, int expectedIncoming, int expectedOutgoing)
+    {
+        StreamCoordinator coordinator = plan.getCoordinator();
+        StreamSession session = Iterables.getOnlyElement(coordinator.getAllStreamSessions());
+        assertEquals(expectedIncoming, session.getNumRequests());
+        assertEquals(expectedOutgoing, session.getNumTransfers());
     }
 
     @Test
@@ -161,14 +185,54 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
-        TreeResponse r1 = new TreeResponse(PARTICIPANT1, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+        TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
-        LocalSyncTask task = new LocalSyncTask(desc, r1, r2, desc.parentSessionId, false, PreviewKind.NONE);
-        StreamPlan plan = task.createStreamPlan(PARTICIPANT1, Lists.newArrayList(RANGE1));
+        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+                                               desc.parentSessionId, true, true, PreviewKind.NONE);
+        StreamPlan plan = task.createStreamPlan();
 
         assertEquals(desc.parentSessionId, plan.getPendingRepair());
         assertFalse(plan.getFlushBeforeTransfer());
+        assertNumInOut(plan, 1, 1);
+    }
+
+    /**
+     * Don't reciprocate streams if the other endpoint is a transient replica
+     */
+    @Test
+    public void transientRemoteStreamPlan()
+    {
+        UUID sessionID = registerSession(cfs, true, true);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+        RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
+
+        TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+        TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+
+        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+                                               desc.parentSessionId, true, false, PreviewKind.NONE);
+        StreamPlan plan = task.createStreamPlan();
+        assertNumInOut(plan, 1, 0);
+    }
+
+    /**
+     * Don't request streams if the other endpoint is a transient replica
+     */
+    @Test
+    public void transientLocalStreamPlan()
+    {
+        UUID sessionID = registerSession(cfs, true, true);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+        RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
+
+        TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+        TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+
+        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+                                               desc.parentSessionId, false, true, PreviewKind.NONE);
+        StreamPlan plan = task.createStreamPlan();
+        assertNumInOut(plan, 0, 1);
     }
 
     private MerkleTrees createInitialTree(RepairJobDesc desc, IPartitioner partitioner)

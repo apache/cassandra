@@ -131,6 +131,22 @@ public final class StatementRestrictions
                                  boolean allowFiltering,
                                  boolean forView)
     {
+        this(type, table, whereClause, boundNames, selectsOnlyStaticColumns, type.allowUseOfSecondaryIndices(), allowFiltering, forView);
+    }
+
+    /*
+     * We want to override allowUseOfSecondaryIndices flag from the StatementType for MV statements
+     * to avoid initing the Keyspace and SecondaryIndexManager.
+     */
+    public StatementRestrictions(StatementType type,
+                                 TableMetadata table,
+                                 WhereClause whereClause,
+                                 VariableSpecifications boundNames,
+                                 boolean selectsOnlyStaticColumns,
+                                 boolean allowUseOfSecondaryIndices,
+                                 boolean allowFiltering,
+                                 boolean forView)
+    {
         this(type, table, allowFiltering);
 
         IndexRegistry indexRegistry = null;
@@ -153,8 +169,7 @@ public final class StatementRestrictions
                 if (!forView)
                     throw new InvalidRequestException("Unsupported restriction: " + relation);
 
-                for (ColumnMetadata def : relation.toRestriction(table, boundNames).getColumnDefs())
-                    this.notNullColumns.add(def);
+                this.notNullColumns.addAll(relation.toRestriction(table, boundNames).getColumnDefs());
             }
             else if (relation.isLIKE())
             {
@@ -178,7 +193,7 @@ public final class StatementRestrictions
         boolean hasQueriableClusteringColumnIndex = false;
         boolean hasQueriableIndex = false;
 
-        if (type.allowUseOfSecondaryIndices())
+        if (allowUseOfSecondaryIndices)
         {
             if (whereClause.containsCustomExpressions())
                 processCustomIndexExpressions(whereClause.expressions, boundNames, indexRegistry);
@@ -566,19 +581,15 @@ public final class StatementRestrictions
 
         CustomIndexExpression expression = expressions.get(0);
 
-        CFName cfName = expression.targetIndex.getCfName();
-        if (cfName.hasKeyspace()
-            && !expression.targetIndex.getKeyspace().equals(table.keyspace))
+        QualifiedName name = expression.targetIndex;
+
+        if (name.hasKeyspace() && !name.getKeyspace().equals(table.keyspace))
             throw IndexRestrictions.invalidIndex(expression.targetIndex, table);
 
-        if (cfName.getColumnFamily() != null && !cfName.getColumnFamily().equals(table.name))
-            throw IndexRestrictions.invalidIndex(expression.targetIndex, table);
-
-        if (!table.indexes.has(expression.targetIndex.getIdx()))
+        if (!table.indexes.has(expression.targetIndex.getName()))
             throw IndexRestrictions.indexNotFound(expression.targetIndex, table);
 
-        Index index = indexRegistry.getIndex(table.indexes.get(expression.targetIndex.getIdx()).get());
-
+        Index index = indexRegistry.getIndex(table.indexes.get(expression.targetIndex.getName()).get());
         if (!index.getIndexMetadata().isCustom())
             throw IndexRestrictions.nonCustomIndexInExpression(expression.targetIndex);
 

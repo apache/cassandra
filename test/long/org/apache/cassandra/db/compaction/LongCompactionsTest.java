@@ -55,7 +55,7 @@ public class LongCompactionsTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD)
-                                                .compaction(CompactionParams.scts(compactionOptions)));
+                                                .compaction(CompactionParams.stcs(compactionOptions)));
     }
 
     @Before

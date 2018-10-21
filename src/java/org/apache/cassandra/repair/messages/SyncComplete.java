@@ -26,7 +26,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.NodePair;
+import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.streaming.SessionSummary;
 
@@ -39,13 +39,13 @@ public class SyncComplete extends RepairMessage
     public static final MessageSerializer serializer = new SyncCompleteSerializer();
 
     /** nodes that involved in this sync */
-    public final NodePair nodes;
+    public final SyncNodePair nodes;
     /** true if sync success, false otherwise */
     public final boolean success;
 
     public final List<SessionSummary> summaries;
 
-    public SyncComplete(RepairJobDesc desc, NodePair nodes, boolean success, List<SessionSummary> summaries)
+    public SyncComplete(RepairJobDesc desc, SyncNodePair nodes, boolean success, List<SessionSummary> summaries)
     {
         super(Type.SYNC_COMPLETE, desc);
         this.nodes = nodes;
@@ -57,7 +57,7 @@ public class SyncComplete extends RepairMessage
     {
         super(Type.SYNC_COMPLETE, desc);
         this.summaries = summaries;
-        this.nodes = new NodePair(endpoint1, endpoint2);
+        this.nodes = new SyncNodePair(endpoint1, endpoint2);
         this.success = success;
     }
 
@@ -85,7 +85,7 @@ public class SyncComplete extends RepairMessage
         public void serialize(SyncComplete message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
-            NodePair.serializer.serialize(message.nodes, out, version);
+            SyncNodePair.serializer.serialize(message.nodes, out, version);
             out.writeBoolean(message.success);
 
             out.writeInt(message.summaries.size());
@@ -98,7 +98,7 @@ public class SyncComplete extends RepairMessage
         public SyncComplete deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
-            NodePair nodes = NodePair.serializer.deserialize(in, version);
+            SyncNodePair nodes = SyncNodePair.serializer.deserialize(in, version);
             boolean success = in.readBoolean();
 
             int numSummaries = in.readInt();
@@ -114,7 +114,7 @@ public class SyncComplete extends RepairMessage
         public long serializedSize(SyncComplete message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
-            size += NodePair.serializer.serializedSize(message.nodes, version);
+            size += SyncNodePair.serializer.serializedSize(message.nodes, version);
             size += TypeSizes.sizeof(message.success);
 
             size += TypeSizes.sizeof(message.summaries.size());

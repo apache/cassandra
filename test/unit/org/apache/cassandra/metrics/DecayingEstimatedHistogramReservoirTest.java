@@ -415,6 +415,17 @@ public class DecayingEstimatedHistogramReservoirTest
         assertEquals(2500, snapshot.getMean(), 500D);
     }
 
+    @Test
+    public void testSize()
+    {
+        TestClock clock = new TestClock();
+
+        DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION, DecayingEstimatedHistogramReservoir.DEFAULT_BUCKET_COUNT, clock);
+        histogram.update(42);
+        histogram.update(42);
+        assertEquals(2, histogram.getSnapshot().size());
+    }
+
     private void assertEstimatedQuantile(long expectedValue, double actualValue)
     {
         assertTrue("Expected at least [" + expectedValue + "] but actual is [" + actualValue + "]", actualValue >= expectedValue);

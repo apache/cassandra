@@ -31,12 +31,10 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
-import org.apache.cassandra.utils.concurrent.Locks;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
@@ -49,7 +47,7 @@ import org.apache.cassandra.utils.memory.MemtableAllocator;
  * other thread can see the state where only parts but not all rows have
  * been added.
  */
-public class AtomicBTreePartition extends AbstractBTreePartition
+public final class AtomicBTreePartition extends AtomicBTreePartitionBase
 {
     public static final long EMPTY_SIZE = ObjectSizes.measure(new AtomicBTreePartition(null,
                                                                                        DatabaseDescriptor.getPartitioner().decorateKey(ByteBuffer.allocate(1)),
@@ -125,7 +123,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
         {
             if (usePessimisticLocking())
             {
-                Locks.monitorEnterUnsafe(this);
+                acquireLock();
                 monitorOwned = true;
             }
 
@@ -179,7 +177,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
                     }
                     if (shouldLock)
                     {
-                        Locks.monitorEnterUnsafe(this);
+                        acquireLock();
                         monitorOwned = true;
                     }
                 }
@@ -189,7 +187,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
         {
             indexer.commit();
             if (monitorOwned)
-                Locks.monitorExitUnsafe(this);
+                releaseLock();
         }
     }
 
@@ -307,7 +305,6 @@ public class AtomicBTreePartition extends AbstractBTreePartition
         final MemtableAllocator allocator;
         final OpOrder.Group writeOp;
         final UpdateTransaction indexer;
-        final int nowInSec;
         Holder ref;
         Row.Builder regularBuilder;
         long dataSize;
@@ -321,7 +318,6 @@ public class AtomicBTreePartition extends AbstractBTreePartition
             this.allocator = allocator;
             this.writeOp = writeOp;
             this.indexer = indexer;
-            this.nowInSec = FBUtilities.nowInSeconds();
         }
 
         private Row.Builder builder(Clustering clustering)
@@ -352,7 +348,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
         public Row apply(Row existing, Row update)
         {
             Row.Builder builder = builder(existing.clustering());
-            colUpdateTimeDelta = Math.min(colUpdateTimeDelta, Rows.merge(existing, update, builder, nowInSec));
+            colUpdateTimeDelta = Math.min(colUpdateTimeDelta, Rows.merge(existing, update, builder));
 
             Row reconciled = builder.build();
 

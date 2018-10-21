@@ -55,6 +55,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 {
     protected long repairedAt;
     protected UUID pendingRepair;
+    protected boolean isTransient;
     protected long maxDataAge = -1;
     protected final long keyCount;
     protected final MetadataCollector metadataCollector;
@@ -77,6 +78,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                             long keyCount,
                             long repairedAt,
                             UUID pendingRepair,
+                            boolean isTransient,
                             TableMetadataRef metadata,
                             MetadataCollector metadataCollector,
                             SerializationHeader header,
@@ -86,6 +88,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         this.keyCount = keyCount;
         this.repairedAt = repairedAt;
         this.pendingRepair = pendingRepair;
+        this.isTransient = isTransient;
         this.metadataCollector = metadataCollector;
         this.header = header;
         this.rowIndexEntrySerializer = descriptor.version.getSSTableFormat().getIndexSerializer(metadata.get(), descriptor.version, header);
@@ -96,6 +99,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        Long keyCount,
                                        Long repairedAt,
                                        UUID pendingRepair,
+                                       boolean isTransient,
                                        TableMetadataRef metadata,
                                        MetadataCollector metadataCollector,
                                        SerializationHeader header,
@@ -103,20 +107,21 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        LifecycleTransaction txn)
     {
         Factory writerFactory = descriptor.getFormat().getWriterFactory();
-        return writerFactory.open(descriptor, keyCount, repairedAt, pendingRepair, metadata, metadataCollector, header, observers(descriptor, indexes, txn.opType()), txn);
+        return writerFactory.open(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers(descriptor, indexes, txn.opType()), txn);
     }
 
     public static SSTableWriter create(Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
                                        UUID pendingRepair,
+                                       boolean isTransient,
                                        int sstableLevel,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
                                        LifecycleTransaction txn)
     {
         TableMetadataRef metadata = Schema.instance.getTableMetadataRef(descriptor);
-        return create(metadata, descriptor, keyCount, repairedAt, pendingRepair, sstableLevel, header, indexes, txn);
+        return create(metadata, descriptor, keyCount, repairedAt, pendingRepair, isTransient, sstableLevel, header, indexes, txn);
     }
 
     public static SSTableWriter create(TableMetadataRef metadata,
@@ -124,13 +129,14 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        long keyCount,
                                        long repairedAt,
                                        UUID pendingRepair,
+                                       boolean isTransient,
                                        int sstableLevel,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
                                        LifecycleTransaction txn)
     {
         MetadataCollector collector = new MetadataCollector(metadata.get().comparator).sstableLevel(sstableLevel);
-        return create(descriptor, keyCount, repairedAt, pendingRepair, metadata, collector, header, indexes, txn);
+        return create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, collector, header, indexes, txn);
     }
 
     @VisibleForTesting
@@ -138,11 +144,12 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        long keyCount,
                                        long repairedAt,
                                        UUID pendingRepair,
+                                       boolean isTransient,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
                                        LifecycleTransaction txn)
     {
-        return create(descriptor, keyCount, repairedAt, pendingRepair, 0, header, indexes, txn);
+        return create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, 0, header, indexes, txn);
     }
 
     private static Set<Component> components(TableMetadata metadata)
@@ -309,6 +316,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                                   metadata().params.bloomFilterFpChance,
                                                   repairedAt,
                                                   pendingRepair,
+                                                  isTransient,
                                                   header);
     }
 
@@ -338,6 +346,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                            long keyCount,
                                            long repairedAt,
                                            UUID pendingRepair,
+                                           boolean isTransient,
                                            TableMetadataRef metadata,
                                            MetadataCollector metadataCollector,
                                            SerializationHeader header,

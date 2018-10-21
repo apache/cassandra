@@ -23,7 +23,6 @@ import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Objects;
 import com.google.common.collect.Collections2;
 
 import org.apache.cassandra.cql3.*;
@@ -166,7 +165,6 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     {
         super(ksName, cfName, name, type);
         assert name != null && type != null && kind != null;
-        assert name.isInterned();
         assert (position == NO_POSITION) == !kind.isPrimaryKeyKind(); // The position really only make sense for partition and clustering columns (and those must have one),
                                                                       // so make sure we don't sneak it for something else since it'd breaks equals()
         this.kind = kind;
@@ -263,12 +261,29 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
         ColumnMetadata cd = (ColumnMetadata) o;
 
-        return Objects.equal(ksName, cd.ksName)
-            && Objects.equal(cfName, cd.cfName)
-            && Objects.equal(name, cd.name)
-            && Objects.equal(type, cd.type)
-            && Objects.equal(kind, cd.kind)
-            && Objects.equal(position, cd.position);
+        return equalsWithoutType(cd) && type.equals(cd.type);
+    }
+
+    private boolean equalsWithoutType(ColumnMetadata other)
+    {
+        return name.equals(other.name)
+            && kind == other.kind
+            && position == other.position
+            && ksName.equals(other.ksName)
+            && cfName.equals(other.cfName);
+    }
+
+    Optional<Difference> compare(ColumnMetadata other)
+    {
+        if (!equalsWithoutType(other))
+            return Optional.of(Difference.SHALLOW);
+
+        if (type.equals(other.type))
+            return Optional.empty();
+
+        return type.asCQL3Type().toString().equals(other.type.asCQL3Type().toString())
+             ? Optional.of(Difference.DEEP)
+             : Optional.of(Difference.SHALLOW);
     }
 
     @Override

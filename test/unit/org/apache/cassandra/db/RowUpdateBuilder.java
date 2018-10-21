@@ -70,6 +70,12 @@ public class RowUpdateBuilder
         this.updateBuilder.nowInSec(localDeletionTime);
     }
 
+    public RowUpdateBuilder timestamp(long ts)
+    {
+        updateBuilder.timestamp(ts);
+        return this;
+    }
+
     private Row.SimpleBuilder rowBuilder()
     {
         // Normally, rowBuilder is created by the call to clustering(), but we allow skipping that call for an empty

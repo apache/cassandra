@@ -42,6 +42,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 
 /**
@@ -280,11 +281,30 @@ public abstract class AbstractCompactionStrategy
 
     public abstract void removeSSTable(SSTableReader sstable);
 
+    public void removeSSTables(Iterable<SSTableReader> removed)
+    {
+        for (SSTableReader sstable : removed)
+            removeSSTable(sstable);
+    }
+
     /**
      * Returns the sstables managed by this strategy instance
      */
     @VisibleForTesting
     protected abstract Set<SSTableReader> getSSTables();
+
+    /**
+     * Called when the metadata has changed for an sstable - for example if the level changed
+     *
+     * Not called when repair status changes (which is also metadata), because this results in the
+     * sstable getting removed from the compaction strategy instance.
+     *
+     * @param oldMetadata
+     * @param sstable
+     */
+    public void metadataChanged(StatsMetadata oldMetadata, SSTableReader sstable)
+    {
+    }
 
     public static class ScannerList implements AutoCloseable
     {
@@ -510,12 +530,13 @@ public abstract class AbstractCompactionStrategy
                                                        long keyCount,
                                                        long repairedAt,
                                                        UUID pendingRepair,
+                                                       boolean isTransient,
                                                        MetadataCollector meta,
                                                        SerializationHeader header,
                                                        Collection<Index> indexes,
                                                        LifecycleTransaction txn)
     {
-        return SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, cfs.metadata, meta, header, indexes, txn);
+        return SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, cfs.metadata, meta, header, indexes, txn);
     }
 
     public boolean supportsEarlyOpen()

@@ -43,6 +43,8 @@ import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -135,14 +137,15 @@ class ViewBuilder
         }
 
         // Get the local ranges for which the view hasn't already been built nor it's building
-        Set<Range<Token>> newRanges = StorageService.instance.getLocalRanges(ksName)
-                                                             .stream()
-                                                             .map(r -> r.subtractAll(builtRanges))
-                                                             .flatMap(Set::stream)
-                                                             .map(r -> r.subtractAll(pendingRanges.keySet()))
-                                                             .flatMap(Set::stream)
-                                                             .collect(Collectors.toSet());
-
+        RangesAtEndpoint replicatedRanges = StorageService.instance.getLocalReplicas(ksName);
+        Replicas.temporaryAssertFull(replicatedRanges);
+        Set<Range<Token>> newRanges = replicatedRanges.ranges()
+                                                      .stream()
+                                                      .map(r -> r.subtractAll(builtRanges))
+                                                      .flatMap(Set::stream)
+                                                      .map(r -> r.subtractAll(pendingRanges.keySet()))
+                                                      .flatMap(Set::stream)
+                                                      .collect(Collectors.toSet());
         // If there are no new nor pending ranges we should finish the build
         if (newRanges.isEmpty() && pendingRanges.isEmpty())
         {

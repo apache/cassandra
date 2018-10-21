@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
 import org.junit.Test;
 
@@ -32,9 +33,12 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static junit.framework.Assert.fail;
+import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
+import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -245,4 +249,60 @@ public class SSTableWriterTest extends SSTableWriterTestBase
         }
     }
 
+    private static void assertValidRepairMetadata(long repairedAt, UUID pendingRepair, boolean isTransient)
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_SMALL_MAX_VALUE);
+        File dir = cfs.getDirectories().getDirectoryForNewSSTables();
+        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
+
+        try (SSTableWriter writer = getWriter(cfs, dir, txn, repairedAt, pendingRepair, isTransient))
+        {
+            // expected
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new AssertionError("Unexpected IllegalArgumentException", e);
+        }
+
+        txn.abort();
+        LifecycleTransaction.waitForDeletions();
+    }
+
+    private static void assertInvalidRepairMetadata(long repairedAt, UUID pendingRepair, boolean isTransient)
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_SMALL_MAX_VALUE);
+        File dir = cfs.getDirectories().getDirectoryForNewSSTables();
+        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
+
+        try (SSTableWriter writer = getWriter(cfs, dir, txn, repairedAt, pendingRepair, isTransient))
+        {
+            fail("Expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException e)
+        {
+            // expected
+        }
+
+        txn.abort();
+        LifecycleTransaction.waitForDeletions();
+    }
+
+    /**
+     * It should only be possible to create sstables marked transient that also have a pending repair
+     */
+    @Test
+    public void testRepairMetadataValidation()
+    {
+        assertValidRepairMetadata(UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false);
+        assertValidRepairMetadata(1, NO_PENDING_REPAIR, false);
+        assertValidRepairMetadata(UNREPAIRED_SSTABLE, UUID.randomUUID(), false);
+        assertValidRepairMetadata(UNREPAIRED_SSTABLE, UUID.randomUUID(), true);
+
+        assertInvalidRepairMetadata(UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, true);
+        assertInvalidRepairMetadata(1, UUID.randomUUID(), false);
+        assertInvalidRepairMetadata(1, NO_PENDING_REPAIR, true);
+
+    }
 }

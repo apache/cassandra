@@ -60,6 +60,11 @@ public class TableViews extends AbstractCollection<View>
         baseTableMetadata = Schema.instance.getTableMetadataRef(id);
     }
 
+    public boolean hasViews()
+    {
+        return !views.isEmpty();
+    }
+
     public int size()
     {
         return views.size();
@@ -85,7 +90,7 @@ public class TableViews extends AbstractCollection<View>
     public Iterable<ColumnFamilyStore> allViewsCfs()
     {
         Keyspace keyspace = Keyspace.open(baseTableMetadata.keyspace);
-        return Iterables.transform(views, view -> keyspace.getColumnFamilyStore(view.getDefinition().name));
+        return Iterables.transform(views, view -> keyspace.getColumnFamilyStore(view.getDefinition().name()));
     }
 
     public void forceBlockingFlush()
@@ -246,7 +251,7 @@ public class TableViews extends AbstractCollection<View>
                 updateRow = ((Row)updatesIter.next()).withRowDeletion(updatesDeletion.currentDeletion());
             }
 
-            addToViewUpdateGenerators(existingRow, updateRow, generators, nowInSec);
+            addToViewUpdateGenerators(existingRow, updateRow, generators);
         }
 
         // We only care about more existing rows if the update deletion isn't live, i.e. if we had a partition deletion
@@ -261,7 +266,7 @@ public class TableViews extends AbstractCollection<View>
                     continue;
 
                 Row existingRow = (Row)existing;
-                addToViewUpdateGenerators(existingRow, emptyRow(existingRow.clustering(), updatesDeletion.currentDeletion()), generators, nowInSec);
+                addToViewUpdateGenerators(existingRow, emptyRow(existingRow.clustering(), updatesDeletion.currentDeletion()), generators);
             }
         }
 
@@ -291,8 +296,7 @@ public class TableViews extends AbstractCollection<View>
                         Row updateRow = (Row) update;
                         addToViewUpdateGenerators(emptyRow(updateRow.clustering(), existingsDeletion.currentDeletion()),
                                                   updateRow,
-                                                  generators,
-                                                  nowInSec);
+                                                  generators);
 
                         // If the updates have been filtered, then we won't have any mutations; we need to make sure that we
                         // only return if the mutations are empty. Otherwise, we continue to search for an update which is
@@ -333,8 +337,7 @@ public class TableViews extends AbstractCollection<View>
                 Row updateRow = (Row) update;
                 addToViewUpdateGenerators(emptyRow(updateRow.clustering(), existingsDeletion.currentDeletion()),
                                           updateRow,
-                                          generators,
-                                          nowInSec);
+                                          generators);
             }
 
             return Iterators.singletonIterator(buildMutations(baseTableMetadata.get(), generators));
@@ -465,9 +468,8 @@ public class TableViews extends AbstractCollection<View>
      * @param existingBaseRow the base table row as it is before an update.
      * @param updateBaseRow the newly updates made to {@code existingBaseRow}.
      * @param generators the view update generators to add the new changes to.
-     * @param nowInSec the current time in seconds. Used to decide if data is live or not.
      */
-    private static void addToViewUpdateGenerators(Row existingBaseRow, Row updateBaseRow, Collection<ViewUpdateGenerator> generators, int nowInSec)
+    private static void addToViewUpdateGenerators(Row existingBaseRow, Row updateBaseRow, Collection<ViewUpdateGenerator> generators)
     {
         // Having existing empty is useful, it just means we'll insert a brand new entry for updateBaseRow,
         // but if we have no update at all, we shouldn't get there.
@@ -475,7 +477,7 @@ public class TableViews extends AbstractCollection<View>
 
         // We allow existingBaseRow to be null, which we treat the same as being empty as an small optimization
         // to avoid allocating empty row objects when we know there was nothing existing.
-        Row mergedBaseRow = existingBaseRow == null ? updateBaseRow : Rows.merge(existingBaseRow, updateBaseRow, nowInSec);
+        Row mergedBaseRow = existingBaseRow == null ? updateBaseRow : Rows.merge(existingBaseRow, updateBaseRow);
         for (ViewUpdateGenerator generator : generators)
             generator.addBaseTableUpdate(existingBaseRow, mergedBaseRow);
     }

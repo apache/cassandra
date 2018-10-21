@@ -226,7 +226,7 @@ public class UFAuthTest extends CQLTester
             functions.add(functionName);
             statements.add(stmt);
         }
-        BatchStatement batch = new BatchStatement(-1, BatchStatement.Type.LOGGED, statements, Attributes.none());
+        BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED, VariableSpecifications.empty(), statements, Attributes.none());
         assertUnauthorized(batch, functions);
 
         grantExecuteOnFunction(functions.get(0));
@@ -236,7 +236,7 @@ public class UFAuthTest extends CQLTester
         assertUnauthorized(batch, functions.subList(2, functions.size()));
 
         grantExecuteOnFunction(functions.get(2));
-        batch.checkAccess(clientState);
+        batch.authorize(clientState);
     }
 
     @Test
@@ -313,7 +313,7 @@ public class UFAuthTest extends CQLTester
         // with terminal arguments, so evaluated at prepare time
         String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = blobasint(intasblob(0)) and v1 = 0",
                                    KEYSPACE + "." + currentTable());
-        getStatement(cql).checkAccess(clientState);
+        getStatement(cql).authorize(clientState);
 
         // with non-terminal arguments, so evaluated at execution
         String functionName = createSimpleFunction();
@@ -321,7 +321,7 @@ public class UFAuthTest extends CQLTester
         cql = String.format("UPDATE %s SET v2 = 0 WHERE k = blobasint(intasblob(%s)) and v1 = 0",
                             KEYSPACE + "." + currentTable(),
                             functionCall(functionName));
-        getStatement(cql).checkAccess(clientState);
+        getStatement(cql).authorize(clientState);
     }
 
     @Test
@@ -343,7 +343,7 @@ public class UFAuthTest extends CQLTester
         assertUnauthorized(aggDef, fFunc, "int");
         grantExecuteOnFunction(fFunc);
 
-        getStatement(aggDef).checkAccess(clientState);
+        getStatement(aggDef).authorize(clientState);
     }
 
     @Test
@@ -361,24 +361,24 @@ public class UFAuthTest extends CQLTester
         String cql = String.format("SELECT %s(v1) FROM %s",
                                    aggregate,
                                    KEYSPACE + "." + currentTable());
-        getStatement(cql).checkAccess(clientState);
+        getStatement(cql).authorize(clientState);
 
         // check that revoking EXECUTE permission on any one of the
         // component functions means we lose the ability to execute it
         revokeExecuteOnFunction(aggregate);
         assertUnauthorized(cql, aggregate, "int");
         grantExecuteOnFunction(aggregate);
-        getStatement(cql).checkAccess(clientState);
+        getStatement(cql).authorize(clientState);
 
         revokeExecuteOnFunction(sFunc);
         assertUnauthorized(cql, sFunc, "int, int");
         grantExecuteOnFunction(sFunc);
-        getStatement(cql).checkAccess(clientState);
+        getStatement(cql).authorize(clientState);
 
         revokeExecuteOnFunction(fFunc);
         assertUnauthorized(cql, fFunc, "int");
         grantExecuteOnFunction(fFunc);
-        getStatement(cql).checkAccess(clientState);
+        getStatement(cql).authorize(clientState);
     }
 
     @Test
@@ -410,7 +410,7 @@ public class UFAuthTest extends CQLTester
         assertUnauthorized(cql, aggregate, "int");
         grantExecuteOnFunction(aggregate);
 
-        getStatement(cql).checkAccess(clientState);
+        getStatement(cql).authorize(clientState);
     }
 
     @Test
@@ -442,7 +442,7 @@ public class UFAuthTest extends CQLTester
         assertUnauthorized(cql, innerFunc, "int");
         grantExecuteOnFunction(innerFunc);
 
-        getStatement(cql).checkAccess(clientState);
+        getStatement(cql).authorize(clientState);
     }
 
     @Test
@@ -484,7 +484,7 @@ public class UFAuthTest extends CQLTester
         grantExecuteOnFunction(innerFunction);
 
         // now execution of both is permitted
-        getStatement(cql).checkAccess(clientState);
+        getStatement(cql).authorize(clientState);
     }
 
     private void assertPermissionsOnFunction(String cql, String functionName) throws Throwable
@@ -496,14 +496,14 @@ public class UFAuthTest extends CQLTester
     {
         assertUnauthorized(cql, functionName, argTypes);
         grantExecuteOnFunction(functionName);
-        getStatement(cql).checkAccess(clientState);
+        getStatement(cql).authorize(clientState);
     }
 
     private void assertUnauthorized(BatchStatement batch, Iterable<String> functionNames) throws Throwable
     {
         try
         {
-            batch.checkAccess(clientState);
+            batch.authorize(clientState);
             fail("Expected an UnauthorizedException, but none was thrown");
         }
         catch (UnauthorizedException e)
@@ -520,7 +520,7 @@ public class UFAuthTest extends CQLTester
     {
         try
         {
-            getStatement(cql).checkAccess(clientState);
+            getStatement(cql).authorize(clientState);
             fail("Expected an UnauthorizedException, but none was thrown");
         }
         catch (UnauthorizedException e)
@@ -625,7 +625,7 @@ public class UFAuthTest extends CQLTester
 
     private CQLStatement getStatement(String cql)
     {
-        return QueryProcessor.getStatement(cql, clientState).statement;
+        return QueryProcessor.getStatement(cql, clientState);
     }
 
     private FunctionResource functionResource(String functionName)

@@ -95,7 +95,7 @@ public class AccumulatorTest
 
         assertEquals("0", accu.get(3));
 
-        Iterator<String> iter = accu.iterator();
+        Iterator<String> iter = accu.snapshot().iterator();
 
         assertEquals("3", iter.next());
         assertEquals("2", iter.next());

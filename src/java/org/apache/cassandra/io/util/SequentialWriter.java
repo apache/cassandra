@@ -138,11 +138,22 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
      */
     public SequentialWriter(File file, SequentialWriterOption option)
     {
-        super(openChannel(file), option.allocateBuffer());
-        strictFlushing = true;
-        fchannel = (FileChannel)channel;
+        this(file, option, true);
+    }
 
-        filePath = file.getAbsolutePath();
+    /**
+     * Create SequentialWriter for given file with specific writer option.
+     * @param file
+     * @param option
+     * @param strictFlushing
+     */
+    public SequentialWriter(File file, SequentialWriterOption option, boolean strictFlushing)
+    {
+        super(openChannel(file), option.allocateBuffer());
+        this.strictFlushing = strictFlushing;
+        this.fchannel = (FileChannel)channel;
+
+        this.filePath = file.getAbsolutePath();
 
         this.option = option;
     }

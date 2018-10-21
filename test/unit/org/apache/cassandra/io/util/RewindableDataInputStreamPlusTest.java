@@ -42,7 +42,7 @@ public class RewindableDataInputStreamPlusTest
     @Before
     public void setup() throws Exception
     {
-        this.file = new File(System.getProperty("java.io.tmpdir"), "subdir/test.buffer");
+        this.file = new File(FileUtils.getTempDir(), "subdir/test.buffer");
     }
 
     @Test

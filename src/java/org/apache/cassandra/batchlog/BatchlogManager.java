@@ -28,12 +28,15 @@ import javax.management.ObjectName;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.RateLimiter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
@@ -48,6 +51,8 @@ import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -252,6 +257,8 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         Set<InetAddressAndPort> hintedNodes = new HashSet<>();
         Set<UUID> replayedBatches = new HashSet<>();
+        Exception caughtException = null;
+        int skipped = 0;
 
         // Sending out batches for replay without waiting for them, so that one stuck batch doesn't affect others
         for (UntypedResultSet.Row row : batches)
@@ -274,7 +281,9 @@ public class BatchlogManager implements BatchlogManagerMBean
             catch (IOException e)
             {
                 logger.warn("Skipped batch replay of {} due to {}", id, e.getMessage());
+                caughtException = e;
                 remove(id);
+                ++skipped;
             }
 
             if (++positionInPage == pageSize)
@@ -287,6 +296,9 @@ public class BatchlogManager implements BatchlogManagerMBean
         }
 
         finishAndClearBatches(unfinishedBatches, hintedNodes, replayedBatches);
+
+        if (caughtException != null)
+            logger.warn(String.format("Encountered %d unexpected exceptions while sending out batches", skipped), caughtException);
 
         // to preserve batch guarantees, we must ensure that hints (if any) have made it to disk, before deleting the batches
         HintsService.instance.flushAndFsyncBlockingly(transform(hintedNodes, StorageService.instance::getHostIdForEndpoint));
@@ -412,7 +424,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                 if (handler != null)
                 {
                     hintedNodes.addAll(handler.undelivered);
-                    HintsService.instance.write(transform(handler.undelivered, StorageService.instance::getHostIdForEndpoint),
+                    HintsService.instance.write(Collections2.transform(handler.undelivered, StorageService.instance::getHostIdForEndpoint),
                                                 Hint.create(undeliveredMutation, writtenAt));
                 }
             }
@@ -442,35 +454,39 @@ public class BatchlogManager implements BatchlogManagerMBean
                                                                                      long writtenAt,
                                                                                      Set<InetAddressAndPort> hintedNodes)
         {
-            Set<InetAddressAndPort> liveEndpoints = new HashSet<>();
             String ks = mutation.getKeyspaceName();
+            Keyspace keyspace = Keyspace.open(ks);
             Token tk = mutation.key().getToken();
 
-            for (InetAddressAndPort endpoint : StorageService.instance.getNaturalAndPendingEndpoints(ks, tk))
+            // TODO: this logic could do with revisiting at some point, as it is unclear what its rationale is
+            // we perform a local write, ignoring errors and inline in this thread (potentially slowing replay down)
+            // effectively bumping CL for locally owned writes and also potentially stalling log replay if an error occurs
+            // once we decide how it should work, it can also probably be simplified, and avoid constructing a ReplicaPlan directly
+            ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWriteLiveAndDown(keyspace, tk);
+            Replicas.temporaryAssertFull(liveAndDown.all()); // TODO in CASSANDRA-14549
+
+            Replica selfReplica = liveAndDown.all().selfIfPresent();
+            if (selfReplica != null)
+                mutation.apply();
+
+            ReplicaLayout.ForTokenWrite liveRemoteOnly = liveAndDown.filter(
+                    r -> FailureDetector.isReplicaAlive.test(r) && r != selfReplica);
+
+            for (Replica replica : liveAndDown.all())
             {
-                if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
-                {
-                    mutation.apply();
-                }
-                else if (FailureDetector.instance.isAlive(endpoint))
-                {
-                    liveEndpoints.add(endpoint); // will try delivering directly instead of writing a hint.
-                }
-                else
-                {
-                    hintedNodes.add(endpoint);
-                    HintsService.instance.write(StorageService.instance.getHostIdForEndpoint(endpoint),
-                                                Hint.create(mutation, writtenAt));
-                }
+                if (replica == selfReplica || liveRemoteOnly.all().contains(replica))
+                    continue;
+                hintedNodes.add(replica.endpoint());
+                HintsService.instance.write(StorageService.instance.getHostIdForEndpoint(replica.endpoint()),
+                        Hint.create(mutation, writtenAt));
             }
 
-            if (liveEndpoints.isEmpty())
-                return null;
-
-            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(liveEndpoints, System.nanoTime());
+            ReplicaPlan.ForTokenWrite replicaPlan = new ReplicaPlan.ForTokenWrite(keyspace, ConsistencyLevel.ONE,
+                    liveRemoteOnly.pending(), liveRemoteOnly.all(), liveRemoteOnly.all(), liveRemoteOnly.all());
+            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, System.nanoTime());
             MessageOut<Mutation> message = mutation.createMessage();
-            for (InetAddressAndPort endpoint : liveEndpoints)
-                MessagingService.instance().sendRR(message, endpoint, handler, false);
+            for (Replica replica : liveRemoteOnly.all())
+                MessagingService.instance().sendWriteRR(message, replica, handler, false);
             return handler;
         }
 
@@ -490,16 +506,16 @@ public class BatchlogManager implements BatchlogManagerMBean
         {
             private final Set<InetAddressAndPort> undelivered = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-            ReplayWriteResponseHandler(Collection<InetAddressAndPort> writeEndpoints, long queryStartNanoTime)
+            ReplayWriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan, long queryStartNanoTime)
             {
-                super(writeEndpoints, Collections.<InetAddressAndPort>emptySet(), null, null, null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
-                undelivered.addAll(writeEndpoints);
+                super(replicaPlan, null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
+                Iterables.addAll(undelivered, replicaPlan.contacts().endpoints());
             }
 
             @Override
-            protected int totalBlockFor()
+            protected int blockFor()
             {
-                return this.naturalEndpoints.size();
+                return this.replicaPlan.contacts().size();
             }
 
             @Override
@@ -509,95 +525,6 @@ public class BatchlogManager implements BatchlogManagerMBean
                 assert removed;
                 super.response(m);
             }
-        }
-    }
-
-    public static class EndpointFilter
-    {
-        private final String localRack;
-        private final Multimap<String, InetAddressAndPort> endpoints;
-
-        public EndpointFilter(String localRack, Multimap<String, InetAddressAndPort> endpoints)
-        {
-            this.localRack = localRack;
-            this.endpoints = endpoints;
-        }
-
-        /**
-         * @return list of candidates for batchlog hosting. If possible these will be two nodes from different racks.
-         */
-        public Collection<InetAddressAndPort> filter()
-        {
-            // special case for single-node data centers
-            if (endpoints.values().size() == 1)
-                return endpoints.values();
-
-            // strip out dead endpoints and localhost
-            ListMultimap<String, InetAddressAndPort> validated = ArrayListMultimap.create();
-            for (Map.Entry<String, InetAddressAndPort> entry : endpoints.entries())
-                if (isValid(entry.getValue()))
-                    validated.put(entry.getKey(), entry.getValue());
-
-            if (validated.size() <= 2)
-                return validated.values();
-
-            if (validated.size() - validated.get(localRack).size() >= 2)
-            {
-                // we have enough endpoints in other racks
-                validated.removeAll(localRack);
-            }
-
-            if (validated.keySet().size() == 1)
-            {
-                /*
-                 * we have only 1 `other` rack to select replicas from (whether it be the local rack or a single non-local rack)
-                 * pick two random nodes from there; we are guaranteed to have at least two nodes in the single remaining rack
-                 * because of the preceding if block.
-                 */
-                List<InetAddressAndPort> otherRack = Lists.newArrayList(validated.values());
-                shuffle(otherRack);
-                return otherRack.subList(0, 2);
-            }
-
-            // randomize which racks we pick from if more than 2 remaining
-            Collection<String> racks;
-            if (validated.keySet().size() == 2)
-            {
-                racks = validated.keySet();
-            }
-            else
-            {
-                racks = Lists.newArrayList(validated.keySet());
-                shuffle((List<String>) racks);
-            }
-
-            // grab a random member of up to two racks
-            List<InetAddressAndPort> result = new ArrayList<>(2);
-            for (String rack : Iterables.limit(racks, 2))
-            {
-                List<InetAddressAndPort> rackMembers = validated.get(rack);
-                result.add(rackMembers.get(getRandomInt(rackMembers.size())));
-            }
-
-            return result;
-        }
-
-        @VisibleForTesting
-        protected boolean isValid(InetAddressAndPort input)
-        {
-            return !input.equals(FBUtilities.getBroadcastAddressAndPort()) && FailureDetector.instance.isAlive(input);
-        }
-
-        @VisibleForTesting
-        protected int getRandomInt(int bound)
-        {
-            return ThreadLocalRandom.current().nextInt(bound);
-        }
-
-        @VisibleForTesting
-        protected void shuffle(List<?> list)
-        {
-            Collections.shuffle(list);
         }
     }
 }

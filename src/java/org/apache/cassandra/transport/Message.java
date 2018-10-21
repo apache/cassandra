@@ -42,11 +42,13 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * A message from the CQL binary protocol.
@@ -201,11 +203,7 @@ public abstract class Message
 
     public static abstract class Request extends Message
     {
-        protected boolean tracingRequested;
-
-        protected final AuditLogManager auditLogManager = AuditLogManager.getInstance();
-        protected boolean auditLogEnabled = auditLogManager.isAuditingEnabled();
-        protected boolean isLoggingEnabled = auditLogManager.isLoggingEnabled();
+        private boolean tracingRequested;
 
         protected Request(Type type)
         {
@@ -215,14 +213,56 @@ public abstract class Message
                 throw new IllegalArgumentException();
         }
 
-        public abstract Response execute(QueryState queryState, long queryStartNanoTime);
-
-        public void setTracingRequested()
+        protected boolean isTraceable()
         {
-            this.tracingRequested = true;
+            return false;
         }
 
-        public boolean isTracingRequested()
+        protected abstract Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest);
+
+        final Response execute(QueryState queryState, long queryStartNanoTime)
+        {
+            boolean shouldTrace = false;
+            UUID tracingSessionId = null;
+
+            if (isTraceable())
+            {
+                if (isTracingRequested())
+                {
+                    shouldTrace = true;
+                    tracingSessionId = UUIDGen.getTimeUUID();
+                    Tracing.instance.newSession(tracingSessionId, getCustomPayload());
+                }
+                else if (StorageService.instance.shouldTraceProbablistically())
+                {
+                    shouldTrace = true;
+                    Tracing.instance.newSession(getCustomPayload());
+                }
+            }
+
+            Response response;
+            try
+            {
+                response = execute(queryState, queryStartNanoTime, shouldTrace);
+            }
+            finally
+            {
+                if (shouldTrace)
+                    Tracing.instance.stopSession();
+            }
+
+            if (isTraceable() && isTracingRequested())
+                response.setTracingId(tracingSessionId);
+
+            return response;
+        }
+
+        void setTracingRequested()
+        {
+            tracingRequested = true;
+        }
+
+        boolean isTracingRequested()
         {
             return tracingRequested;
         }
@@ -241,18 +281,18 @@ public abstract class Message
                 throw new IllegalArgumentException();
         }
 
-        public Message setTracingId(UUID tracingId)
+        Message setTracingId(UUID tracingId)
         {
             this.tracingId = tracingId;
             return this;
         }
 
-        public UUID getTracingId()
+        UUID getTracingId()
         {
             return tracingId;
         }
 
-        public Message setWarnings(List<String> warnings)
+        Message setWarnings(List<String> warnings)
         {
             this.warnings = warnings;
             return this;
@@ -428,26 +468,38 @@ public abstract class Message
             }
         }
 
-        private static final class Flusher implements Runnable
+        private static abstract class Flusher implements Runnable
         {
             final EventLoop eventLoop;
             final ConcurrentLinkedQueue<FlushItem> queued = new ConcurrentLinkedQueue<>();
-            final AtomicBoolean running = new AtomicBoolean(false);
+            final AtomicBoolean scheduled = new AtomicBoolean(false);
             final HashSet<ChannelHandlerContext> channels = new HashSet<>();
             final List<FlushItem> flushed = new ArrayList<>();
-            int runsSinceFlush = 0;
-            int runsWithNoWork = 0;
-            private Flusher(EventLoop eventLoop)
-            {
-                this.eventLoop = eventLoop;
-            }
+
             void start()
             {
-                if (!running.get() && running.compareAndSet(false, true))
+                if (!scheduled.get() && scheduled.compareAndSet(false, true))
                 {
                     this.eventLoop.execute(this);
                 }
             }
+
+            public Flusher(EventLoop eventLoop)
+            {
+                this.eventLoop = eventLoop;
+            }
+        }
+
+        private static final class LegacyFlusher extends Flusher
+        {
+            int runsSinceFlush = 0;
+            int runsWithNoWork = 0;
+
+            private LegacyFlusher(EventLoop eventLoop)
+            {
+                super(eventLoop);
+            }
+
             public void run()
             {
 
@@ -484,8 +536,8 @@ public abstract class Message
                     // either reschedule or cancel
                     if (++runsWithNoWork > 5)
                     {
-                        running.set(false);
-                        if (queued.isEmpty() || !running.compareAndSet(false, true))
+                        scheduled.set(false);
+                        if (queued.isEmpty() || !scheduled.compareAndSet(false, true))
                             return;
                     }
                 }
@@ -494,11 +546,48 @@ public abstract class Message
             }
         }
 
+        private static final class ImmediateFlusher extends Flusher
+        {
+            private ImmediateFlusher(EventLoop eventLoop)
+            {
+                super(eventLoop);
+            }
+
+            public void run()
+            {
+                boolean doneWork = false;
+                FlushItem flush;
+                scheduled.set(false);
+
+                while (null != (flush = queued.poll()))
+                {
+                    channels.add(flush.ctx);
+                    flush.ctx.write(flush.response, flush.ctx.voidPromise());
+                    flushed.add(flush);
+                    doneWork = true;
+                }
+
+                if (doneWork)
+                {
+                    for (ChannelHandlerContext channel : channels)
+                        channel.flush();
+                    for (FlushItem item : flushed)
+                        item.sourceFrame.release();
+
+                    channels.clear();
+                    flushed.clear();
+                }
+            }
+        }
+
         private static final ConcurrentMap<EventLoop, Flusher> flusherLookup = new ConcurrentHashMap<>();
 
-        public Dispatcher()
+        private final boolean useLegacyFlusher;
+
+        public Dispatcher(boolean useLegacyFlusher)
         {
             super(false);
+            this.useLegacyFlusher = useLegacyFlusher;
         }
 
         @Override
@@ -516,7 +605,7 @@ public abstract class Message
                 if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
                     ClientWarn.instance.captureWarnings();
 
-                QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion(), request.getStreamId());
+                QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
 
                 logger.trace("Received: {}, v={}", request, connection.getVersion());
                 connection.requests.inc();
@@ -548,7 +637,8 @@ public abstract class Message
             Flusher flusher = flusherLookup.get(loop);
             if (flusher == null)
             {
-                Flusher alt = flusherLookup.putIfAbsent(loop, flusher = new Flusher(loop));
+                Flusher created = useLegacyFlusher ? new LegacyFlusher(loop) : new ImmediateFlusher(loop);
+                Flusher alt = flusherLookup.putIfAbsent(loop, flusher = created);
                 if (alt != null)
                     flusher = alt;
             }

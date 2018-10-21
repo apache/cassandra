@@ -169,7 +169,7 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
 
         private org.apache.cassandra.db.rows.Row toTableRow(RegularAndStaticColumns columns, long now)
         {
-            org.apache.cassandra.db.rows.Row.Builder builder = BTreeRow.unsortedBuilder((int) TimeUnit.MILLISECONDS.toSeconds(now));
+            org.apache.cassandra.db.rows.Row.Builder builder = BTreeRow.unsortedBuilder();
             builder.newRow(clustering);
 
             columns.forEach(c ->

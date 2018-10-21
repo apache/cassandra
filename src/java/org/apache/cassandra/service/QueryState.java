@@ -18,24 +18,33 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
-import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
-import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.ClientStat;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * Represents the state related to a given query.
+ * Primarily used as a recorder for server-generated timestamps (timestamp, in microseconds, and nowInSeconds - in, well, seconds).
+ *
+ * The goal is to be able to use a single consistent server-generated value for both timestamps across the whole request,
+ * and later be able to inspect QueryState for the generated values - for logging or other purposes.
  */
 public class QueryState
 {
     private final ClientState clientState;
-    private volatile UUID preparedTracingSession;
+
+    private long timestamp = Long.MIN_VALUE;
+    private int nowInSeconds = Integer.MIN_VALUE;
 
     public QueryState(ClientState clientState)
     {
         this.clientState = clientState;
+    }
+
+    public QueryState(ClientState clientState, long timestamp, int nowInSeconds)
+    {
+        this(clientState);
+        this.timestamp = timestamp;
+        this.nowInSeconds = nowInSeconds;
     }
 
     /**
@@ -46,54 +55,64 @@ public class QueryState
         return new QueryState(ClientState.forInternalCalls());
     }
 
+    /**
+     * Generate, cache, and record a timestamp value on the server-side.
+     *
+     * Used in reads for all live and expiring cells, and all kinds of deletion infos.
+     *
+     * Shouldn't be used directly. {@link org.apache.cassandra.cql3.QueryOptions#getTimestamp(QueryState)} should be used
+     * by all consumers.
+     *
+     * @return server-generated, recorded timestamp in seconds
+     */
+    public long getTimestamp()
+    {
+        if (timestamp == Long.MIN_VALUE)
+            timestamp = clientState.getTimestamp();
+        return timestamp;
+    }
+
+    /**
+     * Generate, cache, and record a nowInSeconds value on the server-side.
+     *
+     * In writes is used for calculating localDeletionTime for tombstones and expiring cells and other deletion infos.
+     * In reads used to determine liveness of expiring cells and rows.
+     *
+     * Shouldn't be used directly. {@link org.apache.cassandra.cql3.QueryOptions#getNowInSeconds(QueryState)} should be used
+     * by all consumers.
+     *
+     * @return server-generated, recorded timestamp in seconds
+     */
+    public int getNowInSeconds()
+    {
+        if (nowInSeconds == Integer.MIN_VALUE)
+            nowInSeconds = FBUtilities.nowInSeconds();
+        return nowInSeconds;
+    }
+
+    /**
+     * @return server-generated timestamp value, if one had been requested, or Long.MIN_VALUE otherwise
+     */
+    public long generatedTimestamp()
+    {
+        return timestamp;
+    }
+
+    /**
+     * @return server-generated nowInSeconds value, if one had been requested, or Integer.MIN_VALUE otherwise
+     */
+    public int generatedNowInSeconds()
+    {
+        return nowInSeconds;
+    }
+
     public ClientState getClientState()
     {
         return clientState;
     }
 
-    /**
-     * This clock guarantees that updates for the same QueryState will be ordered
-     * in the sequence seen, even if multiple updates happen in the same millisecond.
-     */
-    public long getTimestamp()
-    {
-        return clientState.getTimestamp();
-    }
-
-    public boolean traceNextQuery()
-    {
-        if (preparedTracingSession != null)
-        {
-            return true;
-        }
-
-        double traceProbability = StorageService.instance.getTraceProbability();
-        return traceProbability != 0 && ThreadLocalRandom.current().nextDouble() < traceProbability;
-    }
-
-    public void prepareTracingSession(UUID sessionId)
-    {
-        this.preparedTracingSession = sessionId;
-    }
-
-    public void createTracingSession(Map<String,ByteBuffer> customPayload)
-    {
-        UUID session = this.preparedTracingSession;
-        if (session == null)
-        {
-            Tracing.instance.newSession(customPayload);
-        }
-        else
-        {
-            Tracing.instance.newSession(session, customPayload);
-            this.preparedTracingSession = null;
-        }
-    }
-
     public InetAddress getClientAddress()
     {
-        return clientState.isInternal
-             ? null
-             : clientState.getRemoteAddress().getAddress();
+        return clientState.getClientAddress();
     }
 }

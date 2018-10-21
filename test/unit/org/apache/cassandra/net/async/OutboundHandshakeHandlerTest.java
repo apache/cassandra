@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.net.async;
 
-import java.net.InetSocketAddress;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -42,6 +41,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.async.HandshakeProtocol.SecondHandshakeMessage;
+import org.apache.cassandra.net.async.HandshakeProtocol.ThirdHandshakeMessage;
 import org.apache.cassandra.net.async.OutboundHandshakeHandler.HandshakeResult;
 
 import static org.apache.cassandra.net.async.OutboundHandshakeHandler.HandshakeResult.UNKNOWN_PROTOCOL_VERSION;
@@ -102,20 +102,31 @@ public class OutboundHandshakeHandlerTest
     }
 
     @Test
-    public void decode_HappyPath() throws Exception
+    public void decode_HappyPath()
     {
         buf = new SecondHandshakeMessage(MESSAGING_VERSION).encode(PooledByteBufAllocator.DEFAULT);
         channel.writeInbound(buf);
         Assert.assertEquals(1, channel.outboundMessages().size());
         Assert.assertTrue(channel.isOpen());
-        Assert.assertTrue(channel.releaseOutbound()); // throw away any responses from decode()
 
         Assert.assertEquals(MESSAGING_VERSION, callbackHandler.result.negotiatedMessagingVersion);
         Assert.assertEquals(HandshakeResult.Outcome.SUCCESS, callbackHandler.result.outcome);
+        Assert.assertFalse(channel.outboundMessages().isEmpty());
+
+        ByteBuf thridMsgBuf = (ByteBuf) channel.outboundMessages().poll();
+        try
+        {
+            ThirdHandshakeMessage thirdHandshakeMessage = ThirdHandshakeMessage.maybeDecode(thridMsgBuf);
+            Assert.assertEquals(MESSAGING_VERSION, thirdHandshakeMessage.messagingVersion);
+        }
+        finally
+        {
+            thridMsgBuf.release();
+        }
     }
 
     @Test
-    public void decode_HappyPathThrowsException() throws Exception
+    public void decode_HappyPathThrowsException()
     {
         callbackHandler.failOnCallback = true;
         buf = new SecondHandshakeMessage(MESSAGING_VERSION).encode(PooledByteBufAllocator.DEFAULT);
@@ -129,7 +140,7 @@ public class OutboundHandshakeHandlerTest
     }
 
     @Test
-    public void decode_ReceivedLowerMsgVersion() throws Exception
+    public void decode_ReceivedUnexpectedLowerMsgVersion()
     {
         int msgVersion = MESSAGING_VERSION - 1;
         buf = new SecondHandshakeMessage(msgVersion).encode(PooledByteBufAllocator.DEFAULT);
@@ -143,7 +154,43 @@ public class OutboundHandshakeHandlerTest
     }
 
     @Test
-    public void decode_ReceivedHigherMsgVersion() throws Exception
+    public void decode_ReceivedExpectedLowerMsgVersion()
+    {
+        int msgVersion = MESSAGING_VERSION - 1;
+        channel.pipeline().remove(HANDLER_NAME);
+        params = OutboundConnectionParams.builder()
+                                         .connectionId(connectionId)
+                                         .callback(handshakeResult -> callbackHandler.receive(handshakeResult))
+                                         .mode(NettyFactory.Mode.MESSAGING)
+                                         .protocolVersion(msgVersion)
+                                         .coalescingStrategy(Optional.empty())
+                                         .build();
+        handler = new OutboundHandshakeHandler(params);
+        channel.pipeline().addFirst(HANDLER_NAME, handler);
+
+        buf = new SecondHandshakeMessage(msgVersion).encode(PooledByteBufAllocator.DEFAULT);
+        channel.writeInbound(buf);
+        Assert.assertTrue(channel.inboundMessages().isEmpty());
+
+        Assert.assertEquals(msgVersion, callbackHandler.result.negotiatedMessagingVersion);
+        Assert.assertEquals(HandshakeResult.Outcome.SUCCESS, callbackHandler.result.outcome);
+        Assert.assertTrue(channel.isOpen());
+        Assert.assertFalse(channel.outboundMessages().isEmpty());
+
+        ByteBuf thridMsgBuf = (ByteBuf) channel.outboundMessages().poll();
+        try
+        {
+            ThirdHandshakeMessage thirdHandshakeMessage = ThirdHandshakeMessage.maybeDecode(thridMsgBuf);
+            Assert.assertEquals(msgVersion, thirdHandshakeMessage.messagingVersion);
+        }
+        finally
+        {
+            thridMsgBuf.release();
+        }
+    }
+
+    @Test
+    public void decode_ReceivedHigherMsgVersion()
     {
         int msgVersion = MESSAGING_VERSION - 1;
         channel.pipeline().remove(HANDLER_NAME);

@@ -39,7 +39,9 @@ public class BinAuditLogger extends BinLogAuditLogger implements IAuditLogger
                   auditLoggingOptions.block,
                   auditLoggingOptions.max_queue_weight,
                   auditLoggingOptions.max_log_size,
-                  false);
+                  false,
+                  auditLoggingOptions.archive_command,
+                  auditLoggingOptions.max_archive_retries);
     }
 
     @Override
@@ -51,14 +53,14 @@ public class BinAuditLogger extends BinLogAuditLogger implements IAuditLogger
             return;
         }
 
-        super.logRecord(new WeighableMarshallableMessage(auditLogEntry.getLogString()), binLog);
+        super.logRecord(new Message(auditLogEntry.getLogString()), binLog);
     }
 
-    static class WeighableMarshallableMessage extends BinLog.ReleaseableWriteMarshallable implements WeightedQueue.Weighable
+    static class Message extends BinLog.ReleaseableWriteMarshallable implements WeightedQueue.Weighable
     {
         private final String message;
 
-        WeighableMarshallableMessage(String message)
+        Message(String message)
         {
             this.message = message;
         }

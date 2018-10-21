@@ -49,10 +49,10 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.*;
@@ -62,6 +62,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
@@ -147,7 +149,7 @@ public abstract class CQLTester
         {
             @Override public String getRack(InetAddressAndPort endpoint) { return RACK1; }
             @Override public String getDatacenter(InetAddressAndPort endpoint) { return DATA_CENTER; }
-            @Override public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2) { return 0; }
+            @Override public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2) { return 0; }
         });
 
         try
@@ -188,6 +190,7 @@ public abstract class CQLTester
             return;
 
         DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
 
         // Cleanup first
         try
@@ -713,7 +716,13 @@ public abstract class CQLTester
             throw new IllegalArgumentException("Table name should be specified: " + formattedQuery);
 
         String column = matcher.group(9);
-        return Indexes.getAvailableIndexName(keyspace, table, Strings.isNullOrEmpty(column) ? null : column);
+
+        String baseName = Strings.isNullOrEmpty(column)
+                        ? IndexMetadata.generateDefaultIndexName(table)
+                        : IndexMetadata.generateDefaultIndexName(table, new ColumnIdentifier(column, true));
+
+        KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(keyspace);
+        return ks.findAvailableIndexName(baseName);
     }
 
     /**
@@ -809,16 +818,15 @@ public abstract class CQLTester
     {
         try
         {
-            ClientState state = ClientState.forInternalCalls();
-            state.setKeyspace(SchemaConstants.SYSTEM_KEYSPACE_NAME);
+            ClientState state = ClientState.forInternalCalls(SchemaConstants.SYSTEM_KEYSPACE_NAME);
             QueryState queryState = new QueryState(state);
 
-            ParsedStatement.Prepared prepared = QueryProcessor.parseStatement(query, queryState.getClientState());
-            prepared.statement.validate(state);
+            CQLStatement statement = QueryProcessor.parseStatement(query, queryState.getClientState());
+            statement.validate(state);
 
             QueryOptions options = QueryOptions.forInternalCalls(Collections.<ByteBuffer>emptyList());
 
-            lastSchemaChangeResult = prepared.statement.executeInternal(queryState, options);
+            lastSchemaChangeResult = statement.executeLocally(queryState, options);
         }
         catch (Exception e)
         {
@@ -864,9 +872,9 @@ public abstract class CQLTester
         return sessions.get(protocolVersion);
     }
 
-    protected SimpleClient newSimpleClient(ProtocolVersion version, boolean compression) throws IOException
+    protected SimpleClient newSimpleClient(ProtocolVersion version, boolean compression, boolean checksums) throws IOException
     {
-        return new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, version.isBeta(), new EncryptionOptions()).connect(compression);
+        return new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, version.isBeta(), new EncryptionOptions()).connect(compression, checksums);
     }
 
     protected String formatQuery(String query)

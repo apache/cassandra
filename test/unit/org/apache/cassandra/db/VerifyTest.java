@@ -421,7 +421,7 @@ public class VerifyTest
 
         // make the sstable repaired:
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        sstable.descriptor.getMetadataSerializer().mutateRepaired(sstable.descriptor, System.currentTimeMillis(), sstable.getSSTableMetadata().pendingRepair);
+        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, System.currentTimeMillis(), sstable.getPendingRepair(), sstable.isTransient());
         sstable.reloadSSTableMetadata();
 
         // break the sstable:
@@ -487,7 +487,7 @@ public class VerifyTest
         fillCF(cfs, 2);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        sstable.descriptor.getMetadataSerializer().mutateRepaired(sstable.descriptor, 1, sstable.getSSTableMetadata().pendingRepair);
+        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1, sstable.getPendingRepair(), sstable.isTransient());
         sstable.reloadSSTableMetadata();
         cfs.getTracker().notifySSTableRepairedStatusChanged(Collections.singleton(sstable));
         assertTrue(sstable.isRepaired());
@@ -612,15 +612,15 @@ public class VerifyTest
 
         Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
 
-        roh.check(dk(1));
-        roh.check(dk(10));
-        roh.check(dk(11));
-        roh.check(dk(21));
-        roh.check(dk(25));
+        roh.validate(dk(1));
+        roh.validate(dk(10));
+        roh.validate(dk(11));
+        roh.validate(dk(21));
+        roh.validate(dk(25));
         boolean gotException = false;
         try
         {
-            roh.check(dk(26));
+            roh.validate(dk(26));
         }
         catch (Throwable t)
         {
@@ -635,9 +635,9 @@ public class VerifyTest
         List<Range<Token>> normalized = new ArrayList<>();
         normalized.add(r(0,10));
         Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
-        roh.check(dk(1));
+        roh.validate(dk(1));
         // call with smaller token to get exception
-        roh.check(dk(0));
+        roh.validate(dk(0));
     }
 
 
@@ -646,9 +646,9 @@ public class VerifyTest
     {
         List<Range<Token>> normalized = Range.normalize(Collections.singletonList(r(0,0)));
         Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
-        roh.check(dk(Long.MIN_VALUE));
-        roh.check(dk(0));
-        roh.check(dk(Long.MAX_VALUE));
+        roh.validate(dk(Long.MIN_VALUE));
+        roh.validate(dk(0));
+        roh.validate(dk(Long.MAX_VALUE));
     }
 
     @Test
@@ -656,12 +656,12 @@ public class VerifyTest
     {
         List<Range<Token>> normalized = Range.normalize(Collections.singletonList(r(Long.MAX_VALUE - 1000,Long.MIN_VALUE + 1000)));
         Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
-        roh.check(dk(Long.MIN_VALUE));
-        roh.check(dk(Long.MAX_VALUE));
+        roh.validate(dk(Long.MIN_VALUE));
+        roh.validate(dk(Long.MAX_VALUE));
         boolean gotException = false;
         try
         {
-            roh.check(dk(26));
+            roh.validate(dk(26));
         }
         catch (Throwable t)
         {
@@ -673,7 +673,7 @@ public class VerifyTest
     @Test
     public void testEmptyRanges()
     {
-        new Verifier.RangeOwnHelper(Collections.emptyList()).check(dk(1));
+        new Verifier.RangeOwnHelper(Collections.emptyList()).validate(dk(1));
     }
 
     private DecoratedKey dk(long l)

@@ -93,7 +93,7 @@ public class SSTableOfflineRelevel
         Schema.instance.loadFromDisk(false);
 
         if (Schema.instance.getTableMetadataRef(keyspace, columnfamily) == null)
-            throw new IllegalArgumentException(String.format("Unknown keyspace/columnFamily %s.%s",
+            throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
                     keyspace,
                     columnfamily));
 

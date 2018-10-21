@@ -68,7 +68,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
     {
         String az = awsApiCall(ZONE_NAME_QUERY_URL);
 
-        // if using the full naming scheme, region name is created by removing letters from the 
+        // if using the full naming scheme, region name is created by removing letters from the
         // end of the availability zone and zone is the full zone name
         usingLegacyNaming = isUsingLegacyNaming(props);
         String region;

@@ -77,10 +77,6 @@ public class Memtable implements Comparable<Memtable>
             case heap_buffers:
                 return new SlabPool(heapLimit, 0, DatabaseDescriptor.getMemtableCleanupThreshold(), new ColumnFamilyStore.FlushLargestColumnFamily());
             case offheap_buffers:
-                if (!FileUtils.isCleanerAvailable)
-                {
-                    throw new IllegalStateException("Could not free direct byte buffer: offheap_buffers is not a safe memtable_allocation_type without this ability, please adjust your config. This feature is only guaranteed to work on an Oracle JVM. Refusing to start.");
-                }
                 return new SlabPool(heapLimit, offHeapLimit, DatabaseDescriptor.getMemtableCleanupThreshold(), new ColumnFamilyStore.FlushLargestColumnFamily());
             case offheap_objects:
                 return new NativePool(heapLimit, offHeapLimit, DatabaseDescriptor.getMemtableCleanupThreshold(), new ColumnFamilyStore.FlushLargestColumnFamily());
@@ -453,7 +449,8 @@ public class Memtable implements Comparable<Memtable>
 
         private void writeSortedContents()
         {
-            logger.debug("Writing {}, flushed range = ({}, {}]", Memtable.this.toString(), from, to);
+            if (logger.isDebugEnabled())
+                logger.debug("Writing {}, flushed range = ({}, {}]", Memtable.this.toString(), from, to);
 
             boolean trackContention = logger.isTraceEnabled();
             int heavilyContendedRowCount = 0;
@@ -482,10 +479,11 @@ public class Memtable implements Comparable<Memtable>
             }
 
             long bytesFlushed = writer.getFilePointer();
-            logger.debug("Completed flushing {} ({}) for commitlog position {}",
-                                                                              writer.getFilename(),
-                                                                              FBUtilities.prettyPrintMemory(bytesFlushed),
-                                                                              commitLogUpperBound);
+            if (logger.isDebugEnabled())
+                logger.debug("Completed flushing {} ({}) for commitlog position {}",
+                             writer.getFilename(),
+                             FBUtilities.prettyPrintMemory(bytesFlushed),
+                             commitLogUpperBound);
             // Update the metrics
             cfs.metric.bytesFlushed.inc(bytesFlushed);
 
@@ -505,6 +503,7 @@ public class Memtable implements Comparable<Memtable>
                                                 toFlush.size(),
                                                 ActiveRepairService.UNREPAIRED_SSTABLE,
                                                 ActiveRepairService.NO_PENDING_REPAIR,
+                                                false,
                                                 sstableMetadataCollector,
                                                 new SerializationHeader(true, cfs.metadata(), columns, stats), txn);
         }

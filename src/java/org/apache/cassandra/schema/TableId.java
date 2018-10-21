@@ -30,7 +30,7 @@ import org.apache.cassandra.utils.UUIDGen;
 /**
  * The unique identifier of a table.
  * <p>
- * This is essentially a UUID, but we wrap it as it's used quite a bit in the code and having a nicely name class make
+ * This is essentially a UUID, but we wrap it as it's used quite a bit in the code and having a nicely named class make
  * the code more readable.
  */
 public class TableId

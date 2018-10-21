@@ -389,6 +389,10 @@ counter_cache_save_period: 7200
 commitlog_sync: periodic
 commitlog_sync_period_in_ms: 10000
 
+# When in periodic commitlog mode, the number of milliseconds to block writes
+# while waiting for a slow disk flush to complete.
+# periodic_commitlog_sync_lag_block_in_ms: 
+
 # The size of the individual commitlog file segments.  A commitlog
 # segment may be archived, deleted, or recycled once all the data
 # in it (potentially from each columnfamily in the system) has been
@@ -652,6 +656,10 @@ native_transport_port: 9042
 # you may want to adjust max_value_size_in_mb accordingly. This should be positive and less than 2048.
 # native_transport_max_frame_size_in_mb: 256
 
+# If checksumming is enabled as a protocol option, denotes the size of the chunks into which frame
+# are bodies will be broken and checksummed.
+# native_transport_frame_block_size_in_kb: 32
+
 # The maximum number of concurrent client connections.
 # The default is -1, which means unlimited.
 # native_transport_max_concurrent_connections: -1
@@ -659,6 +667,10 @@ native_transport_port: 9042
 # The maximum number of concurrent client connections per source ip.
 # The default is -1, which means unlimited.
 # native_transport_max_concurrent_connections_per_ip: -1
+
+# Controls whether Cassandra honors older, yet currently supported, protocol versions.
+# The default is true, which means all supported protocols will be honored.
+native_transport_allow_older_protocols: true
 
 # The address or interface to bind the native transport server to.
 #
@@ -783,6 +795,18 @@ compaction_throughput_mb_per_sec: 16
 # any range that has been written. This helps to smoothly transfer reads 
 # between the sstables, reducing page cache churn and keeping hot rows hot
 sstable_preemptive_open_interval_in_mb: 50
+
+# When enabled, permits Cassandra to zero-copy stream entire eligible
+# SSTables between nodes, including every component.
+# This speeds up the network transfer significantly subject to
+# throttling specified by stream_throughput_outbound_megabits_per_sec.
+# Enabling this will reduce the GC pressure on sending and receiving node.
+# When unset, the default is enabled. While this feature tries to keep the
+# disks balanced, it cannot guarantee it. This feature will be automatically
+# disabled if internode encryption is enabled. Currently this can be used with
+# Leveled Compaction. Once CASSANDRA-14586 is fixed other compaction strategies
+# will benefit as well when used in combination with CASSANDRA-6696.
+# stream_entire_sstables: true
 
 # Throttles all outbound streaming file transfers on this node to the
 # given total throughput in Mbps. This is necessary because Cassandra does
@@ -1032,6 +1056,10 @@ enable_scripted_user_defined_functions: false
 # Materialized views are considered experimental and are not recommended for production use.
 enable_materialized_views: true
 
+# Enables creation of transiently replicated keyspaces on this node.
+# Transient replication is experimental and is not recommended for production use.
+#enable_transient_replication: true
+
 # The default Windows kernel timer and scheduling resolution is 15.6ms for power conservation.
 # Lowering this value on Windows can provide much tighter latency and better throughput, however
 # some virtualized environments may see a negative performance impact from changing this setting
@@ -1191,10 +1219,60 @@ audit_logging_options:
     enabled: false
     logger: BinAuditLogger
     # audit_logs_dir:
-    # included_keyspaces: 
+    # included_keyspaces:
     # excluded_keyspaces:
     # included_categories:
     # excluded_categories:
     # included_users:
     # excluded_users:
+    # roll_cycle: HOURLY
+    # block: true
+    # max_queue_weight: 268435456 # 256 MiB
+    # max_log_size: 17179869184 # 16 GiB
+    ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
+    # archive_command:
+    # max_archive_retries: 10
+
+
+# default options for full query logging - these can be overridden from command line when executing
+# nodetool enablefullquerylog
+#full_query_logging_options:
+    # log_dir:
+    # roll_cycle: HOURLY
+    # block: true
+    # max_queue_weight: 268435456 # 256 MiB
+    # max_log_size: 17179869184 # 16 GiB
+    ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
+    # archive_command:
+    # max_archive_retries: 10
+
+# validate tombstones on reads and compaction
+# can be either "disabled", "warn" or "exception"
+# corrupted_tombstone_strategy: disabled
+
+# Diagnostic Events #
+# If enabled, diagnostic events can be helpful for troubleshooting operational issues. Emitted events contain details
+# on internal state and temporal relationships across events, accessible by clients via JMX.
+diagnostic_events_enabled: false
+
+# Define use of legacy delayed flusher for replies to TCP connections. This will increase latency, but might be beneficial for
+# legacy use-cases where only a single connection is used for each Cassandra node. Default is false.
+#native_transport_flush_in_batches_legacy: false
+
+# Enable tracking of repaired state of data during reads and comparison between replicas
+# Mismatches between the repaired sets of replicas can be characterized as either confirmed
+# or unconfirmed. In this context, unconfirmed indicates that the presence of pending repair
+# sessions, unrepaired partition tombstones, or some other condition means that the disparity
+# cannot be considered conclusive. Confirmed mismatches should be a trigger for investigation
+# as they may be indicative of corruption or data loss.
+# There are separate flags for range vs partition reads as single partition reads are only tracked
+# when CL > 1 and a digest mismatch occurs. Currently, range queries don't use digests so if
+# enabled for range reads, all range reads will include repaired data tracking. As this adds
+# some overhead, operators may wish to disable it whilst still enabling it for partition reads
+repaired_data_tracking_for_range_reads_enabled: false
+repaired_data_tracking_for_partition_reads_enabled: false
+# If false, only confirmed mismatches will be reported. If true, a separate metric for unconfirmed
+# mismatches will also be recorded. This is to avoid potential signal:noise issues are unconfirmed
+# mismatches are less actionable than confirmed ones.
+report_unconfirmed_repaired_data_mismatches: false
 

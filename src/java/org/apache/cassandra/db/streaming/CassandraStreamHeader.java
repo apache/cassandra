@@ -15,16 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -32,6 +38,10 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 public class CassandraStreamHeader
 {
@@ -50,33 +60,38 @@ public class CassandraStreamHeader
     private final CompressionMetadata compressionMetadata;
     public volatile CompressionInfo compressionInfo;
     public final int sstableLevel;
-    public final SerializationHeader.Component header;
+    public final SerializationHeader.Component serializationHeader;
+
+    /* flag indicating whether this is a partial or entire sstable transfer */
+    public final boolean isEntireSSTable;
+    /* first token of the sstable required for faster streaming */
+    public final DecoratedKey firstKey;
+    public final TableId tableId;
+    public final ComponentManifest componentManifest;
 
     /* cached size value */
     private transient final long size;
 
-    private CassandraStreamHeader(Version version, SSTableFormat.Type format, long estimatedKeys, List<SSTableReader.PartitionPositionBounds> sections, CompressionMetadata compressionMetadata, CompressionInfo compressionInfo, int sstableLevel, SerializationHeader.Component header)
+    private CassandraStreamHeader(Builder builder)
     {
-        this.version = version;
-        this.format = format;
-        this.estimatedKeys = estimatedKeys;
-        this.sections = sections;
-        this.compressionMetadata = compressionMetadata;
-        this.compressionInfo = compressionInfo;
-        this.sstableLevel = sstableLevel;
-        this.header = header;
-
-        this.size = calculateSize();
+        version = builder.version;
+        format = builder.format;
+        estimatedKeys = builder.estimatedKeys;
+        sections = builder.sections;
+        compressionMetadata = builder.compressionMetadata;
+        compressionInfo = builder.compressionInfo;
+        sstableLevel = builder.sstableLevel;
+        serializationHeader = builder.serializationHeader;
+        tableId = builder.tableId;
+        isEntireSSTable = builder.isEntireSSTable;
+        componentManifest = builder.componentManifest;
+        firstKey = builder.firstKey;
+        size = calculateSize();
     }
 
-    public CassandraStreamHeader(Version version, SSTableFormat.Type format, long estimatedKeys, List<SSTableReader.PartitionPositionBounds> sections, CompressionMetadata compressionMetadata, int sstableLevel, SerializationHeader.Component header)
+    public static Builder builder()
     {
-        this(version, format, estimatedKeys, sections, compressionMetadata, null, sstableLevel, header);
-    }
-
-    public CassandraStreamHeader(Version version, SSTableFormat.Type format, long estimatedKeys, List<SSTableReader.PartitionPositionBounds> sections, CompressionInfo compressionInfo, int sstableLevel, SerializationHeader.Component header)
-    {
-        this(version, format, estimatedKeys, sections, null, compressionInfo, sstableLevel, header);
+        return new Builder();
     }
 
     public boolean isCompressed()
@@ -94,6 +109,9 @@ public class CassandraStreamHeader
 
     private long calculateSize()
     {
+        if (isEntireSSTable)
+            return componentManifest.totalSize();
+
         long transferSize = 0;
         if (compressionInfo != null)
         {
@@ -112,9 +130,7 @@ public class CassandraStreamHeader
     public synchronized void calculateCompressionInfo()
     {
         if (compressionMetadata != null && compressionInfo == null)
-        {
             compressionInfo = CompressionInfo.fromCompressionMetadata(compressionMetadata, sections);
-        }
     }
 
     @Override
@@ -125,9 +141,11 @@ public class CassandraStreamHeader
                ", format=" + format +
                ", estimatedKeys=" + estimatedKeys +
                ", sections=" + sections +
-               ", compressionInfo=" + compressionInfo +
                ", sstableLevel=" + sstableLevel +
-               ", header=" + header +
+               ", header=" + serializationHeader +
+               ", isEntireSSTable=" + isEntireSSTable +
+               ", firstKey=" + firstKey +
+               ", tableId=" + tableId +
                '}';
     }
 
@@ -138,20 +156,26 @@ public class CassandraStreamHeader
         CassandraStreamHeader that = (CassandraStreamHeader) o;
         return estimatedKeys == that.estimatedKeys &&
                sstableLevel == that.sstableLevel &&
+               isEntireSSTable == that.isEntireSSTable &&
                Objects.equals(version, that.version) &&
                format == that.format &&
                Objects.equals(sections, that.sections) &&
                Objects.equals(compressionInfo, that.compressionInfo) &&
-               Objects.equals(header, that.header);
+               Objects.equals(serializationHeader, that.serializationHeader) &&
+               Objects.equals(componentManifest, that.componentManifest) &&
+               Objects.equals(firstKey, that.firstKey) &&
+               Objects.equals(tableId, that.tableId);
     }
 
     public int hashCode()
     {
-        return Objects.hash(version, format, estimatedKeys, sections, compressionInfo, sstableLevel, header);
+        return Objects.hash(version, format, estimatedKeys, sections, compressionInfo, sstableLevel, serializationHeader, componentManifest,
+                            isEntireSSTable, firstKey, tableId);
     }
 
+    public static final IVersionedSerializer<CassandraStreamHeader> serializer = new CassandraStreamHeaderSerializer();
 
-    public static final IVersionedSerializer<CassandraStreamHeader> serializer = new IVersionedSerializer<CassandraStreamHeader>()
+    public static class CassandraStreamHeaderSerializer implements IVersionedSerializer<CassandraStreamHeader>
     {
         public void serialize(CassandraStreamHeader header, DataOutputPlus out, int version) throws IOException
         {
@@ -168,10 +192,32 @@ public class CassandraStreamHeader
             header.calculateCompressionInfo();
             CompressionInfo.serializer.serialize(header.compressionInfo, out, version);
             out.writeInt(header.sstableLevel);
-            SerializationHeader.serializer.serialize(header.version, header.header, out);
+
+            SerializationHeader.serializer.serialize(header.version, header.serializationHeader, out);
+
+            header.tableId.serialize(out);
+            out.writeBoolean(header.isEntireSSTable);
+
+            if (header.isEntireSSTable)
+            {
+                ComponentManifest.serializer.serialize(header.componentManifest, out, version);
+                ByteBufferUtil.writeWithVIntLength(header.firstKey.getKey(), out);
+            }
         }
 
         public CassandraStreamHeader deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return deserialize(in, version, tableId -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
+                if (cfs != null)
+                    return cfs.getPartitioner();
+
+                return null;
+            });
+        }
+
+        @VisibleForTesting
+        public CassandraStreamHeader deserialize(DataInputPlus in, int version, Function<TableId, IPartitioner> partitionerMapper) throws IOException
         {
             Version sstableVersion = SSTableFormat.Type.current().info.getVersion(in.readUTF());
             SSTableFormat.Type format = SSTableFormat.Type.validate(in.readUTF());
@@ -183,9 +229,36 @@ public class CassandraStreamHeader
                 sections.add(new SSTableReader.PartitionPositionBounds(in.readLong(), in.readLong()));
             CompressionInfo compressionInfo = CompressionInfo.serializer.deserialize(in, version);
             int sstableLevel = in.readInt();
+
             SerializationHeader.Component header =  SerializationHeader.serializer.deserialize(sstableVersion, in);
 
-            return new CassandraStreamHeader(sstableVersion, format, estimatedKeys, sections, compressionInfo, sstableLevel, header);
+            TableId tableId = TableId.deserialize(in);
+            boolean isEntireSSTable = in.readBoolean();
+            ComponentManifest manifest = null;
+            DecoratedKey firstKey = null;
+
+            if (isEntireSSTable)
+            {
+                manifest = ComponentManifest.serializer.deserialize(in, version);
+                ByteBuffer keyBuf = ByteBufferUtil.readWithVIntLength(in);
+                IPartitioner partitioner = partitionerMapper.apply(tableId);
+                if (partitioner == null)
+                    throw new IllegalArgumentException(String.format("Could not determine partitioner for tableId %s", tableId));
+                firstKey = partitioner.decorateKey(keyBuf);
+            }
+
+            return builder().withSSTableFormat(format)
+                            .withSSTableVersion(sstableVersion)
+                            .withSSTableLevel(sstableLevel)
+                            .withEstimatedKeys(estimatedKeys)
+                            .withSections(sections)
+                            .withCompressionInfo(compressionInfo)
+                            .withSerializationHeader(header)
+                            .withComponentManifest(manifest)
+                            .isEntireSSTable(isEntireSSTable)
+                            .withFirstKey(firstKey)
+                            .withTableId(tableId)
+                            .build();
         }
 
         public long serializedSize(CassandraStreamHeader header, int version)
@@ -201,12 +274,127 @@ public class CassandraStreamHeader
                 size += TypeSizes.sizeof(section.lowerPosition);
                 size += TypeSizes.sizeof(section.upperPosition);
             }
+
+            header.calculateCompressionInfo();
             size += CompressionInfo.serializer.serializedSize(header.compressionInfo, version);
             size += TypeSizes.sizeof(header.sstableLevel);
 
-            size += SerializationHeader.serializer.serializedSize(header.version, header.header);
+            size += SerializationHeader.serializer.serializedSize(header.version, header.serializationHeader);
 
+            size += header.tableId.serializedSize();
+            size += TypeSizes.sizeof(header.isEntireSSTable);
+
+            if (header.isEntireSSTable)
+            {
+                size += ComponentManifest.serializer.serializedSize(header.componentManifest, version);
+                size += ByteBufferUtil.serializedSizeWithVIntLength(header.firstKey.getKey());
+            }
             return size;
         }
-    };
+    }
+
+    public static final class Builder
+    {
+        private Version version;
+        private SSTableFormat.Type format;
+        private long estimatedKeys;
+        private List<SSTableReader.PartitionPositionBounds> sections;
+        private CompressionMetadata compressionMetadata;
+        private CompressionInfo compressionInfo;
+        private int sstableLevel;
+        private SerializationHeader.Component serializationHeader;
+        private ComponentManifest componentManifest;
+        private boolean isEntireSSTable;
+        private DecoratedKey firstKey;
+        private TableId tableId;
+
+        public Builder withSSTableFormat(SSTableFormat.Type format)
+        {
+            this.format = format;
+            return this;
+        }
+
+        public Builder withSSTableVersion(Version version)
+        {
+            this.version = version;
+            return this;
+        }
+
+        public Builder withSSTableLevel(int sstableLevel)
+        {
+            this.sstableLevel = sstableLevel;
+            return this;
+        }
+
+        public Builder withEstimatedKeys(long estimatedKeys)
+        {
+            this.estimatedKeys = estimatedKeys;
+            return this;
+        }
+
+        public Builder withSections(List<SSTableReader.PartitionPositionBounds> sections)
+        {
+            this.sections = sections;
+            return this;
+        }
+
+        public Builder withCompressionMetadata(CompressionMetadata compressionMetadata)
+        {
+            this.compressionMetadata = compressionMetadata;
+            return this;
+        }
+
+        public Builder withCompressionInfo(CompressionInfo compressionInfo)
+        {
+            this.compressionInfo = compressionInfo;
+            return this;
+        }
+
+        public Builder withSerializationHeader(SerializationHeader.Component header)
+        {
+            this.serializationHeader = header;
+            return this;
+        }
+
+        public Builder withTableId(TableId tableId)
+        {
+            this.tableId = tableId;
+            return this;
+        }
+
+        public Builder isEntireSSTable(boolean isEntireSSTable)
+        {
+            this.isEntireSSTable = isEntireSSTable;
+            return this;
+        }
+
+        public Builder withComponentManifest(ComponentManifest componentManifest)
+        {
+            this.componentManifest = componentManifest;
+            return this;
+        }
+
+        public Builder withFirstKey(DecoratedKey firstKey)
+        {
+            this.firstKey = firstKey;
+            return this;
+        }
+
+        public CassandraStreamHeader build()
+        {
+            checkNotNull(version);
+            checkNotNull(format);
+            checkNotNull(sections);
+            checkNotNull(serializationHeader);
+            checkNotNull(tableId);
+
+            if (isEntireSSTable)
+            {
+                checkNotNull(componentManifest);
+                checkNotNull(firstKey);
+            }
+
+            return new CassandraStreamHeader(this);
+        }
+    }
 }

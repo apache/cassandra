@@ -293,14 +293,14 @@ public class UFTypesTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, set(4, 5, 6));
         execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, set(7, 8, 9));
 
-        assertInvalidMessage("The function arguments should not be frozen",
+        assertInvalidMessage("Argument 'frozen<set<int>>' cannot be frozen; remove frozen<> modifier from 'frozen<set<int>>'",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenSetArg(values frozen<set<int>>) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS int " +
                              "LANGUAGE java\n" +
                              "AS 'int sum = 0; for (Object value : values) {sum += value;} return sum;';");
 
-        assertInvalidMessage("The function return type should not be frozen",
+        assertInvalidMessage("Return type 'frozen<set<int>>' cannot be frozen; remove frozen<> modifier from 'frozen<set<int>>'",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenReturnType(values set<int>) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS frozen<set<int>> " +
@@ -331,7 +331,7 @@ public class UFTypesTest extends CQLTester
         assertRows(execute("SELECT a FROM %s WHERE b = " + functionName + "(?)", set(1, 2, 3)),
                    row(1));
 
-        assertInvalidMessage("The function arguments should not be frozen",
+        assertInvalidMessage("Argument 'frozen<set<int>>' cannot be frozen; remove frozen<> modifier from 'frozen<set<int>>'",
                              "DROP FUNCTION " + functionName + "(frozen<set<int>>);");
     }
 
@@ -346,14 +346,14 @@ public class UFTypesTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, list(4, 5, 6));
         execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, list(7, 8, 9));
 
-        assertInvalidMessage("The function arguments should not be frozen",
+        assertInvalidMessage("Argument 'frozen<list<int>>' cannot be frozen; remove frozen<> modifier from 'frozen<list<int>>'",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".withFrozenArg(values frozen<list<int>>) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS int " +
                              "LANGUAGE java\n" +
                              "AS 'int sum = 0; for (Object value : values) {sum += value;} return sum;';");
 
-        assertInvalidMessage("The function return type should not be frozen",
+        assertInvalidMessage("Return type 'frozen<list<int>>' cannot be frozen; remove frozen<> modifier from 'frozen<list<int>>'",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenReturnType(values list<int>) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS frozen<list<int>> " +
@@ -384,7 +384,7 @@ public class UFTypesTest extends CQLTester
         assertRows(execute("SELECT a FROM %s WHERE b = " + functionName + "(?)", set(1, 2, 3)),
                    row(1));
 
-        assertInvalidMessage("The function arguments should not be frozen",
+        assertInvalidMessage("frozen<list<int>>' cannot be frozen; remove frozen<> modifier from 'frozen<list<int>>'",
                              "DROP FUNCTION " + functionName + "(frozen<list<int>>);");
     }
 
@@ -399,14 +399,14 @@ public class UFTypesTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, map(4, 4, 5, 5, 6, 6));
         execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, map(7, 7, 8, 8, 9, 9));
 
-        assertInvalidMessage("The function arguments should not be frozen",
+        assertInvalidMessage("Argument 'frozen<map<int, int>>' cannot be frozen; remove frozen<> modifier from 'frozen<map<int, int>>'",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".withFrozenArg(values frozen<map<int, int>>) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS int " +
                              "LANGUAGE java\n" +
                              "AS 'int sum = 0; for (Object value : values.values()) {sum += value;} return sum;';");
 
-        assertInvalidMessage("The function return type should not be frozen",
+        assertInvalidMessage("Return type 'frozen<map<int, int>>' cannot be frozen; remove frozen<> modifier from 'frozen<map<int, int>>'",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenReturnType(values map<int, int>) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS frozen<map<int, int>> " +
@@ -437,7 +437,7 @@ public class UFTypesTest extends CQLTester
         assertRows(execute("SELECT a FROM %s WHERE b = " + functionName + "(?)", map(1, 1, 2, 2, 3, 3)),
                    row(1));
 
-        assertInvalidMessage("The function arguments should not be frozen",
+        assertInvalidMessage("frozen<map<int, int>>' cannot be frozen; remove frozen<> modifier from 'frozen<map<int, int>>",
                              "DROP FUNCTION " + functionName + "(frozen<map<int, int>>);");
     }
 
@@ -452,14 +452,14 @@ public class UFTypesTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, tuple(4, 5));
         execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, tuple(7, 8));
 
-        assertInvalidMessage("The function arguments should not be frozen",
+        assertInvalidMessage("Argument 'tuple<int, int>' cannot be frozen; remove frozen<> modifier from 'tuple<int, int>'",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".withFrozenArg(values frozen<tuple<int, int>>) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS text " +
                              "LANGUAGE java\n" +
                              "AS 'return values.toString();';");
 
-        assertInvalidMessage("The function return type should not be frozen",
+        assertInvalidMessage("Return type 'tuple<int, int>' cannot be frozen; remove frozen<> modifier from 'tuple<int, int>'",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenReturnType(values tuple<int, int>) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS frozen<tuple<int, int>> " +
@@ -490,7 +490,7 @@ public class UFTypesTest extends CQLTester
         assertRows(execute("SELECT a FROM %s WHERE b = " + functionName + "(?)", tuple(1, 2)),
                    row(1));
 
-        assertInvalidMessage("The function arguments should not be frozen",
+        assertInvalidMessage("Argument 'tuple<int, int>' cannot be frozen; remove frozen<> modifier from 'tuple<int, int>'",
                              "DROP FUNCTION " + functionName + "(frozen<tuple<int, int>>);");
     }
 
@@ -506,14 +506,14 @@ public class UFTypesTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 2, 4);
         execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 3, 7);
 
-        assertInvalidMessage("The function arguments should not be frozen",
+        assertInvalidMessage("cannot be frozen; remove frozen<> modifier",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".withFrozenArg(values frozen<" + myType + ">) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS text " +
                              "LANGUAGE java\n" +
                              "AS 'return values.toString();';");
 
-        assertInvalidMessage("The function return type should not be frozen",
+        assertInvalidMessage("cannot be frozen; remove frozen<> modifier",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenReturnType(values " + myType + ") " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS frozen<" + myType + "> " +
@@ -544,7 +544,7 @@ public class UFTypesTest extends CQLTester
         assertRows(execute("SELECT a FROM %s WHERE b = " + functionName + "({f: ?})", 1),
                    row(1));
 
-        assertInvalidMessage("The function arguments should not be frozen",
+        assertInvalidMessage(String.format("frozen<%s>' cannot be frozen; remove frozen<> modifier from 'frozen<%s>'", myType, myType),
                              "DROP FUNCTION " + functionName + "(frozen<" + myType + ">);");
     }
 }

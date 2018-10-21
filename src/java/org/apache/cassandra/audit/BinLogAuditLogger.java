@@ -19,56 +19,29 @@
 package org.apache.cassandra.audit;
 
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
-import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.ByteBuf;
-import net.openhft.chronicle.bytes.BytesStore;
 import net.openhft.chronicle.queue.RollCycles;
-import net.openhft.chronicle.wire.WireOut;
-import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.transport.CBUtil;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.NoSpamLogger;
-import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.binlog.BinLog;
-import org.apache.cassandra.utils.concurrent.WeightedQueue;
-import org.github.jamm.MemoryLayoutSpecification;
+import org.apache.cassandra.utils.binlog.BinLogArchiver;
+import org.apache.cassandra.utils.binlog.DeletingArchiver;
+import org.apache.cassandra.utils.binlog.ExternalArchiver;
 
 abstract class BinLogAuditLogger implements IAuditLogger
 {
-    static final int EMPTY_BYTEBUFFER_SIZE = Ints.checkedCast(ObjectSizes.sizeOnHeapExcludingData(ByteBuffer.allocate(0)));
-    static final int EMPTY_LIST_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(new ArrayList(0)));
-    private static final int EMPTY_BYTEBUF_SIZE;
-    private static final int OBJECT_HEADER_SIZE = MemoryLayoutSpecification.SPEC.getObjectHeaderSize();
-    static
-    {
-        int tempSize = 0;
-        ByteBuf buf = CBUtil.allocator.buffer(0, 0);
-        try
-        {
-            tempSize = Ints.checkedCast(ObjectSizes.measure(buf));
-        }
-        finally
-        {
-            buf.release();
-        }
-        EMPTY_BYTEBUF_SIZE = tempSize;
-    }
-
     protected static final Logger logger = LoggerFactory.getLogger(BinLogAuditLogger.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
     private static final NoSpamLogger.NoSpamLogStatement droppedSamplesStatement = noSpamLogger.getStatement("Dropped {} binary log samples", 1, TimeUnit.MINUTES);
@@ -86,10 +59,12 @@ abstract class BinLogAuditLogger implements IAuditLogger
      * @param blocking Whether the FQL should block if the FQL falls behind or should drop log records
      * @param maxQueueWeight Maximum weight of in memory queue for records waiting to be written to the file before blocking or dropping
      * @param maxLogSize Maximum size of the rolled files to retain on disk before deleting the oldest file
+     * @param archiveCommand the archive command to execute on rolled log files
+     * @param maxArchiveRetries max number of retries of failed archive commands
      */
-    public synchronized void configure(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize)
+    public synchronized void configure(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
     {
-        this.configure(path, rollCycle, blocking, maxQueueWeight, maxLogSize, true);
+        this.configure(path, rollCycle, blocking, maxQueueWeight, maxLogSize, true, archiveCommand, maxArchiveRetries);
     }
 
     /**
@@ -100,8 +75,10 @@ abstract class BinLogAuditLogger implements IAuditLogger
      * @param maxQueueWeight Maximum weight of in memory queue for records waiting to be written to the file before blocking or dropping
      * @param maxLogSize Maximum size of the rolled files to retain on disk before deleting the oldest file
      * @param cleanDirectory Indicates to clean the directory before starting FullQueryLogger or not
+     * @param archiveCommand the archive command to execute on rolled log files
+     * @param maxArchiveRetries max number of retries of failed archive commands
      */
-    public synchronized void configure(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, boolean cleanDirectory)
+    public synchronized void configure(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, boolean cleanDirectory, String archiveCommand, int maxArchiveRetries)
     {
         Preconditions.checkNotNull(path, "path was null");
         File pathAsFile = path.toFile();
@@ -114,7 +91,7 @@ abstract class BinLogAuditLogger implements IAuditLogger
         Preconditions.checkNotNull(RollCycles.valueOf(rollCycle), "unrecognized roll cycle");
         Preconditions.checkArgument(maxQueueWeight > 0, "maxQueueWeight must be > 0");
         Preconditions.checkArgument(maxLogSize > 0, "maxLogSize must be > 0");
-        logger.info("Attempting to configure full query logger path: {} Roll cycle: {} Blocking: {} Max queue weight: {} Max log size:{}", path, rollCycle, blocking, maxQueueWeight, maxLogSize);
+        logger.info("Attempting to configure full query logger path: {} Roll cycle: {} Blocking: {} Max queue weight: {} Max log size:{}, archive command: {}", path, rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand);
 
         if (binLog != null)
         {
@@ -122,6 +99,8 @@ abstract class BinLogAuditLogger implements IAuditLogger
             throw new IllegalStateException("Already configured");
         }
 
+        // create the archiver before cleaning directories - ExternalArchiver will try to archive any existing file.
+        BinLogArchiver archiver = Strings.isNullOrEmpty(archiveCommand) ? new DeletingArchiver(maxLogSize) : new ExternalArchiver(archiveCommand, path, maxArchiveRetries);
         if (cleanDirectory)
         {
             logger.info("Cleaning directory: {} as requested",path);
@@ -134,10 +113,9 @@ abstract class BinLogAuditLogger implements IAuditLogger
                 }
             }
         }
-
         this.path = path;
         this.blocking = blocking;
-        binLog = new BinLog(path, RollCycles.valueOf(rollCycle), maxQueueWeight, maxLogSize);
+        binLog = new BinLog(path, RollCycles.valueOf(rollCycle), maxQueueWeight, archiver);
         binLog.start();
     }
 
@@ -287,68 +265,6 @@ abstract class BinLogAuditLogger implements IAuditLogger
         if (droppedSamplesStatement.warn(new Object[] {droppedSamplesSinceLastLog.get()}))
         {
             droppedSamplesSinceLastLog.set(0);
-        }
-    }
-
-    protected static abstract class AbstractWeighableMarshallable extends BinLog.ReleaseableWriteMarshallable implements WeightedQueue.Weighable
-    {
-        private final ByteBuf queryOptionsBuffer;
-        private final long timeMillis;
-        private final int protocolVersion;
-
-        AbstractWeighableMarshallable(QueryOptions queryOptions, long timeMillis)
-        {
-            this.timeMillis = timeMillis;
-            ProtocolVersion version = queryOptions.getProtocolVersion();
-            this.protocolVersion = version.asInt();
-            int optionsSize = QueryOptions.codec.encodedSize(queryOptions, version);
-            queryOptionsBuffer = CBUtil.allocator.buffer(optionsSize, optionsSize);
-            /*
-             * Struggled with what tradeoff to make in terms of query options which is potentially large and complicated
-             * There is tension between low garbage production (or allocator overhead), small working set size, and CPU overhead reserializing the
-             * query options into binary format.
-             *
-             * I went with the lowest risk most predictable option which is allocator overhead and CPU overhead
-             * rather then keep the original query message around so I could just serialize that as a memcpy. It's more
-             * instructions when turned on, but it doesn't change memory footprint quite as much and it's more pay for what you use
-             * in terms of query volume. The CPU overhead is spread out across producers so we should at least get
-             * some scaling.
-             *
-             */
-            boolean success = false;
-            try
-            {
-                QueryOptions.codec.encode(queryOptions, queryOptionsBuffer, version);
-                success = true;
-            }
-            finally
-            {
-                if (!success)
-                {
-                    queryOptionsBuffer.release();
-                }
-            }
-        }
-
-        @Override
-        public void writeMarshallable(WireOut wire)
-        {
-            wire.write("protocol-version").int32(protocolVersion);
-            wire.write("query-options").bytes(BytesStore.wrap(queryOptionsBuffer.nioBuffer()));
-            wire.write("query-time").int64(timeMillis);
-        }
-
-        @Override
-        public void release()
-        {
-            queryOptionsBuffer.release();
-        }
-
-        //8-bytes for protocol version (assume alignment cost), 8-byte timestamp, 8-byte object header + other contents
-        @Override
-        public int weight()
-        {
-            return 8 + 8 + OBJECT_HEADER_SIZE + EMPTY_BYTEBUF_SIZE + queryOptionsBuffer.capacity();
         }
     }
 

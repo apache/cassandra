@@ -21,9 +21,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 
@@ -36,27 +36,32 @@ import org.apache.cassandra.dht.Token;
  */
 public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
 {
+    private final ReplicationFactor rf;
     public OldNetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
+        this.rf = ReplicationFactor.fromString(this.configOptions.get("replication_factor"));
     }
 
-    public List<InetAddressAndPort> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+    public EndpointsForRange calculateNaturalReplicas(Token token, TokenMetadata metadata)
     {
-        int replicas = getReplicationFactor();
-        List<InetAddressAndPort> endpoints = new ArrayList<>(replicas);
         ArrayList<Token> tokens = metadata.sortedTokens();
-
         if (tokens.isEmpty())
-            return endpoints;
+            return EndpointsForRange.empty(new Range<>(metadata.partitioner.getMinimumToken(), metadata.partitioner.getMinimumToken()));
 
         Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token, false);
         Token primaryToken = iter.next();
-        endpoints.add(metadata.getEndpoint(primaryToken));
+        Token previousToken = metadata.getPredecessor(primaryToken);
+        Range<Token> tokenRange = new Range<>(previousToken, primaryToken);
+
+        EndpointsForRange.Builder replicas = new EndpointsForRange.Builder(tokenRange, rf.allReplicas);
+
+        assert !rf.hasTransientReplicas() : "support transient replicas";
+        replicas.add(new Replica(metadata.getEndpoint(primaryToken), previousToken, primaryToken, true));
 
         boolean bDataCenter = false;
         boolean bOtherRack = false;
-        while (endpoints.size() < replicas && iter.hasNext())
+        while (replicas.size() < rf.allReplicas && iter.hasNext())
         {
             // First try to find one in a different data center
             Token t = iter.next();
@@ -65,7 +70,7 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
                 // If we have already found something in a diff datacenter no need to find another
                 if (!bDataCenter)
                 {
-                    endpoints.add(metadata.getEndpoint(t));
+                    replicas.add(new Replica(metadata.getEndpoint(t), previousToken, primaryToken, true));
                     bDataCenter = true;
                 }
                 continue;
@@ -77,7 +82,7 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
                 // If we have already found something in a diff rack no need to find another
                 if (!bOtherRack)
                 {
-                    endpoints.add(metadata.getEndpoint(t));
+                    replicas.add(new Replica(metadata.getEndpoint(t), previousToken, primaryToken, true));
                     bOtherRack = true;
                 }
             }
@@ -86,23 +91,24 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
 
         // If we found N number of nodes we are good. This loop wil just exit. Otherwise just
         // loop through the list and add until we have N nodes.
-        if (endpoints.size() < replicas)
+        if (replicas.size() < rf.allReplicas)
         {
             iter = TokenMetadata.ringIterator(tokens, token, false);
-            while (endpoints.size() < replicas && iter.hasNext())
+            while (replicas.size() < rf.allReplicas && iter.hasNext())
             {
                 Token t = iter.next();
-                if (!endpoints.contains(metadata.getEndpoint(t)))
-                    endpoints.add(metadata.getEndpoint(t));
+                Replica replica = new Replica(metadata.getEndpoint(t), previousToken, primaryToken, true);
+                if (!replicas.endpoints().contains(replica.endpoint()))
+                    replicas.add(replica);
             }
         }
 
-        return endpoints;
+        return replicas.build();
     }
 
-    public int getReplicationFactor()
+    public ReplicationFactor getReplicationFactor()
     {
-        return Integer.parseInt(this.configOptions.get("replication_factor"));
+        return rf;
     }
 
     public void validateOptions() throws ConfigurationException

@@ -79,7 +79,7 @@ public class ViewManager
             {
                 assert keyspace.getName().equals(update.metadata().keyspace);
 
-                if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor() == 1)
+                if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor().allReplicas == 1)
                     continue;
 
                 if (!forTable(update.metadata().id).updatedViews(update).isEmpty())
@@ -101,13 +101,7 @@ public class ViewManager
         Map<String, ViewMetadata> newViewsByName = Maps.newHashMapWithExpectedSize(views.size());
         for (ViewMetadata definition : views)
         {
-            newViewsByName.put(definition.name, definition);
-        }
-
-        for (String viewName : viewsByName.keySet())
-        {
-            if (!newViewsByName.containsKey(viewName))
-                removeView(viewName);
+            newViewsByName.put(definition.name(), definition);
         }
 
         for (Map.Entry<String, ViewMetadata> entry : newViewsByName.entrySet())
@@ -147,26 +141,14 @@ public class ViewManager
         if (!keyspace.hasColumnFamilyStore(definition.baseTableId))
         {
             logger.warn("Not adding view {} because the base table {} is unknown",
-                        definition.name,
+                        definition.name(),
                         definition.baseTableId);
             return;
         }
 
         View view = new View(definition, keyspace.getColumnFamilyStore(definition.baseTableId));
         forTable(view.getDefinition().baseTableId).add(view);
-        viewsByName.put(definition.name, view);
-    }
-
-    public void removeView(String name)
-    {
-        View view = viewsByName.remove(name);
-
-        if (view == null)
-            return;
-
-        forTable(view.getDefinition().baseTableId).removeByName(name);
-        SystemKeyspace.setViewRemoved(keyspace.getName(), view.name);
-        SystemDistributedKeyspace.setViewRemoved(keyspace.getName(), view.name);
+        viewsByName.put(definition.name(), view);
     }
 
     /**
@@ -174,9 +156,17 @@ public class ViewManager
      *
      * @param name the name of the view
      */
-    public void stopBuild(String name)
+    public void dropView(String name)
     {
-        viewsByName.get(name).stopBuild();
+        View view = viewsByName.remove(name);
+
+        if (view == null)
+            return;
+
+        view.stopBuild();
+        forTable(view.getDefinition().baseTableId).removeByName(name);
+        SystemKeyspace.setViewRemoved(keyspace.getName(), view.name);
+        SystemDistributedKeyspace.setViewRemoved(keyspace.getName(), view.name);
     }
 
     public View getByName(String name)

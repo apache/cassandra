@@ -68,14 +68,15 @@ public class Upgrader
         this.estimatedRows = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
     }
 
-    private SSTableWriter createCompactionWriter(long repairedAt, UUID parentRepair)
+    private SSTableWriter createCompactionWriter(StatsMetadata metadata)
     {
         MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.getComparator());
         sstableMetadataCollector.sstableLevel(sstable.getSSTableLevel());
         return SSTableWriter.create(cfs.newSSTableDescriptor(directory),
                                     estimatedRows,
-                                    repairedAt,
-                                    parentRepair,
+                                    metadata.repairedAt,
+                                    metadata.pendingRepair,
+                                    metadata.isTransient,
                                     cfs.metadata,
                                     sstableMetadataCollector,
                                     SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)),
@@ -91,8 +92,7 @@ public class Upgrader
              AbstractCompactionStrategy.ScannerList scanners = strategyManager.getScanners(transaction.originals());
              CompactionIterator iter = new CompactionIterator(transaction.opType(), scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID()))
         {
-            StatsMetadata metadata = sstable.getSSTableMetadata();
-            writer.switchWriter(createCompactionWriter(metadata.repairedAt, metadata.pendingRepair));
+            writer.switchWriter(createCompactionWriter(sstable.getSSTableMetadata()));
             while (iter.hasNext())
                 writer.append(iter.next());
 

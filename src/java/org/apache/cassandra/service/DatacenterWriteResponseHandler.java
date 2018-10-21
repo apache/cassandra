@@ -17,29 +17,28 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.Collection;
-
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.locator.InOurDcTester;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.net.MessageIn;
+
+import java.util.function.Predicate;
 
 /**
  * This class blocks for a quorum of responses _in the local datacenter only_ (CL.LOCAL_QUORUM).
  */
 public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
 {
-    public DatacenterWriteResponseHandler(Collection<InetAddressAndPort> naturalEndpoints,
-                                          Collection<InetAddressAndPort> pendingEndpoints,
-                                          ConsistencyLevel consistencyLevel,
-                                          Keyspace keyspace,
+    private final Predicate<InetAddressAndPort> waitingFor = InOurDcTester.endpoints();
+
+    public DatacenterWriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan,
                                           Runnable callback,
                                           WriteType writeType,
                                           long queryStartNanoTime)
     {
-        super(naturalEndpoints, pendingEndpoints, consistencyLevel, keyspace, callback, writeType, queryStartNanoTime);
-        assert consistencyLevel.isDatacenterLocal();
+        super(replicaPlan, callback, writeType, queryStartNanoTime);
+        assert replicaPlan.consistencyLevel().isDatacenterLocal();
     }
 
     @Override
@@ -58,16 +57,8 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
     }
 
     @Override
-    protected int totalBlockFor()
-    {
-        // during bootstrap, include pending endpoints (only local here) in the count
-        // or we may fail the consistency level guarantees (see #833, #8058)
-        return consistencyLevel.blockFor(keyspace) + consistencyLevel.countLocalEndpoints(pendingEndpoints);
-    }
-
-    @Override
     protected boolean waitingFor(InetAddressAndPort from)
     {
-        return consistencyLevel.isLocal(from);
+        return waitingFor.test(from);
     }
 }

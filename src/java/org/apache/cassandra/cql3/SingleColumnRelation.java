@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.util.Collections;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -149,9 +150,31 @@ public final class SingleColumnRelation extends Relation
             entityAsString = String.format("%s[%s]", entityAsString, mapKey);
 
         if (isIN())
-            return String.format("%s IN %s", entityAsString, inValues);
+            return String.format("%s IN %s", entityAsString, Tuples.tupleToString(inValues));
 
         return String.format("%s %s %s", entityAsString, relationType, value);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(relationType, entity, mapKey, value, inValues);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof SingleColumnRelation))
+            return false;
+
+        SingleColumnRelation scr = (SingleColumnRelation) o;
+        return Objects.equals(entity, scr.entity)
+            && Objects.equals(mapKey, scr.mapKey)
+            && Objects.equals(value, scr.value)
+            && Objects.equals(inValues, scr.inValues);
     }
 
     @Override

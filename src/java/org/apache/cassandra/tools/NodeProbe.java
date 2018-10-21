@@ -69,7 +69,6 @@ import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
-import org.apache.cassandra.metrics.TableMetrics.Sampler;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
@@ -87,8 +86,10 @@ import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 
+import com.codahale.metrics.JmxReporter;
 import com.google.common.base.Function;
 import com.google.common.base.Strings;
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
@@ -419,27 +420,25 @@ public class NodeProbe implements AutoCloseable
             }
         }
     }
-    public Map<String, Map<String, CompositeData>> getPartitionSample(int capacity, int duration, int count, List<String> samplers) throws OpenDataException
+    public Map<String, List<CompositeData>> getPartitionSample(int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
     {
-        return ssProxy.samplePartitions(duration, capacity, count, samplers);
+        return ssProxy.samplePartitions(durationMillis, capacity, count, samplers);
     }
 
-    public Map<String, Map<String, CompositeData>> getPartitionSample(String ks, String cf, int capacity, int duration, int count, List<String> samplers) throws OpenDataException
+    public Map<String, List<CompositeData>> getPartitionSample(String ks, String cf, int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(ks, cf);
         for(String sampler : samplers)
         {
-            cfsProxy.beginLocalSampling(sampler, capacity);
+            cfsProxy.beginLocalSampling(sampler, capacity, durationMillis);
         }
-        Uninterruptibles.sleepUninterruptibly(duration, TimeUnit.MILLISECONDS);
-        Map<String, CompositeData> result = Maps.newHashMap();
+        Uninterruptibles.sleepUninterruptibly(durationMillis, TimeUnit.MILLISECONDS);
+        Map<String, List<CompositeData>> result = Maps.newHashMap();
         for(String sampler : samplers)
         {
             result.put(sampler, cfsProxy.finishLocalSampling(sampler, count));
         }
-        return new ImmutableMap.Builder<String, Map<String, CompositeData>>()
-                .put(ks + "." + cf, result)
-                .build();
+        return result;
     }
 
     public void invalidateCounterCache()
@@ -817,6 +816,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getNaturalEndpoints(keyspace, cf, key);
     }
 
+    public List<String> getReplicas(String keyspace, String cf, String key)
+    {
+        return ssProxy.getReplicas(keyspace, cf, key);
+    }
+
     public List<String> getSSTables(String keyspace, String cf, String key, boolean hexFormat)
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(keyspace, cf);
@@ -1182,9 +1186,9 @@ public class NodeProbe implements AutoCloseable
         ssProxy.loadNewSSTables(ksName, cfName);
     }
 
-    public void importNewSSTables(String ksName, String cfName, String srcPath, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean jbodCheck, boolean extendedVerify)
+    public List<String> importNewSSTables(String ksName, String cfName, Set<String> srcPaths, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean extendedVerify)
     {
-        getCfsProxy(ksName, cfName).importNewSSTables(srcPath, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, jbodCheck, extendedVerify);
+        return getCfsProxy(ksName, cfName).importNewSSTables(srcPaths, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, extendedVerify);
     }
 
     public void rebuildIndex(String ksName, String cfName, String... idxNames)
@@ -1349,9 +1353,64 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    private static Multimap<String, String> getJmxThreadPools(MBeanServerConnection mbeanServerConn)
+    {
+        try
+        {
+            Multimap<String, String> threadPools = HashMultimap.create();
+
+            Set<ObjectName> threadPoolObjectNames = mbeanServerConn.queryNames(
+                    new ObjectName("org.apache.cassandra.metrics:type=ThreadPools,*"),
+                    null);
+
+            for (ObjectName oName : threadPoolObjectNames)
+            {
+                threadPools.put(oName.getKeyProperty("path"), oName.getKeyProperty("scope"));
+            }
+
+            return threadPools;
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException("Bad query to JMX server: ", e);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Error getting threadpool names from JMX", e);
+        }
+    }
+
     public Object getThreadPoolMetric(String pathName, String poolName, String metricName)
     {
-        return ThreadPoolMetrics.getJmxMetric(mbeanServerConn, pathName, poolName, metricName);
+      String name = String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s",
+              pathName, poolName, metricName);
+
+      try
+      {
+          ObjectName oName = new ObjectName(name);
+          if (!mbeanServerConn.isRegistered(oName))
+          {
+              return "N/A";
+          }
+
+          switch (metricName)
+          {
+              case ThreadPoolMetrics.ACTIVE_TASKS:
+              case ThreadPoolMetrics.PENDING_TASKS:
+              case ThreadPoolMetrics.COMPLETED_TASKS:
+              case ThreadPoolMetrics.MAX_POOL_SIZE:
+                  return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxGaugeMBean.class).getValue();
+              case ThreadPoolMetrics.TOTAL_BLOCKED_TASKS:
+              case ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS:
+                  return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxCounterMBean.class).getCount();
+              default:
+                  throw new AssertionError("Unknown metric name " + metricName);
+          }
+      }
+      catch (Exception e)
+      {
+          throw new RuntimeException("Error reading: " + name, e);
+      }
     }
 
     /**
@@ -1360,7 +1419,7 @@ public class NodeProbe implements AutoCloseable
      */
     public Multimap<String, String> getThreadPools()
     {
-        return ThreadPoolMetrics.getJmxThreadPools(mbeanServerConn);
+        return getJmxThreadPools(mbeanServerConn);
     }
 
     public int getNumberOfTables()
@@ -1517,7 +1576,7 @@ public class NodeProbe implements AutoCloseable
 
     /**
      * Retrieve Proxy metrics
-     * @param connections, connectedNativeClients, connectedNativeClientsByUser
+     * @param connections, connectedNativeClients, connectedNativeClientsByUser, clientsByProtocolVersion
      */
     public Object getClientMetric(String metricName)
     {
@@ -1691,6 +1750,16 @@ public class NodeProbe implements AutoCloseable
     public void enableAuditLog(String loggerName, String includedKeyspaces ,String excludedKeyspaces ,String includedCategories ,String excludedCategories ,String includedUsers ,String excludedUsers)
     {
         ssProxy.enableAuditLog(loggerName, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
+    }
+
+    public void enableOldProtocolVersions()
+    {
+        ssProxy.enableNativeTransportOldProtocolVersions();
+    }
+
+    public void disableOldProtocolVersions()
+    {
+        ssProxy.disableNativeTransportOldProtocolVersions();
     }
 }
 

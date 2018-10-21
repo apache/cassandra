@@ -132,10 +132,10 @@ public class Verifier implements Closeable
             outputHandler.debug(t.getMessage());
             markAndThrow(false);
         }
-        outputHandler.output(String.format("Checking computed hash of %s ", sstable));
 
         try
         {
+            outputHandler.debug("Deserializing index for "+sstable);
             deserializeIndex(sstable);
         }
         catch (Throwable t)
@@ -146,8 +146,8 @@ public class Verifier implements Closeable
 
         try
         {
+            outputHandler.debug("Deserializing index summary for "+sstable);
             deserializeIndexSummary(sstable);
-
         }
         catch (Throwable t)
         {
@@ -158,6 +158,7 @@ public class Verifier implements Closeable
 
         try
         {
+            outputHandler.debug("Deserializing bloom filter for "+sstable);
             deserializeBloomFilter(sstable);
 
         }
@@ -167,10 +168,33 @@ public class Verifier implements Closeable
             markAndThrow();
         }
 
+        if (options.checkOwnsTokens && !isOffline)
+        {
+            outputHandler.debug("Checking that all tokens are owned by the current node");
+            try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
+            {
+                List<Range<Token>> ownedRanges = Range.normalize(StorageService.instance.getLocalAndPendingRanges(cfs.metadata.keyspace));
+                if (ownedRanges.isEmpty())
+                    return;
+                RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
+                while (iter.hasNext())
+                {
+                    DecoratedKey key = iter.next();
+                    rangeOwnHelper.validate(key);
+                }
+            }
+            catch (Throwable t)
+            {
+                outputHandler.warn(t.getMessage());
+                markAndThrow();
+            }
+        }
+
         if (options.quick)
             return;
 
         // Verify will use the Digest files, which works for both compressed and uncompressed sstables
+        outputHandler.output(String.format("Checking computed hash of %s ", sstable));
         try
         {
             validator = null;
@@ -197,33 +221,9 @@ public class Verifier implements Closeable
         }
 
         if (!extended)
-        {
-            if (options.checkOwnsTokens && !isOffline)
-            {
-                try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
-                {
-                    List<Range<Token>> ownedRanges = Range.normalize(StorageService.instance.getLocalAndPendingRanges(cfs.metadata.keyspace));
-                    if (ownedRanges.isEmpty())
-                        return;
-                    RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
-                    while (iter.hasNext())
-                    {
-                        DecoratedKey key = iter.next();
-                        rangeOwnHelper.check(key);
-                    }
-                }
-                catch (Throwable t)
-                {
-                    outputHandler.warn(t.getMessage());
-                    markAndThrow();
-                }
-            }
             return;
-        }
-
 
         outputHandler.output("Extended Verify requested, proceeding to inspect values");
-
 
         try
         {
@@ -262,7 +262,7 @@ public class Verifier implements Closeable
                 {
                     try
                     {
-                        rangeOwnHelper.check(key);
+                        rangeOwnHelper.validate(key);
                     }
                     catch (Throwable t)
                     {
@@ -350,6 +350,7 @@ public class Verifier implements Closeable
         public RangeOwnHelper(List<Range<Token>> normalizedRanges)
         {
             this.normalizedRanges = normalizedRanges;
+            Range.assertNormalized(normalizedRanges);
         }
 
         /**
@@ -360,13 +361,27 @@ public class Verifier implements Closeable
          * @param key the key
          * @throws RuntimeException if the key is not contained
          */
-        public void check(DecoratedKey key)
+        public void validate(DecoratedKey key)
+        {
+            if (!check(key))
+                throw new RuntimeException("Key " + key + " is not contained in the given ranges");
+        }
+
+        /**
+         * check if the given key is contained in any of the given ranges
+         *
+         * Must be called in sorted order - key should be increasing
+         *
+         * @param key the key
+         * @return boolean
+         */
+        public boolean check(DecoratedKey key)
         {
             assert lastKey == null || key.compareTo(lastKey) > 0;
             lastKey = key;
 
             if (normalizedRanges.isEmpty()) // handle tests etc where we don't have any ranges
-                return;
+                return true;
 
             if (rangeIndex > normalizedRanges.size() - 1)
                 throw new IllegalStateException("RangeOwnHelper can only be used to find the first out-of-range-token");
@@ -375,8 +390,10 @@ public class Verifier implements Closeable
             {
                 rangeIndex++;
                 if (rangeIndex > normalizedRanges.size() - 1)
-                    throw new RuntimeException("Key "+key+" is not contained in the given ranges");
+                    return false;
             }
+
+            return true;
         }
     }
 
@@ -441,7 +458,7 @@ public class Verifier implements Closeable
         {
             try
             {
-                sstable.descriptor.getMetadataSerializer().mutateRepaired(sstable.descriptor, ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getSSTableMetadata().pendingRepair);
+                sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getPendingRepair(), sstable.isTransient());
                 sstable.reloadSSTableMetadata();
                 cfs.getTracker().notifySSTableRepairedStatusChanged(Collections.singleton(sstable));
             }
