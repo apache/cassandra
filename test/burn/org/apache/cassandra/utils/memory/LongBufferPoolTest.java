@@ -61,6 +61,9 @@ import static org.junit.Assert.*;
 public class LongBufferPoolTest
 {
     private static final Logger logger = LoggerFactory.getLogger(LongBufferPoolTest.class);
+    final int avgBufferSize = 16 << 10;
+    final int stdevBufferSize = 10 << 10; // picked to ensure exceeding buffer size is rare, but occurs
+    final DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
 
     @Test
     public void testAllocate() throws InterruptedException, ExecutionException
@@ -95,306 +98,127 @@ public class LongBufferPoolTest
         }
     }
 
-    public void testAllocate(int threadCount, long duration, int poolSize) throws InterruptedException, ExecutionException
+    private static final class TestEnvironment
     {
-        final int avgBufferSize = 16 << 10;
-        final int stdevBufferSize = 10 << 10; // picked to ensure exceeding buffer size is rare, but occurs
-        final DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+        final int threadCount;
+        final long duration;
+        final int poolSize;
+        final long until;
+        final CountDownLatch latch;
+        final SPSCQueue<BufferCheck>[] sharedRecycle;
+        final AtomicBoolean[] makingProgress;
+        final AtomicBoolean burnFreed;
+        final AtomicBoolean[] freedAllMemory;
+        final ExecutorService executorService;
+        final List<Future<Boolean>> threadResultFuture;
+        final int targetSizeQuanta;
 
-        System.out.println(String.format("%s - testing %d threads for %dm",
-                                         dateFormat.format(new Date()),
-                                         threadCount,
-                                         TimeUnit.NANOSECONDS.toMinutes(duration)));
-
-        final long until = System.nanoTime() + duration;
-        final CountDownLatch latch = new CountDownLatch(threadCount);
-        final SPSCQueue<BufferCheck>[] sharedRecycle = new SPSCQueue[threadCount];
-        final AtomicBoolean[] makingProgress = new AtomicBoolean[threadCount];
-        final AtomicBoolean burnFreed = new AtomicBoolean(false);
-        final AtomicBoolean[] freedAllMemory = new AtomicBoolean[threadCount];
-        for (int i = 0 ; i < sharedRecycle.length ; i++)
+        TestEnvironment(int threadCount, long duration, int poolSize)
         {
-            sharedRecycle[i] = new SPSCQueue<>();
-            makingProgress[i] = new AtomicBoolean(false);
-            freedAllMemory[i] = new AtomicBoolean(false);
+            this.threadCount = threadCount;
+            this.duration = duration;
+            this.poolSize = poolSize;
+            until = System.nanoTime() + duration;
+            latch = new CountDownLatch(threadCount);
+            sharedRecycle = new SPSCQueue[threadCount];
+            makingProgress = new AtomicBoolean[threadCount];
+            burnFreed = new AtomicBoolean(false);
+            freedAllMemory = new AtomicBoolean[threadCount];
+            executorService = Executors.newFixedThreadPool(threadCount + 2);
+            threadResultFuture = new ArrayList<>(threadCount);
+
+            for (int i = 0; i < sharedRecycle.length; i++)
+            {
+                sharedRecycle[i] = new SPSCQueue<>();
+                makingProgress[i] = new AtomicBoolean(false);
+                freedAllMemory[i] = new AtomicBoolean(false);
+            }
+
+            // Divide the poolSize across our threads, deliberately over-subscribing it.  Threads
+            // allocate a different amount of memory each - 1*quanta, 2*quanta, ... N*quanta.
+            // Thread0 is always going to be a single CHUNK, then to allocate increasing amounts
+            // using their own algorithm the targetSize should be poolSize / targetSizeQuanta.
+            //
+            // This should divide double the poolSize across the working threads,
+            // plus CHUNK_SIZE for thread0 and 1/10 poolSize for the burn producer/consumer pair.
+            targetSizeQuanta = 2 * poolSize / sum1toN(threadCount - 1);
         }
 
-        ExecutorService executorService = Executors.newFixedThreadPool(threadCount + 2);
-        List<Future<Boolean>> ret = new ArrayList<>(threadCount);
-        long prevPoolSize = BufferPool.MEMORY_USAGE_THRESHOLD;
-        logger.info("Overriding configured BufferPool.MEMORY_USAGE_THRESHOLD={} and enabling BufferPool.DEBUG", poolSize);
-        BufferPool.MEMORY_USAGE_THRESHOLD = poolSize;
-        BufferPool.DEBUG = true;
-
-        // Divide the poolSize across our threads, deliberately over-subscribing it.  Threads
-        // allocate a different amount of memory each - 1*quanta, 2*quanta, ... N*quanta.
-        // Thread0 is always going to be a single CHUNK, then to allocate increasing amounts
-        // using their own algorithm the targetSize should be poolSize / targetSizeQuanta.
-        //
-        // This should divide double the poolSize across the working threads,
-        // plus CHUNK_SIZE for thread0 and 1/10 poolSize for the burn producer/consumer pair.
-        final int targetSizeQuanta = 2 * poolSize / sum1toN(threadCount - 1);
-
+        void addCheckedFuture(Future<Boolean> future)
         {
-            // setup some high churn allocate/deallocate, without any checking
-            final SPSCQueue<ByteBuffer> burn = new SPSCQueue<>();
-            final CountDownLatch doneAdd = new CountDownLatch(1);
-            ret.add(executorService.submit(new TestUntil(until)
-            {
-                int count = 0;
-                final ThreadLocalRandom rand = ThreadLocalRandom.current();
-                void testOne() throws Exception
-                {
-                    if (count * BufferPool.CHUNK_SIZE >= poolSize / 10)
-                    {
-                        if (burn.exhausted)
-                        {
-                            count = 0;
-                            burnFreed.compareAndSet(false, true);
-                        } else
-                        {
-                            Thread.yield();
-                        }
-                        return;
-                    }
-
-                    ByteBuffer buffer = BufferPool.tryGet(BufferPool.CHUNK_SIZE);
-                    if (buffer == null)
-                    {
-                        Thread.yield();
-                        return;
-                    }
-
-                    // 50/50 chance of returning the buffer from the producer thread, or
-                    // pass it on to the consumer.
-                    if (rand.nextBoolean())
-                        BufferPool.put(buffer);
-                    else
-                        burn.add(buffer);
-
-                    count++;
-                }
-                void cleanup()
-                {
-                    doneAdd.countDown();
-                }
-            }));
-            ret.add(executorService.submit(new TestUntil(until)
-            {
-                void testOne() throws Exception
-                {
-                    ByteBuffer buffer = burn.poll();
-                    if (buffer == null)
-                    {
-                        Thread.yield();
-                        return;
-                    }
-                    BufferPool.put(buffer);
-                }
-                void cleanup()
-                {
-                    Uninterruptibles.awaitUninterruptibly(doneAdd);
-                }
-            }));
+            threadResultFuture.add(future);
         }
 
-        for (int t = 0; t < threadCount; t++)
-        {
-            final int threadIdx = t;
-            final int targetSize = t == 0 ? BufferPool.CHUNK_SIZE : targetSizeQuanta * t;
-
-            ret.add(executorService.submit(new TestUntil(until)
-            {
-                final SPSCQueue<BufferCheck> shareFrom = sharedRecycle[threadIdx];
-                final DynamicList<BufferCheck> checks = new DynamicList<>((int) Math.max(1, targetSize / (1 << 10)));
-                final SPSCQueue<BufferCheck> shareTo = sharedRecycle[(threadIdx + 1) % threadCount];
-                final ThreadLocalRandom rand = ThreadLocalRandom.current();
-                int totalSize = 0;
-                int freeingSize = 0;
-                int size = 0;
-
-                void checkpoint()
-                {
-                    if (!makingProgress[threadIdx].get())
-                        makingProgress[threadIdx].set(true);
-                }
-
-                void testOne() throws Exception
-                {
-
-                    long currentTargetSize = (rand.nextInt(poolSize / 1024) == 0 || !freedAllMemory[threadIdx].get()) ? 0 : targetSize;
-                    int spinCount = 0;
-                    while (totalSize > currentTargetSize - freeingSize)
-                    {
-                        // free buffers until we're below our target size
-                        if (checks.size() == 0)
-                        {
-                            // if we're out of buffers to free, we're waiting on our neighbour to free them;
-                            // first check if the consuming neighbour has caught up, and if so mark that free
-                            if (shareTo.exhausted)
-                            {
-                                totalSize -= freeingSize;
-                                freeingSize = 0;
-                            }
-                            else if (!recycleFromNeighbour())
-                            {
-                                if (++spinCount > 1000 && System.nanoTime() > until)
-                                    return;
-                                // otherwise, free one of our other neighbour's buffers if can; and otherwise yield
-                                Thread.yield();
-                            }
-                            continue;
-                        }
-
-                        // pick a random buffer, with preference going to earlier ones
-                        BufferCheck check = sample();
-                        checks.remove(check.listnode);
-                        check.validate();
-
-                        size = BufferPool.roundUpNormal(check.buffer.capacity());
-                        if (size > BufferPool.CHUNK_SIZE)
-                            size = 0;
-
-                        // either share to free, or free immediately
-                        if (rand.nextBoolean())
-                        {
-                            shareTo.add(check);
-                            freeingSize += size;
-                            // interleave this with potentially messing with the other neighbour's stuff
-                            recycleFromNeighbour();
-                        }
-                        else
-                        {
-                            check.validate();
-                            BufferPool.put(check.buffer);
-                            totalSize -= size;
-                        }
-                    }
-
-                    if (currentTargetSize == 0)
-                        freedAllMemory[threadIdx].compareAndSet(false, true);
-
-                    // allocate a new buffer
-                    size = (int) Math.max(1, avgBufferSize + (stdevBufferSize * rand.nextGaussian()));
-                    if (size <= BufferPool.CHUNK_SIZE)
-                    {
-                        totalSize += BufferPool.roundUpNormal(size);
-                        allocate(size);
-                    }
-                    else if (rand.nextBoolean())
-                    {
-                        allocate(size);
-                    }
-                    else
-                    {
-                        // perform a burst allocation to exhaust all available memory
-                        while (totalSize < poolSize)
-                        {
-                            size = (int) Math.max(1, avgBufferSize + (stdevBufferSize * rand.nextGaussian()));
-                            if (size <= BufferPool.CHUNK_SIZE)
-                            {
-                                allocate(size);
-                                totalSize += BufferPool.roundUpNormal(size);
-                            }
-                        }
-                    }
-
-                    // validate a random buffer we have stashed
-                    checks.get(rand.nextInt(checks.size())).validate();
-
-                    // free all of our neighbour's remaining shared buffers
-                    while (recycleFromNeighbour());
-                }
-
-                void cleanup()
-                {
-                    while (checks.size() > 0)
-                    {
-                        BufferCheck check = checks.get(0);
-                        BufferPool.put(check.buffer);
-                        checks.remove(check.listnode);
-                    }
-                    latch.countDown();
-                }
-
-                boolean recycleFromNeighbour()
-                {
-                    BufferCheck check = shareFrom.poll();
-                    if (check == null)
-                        return false;
-                    check.validate();
-                    BufferPool.put(check.buffer);
-                    return true;
-                }
-
-                BufferCheck allocate(int size)
-                {
-                    ByteBuffer buffer = BufferPool.get(size);
-                    assertNotNull(buffer);
-                    BufferCheck check = new BufferCheck(buffer, rand.nextLong());
-                    assertEquals(size, buffer.capacity());
-                    assertEquals(0, buffer.position());
-                    check.init();
-                    check.listnode = checks.append(check);
-                    return check;
-                }
-
-                BufferCheck sample()
-                {
-                    // sample with preference to first elements:
-                    // element at index n will be selected with likelihood (size - n) / sum1ToN(size)
-                    int size = checks.size();
-
-                    // pick a random number between 1 and sum1toN(size)
-                    int sampleRange = sum1toN(size);
-                    int sampleIndex = rand.nextInt(sampleRange);
-
-                    // then binary search for the N, such that [sum1ToN(N), sum1ToN(N+1)) contains this random number
-                    int moveBy = Math.max(size / 4, 1);
-                    int index = size / 2;
-                    while (true)
-                    {
-                        int baseSampleIndex = sum1toN(index);
-                        int endOfSampleIndex = sum1toN(index + 1);
-                        if (sampleIndex >= baseSampleIndex)
-                        {
-                            if (sampleIndex < endOfSampleIndex)
-                                break;
-                            index += moveBy;
-                        }
-                        else index -= moveBy;
-                        moveBy = Math.max(moveBy / 2, 1);
-                    }
-
-                    // this gives us the inverse of our desired value, so just subtract it from the last index
-                    index = size - (index + 1);
-
-                    return checks.get(index);
-                }
-            }));
-        }
-
-        while (!latch.await(10L, TimeUnit.SECONDS))
+        int countStalledThreads()
         {
             int stalledThreads = 0;
-            int doneThreads = 0;
 
             for (AtomicBoolean progress : makingProgress)
             {
                 if (!progress.getAndSet(false))
                     stalledThreads++;
             }
+            return stalledThreads;
+        }
 
-            for (Future<Boolean> r : ret)
+        int countDoneThreads()
+        {
+            int doneThreads = 0;
+            for (Future<Boolean> r : threadResultFuture)
             {
                 if (r.isDone())
                     doneThreads++;
             }
+            return doneThreads;
+        }
+
+        void assertCheckedThreadsSucceeded()
+        {
+            try
+            {
+                for (Future<Boolean> r : threadResultFuture)
+                    assertTrue(r.get());
+            }
+            catch (InterruptedException ex)
+            {
+                // If interrupted while checking, restart and check everything.
+                assertCheckedThreadsSucceeded();
+            }
+            catch (ExecutionException ex)
+            {
+                fail("Checked thread threw exception: " + ex.toString());
+            }
+        }
+    }
+
+    public void testAllocate(int threadCount, long duration, int poolSize) throws InterruptedException, ExecutionException
+    {
+        System.out.println(String.format("%s - testing %d threads for %dm",
+                                         dateFormat.format(new Date()),
+                                         threadCount,
+                                         TimeUnit.NANOSECONDS.toMinutes(duration)));
+        long prevPoolSize = BufferPool.MEMORY_USAGE_THRESHOLD;
+        logger.info("Overriding configured BufferPool.MEMORY_USAGE_THRESHOLD={} and enabling BufferPool.DEBUG", poolSize);
+        BufferPool.MEMORY_USAGE_THRESHOLD = poolSize;
+        BufferPool.DEBUG = true;
+
+        TestEnvironment testEnv = new TestEnvironment(threadCount, duration, poolSize);
+
+        startBurnerThreads(testEnv);
+
+        for (int threadIdx = 0; threadIdx < threadCount; threadIdx++)
+            testEnv.addCheckedFuture(startWorkerThread(testEnv, threadIdx));
+
+        while (!testEnv.latch.await(10L, TimeUnit.SECONDS))
+        {
+            int stalledThreads = testEnv.countStalledThreads();
+            int doneThreads = testEnv.countDoneThreads();
+
             if (doneThreads == 0) // If any threads have completed, they will stop making progress/recycling buffers.
             {                     // Assertions failures on the threads will be caught below.
                 assert stalledThreads == 0;
-                boolean allFreed = burnFreed.getAndSet(false);
-                for (AtomicBoolean freedMemory : freedAllMemory)
+                boolean allFreed = testEnv.burnFreed.getAndSet(false);
+                for (AtomicBoolean freedMemory : testEnv.freedAllMemory)
                     allFreed = allFreed && freedMemory.getAndSet(false);
                 if (allFreed)
                     BufferPool.assertAllRecycled();
@@ -403,7 +227,7 @@ public class LongBufferPoolTest
             }
         }
 
-        for (SPSCQueue<BufferCheck> queue : sharedRecycle)
+        for (SPSCQueue<BufferCheck> queue : testEnv.sharedRecycle)
         {
             BufferCheck check;
             while ( null != (check = queue.poll()) )
@@ -413,16 +237,254 @@ public class LongBufferPoolTest
             }
         }
 
-        assertEquals(0, executorService.shutdownNow().size());
+        assertEquals(0, testEnv.executorService.shutdownNow().size());
 
         logger.info("Reverting BufferPool.MEMORY_USAGE_THRESHOLD={}", prevPoolSize);
         BufferPool.MEMORY_USAGE_THRESHOLD = prevPoolSize;
         BufferPool.DEBUG = false;
-        for (Future<Boolean> r : ret)
-            assertTrue(r.get());
+
+        testEnv.assertCheckedThreadsSucceeded();
 
         System.out.println(String.format("%s - finished.",
                                          dateFormat.format(new Date())));
+    }
+
+    private Future<Boolean> startWorkerThread(TestEnvironment testEnv, final int threadIdx)
+    {
+        return testEnv.executorService.submit(new TestUntil(testEnv.until)
+        {
+            final int targetSize = threadIdx == 0 ? BufferPool.CHUNK_SIZE : testEnv.targetSizeQuanta * threadIdx;
+            final SPSCQueue<BufferCheck> shareFrom = testEnv.sharedRecycle[threadIdx];
+            final DynamicList<BufferCheck> checks = new DynamicList<>((int) Math.max(1, targetSize / (1 << 10)));
+            final SPSCQueue<BufferCheck> shareTo = testEnv.sharedRecycle[(threadIdx + 1) % testEnv.threadCount];
+            final ThreadLocalRandom rand = ThreadLocalRandom.current();
+            int totalSize = 0;
+            int freeingSize = 0;
+            int size = 0;
+
+            void checkpoint()
+            {
+                if (!testEnv.makingProgress[threadIdx].get())
+                    testEnv.makingProgress[threadIdx].set(true);
+            }
+
+            void testOne() throws Exception
+            {
+
+                long currentTargetSize = (rand.nextInt(testEnv.poolSize / 1024) == 0 || !testEnv.freedAllMemory[threadIdx].get()) ? 0 : targetSize;
+                int spinCount = 0;
+                while (totalSize > currentTargetSize - freeingSize)
+                {
+                    // free buffers until we're below our target size
+                    if (checks.size() == 0)
+                    {
+                        // if we're out of buffers to free, we're waiting on our neighbour to free them;
+                        // first check if the consuming neighbour has caught up, and if so mark that free
+                        if (shareTo.exhausted)
+                        {
+                            totalSize -= freeingSize;
+                            freeingSize = 0;
+                        }
+                        else if (!recycleFromNeighbour())
+                        {
+                            if (++spinCount > 1000 && System.nanoTime() > until)
+                                return;
+                            // otherwise, free one of our other neighbour's buffers if can; and otherwise yield
+                            Thread.yield();
+                        }
+                        continue;
+                    }
+
+                    // pick a random buffer, with preference going to earlier ones
+                    BufferCheck check = sample();
+                    checks.remove(check.listnode);
+                    check.validate();
+
+                    size = BufferPool.roundUpNormal(check.buffer.capacity());
+                    if (size > BufferPool.CHUNK_SIZE)
+                        size = 0;
+
+                    // either share to free, or free immediately
+                    if (rand.nextBoolean())
+                    {
+                        shareTo.add(check);
+                        freeingSize += size;
+                        // interleave this with potentially messing with the other neighbour's stuff
+                        recycleFromNeighbour();
+                    }
+                    else
+                    {
+                        check.validate();
+                        BufferPool.put(check.buffer);
+                        totalSize -= size;
+                    }
+                }
+
+                if (currentTargetSize == 0)
+                    testEnv.freedAllMemory[threadIdx].compareAndSet(false, true);
+
+                // allocate a new buffer
+                size = (int) Math.max(1, avgBufferSize + (stdevBufferSize * rand.nextGaussian()));
+                if (size <= BufferPool.CHUNK_SIZE)
+                {
+                    totalSize += BufferPool.roundUpNormal(size);
+                    allocate(size);
+                }
+                else if (rand.nextBoolean())
+                {
+                    allocate(size);
+                }
+                else
+                {
+                    // perform a burst allocation to exhaust all available memory
+                    while (totalSize < testEnv.poolSize)
+                    {
+                        size = (int) Math.max(1, avgBufferSize + (stdevBufferSize * rand.nextGaussian()));
+                        if (size <= BufferPool.CHUNK_SIZE)
+                        {
+                            allocate(size);
+                            totalSize += BufferPool.roundUpNormal(size);
+                        }
+                    }
+                }
+
+                // validate a random buffer we have stashed
+                checks.get(rand.nextInt(checks.size())).validate();
+
+                // free all of our neighbour's remaining shared buffers
+                while (recycleFromNeighbour());
+            }
+
+            void cleanup()
+            {
+                while (checks.size() > 0)
+                {
+                    BufferCheck check = checks.get(0);
+                    BufferPool.put(check.buffer);
+                    checks.remove(check.listnode);
+                }
+                testEnv.latch.countDown();
+            }
+
+            boolean recycleFromNeighbour()
+            {
+                BufferCheck check = shareFrom.poll();
+                if (check == null)
+                    return false;
+                check.validate();
+                BufferPool.put(check.buffer);
+                return true;
+            }
+
+            BufferCheck allocate(int size)
+            {
+                ByteBuffer buffer = BufferPool.get(size);
+                assertNotNull(buffer);
+                BufferCheck check = new BufferCheck(buffer, rand.nextLong());
+                assertEquals(size, buffer.capacity());
+                assertEquals(0, buffer.position());
+                check.init();
+                check.listnode = checks.append(check);
+                return check;
+            }
+
+            BufferCheck sample()
+            {
+                // sample with preference to first elements:
+                // element at index n will be selected with likelihood (size - n) / sum1ToN(size)
+                int size = checks.size();
+
+                // pick a random number between 1 and sum1toN(size)
+                int sampleRange = sum1toN(size);
+                int sampleIndex = rand.nextInt(sampleRange);
+
+                // then binary search for the N, such that [sum1ToN(N), sum1ToN(N+1)) contains this random number
+                int moveBy = Math.max(size / 4, 1);
+                int index = size / 2;
+                while (true)
+                {
+                    int baseSampleIndex = sum1toN(index);
+                    int endOfSampleIndex = sum1toN(index + 1);
+                    if (sampleIndex >= baseSampleIndex)
+                    {
+                        if (sampleIndex < endOfSampleIndex)
+                            break;
+                        index += moveBy;
+                    }
+                    else index -= moveBy;
+                    moveBy = Math.max(moveBy / 2, 1);
+                }
+
+                // this gives us the inverse of our desired value, so just subtract it from the last index
+                index = size - (index + 1);
+
+                return checks.get(index);
+            }
+        });
+    }
+
+    private void startBurnerThreads(TestEnvironment testEnv)
+    {
+        // setup some high churn allocate/deallocate, without any checking
+        final SPSCQueue<ByteBuffer> burn = new SPSCQueue<>();
+        final CountDownLatch doneAdd = new CountDownLatch(1);
+        testEnv.addCheckedFuture(testEnv.executorService.submit(new TestUntil(testEnv.until)
+        {
+            int count = 0;
+            final ThreadLocalRandom rand = ThreadLocalRandom.current();
+            void testOne() throws Exception
+            {
+                if (count * BufferPool.CHUNK_SIZE >= testEnv.poolSize / 10)
+                {
+                    if (burn.exhausted)
+                    {
+                        count = 0;
+                        testEnv.burnFreed.compareAndSet(false, true);
+                    } else
+                    {
+                        Thread.yield();
+                    }
+                    return;
+                }
+
+                ByteBuffer buffer = BufferPool.tryGet(BufferPool.CHUNK_SIZE);
+                if (buffer == null)
+                {
+                    Thread.yield();
+                    return;
+                }
+
+                // 50/50 chance of returning the buffer from the producer thread, or
+                // pass it on to the consumer.
+                if (rand.nextBoolean())
+                    BufferPool.put(buffer);
+                else
+                    burn.add(buffer);
+
+                count++;
+            }
+            void cleanup()
+            {
+                doneAdd.countDown();
+            }
+        }));
+        testEnv.threadResultFuture.add(testEnv.executorService.submit(new TestUntil(testEnv.until)
+        {
+            void testOne() throws Exception
+            {
+                ByteBuffer buffer = burn.poll();
+                if (buffer == null)
+                {
+                    Thread.yield();
+                    return;
+                }
+                BufferPool.put(buffer);
+            }
+            void cleanup()
+            {
+                Uninterruptibles.awaitUninterruptibly(doneAdd);
+            }
+        }));
     }
 
     static abstract class TestUntil implements Callable<Boolean>
@@ -526,7 +588,7 @@ public class LongBufferPoolTest
         }
     }
 
-    private int sum1toN(int n)
+    private static int sum1toN(int n)
     {
         return (n * (n + 1)) / 2;
     }
