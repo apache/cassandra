@@ -108,6 +108,9 @@ New features
 
 Upgrading
 ---------
+    - CASSANDRA-13241 lowered the default chunk_lengh_in_kb for compresesd tables from
+      64kb to 16kb. For highly compressible data this can have a noticeable impact
+      on space utilization. You may want to consider manually specifying this value.
     - Additional columns have been added to system_distributed.repair_history,
       system_traces.sessions and system_traces.events. As a result select * queries
       againsts these tables will fail and generate an error in the log
