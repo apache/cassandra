@@ -1034,7 +1034,7 @@ public class DatabaseDescriptor
         if (!conf.dynamic_snitch_class_name.equals("org.apache.cassandra.locator.dynamicsnitch.DynamicEndpointSnitchHistogram"))
             logger.warn("Using the non standard DynamicSnitch is unsupported. Use at your own risk!");
 
-        snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
+        snitch = createEndpointSnitch(conf.dynamic_snitch_class_name, conf.endpoint_snitch);
         EndpointSnitchInfo.create();
 
         localDC = snitch.getLocalDatacenter();
@@ -1102,14 +1102,16 @@ public class DatabaseDescriptor
         }
     }
 
-    public static IEndpointSnitch createEndpointSnitch(boolean dynamic, String snitchClassName) throws ConfigurationException
+    public static IEndpointSnitch createEndpointSnitch(String dynamicSnitchClassName, String snitchClassName) throws ConfigurationException
     {
         if (!snitchClassName.contains("."))
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
         IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch");
-        if (dynamic)
+        if (dynamicSnitchClassName != null)
         {
-            Class<DynamicEndpointSnitch> cls = FBUtilities.classForName(conf.dynamic_snitch_class_name,
+            if (!dynamicSnitchClassName.contains("."))
+                dynamicSnitchClassName = "org.apache.cassandra.locator.dynamicsnitch." + dynamicSnitchClassName;
+            Class<DynamicEndpointSnitch> cls = FBUtilities.classForName(dynamicSnitchClassName,
                                                                         "dynamicSnitch");
             try
             {
@@ -2121,6 +2123,15 @@ public class DatabaseDescriptor
         return new File(conf.saved_caches_directory, name);
     }
 
+    public static void setDynamicSnitchClassName(String dynamicSnitchClassName)
+    {
+        conf.dynamic_snitch_class_name = dynamicSnitchClassName;
+    }
+    public static String getDynamicSnitchClassName()
+    {
+        return conf.dynamic_snitch_class_name;
+    }
+
     public static int getDynamicUpdateInterval()
     {
         return conf.dynamic_snitch_update_interval_in_ms;
@@ -2130,13 +2141,13 @@ public class DatabaseDescriptor
         conf.dynamic_snitch_update_interval_in_ms = dynamicUpdateInterval;
     }
 
-    public static int getDynamicLatencyProbeInterval()
+    public static int getDynamicSampleUpdateInterval()
     {
-        return conf.dynamic_snitch_latency_probe_interval_in_ms;
+        return conf.dynamic_snitch_sample_update_interval_in_ms;
     }
-    public static void setDynamicLatencyProbeInterval(int latencyProbeInterval)
+    public static void setDynamicSampleUpdateInterval(int latencyProbeInterval)
     {
-        conf.dynamic_snitch_latency_probe_interval_in_ms = latencyProbeInterval;
+        conf.dynamic_snitch_sample_update_interval_in_ms = latencyProbeInterval;
     }
 
     public static double getDynamicBadnessThreshold()

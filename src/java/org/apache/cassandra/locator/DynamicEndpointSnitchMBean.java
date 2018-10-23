@@ -30,7 +30,7 @@ public interface DynamicEndpointSnitchMBean
     public int getUpdateInterval();
     @Deprecated
     public int getResetInterval();
-    public int getLatencyProbeInterval();
+    public int getSampleUpdateInterval();
     public double getBadnessThreshold();
     public String getSubsnitchClassName();
     public List<Double> dumpTimings(String hostname) throws UnknownHostException;

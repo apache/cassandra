@@ -594,7 +594,8 @@ public final class MessagingService implements MessagingServiceMBean
             {
                 final CallbackInfo expiredCallbackInfo = pair.right.value;
 
-                maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, pair.right.timeout);
+                maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target,
+                                TimeUnit.MILLISECONDS.toMicros(pair.right.timeout));
 
                 ConnectionMetrics.totalTimeouts.mark();
                 markTimeout(expiredCallbackInfo.target);
@@ -730,25 +731,26 @@ public final class MessagingService implements MessagingServiceMBean
     /**
      * Track latency information for the dynamic snitch
      *
-     * @param cb      the callback associated with this message -- this lets us know if it's a message type we're interested in
-     * @param address the host that replied to the message
-     * @param latency
+     * @param cb            the callback associated with this message -- this lets us know if it's a message type we're interested in
+     * @param address       the host that replied to the message
+     * @param latencyMicros the number of microseconds to record for this host
      */
-    public void maybeAddLatency(IAsyncCallback cb, InetAddressAndPort address, long latency)
+    public void maybeAddLatency(IAsyncCallback cb, InetAddressAndPort address, long latencyMicros)
     {
         if (cb.latencyMeasurementType() != LatencyMeasurementType.IGNORE)
-            addLatency(address, latency, cb.latencyMeasurementType());
+            addLatency(address, latencyMicros, cb.latencyMeasurementType());
     }
 
-    public void addLatency(InetAddressAndPort address, long latency)
+    // Used on the local read path
+    public void addLatency(InetAddressAndPort address, long latencyMicros)
     {
-        addLatency(address, latency, LatencyMeasurementType.READ);
+        addLatency(address, latencyMicros, LatencyMeasurementType.READ);
     }
 
-    private void addLatency(InetAddressAndPort address, long latency, LatencyMeasurementType usable)
+    private void addLatency(InetAddressAndPort address, long latencyMicros, LatencyMeasurementType usable)
     {
         for (ILatencySubscriber subscriber : subscribers)
-            subscriber.receiveTiming(address, latency, usable);
+            subscriber.receiveTiming(address, latencyMicros, usable);
     }
 
     /**

@@ -21,26 +21,34 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.RateLimiter;
+import com.google.common.util.concurrent.SettableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.dynamicsnitch.DynamicEndpointSnitchHistogram;
-import org.apache.cassandra.net.IAsyncCallback;
+import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.LatencyMeasurementType;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
@@ -58,7 +66,7 @@ import static org.apache.cassandra.net.async.OutboundConnectionIdentifier.Connec
 /**
  * A dynamic snitch that sorts endpoints by latency with an adapted phi failure detector
  * Note that the subclasses (e.g. {@link DynamicEndpointSnitchHistogram}) are responsible for actually measuring
- * latency and populating the {@link #scores} map.
+ * latency and providing an ISnitchMeasurement implementation back to this class.
  */
 public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILatencySubscriber, DynamicEndpointSnitchMBean
 {
@@ -68,19 +76,20 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
     protected boolean registered = false;
     protected static final boolean USE_SEVERITY = !Boolean.getBoolean("cassandra.ignore_dynamic_snitch_severity");
     protected volatile Map<InetAddressAndPort, Double> scores = new HashMap<>();
+
     protected final Map<InetAddressAndPort, AnnotatedMeasurement> samples = new ConcurrentHashMap<>();
 
     // Latency probe functionality for actively probing endpoints that we haven't measured recently but are ranking
     public static final long MAX_PROBE_INTERVAL_MS = Long.getLong("cassandra.dynamic_snitch_max_probe_interval_ms", 60 * 10 * 1000L);
-    public static final long MIN_PROBE_INTERVAL_MS = Long.getLong("cassandra.dynamic_snitch_min_probe_interval_ms", 10 * 1000L) ;
-    protected enum ProbeType {EXP, CONSTANT, NO}
-    protected final Set<Long> probeTimes = new HashSet<>();
-    protected final List<InetAddressAndPort> latencyProbeSequence = new ArrayList<>();
-    protected volatile int currentProbePosition = 0;
+    public static final long MIN_PROBE_INTERVAL_MS = Long.getLong("cassandra.dynamic_snitch_min_probe_interval_ms", 60 * 1000L) ;
+    // The probe rate is set later when configuration is read in applyConfigChanges
+    protected static final RateLimiter probeRateLimiter = RateLimiter.create(1);
+    protected static final DebuggableScheduledThreadPoolExecutor latencyProbeExecutor = new DebuggableScheduledThreadPoolExecutor("LatencyProbes");
+    private long lastUpdateSamplesNanos = System.nanoTime();
 
     // User configuration of the snitch tunables
     protected volatile int dynamicUpdateInterval = -1;
-    protected volatile int dynamicLatencyProbeInterval = -1;
+    protected volatile int dynamicSampleUpdateInterval = -1;
     protected volatile double dynamicBadnessThreshold = 0;
 
     // the score for a merged set of endpoints must be this much worse than the score for separate endpoints to
@@ -92,11 +101,8 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
 
     public final IEndpointSnitch subsnitch;
 
-    private volatile ScheduledFuture<?> updateScheduler;
-    private volatile ScheduledFuture<?> latencyProbeScheduler;
-
-    private final Runnable update = this::updateScores;
-    private final Runnable latencyProbe = this::maybeSendLatencyProbe;
+    private volatile ScheduledFuture<?> updateScoresScheduler = null;
+    private volatile ScheduledFuture<?> updateSamplesScheduler = null;
 
     public DynamicEndpointSnitch(IEndpointSnitch snitch)
     {
@@ -112,10 +118,85 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
 
         if (DatabaseDescriptor.isDaemonInitialized())
         {
-            applyConfigChanges(DatabaseDescriptor.getDynamicUpdateInterval(),
-                               DatabaseDescriptor.getDynamicLatencyProbeInterval(),
-                               DatabaseDescriptor.getDynamicBadnessThreshold());
-            registerMBean();
+            open();
+        }
+    }
+
+    /**
+     * Update configuration of the background tasks and restart the various scheduler tasks
+     * if the configured rates for these tasks have changed.
+     */
+    public void applyConfigChanges(int newDynamicUpdateInternal, int newDynamicSampleUpdateInterval, double newDynamicBadnessThreshold)
+    {
+        if (DatabaseDescriptor.isDaemonInitialized())
+        {
+            if (dynamicUpdateInterval != newDynamicUpdateInternal || updateScoresScheduler == null)
+            {
+                cancelAndWait(updateScoresScheduler, Math.max(1, dynamicUpdateInterval), TimeUnit.MILLISECONDS);
+                updateScoresScheduler = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(this::updateScores, newDynamicUpdateInternal, newDynamicUpdateInternal, TimeUnit.MILLISECONDS);
+            }
+
+            if (dynamicSampleUpdateInterval != newDynamicSampleUpdateInterval || updateSamplesScheduler == null)
+            {
+                cancelAndWait(updateSamplesScheduler, Math.max(1, dynamicSampleUpdateInterval), TimeUnit.MILLISECONDS);
+                if (newDynamicSampleUpdateInterval > 0)
+                    updateSamplesScheduler = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(this::updateSamples, newDynamicSampleUpdateInterval, newDynamicSampleUpdateInterval, TimeUnit.MILLISECONDS);
+            }
+        }
+
+        dynamicUpdateInterval = newDynamicUpdateInternal;
+        dynamicSampleUpdateInterval = newDynamicSampleUpdateInterval;
+        dynamicBadnessThreshold = newDynamicBadnessThreshold;
+
+        if (dynamicSampleUpdateInterval > 0)
+            probeRateLimiter.setRate(dynamicSampleUpdateInterval);
+    }
+
+    public synchronized void open()
+    {
+        applyConfigChanges(DatabaseDescriptor.getDynamicUpdateInterval(),
+                           DatabaseDescriptor.getDynamicSampleUpdateInterval(),
+                           DatabaseDescriptor.getDynamicBadnessThreshold());
+
+        MBeanWrapper.instance.registerMBean(this, mbeanName);
+        mbeanRegistered = true;
+    }
+
+    public synchronized void close()
+    {
+        cancelAndWait(updateScoresScheduler, Math.max(1, dynamicUpdateInterval), TimeUnit.MILLISECONDS);
+        cancelAndWait(updateSamplesScheduler, Math.max(1, dynamicSampleUpdateInterval), TimeUnit.MILLISECONDS);
+        updateScoresScheduler = null;
+        updateSamplesScheduler = null;
+
+        for (AnnotatedMeasurement measurement : samples.values())
+        {
+            cancelAndWait(measurement.probeFuture, PING.getTimeout(), TimeUnit.MILLISECONDS);
+
+            measurement.millisSinceLastMeasure.set(0);
+            measurement.millisSinceLastRequest.set(MAX_PROBE_INTERVAL_MS);
+            measurement.nextProbeDelayMillis = 0;
+        }
+
+        if (mbeanRegistered)
+            MBeanWrapper.instance.unregisterMBean(mbeanName);
+
+        mbeanRegistered = false;
+    }
+
+    private static void cancelAndWait(ScheduledFuture future, long timeout, TimeUnit unit)
+    {
+        if (future != null)
+        {
+            future.cancel(false);
+            try
+            {
+                future.get(timeout, unit);
+            }
+            catch (CancellationException | InterruptedException | ExecutionException | TimeoutException ignored)
+            {
+                // Exception is expected to happen eventually due to the cancel -> get
+            }
         }
     }
 
@@ -131,25 +212,49 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
 
     /**
      * Adds some boookeeping that the DES uses over top of the various metrics techniques used by the
-     * implementations. This is used to allow CASSANDRA-14459 latency probes
+     * implementations. This is used to allow CASSANDRA-14459 latency probes as well as further safe
+     * experimentation on new latency measurement techniques in CASSANDRA-14817
      *
-     * recentlyRequested is updated through {@link DynamicEndpointSnitch#sortedByProximity(InetAddressAndPort, ReplicaCollection)}
+     * {@link AnnotatedMeasurement#millisSinceLastRequest} is set to zero through
+     * {@link DynamicEndpointSnitch#sortedByProximity(InetAddressAndPort, ReplicaCollection)}. It defaults to
+     * the maximum interval so that we only start probing once it has been ranked at least once
+     * {@link AnnotatedMeasurement#millisSinceLastMeasure} is set to zero from
+     * {@link DynamicEndpointSnitch#receiveTiming(InetAddressAndPort, long, LatencyMeasurementType)}.
      *
-     * intervalsSinceLastMeasure and probesSent are manipulated via {@link DynamicEndpointSnitch#latencyProbeNeeded(Map, List, int)} ()}
+     * {@link AnnotatedMeasurement#millisSinceLastMeasure and {@link AnnotatedMeasurement#nextProbeDelayMillis }
+     * are incremented via {@link DynamicEndpointSnitch#updateSamples()}
      */
     protected static class AnnotatedMeasurement
     {
-        // Used to prohibit probes against non requested nodes, for example when token aware clients are used
-        // most of the cluster will never be ranked at all and we shouldn't probe them either.
-        public volatile boolean recentlyRequested = false;
-        // Used for exponential backoff of probes against a single host
-        public final AtomicLong intervalsSinceLastMeasure = new AtomicLong(0);
-        // The underlying measurement technique. E.g. a median filter (histogram) or ema low pass filter (EMA)
+        // Used to optimally target latency probes only on nodes that are both requested for ranking
+        // and are not being measured. For example with token aware clients a large portion of the cluster will never
+        // be ranked at all and therefore we won't probe them.
+        public AtomicLong millisSinceLastRequest = new AtomicLong(MAX_PROBE_INTERVAL_MS);
+        public AtomicLong millisSinceLastMeasure = new AtomicLong(0);
+        public volatile long nextProbeDelayMillis = 0;
+        public volatile ScheduledFuture<?> probeFuture = null;
+
+        // The underlying measurement technique. E.g. a median filter (histogram) or an EMA filter, or ...
         public final ISnitchMeasurement measurement;
+        public volatile double cachedMeasurement;
 
         public AnnotatedMeasurement(ISnitchMeasurement measurement)
         {
             this.measurement = measurement;
+            this.cachedMeasurement = measurement.measure();
+        }
+
+        @Override
+        public String toString()
+        {
+            return "AnnotatedMeasurement{" +
+                   "millisSinceLastRequest=" + millisSinceLastRequest +
+                   ", millisSinceLastMeasure=" + millisSinceLastMeasure +
+                   ", nextProbeDelayMillis=" + nextProbeDelayMillis +
+                   ", probeFuturePending=" + (probeFuture != null && !probeFuture.isDone()) +
+                   ", measurementClass=" + measurement.getClass().getSimpleName() +
+                   ", cachedMeasurement=" + cachedMeasurement +
+                   '}';
         }
     }
 
@@ -164,7 +269,7 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
     /**
      * Records a latency. This MUST be cheap as it is called in the fast path
      */
-    public void receiveTiming(InetAddressAndPort address, long latency, LatencyMeasurementType measurementType)
+    public void receiveTiming(InetAddressAndPort address, long latencyMicros, LatencyMeasurementType measurementType)
     {
         if (measurementType == LatencyMeasurementType.IGNORE)
            return;
@@ -173,29 +278,27 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
 
         if (sample == null)
         {
-            AnnotatedMeasurement maybeNewSample = new AnnotatedMeasurement(measurementImpl(latency));
+            AnnotatedMeasurement maybeNewSample = new AnnotatedMeasurement(measurementImpl(latencyMicros));
             sample = samples.putIfAbsent(address, maybeNewSample);
             if (sample == null)
                 sample = maybeNewSample;
         }
 
-        if (measurementType == LatencyMeasurementType.READ && sample.intervalsSinceLastMeasure.get() > 0)
-            sample.intervalsSinceLastMeasure.lazySet(0);
+        if (measurementType == LatencyMeasurementType.READ && sample.millisSinceLastMeasure.get() > 0)
+            sample.millisSinceLastMeasure.lazySet(0);
 
-        sample.measurement.sample(latency);
+        sample.measurement.sample(latencyMicros);
     }
 
     @VisibleForTesting
     protected void reset()
     {
-        currentProbePosition = 0;
-        latencyProbeSequence.clear();
         scores.clear();
         samples.clear();
     }
 
     @VisibleForTesting
-    void updateScores()
+    protected void updateScores()
     {
         if (!StorageService.instance.isGossipActive())
             return;
@@ -209,34 +312,41 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
             }
         }
 
-        this.scores = calculateScores();
+        this.scores = calculateScores(samples);
     }
 
     /**
-     * This is generally expensive and is called periodically not on the fast path.
-     * @return a freshly constructed scores map.
+     * This is generally expensive and is called periodically (semi-frequently) not on the fast path.
+     * The main concern here is generating garbage from the measurements (e.g. histograms in particular)
      */
-    public Map<InetAddressAndPort, Double> calculateScores()
+    @VisibleForTesting
+    protected static Map<InetAddressAndPort, Double> calculateScores(Map<InetAddressAndPort, AnnotatedMeasurement> samples)
     {
         double maxLatency = 1;
-
-        Map<InetAddressAndPort, Double> measurements = new HashMap<>(samples.size());
+        HashMap<InetAddressAndPort, Double> newScores = new HashMap<>(samples.size());
 
         // We're going to weight the latency for each host against the worst one we see, to
-        // arrive at sort of a 'badness percentage' for them. First, find the worst for each:
+        // arrive at sort of a 'badness percentage' for them. First, find the worst latency for each:
         for (Map.Entry<InetAddressAndPort, AnnotatedMeasurement> entry : samples.entrySet())
         {
-            // This is expensive for e.g. the Histogram, so do it once and cache the result
-            double measure = entry.getValue().measurement.measure();
-            if (measure > maxLatency)
-                maxLatency = measure;
-            measurements.put(entry.getKey(), measure);
+            AnnotatedMeasurement annotatedMeasurement = entry.getValue();
+
+            // only compute the measurement, which probably generates the most garbage (e.g. for this Histogram),
+            // for endpoints that have been recently updated (millisSinceLastRequest) or somewhat recently requested
+            // for ranking.
+            if (annotatedMeasurement.millisSinceLastMeasure.get() < MIN_PROBE_INTERVAL_MS ||
+                annotatedMeasurement.millisSinceLastRequest.get() <= MAX_PROBE_INTERVAL_MS)
+            {
+                // This is expensive for e.g. the Histogram, so do it once and cache the result
+                annotatedMeasurement.cachedMeasurement = annotatedMeasurement.measurement.measure();
+            }
+
+            newScores.put(entry.getKey(), annotatedMeasurement.cachedMeasurement);
+            maxLatency = Math.max(annotatedMeasurement.cachedMeasurement, maxLatency);
         }
 
-        HashMap<InetAddressAndPort, Double> newScores = new HashMap<>(measurements.size());
-
-        // now make another pass to do the weighting based on the maximums we found before
-        for (Map.Entry<InetAddressAndPort, Double> entry : measurements.entrySet())
+        // now make another pass to normalize the latency scores based on the maximums we found before
+        for (Map.Entry<InetAddressAndPort, Double> entry : newScores.entrySet())
         {
             double score = entry.getValue() / maxLatency;
             // finally, add the severity without any weighting, since hosts scale this relative to their own load and the size of the task causing the severity.
@@ -251,191 +361,165 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
     }
 
     /**
-     * Update configuration from {@link DatabaseDescriptor} and restart the various scheduler tasks
-     * if the configured rates for these tasks have changed.
+     * Background task running on the samples dictionary. The default implementation sends latency probes (PING)
+     * messages to explore nodes that we have not received timings for recently but have ranked in
+     * {@link DynamicEndpointSnitch#sortedByProximity(InetAddressAndPort, ReplicaCollection)}.
      */
-    public void applyConfigChanges(int newDynamicUpdateInternal, int newDynamicLatencyProbeInterval, double newDynamicBadnessThreshold)
+    protected void updateSamples()
     {
-        if (dynamicUpdateInterval != newDynamicUpdateInternal)
-        {
-            dynamicUpdateInterval = newDynamicUpdateInternal;
-            if (DatabaseDescriptor.isDaemonInitialized())
-            {
-                if (updateScheduler != null)
-                    updateScheduler.cancel(false);
-                updateScheduler = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(update, dynamicUpdateInterval, dynamicUpdateInterval, TimeUnit.MILLISECONDS);
-            }
-        }
+        long updateIntervalMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lastUpdateSamplesNanos);
+        lastUpdateSamplesNanos = System.nanoTime();
 
-        if (this.dynamicLatencyProbeInterval != newDynamicLatencyProbeInterval)
-        {
-            this.dynamicLatencyProbeInterval = newDynamicLatencyProbeInterval;
-            if (DatabaseDescriptor.isDaemonInitialized())
-            {
-                if (latencyProbeScheduler != null)
-                    latencyProbeScheduler.cancel(false);
+        // Split calculation of probe timers from sending probes for testability
+        calculateProbes(samples, updateIntervalMillis);
 
-                probeTimes.clear();
-                if (newDynamicLatencyProbeInterval > 0)
-                {
-                    // Calculate the exponential backoff once so we don't have to take logarithms at runtime
-                    for (long i = 1; (i * dynamicLatencyProbeInterval) < MAX_PROBE_INTERVAL_MS; i *= 2)
-                    {
-                        probeTimes.add(i * dynamicLatencyProbeInterval);
-                    }
-                    latencyProbeScheduler = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(latencyProbe, dynamicLatencyProbeInterval, dynamicLatencyProbeInterval, TimeUnit.MILLISECONDS);
-                }
-            }
-        }
-
-        dynamicBadnessThreshold = newDynamicBadnessThreshold;
-    }
-
-    private void registerMBean()
-    {
-        MBeanWrapper.instance.registerMBean(this, mbeanName);
-    }
-
-    public void close()
-    {
-        if (updateScheduler != null)
-            updateScheduler.cancel(false);
-        if (latencyProbeScheduler != null)
-            latencyProbeScheduler.cancel(false);
-
-        MBeanWrapper.instance.unregisterMBean(mbeanName);
-    }
-
-    /**
-     * Determines if latency probes need to be sent, and potentially sends a single latency probe per invocation
-     */
-    protected void maybeSendLatencyProbe()
-    {
+        // We do this after the calculations so that the progression of the logical clocks continues regardless
+        // if gossip is enabled or not. However if Gossip is not active we don't _send_ the probes
         if (!StorageService.instance.isGossipActive())
             return;
 
-        currentProbePosition = latencyProbeNeeded(samples, latencyProbeSequence, currentProbePosition);
-
-        if (currentProbePosition < latencyProbeSequence.size())
-        {
-            try
-            {
-                InetAddressAndPort peer = latencyProbeSequence.get(currentProbePosition);
-                sendPingMessageToPeer(peer);
-            }
-            catch (IndexOutOfBoundsException ignored) {}
-        }
+        scheduleProbes(samples);
     }
 
     /**
-     * This method (unfortunately) mutates a lot of state so that it doesn't create any garbage and only iterates the
-     * sample map a single time . In particular on every call we:
-     *  - increment every sample's intervalsSinceLastMeasure
+     * This method mutates the passed AnnotatedMeasurements to implement capped exponential backoff per endpoint.
      *
-     * When probes should be generated we also potentially:
-     *  - reset sample's recentlyRequested that have reached the "CONSTANT" phase of probing (10 minutes by default)
-     *  - add any InetAddressAndPort's that need probing to the provided endpointsToProbe
-     *  - shuffle the endpointsToProbe
+     * The algorithm is as follows:
+     * 1. All samples get their millisSinceLastMeasure and millisSinceLastRequest fields
+     *    incremented by the passed interval
+     * 2. Any recently requested (ranked) endpoints that have not been measured recently (e.g. because the snitch
+     *    has sent them no traffic) get probes with exponential backoff.
      *
-     * If there are probes to be sent, this method short circuits all generation of probes and just returns the
-     * passed probePosition plus one.
-     * @return The position of the passed endpointsToProbe that should be probed.
+     * The backoff is capped at MAX_PROBE_INTERVAL_MS. Furthermore the probes are stopped after
+     * MAX_PROBE_INTERVAL_MS of no ranking requests as well.
+     *
+     * At the end of this method, any passed AnnotatedMeasurements that need latency probes will have non zero
+     * nextProbeDelayMillis members set.
      */
     @VisibleForTesting
-    int latencyProbeNeeded(Map<InetAddressAndPort, AnnotatedMeasurement> samples,
-                                     List<InetAddressAndPort> endpointsToProbe, int probePosition) {
-        boolean shouldGenerateProbes = (probePosition >= endpointsToProbe.size());
-
-        if (shouldGenerateProbes)
+    protected static void calculateProbes(Map<InetAddressAndPort, AnnotatedMeasurement> samples, long intervalMillis) {
+        for (Map.Entry<InetAddressAndPort, AnnotatedMeasurement> entry: samples.entrySet())
         {
-            endpointsToProbe.clear();
-            samples.keySet().retainAll(Gossiper.instance.getLiveMembers());
-        }
+            if (entry.getKey().equals(FBUtilities.getBroadcastAddressAndPort()))
+                continue;
 
-        // We have to increment intervalsSinceLastMeasure regardless of if we generate probes
+            AnnotatedMeasurement measurement = entry.getValue();
+            long lastMeasure = measurement.millisSinceLastMeasure.addAndGet(intervalMillis);
+            long lastRequest = measurement.millisSinceLastRequest.addAndGet(intervalMillis);
+
+            if (lastMeasure >= MIN_PROBE_INTERVAL_MS && lastRequest < MAX_PROBE_INTERVAL_MS)
+            {
+                if (measurement.nextProbeDelayMillis == 0)
+                {
+                    measurement.nextProbeDelayMillis = intervalMillis;
+                }
+                else if (measurement.probeFuture != null && measurement.probeFuture.isDone())
+                {
+                    measurement.nextProbeDelayMillis = Math.min(MAX_PROBE_INTERVAL_MS, measurement.nextProbeDelayMillis * 2);
+                }
+            }
+            else
+            {
+                measurement.nextProbeDelayMillis = 0;
+            }
+        }
+    }
+
+    @VisibleForTesting
+    void scheduleProbes(Map<InetAddressAndPort, AnnotatedMeasurement> samples)
+    {
         for (Map.Entry<InetAddressAndPort, AnnotatedMeasurement> entry: samples.entrySet())
         {
             AnnotatedMeasurement measurement = entry.getValue();
-            long intervalsSinceLastMeasure = measurement.intervalsSinceLastMeasure.getAndIncrement();
-
-            // We never probe instances that have not been requested for ranking
-            if (!measurement.recentlyRequested)
-                continue;
-
-            if (shouldGenerateProbes)
+            if (measurement.millisSinceLastRequest.get() > MAX_PROBE_INTERVAL_MS &&
+                !Gossiper.instance.isAlive(entry.getKey()))
             {
-                ProbeType type = evaluateEndpointForProbe(intervalsSinceLastMeasure);
-                if (type != ProbeType.NO)
-                    endpointsToProbe.add(entry.getKey());
+                samples.remove(entry.getKey());
+                continue;
+            }
 
-                // If we've reached the "constant" phase of probing then we haven't requested this node recently
-                if (type == ProbeType.CONSTANT)
-                    measurement.recentlyRequested = false;
+            long delay = measurement.nextProbeDelayMillis;
+            if (delay > 0 && (measurement.probeFuture == null || measurement.probeFuture.isDone()))
+            {
+                logger.trace("Scheduled latency probe against {} in {}ms", entry.getKey(), delay);
+                measurement.probeFuture = latencyProbeExecutor.schedule(() -> sendPingMessageToPeer(entry.getKey()),
+                                                                        delay, TimeUnit.MILLISECONDS);
             }
         }
-
-        if (shouldGenerateProbes)
-        {
-            Collections.shuffle(endpointsToProbe, ThreadLocalRandom.current());
-            return 0;
-        }
-
-        return probePosition + 1;
     }
 
     /**
-     * Implemented limited exponential backoff such that we probe exponentially less frequently until
-     * MAX_PROBE_INTERVAL_MS (default 10 minutes). We don't even bother probing before MIN_PROBE_INTERVAL_MS (default
-     * 10 seconds).
-     * @param intervals The number of probe intervals a node has not been probed in. For example if there have been
-     *                  four intervals without probing and each interval is 1 second, we know that we haven't probed
-     *                  that host in 4 minutes.
-     * @return A ProbeType representing if this node should be probed due to the CONSTANT phase (meaning that callers
-     * should not consider this node particularly recent), due to the EXPonential phase, or there should be NO probe.
+     * Method that actually sends latency probes as PING messages. This is the only function in this class
+     * that operates on the latencyProbeExecutor thread and it records the maximum latency between a small and large
+     * message channel ping.
      */
-    @VisibleForTesting
-    ProbeType evaluateEndpointForProbe(long intervals)
-    {
-        long msPerInterval = dynamicLatencyProbeInterval;
-        long millisecondsWithoutMeasure = intervals * msPerInterval;
-
-        // Hosts that we have not involved in a recent query
-        if (millisecondsWithoutMeasure > MIN_PROBE_INTERVAL_MS)
-        {
-            // Once we pass MAX_PROBE_INTERVAL_MS we do constant probing at that interval
-            if (millisecondsWithoutMeasure > MAX_PROBE_INTERVAL_MS &&
-                (millisecondsWithoutMeasure % MAX_PROBE_INTERVAL_MS < msPerInterval))
-            {
-                return ProbeType.CONSTANT;
-            }
-            // We are exponentially backing off
-            else if(probeTimes.contains(millisecondsWithoutMeasure))
-            {
-                return ProbeType.EXP;
-            }
-        }
-        return ProbeType.NO;
-    }
-
     private void sendPingMessageToPeer(InetAddressAndPort to)
     {
-        logger.trace("Sending a small and large PingMessage to {}", to);
+        // This method may have been scheduled (a long time) before it executes, so have to do
+        // some quick sanity checks before sending a message to this host
+        if (!StorageService.instance.isGossipActive() || !Gossiper.instance.isAlive(to))
+            return;
 
-        IAsyncCallback latencyProbeHandler = new IAsyncCallback()
+        probeRateLimiter.acquire(dynamicSampleUpdateInterval);
+
+
+        logger.trace("Latency probe sending a small and large PingMessage to {}", to);
+
+        // Bypass the normal latency measurement path so we can compute maximum latencies of the two probe
+        // messages. This way we can measure the "worst case" via these pings. This complexity may not be
+        // justified, but leaving it for now.
+        long start = System.nanoTime();
+
+        SettableFuture<Long> smallChannelLatencyNanos = SettableFuture.create();
+        SettableFuture<Long> largeChannelLatencyNanos = SettableFuture.create();
+
+        IAsyncCallbackWithFailure smallChannelCallback = new IAsyncCallbackWithFailure()
         {
-            @Override
-            public LatencyMeasurementType latencyMeasurementType() { return LatencyMeasurementType.PROBE; }
-            @Override
-            public void response(MessageIn msg) { }
+            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            {
+                smallChannelLatencyNanos.set(System.nanoTime() - start);
+            }
+
+            public void response(MessageIn msg)
+            {
+                smallChannelLatencyNanos.set(System.nanoTime() - start);
+            }
+        };
+        IAsyncCallbackWithFailure largeChannelCallback = new IAsyncCallbackWithFailure()
+        {
+            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            {
+                largeChannelLatencyNanos.set(System.nanoTime() - start);
+            }
+            public void response(MessageIn msg)
+            {
+                largeChannelLatencyNanos.set(System.nanoTime() - start);
+            }
         };
 
         MessageOut<PingMessage> smallChannelMessageOut = new MessageOut<>(PING, PingMessage.smallChannelMessage,
                                                                           PingMessage.serializer, SMALL_MESSAGE);
         MessageOut<PingMessage> largeChannelMessageOut = new MessageOut<>(PING, PingMessage.largeChannelMessage,
                                                                           PingMessage.serializer, LARGE_MESSAGE);
+        MessagingService.instance().sendRRWithFailure(smallChannelMessageOut, to, smallChannelCallback);
+        MessagingService.instance().sendRRWithFailure(largeChannelMessageOut, to, largeChannelCallback);
 
-        MessagingService.instance().sendRR(smallChannelMessageOut, to, latencyProbeHandler);
-        MessagingService.instance().sendRR(largeChannelMessageOut, to, latencyProbeHandler);
+        // This should execute on the RequestResponse stage thread unless both futures are already done
+        Futures.allAsList(smallChannelLatencyNanos, largeChannelLatencyNanos).addListener(() -> {
+            try
+            {
+                long latencySmallNanos = smallChannelLatencyNanos.get();
+                long latencyLargeNanos = largeChannelLatencyNanos.get();
+                long maxLatencyInMicros = TimeUnit.NANOSECONDS.toMicros(Math.max(latencySmallNanos, latencyLargeNanos));
+                logger.trace("Latency probe recording latency of {}us for {}", maxLatencyInMicros, to);
+
+                    receiveTiming(to, maxLatencyInMicros, LatencyMeasurementType.PROBE);
+            }
+            catch (InterruptedException | ExecutionException e)
+            {
+                logger.error("Exception while waiting for latencies", e);
+            }
+        }, MoreExecutors.directExecutor());
     }
 
     @Override
@@ -444,11 +528,13 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
         subsnitch.gossiperStarting();
     }
 
+    @Override
     public String getRack(InetAddressAndPort endpoint)
     {
         return subsnitch.getRack(endpoint);
     }
 
+    @Override
     public String getDatacenter(InetAddressAndPort endpoint)
     {
         return subsnitch.getDatacenter(endpoint);
@@ -464,40 +550,40 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
         for (Replica replica: unsortedAddresses)
         {
             AnnotatedMeasurement measurement = samples.get(replica.endpoint());
-            if (measurement != null && !measurement.recentlyRequested)
-                measurement.recentlyRequested = true;
+            if (measurement != null && measurement.millisSinceLastRequest.get() > 0)
+                measurement.millisSinceLastRequest.lazySet(0);
         }
 
-        return dynamicBadnessThreshold == 0
-                ? sortedByProximityWithScore(address, unsortedAddresses)
-                : sortedByProximityWithBadness(address, unsortedAddresses);
-    }
-
-    private <C extends ReplicaCollection<? extends C>> C sortedByProximityWithScore(final InetAddressAndPort address, C unsortedAddresses)
-    {
         // Scores can change concurrently from a call to this method. But Collections.sort() expects
-        // its comparator to be "stable", that is 2 endpoint should compare the same way for the duration
-        // of the sort() call. As we copy the scores map on write, it is thus enough to alias the current
+        // its comparator to be "stable", that is 2 endpoints should compare the same way for the duration
+        // of the sort() call. As we swap the scores map on write, it is thus enough to alias the current
         // version of it during this call.
-        Map<InetAddressAndPort, Double> scores = this.scores;
-        return unsortedAddresses.sorted((r1, r2) -> compareEndpoints(address, r1, r2, scores));
+        Map<InetAddressAndPort, Double> aliasedScores = this.scores;
+
+        return dynamicBadnessThreshold == 0
+               ? sortedByProximityWithScore(address, unsortedAddresses, aliasedScores)
+               : sortedByProximityWithBadness(address, unsortedAddresses, aliasedScores);
     }
 
-    private <C extends ReplicaCollection<? extends C>> C sortedByProximityWithBadness(final InetAddressAndPort address, C replicas)
+    private <C extends ReplicaCollection<? extends C>> C sortedByProximityWithScore(final InetAddressAndPort address, C unsortedAddresses,
+                                                                                    Map<InetAddressAndPort, Double> aliasedScores)
+    {
+        return unsortedAddresses.sorted((r1, r2) -> compareEndpoints(address, r1, r2, aliasedScores));
+    }
+
+    private <C extends ReplicaCollection<? extends C>> C sortedByProximityWithBadness(final InetAddressAndPort address, C replicas,
+                                                                                      Map<InetAddressAndPort, Double> aliasedScores)
     {
         if (replicas.size() < 2)
             return replicas;
 
         // TODO: avoid copy
         replicas = subsnitch.sortedByProximity(address, replicas);
-        // Make sure the score don't change in the middle of the loop below
-        // (which wouldn't really matter here but its cleaner that way).
-        Map<InetAddressAndPort, Double> scores = this.scores;
 
         ArrayList<Double> subsnitchOrderedScores = new ArrayList<>(replicas.size());
         for (Replica replica : replicas)
         {
-            Double score = scores.get(replica.endpoint());
+            Double score = aliasedScores.get(replica.endpoint());
             if (score == null)
                 score = 0.0;
             subsnitchOrderedScores.add(score);
@@ -514,7 +600,7 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
         {
             if (subsnitchScore > (sortedScoreIterator.next() * (1.0 + dynamicBadnessThreshold)))
             {
-                return sortedByProximityWithScore(address, replicas);
+                return sortedByProximityWithScore(address, replicas, aliasedScores);
             }
         }
 
@@ -522,10 +608,18 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
     }
 
     // Compare endpoints given an immutable snapshot of the scores
-    private int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2, Map<InetAddressAndPort, Double> scores)
+    public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
     {
-        Double scored1 = scores.get(a1.endpoint());
-        Double scored2 = scores.get(a2.endpoint());
+        // That function is fundamentally unsafe because the scores can change at any time and so the result of that
+        // method is not stable for identical arguments. This is why we don't rely on super.sortByProximity() in
+        // sortByProximityWithScore().
+        throw new UnsupportedOperationException("You shouldn't wrap the DynamicEndpointSnitch (within itself or otherwise)");
+    }
+
+    private int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2, Map<InetAddressAndPort, Double> aliasedScores)
+    {
+        Double scored1 = aliasedScores.get(a1.endpoint());
+        Double scored2 = aliasedScores.get(a2.endpoint());
 
         if (scored1 == null)
         {
@@ -545,14 +639,6 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
             return 1;
     }
 
-    public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
-    {
-        // That function is fundamentally unsafe because the scores can change at any time and so the result of that
-        // method is not stable for identical arguments. This is why we don't rely on super.sortByProximity() in
-        // sortByProximityWithScore().
-        throw new UnsupportedOperationException("You shouldn't wrap the DynamicEndpointSnitch (within itself or otherwise)");
-    }
-
     public Map<InetAddress, Double> getScores()
     {
         return scores.entrySet().stream().collect(Collectors.toMap(address -> address.getKey().address, Map.Entry::getValue));
@@ -564,7 +650,7 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
     }
 
     @VisibleForTesting
-    Map<InetAddressAndPort, AnnotatedMeasurement> getMeasurementsWithPort()
+    protected Map<InetAddressAndPort, AnnotatedMeasurement> getMeasurementsWithPort()
     {
         return samples;
     }
@@ -577,9 +663,9 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
     {
         return 0;
     }
-    public int getLatencyProbeInterval()
+    public int getSampleUpdateInterval()
     {
-        return dynamicLatencyProbeInterval;
+        return dynamicSampleUpdateInterval;
     }
     public double getBadnessThreshold()
     {
@@ -602,6 +688,8 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
         AnnotatedMeasurement sample = samples.get(host);
         if (sample != null)
         {
+            if (logger.isTraceEnabled())
+                logger.trace("{} -> {}", host, sample.toString());
             for (double measurement: sample.measurement.measurements())
                 timings.add(measurement);
         }
@@ -613,7 +701,7 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
         Gossiper.instance.addLocalApplicationState(ApplicationState.SEVERITY, StorageService.instance.valueFactory.severity(severity));
     }
 
-    protected double getSeverity(InetAddressAndPort endpoint)
+    protected static double getSeverity(InetAddressAndPort endpoint)
     {
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (state == null)

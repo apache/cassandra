@@ -46,25 +46,27 @@ public class DynamicEndpointSnitchLegacyHistogram extends DynamicEndpointSnitchH
     }
 
     @VisibleForTesting
-    Map<InetAddressAndPort, AnnotatedMeasurement> getMeasurementsWithPort()
+    protected Map<InetAddressAndPort, AnnotatedMeasurement> getMeasurementsWithPort()
     {
         return samples;
     }
 
     /**
-     * Overrides the top level latency probe method to emulate the old DES reset behavior instead where we
-     * reset the
+     * Overrides the top level updateSamples method to emulate the old DES reset behavior with the minor change
+     * that we only clear the samples if at least one of the ranked hosts exceeded 10 minutes of no measurements
      */
     @Override
-    protected void maybeSendLatencyProbe()
+    protected void updateSamples()
     {
-        // We have to increment intervalsSinceLastMeasure regardless of if we generate probes
         for (Map.Entry<InetAddressAndPort, AnnotatedMeasurement> entry: samples.entrySet())
         {
             AnnotatedMeasurement measurement = entry.getValue();
-            long intervalsSinceLastMeasure = measurement.intervalsSinceLastMeasure.getAndIncrement();
-            if ((intervalsSinceLastMeasure * dynamicLatencyProbeInterval) >= MAX_PROBE_INTERVAL_MS)
-                samples.remove(entry.getKey());
+            long millisSinceLastMeasure = measurement.millisSinceLastMeasure.getAndAdd(dynamicSampleUpdateInterval);
+            if (millisSinceLastMeasure >= MAX_PROBE_INTERVAL_MS)
+            {
+                samples.clear();
+                return;
+            }
         }
     }
 }

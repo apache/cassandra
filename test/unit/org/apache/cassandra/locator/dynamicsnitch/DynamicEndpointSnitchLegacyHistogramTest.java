@@ -18,18 +18,20 @@
 
 package org.apache.cassandra.locator.dynamicsnitch;
 
-import java.io.IOException;
 import java.net.UnknownHostException;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.net.LatencyMeasurementType;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.*;
 
@@ -45,6 +47,7 @@ public class DynamicEndpointSnitchLegacyHistogramTest
     {
         SimpleSnitch ss = new SimpleSnitch();
         hosts = new InetAddressAndPort[] {
+            FBUtilities.getBroadcastAddressAndPort(),
             InetAddressAndPort.getByName("127.0.0.2"),
             InetAddressAndPort.getByName("127.0.0.3"),
         };
@@ -58,23 +61,36 @@ public class DynamicEndpointSnitchLegacyHistogramTest
         dsnitch.reset();
     }
 
-    @Test
-    public void testResets() throws IOException, ConfigurationException
+    private static EndpointsForRange full(InetAddressAndPort... endpoints)
     {
-        dsnitch.receiveTiming(hosts[0], 2, LatencyMeasurementType.READ);
+        EndpointsForRange.Builder rlist = EndpointsForRange.builder(ReplicaUtils.FULL_RANGE, endpoints.length);
+        for (InetAddressAndPort endpoint: endpoints)
+        {
+            rlist.add(ReplicaUtils.full(endpoint));
+        }
+        return rlist.build();
+    }
+
+    @Test
+    public void testResets()
+    {
         dsnitch.receiveTiming(hosts[1], 2, LatencyMeasurementType.READ);
+        dsnitch.receiveTiming(hosts[2], 2, LatencyMeasurementType.READ);
 
         for (int i = 0; i < (DynamicEndpointSnitch.MAX_PROBE_INTERVAL_MS / PROBE_INTERVAL); i ++)
         {
-            dsnitch.maybeSendLatencyProbe();
-            assertTrue(dsnitch.getMeasurementsWithPort().containsKey(hosts[0]));
+            dsnitch.updateSamples();
             assertTrue(dsnitch.getMeasurementsWithPort().containsKey(hosts[1]));
-            dsnitch.receiveTiming(hosts[0], 1, LatencyMeasurementType.READ);
+            assertTrue(dsnitch.getMeasurementsWithPort().containsKey(hosts[2]));
+            dsnitch.receiveTiming(hosts[1], 1, LatencyMeasurementType.READ);
         }
 
-        dsnitch.maybeSendLatencyProbe();
+        dsnitch.updateSamples();
 
-        assertTrue(dsnitch.getMeasurementsWithPort().containsKey(hosts[0]));
         assertFalse(dsnitch.getMeasurementsWithPort().containsKey(hosts[1]));
+        assertFalse(dsnitch.getMeasurementsWithPort().containsKey(hosts[2]));
+        EndpointsForRange order = dsnitch.sortedByProximity(hosts[0], full(hosts[1], hosts[2]));
+
+        Util.assertRCEquals(order, full(hosts[1], hosts[2]));
     }
 }

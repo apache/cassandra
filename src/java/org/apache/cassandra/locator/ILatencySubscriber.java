@@ -21,5 +21,5 @@ import org.apache.cassandra.net.LatencyMeasurementType;
 
 public interface ILatencySubscriber
 {
-    public void receiveTiming(InetAddressAndPort address, long latency, LatencyMeasurementType measurementType);
+    public void receiveTiming(InetAddressAndPort address, long latencyMicros, LatencyMeasurementType measurementType);
 }

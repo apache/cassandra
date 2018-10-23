@@ -24,25 +24,27 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
+import com.codahale.metrics.Reservoir;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir;
 
 /**
  * A dynamic snitching implementation that uses Exponentially Decaying Histograms to prefer or
  * de-prefer hosts
  *
  * This measurement technique was the default implementation prior to Cassandra 4.0 and is being left as the default
- * in 4.0, although this class allows for the superclass to do latency probing.
+ * in 4.0, although this class uses the superclass provided latency probes.
  */
 public class DynamicEndpointSnitchHistogram extends DynamicEndpointSnitch
 {
-    private static final double ALPHA = 0.75; // set to 0.75 to make EDS more biased to towards the newer values
+    private static final double ALPHA = 0.75; // set to 0.75 to make DES more biased to towards the newer values
     private static final int WINDOW_SIZE = 100;
 
     // Essentially a Median filter
     protected static class ReservoirSnitchMeasurement implements ISnitchMeasurement
     {
-        public final ExponentiallyDecayingReservoir reservoir;
+        public final Reservoir reservoir;
 
         ReservoirSnitchMeasurement()
         {

@@ -16,17 +16,14 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.test.microbench;
+package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.locator.dynamicsnitch.DynamicEndpointSnitchEMA;
 import org.apache.cassandra.locator.dynamicsnitch.DynamicEndpointSnitchHistogram;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.net.LatencyMeasurementType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -43,18 +40,20 @@ import org.openjdk.jmh.annotations.Warmup;
 
 
 @BenchmarkMode(Mode.SampleTime)
-@OutputTimeUnit(TimeUnit.MILLISECONDS)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
 @Warmup(iterations = 2, time = 1)
 @Measurement(iterations = 3)
 @State(Scope.Benchmark)
 @Fork(value = 1, jvmArgsPrepend = "-Xmx256M")
-public class SnitchMetricsBench
+public class DynamicSnitchBench
 {
-    private DynamicEndpointSnitchEMA emaSnitch;
     private DynamicEndpointSnitchHistogram histogramSnitch;
+    private EndpointsForRange neighbors;
     private Random srandom;
 
-    private static final int NUM_UPDATES = 10000;
+    private static final int NUM_UPDATES = 1000;
+    private static final int NUM_NEIGHBORS = 18;
+    private static final int NUM_ENDPOINTS = 100;
     private InetAddressAndPort[] hosts;
 
     @Setup(Level.Trial)
@@ -63,28 +62,36 @@ public class SnitchMetricsBench
         // So the snitch doesn't consult gossip information
         System.setProperty("cassandra.ignore_dynamic_snitch_severity", "true");
         SimpleSnitch ss = new SimpleSnitch();
-        emaSnitch = new DynamicEndpointSnitchEMA(ss);
         histogramSnitch = new DynamicEndpointSnitchHistogram(ss);
+        histogramSnitch.applyConfigChanges(100,
+                                           (int)DynamicEndpointSnitch.MAX_PROBE_INTERVAL_MS,
+                                           0.2);
 
-        hosts = new InetAddressAndPort[100];
+        hosts = new InetAddressAndPort[NUM_ENDPOINTS];
         for (int i = 0; i < hosts.length; i ++)
         {
             hosts[i] = InetAddressAndPort.getByName("127.0.0." + (i + 2));
         }
 
         srandom = new Random(1234);
+
+        EndpointsForRange.Builder rlist = EndpointsForRange.builder(ReplicaUtils.FULL_RANGE, 8);
+        for (int i = 1; i < NUM_NEIGHBORS; i ++)
+        {
+            rlist.add(ReplicaUtils.full(hosts[i]));
+        }
+        neighbors = rlist.build();
     }
 
-    @Benchmark
-    public void snitchUpdateEMA()
+    @Setup(Level.Iteration)
+    public void emulatePings()
     {
-        for (int i = 0; i < NUM_UPDATES; i++)
+        for (int i = 0; i < NUM_ENDPOINTS; i++)
         {
-            emaSnitch.receiveTiming(hosts[srandom.nextInt(hosts.length)],
-                                    srandom.nextInt(100),
-                                    LatencyMeasurementType.READ);
+            histogramSnitch.receiveTiming(hosts[i],
+                                          srandom.nextInt(100),
+                                          LatencyMeasurementType.PROBE);
         }
-        emaSnitch.calculateScores();
     }
 
     @Benchmark
@@ -96,48 +103,54 @@ public class SnitchMetricsBench
                                           srandom.nextInt(100),
                                           LatencyMeasurementType.READ);
         }
-        histogramSnitch.calculateScores();
     }
 
     @Benchmark
-    @Threads(10)
-    public void snitchThreadedReceiveTimingAndCalculateEMA()
+    public void snitchCalculateScores()
     {
-        ThreadLocalRandom trandom = ThreadLocalRandom.current();
-
         for (int i = 0; i < NUM_UPDATES; i++)
         {
-            emaSnitch.receiveTiming(hosts[trandom.nextInt(hosts.length)], trandom.nextInt(100),
-                                    LatencyMeasurementType.READ);
-        }
-        emaSnitch.calculateScores();
-    }
-
-    @Benchmark
-    @Threads(10)
-    public void snitchThreadedReceiveTimingAndCalculateHistogram()
-    {
-        ThreadLocalRandom trandom = ThreadLocalRandom.current();
-
-        for (int i = 0; i < NUM_UPDATES; i++)
-        {
-            histogramSnitch.receiveTiming(hosts[trandom.nextInt(hosts.length)], trandom.nextInt(100),
+            histogramSnitch.receiveTiming(hosts[srandom.nextInt(hosts.length)],
+                                          srandom.nextInt(100),
                                           LatencyMeasurementType.READ);
         }
-        histogramSnitch.calculateScores();
+
+        DynamicEndpointSnitch.calculateScores(histogramSnitch.getMeasurementsWithPort());
+    }
+
+    @Benchmark
+    public void snitchCalculateScoresNeigbors()
+    {
+        DynamicEndpointSnitch.calculateProbes(histogramSnitch.getMeasurementsWithPort(), DynamicEndpointSnitch.MAX_PROBE_INTERVAL_MS);
+
+        for (int i = 0; i < NUM_UPDATES; i++)
+        {
+            histogramSnitch.receiveTiming(neighbors.get(srandom.nextInt(neighbors.size())).endpoint(),
+                                          srandom.nextInt(100),
+                                          LatencyMeasurementType.READ);
+        }
+
+        DynamicEndpointSnitch.calculateScores(histogramSnitch.getMeasurementsWithPort());
+    }
+
+    @Benchmark
+    public void snitchTestSortedEndpoints()
+    {
+        histogramSnitch.sortedByProximity(hosts[0], neighbors);
     }
 
     @Benchmark
     @Threads(10)
-    public void snitchThreadedReceiveTimingEMA()
+    public void snitchThreadedCalculateScores()
     {
-        ThreadLocalRandom trandom = ThreadLocalRandom.current();
+        DynamicEndpointSnitch.calculateScores(histogramSnitch.getMeasurementsWithPort());
+    }
 
-        for (int i = 0; i < NUM_UPDATES; i++)
-        {
-            emaSnitch.receiveTiming(hosts[trandom.nextInt(hosts.length)], trandom.nextInt(100),
-                                    LatencyMeasurementType.READ);
-        }
+    @Benchmark
+    @Threads(10)
+    public void snitchThreadedTestSortedEndpoints()
+    {
+        histogramSnitch.sortedByProximity(hosts[0], neighbors);
     }
 
     @Benchmark
