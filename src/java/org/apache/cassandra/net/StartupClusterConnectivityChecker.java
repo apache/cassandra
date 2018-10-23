@@ -114,7 +114,7 @@ public class StartupClusterConnectivityChecker
                     TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos),
                     connected,
                     peers.size(),
-                    connected / (peers.size()) * 100.0);
+                    String.format("%.2f", (connected / (float)peers.size()) * 100));
         return succeeded;
     }
 
