@@ -40,6 +40,7 @@ public class GetAutoRepairConfig extends NodeToolCmd
             sb.append("\nsstable count higher threshold: " + probe.getRepairSSTableCountHigherThreshold());
             sb.append("\ntable max repair time in sec: " + probe
                     .getAutoRepairTableMaxRepairTimeInSec());
+            sb.append("\nignore datacenters: " + Joiner.on(',').skipNulls().join(probe.getAutoRepairIgnoreDCs()));
             System.out.println(sb.toString());
         }
         else

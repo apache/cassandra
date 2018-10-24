@@ -38,7 +38,8 @@ public class SetAutoRepairConfig extends NodeToolCmd
 {
     @Arguments(title = "<autorepairparam> <value>", usage = "<autorepairparam> <value>",
             description = "autorepair param and value.\nPossible autorepair parameters are as following: " +
-                    "[threads|subranges|minrepairfreqinhours|sstablehigherthreshold|ignorekeyspacesregex|repairOnlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost]",
+                    "[threads|subranges|minrepairfreqinhours|sstablehigherthreshold|ignorekeyspacesregex" +
+                    "|repairOnlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|ignoredcs]",
             required = true)
     private List<String> args = new ArrayList<>();
 
@@ -102,7 +103,15 @@ public class SetAutoRepairConfig extends NodeToolCmd
             {
                 probe.setRepairPriorityForHosts(hosts);
             }
-
+        }
+        else if (paramType.equals("ignoredcs"))
+        {
+            Set<String> ignoreDCs = new HashSet<>();
+            for (String dc : Splitter.on(',').split(paramVal))
+            {
+                ignoreDCs.add(dc);
+            }
+            probe.setAutoRepairIgnoreDCs(ignoreDCs);
         }
     }
 }

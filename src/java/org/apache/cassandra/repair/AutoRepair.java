@@ -102,7 +102,6 @@ public class AutoRepair
     static int repairInProgress = 0;
     static int repairTableSkipCount = 0;
     static int repairTableFailureCount = 0;
-    static Set<String> ignoreDCs = new HashSet<>();
 
     public static AutoRepair instance = new AutoRepair();
 
@@ -169,14 +168,15 @@ public class AutoRepair
             AutoRepairService.instance.setRepairOnlyKeyspaces(Pattern.compile(DatabaseDescriptor
                     .getAutoRepairOnlyKeyspaces()));
         }
+        Set<String> ignoreDCs = new HashSet<>();
         if (DatabaseDescriptor.getAutoRepairIgnoreDC().length() > 0)
         {
-            ignoreDCs.clear();
             for (String dcToIgnore : DatabaseDescriptor.getAutoRepairIgnoreDC().split(","))
             {
                 ignoreDCs.add(dcToIgnore);
             }
         }
+        AutoRepairService.instance.setIgnoreDCs(ignoreDCs);
 
         AutoRepairUtils.setup();
         ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> repair(false),
@@ -197,7 +197,7 @@ public class AutoRepair
         try
         {
             String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
-            if (ignoreDCs.contains(localDC))
+            if (AutoRepairService.instance.getIgnoreDCs().contains(localDC))
             {
                 logger.info("Not running repair as this node belongs to datacenter {}", localDC);
                 return;

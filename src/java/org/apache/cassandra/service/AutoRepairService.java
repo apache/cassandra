@@ -41,6 +41,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
     private Pattern ignoreKeyspaces;
     private Pattern repairOnlyKeyspaces;
     private long autoRepairTableMaxRepairTimeInSec;
+    private Set<String> autoRepairIgnoreDCs;
 
     public static final AutoRepairService instance = new AutoRepairService();
 
@@ -176,5 +177,17 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void setAutoRepairTableMaxRepairTimeInSec(long autoRepairTableMaxRepairTimeInSec)
     {
         this.autoRepairTableMaxRepairTimeInSec = autoRepairTableMaxRepairTimeInSec;
+    }
+
+    @Override
+    public Set<String> getIgnoreDCs()
+    {
+        return autoRepairIgnoreDCs;
+    }
+
+    @Override
+    public void setIgnoreDCs(Set<String> ignorDCs)
+    {
+        this.autoRepairIgnoreDCs = ignorDCs;
     }
 }

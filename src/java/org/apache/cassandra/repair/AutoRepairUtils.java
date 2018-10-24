@@ -215,7 +215,7 @@ public class AutoRepairUtils
             for (InetAddressAndPort node : allNodesInRing)
             {
                 String nodeDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(node);
-                if (AutoRepair.ignoreDCs.contains(nodeDC))
+                if (AutoRepairService.instance.getIgnoreDCs().contains(nodeDC))
                 {
                     logger.debug("Ignore node {} because its datacenter is {}", node, nodeDC);
                     continue;

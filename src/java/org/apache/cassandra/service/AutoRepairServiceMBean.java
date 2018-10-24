@@ -127,4 +127,14 @@ public interface AutoRepairServiceMBean
      * Set table max repair time in sec
      */
     public void setAutoRepairTableMaxRepairTimeInSec(long autoRepairTableMaxRepairTimeInSec);
+
+    /**
+     * Get ignore dcs list
+     */
+    public Set<String> getIgnoreDCs();
+
+    /**
+     * Set ignore dcs list
+     */
+    public void setIgnoreDCs(Set<String> ignorDCs);
 }

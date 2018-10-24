@@ -2374,6 +2374,16 @@ public class NodeProbe implements AutoCloseable
     {
         autoRepairProxy.setAutoRepairTableMaxRepairTimeInSec(autoRepairTableMaxRepairTimeInSec);
     }
+
+    public Set<String> getAutoRepairIgnoreDCs()
+    {
+        return autoRepairProxy.getIgnoreDCs();
+    }
+
+    public void setAutoRepairIgnoreDCs(Set<String> ignoreDCs)
+    {
+        autoRepairProxy.setIgnoreDCs(ignoreDCs);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
