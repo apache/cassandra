@@ -101,6 +101,12 @@ New features
 
 Upgrading
 ---------
+    - Additional columns have been added to system_distributed.repair_history,
+      system_traces.sessions and system_traces.events. As a result select * queries
+      againsts these tables will fail and generate an error in the log
+      during upgrade when the cluster is mixed version. Additionally these
+      tables will not be written to if repair or tracing occurs until
+      the entire cluster is upgraded and there are no 3.X version nodes in Gossip.
     - Timestamp ties between values resolve differently: if either value has a TTL,
       this value always wins. This is to provide consistent reconciliation before
       and after the value expires into a tombstone.
