@@ -182,14 +182,14 @@ credentials_validity_in_ms: 2000
 # credentials_update_interval_in_ms: 2000
 
 # The partitioner is responsible for distributing groups of rows (by
-# partition key) across nodes in the cluster.  You should leave this
-# alone for new clusters.  The partitioner can NOT be changed without
-# reloading all data, so when upgrading you should set this to the
-# same partitioner you were already using.
+# partition key) across nodes in the cluster. The partitioner can NOT be
+# changed without reloading all data.  If you are adding nodes or upgrading,
+# you should set this to the same partitioner that you are currently using.
 #
-# Besides Murmur3Partitioner, partitioners included for backwards
-# compatibility include RandomPartitioner, ByteOrderedPartitioner, and
-# OrderPreservingPartitioner.
+# The default partitioner is the Murmur3Partitioner. Older partitioners
+# such as the RandomPartitioner, ByteOrderedPartitioner, and
+# OrderPreservingPartitioner have been included for backward compatibility only.
+# For new clusters, you should NOT change this value.
 #
 partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 
