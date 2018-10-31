@@ -87,7 +87,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
      * @param gcBefore
      * @return
      */
-    private List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
+    private synchronized List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
     {
         if (Iterables.isEmpty(cfs.getSSTables(SSTableSet.LIVE)))
             return Collections.emptyList();
@@ -193,11 +193,6 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         });
     }
 
-    /**
-     *
-     * @param sstables
-     * @return
-     */
     public static List<Pair<SSTableReader, Long>> createSSTableAndMinTimestampPairs(Iterable<SSTableReader> sstables)
     {
         List<Pair<SSTableReader, Long>> sstableMinTimestampPairs = Lists.newArrayListWithCapacity(Iterables.size(sstables));
@@ -205,14 +200,15 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
             sstableMinTimestampPairs.add(Pair.create(sstable, sstable.getMinTimestamp()));
         return sstableMinTimestampPairs;
     }
+
     @Override
-    public void addSSTable(SSTableReader sstable)
+    public synchronized void addSSTable(SSTableReader sstable)
     {
         sstables.add(sstable);
     }
 
     @Override
-    public void removeSSTable(SSTableReader sstable)
+    public synchronized void removeSSTable(SSTableReader sstable)
     {
         sstables.remove(sstable);
     }
