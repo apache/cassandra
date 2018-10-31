@@ -126,6 +126,7 @@ public class BigFormat implements SSTableFormat
         //             store rows natively
         // mb (3.0.7, 3.7): commit log lower bound included
         // mc (3.0.8, 3.9): commit log intervals included
+        // md (3.0.18, 3.11.4): corrected sstable min/max clustering
         //
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
@@ -147,6 +148,7 @@ public class BigFormat implements SSTableFormat
         private final boolean hasOldBfHashOrder;
         private final boolean hasCommitLogLowerBound;
         private final boolean hasCommitLogIntervals;
+        private final boolean hasAccurateMinMax;
 
         /**
          * CASSANDRA-7066: compaction ancerstors are no longer used and have been removed.
@@ -189,6 +191,7 @@ public class BigFormat implements SSTableFormat
             hasCommitLogLowerBound = (version.compareTo("lb") >= 0 && version.compareTo("ma") < 0)
                                      || version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
+            hasAccurateMinMax = version.compareTo("md") >= 0;
         }
 
         @Override
@@ -261,6 +264,12 @@ public class BigFormat implements SSTableFormat
         public boolean hasCommitLogIntervals()
         {
             return hasCommitLogIntervals;
+        }
+
+        @Override
+        public boolean hasAccurateMinMax()
+        {
+            return hasAccurateMinMax;
         }
 
         @Override
