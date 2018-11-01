@@ -24,6 +24,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -31,6 +32,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -108,7 +110,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private final List<IEndpointStateChangeSubscriber> subscribers = new CopyOnWriteArrayList<IEndpointStateChangeSubscriber>();
 
     /* live member set */
-    private final Set<InetAddressAndPort> liveEndpoints = new ConcurrentSkipListSet<>();
+    @VisibleForTesting
+    final Set<InetAddressAndPort> liveEndpoints = new ConcurrentSkipListSet<>();
 
     /* unreachable member set */
     private final Map<InetAddressAndPort, Long> unreachableEndpoints = new ConcurrentHashMap<>();
@@ -135,6 +138,39 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private final Map<InetAddressAndPort, EndpointState> endpointShadowStateMap = new ConcurrentHashMap<>();
 
     private volatile long lastProcessedMessageAt = System.currentTimeMillis();
+
+    //This property and anything that checks it should be removed in 5.0
+    private boolean haveMajorVersion3Nodes = true;
+
+    final com.google.common.base.Supplier<Boolean> haveMajorVersion3NodesSupplier = () ->
+    {
+        //Once there are no prior version nodes we don't need to keep rechecking
+        if (!haveMajorVersion3Nodes)
+            return false;
+
+        Iterable<InetAddressAndPort> allHosts = Iterables.concat(Gossiper.instance.getLiveMembers(), Gossiper.instance.getUnreachableMembers());
+        CassandraVersion referenceVersion = null;
+
+        for (InetAddressAndPort host : allHosts)
+        {
+            CassandraVersion version = getReleaseVersion(host);
+
+            //Raced with changes to gossip state
+            if (version == null)
+                continue;
+
+            if (referenceVersion == null)
+                referenceVersion = version;
+
+            if (version.major < 4)
+                return true;
+        }
+
+        haveMajorVersion3Nodes = false;
+        return false;
+    };
+
+    private final Supplier<Boolean> haveMajorVersion3NodesMemoized = Suppliers.memoizeWithExpiration(haveMajorVersion3NodesSupplier, 1, TimeUnit.MINUTES);
 
     private class GossipTask implements Runnable
     {
@@ -1904,6 +1940,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             waited += toWait;
             toWait = Math.min(1000, toWait * 2);
         }
+    }
+
+    public boolean haveMajorVersion3Nodes()
+    {
+        return haveMajorVersion3NodesMemoized.get();
     }
 
     private boolean nodesAgreeOnSchema(Collection<InetAddressAndPort> nodes)
