@@ -26,7 +26,7 @@ import org.apache.cassandra.tools.NodeTool;
 @Command(name = "blacklistedpartitions", description = "Refresh blacklisted partitions cache from system_distributed.blacklisted_partitions table")
 public class BlacklistedPartitions extends NodeTool.NodeToolCmd
 {
-    @Option(title = "refresh_cache", name = { "--refresh-cache"}, description = "Refresh blacklisted partitions cache. Default = false.")
+    @Option(title = "refresh_cache", name = { "--refresh-cache"}, description = "Refresh blacklisted partitions cache from system_distributed.blacklisted_partitions. Default = false.")
     private boolean refreshCache = false;
 
     @Option(title = "cache_size_limit_in_mb", name = {"--cache-size-limit-in-mb"}, description = "Limit (in MB) on size of blacklisted partitions cache. Default = no change")

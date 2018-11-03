@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,7 +36,6 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.BlacklistedPartition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -322,51 +320,21 @@ public final class SystemDistributedKeyspace
 
     /**
      * Reads blacklisted partitions from system_distributed.blacklisted_partitions table.
-     * Stops reading partitions upon exceeding the cache size limit by logging a warning.
      * @return
      */
-    public static Set<BlacklistedPartition> getBlacklistedPartitions()
+    public static UntypedResultSet getBlacklistedPartitions()
     {
         String query = "SELECT keyspace_name, columnfamily_name, partition_key FROM %s.%s";
-        UntypedResultSet results;
         try
         {
-            results = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, BLACKLISTED_PARTITIONS),
+            return QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, BLACKLISTED_PARTITIONS),
                                              ConsistencyLevel.ONE);
         }
         catch (Exception e)
         {
             logger.error("Error querying blacklisted partitions", e);
-            return Collections.emptySet();
+            return null;
         }
-
-        Set<BlacklistedPartition> blacklistedPartitions = new HashSet<>();
-        int cacheSize = 0;
-        for (UntypedResultSet.Row row : results)
-        {
-            try
-            {
-                BlacklistedPartition blacklistedPartition = new BlacklistedPartition(row.getString("keyspace_name"), row.getString("columnfamily_name"), row.getString("partition_key"));
-
-                // check if adding this blacklisted partition would increase cache size beyond the set limit.
-                cacheSize += blacklistedPartition.unsharedHeapSize();
-                if (cacheSize / (1024 * 1024) > DatabaseDescriptor.getBlackListedPartitionsCacheSizeLimitInMB())
-                {
-                    logger.warn("BlacklistedPartitions cache size limit of {} MB reached. Unable to load more blacklisted partitions. BlacklistedPartitions cache working in degraded mode.", DatabaseDescriptor.getBlackListedPartitionsCacheSizeLimitInMB());
-                    break;
-                }
-                blacklistedPartitions.add(blacklistedPartition);
-            }
-            catch (IllegalArgumentException ex)
-            {
-                // exception could arise incase of invalid keyspace/table. We shall continue to try reading other
-                // blacklisted partitions
-                logger.warn("Exception parsing blacklisted partition. {}", ex.getMessage());
-            }
-        }
-        return blacklistedPartitions;
-
-
     }
 
     private static void processSilent(String fmtQry, String... values)

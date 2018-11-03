@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.cache;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -26,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
@@ -52,10 +54,40 @@ public class BlacklistedPartitionCache
 
     /**
      * Loads blacklisted partitions from system_distributed.blacklisted partitions table.
+     * Stops reading partitions upon exceeding the cache size limit by logging a warning.
      */
     public void refreshCache()
     {
-        this.blacklistedPartitions = SystemDistributedKeyspace.getBlacklistedPartitions();
+        UntypedResultSet results = SystemDistributedKeyspace.getBlacklistedPartitions();
+        Set<BlacklistedPartition> partitions = new HashSet<>();
+
+        if (results != null)
+        {
+            int cacheSizeBytes = 0;
+            for (UntypedResultSet.Row row : results)
+            {
+                try
+                {
+                    BlacklistedPartition blacklistedPartition = new BlacklistedPartition(row.getString("keyspace_name"), row.getString("columnfamily_name"), row.getString("partition_key"));
+
+                    // check if adding this blacklisted partition would increase cache size beyond the set limit.
+                    cacheSizeBytes += blacklistedPartition.unsharedHeapSize();
+                    if (cacheSizeBytes / (1024 * 1024) > DatabaseDescriptor.getBlackListedPartitionsCacheSizeLimitInMB())
+                    {
+                        logger.warn("BlacklistedPartitions cache size limit of {} MB reached. Unable to load more blacklisted partitions. BlacklistedPartitions cache working in degraded mode.", DatabaseDescriptor.getBlackListedPartitionsCacheSizeLimitInMB());
+                        break;
+                    }
+                    partitions.add(blacklistedPartition);
+                }
+                catch (IllegalArgumentException ex)
+                {
+                    // exception could arise incase of invalid keyspace/table. We shall continue to try reading other
+                    // blacklisted partitions
+                    logger.warn("Exception parsing blacklisted partition. {}", ex.getMessage());
+                }
+            }
+        }
+        this.blacklistedPartitions = partitions;
     }
 
     /**

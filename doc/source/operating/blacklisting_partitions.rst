@@ -17,15 +17,16 @@
 .. highlight:: none
 
 
-Blacklisting Partitions (CASSANDRA-12106)
------------------------------------------
+Blacklisting Partitions
+-----------------------
 
-This feature allows partition keys to be blacklisted i.e. Cassandra would not process following operations on those
-blacklisted partitions.
+Sometimes there are specific partitions that are "hot" and cause instability in a Cassandra cluster. This can happen
+because of a bad data model that is focusing many update operations on a single partitions, which causes a partition to
+grow large over time and in turn it becomes very expensive to read.
 
-- Point READs
-
-Response would be InvalidQueryException.
+Cassandra supports blacklisting such problematic partitions so that when clients issue point reads
+(`SELECT` statements with the partition key specified), instead of impacting Cassandra the query will be immediately
+rejected with an `InvalidQueryException`
 
 It is important to note that, this would not have any effect on range reads or write operations.
 
@@ -63,5 +64,8 @@ Cache size is bounded, set by ``blacklisted_partitions_cache_size_limit_in_mb`` 
 As cache loads blacklisted partitions from ``system_distributed.blacklisted_partitions``, it checks if cache size exceeds the size limit.
 The moment cache size exceeeds the size limit, no more partitions are loaded into the cache, and only those partitions that have been loaded so far would be blacklisted.
 A warning would be logged to indicate the same.
-Size limit on the cache can be changed using the yaml property, or dynamically using below nodetool command
+In order to restore determinism in the blacklisted partitions cache, operator has a couple of choices
+- Delete a few blacklisted partitions from ``system_distributed.blacklisted_partitions``
+- Increase size limit on the cache in order to accommodate all the blacklisted partitions. This can be done using the mentioned
+  yaml property, or dynamically using below nodetool command.
 ``nodetool blacklistedpartitions --cache-size-limit-in-mb=150 --refreshcache``
