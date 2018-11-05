@@ -252,12 +252,6 @@ public class AutoRepair
                     {
                         try
                         {
-                            if (!AutoRepairService.instance.isAutoRepairStarted())
-                            {
-                                logger.error("AutoRepair is disabled hence not running repair");
-                                repairInProgress = 0;
-                                return;
-                            }
                             totalTablesConsideredForRepair++;
                             String tableName = iter.next().name;
 
@@ -283,6 +277,13 @@ public class AutoRepair
                             int totalProcessedSubRanges = 0;
                             for (Range<Token> token : tokens)
                             {
+                                if (!AutoRepairService.instance.isAutoRepairStarted())
+                                {
+                                    logger.error("AutoRepair is disabled hence not running repair");
+                                    repairInProgress = 0;
+                                    return;
+                                }
+
                                 if (AutoRepairUtils.tableMaxRepairTimeExceeded(tableStartTime))
                                 {
                                     repairTableSkipCount++;
