@@ -166,7 +166,7 @@ public class BlacklistedPartitionsCacheTest extends CQLTester
     }
 
     @Test
-    public void testFailureReadingBlacklistedParitions() throws Throwable
+    public void testFailureReadingBlacklistedPartitions() throws Throwable
     {
         // create a test table
         String table1 = createAndPopulateTable();
@@ -183,6 +183,14 @@ public class BlacklistedPartitionsCacheTest extends CQLTester
         PreparedStatement pstmt = session.prepare("SELECT id, v1, v2 FROM " + KEYSPACE + '.' + table1 + " WHERE id = ?");
         ResultSet rs = session.execute(pstmt.bind(1));
         Assert.assertEquals(1, rs.all().size());
+
+        // recreate the dropped blacklisted partitions table
+        String createBlacklistedPartitionsStmt = String.format("CREATE TABLE %s.%s ("
+                                                               + "keyspace_name text,"
+                                                               + "columnfamily_name text,"
+                                                               + "partition_key text,"
+                                                               + "PRIMARY KEY ((keyspace_name, columnfamily_name), partition_key))", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.BLACKLISTED_PARTITIONS);
+        execute(createBlacklistedPartitionsStmt);
     }
 
     private String createAndPopulateTable() throws Throwable
