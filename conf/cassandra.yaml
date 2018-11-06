@@ -182,14 +182,14 @@ credentials_validity_in_ms: 2000
 # credentials_update_interval_in_ms: 2000
 
 # The partitioner is responsible for distributing groups of rows (by
-# partition key) across nodes in the cluster.  You should leave this
-# alone for new clusters.  The partitioner can NOT be changed without
-# reloading all data, so when upgrading you should set this to the
-# same partitioner you were already using.
+# partition key) across nodes in the cluster. The partitioner can NOT be
+# changed without reloading all data.  If you are adding nodes or upgrading,
+# you should set this to the same partitioner that you are currently using.
 #
-# Besides Murmur3Partitioner, partitioners included for backwards
-# compatibility include RandomPartitioner, ByteOrderedPartitioner, and
-# OrderPreservingPartitioner.
+# The default partitioner is the Murmur3Partitioner. Older partitioners
+# such as the RandomPartitioner, ByteOrderedPartitioner, and
+# OrderPreservingPartitioner have been included for backward compatibility only.
+# For new clusters, you should NOT change this value.
 #
 partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 
@@ -846,6 +846,18 @@ truncate_request_timeout_in_ms: 60000
 # The default timeout for other, miscellaneous operations.
 # Lowest acceptable value is 10 ms.
 request_timeout_in_ms: 10000
+
+# Defensive settings for protecting Cassandra from true network partitions.
+# See (CASSANDRA-14358) for details.
+#
+# The amount of time to wait for internode tcp connections to establish.
+# internode_tcp_connect_timeout_in_ms = 2000
+#
+# The amount of time unacknowledged data is allowed on a connection before we throw out the connection
+# Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
+# (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
+# which picks up the OS default and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
+# internode_tcp_user_timeout_in_ms = 30000
 
 # How long before a node logs slow queries. Select queries that take longer than
 # this timeout to execute, will generate an aggregated log message, so that slow queries

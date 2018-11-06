@@ -1803,6 +1803,26 @@ public class DatabaseDescriptor
         return conf.internode_recv_buff_size_in_bytes;
     }
 
+    public static int getInternodeTcpConnectTimeoutInMS()
+    {
+        return conf.internode_tcp_connect_timeout_in_ms;
+    }
+
+    public static void setInternodeTcpConnectTimeoutInMS(int value)
+    {
+        conf.internode_tcp_connect_timeout_in_ms = value;
+    }
+
+    public static int getInternodeTcpUserTimeoutInMS()
+    {
+        return conf.internode_tcp_user_timeout_in_ms;
+    }
+
+    public static void setInternodeTcpUserTimeoutInMS(int value)
+    {
+        conf.internode_tcp_user_timeout_in_ms = value;
+    }
+
     public static boolean startNativeTransport()
     {
         return conf.start_native_transport;

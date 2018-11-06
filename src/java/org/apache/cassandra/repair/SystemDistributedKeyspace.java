@@ -44,6 +44,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -187,6 +188,11 @@ public final class SystemDistributedKeyspace
 
     public static void startRepairs(UUID id, UUID parent_id, String keyspaceName, String[] cfnames, CommonRange commonRange)
     {
+        //Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
+        //due to schema differences
+        if (Gossiper.instance.haveMajorVersion3Nodes())
+            return;
+
         InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPort();
         Set<String> participants = Sets.newHashSet();
         Set<String> participants_v2 = Sets.newHashSet();
@@ -230,6 +236,11 @@ public final class SystemDistributedKeyspace
 
     public static void successfulRepairJob(UUID id, String keyspaceName, String cfname)
     {
+        //Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
+        //due to schema differences
+        if (Gossiper.instance.haveMajorVersion3Nodes())
+            return;
+
         String query = "UPDATE %s.%s SET status = '%s', finished_at = toTimestamp(now()) WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
                                         RepairState.SUCCESS.toString(),
@@ -241,6 +252,11 @@ public final class SystemDistributedKeyspace
 
     public static void failedRepairJob(UUID id, String keyspaceName, String cfname, Throwable t)
     {
+        //Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
+        //due to schema differences
+        if (Gossiper.instance.haveMajorVersion3Nodes())
+            return;
+
         String query = "UPDATE %s.%s SET status = '%s', finished_at = toTimestamp(now()), exception_message=?, exception_stacktrace=? WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
