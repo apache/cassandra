@@ -235,29 +235,8 @@ public class Slice
      */
     public boolean intersects(ClusteringComparator comparator, List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues)
     {
-        // If this slice start after max or end before min, it can't intersect
-        if (start.compareTo(comparator, maxClusteringValues) > 0 || end.compareTo(comparator, minClusteringValues) < 0)
-            return false;
-
-        // We could safely return true here, but there's a minor optimization: if the first component
-        // of the slice is restricted to a single value (typically the slice is [4:5, 4:7]), we can
-        // check that the second component falls within the min/max for that component (and repeat for
-        // all components).
-        for (int j = 0; j < minClusteringValues.size() && j < maxClusteringValues.size(); j++)
-        {
-            ByteBuffer s = j < start.size() ? start.get(j) : null;
-            ByteBuffer f = j < end.size() ? end.get(j) : null;
-
-            // we already know the first component falls within its min/max range (otherwise we wouldn't get here)
-            if (j > 0 && (j < end.size() && comparator.compareComponent(j, f, minClusteringValues.get(j)) < 0 ||
-                        j < start.size() && comparator.compareComponent(j, s, maxClusteringValues.get(j)) > 0))
-                return false;
-
-            // if this component isn't equal in the start and finish, we don't need to check any more
-            if (j >= start.size() || j >= end.size() || comparator.compareComponent(j, s, f) != 0)
-                break;
-        }
-        return true;
+        // If this slice starts after max clustering or ends before min clustering, it can't intersect
+        return start.compareTo(comparator, maxClusteringValues) <= 0 && end.compareTo(comparator, minClusteringValues) >= 0;
     }
 
     public String toString(CFMetaData metadata)
