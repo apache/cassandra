@@ -265,7 +265,7 @@ public class LegacySSTableTest
     public void testInaccurateSSTableMinMax() throws Exception
     {
         QueryProcessor.executeInternal("CREATE TABLE legacy_tables.legacy_mc_inaccurate_min_max (k int, c1 int, c2 int, c3 int, v int, primary key (k, c1, c2, c3))");
-        loadLegacyTable("legacy_%s_inaccurate_min_max%s", "mc");
+        loadLegacyTable("legacy_%s_inaccurate_min_max", "mc");
 
         /*
          sstable has the following mutations:
