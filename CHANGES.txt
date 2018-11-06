@@ -325,6 +325,7 @@
 
 3.11.4
 Merged from 3.0:
+ * Sstable min/max metadata can cause data loss (CASSANDRA-14861)
  * Dropped columns can cause reverse sstable iteration to return prematurely (CASSANDRA-14838)
  * Legacy sstables with  multi block range tombstones create invalid bound sequences (CASSANDRA-14823)
  * Expand range tombstone validation checks to multiple interim request stages (CASSANDRA-14824)
