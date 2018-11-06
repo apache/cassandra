@@ -226,48 +226,6 @@ public class SliceTest
         slice = Slice.make(makeBound(sk, 0), makeBound(ek, 2, 0, 0));
         assertTrue(slice.intersects(cc, columnNames(1, 0, 0), columnNames(2, 0, 0)));
 
-        // the slice technically falls within the sstable range, but since the first component is restricted to
-        // a single value, we can check that the second component does not fall within its min/max
-        slice = Slice.make(makeBound(sk, 1, 2, 0), makeBound(ek, 1, 3, 0));
-        assertFalse(slice.intersects(cc, columnNames(1, 0, 0), columnNames(2, 1, 0)));
-
-        // same case, but with a missing start component
-        slice = Slice.make(makeBound(sk, 1, 2), makeBound(ek, 1, 3, 0));
-        assertFalse(slice.intersects(cc, columnNames(1, 0, 0), columnNames(2, 1, 0)));
-
-        // same case, but with a missing end component
-        slice = Slice.make(makeBound(sk, 1, 2, 0), makeBound(ek, 1, 3));
-        assertFalse(slice.intersects(cc, columnNames(1, 0, 0), columnNames(2, 1, 0)));
-
-        // same case, but with a missing start and end components
-        slice = Slice.make(makeBound(sk, 1, 2), makeBound(ek, 1, 3));
-        assertFalse(slice.intersects(cc, columnNames(1, 0, 0), columnNames(2, 1, 0)));
-
-        // same case, but with missing start and end components and different lengths for start and end
-        slice = Slice.make(makeBound(sk, 1, 2), makeBound(ek, 1));
-        assertFalse(slice.intersects(cc, columnNames(1, 0, 0), columnNames(2, 1, 0)));
-
-
-        // same as the previous set of tests, but the second component is equal in the slice start and end
-        slice = Slice.make(makeBound(sk, 1, 2, 0), makeBound(ek, 1, 2, 0));
-        assertFalse(slice.intersects(cc, columnNames(1, 0, 0), columnNames(2, 1, 0)));
-
-        // same case, but with a missing start component
-        slice = Slice.make(makeBound(sk, 1, 2), makeBound(ek, 1, 2, 0));
-        assertFalse(slice.intersects(cc, columnNames(1, 0, 0), columnNames(2, 1, 0)));
-
-        // same case, but with a missing end component
-        slice = Slice.make(makeBound(sk, 1, 2, 0), makeBound(ek, 1, 2));
-        assertFalse(slice.intersects(cc, columnNames(1, 0, 0), columnNames(2, 1, 0)));
-
-        // same case, but with a missing start and end components
-        slice = Slice.make(makeBound(sk, 1, 2), makeBound(ek, 1, 2));
-        assertFalse(slice.intersects(cc, columnNames(1, 0, 0), columnNames(2, 1, 0)));
-
-        // same as the previous tests, but it's the third component that doesn't fit in its range this time
-        slice = Slice.make(makeBound(sk, 1, 1, 2), makeBound(ek, 1, 1, 3));
-        assertFalse(slice.intersects(cc, columnNames(1, 1, 0), columnNames(2, 2, 1)));
-
         // empty min/max column names
         slice = Slice.make(makeBound(sk), makeBound(ek));
         assertTrue(slice.intersects(cc, columnNames(), columnNames()));
