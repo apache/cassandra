@@ -47,6 +47,7 @@ import org.apache.cassandra.utils.StreamingHistogram;
 public class MetadataCollector implements PartitionStatisticsCollector
 {
     public static final double NO_COMPRESSION_RATIO = -1.0;
+    private static final ByteBuffer[] EMPTY_CLUSTERING = new ByteBuffer[0];
 
     static EstimatedHistogram defaultCellPerPartitionCountHistogram()
     {
@@ -97,8 +98,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
     protected double compressionRatio = NO_COMPRESSION_RATIO;
     protected StreamingHistogram.StreamingHistogramBuilder estimatedTombstoneDropTime = defaultTombstoneDropTimeHistogramBuilder();
     protected int sstableLevel;
-    private ClusteringPrefix minClustering = ClusteringBound.TOP;
-    private ClusteringPrefix maxClustering = ClusteringBound.BOTTOM;
+    private ClusteringPrefix minClustering = null;
+    private ClusteringPrefix maxClustering = null;
     protected boolean hasLegacyCounterShards = false;
     protected long totalColumnsSet;
     protected long totalRows;
@@ -230,8 +231,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     public MetadataCollector updateClusteringValues(ClusteringPrefix clustering)
     {
-        minClustering = comparator.compare(clustering, minClustering) < 0 ? clustering : minClustering;
-        maxClustering = comparator.compare(clustering, maxClustering) > 0 ? clustering : maxClustering;
+        minClustering = minClustering == null || comparator.compare(clustering, minClustering) < 0 ? clustering : minClustering;
+        maxClustering = maxClustering == null || comparator.compare(clustering, maxClustering) > 0 ? clustering : maxClustering;
         return this;
     }
 
@@ -273,7 +274,10 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, SerializationHeader header)
     {
-        Preconditions.checkState(comparator.compare(maxClustering, minClustering) >= 0);
+        Preconditions.checkState((minClustering == null && maxClustering == null)
+                                 || comparator.compare(maxClustering, minClustering) >= 0);
+        ByteBuffer[] minValues = minClustering != null ? minClustering.getRawValues() : EMPTY_CLUSTERING;
+        ByteBuffer[] maxValues = maxClustering != null ? maxClustering.getRawValues() : EMPTY_CLUSTERING;
         Map<MetadataType, MetadataComponent> components = new EnumMap<>(MetadataType.class);
         components.put(MetadataType.VALIDATION, new ValidationMetadata(partitioner, bloomFilterFPChance));
         components.put(MetadataType.STATS, new StatsMetadata(estimatedPartitionSize,
@@ -288,8 +292,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              compressionRatio,
                                                              estimatedTombstoneDropTime.build(),
                                                              sstableLevel,
-                                                             makeList(minClustering.getRawValues()),
-                                                             makeList(maxClustering.getRawValues()),
+                                                             makeList(minValues),
+                                                             makeList(maxValues),
                                                              hasLegacyCounterShards,
                                                              repairedAt,
                                                              totalColumnsSet,
