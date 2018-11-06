@@ -62,6 +62,7 @@ public class CDCManager implements CDCManagerMBean
     private static final Logger logger = LoggerFactory.getLogger(CDCManager.class);
 
     public static final String MBEAN_NAME = "org.apache.cassandra.cdc:type=CDCManager";
+    public static final int CORE_POOL_SIZE = 10;
     public static final long READER_TIMEOUT_MS = 1 * 3600 * 1000; // 1 hour
     public static final long SCAN_PERIOD_MS = 1000;
     public static final CDCManager instance;
@@ -94,7 +95,7 @@ public class CDCManager implements CDCManagerMBean
     private ScheduledExecutorPlus cdcExecutor = newCdcExecutor();
     private final ExecutorPlus workerExecutor = executorFactory()
                                                 .withJmxInternal()
-                                                .configurePooled("CDCWorker", 10)
+                                                .configurePooled("CDCWorker", CORE_POOL_SIZE)
                                                 .withKeepAlive(60, TimeUnit.SECONDS)
                                                 .build();
 
@@ -349,6 +350,7 @@ public class CDCManager implements CDCManagerMBean
             File cdcDir = new File(DatabaseDescriptor.getCDCLogLocation());
             File[] idxFiles = cdcDir.list(idxFilesPredicate);
             activeIdxCount = idxFiles.length;
+            int ongoingReaderCount = 0;
             logger.debug("CDC log scan: activeIdxCount: {}", activeIdxCount);
             for (File f : idxFiles)
             {
@@ -370,9 +372,14 @@ public class CDCManager implements CDCManagerMBean
                         else
                         {
                             logger.debug("The reader thread for log {} is still running, doing nothing...", commitLog.id);
+                            ongoingReaderCount++;
                             continue;
                         }
                     }
+                }
+                if (ongoingReaderCount > CORE_POOL_SIZE)
+                {
+                    logger.info("There are {} pending reader threads", ongoingReaderCount - CORE_POOL_SIZE);
                 }
 
                 boolean isCompleted = false;
