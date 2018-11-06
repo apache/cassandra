@@ -452,40 +452,6 @@ public class KeyspaceTest extends CQLTester
         assertRowsInResult(cfs, command, expectedValues);
     }
 
-    @Test
-    public void testLimitSSTablesComposites() throws Throwable
-    {
-        // creates 10 sstables, composite columns like this:
-        // ---------------------
-        // k   |a0:0|a1:1|..|a9:9
-        // ---------------------
-        // ---------------------
-        // k   |a0:10|a1:11|..|a9:19
-        // ---------------------
-        // ...
-        // ---------------------
-        // k   |a0:90|a1:91|..|a9:99
-        // ---------------------
-        // then we slice out col1 = a5 and col2 > 85 -> which should let us just check 2 sstables and get 2 columns
-        createTable("CREATE TABLE %s (a text, b text, c int, d int, PRIMARY KEY (a, b, c))");
-        final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        cfs.disableAutoCompaction();
-
-        for (int j = 0; j < 10; j++)
-        {
-            for (int i = 0; i < 10; i++)
-                execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", "0", "a" + i, j * 10 + i, 0);
-
-            cfs.forceBlockingFlush();
-        }
-
-        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear();
-        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c) >= (?, ?) AND (b) <= (?) LIMIT 1000", "0", "a5", 85, "a5"),
-                row("0", "a5", 85, 0),
-                row("0", "a5", 95, 0));
-        assertEquals(2, cfs.metric.sstablesPerReadHistogram.cf.getSnapshot().getMax(), 0.1);
-    }
-
     private void validateSliceLarge(ColumnFamilyStore cfs)
     {
         ClusteringIndexSliceFilter filter = slices(cfs, 1000, null, false);

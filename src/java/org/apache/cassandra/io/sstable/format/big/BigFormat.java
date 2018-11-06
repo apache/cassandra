@@ -110,7 +110,7 @@ public class BigFormat implements SSTableFormat
     // we always incremented the major version.
     static class BigVersion extends Version
     {
-        public static final String current_version = "mc";
+        public static final String current_version = "md";
         public static final String earliest_supported_version = "jb";
 
         // jb (2.0.1): switch from crc32 to adler32 for compression checksums
