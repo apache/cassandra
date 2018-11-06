@@ -2407,9 +2407,24 @@ public class DatabaseDescriptor
         conf.user_defined_function_warn_timeout = userDefinedFunctionWarnTimeout;
     }
 
-    public static boolean enableMaterializedViews()
+    public static boolean getEnableMaterializedViews()
     {
         return conf.enable_materialized_views;
+    }
+
+    public static void setEnableMaterializedViews(boolean enableMaterializedViews)
+    {
+        conf.enable_materialized_views = enableMaterializedViews;
+    }
+
+    public static boolean getEnableSASIIndexes()
+    {
+        return conf.enable_sasi_indexes;
+    }
+
+    public static void setEnableSASIIndexes(boolean enableSASIIndexes)
+    {
+        conf.enable_sasi_indexes = enableSASIIndexes;
     }
 
     public static long getUserDefinedFunctionFailTimeout()

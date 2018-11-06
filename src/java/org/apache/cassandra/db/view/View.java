@@ -33,7 +33,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.ViewDefinition;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.MultiColumnRelation;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Relation;
@@ -57,6 +56,8 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class View
 {
+    public final static String USAGE_WARNING = "Materialized views are experimental and are not recommended for production use.";
+
     private static final Logger logger = LoggerFactory.getLogger(View.class);
 
     public final String name;

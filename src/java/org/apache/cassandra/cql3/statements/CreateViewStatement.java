@@ -123,7 +123,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
     public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws RequestValidationException
     {
-        if (!DatabaseDescriptor.enableMaterializedViews())
+        if (!DatabaseDescriptor.getEnableMaterializedViews())
         {
             throw new InvalidRequestException("Materialized views are disabled. Enable in cassandra.yaml to use.");
         }
@@ -327,13 +327,12 @@ public class CreateViewStatement extends SchemaAlteringStatement
                                                        whereClauseText,
                                                        viewCfm);
 
-        logger.warn("Creating materialized view {} for {}.{}. " +
-                    "Materialized views are experimental and are not recommended for production use.",
-                    definition.viewName, cfm.ksName, cfm.cfName);
+        logger.warn("Creating materialized view {} for {}.{}. {}",
+                    definition.viewName, cfm.ksName, cfm.cfName, View.USAGE_WARNING);
 
         try
         {
-            ClientWarn.instance.warn("Materialized views are experimental and are not recommended for production use.");
+            ClientWarn.instance.warn(View.USAGE_WARNING);
             MigrationManager.announceNewView(definition, isLocalOnly);
             return new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
         }
