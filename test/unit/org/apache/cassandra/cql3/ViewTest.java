@@ -18,12 +18,9 @@
 
 package org.apache.cassandra.cql3;
 
-import static org.junit.Assert.*;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -43,14 +40,16 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -1421,4 +1420,52 @@ public class ViewTest extends CQLTester
      {
          execute("CREATE MATERIALIZED VIEW myview AS SELECT a, b FROM \"\" WHERE b IS NOT NULL PRIMARY KEY (b, a)");
      }
+
+    /**
+     * Tests that a client warning is issued on materialized view creation.
+     */
+    @Test
+    public void testClientWarningOnCreate() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        ClientWarn.instance.captureWarnings();
+        String viewName = keyspace() + ".warning_view";
+        execute("CREATE MATERIALIZED VIEW " + viewName +
+                " AS SELECT v FROM %s WHERE k IS NOT NULL AND v IS NOT NULL PRIMARY KEY (v, k)");
+        views.add(viewName);
+        List<String> warnings = ClientWarn.instance.getWarnings();
+
+        Assert.assertNotNull(warnings);
+        Assert.assertEquals(1, warnings.size());
+        Assert.assertEquals(View.USAGE_WARNING, warnings.get(0));
+    }
+
+    /**
+     * Tests the configuration flag to disable materialized views.
+     */
+    @Test
+    public void testDisableMaterializedViews() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        boolean enableMaterializedViews = DatabaseDescriptor.getEnableMaterializedViews();
+        try
+        {
+            DatabaseDescriptor.setEnableMaterializedViews(false);
+            createView("view1", "CREATE MATERIALIZED VIEW %s AS SELECT v FROM %%s WHERE k IS NOT NULL AND v IS NOT NULL PRIMARY KEY (v, k)");
+            Assert.fail("Should not be able to create a materialized view if they are disabled");
+        }
+        catch (Throwable e)
+        {
+            Assert.assertTrue(e instanceof InvalidQueryException);
+            Assert.assertTrue(e.getMessage().contains("Materialized views are disabled"));
+        }
+        finally
+        {
+            DatabaseDescriptor.setEnableMaterializedViews(enableMaterializedViews);
+        }
+    }
 }

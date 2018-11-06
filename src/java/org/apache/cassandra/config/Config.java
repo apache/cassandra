@@ -348,6 +348,8 @@ public class Config
 
     public boolean enable_materialized_views = true;
 
+    public boolean enable_sasi_indexes = true;
+
     /**
      * Optionally disable asynchronous UDF execution.
      * Disabling asynchronous UDF execution also implicitly disables the security-manager!

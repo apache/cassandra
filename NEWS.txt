@@ -50,6 +50,14 @@ Upgrading
 	- repair_session_max_tree_depth setting has been added to cassandra.yaml to allow operators to reduce
 	  merkle tree size if repair is creating too much heap pressure. See CASSANDRA-14096 for details.
 
+Experimental features
+---------------------
+    - An 'enable_sasi_indexes' flag, true by default, has been added to cassandra.yaml to allow operators to prevent
+      the creation of new SASI indexes, which are considered experimental and are not recommended for production use.
+      (See https://www.mail-archive.com/dev@cassandra.apache.org/msg13582.html)
+    - The flags 'enable_sasi_indexes' and 'enable_materialized_views' have been grouped under an experimental features
+      section in cassandra.yaml.
+
 3.11.4
 ======
 
