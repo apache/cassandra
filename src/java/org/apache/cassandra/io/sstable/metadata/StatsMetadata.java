@@ -319,15 +319,25 @@ public class StatsMetadata extends MetadataComponent
             if (version.hasRepairedAt())
                 repairedAt = in.readLong();
 
+            // for legacy sstables, we skip deserializing the min and max clustering value
+            // to prevent erroneously excluding sstables from reads (see CASSANDRA-14861)
             int colCount = in.readInt();
             List<ByteBuffer> minClusteringValues = new ArrayList<>(colCount);
             for (int i = 0; i < colCount; i++)
-                minClusteringValues.add(ByteBufferUtil.readWithShortLength(in));
+            {
+                ByteBuffer val = ByteBufferUtil.readWithShortLength(in);
+                if (version.hasAccurateMinMax())
+                    minClusteringValues.add(val);
+            }
 
             colCount = in.readInt();
             List<ByteBuffer> maxClusteringValues = new ArrayList<>(colCount);
             for (int i = 0; i < colCount; i++)
-                maxClusteringValues.add(ByteBufferUtil.readWithShortLength(in));
+            {
+                ByteBuffer val = ByteBufferUtil.readWithShortLength(in);
+                if (version.hasAccurateMinMax())
+                    maxClusteringValues.add(val);
+            }
 
             boolean hasLegacyCounterShards = true;
             if (version.tracksLegacyCounterShards())
