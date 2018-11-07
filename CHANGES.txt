@@ -1,4 +1,5 @@
 3.0.18
+ * Streaming needs to synchronise access to LifecycleTransaction (CASSANDRA-14554)
  * Fix cassandra-stress write hang with default options (CASSANDRA-14616)
  * Differentiate between slices and RTs when decoding legacy bounds (CASSANDRA-14919)
  * CommitLogReplayer.handleReplayError should print stack traces (CASSANDRA-14589)

@@ -30,7 +30,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -90,16 +90,16 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        CFMetaData metadata,
                                        MetadataCollector metadataCollector,
                                        SerializationHeader header,
-                                       LifecycleTransaction txn)
+                                       LifecycleNewTracker lifecycleNewTracker)
     {
         Factory writerFactory = descriptor.getFormat().getWriterFactory();
-        return writerFactory.open(descriptor, keyCount, repairedAt, metadata, metadataCollector, header, txn);
+        return writerFactory.open(descriptor, keyCount, repairedAt, metadata, metadataCollector, header, lifecycleNewTracker);
     }
 
-    public static SSTableWriter create(Descriptor descriptor, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header, LifecycleTransaction txn)
+    public static SSTableWriter create(Descriptor descriptor, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
     {
         CFMetaData metadata = Schema.instance.getCFMetaData(descriptor);
-        return create(metadata, descriptor, keyCount, repairedAt, sstableLevel, header, txn);
+        return create(metadata, descriptor, keyCount, repairedAt, sstableLevel, header, lifecycleNewTracker);
     }
 
     public static SSTableWriter create(CFMetaData metadata,
@@ -108,21 +108,21 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        long repairedAt,
                                        int sstableLevel,
                                        SerializationHeader header,
-                                       LifecycleTransaction txn)
+                                       LifecycleNewTracker lifecycleNewTracker)
     {
         MetadataCollector collector = new MetadataCollector(metadata.comparator).sstableLevel(sstableLevel);
-        return create(descriptor, keyCount, repairedAt, metadata, collector, header, txn);
+        return create(descriptor, keyCount, repairedAt, metadata, collector, header, lifecycleNewTracker);
     }
 
-    public static SSTableWriter create(String filename, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header,LifecycleTransaction txn)
+    public static SSTableWriter create(String filename, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
     {
-        return create(Descriptor.fromFilename(filename), keyCount, repairedAt, sstableLevel, header, txn);
+        return create(Descriptor.fromFilename(filename), keyCount, repairedAt, sstableLevel, header, lifecycleNewTracker);
     }
 
     @VisibleForTesting
-    public static SSTableWriter create(String filename, long keyCount, long repairedAt, SerializationHeader header, LifecycleTransaction txn)
+    public static SSTableWriter create(String filename, long keyCount, long repairedAt, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
     {
-        return create(Descriptor.fromFilename(filename), keyCount, repairedAt, 0, header, txn);
+        return create(Descriptor.fromFilename(filename), keyCount, repairedAt, 0, header, lifecycleNewTracker);
     }
 
     private static Set<Component> components(CFMetaData metadata)
@@ -285,6 +285,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                            CFMetaData metadata,
                                            MetadataCollector metadataCollector,
                                            SerializationHeader header,
-                                           LifecycleTransaction txn);
+                                           LifecycleNewTracker lifecycleNewTracker);
     }
 }
