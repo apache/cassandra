@@ -164,7 +164,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             return new SSTableTidier(reader, true, this);
         }
 
-        txnFile.add(logRecord);
+        txnFile.addRecord(logRecord);
 
         if (tracker != null)
             tracker.notifyDeleting(reader);

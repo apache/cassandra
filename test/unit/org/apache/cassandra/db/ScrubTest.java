@@ -26,6 +26,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -632,11 +633,11 @@ public class ScrubTest
         assertOrdered(Util.cmd(cfs).filterOn(colName, Operator.EQ, 1L).build(), numRows / 2);
     }
 
-    private static SSTableMultiWriter createTestWriter(Descriptor descriptor, long keyCount, CFMetaData metadata, LifecycleTransaction txn)
+    private static SSTableMultiWriter createTestWriter(Descriptor descriptor, long keyCount, CFMetaData metadata, LifecycleNewTracker lifecycleNewTracker)
     {
         SerializationHeader header = new SerializationHeader(true, metadata, metadata.partitionColumns(), EncodingStats.NO_STATS);
         MetadataCollector collector = new MetadataCollector(metadata.comparator).sstableLevel(0);
-        return new TestMultiWriter(new TestWriter(descriptor, keyCount, 0, metadata, collector, header, txn));
+        return new TestMultiWriter(new TestWriter(descriptor, keyCount, 0, metadata, collector, header, lifecycleNewTracker));
     }
 
     private static class TestMultiWriter extends SimpleSSTableMultiWriter
@@ -653,9 +654,9 @@ public class ScrubTest
     private static class TestWriter extends BigTableWriter
     {
         TestWriter(Descriptor descriptor, long keyCount, long repairedAt, CFMetaData metadata,
-                   MetadataCollector collector, SerializationHeader header, LifecycleTransaction txn)
+                   MetadataCollector collector, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
         {
-            super(descriptor, keyCount, repairedAt, metadata, collector, header, txn);
+            super(descriptor, keyCount, repairedAt, metadata, collector, header, lifecycleNewTracker);
         }
 
         @Override
