@@ -498,7 +498,7 @@ public class CompactionManager implements CompactionManagerMBean
                 if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
                     originals = Iterables.filter(originals, SSTableReader::isRepaired);
                 List<SSTableReader> sortedSSTables = Lists.newArrayList(originals);
-                Collections.sort(sortedSSTables, SSTableReader.maxTimestampComparator);
+                Collections.sort(sortedSSTables, SSTableReader.maxTimestampAscending);
                 return sortedSSTables;
             }
 

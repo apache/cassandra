@@ -1,4 +1,5 @@
 3.11.4
+ * Correct sstable sorting for garbagecollect and levelled compaction (CASSANDRA-14870)
 Merged from 3.0:
  * Move TWCS message 'No compaction necessary for bucket size' to Trace level (CASSANDRA-14884)
  * Sstable min/max metadata can cause data loss (CASSANDRA-14861)
