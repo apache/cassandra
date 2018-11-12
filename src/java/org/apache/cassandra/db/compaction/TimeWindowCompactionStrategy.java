@@ -310,7 +310,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
             }
             else
             {
-                logger.debug("No compaction necessary for bucket size {} , key {}, now {}", bucket.size(), key, now);
+                logger.trace("No compaction necessary for bucket size {} , key {}, now {}", bucket.size(), key, now);
             }
         }
         return Collections.<SSTableReader>emptyList();
