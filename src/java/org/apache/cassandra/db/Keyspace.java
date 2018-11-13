@@ -429,6 +429,7 @@ public class Keyspace
 
         try
         {
+            logger.info("Initializing cdc handler for keyspace {} with options {}", getName(), params.options());
             cdcHandler.initialize(params.options());
         }
         catch (ConfigurationException e)

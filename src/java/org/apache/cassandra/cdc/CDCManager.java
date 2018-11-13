@@ -110,7 +110,7 @@ public class CDCManager implements CDCManagerMBean
 
     static
     {
-        logger.info("Initializing CDC...");
+        logger.info("Initializing CDCManager...");
         instance = new CDCManager();
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
     }
