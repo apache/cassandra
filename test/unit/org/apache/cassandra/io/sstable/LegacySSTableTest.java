@@ -264,6 +264,44 @@ public class LegacySSTableTest
     }
 
     @Test
+    public void test14873() throws Exception
+    {
+        /*
+         * When reading 2.1 sstables in 3.0 in reverse order it's possible to wrongly return an empty result set if the
+         * partition being read has a static row, and the read is performed backwards.
+         */
+
+        /*
+         * Contents of the SSTable (column_index_size_in_kb: 1) below:
+         *
+         * insert into legacy_tables.legacy_ka_14873 (pkc, sc)     values (0, 0);
+         * insert into legacy_tables.legacy_ka_14873 (pkc, cc, rc) values (0, 5, '5555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555');
+         * insert into legacy_tables.legacy_ka_14873 (pkc, cc, rc) values (0, 4, '4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444');
+         * insert into legacy_tables.legacy_ka_14873 (pkc, cc, rc) values (0, 3, '3333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333');
+         * insert into legacy_tables.legacy_ka_14873 (pkc, cc, rc) values (0, 2, '2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222');
+         * insert into legacy_tables.legacy_ka_14873 (pkc, cc, rc) values (0, 1, '1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111');
+         */
+
+        String ddl =
+            "CREATE TABLE legacy_tables.legacy_ka_14873 ("
+            + "pkc int, cc int, sc int static, rc text, PRIMARY KEY (pkc, cc)"
+            + ") WITH CLUSTERING ORDER BY (cc DESC) AND compaction = {'enabled' : 'false', 'class' : 'LeveledCompactionStrategy'};";
+        QueryProcessor.executeInternal(ddl);
+        loadLegacyTable("legacy_%s_14873%s", "ka", "");
+
+        UntypedResultSet forward =
+            QueryProcessor.executeOnceInternal(
+                String.format("SELECT * FROM legacy_tables.legacy_ka_14873 WHERE pkc = 0 AND cc > 0 ORDER BY cc DESC;"));
+
+        UntypedResultSet reverse =
+            QueryProcessor.executeOnceInternal(
+                String.format("SELECT * FROM legacy_tables.legacy_ka_14873 WHERE pkc = 0 AND cc > 0 ORDER BY cc ASC;"));
+
+        Assert.assertEquals(5, forward.size());
+        Assert.assertEquals(5, reverse.size());
+    }
+
+    @Test
     public void testMultiBlockRangeTombstones() throws Exception
     {
         /**

@@ -114,6 +114,9 @@ public class Serializers
                 if (clusteringSize == 0)
                     return Clustering.EMPTY;
 
+                if (metadata.isCompound() && CompositeType.isStaticName(bb))
+                    return Clustering.STATIC_CLUSTERING;
+
                 if (!metadata.isCompound())
                     return Clustering.make(bb);
 
