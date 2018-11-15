@@ -1,6 +1,9 @@
 2.2.14
+ * Cannot perform slice reads in reverse direction against tables with clustering columns
+   in mixed order (CASSANDRA-14899)
  * Fix incorrect cqlsh results when selecting same columns multiple times (CASSANDRA-13262)
  * Returns null instead of NaN or Infinity in JSON strings (CASSANDRA-14377)
+
 
 2.2.13
  * Fix bug that prevented compaction of SSTables after full repairs (CASSANDRA-14423)
@@ -15,6 +18,7 @@ Merged from 2.1:
  * Check checksum before decompressing data (CASSANDRA-14284)
  * CVE-2017-5929 Security vulnerability in Logback warning in NEWS.txt (CASSANDRA-14183)
 
+
 2.2.12
  * Fix the inspectJvmOptions startup check (CASSANDRA-14112)
  * Fix race that prevents submitting compaction for a table when executor is full (CASSANDRA-13801)
@@ -24,6 +28,7 @@ Merged from 2.1:
  * Protect against overflow of local expiration time (CASSANDRA-14092)
  * More PEP8 compliance for cqlsh (CASSANDRA-14021)
  * RPM package spec: fix permissions for installed jars and config files (CASSANDRA-14181)
+
 
 2.2.11
  * Safely handle empty buffers when outputting to JSON (CASSANDRA-13868)
