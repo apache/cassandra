@@ -16,29 +16,23 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.net;
+package org.apache.cassandra.distributed;
 
-import java.io.Serializable;
-import java.util.Collection;
-
-import com.google.common.base.Preconditions;
-
-import org.apache.cassandra.locator.InetAddressAndPort;
+import ch.qos.logback.core.PropertyDefinerBase;
 
 /**
- * Contains forward to information until it can be serialized as part of a message using a version
- * specific serialization
+ * Used by logback to find/define property value, see logback-dtest.xml
  */
-public class ForwardToContainer implements Serializable
+public class InstanceIDDefiner extends PropertyDefinerBase
 {
-    public final Collection<InetAddressAndPort> targets;
-    public final int[] messageIds;
+    // Instantiated per classloader, set by Instance
+    public static int instanceId = -1;
 
-    public ForwardToContainer(Collection<InetAddressAndPort> targets,
-                              int[] messageIds)
+    public String getPropertyValue()
     {
-        Preconditions.checkArgument(targets.size() == messageIds.length);
-        this.targets = targets;
-        this.messageIds = messageIds;
+        if (instanceId == -1)
+            return "<main>";
+        else
+            return "INSTANCE" + instanceId;
     }
 }
