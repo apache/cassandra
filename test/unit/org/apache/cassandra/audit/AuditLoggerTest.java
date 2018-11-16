@@ -588,6 +588,39 @@ public class AuditLoggerTest extends CQLTester
         assertEquals(0, ((InMemoryAuditLogger) AuditLogManager.getInstance().getLogger()).inMemQueue.size());
     }
 
+    @Test
+    public void testIncludeSystemKeyspaces() throws Throwable
+    {
+        AuditLogOptions options = new AuditLogOptions();
+        options.included_categories = "QUERY,DML,PREPARE";
+        options.excluded_keyspaces = "system_schema";
+        enableAuditLogOptions(options);
+
+        Session session = sessionNet();
+        String cql = "SELECT * FROM system.local limit 2";
+        ResultSet rs = session.execute(cql);
+
+        assertEquals (1,((InMemoryAuditLogger) AuditLogManager.getInstance().getLogger()).inMemQueue.size());
+        AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.getInstance().getLogger()).inMemQueue.poll();
+        assertLogEntry(cql, "local",AuditLogEntryType.SELECT,logEntry,false, "system");
+        assertEquals (0,((InMemoryAuditLogger) AuditLogManager.getInstance().getLogger()).inMemQueue.size());
+    }
+
+    @Test
+    public void testExcludeSystemKeyspaces() throws Throwable
+    {
+        AuditLogOptions options = new AuditLogOptions();
+        options.included_categories = "QUERY,DML,PREPARE";
+        options.excluded_keyspaces = "system";
+        enableAuditLogOptions(options);
+
+        Session session = sessionNet();
+        String cql = "SELECT * FROM system.local limit 2";
+        ResultSet rs = session.execute(cql);
+
+        assertEquals (0,((InMemoryAuditLogger) AuditLogManager.getInstance().getLogger()).inMemQueue.size());
+    }
+
     /**
      * Helper methods for Audit Log CQL Testing
      */
