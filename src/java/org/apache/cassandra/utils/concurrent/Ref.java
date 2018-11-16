@@ -29,9 +29,12 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor.InterruptibleRunnable;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;
@@ -323,32 +326,26 @@ public final class Ref<T> implements RefCounted<T>
 
     private static final Set<GlobalState> globallyExtant = Collections.newSetFromMap(new ConcurrentHashMap<GlobalState, Boolean>());
     static final ReferenceQueue<Object> referenceQueue = new ReferenceQueue<>();
-    private static final ExecutorService EXEC = Executors.newFixedThreadPool(1, new NamedThreadFactory("Reference-Reaper"));
-    static
+    private static final InfiniteLoopExecutor EXEC = new InfiniteLoopExecutor("Reference-Reaper", new InterruptibleRunnable()
     {
-        EXEC.execute(new Runnable()
+        public void run() throws InterruptedException
         {
-            public void run()
-            {
-                try
-                {
-                    while (true)
-                    {
-                        Object obj = referenceQueue.remove();
-                        if (obj instanceof Ref.State)
-                        {
-                            ((Ref.State) obj).release(true);
-                        }
-                    }
-                }
-                catch (InterruptedException e)
-                {
-                }
-                finally
-                {
-                    EXEC.execute(this);
-                }
-            }
-        });
+            reapOneReference();
+        }
+    }).start();
+    private static void reapOneReference() throws InterruptedException
+    {
+        Object obj = referenceQueue.remove(100);
+        if (obj instanceof Ref.State)
+        {
+            ((Ref.State) obj).release(true);
+        }
+    }
+
+    @VisibleForTesting
+    public static void shutdownReferenceReaper() throws InterruptedException
+    {
+        EXEC.shutdown();
+        EXEC.awaitTermination(60, TimeUnit.SECONDS);
     }
 }

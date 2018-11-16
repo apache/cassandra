@@ -128,6 +128,10 @@ public class DatabaseDescriptor
             {
                 conf = new Config();
             }
+            else if (Config.getOverrideLoadConfig() != null)
+            {
+                applyConfig(Config.getOverrideLoadConfig().get());
+            }
             else
             {
                 applyConfig(loadConfig());
@@ -144,7 +148,7 @@ public class DatabaseDescriptor
     {
         String loaderClass = System.getProperty("cassandra.config.loader");
         ConfigurationLoader loader = loaderClass == null
-                                   ? new YamlConfigurationLoader()
+                                     ? new YamlConfigurationLoader()
                                    : FBUtilities.<ConfigurationLoader>construct(loaderClass, "configuration loading");
         Config config = loader.loadConfig();
 

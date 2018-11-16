@@ -19,11 +19,8 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.*;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
@@ -33,6 +30,7 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,15 +94,8 @@ public class CompactionManager implements CompactionManagerMBean
     static
     {
         instance = new CompactionManager();
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            mbs.registerMBean(instance, new ObjectName(MBEAN_OBJECT_NAME));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+
+        MBeanWrapper.instance.registerMBean(instance, MBEAN_OBJECT_NAME);
     }
 
     private final CompactionExecutor executor = new CompactionExecutor();
@@ -202,6 +193,7 @@ public class CompactionManager implements CompactionManagerMBean
         // shutdown executors to prevent further submission
         executor.shutdown();
         validationExecutor.shutdown();
+        cacheCleanupExecutor.shutdown();
 
         // interrupt compactions and validations
         for (Holder compactionHolder : CompactionMetrics.getCompactions())
@@ -212,7 +204,7 @@ public class CompactionManager implements CompactionManagerMBean
         // wait for tasks to terminate
         // compaction tasks are interrupted above, so it shuold be fairy quick
         // until not interrupted tasks to complete.
-        for (ExecutorService exec : Arrays.asList(executor, validationExecutor))
+        for (ExecutorService exec : Arrays.asList(executor, validationExecutor, cacheCleanupExecutor))
         {
             try
             {
@@ -955,7 +947,7 @@ public class CompactionManager implements CompactionManagerMBean
             public Bounded(final ColumnFamilyStore cfs, Collection<Range<Token>> ranges)
             {
                 this.ranges = ranges;
-                cacheCleanupExecutor.submit(new Runnable()
+                instance.cacheCleanupExecutor.submit(new Runnable()
                 {
                     @Override
                     public void run()
