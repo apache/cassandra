@@ -763,10 +763,11 @@ public class LeveledManifest
         return sstables;
     }
 
-    private List<SSTableReader> ageSortedSSTables(Collection<SSTableReader> candidates)
+    @VisibleForTesting
+    List<SSTableReader> ageSortedSSTables(Collection<SSTableReader> candidates)
     {
         List<SSTableReader> ageSortedCandidates = new ArrayList<>(candidates);
-        Collections.sort(ageSortedCandidates, SSTableReader.maxTimestampComparator);
+        Collections.sort(ageSortedCandidates, SSTableReader.maxTimestampAscending);
         return ageSortedCandidates;
     }
 

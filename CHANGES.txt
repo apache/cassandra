@@ -1,4 +1,7 @@
 4.0
+ * Lower default chunk_length_in_kb from 64kb to 16kb (CASSANDRA-13241)
+ * Startup checker should wait for count rather than percentage (CASSANDRA-14297)
+ * Fix incorrect sorting of replicas in SimpleStrategy.calculateNaturalReplicas (CASSANDRA-14862)
  * Partitioned outbound internode TCP connections can occur when nodes restart (CASSANDRA-14358)
  * Don't write to system_distributed.repair_history, system_traces.sessions, system_traces.events in mixed version 3.X/4.0 clusters (CASSANDRA-14841)
  * Avoid running query to self through messaging service (CASSANDRA-14807)
@@ -324,7 +327,10 @@
 
 
 3.11.4
+ * Correct sstable sorting for garbagecollect and levelled compaction (CASSANDRA-14870)
 Merged from 3.0:
+ * Move TWCS message 'No compaction necessary for bucket size' to Trace level (CASSANDRA-14884)
+ * Sstable min/max metadata can cause data loss (CASSANDRA-14861)
  * Dropped columns can cause reverse sstable iteration to return prematurely (CASSANDRA-14838)
  * Legacy sstables with  multi block range tombstones create invalid bound sequences (CASSANDRA-14823)
  * Expand range tombstone validation checks to multiple interim request stages (CASSANDRA-14824)

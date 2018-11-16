@@ -38,6 +38,13 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - Nodes will now bootstrap all intra-cluster connections at startup by default and wait
+     10 seconds for the all but one node in the local data center to be connected and marked
+     UP in gossip. This prevents nodes from coordinating requests and failing because they
+     aren't able to connect to the cluster fast enough. block_for_peers_timeout_in_secs in
+     cassandra.yaml can be used to configure how long to wait (or whether to wait at all)
+     and block_for_peers_in_remote_dcs can be used to also block on all but one node in
+     each remote DC as well. See CASSANDRA-14297 and CASSANDRA-13993 for more information.
    - *Experimental* support for Transient Replication and Cheap Quorums introduced by CASSANDRA-14404
      The intended audience for this functionality is expert users of Cassandra who are prepared
      to validate every aspect of the database for their application and deployment practices. Future
@@ -101,6 +108,9 @@ New features
 
 Upgrading
 ---------
+    - CASSANDRA-13241 lowered the default chunk_lengh_in_kb for compresesd tables from
+      64kb to 16kb. For highly compressible data this can have a noticeable impact
+      on space utilization. You may want to consider manually specifying this value.
     - Additional columns have been added to system_distributed.repair_history,
       system_traces.sessions and system_traces.events. As a result select * queries
       againsts these tables will fail and generate an error in the log

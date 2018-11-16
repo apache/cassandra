@@ -132,11 +132,19 @@ public abstract class AbstractReplicationStrategy
     }
 
     /**
-     * calculate the natural endpoints for the given token
+     * Calculate the natural endpoints for the given token. Endpoints are returned in the order
+     * they occur in the ring following the searchToken, as defined by the replication strategy.
+     *
+     * Note that the order of the replicas is _implicitly relied upon_ by the definition of
+     * "primary" range in
+     * {@link org.apache.cassandra.service.StorageService#getPrimaryRangesForEndpoint(String, InetAddressAndPort)}
+     * which is in turn relied on by various components like repair and size estimate calculations.
      *
      * @see #getNaturalReplicasForToken(org.apache.cassandra.dht.RingPosition)
      *
-     * @param searchToken the token the natural endpoints are requested for
+     * @param tokenMetadata the token metadata used to find the searchToken, e.g. contains token to endpoint
+     *                      mapping information
+     * @param searchToken the token to find the natural endpoints for
      * @return a copy of the natural endpoints for the given token
      */
     public abstract EndpointsForRange calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata);
