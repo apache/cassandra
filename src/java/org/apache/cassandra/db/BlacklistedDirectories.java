@@ -21,15 +21,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
 {
@@ -43,17 +40,7 @@ public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
     private BlacklistedDirectories()
     {
         // Register this instance with JMX
-        try
-        {
-            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
-        }
-        catch (Exception e)
-        {
-            JVMStabilityInspector.inspectThrowable(e);
-            logger.error("error registering MBean {}", MBEAN_NAME, e);
-            //Allow the server to start even if the bean can't be registered
-        }
+        MBeanWrapper.instance.registerMBean(this, MBEAN_NAME, MBeanWrapper.OnException.LOG);
     }
 
     public Set<File> getUnreadableDirectories()

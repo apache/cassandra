@@ -21,8 +21,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
 
@@ -61,7 +64,7 @@ public class SharedExecutorPool
     final AtomicLong workerId = new AtomicLong();
 
     // the collection of executors serviced by this pool; periodically ordered by traffic volume
-    final List<SEPExecutor> executors = new CopyOnWriteArrayList<>();
+    public final List<SEPExecutor> executors = new CopyOnWriteArrayList<>();
 
     // the number of workers currently in a spinning state
     final AtomicInteger spinningCount = new AtomicInteger();
@@ -108,5 +111,15 @@ public class SharedExecutorPool
         SEPExecutor executor = new SEPExecutor(this, maxConcurrency, maxQueuedTasks, jmxPath, name);
         executors.add(executor);
         return executor;
+    }
+
+    @VisibleForTesting
+    public static void shutdownSharedPool() throws InterruptedException
+    {
+        for (SEPExecutor executor : SHARED.executors)
+            executor.shutdown();
+
+        for (SEPExecutor executor : SHARED.executors)
+            executor.awaitTermination(60, TimeUnit.SECONDS);
     }
 }
