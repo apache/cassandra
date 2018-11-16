@@ -26,7 +26,8 @@ public class AuditLogOptions extends BinLogOptions
     public volatile boolean enabled = false;
     public String logger = BinAuditLogger.class.getSimpleName();
     public String included_keyspaces = StringUtils.EMPTY;
-    public String excluded_keyspaces = StringUtils.EMPTY;
+    // CASSANDRA-14498: By default, system, system_schema and system_virtual_schema are excluded, but these can be included via cassandra.yaml
+    public String excluded_keyspaces = "system,system_schema,system_virtual_schema";
     public String included_categories = StringUtils.EMPTY;
     public String excluded_categories = StringUtils.EMPTY;
     public String included_users = StringUtils.EMPTY;

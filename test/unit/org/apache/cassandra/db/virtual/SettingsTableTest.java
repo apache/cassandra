@@ -196,7 +196,7 @@ public class SettingsTableTest extends CQLTester
         config.audit_logging_options.included_keyspaces = "included_keyspaces";
         check(pre + "included_keyspaces", "included_keyspaces");
 
-        check(pre + "excluded_keyspaces", "");
+        check(pre + "excluded_keyspaces", "system,system_schema,system_virtual_schema");
         config.audit_logging_options.excluded_keyspaces = "excluded_keyspaces";
         check(pre + "excluded_keyspaces", "excluded_keyspaces");
 

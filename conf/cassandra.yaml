@@ -1232,7 +1232,7 @@ audit_logging_options:
     logger: BinAuditLogger
     # audit_logs_dir:
     # included_keyspaces:
-    # excluded_keyspaces:
+    # excluded_keyspaces: system, system_schema, system_virtual_schema
     # included_categories:
     # excluded_categories:
     # included_users:
