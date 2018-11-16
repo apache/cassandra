@@ -18,16 +18,12 @@
 package org.apache.cassandra.service;
 
 import java.io.File;
-import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -123,16 +119,7 @@ public class StorageProxy implements StorageProxyMBean
 
     static
     {
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            mbs.registerMBean(instance, new ObjectName(MBEAN_NAME));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-
+        MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
         HintsService.instance.registerMBean();
         HintedHandOffManager.instance.registerMBean();
 

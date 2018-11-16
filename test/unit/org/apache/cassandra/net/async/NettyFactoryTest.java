@@ -78,7 +78,7 @@ public class NettyFactoryTest
     }
 
     @After
-    public void tearDown()
+    public void tearDown() throws Exception
     {
         if (factory != null)
             factory.close();

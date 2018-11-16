@@ -1485,4 +1485,14 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                      false);
         }
     }
+
+    @VisibleForTesting
+    public static void shutdownExecutors() throws InterruptedException
+    {
+        ExecutorService[] executors = new ExecutorService[]{ asyncExecutor, blockingExecutor };
+        for (ExecutorService executor : executors)
+            executor.shutdown();
+        for (ExecutorService executor : executors)
+            executor.awaitTermination(60, TimeUnit.SECONDS);
+    }
 }

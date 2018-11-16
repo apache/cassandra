@@ -16,29 +16,26 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.net;
-
-import java.io.Serializable;
-import java.util.Collection;
-
-import com.google.common.base.Preconditions;
+package org.apache.cassandra.distributed;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-/**
- * Contains forward to information until it can be serialized as part of a message using a version
- * specific serialization
- */
-public class ForwardToContainer implements Serializable
+// a container for simplifying the method signature for per-instance message handling/delivery
+public class Message
 {
-    public final Collection<InetAddressAndPort> targets;
-    public final int[] messageIds;
+    public final int verb;
+    public final byte[] bytes;
+    public final int id;
+    public final int version;
+    public final InetAddressAndPort from;
 
-    public ForwardToContainer(Collection<InetAddressAndPort> targets,
-                              int[] messageIds)
+    public Message(int verb, byte[] bytes, int id, int version, InetAddressAndPort from)
     {
-        Preconditions.checkArgument(targets.size() == messageIds.length);
-        this.targets = targets;
-        this.messageIds = messageIds;
+        this.verb = verb;
+        this.bytes = bytes;
+        this.id = id;
+        this.version = version;
+        this.from = from;
     }
 }
+

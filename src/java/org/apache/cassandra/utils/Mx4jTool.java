@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-import java.lang.management.ManagementFactory;
-import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.commons.lang3.StringUtils;
@@ -44,7 +42,7 @@ public class Mx4jTool
         try
         {
             logger.trace("Will try to load mx4j now, if it's in the classpath");
-            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            MBeanWrapper mbs = MBeanWrapper.instance;
             ObjectName processorName = new ObjectName("Server:name=XSLTProcessor");
 
             Class<?> httpAdaptorClass = Class.forName("mx4j.tools.adaptor.http.HttpAdaptor");

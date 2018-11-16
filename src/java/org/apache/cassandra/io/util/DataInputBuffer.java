@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
@@ -57,14 +56,17 @@ public class DataInputBuffer extends RebufferingInputStream
     }
 
     @Override
-    protected void reBuffer() throws IOException
+    protected void reBuffer()
     {
         //nope, we don't rebuffer, we are done!
     }
 
     @Override
-    public int available() throws IOException
+    public int available()
     {
         return buffer.remaining();
     }
+
+    @Override
+    public void close() {}
 }

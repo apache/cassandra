@@ -41,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 /**
  * Service for publishing and consuming {@link DiagnosticEvent}s.
@@ -62,17 +63,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
 
     private DiagnosticEventService()
     {
-
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            ObjectName jmxObjectName = new ObjectName("org.apache.cassandra.diag:type=DiagnosticEventService");
-            mbs.registerMBean(this, jmxObjectName);
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        MBeanWrapper.instance.registerMBean(this,"org.apache.cassandra.diag:type=DiagnosticEventService");
 
         // register broadcasters for JMX events
         DiagnosticEventPersistence.start();

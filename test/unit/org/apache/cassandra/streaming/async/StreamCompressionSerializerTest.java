@@ -127,9 +127,5 @@ public class StreamCompressionSerializerTest
         {
             return true;
         }
-
-        @Override
-        public void close()
-        {   }
     }
 }

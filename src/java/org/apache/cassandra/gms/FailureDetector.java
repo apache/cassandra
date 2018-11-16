@@ -21,15 +21,12 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.Path;
 import java.io.*;
-import java.lang.management.ManagementFactory;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.*;
 
@@ -42,6 +39,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 /**
  * This FailureDetector is an implementation of the paper titled
@@ -88,15 +86,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public FailureDetector()
     {
         // Register this instance with JMX
-        try
-        {
-            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
     private static long getInitialValue()

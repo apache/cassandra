@@ -49,12 +49,12 @@ public class MessageIn<T>
     public final int version;
     public final long constructionTime;
 
-    private MessageIn(InetAddressAndPort from,
-                      T payload,
-                      Map<ParameterType, Object> parameters,
-                      Verb verb,
-                      int version,
-                      long constructionTime)
+    public MessageIn(InetAddressAndPort from,
+                     T payload,
+                     Map<ParameterType, Object> parameters,
+                     Verb verb,
+                     int version,
+                     long constructionTime)
     {
         this.from = from;
         this.payload = payload;
