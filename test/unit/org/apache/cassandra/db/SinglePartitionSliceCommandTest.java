@@ -395,7 +395,7 @@ public class SinglePartitionSliceCommandTest
         SelectStatement stmt = (SelectStatement) QueryProcessor.parseStatement(q).prepare(ClientState.forInternalCalls()).statement;
 
         List<Unfiltered> unfiltereds = new ArrayList<>();
-        SinglePartitionReadCommand.Group query = (SinglePartitionReadCommand.Group) stmt.getQuery(QueryOptions.DEFAULT, FBUtilities.nowInSeconds());
+        SinglePartitionReadCommand.Group query = (SinglePartitionReadCommand.Group) stmt.getQuery(QueryOptions.DEFAULT, 0);
         Assert.assertEquals(1, query.commands.size());
         SinglePartitionReadCommand command = Iterables.getOnlyElement(query.commands);
         try (ReadOrderGroup group = ReadOrderGroup.forCommand(command);
