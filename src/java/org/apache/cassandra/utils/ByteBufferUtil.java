@@ -284,6 +284,31 @@ public class ByteBufferUtil
         return length;
     }
 
+    public static void writeZeroes(ByteBuffer dest, int count)
+    {
+        if (count >= 8)
+        {
+            // align
+            while ((dest.position() & 0x7) != 0)
+            {
+                dest.put((byte) 0);
+                --count;
+            }
+        }
+        // write aligned longs
+        while (count >= 8)
+        {
+            dest.putLong(0L);
+            count -= 8;
+        }
+        // finish up
+        while (count > 0)
+        {
+            dest.put((byte) 0);
+            --count;
+        }
+    }
+
     public static void writeWithLength(ByteBuffer bytes, DataOutputPlus out) throws IOException
     {
         out.writeInt(bytes.remaining());
