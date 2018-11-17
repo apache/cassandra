@@ -22,6 +22,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import org.apache.cassandra.io.util.DataInputPlus;
 
+import java.io.IOException;
+
 public class ByteBufDataInputPlus extends ByteBufInputStream implements DataInputPlus
 {
     /**
@@ -39,5 +41,11 @@ public class ByteBufDataInputPlus extends ByteBufInputStream implements DataInpu
     public ByteBuf buffer()
     {
         return buf;
+    }
+
+    @Override
+    public String readUTF() throws IOException
+    {
+        return DataInputStreamPlus.readUTF(this);
     }
 }

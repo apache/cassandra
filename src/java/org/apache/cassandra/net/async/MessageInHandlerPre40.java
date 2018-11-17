@@ -25,8 +25,11 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -155,10 +158,10 @@ public class MessageInHandlerPre40 extends BaseMessageInHandler
             if (!canReadNextParam(in))
                 return false;
 
-            String key = DataInputStream.readUTF(inputPlus);
+            String key = inputPlus.readUTF();
             ParameterType parameterType = ParameterType.byName.get(key);
-            byte[] value = new byte[in.readInt()];
-            in.readBytes(value);
+            byte[] value = new byte[inputPlus.readInt()];
+            inputPlus.readFully(value);
             try (DataInputBuffer buffer = new DataInputBuffer(value))
             {
                 parameters.put(parameterType, parameterType.serializer.deserialize(buffer, messagingVersion));
@@ -167,6 +170,47 @@ public class MessageInHandlerPre40 extends BaseMessageInHandler
 
         return true;
     }
+
+    private static boolean readParameters(DataInputPlus in, int messagingVersion, int parameterCount, Map<ParameterType, Object> parameters) throws IOException
+    {
+        // makes the assumption that map.size() is a constant time function (HashMap.size() is)
+        while (parameters.size() < parameterCount)
+        {
+            String key = in.readUTF();
+            ParameterType parameterType = ParameterType.byName.get(key);
+            in.readInt();
+            parameters.put(parameterType, parameterType.serializer.deserialize(in, messagingVersion));
+        }
+
+        return true;
+    }
+
+    static MessageIn<?> deserializePre40(DataInputPlus in, int id, int version, InetAddressAndPort from) throws IOException
+    {
+        assert from.equals(CompactEndpointSerializationHelper.instance.deserialize(in, version));
+        MessagingService.Verb verb = MessagingService.Verb.fromId(in.readInt());
+
+        Map<ParameterType, Object> parameters = Collections.emptyMap();
+        int parameterCount = in.readInt();
+        if (parameterCount != 0)
+        {
+            parameters = new EnumMap<>(ParameterType.class);
+            readParameters(in, version, parameterCount, parameters);
+        }
+
+        Object payload = null;
+        int payloadSize = in.readInt();
+        if (payloadSize > 0)
+        {
+            IVersionedSerializer serializer = MessagingService.getVerbSerializer(verb, id);
+            if (serializer == null) in.skipBytesFully(payloadSize);
+            else payload = serializer.deserialize(in, version);
+        }
+
+        return new MessageIn<>(from, payload, parameters, verb, version, System.nanoTime());
+    }
+
+
 
     /**
      * Determine if we can read the next parameter from the {@link ByteBuf}. This method will *always* set the {@code in}

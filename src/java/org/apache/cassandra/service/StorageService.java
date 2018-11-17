@@ -232,7 +232,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<>();
 
-    private final ObjectName jmxObjectName;
+    private final String jmxObjectName;
 
     private Collection<Token> bootstrapTokens = null;
 
@@ -271,17 +271,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // use dedicated executor for handling JMX notifications
         super(JMXBroadcastExecutor.executor);
 
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            jmxObjectName = new ObjectName("org.apache.cassandra.db:type=StorageService");
-            mbs.registerMBean(this, jmxObjectName);
-            mbs.registerMBean(StreamManager.instance, new ObjectName(StreamManager.OBJECT_NAME));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        jmxObjectName = "org.apache.cassandra.db:type=StorageService";
+        MBeanWrapper.instance.registerMBean(this, jmxObjectName);
+        MBeanWrapper.instance.registerMBean(StreamManager.instance, StreamManager.OBJECT_NAME);
 
         ReadCommandVerbHandler readHandler = new ReadCommandVerbHandler();
 
@@ -1369,6 +1361,28 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public long getWriteRpcTimeout()
     {
         return DatabaseDescriptor.getWriteRpcTimeout();
+    }
+
+    public void setInternodeTcpConnectTimeoutInMS(int value)
+    {
+        DatabaseDescriptor.setInternodeTcpConnectTimeoutInMS(value);
+        logger.info("set internode tcp connect timeout to {} ms", value);
+    }
+
+    public int getInternodeTcpConnectTimeoutInMS()
+    {
+        return DatabaseDescriptor.getInternodeTcpConnectTimeoutInMS();
+    }
+
+    public void setInternodeTcpUserTimeoutInMS(int value)
+    {
+        DatabaseDescriptor.setInternodeTcpUserTimeoutInMS(value);
+        logger.info("set internode tcp user timeout to {} ms", value);
+    }
+
+    public int getInternodeTcpUserTimeoutInMS()
+    {
+        return DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
     }
 
     public void setCounterWriteRpcTimeout(long value)
@@ -5353,9 +5367,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         AuditLogManager.getInstance().enableAuditLog(auditLogOptions);
 
         logger.info("AuditLog is enabled with logger: [{}], included_keyspaces: [{}], excluded_keyspaces: [{}], " +
-                    "included_categories: [{}], excluded_categories: [{}]," +
-                    "included_users: [{}], excluded_users: [{}],", loggerName, auditLogOptions.included_keyspaces, auditLogOptions.excluded_keyspaces,
-                    auditLogOptions.included_categories, auditLogOptions.excluded_categories, auditLogOptions.included_users, auditLogOptions.excluded_users);
+                    "included_categories: [{}], excluded_categories: [{}], included_users: [{}], "
+                    + "excluded_users: [{}], archive_command: [{}]", loggerName, auditLogOptions.included_keyspaces, auditLogOptions.excluded_keyspaces,
+                    auditLogOptions.included_categories, auditLogOptions.excluded_categories, auditLogOptions.included_users, auditLogOptions.excluded_users,
+                    auditLogOptions.archive_command);
 
     }
 

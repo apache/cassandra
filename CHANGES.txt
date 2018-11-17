@@ -1,4 +1,11 @@
 4.0
+ * Lower default chunk_length_in_kb from 64kb to 16kb (CASSANDRA-13241)
+ * Startup checker should wait for count rather than percentage (CASSANDRA-14297)
+ * Fix incorrect sorting of replicas in SimpleStrategy.calculateNaturalReplicas (CASSANDRA-14862)
+ * Partitioned outbound internode TCP connections can occur when nodes restart (CASSANDRA-14358)
+ * Don't write to system_distributed.repair_history, system_traces.sessions, system_traces.events in mixed version 3.X/4.0 clusters (CASSANDRA-14841)
+ * Avoid running query to self through messaging service (CASSANDRA-14807)
+ * Allow using custom script for chronicle queue BinLog archival (CASSANDRA-14373)
  * Transient->Full range movements mishandle consistency level upgrade (CASSANDRA-14759)
  * ReplicaCollection follow-up (CASSANDRA-14726)
  * Transient node receives full data requests (CASSANDRA-14762)
@@ -320,7 +327,14 @@
 
 
 3.11.4
+ * Correct sstable sorting for garbagecollect and levelled compaction (CASSANDRA-14870)
 Merged from 3.0:
+ * Move TWCS message 'No compaction necessary for bucket size' to Trace level (CASSANDRA-14884)
+ * Sstable min/max metadata can cause data loss (CASSANDRA-14861)
+ * Dropped columns can cause reverse sstable iteration to return prematurely (CASSANDRA-14838)
+ * Legacy sstables with  multi block range tombstones create invalid bound sequences (CASSANDRA-14823)
+ * Expand range tombstone validation checks to multiple interim request stages (CASSANDRA-14824)
+ * Reverse order reads can return incomplete results (CASSANDRA-14803)
  * Avoid calling iter.next() in a loop when notifying indexers about range tombstones (CASSANDRA-14794)
  * Fix purging semi-expired RT boundaries in reversed iterators (CASSANDRA-14672)
  * DESC order reads can fail to return the last Unfiltered in the partition (CASSANDRA-14766)

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.net;
 
+import java.io.Serializable;
 import java.util.Collection;
 
 import com.google.common.base.Preconditions;
@@ -28,7 +29,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
  * Contains forward to information until it can be serialized as part of a message using a version
  * specific serialization
  */
-public class ForwardToContainer
+public class ForwardToContainer implements Serializable
 {
     public final Collection<InetAddressAndPort> targets;
     public final int[] messageIds;

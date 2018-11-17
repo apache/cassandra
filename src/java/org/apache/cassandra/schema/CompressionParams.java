@@ -55,7 +55,7 @@ public final class CompressionParams
     private static volatile boolean hasLoggedChunkLengthWarning;
     private static volatile boolean hasLoggedCrcCheckChanceWarning;
 
-    public static final int DEFAULT_CHUNK_LENGTH = 65536;
+    public static final int DEFAULT_CHUNK_LENGTH = 1024 * 16;
     public static final double DEFAULT_MIN_COMPRESS_RATIO = 0.0;        // Since pre-4.0 versions do not understand the
                                                                         // new compression parameter we can't use a
                                                                         // different default value.

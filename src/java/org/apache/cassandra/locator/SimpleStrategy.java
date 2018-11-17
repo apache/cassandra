@@ -68,10 +68,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
                 replicas.add(new Replica(ep, replicaRange, replicas.size() < rf.fullReplicas));
         }
 
-        // group endpoints by DC, so that we can cheaply filter them to a given DC
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        return replicas.build()
-                       .sorted(Comparator.comparing(r -> snitch.getDatacenter(r.endpoint())));
+        return replicas.build();
     }
 
     public ReplicationFactor getReplicationFactor()

@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -38,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
+import org.apache.cassandra.audit.FullQueryLoggerOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -141,6 +143,11 @@ public class DatabaseDescriptor
 
     public static void daemonInitialization() throws ConfigurationException
     {
+        daemonInitialization(DatabaseDescriptor::loadConfig);
+    }
+
+    public static void daemonInitialization(Supplier<Config> config) throws ConfigurationException
+    {
         if (toolInitialized)
             throw new AssertionError("toolInitialization() already called");
         if (clientInitialized)
@@ -151,7 +158,7 @@ public class DatabaseDescriptor
             return;
         daemonInitialized = true;
 
-        setConfig(loadConfig());
+        setConfig(config.get());
         applyAll();
         AuthConfig.applyAuth();
     }
@@ -1808,6 +1815,26 @@ public class DatabaseDescriptor
         return conf.internode_recv_buff_size_in_bytes;
     }
 
+    public static int getInternodeTcpConnectTimeoutInMS()
+    {
+        return conf.internode_tcp_connect_timeout_in_ms;
+    }
+
+    public static void setInternodeTcpConnectTimeoutInMS(int value)
+    {
+        conf.internode_tcp_connect_timeout_in_ms = value;
+    }
+
+    public static int getInternodeTcpUserTimeoutInMS()
+    {
+        return conf.internode_tcp_user_timeout_in_ms;
+    }
+
+    public static void setInternodeTcpUserTimeoutInMS(int value)
+    {
+        conf.internode_tcp_user_timeout_in_ms = value;
+    }
+
     public static boolean startNativeTransport()
     {
         return conf.start_native_transport;
@@ -2610,14 +2637,14 @@ public class DatabaseDescriptor
         return conf.repair_command_pool_full_strategy;
     }
 
-    public static String getFullQueryLogPath()
+    public static FullQueryLoggerOptions getFullQueryLogOptions()
     {
-        return  conf.full_query_log_dir;
+        return  conf.full_query_logging_options;
     }
 
-    public static int getBlockForPeersPercentage()
+    public static boolean getBlockForPeersInRemoteDatacenters()
     {
-        return conf.block_for_peers_percentage;
+        return conf.block_for_peers_in_remote_dcs;
     }
 
     public static int getBlockForPeersTimeoutInSeconds()

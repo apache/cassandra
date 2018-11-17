@@ -18,22 +18,19 @@
 
 package org.apache.cassandra.auth;
 
-import java.lang.management.ManagementFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
-import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
-import javax.management.ObjectName;
 
 import com.google.common.util.concurrent.MoreExecutors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -97,33 +94,17 @@ public class AuthCache<K, V> implements AuthCacheMBean
     protected void init()
     {
         cache = initCache(null);
-        try
-        {
-            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            mbs.registerMBean(this, getObjectName());
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        MBeanWrapper.instance.registerMBean(this, getObjectName());
     }
 
     protected void unregisterMBean()
     {
-        try
-        {
-            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            mbs.unregisterMBean(getObjectName());
-        }
-        catch (Exception e)
-        {
-            logger.warn("Error unregistering {} cache mbean", name, e);
-        }
+        MBeanWrapper.instance.unregisterMBean(getObjectName(), MBeanWrapper.OnException.LOG);
     }
 
-    protected ObjectName getObjectName() throws MalformedObjectNameException
+    protected String getObjectName()
     {
-        return new ObjectName(MBEAN_NAME_BASE + name);
+        return MBEAN_NAME_BASE + name;
     }
 
     /**

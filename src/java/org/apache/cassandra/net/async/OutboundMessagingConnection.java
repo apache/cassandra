@@ -19,8 +19,6 @@
 package org.apache.cassandra.net.async;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -323,6 +321,9 @@ public class OutboundMessagingConnection
                              ? DatabaseDescriptor.getInternodeSendBufferSize()
                              : OutboundConnectionParams.DEFAULT_SEND_BUFFER_SIZE;
 
+        int tcpConnectTimeout = DatabaseDescriptor.getInternodeTcpConnectTimeoutInMS();
+        int tcpUserTimeout = DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
+
         OutboundConnectionParams params = OutboundConnectionParams.builder()
                                                                   .connectionId(connectionId)
                                                                   .callback(this::finishHandshake)
@@ -332,6 +333,8 @@ public class OutboundMessagingConnection
                                                                   .coalescingStrategy(coalescingStrategy)
                                                                   .sendBufferSize(sendBufferSize)
                                                                   .tcpNoDelay(tcpNoDelay)
+                                                                  .tcpConnectTimeoutInMS(tcpConnectTimeout)
+                                                                  .tcpUserTimeoutInMS(tcpUserTimeout)
                                                                   .backlogSupplier(() -> nextBackloggedMessage())
                                                                   .messageResultConsumer(this::handleMessageResult)
                                                                   .protocolVersion(targetVersion)
