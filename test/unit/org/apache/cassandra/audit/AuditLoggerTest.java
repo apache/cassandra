@@ -38,7 +38,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
+/**
+ * AuditLoggerTest is responsible for covering the test cases for Audit Logging CASSANDRA-12151 functionality.
+ * Authenticated user audit (LOGIN) tests are segregated from unauthenticated user audit tests.
+ */
 public class AuditLoggerTest extends CQLTester
 {
     @BeforeClass
@@ -289,6 +294,10 @@ public class AuditLoggerTest extends CQLTester
 
         assertEquals(5, ((InMemoryAuditLogger) AuditLogManager.getInstance().getLogger()).inMemQueue.size());
         logEntry = ((InMemoryAuditLogger) AuditLogManager.getInstance().getLogger()).inMemQueue.poll();
+
+        assertEquals(AuditLogEntryType.BATCH, logEntry.getType());
+        assertTrue(logEntry.getOperation().contains("BatchId"));
+        assertNotEquals(0, logEntry.getTimestamp());
 
         logEntry = ((InMemoryAuditLogger) AuditLogManager.getInstance().getLogger()).inMemQueue.poll();
         assertLogEntry(cqlInsert, AuditLogEntryType.UPDATE, logEntry, false);
