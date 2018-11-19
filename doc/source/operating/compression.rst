@@ -33,11 +33,12 @@ Configuring Compression
 Compression is configured on a per-table basis as an optional argument to ``CREATE TABLE`` or ``ALTER TABLE``. By
 default, three options are relevant:
 
-- ``class`` specifies the compression class - Cassandra provides three classes (``LZ4Compressor``,
-  ``SnappyCompressor``, and ``DeflateCompressor`` ). The default is ``LZ4Compressor``.
+- ``class`` specifies the compression class - Cassandra provides four classes (``LZ4Compressor``,
+  ``SnappyCompressor``, ``DeflateCompressor`` and ``ZstdCompressor``). The default is ``LZ4Compressor``.
 - ``chunk_length_in_kb`` specifies the number of kilobytes of data per compression chunk. The default is 64KB.
 - ``crc_check_chance`` determines how likely Cassandra is to verify the checksum on each compression chunk during
   reads. The default is 1.0.
+- ``compression_level`` is only applicable for ``ZstdCompressor`` and accepts values between ``-131072`` and ``2``.
 
 Users can set compression using the following syntax:
 

@@ -97,6 +97,13 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         runTests("Snappy");
     }
 
+    @Test
+    public void testZSTDWriter() throws IOException
+    {
+        compressionParameters = CompressionParams.zstd();
+        runTests("ZSTD");
+    }
+
     private void testWrite(File f, int bytesToTest, boolean useMemmap) throws IOException
     {
         final String filename = f.getAbsolutePath();
