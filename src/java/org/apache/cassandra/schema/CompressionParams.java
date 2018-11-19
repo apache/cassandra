@@ -29,7 +29,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import org.slf4j.Logger;
@@ -177,6 +176,17 @@ public final class CompressionParams
     public static CompressionParams lz4(int chunkLength, int maxCompressedLength)
     {
         return new CompressionParams(LZ4Compressor.create(Collections.emptyMap()), chunkLength, maxCompressedLength, calcMinCompressRatio(chunkLength, maxCompressedLength), Collections.emptyMap());
+    }
+
+    public static CompressionParams zstd()
+    {
+        return zstd(DEFAULT_CHUNK_LENGTH);
+    }
+
+    public static CompressionParams zstd(Integer chunkLength)
+    {
+        ZstdCompressor compressor = ZstdCompressor.create(Collections.emptyMap());
+        return new CompressionParams(compressor, chunkLength, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
     }
 
     public CompressionParams(String sstableCompressorClass, Map<String, String> otherOptions, int chunkLength, double minCompressRatio) throws ConfigurationException

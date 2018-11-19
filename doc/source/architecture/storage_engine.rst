@@ -55,7 +55,7 @@ Commitlogs are an append only log of all mutations local to a Cassandra node. An
 
 *Default Value:* /var/lib/cassandra/commitlog
 
-- ``commitlog_compression``: Compression to apply to the commitlog. If omitted, the commit log will be written uncompressed.  LZ4, Snappy, and Deflate compressors are supported.
+- ``commitlog_compression``: Compression to apply to the commitlog. If omitted, the commit log will be written uncompressed. LZ4, Snappy, Deflate and Zstd compressors are supported.
 
 (Default Value: (complex option)::
 

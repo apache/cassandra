@@ -42,7 +42,8 @@ public class CompressorTest
     ICompressor[] compressors = new ICompressor[] {
             LZ4Compressor.create(Collections.<String, String>emptyMap()),
             DeflateCompressor.create(Collections.<String, String>emptyMap()),
-            SnappyCompressor.create(Collections.<String, String>emptyMap())
+            SnappyCompressor.create(Collections.<String, String>emptyMap()),
+            ZstdCompressor.create(Collections.emptyMap())
     };
 
     @Test
@@ -174,6 +175,13 @@ public class CompressorTest
     public void testSnappyByteBuffers() throws IOException
     {
         compressor = SnappyCompressor.create(Collections.<String, String>emptyMap());
+        testByteBuffers();
+    }
+
+    @Test
+    public void testZstdByteBuffers() throws IOException
+    {
+        compressor = ZstdCompressor.create(Collections.<String, String>emptyMap());
         testByteBuffers();
     }
 

@@ -1,4 +1,5 @@
 4.0
+ * Add Zstd compressor (CASSANDRA-14482)
  * Fix IR prepare anti-compaction race (CASSANDRA-15027)
  * Fix SimpleStrategy option validation (CASSANDRA-15007)
  * Don't try to cancel 2i compactions when starting anticompaction (CASSANDRA-15024)
