@@ -1004,7 +1004,8 @@ windows_timer_interval: 1
 #
 # otc_backlog_expiration_interval_ms: 200
 
-# Define use of legacy delayed flusher for replies to TCP connections. This will increase latency, but might be beneficial for
-# legacy use-cases where only a single connection is used for each Cassandra node. Default is false.
-# native_transport_flush_in_batches_legacy: false
+# Define use of immediate flusher for replies to TCP connections. This is an alternate simplified flusher that does not
+# depend on any event loop scheduling. Details around why this has been backported from trunk: CASSANDRA-14855.
+# Default is false.
+# native_transport_use_immediate_flusher: false
 

@@ -534,12 +534,12 @@ public abstract class Message
 
         private static final ConcurrentMap<EventLoop, Flusher> flusherLookup = new ConcurrentHashMap<>();
 
-        private final boolean useLegacyFlusher;
+        private final boolean useImmediateFlusher;
 
-        public Dispatcher(boolean useLegacyFlusher)
+        public Dispatcher(boolean useImmediateFlusher)
         {
             super(false);
-            this.useLegacyFlusher = useLegacyFlusher;
+            this.useImmediateFlusher = useImmediateFlusher;
         }
 
         @Override
@@ -587,7 +587,7 @@ public abstract class Message
             Flusher flusher = flusherLookup.get(loop);
             if (flusher == null)
             {
-                Flusher created = useLegacyFlusher ? new LegacyFlusher(loop) : new ImmediateFlusher(loop);
+                Flusher created = useImmediateFlusher ? new ImmediateFlusher(loop) : new LegacyFlusher(loop);
                 Flusher alt = flusherLookup.putIfAbsent(loop, flusher = created);
                 if (alt != null)
                     flusher = alt;

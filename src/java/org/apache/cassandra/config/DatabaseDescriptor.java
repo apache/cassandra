@@ -1499,9 +1499,9 @@ public class DatabaseDescriptor
         conf.native_transport_max_concurrent_connections_per_ip = native_transport_max_concurrent_connections_per_ip;
     }
 
-    public static boolean useNativeTransportLegacyFlusher()
+    public static boolean useNativeTransportImmediateFlusher()
     {
-        return conf.native_transport_flush_in_batches_legacy;
+        return conf.native_transport_use_immediate_flusher;
     }
 
     public static double getCommitLogSyncBatchWindow()
