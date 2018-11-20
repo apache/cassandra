@@ -1918,6 +1918,31 @@ public class SelectMultiColumnRelationTest extends CQLTester
         }
     }
 
+    @Test
+    public void testMixedOrderColumnsInReverse() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b, c)) WITH CLUSTERING ORDER BY (b ASC, c DESC);");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 1, 3)");
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 1, 2)");
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 1, 1)");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 2, 3)");
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 2, 2)");
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 2, 1)");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 3, 3)");
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 3, 2)");
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 3, 1)");
+
+        assertRows(execute("SELECT b, c FROM %s WHERE a = 0 AND (b, c) >= (2, 2) ORDER BY b DESC, c ASC;"),
+                   row(3, 1),
+                   row(3, 2),
+                   row(3, 3),
+                   row(2, 2),
+                   row(2, 3));
+    }
+
     /**
      * Check select on tuple relations, see CASSANDRA-8613
      * migrated from cql_tests.py:TestCQL.simple_tuple_query_test()
