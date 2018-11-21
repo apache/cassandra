@@ -710,7 +710,7 @@ public abstract class Message
             boolean isIOException = exception instanceof IOException || (exception.getCause() instanceof IOException);
             if (!alwaysLogAtError && isIOException)
             {
-                if (ioExceptionsAtDebugLevel.contains(exception.getMessage()))
+                if (ioExceptionsAtDebugLevel.stream().anyMatch(ioExceptionAtDebugLevel -> exception.getMessage().contains(ioExceptionAtDebugLevel)))
                 {
                     // Likely unclean client disconnects
                     logger.trace(message, exception);
