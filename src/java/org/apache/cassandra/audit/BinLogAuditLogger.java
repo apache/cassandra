@@ -295,9 +295,9 @@ abstract class BinLogAuditLogger implements IAuditLogger
         {
             for (File f : fileOrDirectory.listFiles())
             {
-                accumulate = FileUtils.deleteWithConfirm(f, true, accumulate);
+                accumulate = FileUtils.deleteWithConfirm(f, accumulate);
             }
         }
-        return FileUtils.deleteWithConfirm(fileOrDirectory, true , accumulate);
+        return FileUtils.deleteWithConfirm(fileOrDirectory, accumulate);
     }
 }
