@@ -175,19 +175,16 @@ public final class FileUtils
         return f;
     }
 
-    public static Throwable deleteWithConfirm(String filePath, boolean expect, Throwable accumulate)
+    public static Throwable deleteWithConfirm(String filePath, Throwable accumulate)
     {
-        return deleteWithConfirm(new File(filePath), expect, accumulate);
+        return deleteWithConfirm(new File(filePath), accumulate);
     }
 
-    public static Throwable deleteWithConfirm(File file, boolean expect, Throwable accumulate)
+    public static Throwable deleteWithConfirm(File file, Throwable accumulate)
     {
-        boolean exists = file.exists();
-        assert exists || !expect : "attempted to delete non-existing file " + file.getName();
         try
         {
-            if (exists)
-                Files.delete(file.toPath());
+            Files.delete(file.toPath());
         }
         catch (Throwable t)
         {
@@ -210,7 +207,7 @@ public final class FileUtils
 
     public static void deleteWithConfirm(File file)
     {
-        maybeFail(deleteWithConfirm(file, true, null));
+        maybeFail(deleteWithConfirm(file, null));
     }
 
     public static void renameWithOutConfirm(String from, String to)
