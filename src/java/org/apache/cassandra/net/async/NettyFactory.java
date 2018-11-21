@@ -2,6 +2,7 @@ package org.apache.cassandra.net.async;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.Checksum;
 
 import javax.annotation.Nullable;
@@ -384,12 +385,13 @@ public final class NettyFactory
         }
     }
 
-    public void close()
+    public void close() throws InterruptedException
     {
-        acceptGroup.shutdownGracefully();
-        outboundGroup.shutdownGracefully();
-        inboundGroup.shutdownGracefully();
-        streamingGroup.shutdownGracefully();
+        EventLoopGroup[] groups = new EventLoopGroup[] { acceptGroup, outboundGroup, inboundGroup, streamingGroup };
+        for (EventLoopGroup group : groups)
+            group.shutdownGracefully();
+        for (EventLoopGroup group : groups)
+            group.awaitTermination(60, TimeUnit.SECONDS);
     }
 
     static Lz4FrameEncoder createLz4Encoder(int protocolVersion)

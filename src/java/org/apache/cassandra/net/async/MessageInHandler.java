@@ -18,15 +18,17 @@
 
 package org.apache.cassandra.net.async;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 import com.google.common.primitives.Ints;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,7 +104,7 @@ public class MessageInHandler extends BaseMessageInHandler
                     {
                         if (in.readableBytes() < messageHeader.parameterLength)
                             return;
-                        readParameters(in, inputPlus, messageHeader.parameterLength, messageHeader.parameters);
+                        readParameters(in, inputPlus, messagingVersion, messageHeader.parameterLength, messageHeader.parameters);
                     }
                     state = State.READ_PAYLOAD_SIZE;
                     // fall-through
@@ -134,22 +136,71 @@ public class MessageInHandler extends BaseMessageInHandler
         }
     }
 
-    private void readParameters(ByteBuf in, ByteBufDataInputPlus inputPlus, int parameterLength, Map<ParameterType, Object> parameters) throws IOException
+    private static void readParameters(ByteBuf buf, DataInputPlus in, int messagingVersion, int parameterLength, Map<ParameterType, Object> parameters) throws IOException
     {
         // makes the assumption we have all the bytes required to read the headers
-        final int endIndex = in.readerIndex() + parameterLength;
-        while (in.readerIndex() < endIndex)
+        final int endIndex = buf.readerIndex() + parameterLength;
+        while (buf.readerIndex() < endIndex)
         {
-            String key = DataInputStream.readUTF(inputPlus);
+            String key = in.readUTF();
             ParameterType parameterType = ParameterType.byName.get(key);
-            long valueLength =  VIntCoding.readUnsignedVInt(in);
+            long valueLength =  in.readUnsignedVInt();
             byte[] value = new byte[Ints.checkedCast(valueLength)];
-            in.readBytes(value);
+            in.readFully(value);
             try (DataInputBuffer buffer = new DataInputBuffer(value))
             {
                 parameters.put(parameterType, parameterType.serializer.deserialize(buffer, messagingVersion));
             }
         }
+    }
+
+    private static void readParameters(BooleanSupplier isDone, DataInputPlus in, int messagingVersion, Map<ParameterType, Object> parameters) throws IOException
+    {
+        // makes the assumption we have all the bytes required to read the headers
+        while (!isDone.getAsBoolean())
+        {
+            String key = in.readUTF();
+            ParameterType parameterType = ParameterType.byName.get(key);
+            in.readUnsignedVInt();
+            parameters.put(parameterType, parameterType.serializer.deserialize(in, messagingVersion));
+        }
+    }
+
+    public static MessageIn<?> deserialize(DataInputPlus in, int id, int version, InetAddressAndPort from) throws IOException
+    {
+        if (version >= MessagingService.VERSION_40)
+            return deserialize40(in, id, version, from);
+        else
+            return MessageInHandlerPre40.deserializePre40(in, id, version, from);
+    }
+
+    private static MessageIn<?> deserialize40(DataInputPlus in, int id, int version, InetAddressAndPort from) throws IOException
+    {
+        MessagingService.Verb verb = MessagingService.Verb.fromId(in.readInt());
+
+        Map<ParameterType, Object> parameters = Collections.emptyMap();
+        int parameterLength = (int) in.readUnsignedVInt();
+        if (parameterLength != 0)
+        {
+            parameters = new EnumMap<>(ParameterType.class);
+            byte[] bytes = new byte[parameterLength];
+            in.readFully(bytes);
+            try (DataInputBuffer buffer = new DataInputBuffer(bytes))
+            {
+                readParameters(() -> buffer.available() == 0, buffer, version, parameters);
+            }
+        }
+
+        Object payload = null;
+        int payloadSize = (int) in.readUnsignedVInt();
+        if (payloadSize > 0)
+        {
+            IVersionedSerializer serializer = MessagingService.getVerbSerializer(verb, id);
+            if (serializer == null) in.skipBytesFully(payloadSize);
+            else payload = serializer.deserialize(in, version);
+        }
+
+        return new MessageIn<>(from, payload, parameters, verb, version, System.nanoTime());
     }
 
     @Override
