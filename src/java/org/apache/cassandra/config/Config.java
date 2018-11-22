@@ -149,7 +149,7 @@ public class Config
     public Integer native_transport_max_frame_size_in_mb = 256;
     public volatile Long native_transport_max_concurrent_connections = -1L;
     public volatile Long native_transport_max_concurrent_connections_per_ip = -1L;
-    public boolean native_transport_use_immediate_flusher = false;
+    public boolean native_transport_flush_messages_immediately = false;
 
     @Deprecated
     public Integer thrift_max_message_length_in_mb = 16;

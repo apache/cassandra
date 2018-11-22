@@ -1007,5 +1007,5 @@ windows_timer_interval: 1
 # Define use of immediate flusher for replies to TCP connections. This is an alternate simplified flusher that does not
 # depend on any event loop scheduling. Details around why this has been backported from trunk: CASSANDRA-14855.
 # Default is false.
-# native_transport_use_immediate_flusher: false
+# native_transport_flush_messages_immediately: false
 
