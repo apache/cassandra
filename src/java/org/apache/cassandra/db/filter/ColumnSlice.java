@@ -68,7 +68,10 @@ public class ColumnSlice
         Composite sStart = reversed ? finish : start;
         Composite sEnd = reversed ? start : finish;
 
-        if (compare(sStart, maxCellNames, comparator, true) > 0 || compare(sEnd, minCellNames, comparator, false) < 0)
+        // don't compare static slice bounds with min/max cell names to determine intersection - that can yield unexpected
+        // results, in particular with ReverseType comparators; see CASSANDRA-14910 for more context.
+        if ((!sStart.isStatic() && compare(sStart, maxCellNames, comparator, true) > 0)
+         || (!sEnd.isStatic() && compare(sEnd, minCellNames, comparator, false) < 0))
             return false;
 
         // We could safely return true here, but there's a minor optimization: if the first component is restricted

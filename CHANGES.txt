@@ -1,4 +1,6 @@
 2.2.14
+ * Don't skip entire sstables when reading backwards with mixed clustering column order
+   (CASSANDRA-14910)
  * Cannot perform slice reads in reverse direction against tables with clustering columns
    in mixed order (CASSANDRA-14899)
  * Fix incorrect cqlsh results when selecting same columns multiple times (CASSANDRA-13262)
