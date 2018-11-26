@@ -1,4 +1,5 @@
 4.0
+ * Forbid re-adding static columns as regular and vice versa (CASSANDRA-14913)
  * Audit log allows system keyspaces to be audited via configuration options (CASSANDRA-14498)
  * Lower default chunk_length_in_kb from 64kb to 16kb (CASSANDRA-13241)
  * Startup checker should wait for count rather than percentage (CASSANDRA-14297)

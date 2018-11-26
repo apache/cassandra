@@ -168,10 +168,18 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 // columns is pushed deeper down the line. The latter would still be problematic in cases of schema races.
                 if (!droppedColumn.type.isValueCompatibleWith(type))
                 {
-                    throw ire("Cannot re-add a previously dropped column '%s' of type %s, incompatible with previous type %s",
+                    throw ire("Cannot re-add previously dropped column '%s' of type %s, incompatible with previous type %s",
                               name,
                               type.asCQL3Type(),
                               droppedColumn.type.asCQL3Type());
+                }
+
+                if (droppedColumn.isStatic() != isStatic)
+                {
+                    throw ire("Cannot re-add previously dropped column '%s' of kind %s, incompatible with previous kind %s",
+                              name,
+                              isStatic ? ColumnMetadata.Kind.STATIC : ColumnMetadata.Kind.REGULAR,
+                              droppedColumn.kind);
                 }
 
                 // Cannot re-add a dropped counter column. See #7831.
