@@ -119,6 +119,21 @@ public class AlterTest extends CQLTester
     }
 
     @Test
+    public void testDropAddWithDifferentKind() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int static, PRIMARY KEY (a, b));");
+
+        execute("ALTER TABLE %s DROP c;");
+        execute("ALTER TABLE %s DROP d;");
+
+        assertInvalidMessage("Cannot re-add previously dropped column 'c' of kind STATIC, incompatible with previous kind REGULAR",
+                             "ALTER TABLE %s ADD c int static;");
+
+        assertInvalidMessage("Cannot re-add previously dropped column 'd' of kind REGULAR, incompatible with previous kind STATIC",
+                             "ALTER TABLE %s ADD d int;");
+    }
+
+    @Test
     public void testDropStaticWithTimestamp() throws Throwable
     {
         createTable("CREATE TABLE %s (id int, c1 int, v1 int, todrop int static, PRIMARY KEY (id, c1));");
