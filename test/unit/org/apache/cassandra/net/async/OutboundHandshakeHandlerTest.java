@@ -181,7 +181,7 @@ public class OutboundHandshakeHandlerTest
         try
         {
             ThirdHandshakeMessage thirdHandshakeMessage = ThirdHandshakeMessage.maybeDecode(thridMsgBuf);
-            Assert.assertEquals(msgVersion, thirdHandshakeMessage.messagingVersion);
+            Assert.assertEquals(MESSAGING_VERSION, thirdHandshakeMessage.messagingVersion);
         }
         finally
         {
