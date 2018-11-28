@@ -70,7 +70,7 @@ public class RowAndDeletionMergeIterator extends AbstractUnfilteredRowIterator
         this.ranges = ranges;
     }
 
-    protected Unfiltered computeNext()
+    private Unfiltered computeNextInternal()
     {
         while (true)
         {
@@ -109,6 +109,44 @@ public class RowAndDeletionMergeIterator extends AbstractUnfilteredRowIterator
                 if (row != null)
                     return row;
             }
+        }
+    }
+
+    /**
+     * RangeTombstoneList doesn't correctly merge multiple superseded rts, or overlapping rts with the
+     * same ts. This causes it to emit noop boundary markers which can cause unneeded read repairs and
+     * repair over streaming. This should technically be fixed in RangeTombstoneList. However, fixing
+     * it isn't trivial and that class is already so complicated that the fix would have a good chance
+     * of adding a worse bug. So we just swallow the noop boundary markers here. See CASSANDRA-14894
+     */
+    private static boolean shouldSkip(Unfiltered unfiltered)
+    {
+        if (unfiltered == null || !unfiltered.isRangeTombstoneMarker())
+            return false;
+
+        RangeTombstoneMarker marker = (RangeTombstoneMarker) unfiltered;
+
+        if (!marker.isBoundary())
+            return false;
+
+        DeletionTime open = marker.openDeletionTime(false);
+        DeletionTime close = marker.closeDeletionTime(false);
+
+        return open.equals(close);
+
+    }
+
+    @Override
+    protected Unfiltered computeNext()
+    {
+        while (true)
+        {
+            Unfiltered next = computeNextInternal();
+
+            if (shouldSkip(next))
+                continue;
+
+            return next;
         }
     }
 
