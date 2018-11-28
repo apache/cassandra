@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import com.google.common.collect.Iterables;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -37,20 +36,19 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionSliceCommandTest;
 import org.apache.cassandra.db.compaction.Verifier;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -60,7 +58,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.service.CacheService;
-import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamSession;
@@ -362,6 +359,96 @@ public class LegacySSTableTest
                     verifier.verify(true);
                 }
             }
+        }
+    }
+
+    @Test
+    public void test14912() throws Exception
+    {
+        /*
+         * When reading 2.1 sstables in 3.0, collection tombstones need to be checked against
+         * the dropped columns stored in table metadata. Failure to do so can result in unreadable
+         * rows if a column with the same name but incompatible type has subsequently been added.
+         *
+         * The original (i.e. pre-any ALTER statements) table definition for this test is:
+         * CREATE TABLE legacy_tables.legacy_ka_14912 (k int PRIMARY KEY, v1 set<text>, v2 text);
+         *
+         * The SSTable loaded emulates data being written before the table is ALTERed and contains:
+         *
+         * insert into legacy_tables.legacy_ka_14912 (k, v1, v2) values (0, {}, 'abc') USING TIMESTAMP 1543244999672280;
+         * insert into legacy_tables.legacy_ka_14912 (k, v1, v2) values (1, {'abc'}, 'abc') USING TIMESTAMP 1543244999672280;
+         *
+         * The timestamps of the (generated) collection tombstones are 1543244999672279, e.g. the <TIMESTAMP of the mutation> - 1
+         */
+
+        QueryProcessor.executeInternal("CREATE TABLE legacy_tables.legacy_ka_14912 (k int PRIMARY KEY, v1 text, v2 text)");
+        loadLegacyTable("legacy_%s_14912%s", "ka", "");
+        CFMetaData cfm = Keyspace.open("legacy_tables").getColumnFamilyStore("legacy_ka_14912").metadata;
+        ColumnDefinition columnToDrop;
+
+        /*
+         * This first variant simulates the original v1 set<text> column being dropped
+         * then re-added with the text type:
+         * CREATE TABLE legacy_tables.legacy_ka_14912 (k int PRIMARY KEY, v1 set<text>, v2 text);
+         * INSERT INTO legacy_tables.legacy)ka_14912 (k, v1, v2)...
+         * ALTER TABLE legacy_tables.legacy_ka_14912 DROP v1;
+         * ALTER TABLE legacy_tables.legacy_ka_14912 ADD v1 text;
+         */
+        columnToDrop = ColumnDefinition.regularDef(cfm,
+                                                   UTF8Type.instance.fromString("v1"),
+                                                   SetType.getInstance(UTF8Type.instance, true));
+        cfm.recordColumnDrop(columnToDrop, 1543244999700000L);
+        assertExpectedRowsWithDroppedCollection(true);
+        // repeat the query, but simulate clock drift by shifting the recorded
+        // drop time forward so that it occurs before the collection timestamp
+        cfm.recordColumnDrop(columnToDrop, 1543244999600000L);
+        assertExpectedRowsWithDroppedCollection(false);
+
+        /*
+         * This second test simulates the original v1 set<text> column being dropped
+         * then re-added with some other, non-collection type (overwriting the dropped
+         * columns record), then dropping and re-adding again as text type:
+         * CREATE TABLE legacy_tables.legacy_ka_14912 (k int PRIMARY KEY, v1 set<text>, v2 text);
+         * INSERT INTO legacy_tables.legacy_ka_14912 (k, v1, v2)...
+         * ALTER TABLE legacy_tables.legacy_ka_14912 DROP v1;
+         * ALTER TABLE legacy_tables.legacy_ka_14912 ADD v1 blob;
+         * ALTER TABLE legacy_tables.legacy_ka_14912 DROP v1;
+         * ALTER TABLE legacy_tables.legacy_ka_14912 ADD v1 text;
+         */
+        columnToDrop = ColumnDefinition.regularDef(cfm,
+                                                   UTF8Type.instance.fromString("v1"),
+                                                   BytesType.instance);
+        cfm.recordColumnDrop(columnToDrop, 1543244999700000L);
+        assertExpectedRowsWithDroppedCollection(true);
+        // repeat the query, but simulate clock drift by shifting the recorded
+        // drop time forward so that it occurs before the collection timestamp
+        cfm.recordColumnDrop(columnToDrop, 1543244999600000L);
+        assertExpectedRowsWithDroppedCollection(false);
+    }
+
+    private void assertExpectedRowsWithDroppedCollection(boolean droppedCheckSuccessful)
+    {
+        for (int i=0; i<=1; i++)
+        {
+            UntypedResultSet rows =
+                QueryProcessor.executeOnceInternal(
+                    String.format("SELECT * FROM legacy_tables.legacy_ka_14912 WHERE k = %s;", i));
+            Assert.assertEquals(1, rows.size());
+            UntypedResultSet.Row row = rows.one();
+
+            // If the best-effort attempt to filter dropped columns was successful, then the row
+            // should not contain the v1 column at all. Likewise, if no column data was written,
+            // only a tombstone, then no v1 column should be present.
+            // However, if collection data was written (i.e. where k=1), then if the dropped column
+            // check didn't filter the legacy cells, we should expect an empty column value as the
+            // legacy collection tombstone won't cover it and the dropped column check doesn't filter
+            // it.
+            if (droppedCheckSuccessful || i == 0)
+                Assert.assertFalse(row.has("v1"));
+            else
+                Assert.assertEquals("", row.getString("v1"));
+
+            Assert.assertEquals("abc", row.getString("v2"));
         }
     }
 

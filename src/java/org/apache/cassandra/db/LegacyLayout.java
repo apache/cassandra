@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.SuperColumnCompatibility;
 import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -65,6 +66,23 @@ public abstract class LegacyLayout
     public final static int COUNTER_MASK         = 0x04;
     public final static int COUNTER_UPDATE_MASK  = 0x08;
     private final static int RANGE_TOMBSTONE_MASK = 0x10;
+
+    // Used in decodeBound if the number of components in the legacy bound is greater than the clustering size,
+    // indicating a complex column deletion (i.e. a collection tombstone), but the referenced column is either
+    // not present in the current table metadata, or is not currently a complex column. In that case, we'll
+    // check the dropped columns for the table which should contain the previous column definition. If that
+    // previous definition is also not complex (indicating that the column may have been dropped and re-added
+    // with different types multiple times), we use this fake definition to ensure that the complex deletion
+    // can be safely processed. This resulting deletion should be filtered out of any row created by a
+    // CellGrouper by the dropped column check, but this gives us an extra level of confidence as that check
+    // is timestamp based and so is fallible in the face of clock drift.
+    private static final ColumnDefinition INVALID_DROPPED_COMPLEX_SUBSTITUTE_COLUMN =
+        new ColumnDefinition("",
+                             "",
+                             ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
+                             SetType.getInstance(UTF8Type.instance, true),
+                             ColumnDefinition.NO_POSITION,
+                             ColumnDefinition.Kind.REGULAR);
 
     private LegacyLayout() {}
 
@@ -216,10 +234,15 @@ public abstract class LegacyLayout
             // pop the collection name from the back of the list of clusterings
             ByteBuffer collectionNameBytes = components.remove(clusteringSize);
             collectionName = metadata.getColumnDefinition(collectionNameBytes);
-            if (collectionName == null) {
+            if (collectionName == null || !collectionName.isComplex()) {
                 collectionName = metadata.getDroppedColumnDefinition(collectionNameBytes, isStatic);
+                // if no record of the column having ever existed is found, something is badly wrong
                 if (collectionName == null)
                     throw new RuntimeException("Unknown collection column " + UTF8Type.instance.getString(collectionNameBytes) + " during deserialization");
+                // if we do have a record of dropping this column but it wasn't previously complex, use a fake
+                // column definition for safety (see the comment on the constant declaration for details)
+                if (!collectionName.isComplex())
+                    collectionName = INVALID_DROPPED_COMPLEX_SUBSTITUTE_COLUMN;
             }
         }
 
@@ -1340,6 +1363,14 @@ public abstract class LegacyLayout
         {
             if (!helper.includes(tombstone.start.collectionName))
                 return false; // see CASSANDRA-13109
+
+            // The helper needs to be informed about the current complex column identifier before
+            // it can perform the comparison between the recorded drop time and the RT deletion time.
+            // If the RT has been superceded by a drop, we still return true as we don't want the
+            // grouper to terminate yet.
+            helper.startOfComplexColumn(tombstone.start.collectionName);
+            if (helper.isDroppedComplexDeletion(tombstone.deletionTime))
+                return true;
 
             if (clustering == null)
             {
