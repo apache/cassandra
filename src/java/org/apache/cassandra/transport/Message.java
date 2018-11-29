@@ -710,7 +710,21 @@ public abstract class Message
             boolean isIOException = exception instanceof IOException || (exception.getCause() instanceof IOException);
             if (!alwaysLogAtError && isIOException)
             {
-                if (ioExceptionsAtDebugLevel.contains(exception.getMessage()))
+                String errorMessage = exception.getMessage();
+                boolean logAtTrace = false;
+
+                for (String ioException : ioExceptionsAtDebugLevel)
+                {
+                    // exceptions thrown from the netty epoll transport add the name of the function that failed
+                    // to the exception string (which is simply wrapping a JDK exception), so we can't do a simple/naive comparison
+                    if (errorMessage.contains(ioException))
+                    {
+                        logAtTrace = true;
+                        break;
+                    }
+                }
+
+                if (logAtTrace)
                 {
                     // Likely unclean client disconnects
                     logger.trace(message, exception);
