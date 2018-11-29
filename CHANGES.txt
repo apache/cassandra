@@ -1,6 +1,7 @@
 3.11.4
  * Correct sstable sorting for garbagecollect and levelled compaction (CASSANDRA-14870)
 Merged from 3.0:
+ * Unfiltered.isEmpty conflicts with Row extends AbstractCollection.isEmpty (CASSANDRA-14588)
  * RangeTombstoneList doesn't properly clean up mergeable or superseded rts in some cases (CASSANDRA-14894)
  * Fix handling of collection tombstones for dropped columns from legacy sstables (CASSANDRA-14912)
  * Throw exception if Columns serialized subset encode more columns than possible (CASSANDRA-14591)
