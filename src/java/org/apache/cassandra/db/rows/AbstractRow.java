@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.HashingUtils;
  * Unless you have a very good reason not to, every row implementation
  * should probably extend this class.
  */
-public abstract class AbstractRow extends AbstractCollection<ColumnData> implements Row
+public abstract class AbstractRow implements Row
 {
     public Unfiltered.Kind kind()
     {
@@ -101,6 +101,11 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
             if (cd.hasInvalidDeletions())
                 return true;
         return false;
+    }
+
+    public String toString()
+    {
+        return columnData().toString();
     }
 
     public String toString(TableMetadata metadata)
