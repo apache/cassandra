@@ -177,7 +177,7 @@ public class OutboundHandshakeHandler extends ByteToMessageDecoder
 
         try
         {
-            ctx.writeAndFlush(new ThirdHandshakeMessage(MessagingService.current_version, connectionId.local()).encode(ctx.alloc()));
+            ctx.writeAndFlush(new ThirdHandshakeMessage(peerMessagingVersion, connectionId.local()).encode(ctx.alloc()));
             ChannelWriter channelWriter = setupPipeline(ctx.channel(), peerMessagingVersion);
             callback.accept(HandshakeResult.success(channelWriter, peerMessagingVersion));
         }
