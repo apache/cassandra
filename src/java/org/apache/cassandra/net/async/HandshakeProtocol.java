@@ -214,6 +214,7 @@ public class HandshakeProtocol
      * The third message of the handshake, sent by the connection initiator on reception of {@link SecondHandshakeMessage}.
      * This message contains:
      *   1) the connection initiator's messaging version (4 bytes) - {@link org.apache.cassandra.net.MessagingService#current_version}.
+     *      This indicates the max messaging version supported by this node.
      *   2) the connection initiator's broadcast address as encoded by {@link org.apache.cassandra.net.CompactEndpointSerializationHelper}.
      *      This can be either 5 bytes for an IPv4 address, or 17 bytes for an IPv6 one.
      * <p>
@@ -230,6 +231,9 @@ public class HandshakeProtocol
          */
         private static final int MIN_LENGTH = 9;
 
+        /**
+         * The internode messaging version of the peer; used for serializing to a version the peer understands.
+         */
         final int messagingVersion;
         final InetAddressAndPort address;
 
@@ -245,7 +249,9 @@ public class HandshakeProtocol
             int bufLength = Ints.checkedCast(Integer.BYTES + CompactEndpointSerializationHelper.instance.serializedSize(address, messagingVersion));
             ByteBuf buffer = allocator.directBuffer(bufLength, bufLength);
             buffer.writerIndex(0);
-            buffer.writeInt(messagingVersion);
+
+            // the max messaging version supported by the local node (not #messagingVersion)
+            buffer.writeInt(MessagingService.current_version);
             try
             {
                 DataOutputPlus dop = new ByteBufDataOutputPlus(buffer);
