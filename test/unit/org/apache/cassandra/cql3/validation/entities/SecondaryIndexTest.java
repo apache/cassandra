@@ -1026,10 +1026,10 @@ public class SecondaryIndexTest extends CQLTester
         execute("UPDATE %s USING TIMESTAMP 1 SET v1=1 WHERE k=0 AND c=0");
         assertEquals(1, index.rowsUpdated.size());
         Row oldRow = index.rowsUpdated.get(0).left;
-        assertEquals(1, oldRow.size());
+        assertEquals(1, oldRow.columnCount());
         validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(0), 0);
         Row newRow = index.rowsUpdated.get(0).right;
-        assertEquals(1, newRow.size());
+        assertEquals(1, newRow.columnCount());
         validateCell(newRow.getCell(v1), v1, ByteBufferUtil.bytes(1), 1);
         index.reset();
 
@@ -1037,11 +1037,11 @@ public class SecondaryIndexTest extends CQLTester
         execute("UPDATE %s USING TIMESTAMP 2 SET v1=2, v2=2 WHERE k=0 AND c=0");
         assertEquals(1, index.rowsUpdated.size());
         oldRow = index.rowsUpdated.get(0).left;
-        assertEquals(2, oldRow.size());
+        assertEquals(2, oldRow.columnCount());
         validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(1), 1);
         validateCell(oldRow.getCell(v2), v2, ByteBufferUtil.bytes(0), 0);
         newRow = index.rowsUpdated.get(0).right;
-        assertEquals(2, newRow.size());
+        assertEquals(2, newRow.columnCount());
         validateCell(newRow.getCell(v1), v1, ByteBufferUtil.bytes(2), 2);
         validateCell(newRow.getCell(v2), v2, ByteBufferUtil.bytes(2), 2);
         index.reset();
@@ -1050,10 +1050,10 @@ public class SecondaryIndexTest extends CQLTester
         execute("DELETE v1 FROM %s USING TIMESTAMP 3 WHERE k=0 AND c=0");
         assertEquals(1, index.rowsUpdated.size());
         oldRow = index.rowsUpdated.get(0).left;
-        assertEquals(1, oldRow.size());
+        assertEquals(1, oldRow.columnCount());
         validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(2), 2);
         newRow = index.rowsUpdated.get(0).right;
-        assertEquals(1, newRow.size());
+        assertEquals(1, newRow.columnCount());
         Cell newCell = newRow.getCell(v1);
         assertTrue(newCell.isTombstone());
         assertEquals(3, newCell.timestamp());
@@ -1065,10 +1065,10 @@ public class SecondaryIndexTest extends CQLTester
         execute("INSERT INTO %s(k, c) VALUES (0, 0) USING TIMESTAMP 4");
         assertEquals(1, index.rowsUpdated.size());
         oldRow = index.rowsUpdated.get(0).left;
-        assertEquals(0, oldRow.size());
+        assertEquals(0, oldRow.columnCount());
         assertEquals(0, oldRow.primaryKeyLivenessInfo().timestamp());
         newRow = index.rowsUpdated.get(0).right;
-        assertEquals(0, newRow.size());
+        assertEquals(0, newRow.columnCount());
         assertEquals(4, newRow.primaryKeyLivenessInfo().timestamp());
     }
 

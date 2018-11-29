@@ -48,7 +48,7 @@ import org.apache.cassandra.utils.btree.UpdateFunction;
  * it's own data. For instance, a {@code Row} cannot contains a cell that is deleted by its own
  * row deletion.
  */
-public interface Row extends Unfiltered, Collection<ColumnData>
+public interface Row extends Unfiltered, Iterable<ColumnData>
 {
     /**
      * The clustering values for this row.
@@ -61,6 +61,12 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      * is present in this row.
      */
     public Collection<ColumnDefinition> columns();
+
+
+    /**
+     * The number of columns for which data (incl. simple tombstones) is present in this row.
+     */
+    public int columnCount();
 
     /**
      * The row deletion.
@@ -149,6 +155,15 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      * @return an iterable over the cells of this row.
      */
     public Iterable<Cell> cells();
+
+    /**
+     * A collection of the ColumnData representation of this row, for columns with some data (possibly not live) present
+     * <p>
+     * The data is returned in column order.
+     *
+     * @return a Collection of the non-empty ColumnData for this row.
+     */
+    public Collection<ColumnData> columnData();
 
     /**
      * An iterable over the cells of this row that return cells in "legacy order".
