@@ -1003,3 +1003,9 @@ windows_timer_interval: 1
 # An interval of 0 disables any wait time, which is the behavior of former Cassandra versions.
 #
 # otc_backlog_expiration_interval_ms: 200
+
+# Define use of immediate flusher for replies to TCP connections. This is an alternate simplified flusher that does not
+# depend on any event loop scheduling. Details around why this has been backported from trunk: CASSANDRA-14855.
+# Default is false.
+# native_transport_flush_messages_immediately: false
+
