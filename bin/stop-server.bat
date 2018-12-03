@@ -38,7 +38,7 @@ FOR /F "tokens=2 delims= " %%A IN ('TASKLIST /FI ^"WINDOWTITLE eq %rand%^" /NH')
 
 REM Start with /B -> the control+c event we generate in stop-server.ps1 percolates
 REM up and hits this external batch file if we call powershell directly.
-start /B powershell /file "%CASSANDRA_HOME%/bin/stop-server.ps1" -batchpid %PID% %*
+start /WAIT /B powershell /file "%CASSANDRA_HOME%/bin/stop-server.ps1" -batchpid %PID% %*
 goto finally
 
 REM -----------------------------------------------------------------------------
