@@ -202,7 +202,17 @@ public abstract class LegacyLayout
         return new LegacyCellName(def.isStatic() ? Clustering.STATIC_CLUSTERING : clustering, def, collectionElement);
     }
 
-    public static LegacyBound decodeBound(CFMetaData metadata, ByteBuffer bound, boolean isStart)
+    public static LegacyBound decodeSliceBound(CFMetaData metadata, ByteBuffer bound, boolean isStart)
+    {
+        return decodeBound(metadata, bound, isStart, false);
+    }
+
+    public static LegacyBound decodeTombstoneBound(CFMetaData metadata, ByteBuffer bound, boolean isStart)
+    {
+        return decodeBound(metadata, bound, isStart, true);
+    }
+
+    private static LegacyBound decodeBound(CFMetaData metadata, ByteBuffer bound, boolean isStart, boolean isDeletion)
     {
         if (!bound.hasRemaining())
             return isStart ? LegacyBound.BOTTOM : LegacyBound.TOP;
@@ -224,25 +234,35 @@ public abstract class LegacyLayout
         assert !isStatic ||
                 (components.size() >= clusteringSize
                         && all(components.subList(0, clusteringSize), ByteBufferUtil.EMPTY_BYTE_BUFFER::equals));
-        // There can be  more components than the clustering size only in the case this is the bound of a collection
-        // range tombstone. In which case, there is exactly one more component, and that component is the name of the
-        // collection being selected/deleted.
         ColumnDefinition collectionName = null;
         if (components.size() > clusteringSize)
         {
+            // For a deletion, there can be more components than the clustering size only in the case this is the
+            // bound of a collection range tombstone. In such a case, there is exactly one more component, and that
+            // component is the name of the collection being selected/deleted.
+            // If the bound is not part of a deletion, it is from slice query filter. In this scnario, the column name
+            // may be a valid, non-collection column or it may be an empty buffer, representing a row marker. In either
+            // case, this needn't be included in the returned bound, so we pop the last element from the components
+            // list but ensure that the collection name remains null.
+
             assert clusteringSize + 1 == components.size() && !metadata.isCompactTable();
-            // pop the collection name from the back of the list of clusterings
-            ByteBuffer collectionNameBytes = components.remove(clusteringSize);
-            collectionName = metadata.getColumnDefinition(collectionNameBytes);
-            if (collectionName == null || !collectionName.isComplex()) {
-                collectionName = metadata.getDroppedColumnDefinition(collectionNameBytes, isStatic);
-                // if no record of the column having ever existed is found, something is badly wrong
-                if (collectionName == null)
-                    throw new RuntimeException("Unknown collection column " + UTF8Type.instance.getString(collectionNameBytes) + " during deserialization");
-                // if we do have a record of dropping this column but it wasn't previously complex, use a fake
-                // column definition for safety (see the comment on the constant declaration for details)
-                if (!collectionName.isComplex())
-                    collectionName = INVALID_DROPPED_COMPLEX_SUBSTITUTE_COLUMN;
+            // pop the final element from the back of the list of clusterings
+            ByteBuffer columnNameBytes = components.remove(clusteringSize);
+            if (isDeletion)
+            {
+                collectionName = metadata.getColumnDefinition(columnNameBytes);
+                if (collectionName == null || !collectionName.isComplex())
+                {
+                    collectionName = metadata.getDroppedColumnDefinition(columnNameBytes, isStatic);
+                    // if no record of the column having ever existed is found, something is badly wrong
+                    if (collectionName == null)
+                        throw new RuntimeException("Unknown collection column " + UTF8Type.instance.getString(columnNameBytes) + " during deserialization");
+
+                    // if we do have a record of dropping this column but it wasn't previously complex, use a fake
+                    // column definition for safety (see the comment on the constant declaration for details)
+                    if (!collectionName.isComplex())
+                        collectionName = INVALID_DROPPED_COMPLEX_SUBSTITUTE_COLUMN;
+                }
             }
         }
 
@@ -1158,8 +1178,8 @@ public abstract class LegacyLayout
 
     public static LegacyRangeTombstone readLegacyRangeTombstoneBody(CFMetaData metadata, DataInputPlus in, ByteBuffer boundname) throws IOException
     {
-        LegacyBound min = decodeBound(metadata, boundname, true);
-        LegacyBound max = decodeBound(metadata, ByteBufferUtil.readWithShortLength(in), false);
+        LegacyBound min = decodeTombstoneBound(metadata, boundname, true);
+        LegacyBound max = decodeTombstoneBound(metadata, ByteBufferUtil.readWithShortLength(in), false);
         DeletionTime dt = DeletionTime.serializer.deserialize(in);
         return new LegacyRangeTombstone(min, max, dt);
     }
@@ -1905,8 +1925,8 @@ public abstract class LegacyLayout
             LegacyDeletionInfo delInfo = new LegacyDeletionInfo(new MutableDeletionInfo(topLevel));
             for (int i = 0; i < rangeCount; i++)
             {
-                LegacyBound start = decodeBound(metadata, ByteBufferUtil.readWithShortLength(in), true);
-                LegacyBound end = decodeBound(metadata, ByteBufferUtil.readWithShortLength(in), false);
+                LegacyBound start = decodeTombstoneBound(metadata, ByteBufferUtil.readWithShortLength(in), true);
+                LegacyBound end = decodeTombstoneBound(metadata, ByteBufferUtil.readWithShortLength(in), false);
                 int delTime =  in.readInt();
                 long markedAt = in.readLong();
 

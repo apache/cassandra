@@ -374,7 +374,7 @@ public class CassandraServer implements Cassandra.Iface
         // Note that in thrift, the bounds are reversed if the query is reversed, but not internally.
         ByteBuffer start = range.reversed ? range.finish : range.start;
         ByteBuffer finish = range.reversed ? range.start : range.finish;
-        return Slices.with(metadata.comparator, Slice.make(LegacyLayout.decodeBound(metadata, start, true).bound, LegacyLayout.decodeBound(metadata, finish, false).bound));
+        return Slices.with(metadata.comparator, Slice.make(LegacyLayout.decodeSliceBound(metadata, start, true).bound, LegacyLayout.decodeSliceBound(metadata, finish, false).bound));
     }
 
     private ClusteringIndexFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SlicePredicate predicate)
@@ -1266,8 +1266,8 @@ public class CassandraServer implements Cassandra.Iface
         {
             if (del.super_column == null)
             {
-                LegacyLayout.LegacyBound start = LegacyLayout.decodeBound(cfm, del.predicate.getSlice_range().start, true);
-                LegacyLayout.LegacyBound end = LegacyLayout.decodeBound(cfm, del.predicate.getSlice_range().finish, false);
+                LegacyLayout.LegacyBound start = LegacyLayout.decodeTombstoneBound(cfm, del.predicate.getSlice_range().start, true);
+                LegacyLayout.LegacyBound end = LegacyLayout.decodeTombstoneBound(cfm, del.predicate.getSlice_range().finish, false);
                 delInfo.add(cfm, new LegacyLayout.LegacyRangeTombstone(start, end, new DeletionTime(del.timestamp, nowInSec)));
             }
             else
@@ -2459,8 +2459,8 @@ public class CassandraServer implements Cassandra.Iface
             for (int i = 0 ; i < request.getColumn_slices().size() ; i++)
             {
                 fixOptionalSliceParameters(request.getColumn_slices().get(i));
-                ClusteringBound start = LegacyLayout.decodeBound(metadata, request.getColumn_slices().get(i).start, true).bound;
-                ClusteringBound finish = LegacyLayout.decodeBound(metadata, request.getColumn_slices().get(i).finish, false).bound;
+                ClusteringBound start = LegacyLayout.decodeSliceBound(metadata, request.getColumn_slices().get(i).start, true).bound;
+                ClusteringBound finish = LegacyLayout.decodeSliceBound(metadata, request.getColumn_slices().get(i).finish, false).bound;
 
                 int compare = metadata.comparator.compare(start, finish);
                 if (!request.reversed && compare > 0)
