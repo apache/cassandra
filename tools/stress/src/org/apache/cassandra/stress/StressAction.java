@@ -105,7 +105,11 @@ public class StressAction implements Runnable
     private void warmup(OpDistributionFactory operations)
     {
         // do 25% of iterations as warmup but no more than 50k (by default hotspot compiles methods after 10k invocations)
-        int iterations = Math.min(50000, (int) (settings.command.count * 0.25)) * settings.node.nodes.size();
+        int iterations = (settings.command.count >= 0
+                          ? Math.min(50000, (int)(settings.command.count * 0.25))
+                          : 50000) * settings.node.nodes.size();
+        if (iterations <= 0) return;
+
         int threads = 100;
 
         if (settings.rate.maxThreads > 0)
