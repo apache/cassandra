@@ -21,6 +21,7 @@ import java.util.*;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -67,7 +68,7 @@ public abstract class PartitionIterators
 
         class Extend implements MorePartitions<PartitionIterator>
         {
-            int i = 1;
+            int i = 0;
             public PartitionIterator moreContents()
             {
                 if (i >= iterators.size())
@@ -75,7 +76,8 @@ public abstract class PartitionIterators
                 return iterators.get(i++);
             }
         }
-        return MorePartitions.extend(iterators.get(0), new Extend());
+
+        return MorePartitions.extend(EmptyIterators.partition(), new Extend());
     }
 
     public static PartitionIterator singletonIterator(RowIterator iterator)
