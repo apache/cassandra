@@ -26,6 +26,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +45,7 @@ import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -133,11 +136,39 @@ public class StreamReceiveTask extends StreamTask
         return totalSize;
     }
 
-    public synchronized LifecycleTransaction getTransaction()
+    /**
+     * @return a LifecycleNewTracker whose operations are synchronised on this StreamReceiveTask.
+     */
+    public synchronized LifecycleNewTracker createLifecycleNewTracker()
     {
         if (done)
             throw new RuntimeException(String.format("Stream receive task %s of cf %s already finished.", session.planId(), cfId));
-        return txn;
+
+        return new LifecycleNewTracker()
+        {
+            @Override
+            public void trackNew(SSTable table)
+            {
+                synchronized (StreamReceiveTask.this)
+                {
+                    txn.trackNew(table);
+                }
+            }
+
+            @Override
+            public void untrackNew(SSTable table)
+            {
+                synchronized (StreamReceiveTask.this)
+                {
+                    txn.untrackNew(table);
+                }
+            }
+
+            public OperationType opType()
+            {
+                return txn.opType();
+            }
+        };
     }
 
     private static class OnCompletionRunnable implements Runnable

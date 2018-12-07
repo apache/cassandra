@@ -25,7 +25,7 @@ import java.util.UUID;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -35,11 +35,11 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 {
     private final SSTableWriter writer;
-    private final LifecycleTransaction txn;
+    private final LifecycleNewTracker lifecycleNewTracker;
 
-    protected SimpleSSTableMultiWriter(SSTableWriter writer, LifecycleTransaction txn)
+    protected SimpleSSTableMultiWriter(SSTableWriter writer, LifecycleNewTracker lifecycleNewTracker)
     {
-        this.txn = txn;
+        this.lifecycleNewTracker = lifecycleNewTracker;
         this.writer = writer;
     }
 
@@ -92,7 +92,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 
     public Throwable abort(Throwable accumulate)
     {
-        txn.untrackNew(writer);
+        lifecycleNewTracker.untrackNew(writer);
         return writer.abort(accumulate);
     }
 
@@ -114,9 +114,9 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             MetadataCollector metadataCollector,
                                             SerializationHeader header,
                                             Collection<Index> indexes,
-                                            LifecycleTransaction txn)
+                                            LifecycleNewTracker lifecycleNewTracker)
     {
-        SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, cfm, metadataCollector, header, indexes, txn);
-        return new SimpleSSTableMultiWriter(writer, txn);
+        SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, cfm, metadataCollector, header, indexes, lifecycleNewTracker);
+        return new SimpleSSTableMultiWriter(writer, lifecycleNewTracker);
     }
 }

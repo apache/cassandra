@@ -223,10 +223,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
 
-    public LifecycleTransaction getTransaction(UUID cfId)
+    StreamReceiveTask getReceivingTask(UUID cfId)
     {
         assert receivers.containsKey(cfId);
-        return receivers.get(cfId).getTransaction();
+        return receivers.get(cfId);
     }
 
     private boolean isKeepAliveSupported()

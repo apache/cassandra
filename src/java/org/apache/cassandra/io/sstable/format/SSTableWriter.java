@@ -30,7 +30,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
@@ -96,10 +96,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        MetadataCollector metadataCollector,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
-                                       LifecycleTransaction txn)
+                                       LifecycleNewTracker lifecycleNewTracker)
     {
         Factory writerFactory = descriptor.getFormat().getWriterFactory();
-        return writerFactory.open(descriptor, keyCount, repairedAt, metadata, metadataCollector, header, observers(descriptor, indexes, txn.opType()), txn);
+        return writerFactory.open(descriptor, keyCount, repairedAt, metadata, metadataCollector, header, observers(descriptor, indexes, lifecycleNewTracker.opType()), lifecycleNewTracker);
     }
 
     public static SSTableWriter create(Descriptor descriptor,
@@ -108,10 +108,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        int sstableLevel,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
-                                       LifecycleTransaction txn)
+                                       LifecycleNewTracker lifecycleNewTracker)
     {
         CFMetaData metadata = Schema.instance.getCFMetaData(descriptor);
-        return create(metadata, descriptor, keyCount, repairedAt, sstableLevel, header, indexes, txn);
+        return create(metadata, descriptor, keyCount, repairedAt, sstableLevel, header, indexes, lifecycleNewTracker);
     }
 
     public static SSTableWriter create(CFMetaData metadata,
@@ -121,10 +121,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        int sstableLevel,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
-                                       LifecycleTransaction txn)
+                                       LifecycleNewTracker lifecycleNewTracker)
     {
         MetadataCollector collector = new MetadataCollector(metadata.comparator).sstableLevel(sstableLevel);
-        return create(descriptor, keyCount, repairedAt, metadata, collector, header, indexes, txn);
+        return create(descriptor, keyCount, repairedAt, metadata, collector, header, indexes, lifecycleNewTracker);
     }
 
     public static SSTableWriter create(String filename,
@@ -133,9 +133,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        int sstableLevel,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
-                                       LifecycleTransaction txn)
+                                       LifecycleNewTracker lifecycleNewTracker)
     {
-        return create(Descriptor.fromFilename(filename), keyCount, repairedAt, sstableLevel, header, indexes, txn);
+        return create(Descriptor.fromFilename(filename), keyCount, repairedAt, sstableLevel, header, indexes, lifecycleNewTracker);
     }
 
     @VisibleForTesting
@@ -144,10 +144,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        long repairedAt,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
-                                       LifecycleTransaction txn)
+                                       LifecycleNewTracker lifecycleNewTracker)
     {
         Descriptor descriptor = Descriptor.fromFilename(filename);
-        return create(descriptor, keyCount, repairedAt, 0, header, indexes, txn);
+        return create(descriptor, keyCount, repairedAt, 0, header, indexes, lifecycleNewTracker);
     }
 
     private static Set<Component> components(CFMetaData metadata)
@@ -345,6 +345,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                            MetadataCollector metadataCollector,
                                            SerializationHeader header,
                                            Collection<SSTableFlushObserver> observers,
-                                           LifecycleTransaction txn);
+                                           LifecycleNewTracker lifecycleNewTracker);
     }
 }
