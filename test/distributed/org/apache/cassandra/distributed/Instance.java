@@ -33,6 +33,9 @@ import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.concurrent.StageManager;
@@ -55,6 +58,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
@@ -338,12 +342,17 @@ public class Instance extends InvokableInstance
                     ColumnFamilyStore::shutdownPostFlushExecutor,
                     ColumnFamilyStore::shutdownReclaimExecutor,
                     PendingRangeCalculatorService.instance::shutdownExecutor,
+                    StorageService.instance::shutdownBGMonitor,
                     Ref::shutdownReferenceReaper,
                     Memtable.MEMORY_POOL::shutdown,
                     StageManager::shutdownAndWait,
                     MessagingService.instance()::shutdown,
                     SharedExecutorPool.SHARED::shutdown,
-                    ScheduledExecutors::shutdownAndWait);
+                    ScheduledExecutors::shutdownAndWait,
+                    SSTableReader::shutdownBlocking);
+
+            LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+            loggerContext.stop();
             Throwables.maybeFail(error);
         });
     }

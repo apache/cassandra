@@ -33,7 +33,8 @@
             <sourceFolder url="file://$MODULE_DIR$/test/microbench" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/burn" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/pig" isTestSource="true" />
-            <sourceFolder url="file://$MODULE_DIR$/test/distributed" isTestSource="true" />
+<!--              We don't include the distributed source since it has a language level of 8, and there is no clean way to set a different language level for tests in Idea without creating a separate module -->
+<!--            <sourceFolder url="file://$MODULE_DIR$/test/distributed" isTestSource="true" /> -->
             <sourceFolder url="file://$MODULE_DIR$/test/resources" type="java-test-resource" />
             <excludeFolder url="file://$MODULE_DIR$/.idea" />
             <excludeFolder url="file://$MODULE_DIR$/.settings" />

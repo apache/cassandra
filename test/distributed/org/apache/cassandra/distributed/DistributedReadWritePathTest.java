@@ -25,6 +25,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 
 public class DistributedReadWritePathTest extends DistributedTestBase
 {
+
     @Test
     public void coordinatorRead() throws Throwable
     {
