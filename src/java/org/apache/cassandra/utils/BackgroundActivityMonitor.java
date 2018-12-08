@@ -143,6 +143,18 @@ public class BackgroundActivityMonitor
         return 0.0;
     }
 
+    public void shutdown()
+    {
+        reportThread.shutdown();
+        try
+        {
+            reportThread.awaitTermination(1L, TimeUnit.MINUTES);
+        } catch (InterruptedException e)
+        {
+            throw new IllegalStateException();
+        }
+    }
+
     public class BackgroundActivityReporter implements Runnable
     {
         public void run()

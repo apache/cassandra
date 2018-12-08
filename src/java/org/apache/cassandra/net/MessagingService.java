@@ -764,6 +764,7 @@ public final class MessagingService implements MessagingServiceMBean
         // attempt to humor tests that try to stop and restart MS
         try
         {
+            clearMessageSinks();
             for (SocketThread th : socketThreads)
                 try
                 {

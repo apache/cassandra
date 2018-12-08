@@ -47,7 +47,7 @@ public class ScheduledExecutors
     {
         ExecutorService[] executors = new ExecutorService[] { scheduledTasks, nonPeriodicTasks, optionalTasks };
         for (ExecutorService executor : executors)
-            executor.shutdown();
+            executor.shutdownNow();
         for (ExecutorService executor : executors)
             executor.awaitTermination(60, TimeUnit.SECONDS);
     }

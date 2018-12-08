@@ -31,18 +31,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.TimeoutException;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 
+import io.netty.util.concurrent.FastThreadLocal;
+import io.netty.util.concurrent.FastThreadLocalThread;
+import io.netty.util.internal.InternalThreadLocalMap;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
@@ -50,6 +56,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 
 /**
  * TestCluster creates, initializes and manages Cassandra instances ({@link Instance}.
@@ -77,7 +84,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class TestCluster implements AutoCloseable
 {
-    private static ExecutorService exec = Executors.newCachedThreadPool(new NamedThreadFactory("cluster-async-tasks"));
+    private final ExecutorService exec = Executors.newCachedThreadPool(new NamedThreadFactory("cluster-async-tasks"));
 
     private final File root;
     private final List<Instance> instances;
@@ -240,19 +247,38 @@ public class TestCluster implements AutoCloseable
     }
 
     @Override
-    public void close()
+    public void close() throws InterruptedException, TimeoutException, ExecutionException
     {
         List<Future<?>> futures = instances.stream()
                 .map(i -> exec.submit(i::shutdown))
                 .collect(Collectors.toList());
 
-//        withThreadLeakCheck(futures);
-
         // Make sure to only delete directory when threads are stopped
-        exec.submit(() -> {
+        Future combined = exec.submit(() -> {
             FBUtilities.waitOnFutures(futures);
             FileUtils.deleteRecursive(root);
         });
+
+        combined.get(60, TimeUnit.SECONDS);
+
+        exec.shutdownNow();
+        exec.awaitTermination(10, TimeUnit.SECONDS);
+
+//        withThreadLeakCheck(futures);
+        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+        for (Thread thread : threadSet)
+        {
+            if (thread instanceof FastThreadLocalThread)
+                ((FastThreadLocalThread)thread).setThreadLocalMap(null);
+        }
+
+        InternalThreadLocalMap.remove();
+        InternalThreadLocalMap.destroy();
+
+        FastThreadLocal.removeAll();
+        FastThreadLocal.destroy();
+
+        System.gc();
     }
 
     // We do not want this check to run every time until we fix problems with tread stops
@@ -270,6 +296,27 @@ public class TestCluster implements AutoCloseable
                 System.out.println(Arrays.toString(thread.getStackTrace()));
             }
             throw new RuntimeException(String.format("Not all threads have shut down. %d threads are still running: %s", threadSet.size(), threadSet));
+        }
+    }
+
+    public void runAndWait(Instance.ThrowingRunnable runnable)
+    {
+        try
+        {
+            exec.submit(() -> {
+                try
+                {
+                    runnable.run();
+                }
+                catch (Throwable throwable)
+                {
+                    Throwables.maybeFail(throwable);
+                }
+            }).get();
+        }
+        catch (Exception e)
+        {
+            Throwables.maybeFail(e.getCause());
         }
     }
 
