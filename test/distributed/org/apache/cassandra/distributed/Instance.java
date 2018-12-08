@@ -29,6 +29,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
@@ -53,6 +56,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -64,6 +68,7 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.async.MessageInHandler;
+import org.apache.cassandra.net.async.NettyFactory;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -229,6 +234,11 @@ public class Instance extends InvokableInstance
             DatabaseDescriptor.createAllDirectories();
             Keyspace.setInitialized();
             SystemKeyspace.persistLocalMetadata();
+            // Even though we don't use MessagingService, access the static NettyFactory
+            // instance here so that we start the static event loop state
+            // (e.g. acceptGroup, inboundGroup, outboundGroup, etc ...). We can remove this
+            // once we actually use the MessagingService to communicate between nodes
+            NettyFactory.instance.getClass();
         }).accept(config);
     }
 
@@ -330,10 +340,10 @@ public class Instance extends InvokableInstance
         runOnInstance(() -> {
             Throwable error = null;
             error = runAndMergeThrowable(error,
+                    CompactionManager.instance::forceShutdown,
                     BatchlogManager.instance::shutdown,
                     HintsService.instance::shutdownBlocking,
                     CommitLog.instance::shutdownBlocking,
-                    CompactionManager.instance::forceShutdown,
                     Gossiper.instance::stop,
                     SecondaryIndexManager::shutdownExecutors,
                     MessagingService.instance()::shutdown,
@@ -347,8 +357,12 @@ public class Instance extends InvokableInstance
                     StageManager::shutdownAndWait,
                     SharedExecutorPool.SHARED::shutdown,
                     Memtable.MEMORY_POOL::shutdown,
-                    ScheduledExecutors::shutdownAndWait);
+                    ScheduledExecutors::shutdownAndWait,
+                    SSTableReader::shutdownBlocking);
+
             error = shutdownAndWait(error, ActiveRepairService.repairCommandExecutor);
+            LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+            loggerContext.stop();
             Throwables.maybeFail(error);
         });
     }
@@ -357,23 +371,9 @@ public class Instance extends InvokableInstance
     {
         return runAndMergeThrowable(existing, () -> {
             executor.shutdownNow();
-            executor.awaitTermination(5, TimeUnit.SECONDS);
+            executor.awaitTermination(20, TimeUnit.SECONDS);
             assert executor.isTerminated() && executor.isShutdown() : executor;
         });
-    }
-
-    private static Throwable runAndMergeThrowable(Throwable existing, ThrowingRunnable runnable)
-    {
-        try
-        {
-            runnable.run();
-        }
-        catch (Throwable t)
-        {
-            return Throwables.merge(existing, t);
-        }
-
-        return existing;
     }
 
     private static Throwable runAndMergeThrowable(Throwable existing, ThrowingRunnable ... runnables)
