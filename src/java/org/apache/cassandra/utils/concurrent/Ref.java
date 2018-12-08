@@ -709,5 +709,10 @@ public final class Ref<T> implements RefCounted<T>
     {
         EXEC.shutdown();
         EXEC.awaitTermination(60, TimeUnit.SECONDS);
+        if (STRONG_LEAK_DETECTOR != null)
+        {
+            STRONG_LEAK_DETECTOR.shutdownNow();
+            STRONG_LEAK_DETECTOR.awaitTermination(60, TimeUnit.SECONDS);
+        }
     }
 }

@@ -389,7 +389,7 @@ public final class NettyFactory
     {
         EventLoopGroup[] groups = new EventLoopGroup[] { acceptGroup, outboundGroup, inboundGroup, streamingGroup };
         for (EventLoopGroup group : groups)
-            group.shutdownGracefully();
+            group.shutdownGracefully(0, 2, TimeUnit.SECONDS);
         for (EventLoopGroup group : groups)
             group.awaitTermination(60, TimeUnit.SECONDS);
     }

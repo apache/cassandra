@@ -1142,6 +1142,8 @@ public final class MessagingService implements MessagingServiceMBean
 
             if (!isTest)
                 NettyFactory.instance.close();
+
+            clearMessageSinks();
         }
         catch (Exception e)
         {
