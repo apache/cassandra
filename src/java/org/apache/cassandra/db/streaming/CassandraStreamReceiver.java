@@ -26,6 +26,9 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,11 +83,6 @@ public class CassandraStreamReceiver implements StreamReceiver
         this.requiresWritePath = requiresWritePath(cfs);
     }
 
-    public LifecycleTransaction getTransaction()
-    {
-        return txn;
-    }
-
     public static CassandraStreamReceiver fromReceiver(StreamReceiver receiver)
     {
         Preconditions.checkArgument(receiver instanceof CassandraStreamReceiver);
@@ -99,7 +97,7 @@ public class CassandraStreamReceiver implements StreamReceiver
 
     @Override
     @SuppressWarnings("resource")
-    public void received(IncomingStream stream)
+    public synchronized void received(IncomingStream stream)
     {
         CassandraIncomingFile file = getFile(stream);
 
@@ -124,8 +122,41 @@ public class CassandraStreamReceiver implements StreamReceiver
         Throwables.maybeFail(file.getSSTable().abort(null));
     }
 
+    /**
+     * @return a LifecycleNewTracker whose operations are synchronised on this StreamReceiveTask.
+     */
+    public synchronized LifecycleNewTracker createLifecycleNewTracker()
+    {
+        return new LifecycleNewTracker()
+        {
+            @Override
+            public void trackNew(SSTable table)
+            {
+                synchronized (CassandraStreamReceiver.this)
+                {
+                    txn.trackNew(table);
+                }
+            }
+
+            @Override
+            public void untrackNew(SSTable table)
+            {
+                synchronized (CassandraStreamReceiver.this)
+                {
+                    txn.untrackNew(table);
+                }
+            }
+
+            public OperationType opType()
+            {
+                return txn.opType();
+            }
+        };
+    }
+
+
     @Override
-    public void abort()
+    public synchronized void abort()
     {
         sstables.clear();
         txn.abort();
@@ -181,7 +212,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         }
     }
 
-    private synchronized void finishTransaction()
+    public synchronized  void finishTransaction()
     {
         txn.finish();
     }

@@ -440,7 +440,7 @@ public abstract class AbstractReplicationStrategy
             if (rf.hasTransientReplicas())
             {
                 if (DatabaseDescriptor.getNumTokens() > 1)
-                    throw new ConfigurationException("Transient replication is not supported with vnodes yet");
+                    throw new ConfigurationException(String.format("Transient replication is not supported with vnodes yet"));
             }
         }
         catch (IllegalArgumentException e)
