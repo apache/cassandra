@@ -66,6 +66,8 @@ public class FBUtilities
 
     private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
 
+    public static final String UNKNOWN_RELEASE_VERSION = "Unknown";
+
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
@@ -343,7 +345,7 @@ public class FBUtilities
         {
             if (in == null)
             {
-                return System.getProperty("cassandra.releaseVersion", "Unknown");
+                return System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
             }
             Properties props = new Properties();
             props.load(in);
@@ -355,6 +357,16 @@ public class FBUtilities
             logger.warn("Unable to load version.properties", e);
             return "debug version";
         }
+    }
+
+    public static String getReleaseVersionMajor()
+    {
+        String releaseVersion = FBUtilities.getReleaseVersionString();
+        if (FBUtilities.UNKNOWN_RELEASE_VERSION.equals(releaseVersion))
+        {
+            throw new AssertionError("Release version is unknown");
+        }
+        return releaseVersion.substring(0, releaseVersion.indexOf('.'));
     }
 
     public static long timestampMicros()
