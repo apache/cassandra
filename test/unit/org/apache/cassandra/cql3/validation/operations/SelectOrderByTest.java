@@ -702,6 +702,84 @@ public class SelectOrderByTest extends CQLTester
         }
     }
 
+    @Test
+    public void testSelectWithReversedTypeInReverseOrderWithStaticColumnsWithoutStaticRow() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int static, PRIMARY KEY (a, b)) WITH CLUSTERING ORDER BY (b DESC);");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 1, 1);");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, 2);");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 3, 3);");
+
+        // read in comparator order
+        assertRows(execute("SELECT b, c FROM %s WHERE a = 1 ORDER BY b DESC;"),
+                   row(3, 3),
+                   row(2, 2),
+                   row(1, 1));
+
+        // read in reverse comparator order
+        assertRows(execute("SELECT b, c FROM %s WHERE a = 1 ORDER BY b ASC;"),
+                   row(1, 1),
+                   row(2, 2),
+                   row(3, 3));
+
+        /*
+         * Flush the sstable. We *should* see the same results when reading in both directions, but prior to CASSANDRA-14910
+         * fix this would now have returned an empty result set when reading in reverse comparator order.
+         */
+        flush();
+
+        // read in comparator order
+        assertRows(execute("SELECT b, c FROM %s WHERE a = 1 ORDER BY b DESC;"),
+                   row(3, 3),
+                   row(2, 2),
+                   row(1, 1));
+
+        // read in reverse comparator order
+        assertRows(execute("SELECT b, c FROM %s WHERE a = 1 ORDER BY b ASC;"),
+                   row(1, 1),
+                   row(2, 2),
+                   row(3, 3));
+    }
+
+    @Test
+    public void testSelectWithReversedTypeInReverseOrderWithStaticColumnsWithStaticRow() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int static, PRIMARY KEY (a, b)) WITH CLUSTERING ORDER BY (b DESC)");
+
+        execute("INSERT INTO %s (a, d) VALUES (1, 0);");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 1, 1);");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, 2);");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 3, 3);");
+
+        // read in comparator order
+        assertRows(execute("SELECT b, c, d FROM %s WHERE a = 1 ORDER BY b DESC;"),
+                   row(3, 3, 0),
+                   row(2, 2, 0),
+                   row(1, 1, 0));
+
+        // read in reverse comparator order
+        assertRows(execute("SELECT b, c, d FROM %s WHERE a = 1 ORDER BY b ASC;"),
+                   row(1, 1, 0),
+                   row(2, 2, 0),
+                   row(3, 3, 0));
+
+        flush();
+
+        // read in comparator order
+        assertRows(execute("SELECT b, c, d FROM %s WHERE a = 1 ORDER BY b DESC;"),
+                   row(3, 3, 0),
+                   row(2, 2, 0),
+                   row(1, 1, 0));
+
+        // read in reverse comparator order
+        assertRows(execute("SELECT b, c, d FROM %s WHERE a = 1 ORDER BY b ASC;"),
+                   row(1, 1, 0),
+                   row(2, 2, 0),
+                   row(3, 3, 0));
+    }
+
     private boolean isFirstIntSorted(Object[][] rows)
     {
         for (int i = 1; i < rows.length; i++)
