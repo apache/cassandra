@@ -39,6 +39,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Longs;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1117,7 +1118,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        MetadataCollector collector,
                                                        SerializationHeader header,
                                                        Collection<Index> indexes,
-                                                       LifecycleTransaction txn)
+                                                       LifecycleNewTracker lifecycleNewTracker)
     {
         SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
         maybeReloadDiskBoundaries();
@@ -1132,7 +1133,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                                                               collector,
                                                                                               header,
                                                                                               indexes,
-                                                                                              txn);
+                                                                                              lifecycleNewTracker);
         }
         finally
         {

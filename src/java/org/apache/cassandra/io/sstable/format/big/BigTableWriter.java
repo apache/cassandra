@@ -21,6 +21,7 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +29,6 @@ import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.FSWriteError;
@@ -73,10 +73,10 @@ public class BigTableWriter extends SSTableWriter
                           MetadataCollector metadataCollector, 
                           SerializationHeader header,
                           Collection<SSTableFlushObserver> observers,
-                          LifecycleTransaction txn)
+                          LifecycleNewTracker lifecycleNewTracker)
     {
         super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers);
-        txn.trackNew(this); // must track before any files are created
+        lifecycleNewTracker.trackNew(this); // must track before any files are created
 
         if (compression)
         {
