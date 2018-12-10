@@ -1,4 +1,5 @@
 2.2.14
+ * MigrationManager attempts to pull schema from different major version nodes (CASSANDRA-14928)
  * Don't skip entire sstables when reading backwards with mixed clustering column order
    (CASSANDRA-14910)
  * Cannot perform slice reads in reverse direction against tables with clustering columns
