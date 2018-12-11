@@ -106,15 +106,15 @@ public class ChecksummingTransformer implements FrameBodyTransformer
     private static final int CHUNK_HEADER_OVERHEAD = Integer.BYTES + Integer.BYTES + Integer.BYTES + Integer.BYTES;
 
     private static final ChecksummingTransformer CRC32_NO_COMPRESSION = new ChecksummingTransformer(ChecksumType.CRC32, null);
-    private static final ChecksummingTransformer ADLER32_NO_COMPRESSION = new ChecksummingTransformer(ChecksumType.Adler32, null);
+    private static final ChecksummingTransformer ADLER32_NO_COMPRESSION = new ChecksummingTransformer(ChecksumType.ADLER32, null);
     private static final ImmutableTable<ChecksumType, Compressor, ChecksummingTransformer> transformers;
     static
     {
         ImmutableTable.Builder<ChecksumType, Compressor, ChecksummingTransformer> builder = ImmutableTable.builder();
         builder.put(ChecksumType.CRC32, LZ4Compressor.INSTANCE, new ChecksummingTransformer(ChecksumType.CRC32, LZ4Compressor.INSTANCE));
         builder.put(ChecksumType.CRC32, SnappyCompressor.INSTANCE, new ChecksummingTransformer(ChecksumType.CRC32, SnappyCompressor.INSTANCE));
-        builder.put(ChecksumType.Adler32, LZ4Compressor.INSTANCE, new ChecksummingTransformer(ChecksumType.Adler32, LZ4Compressor.INSTANCE));
-        builder.put(ChecksumType.Adler32, SnappyCompressor.INSTANCE, new ChecksummingTransformer(ChecksumType.Adler32, SnappyCompressor.INSTANCE));
+        builder.put(ChecksumType.ADLER32, LZ4Compressor.INSTANCE, new ChecksummingTransformer(ChecksumType.ADLER32, LZ4Compressor.INSTANCE));
+        builder.put(ChecksumType.ADLER32, SnappyCompressor.INSTANCE, new ChecksummingTransformer(ChecksumType.ADLER32, SnappyCompressor.INSTANCE));
         transformers = builder.build();
     }
 

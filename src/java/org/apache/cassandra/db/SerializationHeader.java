@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
@@ -294,30 +295,37 @@ public class SerializationHeader
         public SerializationHeader toHeader(TableMetadata metadata)
         {
             Map<ByteBuffer, AbstractType<?>> typeMap = new HashMap<>(staticColumns.size() + regularColumns.size());
-            typeMap.putAll(staticColumns);
-            typeMap.putAll(regularColumns);
 
             RegularAndStaticColumns.Builder builder = RegularAndStaticColumns.builder();
-            for (ByteBuffer name : typeMap.keySet())
+            for (Map<ByteBuffer, AbstractType<?>> map : ImmutableList.of(staticColumns, regularColumns))
             {
-                ColumnMetadata column = metadata.getColumn(name);
-                if (column == null)
+                boolean isStatic = map == staticColumns;
+                for (Map.Entry<ByteBuffer, AbstractType<?>> e : map.entrySet())
                 {
-                    // TODO: this imply we don't read data for a column we don't yet know about, which imply this is theoretically
-                    // racy with column addition. Currently, it is up to the user to not write data before the schema has propagated
-                    // and this is far from being the only place that has such problem in practice. This doesn't mean we shouldn't
-                    // improve this.
+                    ByteBuffer name = e.getKey();
+                    AbstractType<?> other = typeMap.put(name, e.getValue());
+                    if (other != null && !other.equals(e.getValue()))
+                        throw new IllegalStateException("Column " + name + " occurs as both regular and static with types " + other + "and " + e.getValue());
 
-                    // If we don't find the definition, it could be we have data for a dropped column, and we shouldn't
-                    // fail deserialization because of that. So we grab a "fake" ColumnMetadata that ensure proper
-                    // deserialization. The column will be ignore later on anyway.
-                    boolean isStatic = staticColumns.containsKey(name);
-                    column = metadata.getDroppedColumn(name, isStatic);
-                    if (column == null)
-                        throw new RuntimeException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                    ColumnMetadata column = metadata.getColumn(name);
+                    if (column == null || column.isStatic() != isStatic)
+                    {
+                        // TODO: this imply we don't read data for a column we don't yet know about, which imply this is theoretically
+                        // racy with column addition. Currently, it is up to the user to not write data before the schema has propagated
+                        // and this is far from being the only place that has such problem in practice. This doesn't mean we shouldn't
+                        // improve this.
+
+                        // If we don't find the definition, it could be we have data for a dropped column, and we shouldn't
+                        // fail deserialization because of that. So we grab a "fake" ColumnDefinition that ensure proper
+                        // deserialization. The column will be ignore later on anyway.
+                        column = metadata.getDroppedColumn(name, isStatic);
+                        if (column == null)
+                            throw new RuntimeException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                    }
+                    builder.add(column);
                 }
-                builder.add(column);
             }
+
             return new SerializationHeader(true, keyType, clusteringTypes, builder.build(), stats, typeMap);
         }
 

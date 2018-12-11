@@ -26,6 +26,7 @@ import java.util.Map;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,12 +77,12 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
 
     public BigTableZeroCopyWriter(Descriptor descriptor,
                                   TableMetadataRef metadata,
-                                  LifecycleTransaction txn,
+                                  LifecycleNewTracker lifecycleNewTracker,
                                   final Collection<Component> components)
     {
         super(descriptor, ImmutableSet.copyOf(components), metadata, DatabaseDescriptor.getDiskOptimizationStrategy());
 
-        txn.trackNew(this);
+        lifecycleNewTracker.trackNew(this);
         this.metadata = metadata;
         this.componentWriters = new EnumMap<>(Component.Type.class);
 

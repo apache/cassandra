@@ -28,7 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
@@ -104,10 +104,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        MetadataCollector metadataCollector,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
-                                       LifecycleTransaction txn)
+                                       LifecycleNewTracker lifecycleNewTracker)
     {
         Factory writerFactory = descriptor.getFormat().getWriterFactory();
-        return writerFactory.open(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers(descriptor, indexes, txn.opType()), txn);
+        return writerFactory.open(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers(descriptor, indexes, lifecycleNewTracker.opType()), lifecycleNewTracker);
     }
 
     public static SSTableWriter create(Descriptor descriptor,
@@ -118,10 +118,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        int sstableLevel,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
-                                       LifecycleTransaction txn)
+                                       LifecycleNewTracker lifecycleNewTracker)
     {
         TableMetadataRef metadata = Schema.instance.getTableMetadataRef(descriptor);
-        return create(metadata, descriptor, keyCount, repairedAt, pendingRepair, isTransient, sstableLevel, header, indexes, txn);
+        return create(metadata, descriptor, keyCount, repairedAt, pendingRepair, isTransient, sstableLevel, header, indexes, lifecycleNewTracker);
     }
 
     public static SSTableWriter create(TableMetadataRef metadata,
@@ -133,10 +133,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        int sstableLevel,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
-                                       LifecycleTransaction txn)
+                                       LifecycleNewTracker lifecycleNewTracker)
     {
         MetadataCollector collector = new MetadataCollector(metadata.get().comparator).sstableLevel(sstableLevel);
-        return create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, collector, header, indexes, txn);
+        return create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, collector, header, indexes, lifecycleNewTracker);
     }
 
     @VisibleForTesting
@@ -147,9 +147,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        boolean isTransient,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
-                                       LifecycleTransaction txn)
+                                       LifecycleNewTracker lifecycleNewTracker)
     {
-        return create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, 0, header, indexes, txn);
+        return create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, 0, header, indexes, lifecycleNewTracker);
     }
 
     private static Set<Component> components(TableMetadata metadata)
@@ -351,6 +351,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                            MetadataCollector metadataCollector,
                                            SerializationHeader header,
                                            Collection<SSTableFlushObserver> observers,
-                                           LifecycleTransaction txn);
+                                           LifecycleNewTracker lifecycleNewTracker);
     }
 }

@@ -54,6 +54,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     private final Map<String, ReplicationFactor> datacenters;
     private final ReplicationFactor aggregateRf;
     private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategy.class);
+    private static final String REPLICATION_FACTOR = "replication_factor";
 
     public NetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
     {
@@ -67,8 +68,9 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             for (Entry<String, String> entry : configOptions.entrySet())
             {
                 String dc = entry.getKey();
-                if (dc.equalsIgnoreCase("replication_factor"))
-                    throw new ConfigurationException("replication_factor is an option for SimpleStrategy, not NetworkTopologyStrategy");
+                // prepareOptions should have transformed any "replication_factor" options by now
+                if (dc.equalsIgnoreCase(REPLICATION_FACTOR))
+                    throw new ConfigurationException(REPLICATION_FACTOR + " should not appear as an option at construction time for NetworkTopologyStrategy");
                 ReplicationFactor rf = ReplicationFactor.fromString(entry.getValue());
                 replicas += rf.allReplicas;
                 trans += rf.transientReplicas();
@@ -241,6 +243,41 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         return Datacenters.getValidDatacenters();
     }
 
+    /**
+     * Support datacenter auto-expansion for CASSANDRA-14303. This hook allows us to safely auto-expand
+     * the "replication_factor" options out into the known datacenters. It is called via reflection from
+     * {@link AbstractReplicationStrategy#prepareReplicationStrategyOptions(Class, Map, Map)}.
+     *
+     * @param options The proposed strategy options that will be potentially mutated
+     * @param previousOptions Any previous strategy options in the case of an ALTER statement
+     */
+    protected static void prepareOptions(Map<String, String> options, Map<String, String> previousOptions)
+    {
+        String replication = options.remove(REPLICATION_FACTOR);
+
+        if (replication == null && options.size() == 0)
+        {
+            // Support direct alters from SimpleStrategy to NTS
+            replication = previousOptions.get(REPLICATION_FACTOR);
+        }
+        else if (replication != null)
+        {
+            // When datacenter auto-expansion occurs in e.g. an ALTER statement (meaning that the previousOptions
+            // map is not empty) we choose not to alter existing datacenter replication levels for safety.
+            previousOptions.entrySet().stream()
+                           .filter(e -> !e.getKey().equals(REPLICATION_FACTOR)) // SimpleStrategy conversions
+                           .forEach(e -> options.putIfAbsent(e.getKey(), e.getValue()));
+        }
+
+        if (replication != null) {
+            ReplicationFactor defaultReplicas = ReplicationFactor.fromString(replication);
+            Datacenters.getValidDatacenters()
+                       .forEach(dc -> options.putIfAbsent(dc, defaultReplicas.toParseableString()));
+        }
+
+        options.values().removeAll(Collections.singleton("0"));
+    }
+
     protected void validateExpectedOptions() throws ConfigurationException
     {
         // Do not accept query with no data centers specified.
@@ -257,8 +294,9 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     {
         for (Entry<String, String> e : this.configOptions.entrySet())
         {
-            if (e.getKey().equalsIgnoreCase("replication_factor"))
-                throw new ConfigurationException("replication_factor is an option for SimpleStrategy, not NetworkTopologyStrategy");
+            // prepareOptions should have transformed any "replication_factor" by now
+            if (e.getKey().equalsIgnoreCase(REPLICATION_FACTOR))
+                throw new ConfigurationException(REPLICATION_FACTOR + " should not appear as an option to NetworkTopologyStrategy");
             validateReplicationFactor(e.getValue());
         }
     }

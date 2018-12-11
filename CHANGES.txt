@@ -1,4 +1,11 @@
 4.0
+ * Auto-expand replication_factor for NetworkTopologyStrategy (CASSANDRA-14303)
+ * Transient Replication: support EACH_QUORUM (CASSANDRA-14727)
+ * BufferPool: allocating thread for new chunks should acquire directly (CASSANDRA-14832)
+ * Send correct messaging version in internode messaging handshake's third message (CASSANDRA-14896)
+ * Make Read and Write Latency columns consistent for proxyhistograms and tablehistograms (CASSANDRA-11939)
+ * Make protocol checksum type option case insensitive (CASSANDRA-14716)
+ * Forbid re-adding static columns as regular and vice versa (CASSANDRA-14913)
  * Audit log allows system keyspaces to be audited via configuration options (CASSANDRA-14498)
  * Lower default chunk_length_in_kb from 64kb to 16kb (CASSANDRA-13241)
  * Startup checker should wait for count rather than percentage (CASSANDRA-14297)
@@ -328,8 +335,18 @@
 
 
 3.11.4
+ * Make stop-server.bat wait for Cassandra to terminate (CASSANDRA-14829)
  * Correct sstable sorting for garbagecollect and levelled compaction (CASSANDRA-14870)
 Merged from 3.0:
+ * Streaming needs to synchronise access to LifecycleTransaction (CASSANDRA-14554)
+ * Fix cassandra-stress write hang with default options (CASSANDRA-14616)
+ * Netty epoll IOExceptions caused by unclean client disconnects being logged at INFO (CASSANDRA-14909)
+ * Unfiltered.isEmpty conflicts with Row extends AbstractCollection.isEmpty (CASSANDRA-14588)
+ * RangeTombstoneList doesn't properly clean up mergeable or superseded rts in some cases (CASSANDRA-14894)
+ * Fix handling of collection tombstones for dropped columns from legacy sstables (CASSANDRA-14912)
+ * Throw exception if Columns serialized subset encode more columns than possible (CASSANDRA-14591)
+ * Drop/add column name with different Kind can result in corruption (CASSANDRA-14843)
+ * Fix missing rows when reading 2.1 SSTables with static columns in 3.0 (CASSANDRA-14873)
  * Move TWCS message 'No compaction necessary for bucket size' to Trace level (CASSANDRA-14884)
  * Sstable min/max metadata can cause data loss (CASSANDRA-14861)
  * Dropped columns can cause reverse sstable iteration to return prematurely (CASSANDRA-14838)
@@ -343,6 +360,7 @@ Merged from 3.0:
  * Fix corrupted static collection deletions in 3.0 <-> 2.{1,2} messages (CASSANDRA-14568)
  * Handle failures in parallelAllSSTableOperation (cleanup/upgradesstables/etc) (CASSANDRA-14657)
  * Improve TokenMetaData cache populating performance avoid long locking (CASSANDRA-14660)
+ * Backport: Flush netty client messages immediately (not by default) (CASSANDRA-13651)
  * Fix static column order for SELECT * wildcard queries (CASSANDRA-14638)
  * sstableloader should use discovered broadcast address to connect intra-cluster (CASSANDRA-14522)
  * Fix reading columns with non-UTF names from schema (CASSANDRA-14468)

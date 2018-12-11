@@ -23,7 +23,7 @@ import org.apache.cassandra.dht.Token;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.cassandra.locator.ReplicaCollectionTest.*;
+import static org.apache.cassandra.locator.ReplicaUtils.*;
 
 public class ReplicaLayoutTest
 {

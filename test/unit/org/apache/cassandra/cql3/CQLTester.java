@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.ServerSocket;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -50,6 +51,7 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.FunctionName;
@@ -93,11 +95,13 @@ public abstract class CQLTester
     private static final AtomicInteger seqNumber = new AtomicInteger();
     protected static final ByteBuffer TOO_BIG = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT + 1024);
     public static final String DATA_CENTER = "datacenter1";
+    public static final String DATA_CENTER_REMOTE = "datacenter2";
     public static final String RACK1 = "rack1";
 
     private static org.apache.cassandra.transport.Server server;
     protected static final int nativePort;
     protected static final InetAddress nativeAddr;
+    protected static final Set<InetAddressAndPort> remoteAddrs = new HashSet<>();
     private static final Map<ProtocolVersion, Cluster> clusters = new HashMap<>();
     protected static final Map<ProtocolVersion, Session> sessions = new HashMap<>();
 
@@ -148,7 +152,11 @@ public abstract class CQLTester
         DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
         {
             @Override public String getRack(InetAddressAndPort endpoint) { return RACK1; }
-            @Override public String getDatacenter(InetAddressAndPort endpoint) { return DATA_CENTER; }
+            @Override public String getDatacenter(InetAddressAndPort endpoint) {
+                if (remoteAddrs.contains(endpoint))
+                    return DATA_CENTER_REMOTE;
+                return DATA_CENTER;
+            }
             @Override public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2) { return 0; }
         });
 
@@ -200,6 +208,15 @@ public abstract class CQLTester
         catch (IOException e)
         {
             logger.error("Failed to cleanup and recreate directories.");
+            throw new RuntimeException(e);
+        }
+
+        try {
+            remoteAddrs.add(InetAddressAndPort.getByName("127.0.0.4"));
+        }
+        catch (UnknownHostException e)
+        {
+            logger.error("Failed to lookup host");
             throw new RuntimeException(e);
         }
 
@@ -276,7 +293,6 @@ public abstract class CQLTester
     {
         if (ROW_CACHE_SIZE_IN_MB > 0)
             DatabaseDescriptor.setRowCacheSizeInMB(ROW_CACHE_SIZE_IN_MB);
-
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
         // Once per-JVM is enough
@@ -298,6 +314,9 @@ public abstract class CQLTester
         // statements are not cached but re-prepared every time). So we clear the cache between test files to avoid accumulating too much.
         if (reusePrepared)
             QueryProcessor.clearInternalStatementsCache();
+
+        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+        metadata.clearUnsafe();
     }
 
     @Before

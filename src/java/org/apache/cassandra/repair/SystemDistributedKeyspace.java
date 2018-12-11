@@ -190,8 +190,7 @@ public final class SystemDistributedKeyspace
     {
         //Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
         //due to schema differences
-        if (Gossiper.instance.haveMajorVersion3Nodes())
-            return;
+        boolean includeNewColumns = !Gossiper.instance.haveMajorVersion3Nodes();
 
         InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPort();
         Set<String> participants = Sets.newHashSet();
@@ -206,23 +205,43 @@ public final class SystemDistributedKeyspace
         String query =
                 "INSERT INTO %s.%s (keyspace_name, columnfamily_name, id, parent_id, range_begin, range_end, coordinator, coordinator_port, participants, participants_v2, status, started_at) " +
                         "VALUES (   '%s',          '%s',              %s, %s,        '%s',        '%s',      '%s',        %d,               { '%s' },     { '%s' },        '%s',   toTimestamp(now()))";
+        String queryWithoutNewColumns =
+                "INSERT INTO %s.%s (keyspace_name, columnfamily_name, id, parent_id, range_begin, range_end, coordinator, participants, status, started_at) " +
+                        "VALUES (   '%s',          '%s',              %s, %s,        '%s',        '%s',      '%s',               { '%s' },        '%s',   toTimestamp(now()))";
 
         for (String cfname : cfnames)
         {
             for (Range<Token> range : commonRange.ranges)
             {
-                String fmtQry = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
-                                              keyspaceName,
-                                              cfname,
-                                              id.toString(),
-                                              parent_id.toString(),
-                                              range.left.toString(),
-                                              range.right.toString(),
-                                              coordinator.getHostAddress(false),
-                                              coordinator.port,
-                                              Joiner.on("', '").join(participants),
-                                              Joiner.on("', '").join(participants_v2),
-                                              RepairState.STARTED.toString());
+                String fmtQry;
+                if (includeNewColumns)
+                {
+                    fmtQry = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
+                                    keyspaceName,
+                                    cfname,
+                                    id.toString(),
+                                    parent_id.toString(),
+                                    range.left.toString(),
+                                    range.right.toString(),
+                                    coordinator.getHostAddress(false),
+                                    coordinator.port,
+                                    Joiner.on("', '").join(participants),
+                                    Joiner.on("', '").join(participants_v2),
+                                    RepairState.STARTED.toString());
+                }
+                else
+                {
+                    fmtQry = format(queryWithoutNewColumns, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
+                                    keyspaceName,
+                                    cfname,
+                                    id.toString(),
+                                    parent_id.toString(),
+                                    range.left.toString(),
+                                    range.right.toString(),
+                                    coordinator.getHostAddress(false),
+                                    Joiner.on("', '").join(participants),
+                                    RepairState.STARTED.toString());
+                }
                 processSilent(fmtQry);
             }
         }
@@ -236,11 +255,6 @@ public final class SystemDistributedKeyspace
 
     public static void successfulRepairJob(UUID id, String keyspaceName, String cfname)
     {
-        //Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
-        //due to schema differences
-        if (Gossiper.instance.haveMajorVersion3Nodes())
-            return;
-
         String query = "UPDATE %s.%s SET status = '%s', finished_at = toTimestamp(now()) WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
                                         RepairState.SUCCESS.toString(),
@@ -252,11 +266,6 @@ public final class SystemDistributedKeyspace
 
     public static void failedRepairJob(UUID id, String keyspaceName, String cfname, Throwable t)
     {
-        //Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
-        //due to schema differences
-        if (Gossiper.instance.haveMajorVersion3Nodes())
-            return;
-
         String query = "UPDATE %s.%s SET status = '%s', finished_at = toTimestamp(now()), exception_message=?, exception_stacktrace=? WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);

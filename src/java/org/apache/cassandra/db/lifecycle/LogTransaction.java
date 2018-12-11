@@ -166,7 +166,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             return new SSTableTidier(reader, true, this);
         }
 
-        txnFile.add(logRecord);
+        txnFile.addRecord(logRecord);
 
         if (tracker != null)
             tracker.notifyDeleting(reader);
@@ -420,7 +420,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      * for further details on transaction logs.
      *
      * This method is called on startup and by the standalone sstableutil tool when the cleanup option is specified,
-     * @see StandaloneSSTableUtil.
+     * @see org.apache.cassandra.tools.StandaloneSSTableUtil
      *
      * @return true if the leftovers of all transaction logs found were removed, false otherwise.
      *

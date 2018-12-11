@@ -129,7 +129,7 @@ public class StreamReceiveTask extends StreamTask
                     return;
                 }
 
-                task.receiver.finished();;
+                task.receiver.finished();
                 task.session.taskCompleted(task);
             }
             catch (Throwable t)
