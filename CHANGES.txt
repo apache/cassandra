@@ -1,4 +1,6 @@
 4.0
+ * Make antiCompactGroup throw exception on error and anticompaction non cancellable
+   again (CASSANDRA-14936)
  * Catch empty/invalid bounds in SelectStatement (CASSANDRA-14849)
  * Auto-expand replication_factor for NetworkTopologyStrategy (CASSANDRA-14303)
  * Transient Replication: support EACH_QUORUM (CASSANDRA-14727)
