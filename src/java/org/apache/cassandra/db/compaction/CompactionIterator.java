@@ -77,11 +77,16 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID compactionId)
     {
-        this(type, scanners, controller, nowInSec, compactionId, null);
+        this(type, scanners, controller, nowInSec, compactionId, null, true);
+    }
+
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID compactionId, CompactionMetrics metrics)
+    {
+        this(type, scanners, controller, nowInSec, compactionId, metrics, true);
     }
 
     @SuppressWarnings("resource") // We make sure to close mergedIterator in close() and CompactionIterator is itself an AutoCloseable
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID compactionId, CompactionMetrics metrics)
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID compactionId, CompactionMetrics metrics, boolean abortable)
     {
         this.controller = controller;
         this.type = type;
@@ -105,7 +110,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                            : UnfilteredPartitionIterators.merge(scanners, listener());
         merged = Transformation.apply(merged, new GarbageSkipper(controller));
         merged = Transformation.apply(merged, new Purger(controller, nowInSec));
-        compacted = Transformation.apply(merged, new AbortableUnfilteredPartitionTransformation(this));
+        if (abortable)
+            compacted = Transformation.apply(merged, new AbortableUnfilteredPartitionTransformation(this));
+        else
+            compacted = merged;
     }
 
     public TableMetadata metadata()

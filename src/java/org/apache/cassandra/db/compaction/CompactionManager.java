@@ -1432,7 +1432,8 @@ public class CompactionManager implements CompactionManagerMBean
                                   LifecycleTransaction txn,
                                   UUID pendingRepair)
     {
-        logger.info("Performing anticompaction on {} sstables", txn.originals().size());
+        int originalCount = txn.originals().size();
+        logger.info("Performing anticompaction on {} sstables", originalCount);
 
         //Group SSTables
         Set<SSTableReader> sstables = txn.originals();
@@ -1457,7 +1458,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         String format = "Anticompaction completed successfully, anticompacted from {} to {} sstable(s).";
-        logger.info(format, txn.originals().size(), antiCompactedSSTableCount);
+        logger.info(format, originalCount, antiCompactedSSTableCount);
     }
 
     private int antiCompactGroup(ColumnFamilyStore cfs,
@@ -1494,7 +1495,7 @@ public class CompactionManager implements CompactionManagerMBean
 
              AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(txn.originals());
              CompactionController controller = new CompactionController(cfs, sstableAsSet, getDefaultGcBefore(cfs, nowInSec));
-             CompactionIterator ci = new CompactionIterator(OperationType.ANTICOMPACTION, scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID(), metrics))
+             CompactionIterator ci = getAntiCompactionIterator(scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID(), metrics))
         {
             int expectedBloomFilterSize = Math.max(cfs.metadata().params.minIndexInterval, (int)(SSTableReader.getApproximateKeyCount(sstableAsSet)));
 
@@ -1550,8 +1551,14 @@ public class CompactionManager implements CompactionManagerMBean
         {
             JVMStabilityInspector.inspectThrowable(e);
             logger.error("Error anticompacting " + txn, e);
+            throw e;
         }
-        return 0;
+    }
+
+    @VisibleForTesting
+    public static CompactionIterator getAntiCompactionIterator(List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID timeUUID, CompactionMetrics metrics)
+    {
+        return new CompactionIterator(OperationType.ANTICOMPACTION, scanners, controller, nowInSec, timeUUID, metrics, false);
     }
 
     /**
