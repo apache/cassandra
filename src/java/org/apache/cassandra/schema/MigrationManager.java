@@ -61,15 +61,21 @@ public class MigrationManager
     {
         UUID schemaVersion = state.getSchemaVersion();
         if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) && schemaVersion != null)
-            maybeScheduleSchemaPull(schemaVersion, endpoint);
+            maybeScheduleSchemaPull(schemaVersion, endpoint, state.getApplicationState(ApplicationState.RELEASE_VERSION).value);
     }
 
     /**
      * If versions differ this node sends request with local migration list to the endpoint
      * and expecting to receive a list of migrations to apply locally.
      */
-    private static void maybeScheduleSchemaPull(final UUID theirVersion, final InetAddressAndPort endpoint)
+    private static void maybeScheduleSchemaPull(final UUID theirVersion, final InetAddressAndPort endpoint, String releaseVersion)
     {
+        String ourMajorVersion = FBUtilities.getReleaseVersionMajor();
+        if (!releaseVersion.startsWith(ourMajorVersion))
+        {
+            logger.debug("Not pulling schema because release version in Gossip is not major version {}, it is {}", ourMajorVersion, releaseVersion);
+            return;
+        }
         if (Schema.instance.getVersion() == null)
         {
             logger.debug("Not pulling schema from {}, because local schema version is not known yet",
