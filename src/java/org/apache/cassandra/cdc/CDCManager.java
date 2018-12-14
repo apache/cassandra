@@ -118,7 +118,6 @@ public class CDCManager implements CDCManagerMBean
     private static ScheduledExecutorPlus newCdcExecutor()
     {
         return executorFactory().scheduled(false, "CDCManager", Thread.NORM_PRIORITY);
-//        return new DebuggableScheduledThreadPoolExecutor(1, new NamedThreadFactory("CDCManager"));
     }
 
     /**

@@ -19,8 +19,6 @@
 package org.apache.cassandra.service.throttler;
 
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -30,6 +28,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -37,6 +36,8 @@ import org.apache.cassandra.exceptions.RequestThrottledException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
+
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 /**
  * KeyspaceBasedRequestThrottler throttles different read/write requests based on limits defined in a
@@ -61,7 +62,8 @@ public class KeyspaceBasedRequestThrottler implements IRequestThrottler
     private Map<String, String> params;
     private Map<String, KeyspaceLimits> fetchedKeyspaceLimits;
     private Map<String, KeyspaceLimits> currentKeyspaceLimits;
-    private ScheduledExecutorService executorService;
+    private ScheduledExecutorPlus replenishExecutor;
+    private ScheduledExecutorPlus fetchExecutor;
     private CassandraKeyspaceLimitProvider limitProvider;
     private ReadWriteLock fetchedKeyspaceLimitsLock;
 
@@ -70,7 +72,8 @@ public class KeyspaceBasedRequestThrottler implements IRequestThrottler
         this.params = params;
         currentKeyspaceLimits = new NonBlockingHashMap<>();
         fetchedKeyspaceLimits = new NonBlockingHashMap<>();
-        executorService = Executors.newScheduledThreadPool(2);
+        replenishExecutor = executorFactory().scheduled(false, "RequestThrottler-Replenish", Thread.NORM_PRIORITY);
+        fetchExecutor = executorFactory().scheduled(false, "RequestThrottler-Fetch", Thread.NORM_PRIORITY);
         limitProvider = new CassandraKeyspaceLimitProvider();
         fetchedKeyspaceLimitsLock = new ReentrantReadWriteLock();
     }
@@ -101,10 +104,10 @@ public class KeyspaceBasedRequestThrottler implements IRequestThrottler
         }
         int paramReplenishLimitsPeriodInSec = Integer.parseInt(replenishLimitsPeriod);
 
-        executorService.scheduleAtFixedRate(() -> {
+        replenishExecutor.scheduleAtFixedRate(() -> {
             replenishLocalLimits();
         }, 0, paramReplenishLimitsPeriodInSec, TimeUnit.SECONDS);
-        executorService.scheduleAtFixedRate(() -> {
+        fetchExecutor.scheduleAtFixedRate(() -> {
             fetchLimitsFromProvider();
         }, 0, paramFetchLimitsPeriodInSec, TimeUnit.SECONDS);
     }
@@ -182,28 +185,35 @@ public class KeyspaceBasedRequestThrottler implements IRequestThrottler
     @VisibleForTesting
     void replenishLocalLimits()
     {
-        fetchedKeyspaceLimitsLock.readLock().lock();
-        for (Map.Entry<String, KeyspaceLimits> entry : fetchedKeyspaceLimits.entrySet())
+        try {
+            fetchedKeyspaceLimitsLock.readLock().lock();
+            for (Map.Entry<String, KeyspaceLimits> entry : fetchedKeyspaceLimits.entrySet())
+            {
+                KeyspaceLimits limit = currentKeyspaceLimits.get(entry.getKey());
+                if (limit == null)
+                {
+                    // New entry appeared in the fetched limits, add it to current.
+                    currentKeyspaceLimits.put(entry.getKey(), entry.getValue());
+                }
+                else
+                {
+                    // Existing entry changed, update it.
+                    limit.set(entry.getValue());
+                }
+            }
+            // Existing entry has been deleted in the fetched limits, remove it.
+            for (String keyspaceLimit : currentKeyspaceLimits.keySet()) {
+                if (!fetchedKeyspaceLimits.containsKey(keyspaceLimit)) {
+                    currentKeyspaceLimits.remove(keyspaceLimit);
+                }
+            }
+
+            logger.debug("Replenished keyspace limits from provider: " + currentKeyspaceLimits);
+        }
+        finally
         {
-            KeyspaceLimits limit = currentKeyspaceLimits.get(entry.getKey());
-            if (limit == null)
-            {
-                // New entry appeared in the fetched limits, add it to current.
-                currentKeyspaceLimits.put(entry.getKey(), entry.getValue());
-            }
-            else
-            {
-                // Existing entry changed, update it.
-                limit.set(entry.getValue());
-            }
+            fetchedKeyspaceLimitsLock.readLock().unlock();
         }
-        // Existing entry has been deleted in the fetched limits, remove it.
-        for (String keyspaceLimit : currentKeyspaceLimits.keySet()) {
-            if (!fetchedKeyspaceLimits.containsKey(keyspaceLimit)) {
-                currentKeyspaceLimits.remove(keyspaceLimit);
-            }
-        }
-        fetchedKeyspaceLimitsLock.readLock().unlock();
     }
 
     @Override
