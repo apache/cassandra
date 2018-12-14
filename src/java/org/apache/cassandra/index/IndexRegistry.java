@@ -23,10 +23,20 @@ package org.apache.cassandra.index;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.function.BiFunction;
 
-import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.transactions.IndexTransaction;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -79,6 +89,135 @@ public interface IndexRegistry
         }
     };
 
+    /**
+     * An {@code IndexRegistry} intended for use when Cassandra is initialized in client or tool mode.
+     * Contains a single stub {@code Index} which possesses no actual indexing or searching capabilities
+     * but enables query validation and preparation to succeed. Useful for tools which need to prepare
+     * CQL statements without instantiating the whole ColumnFamilyStore infrastructure.
+     */
+    public static final IndexRegistry NON_DAEMON = new IndexRegistry()
+    {
+        Index index = new Index()
+        {
+            public Callable<?> getInitializationTask()
+            {
+                return null;
+            }
+
+            public IndexMetadata getIndexMetadata()
+            {
+                return null;
+            }
+
+            public Callable<?> getMetadataReloadTask(IndexMetadata indexMetadata)
+            {
+                return null;
+            }
+
+            public void register(IndexRegistry registry)
+            {
+
+            }
+
+            public Optional<ColumnFamilyStore> getBackingTable()
+            {
+                return Optional.empty();
+            }
+
+            public Callable<?> getBlockingFlushTask()
+            {
+                return null;
+            }
+
+            public Callable<?> getInvalidateTask()
+            {
+                return null;
+            }
+
+            public Callable<?> getTruncateTask(long truncatedAt)
+            {
+                return null;
+            }
+
+            public boolean shouldBuildBlocking()
+            {
+                return false;
+            }
+
+            public boolean dependsOn(ColumnMetadata column)
+            {
+                return false;
+            }
+
+            public boolean supportsExpression(ColumnMetadata column, Operator operator)
+            {
+                return true;
+            }
+
+            public AbstractType<?> customExpressionValueType()
+            {
+                return BytesType.instance;
+            }
+
+            public RowFilter getPostIndexQueryFilter(RowFilter filter)
+            {
+                return null;
+            }
+
+            public long getEstimatedResultRows()
+            {
+                return 0;
+            }
+
+            public void validate(PartitionUpdate update) throws InvalidRequestException
+            {
+            }
+
+            public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext ctx, IndexTransaction.Type transactionType)
+            {
+                return null;
+            }
+
+            public BiFunction<PartitionIterator, ReadCommand, PartitionIterator> postProcessorFor(ReadCommand command)
+            {
+                return null;
+            }
+
+            public Searcher searcherFor(ReadCommand command)
+            {
+                return null;
+            }
+        };
+
+        public void registerIndex(Index index)
+        {
+        }
+
+        public void unregisterIndex(Index index)
+        {
+        }
+
+        public Index getIndex(IndexMetadata indexMetadata)
+        {
+            return index;
+        }
+
+        public Collection<Index> listIndexes()
+        {
+            return Collections.singletonList(index);
+        }
+
+        public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
+        {
+            return Optional.empty();
+        }
+
+        public void validate(PartitionUpdate update)
+        {
+
+        }
+    };
+
     void registerIndex(Index index);
     void unregisterIndex(Index index);
 
@@ -106,6 +245,9 @@ public interface IndexRegistry
      */
     public static IndexRegistry obtain(TableMetadata table)
     {
+        if (!DatabaseDescriptor.isDaemonInitialized())
+            return NON_DAEMON;
+
         return table.isVirtual() ? EMPTY : Keyspace.openAndGetStore(table).indexManager;
     }
 }
