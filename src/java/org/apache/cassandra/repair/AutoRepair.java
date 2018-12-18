@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -72,6 +73,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.repair.AutoRepairUtils.RepairTurn.*;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
@@ -103,6 +105,7 @@ public class AutoRepair
     static int repairTableSkipCount = 0;
     static int repairTableFailureCount = 0;
 
+    private ScheduledExecutorPlus repairExecutor;
     public static AutoRepair instance = new AutoRepair();
 
     private AutoRepair()
@@ -148,6 +151,7 @@ public class AutoRepair
 
     public void setup()
     {
+        repairExecutor = executorFactory().scheduled(false, "AutoRepair-Repair", Thread.NORM_PRIORITY);
         AutoRepairMetrics.setup();
         AutoRepairService.instance.setRepairSubRangeNum(DatabaseDescriptor.getAutoRepairNumberOfSubRanges());
         AutoRepairService.instance.setRepairThreads(DatabaseDescriptor.getAutoRepairNumberOfRepairThreads());
@@ -179,7 +183,7 @@ public class AutoRepair
         AutoRepairService.instance.setIgnoreDCs(ignoreDCs);
 
         AutoRepairUtils.setup();
-        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> repair(false),
+        repairExecutor.scheduleWithFixedDelay(() -> repair(false),
                 30,
                 DatabaseDescriptor.getAutoRepairCheckInterval(),
                 TimeUnit.SECONDS);
