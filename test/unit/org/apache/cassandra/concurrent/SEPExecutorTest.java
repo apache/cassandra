@@ -46,13 +46,19 @@ public class SEPExecutorTest
         OutputStream nullOutputStream = new OutputStream() {
             public void write(int b) { }
         };
-        PrintStream nullPrintSteam = new PrintStream(nullOutputStream);
+        final PrintStream nullPrintSteam = new PrintStream(nullOutputStream);
 
         for (int idx = 0; idx < 20; idx++)
         {
-            ExecutorService es = sharedPool.newExecutor(FBUtilities.getAvailableProcessors(), Integer.MAX_VALUE, "STAGE", run + MAGIC + idx);
+            final ExecutorService es = sharedPool.newExecutor(FBUtilities.getAvailableProcessors(), Integer.MAX_VALUE, "STAGE", run + MAGIC + idx);
             // Write to black hole
-            es.execute(() -> nullPrintSteam.println("TEST" + es));
+            es.execute(new Runnable()
+            {
+                public void run()
+                {
+                    nullPrintSteam.println("TEST" + es);
+                }
+            });
         }
 
         // shutdown does not guarantee that threads are actually dead once it exits, only that they will stop promptly afterwards

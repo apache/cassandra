@@ -18,7 +18,7 @@
 -->
 
 <configuration debug="false" scan="true" scanPeriod="60 seconds">
-  <define name="instance_id" class="org.apache.cassandra.distributed.InstanceIDDefiner" />
+  <define name="instance_id" class="org.apache.cassandra.distributed.impl.InstanceIDDefiner" />
 
   <!-- Shutdown hook ensures that async appender flushes -->
   <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>

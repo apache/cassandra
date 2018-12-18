@@ -929,6 +929,16 @@
         </manifest>
       </jar>
 
+      <!-- Test Jar -->
+      <jar jarfile="${build.dir}/${ant.project.name}-test-${version}.jar">
+        <fileset dir="${test.classes}"/>
+        <manifest>
+          <attribute name="Implementation-Title" value="Cassandra"/>
+          <attribute name="Implementation-Version" value="${version}"/>
+          <attribute name="Implementation-Vendor" value="Apache"/>
+        </manifest>
+      </jar>
+
       <!-- Clientutil Jar -->
       <!-- TODO: write maven pom here -->
       <jar jarfile="${build.dir}/${ant.project.name}-clientutil-${version}.jar">
@@ -1207,6 +1217,15 @@
     <copy todir="${test.classes}">
       <fileset dir="${test.resources}"/>
     </copy>
+  </target>
+
+  <target name="dtest-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
+      <jar jarfile="${build.dir}/dtest-${base.version}.jar">
+          <zipgroupfileset dir="${build.lib}" includes="*.jar" excludes="META-INF/*.SF"/>
+          <fileset dir="${build.classes.main}"/>
+          <fileset dir="${test.classes}"/>
+          <fileset dir="${test.conf}" />
+      </jar>
   </target>
 
   <!-- Defines how to run a set of tests. If you change the defaults for attributes
@@ -1770,7 +1789,7 @@
 
   <target name="test" depends="build-test" description="Parallel Test Runner">
     <path id="all-test-classes-path">
-      <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />
+      <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/pig/*.java **/distributed/test/UpgradeTest*.java" />
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testparallel testdelegate="testlist"/>
