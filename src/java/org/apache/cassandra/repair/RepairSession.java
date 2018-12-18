@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
@@ -53,8 +54,8 @@ import org.apache.cassandra.utils.Pair;
  *      validationComplete()).
  *   </li>
  *   <li>Synchronization phase: once all trees are received, the job compares each tree with
- *      all the other using a so-called {@link SyncTask}. If there is difference between 2 trees, the
- *      concerned SyncTask will start a streaming of the difference between the 2 endpoint concerned.
+ *      all the others and creates a {@link SyncTask} for each diverging replica. If there are differences
+ *      between 2 trees, the concerned SyncTask stream the differences between the 2 endpoints concerned.
  *   </li>
  * </ol>
  * The job is done once all its SyncTasks are done (i.e. have either computed no differences
@@ -99,7 +100,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     private final ConcurrentMap<Pair<RepairJobDesc, NodePair>, RemoteSyncTask> syncingTasks = new ConcurrentHashMap<>();
 
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
-    public final ListeningExecutorService taskExecutor = MoreExecutors.listeningDecorator(DebuggableThreadPoolExecutor.createCachedThreadpoolWithMaxSize("RepairJobTask"));
+    public final ListeningExecutorService taskExecutor;
 
     private volatile boolean terminated = false;
 
@@ -134,6 +135,13 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.ranges = ranges;
         this.endpoints = endpoints;
         this.repairedAt = repairedAt;
+        this.taskExecutor = MoreExecutors.listeningDecorator(createExecutor());
+    }
+
+    @VisibleForTesting
+    protected DebuggableThreadPoolExecutor createExecutor()
+    {
+        return DebuggableThreadPoolExecutor.createCachedThreadpoolWithMaxSize("RepairJobTask");
     }
 
     public UUID getId()
@@ -196,6 +204,12 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
         logger.debug(String.format("[repair #%s] Repair completed between %s and %s on %s", getId(), nodes.endpoint1, nodes.endpoint2, desc.columnFamily));
         task.syncComplete(success);
+    }
+
+    @VisibleForTesting
+    Map<Pair<RepairJobDesc, NodePair>, RemoteSyncTask> getSyncingTasks()
+    {
+        return Collections.unmodifiableMap(syncingTasks);
     }
 
     private String repairedNodes()

@@ -364,6 +364,10 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void forceTerminateAllRepairSessions();
 
+    public void setRepairSessionMaxTreeDepth(int depth);
+
+    public int getRepairSessionMaxTreeDepth();
+
     /**
      * transfer this node's data to other machines and remove it from service.
      */
