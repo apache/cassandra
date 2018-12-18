@@ -16,26 +16,26 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed;
+package org.apache.cassandra.distributed.api;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-// a container for simplifying the method signature for per-instance message handling/delivery
-public class Message
+import java.util.UUID;
+
+public interface IInstanceConfig
 {
-    public final int verb;
-    public final byte[] bytes;
-    public final int id;
-    public final int version;
-    public final InetAddressAndPort from;
+    int num();
+    UUID hostId();
+    InetAddressAndPort broadcastAddressAndPort();
 
-    public Message(int verb, byte[] bytes, int id, int version, InetAddressAndPort from)
-    {
-        this.verb = verb;
-        this.bytes = bytes;
-        this.id = id;
-        this.version = version;
-        this.from = from;
-    }
+    /**
+     * write the specified parameters to the Config object; we do not specify Config as the type to support a Config
+     * from any ClassLoader; the implementation must not directly access any fields of the Object, or cast it, but
+     * must use the reflection API to modify the state
+     */
+    void propagate(Object writeToConfig);
+
+    Object get(String fieldName);
+    String getString(String fieldName);
+    int getInt(String fieldName);
 }
-
