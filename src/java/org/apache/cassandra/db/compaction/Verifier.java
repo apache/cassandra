@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -500,7 +501,8 @@ public class Verifier implements Closeable
                                           OperationType.VERIFY,
                                           dataFile.getFilePointer(),
                                           dataFile.length(),
-                                          verificationCompactionId);
+                                          verificationCompactionId,
+                                          ImmutableSet.of(sstable));
             }
             catch (Exception e)
             {

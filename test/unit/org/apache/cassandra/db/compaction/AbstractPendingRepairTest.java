@@ -114,7 +114,7 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
         return sstable;
     }
 
-    protected static void mutateRepaired(SSTableReader sstable, long repairedAt, UUID pendingRepair, boolean isTransient)
+    public static void mutateRepaired(SSTableReader sstable, long repairedAt, UUID pendingRepair, boolean isTransient)
     {
         try
         {
@@ -127,12 +127,12 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
         }
     }
 
-    protected static void mutateRepaired(SSTableReader sstable, long repairedAt)
+    public static void mutateRepaired(SSTableReader sstable, long repairedAt)
     {
         mutateRepaired(sstable, repairedAt, ActiveRepairService.NO_PENDING_REPAIR, false);
     }
 
-    protected static void mutateRepaired(SSTableReader sstable, UUID pendingRepair, boolean isTransient)
+    public static void mutateRepaired(SSTableReader sstable, UUID pendingRepair, boolean isTransient)
     {
         mutateRepaired(sstable, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, isTransient);
     }

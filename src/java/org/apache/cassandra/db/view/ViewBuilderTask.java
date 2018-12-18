@@ -26,8 +26,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 import com.google.common.util.concurrent.Futures;
@@ -76,7 +78,8 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
     private volatile boolean isStopped = false;
     private volatile boolean isCompactionInterrupted = false;
 
-    ViewBuilderTask(ColumnFamilyStore baseCfs, View view, Range<Token> range, Token lastToken, long keysBuilt)
+    @VisibleForTesting
+    public ViewBuilderTask(ColumnFamilyStore baseCfs, View view, Range<Token> range, Token lastToken, long keysBuilt)
     {
         this.baseCfs = baseCfs;
         this.view = view;
@@ -195,17 +198,20 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
     @Override
     public CompactionInfo getCompactionInfo()
     {
+        // we don't know the sstables at construction of ViewBuilderTask and we could change this to return once we know the
+        // but since we basically only cancel view builds on truncation where we cancel all compactions anyway, this seems reasonable
+
         // If there's splitter, calculate progress based on last token position
         if (range.left.getPartitioner().splitter().isPresent())
         {
             long progress = prevToken == null ? 0 : Math.round(prevToken.getPartitioner().splitter().get().positionInRange(prevToken, range) * 1000);
-            return new CompactionInfo(baseCfs.metadata(), OperationType.VIEW_BUILD, progress, 1000, Unit.RANGES, compactionId);
+            return CompactionInfo.withoutSSTables(baseCfs.metadata(), OperationType.VIEW_BUILD, progress, 1000, Unit.RANGES, compactionId);
         }
 
         // When there is no splitter, estimate based on number of total keys but
         // take the max with keysBuilt + 1 to avoid having more completed than total
         long keysTotal = Math.max(keysBuilt + 1, baseCfs.estimatedKeysForRange(range));
-        return new CompactionInfo(baseCfs.metadata(), OperationType.VIEW_BUILD, keysBuilt, keysTotal, Unit.KEYS, compactionId);
+        return CompactionInfo.withoutSSTables(baseCfs.metadata(), OperationType.VIEW_BUILD, keysBuilt, keysTotal, Unit.KEYS, compactionId);
     }
 
     @Override
