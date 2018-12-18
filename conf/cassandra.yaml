@@ -405,6 +405,19 @@ concurrent_materialized_view_writes: 32
 # https://issues.apache.org/jira/browse/CASSANDRA-11039
 memtable_allocation_type: heap_buffers
 
+# Limits the maximum Merkle tree depth to avoid consuming too much
+# memory during repairs.
+#
+# The default setting of 18 generates trees of maximum size around
+# 50 MiB / tree. If you are running out of memory during repairs consider
+# lowering this to 15 (~6 MiB / tree) or lower, but try not to lower it
+# too much past that or you will lose too much resolution and stream
+# too much redundant data during repair. Cannot be set lower than 10.
+#
+# For more details see https://issues.apache.org/jira/browse/CASSANDRA-14096.
+#
+# repair_session_max_tree_depth: 18
+
 # Total space to use for commit logs on disk.
 #
 # If space gets above this value, Cassandra will flush every dirty CF
