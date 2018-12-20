@@ -689,6 +689,7 @@
         <dependency groupId="net.openhft" artifactId="chronicle-wire" version="${chronicle-wire.version}"/>
         <dependency groupId="net.openhft" artifactId="chronicle-threads" version="${chronicle-threads.version}"/>
         <dependency groupId="joda-time" artifactId="joda-time"/>
+        <dependency groupId="com.carrotsearch" artifactId="hppc"/>
         <dependency groupId="org.fusesource" artifactId="sigar"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
