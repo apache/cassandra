@@ -52,6 +52,14 @@ To run only the ``testStaticCompactTables()`` test method from that class, you w
 
     ant testsome -Dtest.name=org.apache.cassandra.cql3.SimpleQueryTest -Dtest.methods=testStaticCompactTables
 
+If you see an error like this::
+
+    Throws: cassandra-trunk/build.xml:1134: taskdef A class needed by class org.krummas.junit.JStackJUnitTask cannot be found:
+    org/apache/tools/ant/taskdefs/optional/junit/JUnitTask  using the classloader
+    AntClassLoader[/.../cassandra-trunk/lib/jstackjunit-0.0.1.jar]
+
+You will need to install the ant-optional package since it contains the ``JUnitTask`` class.
+
 Long running tests
 ------------------
 

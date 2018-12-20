@@ -1235,9 +1235,6 @@
       </jar>
   </target>
 
-    <!-- use https://github.com/krummas/jstackjunit to get thread dumps when unit tests time out -->
-  <taskdef name="junit" classname="org.krummas.junit.JStackJUnitTask" classpath="lib/jstackjunit-0.0.1.jar"/>
-
   <target name="build-test" depends="_main-jar, stress-build, fqltool-build, write-poms" description="Compile test classes">
     <javac
      compiler="modern"
@@ -1288,10 +1285,12 @@
                  else="">
         <istrue value="${usejacoco}"/>
       </condition>
+      <!-- use https://github.com/krummas/jstackjunit to get thread dumps when unit tests time out -->
+      <taskdef name="junit-timeout" classname="org.krummas.junit.JStackJUnitTask" classpath="lib/jstackjunit-0.0.1.jar"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
-      <junit fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}">
+      <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}">
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1332,7 +1331,7 @@
             <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
             <filelist dir="@{inputdir}" files="@{filelist}"/>
         </batchtest>
-      </junit>
+      </junit-timeout>
 
       <condition property="fileSep" value=";">
         <os family="windows"/>
