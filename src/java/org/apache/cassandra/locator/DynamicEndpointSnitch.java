@@ -83,8 +83,8 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
     public static final long MAX_PROBE_INTERVAL_MS = Long.getLong("cassandra.dynamic_snitch_max_probe_interval_ms", 60 * 10 * 1000L);
     public static final long MIN_PROBE_INTERVAL_MS = Long.getLong("cassandra.dynamic_snitch_min_probe_interval_ms", 60 * 1000L) ;
     // The probe rate is set later when configuration is read in applyConfigChanges
-    protected static final RateLimiter probeRateLimiter = RateLimiter.create(1);
-    protected static final DebuggableScheduledThreadPoolExecutor latencyProbeExecutor = new DebuggableScheduledThreadPoolExecutor("LatencyProbes");
+    protected final RateLimiter probeRateLimiter;
+    protected final DebuggableScheduledThreadPoolExecutor latencyProbeExecutor;
     private long lastUpdateSamplesNanos = System.nanoTime();
 
     // User configuration of the snitch tunables
@@ -116,6 +116,8 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
             mbeanName += ",instance=" + instance;
         subsnitch = snitch;
 
+        probeRateLimiter = RateLimiter.create(1);
+        latencyProbeExecutor = new DebuggableScheduledThreadPoolExecutor("LatencyProbes");
         if (DatabaseDescriptor.isDaemonInitialized())
         {
             open();
@@ -144,6 +146,7 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
             }
         }
 
+        dynamicUpdateInterval = newDynamicUpdateInternal;
         dynamicUpdateInterval = newDynamicUpdateInternal;
         dynamicSampleUpdateInterval = newDynamicSampleUpdateInterval;
         dynamicBadnessThreshold = newDynamicBadnessThreshold;
@@ -284,6 +287,8 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
                 sample = maybeNewSample;
         }
 
+        // The conditional load -> store barrier is probably cheaper than an unconditional store-store
+        // Since this is on the fast path we do this, otherwise we could just .set(0)
         if (measurementType == LatencyMeasurementType.READ && sample.millisSinceLastMeasure.get() > 0)
             sample.millisSinceLastMeasure.lazySet(0);
 
@@ -550,6 +555,8 @@ public abstract class DynamicEndpointSnitch extends AbstractEndpointSnitch imple
         for (Replica replica: unsortedAddresses)
         {
             AnnotatedMeasurement measurement = samples.get(replica.endpoint());
+            // The conditional load -> store barrier is probably cheaper than an unconditional store-store
+            // Since this is on the fast path we do this, otherwise we could just .set(0)
             if (measurement != null && measurement.millisSinceLastRequest.get() > 0)
                 measurement.millisSinceLastRequest.lazySet(0);
         }
