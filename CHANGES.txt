@@ -1,4 +1,5 @@
 2.2.14
+ * Don't enable client transports when bootstrap is pending (CASSANDRA-14525)
  * MigrationManager attempts to pull schema from different major version nodes (CASSANDRA-14928)
  * Don't skip entire sstables when reading backwards with mixed clustering column order
    (CASSANDRA-14910)
@@ -9,7 +10,6 @@
 
 
 2.2.13
- * Don't enable client transports when bootstrap is pending (CASSANDRA-14525)
  * Fix bug that prevented compaction of SSTables after full repairs (CASSANDRA-14423)
  * Incorrect counting of pending messages in OutboundTcpConnection (CASSANDRA-11551)
  * Fix compaction failure caused by reading un-flushed data (CASSANDRA-12743)
