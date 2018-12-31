@@ -55,6 +55,7 @@ Merged from 3.0:
  * RateBasedBackPressure unnecessarily invokes a lock on the Guava RateLimiter (CASSANDRA-14163)
  * Fix wildcard GROUP BY queries (CASSANDRA-14209)
 Merged from 3.0:
+ * Don't enable client transports when bootstrap is pending (CASSANDRA-14525)
  * Fix corrupted static collection deletions in 3.0 -> 2.{1,2} messages (CASSANDRA-14568)
  * Fix potential IndexOutOfBoundsException with counters (CASSANDRA-14167)
  * Always close RT markers returned by ReadCommand#executeLocally() (CASSANDRA-14515)
