@@ -1,4 +1,5 @@
 4.0
+ * Don't enable client transports when bootstrap is pending (CASSANDRA-14525)
  * Make antiCompactGroup throw exception on error and anticompaction non cancellable
    again (CASSANDRA-14936)
  * Catch empty/invalid bounds in SelectStatement (CASSANDRA-14849)
