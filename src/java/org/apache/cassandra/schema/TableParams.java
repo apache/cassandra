@@ -211,6 +211,29 @@ public final class TableParams
             && readRepair == p.readRepair;
     }
 
+    public Object optionValue(Option option)
+    {
+    switch(option)
+    {
+        case COMMENT: return comment;
+        case BLOOM_FILTER_FP_CHANCE: return bloomFilterFpChance;
+        case CRC_CHECK_CHANCE: return crcCheckChance;
+        case GC_GRACE_SECONDS: return gcGraceSeconds;
+        case DEFAULT_TIME_TO_LIVE: return defaultTimeToLive;
+        case MEMTABLE_FLUSH_PERIOD_IN_MS: return memtableFlushPeriodInMs;
+        case MIN_INDEX_INTERVAL: return minIndexInterval;
+        case MAX_INDEX_INTERVAL: return maxIndexInterval;
+        case SPECULATIVE_RETRY: return speculativeRetry;
+        case ADDITIONAL_WRITE_POLICY: return additionalWritePolicy;
+        case CACHING: return caching;
+        case COMPACTION: return compaction;
+        case COMPRESSION: return compression;
+        case EXTENSIONS: return extensions;
+        case CDC: return cdc;
+        case READ_REPAIR: return readRepair;
+        default: throw new RuntimeException("Unknown option: " + option);
+    }
+}
     @Override
     public int hashCode()
     {
@@ -223,6 +246,7 @@ public final class TableParams
                                 minIndexInterval,
                                 maxIndexInterval,
                                 speculativeRetry,
+                                additionalWritePolicy,
                                 caching,
                                 compaction,
                                 compression,
@@ -234,23 +258,12 @@ public final class TableParams
     @Override
     public String toString()
     {
-        return MoreObjects.toStringHelper(this)
-                          .add(Option.COMMENT.toString(), comment)
-                          .add(Option.BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
-                          .add(Option.CRC_CHECK_CHANCE.toString(), crcCheckChance)
-                          .add(Option.GC_GRACE_SECONDS.toString(), gcGraceSeconds)
-                          .add(Option.DEFAULT_TIME_TO_LIVE.toString(), defaultTimeToLive)
-                          .add(Option.MEMTABLE_FLUSH_PERIOD_IN_MS.toString(), memtableFlushPeriodInMs)
-                          .add(Option.MIN_INDEX_INTERVAL.toString(), minIndexInterval)
-                          .add(Option.MAX_INDEX_INTERVAL.toString(), maxIndexInterval)
-                          .add(Option.SPECULATIVE_RETRY.toString(), speculativeRetry)
-                          .add(Option.CACHING.toString(), caching)
-                          .add(Option.COMPACTION.toString(), compaction)
-                          .add(Option.COMPRESSION.toString(), compression)
-                          .add(Option.EXTENSIONS.toString(), extensions)
-                          .add(Option.CDC.toString(), cdc)
-                          .add(Option.READ_REPAIR.toString(), readRepair)
-                          .toString();
+        MoreObjects.ToStringHelper toString = MoreObjects.toStringHelper(this);
+        for (Option opt : Option.values())
+        {
+            toString.add(opt.toString(), optionValue(opt));
+        }
+       return toString.toString();
     }
 
     public static final class Builder

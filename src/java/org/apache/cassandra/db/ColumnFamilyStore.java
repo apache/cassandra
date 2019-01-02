@@ -1785,7 +1785,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             try (PrintStream out = new PrintStream(schemaFile))
             {
-                for (String s: TableCQLHelper.dumpReCreateStatements(metadata()))
+                for (String s: SchemaCQLHelper.dumpReCreateStatements(metadata()))
                     out.println(s);
             }
         }

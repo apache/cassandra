@@ -53,7 +53,7 @@ public final class CQLTypeParser
         return parseRaw(unparsed).prepareInternal(keyspace, userTypes).getType();
     }
 
-    static CQL3Type.Raw parseRaw(String type)
+    public static CQL3Type.Raw parseRaw(String type)
     {
         return CQLFragmentParser.parseAny(CqlParser::comparatorType, type, "CQL type");
     }
