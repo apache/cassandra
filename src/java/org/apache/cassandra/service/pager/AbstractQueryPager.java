@@ -207,7 +207,7 @@ abstract class AbstractQueryPager implements QueryPager
 
     protected abstract boolean isReversed();
 
-    private List<Row> discardFirst(List<Row> rows)
+    protected List<Row> discardFirst(List<Row> rows)
     {
         return discardFirst(rows, 1);
     }
