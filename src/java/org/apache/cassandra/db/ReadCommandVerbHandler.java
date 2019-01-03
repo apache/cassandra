@@ -81,7 +81,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         ReadCommand command = message.payload;
         Token token;
 
-        if (command.isLimitedToOnePartition())
+        if (command instanceof SinglePartitionReadCommand)
             token = ((SinglePartitionReadCommand) command).partitionKey().getToken();
         else
             token = ((PartitionRangeReadCommand) command).dataRange().keyRange().right.getToken();
