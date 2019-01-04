@@ -34,7 +34,7 @@ Compression is configured on a per-table basis as an optional argument to ``CREA
 default, three options are relevant:
 
 - ``class`` specifies the compression class - Cassandra provides three classes (``LZ4Compressor``,
-  ``SnappyCompressor``, and ``DeflateCompressor`` ). The default is ``SnappyCompressor``.
+  ``SnappyCompressor``, and ``DeflateCompressor`` ). The default is ``LZ4Compressor``.
 - ``chunk_length_in_kb`` specifies the number of kilobytes of data per compression chunk. The default is 64KB.
 - ``crc_check_chance`` determines how likely Cassandra is to verify the checksum on each compression chunk during
   reads. The default is 1.0.
