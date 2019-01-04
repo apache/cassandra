@@ -118,7 +118,7 @@ Fill out the following email template and send to the dev mailing list::
 
     sha1: <git-sha>
 
-    Git: http://git-wip-us.apache.org/repos/asf?p=cassandra.git;a=shortlog;h=refs/tags/<version>-tentative
+    Git: https://gitbox.apache.org/repos/asf?p=cassandra.git;a=shortlog;h=refs/tags/<version>-tentative
 
     Artifacts: https://repository.apache.org/content/repositories/orgapachecassandra-<nexus-id>/org/apache/cassandra/apache-cassandra/<version>/
 
