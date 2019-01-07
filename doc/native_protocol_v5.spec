@@ -298,10 +298,6 @@ Table of Contents
       different from the protocol version.
     - "COMPRESSION": the compression algorithm to use for frames (See section 5).
       This is optional; if not specified no compression will be used.
-    - "NO_COMPACT": whether or not connection has to be established in compatibility
-      mode. This mode will make all Thrift and Compact Tables to be exposed as if
-      they were CQL Tables. This is optional; if not specified, the option will
-      not be used.
 
 
 4.1.2. AUTH_RESPONSE
@@ -1268,3 +1264,4 @@ Table of Contents
   * Added keyspace field in QUERY, PREPARE, and BATCH messages (Sections 4.1.4, 4.1.5, and 4.1.7).
   * Added now_in_seconds field in QUERY, EXECUTE, and BATCH messages (Sections 4.1.4, 4.1.6, and 4.1.7).
   * Added [int] flags field in PREPARE message (Section 4.1.5).
+  * Removed NO_COMPACT startup option (Section 4.1.1.)
