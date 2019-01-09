@@ -56,6 +56,12 @@ with_dtest_jobs_only: &with_dtest_jobs_only
             - dtests-no-vnodes:
                   requires:
                       - build
+upgrade_job_only: &upgrade_job_only
+        jobs:
+            - build
+            - upgrade_tests:
+                  requires:
+                      - build
 # Set env_settings, env_vars, and workflows/build_and_run_tests based on environment
 env_settings: &env_settings
     <<: *default_env_settings
@@ -68,6 +74,7 @@ workflows:
     build_and_run_tests: *default_jobs
     #build_and_run_tests: *with_dtest_jobs_only
     #build_and_run_tests: *with_dtest_jobs
+    #build_and_run_tests: *upgrade_job_only
 docker_image: &docker_image spod/cassandra-testing-ubuntu18-java11
 version: 2
 jobs:
@@ -235,7 +242,7 @@ jobs:
             export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
 
             echo "***Collected DTests (with vnodes)***"
-            set -eo pipefail && ./run_dtests.py --use-vnodes --dtest-print-tests-only --skip-resource-intensive-tests --dtest-print-tests-output=/tmp/all_dtest_tests_with_vnodes
+            set -eo pipefail && ./run_dtests.py --use-vnodes --dtest-print-tests-only --skip-resource-intensive-tests --dtest-print-tests-output=/tmp/all_dtest_tests_with_vnodes --cassandra-dir="../cassandra"
             set -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_with_vnodes > /tmp/split_dtest_tests_with_vnodes.txt
             cat /tmp/split_dtest_tests_with_vnodes.txt | tr '\n' ' ' > /tmp/split_dtest_tests_with_vnodes_final.txt
             # cat /tmp/split_dtest_tests_with_vnodes.txt
@@ -313,7 +320,7 @@ jobs:
             export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
 
             echo "***Collected DTests (without vnodes)***"
-            ./run_dtests.py --dtest-print-tests-only --skip-resource-intensive-tests --dtest-print-tests-output=/tmp/all_dtest_tests_without_vnodes
+            ./run_dtests.py --dtest-print-tests-only --skip-resource-intensive-tests --dtest-print-tests-output=/tmp/all_dtest_tests_without_vnodes --cassandra-dir="../cassandra"
             set -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_without_vnodes > /tmp/split_dtest_tests_without_vnodes.txt
             cat /tmp/split_dtest_tests_without_vnodes.txt | tr '\n' ' ' > /tmp/split_dtest_tests_without_vnodes_final.txt
             # cat /tmp/split_dtest_tests_without_vnodes.txt
@@ -345,3 +352,80 @@ jobs:
       - store_artifacts:
           path: ~/cassandra-dtest/logs
           destination: dtest_no_vnodes_logs
+  upgrade_tests:
+    <<: *env_settings
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    docker:
+      - image: *docker_image
+        environment:
+            <<: *env_vars
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run:
+          name: Clone Cassandra dtest Repository (via git)
+          command: |
+            export LANG=en_US.UTF-8
+            git clone --single-branch --branch master --depth 1 git://github.com/apache/cassandra-dtest.git ~/cassandra-dtest
+      - run:
+          name: Configure virtualenv and python Dependencies
+          command: |
+            # note, this should be super quick as all dependencies should be pre-installed in the docker image
+            # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
+            # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
+            # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
+            export LANG=en_US.UTF-8
+            source ~/env/bin/activate
+            export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+            export CASS_DRIVER_NO_EXTENSIONS=true
+            export CASS_DRIVER_NO_CYTHON=true
+            pip3 install --upgrade -r ~/cassandra-dtest/requirements.txt
+            pip3 freeze
+      - run:
+          name: Determine Tests to Run
+          no_output_timeout: 5m
+          command: |
+            # reminder: this code (along with all the steps) is independently executed on every circle container
+            # so the goal here is to get the circleci script to return the tests *this* container will run
+            # which we do via the `circleci` cli tool.
+
+            export LANG=en_US.UTF-8
+            export RUN_STATIC_UPGRADE_MATRIX=true
+            cd cassandra-dtest
+            source ~/env/bin/activate
+            export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+
+            echo "***Collected upgrade DTests (without vnodes)***"
+            ./run_dtests.py --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_without_vnodes --cassandra-dir="../cassandra" --execute-upgrade-tests
+            cat /tmp/all_dtest_tests_without_vnodes | grep '^upgrade_tests' > /tmp/all_upgrade_dtest_tests_without_vnodes
+            set -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_upgrade_dtest_tests_without_vnodes > /tmp/split_upgrade_dtest_tests_without_vnodes.txt
+            cat /tmp/split_upgrade_dtest_tests_without_vnodes.txt | tr '\n' ' ' > /tmp/split_upgrade_dtest_tests_without_vnodes_final.txt
+            cat /tmp/split_upgrade_dtest_tests_without_vnodes_final.txt
+      - run:
+          name: Run upgrade dtests (without vnodes)
+          no_output_timeout: 15m
+          command: |
+            # for now require at least 50 circleci containers to run the dtests (with less resources the tests won't produce reliable results or will fail to complete)
+            if [ $CIRCLE_NODE_TOTAL -gt 0 ]; then
+                source ~/env/bin/activate
+                export PATH=$PATH:$ANT_HOME/bin:$JAVA_HOME/bin
+                export RUN_STATIC_UPGRADE_MATRIX=true
+                cd ~/cassandra-dtest
+                mkdir -p /tmp/dtest
+
+                mkdir -p /tmp/results/dtests
+                # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
+                export SPLIT_TESTS=`cat /tmp/split_upgrade_dtest_tests_without_vnodes_final.txt`
+                #Skip all syncing to disk to avoid performance issues in flaky CI environments
+                export CASSANDRA_SKIP_SYNC=true
+                set -o pipefail && cd ~/cassandra-dtest && pytest --log-level="INFO" --junit-xml=/tmp/results/dtests/pytest_result_novnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --execute-upgrade-tests --keep-test-dir --log-cli-level=debug $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout-novnodes.txt
+            fi
+      - store_test_results:
+          path: /tmp/results
+      - store_artifacts:
+          path: /tmp/dtest
+          destination: dtest_upgrade_no_vnodes
+      - store_artifacts:
+          path: ~/cassandra-dtest/logs
+          destination: dtest_upgrade_no_vnodes_logs
