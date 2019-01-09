@@ -28,16 +28,7 @@ import static org.apache.cassandra.net.MessagingService.Verb.READ_REPAIR;
 public class DistributedReadWritePathTest extends DistributedTestBase
 {
     @Test
-    public void coordinatorReadTest() throws Throwable
-    {
-        for (int i = 0; i < 10; i++)
-        {
-            System.out.println(i);
-            coordinatorRead();
-        }
-    }
-
-    private void coordinatorRead() throws Throwable
+    public void coordinatorRead() throws Throwable
     {
         try (TestCluster cluster = createCluster(3))
         {
