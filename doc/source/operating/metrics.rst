@@ -108,9 +108,9 @@ PendingCompactions                      Gauge<Integer> Estimate of number of pen
 LiveSSTableCount                        Gauge<Integer> Number of SSTables on disk for this table.
 LiveDiskSpaceUsed                       Counter        Disk space used by SSTables belonging to this table (in bytes).
 TotalDiskSpaceUsed                      Counter        Total disk space used by SSTables belonging to this table, including obsolete ones waiting to be GC'd.
-MinPartitionSize                        Gauge<Long>    Size of the smallest compacted partition (in bytes).
-MaxPartitionSize                        Gauge<Long>    Size of the largest compacted partition (in bytes).
-MeanPartitionSize                       Gauge<Long>    Size of the average compacted partition (in bytes).
+MinPartitionSize                        Gauge<Long>    Estimated minimum uncompressed partition size in bytes for any given SSTable in this table. Note that if there are multiple SSTables containing the same partition this metric does not sum those sizes, it just returns the minimum. For example if there are two SSTables containing only one (identical) partition with size 3 and 7, this metric would show 3 instead of 10.
+MaxPartitionSize                        Gauge<Long>    Estimated maximum uncompressed partition size in bytes for any given SSTable in this table. Note that if there are multiple SSTables containing the same partition this metric does not sum those sizes, it just returns the maximum. For example if there are two SSTables containing only one (identical) partition with size 3 and 7, this metric would show 7 instead of 10.
+MeanPartitionSize                       Gauge<Long>    Estimated weighted mean uncompressed partition size in bytes across all SSTables in this table. Each SSTable contributes an estimated mean size proportional to the estimated number of partitions in that SSTable. For example if there are two SSTables with mean size 2 and 300, covering 200 partitions and 3 partitions respectively, this metric would return (2 * 200 + 300 * 3) / (200 + 3) = 6.
 BloomFilterFalsePositives               Gauge<Long>    Number of false positives on table's bloom filter.
 BloomFilterFalseRatio                   Gauge<Double>  False positive ratio of table's bloom filter.
 BloomFilterDiskSpaceUsed                Gauge<Long>    Disk space used by bloom filter (in bytes).
