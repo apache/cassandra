@@ -39,6 +39,10 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
@@ -76,6 +80,11 @@ import org.apache.cassandra.utils.concurrent.SimpleCondition;
  */
 public class TestCluster implements AutoCloseable
 {
+    // WARNING: we have this logger not (necessarily) for logging, but
+    // to ensure we have instantiated the main classloader's LoggerFactory (and any LogbackStatusListener)
+    // before we instantiate any for a new instance
+    private static final Logger logger = LoggerFactory.getLogger(TestCluster.class);
+
     private final File root;
     private final List<Instance> instances;
     private final Coordinator coordinator;
