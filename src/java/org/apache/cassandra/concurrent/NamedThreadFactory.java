@@ -30,6 +30,8 @@ public class NamedThreadFactory implements ThreadFactory
 {
     protected final String id;
     private final int priority;
+    private final ClassLoader contextClassLoader;
+    private final ThreadGroup threadGroup;
     protected final AtomicInteger n = new AtomicInteger(1);
 
     public NamedThreadFactory(String id)
@@ -39,17 +41,26 @@ public class NamedThreadFactory implements ThreadFactory
 
     public NamedThreadFactory(String id, int priority)
     {
+        this(id, priority, null, null);
+    }
 
+    public NamedThreadFactory(String id, int priority, ClassLoader contextClassLoader, ThreadGroup threadGroup)
+    {
         this.id = id;
         this.priority = priority;
+        this.contextClassLoader = contextClassLoader;
+        this.threadGroup = threadGroup;
     }
 
     public Thread newThread(Runnable runnable)
     {
-        String name = id + ":" + n.getAndIncrement();
-        Thread thread = new Thread(runnable, name);
-        thread.setPriority(priority);
+        String name = id + ':' + n.getAndIncrement();
+        Thread thread = new Thread(threadGroup, runnable, name);
         thread.setDaemon(true);
+        thread.setPriority(priority);
+        if (contextClassLoader != null)
+            thread.setContextClassLoader(contextClassLoader);
         return thread;
     }
+
 }
