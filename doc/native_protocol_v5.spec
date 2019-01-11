@@ -1264,3 +1264,4 @@ Table of Contents
   * Added keyspace field in QUERY, PREPARE, and BATCH messages (Sections 4.1.4, 4.1.5, and 4.1.7).
   * Added now_in_seconds field in QUERY, EXECUTE, and BATCH messages (Sections 4.1.4, 4.1.6, and 4.1.7).
   * Added [int] flags field in PREPARE message (Section 4.1.5).
+  * Removed NO_COMPACT startup option (Section 4.1.1.)

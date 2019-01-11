@@ -24,7 +24,7 @@ Getting started with Cassandra and IntelliJ IDEA or Eclipse is simple, once you 
 
 The source code for Cassandra is shared through the central Apache Git repository and organized by different branches. You can access the code for the current development branch through git as follows::
 
-   git clone http://git-wip-us.apache.org/repos/asf/cassandra.git cassandra-trunk
+   git clone https://gitbox.apache.org/repos/asf/cassandra.git cassandra-trunk
 
 Other branches will point to different versions of Cassandra. Switching to a different branch requires checking out the branch by its name::
 

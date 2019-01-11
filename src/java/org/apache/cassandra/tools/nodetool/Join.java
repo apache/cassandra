@@ -32,6 +32,7 @@ public class Join extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         checkState(!probe.isJoined(), "This node has already joined the ring.");
+        checkState(!probe.isBootstrapMode(), "Cannot join the ring until bootstrap completes");
 
         try
         {

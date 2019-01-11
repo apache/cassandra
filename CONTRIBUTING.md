@@ -1,7 +1,7 @@
 # Apache Cassandra and Pull Requests
 
 Apache Cassandra doesn't use GitHub pull requests as part of the development process.
-In fact, this repository is a GitHub mirror of [the official repo](https://git-wip-us.apache.org/repos/asf/cassandra.git). The development team has no control over it. We cannot merge or close any pull requests opened for the apache/cassandra repository, so please don't open them.
+In fact, this repository is a GitHub mirror of [the official repo](https://gitbox.apache.org/repos/asf/cassandra.git).
 
 # How to Contribute
 

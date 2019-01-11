@@ -55,7 +55,7 @@ Create and publish your GPG key
 To create a GPG key, follow the `guidelines <http://www.apache.org/dev/openpgp.html>`_.
 Include your public key in::
 
-  https://dist.apache.org/repos/dist/cassandra/KEYS
+  https://dist.apache.org/repos/dist/release/cassandra/KEYS
 
 
 Publish your GPG key in a PGP key server, such as `MIT Keyserver <http://pgp.mit.edu/>`_.
@@ -118,7 +118,7 @@ Fill out the following email template and send to the dev mailing list::
 
     sha1: <git-sha>
 
-    Git: http://git-wip-us.apache.org/repos/asf?p=cassandra.git;a=shortlog;h=refs/tags/<version>-tentative
+    Git: https://gitbox.apache.org/repos/asf?p=cassandra.git;a=shortlog;h=refs/tags/<version>-tentative
 
     Artifacts: https://repository.apache.org/content/repositories/orgapachecassandra-<nexus-id>/org/apache/cassandra/apache-cassandra/<version>/
 

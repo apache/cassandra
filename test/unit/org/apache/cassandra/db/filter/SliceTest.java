@@ -30,6 +30,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.*;
 import static org.junit.Assert.*;
 
 public class SliceTest
@@ -43,8 +44,8 @@ public class SliceTest
         types.add(Int32Type.instance);
         ClusteringComparator cc = new ClusteringComparator(types);
 
-        ClusteringPrefix.Kind sk = ClusteringPrefix.Kind.INCL_START_BOUND;
-        ClusteringPrefix.Kind ek = ClusteringPrefix.Kind.INCL_END_BOUND;
+        ClusteringPrefix.Kind sk = INCL_START_BOUND;
+        ClusteringPrefix.Kind ek = INCL_END_BOUND;
 
         // filter falls entirely before sstable
         Slice slice = Slice.make(makeBound(sk, 0, 0, 0), makeBound(ek, 1, 0, 0));
@@ -274,8 +275,8 @@ public class SliceTest
         types.add(Int32Type.instance);
         ClusteringComparator cc = new ClusteringComparator(types);
 
-        ClusteringPrefix.Kind sk = ClusteringPrefix.Kind.INCL_START_BOUND;
-        ClusteringPrefix.Kind ek = ClusteringPrefix.Kind.INCL_END_BOUND;
+        ClusteringPrefix.Kind sk = INCL_START_BOUND;
+        ClusteringPrefix.Kind ek = INCL_END_BOUND;
 
         // slice does intersect
         Slice slice = Slice.make(makeBound(sk), makeBound(ek));
@@ -323,6 +324,26 @@ public class SliceTest
         assertSlicesNormalization(cc, slices(s(-1, 2), s(-1, 3), s(5, 9)), slices(s(-1, 3), s(5, 9)));
     }
 
+    @Test
+    public void testIsEmpty()
+    {
+        List<AbstractType<?>> types = new ArrayList<>();
+        types.add(Int32Type.instance);
+        types.add(Int32Type.instance);
+        ClusteringComparator cc = new ClusteringComparator(types);
+
+        assertFalse(Slice.isEmpty(cc, makeBound(INCL_START_BOUND, 5, 0), makeBound(INCL_END_BOUND, 5, 0)));
+        assertFalse(Slice.isEmpty(cc, makeBound(INCL_START_BOUND, 5, 0), makeBound(EXCL_END_BOUND, 5, 1)));
+        assertFalse(Slice.isEmpty(cc, makeBound(INCL_START_BOUND, 5), makeBound(EXCL_END_BOUND, 5, 1)));
+
+        assertTrue(Slice.isEmpty(cc, makeBound(EXCL_START_BOUND, 5), makeBound(EXCL_END_BOUND, 5)));
+        assertTrue(Slice.isEmpty(cc, makeBound(EXCL_START_BOUND, 5), makeBound(EXCL_END_BOUND, 5, 1)));
+        assertTrue(Slice.isEmpty(cc, makeBound(EXCL_START_BOUND, 5, 1), makeBound(EXCL_END_BOUND, 5, 1)));
+        assertTrue(Slice.isEmpty(cc, makeBound(INCL_START_BOUND, 5, 0), makeBound(INCL_END_BOUND, 4, 0)));
+        assertTrue(Slice.isEmpty(cc, makeBound(INCL_START_BOUND, 5, 0), makeBound(EXCL_END_BOUND, 5)));
+        assertTrue(Slice.isEmpty(cc, makeBound(INCL_START_BOUND, 5, 0), makeBound(EXCL_END_BOUND, 3, 0)));
+    }
+
     private static ClusteringBound makeBound(ClusteringPrefix.Kind kind, Integer... components)
     {
         ByteBuffer[] values = new ByteBuffer[components.length];
@@ -343,8 +364,8 @@ public class SliceTest
 
     private static Slice s(int start, int finish)
     {
-        return Slice.make(makeBound(ClusteringPrefix.Kind.INCL_START_BOUND, start),
-                          makeBound(ClusteringPrefix.Kind.INCL_END_BOUND, finish));
+        return Slice.make(makeBound(INCL_START_BOUND, start),
+                          makeBound(INCL_END_BOUND, finish));
     }
 
     private Slice[] slices(Slice... slices)
