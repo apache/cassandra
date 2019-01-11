@@ -23,9 +23,6 @@
   <!-- Shutdown hook ensures that async appender flushes -->
   <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
 
-  <!-- Status listener is used to wrap stdout/stderr and tee to log file -->
-  <statusListener class="org.apache.cassandra.LogbackStatusListener" />
-
   <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
 
     <file>./build/test/logs/${cassandra.testtag}/TEST-${suitename}.log</file>
@@ -45,7 +42,32 @@
     </encoder>
   </appender>
 
-  <appender name="STDOUT" target="System.out" class="org.apache.cassandra.ConsoleAppender">
+  <appender name="ASYNCFILE" class="ch.qos.logback.classic.AsyncAppender">
+    <discardingThreshold>0</discardingThreshold>
+    <maxFlushTime>0</maxFlushTime>
+    <queueSize>1024</queueSize>
+    <appender-ref ref="FILE"/>
+  </appender>
+
+  <appender name="STDERR" target="System.err" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
+    </encoder>
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>WARN</level>
+    </filter>
+  </appender>
+
+  <appender name="STDOUT" target="System.out" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
+    </encoder>
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>WARN</level>
+    </filter>
+  </appender>
+
+  <appender name="STDOUT" target="System.out" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
       <pattern>%-5level [%thread] ${instance_id} %date{ISO8601} %F:%L - %msg%n</pattern>
     </encoder>
@@ -54,26 +76,11 @@
     </filter>
   </appender>
 
-  <appender name="TEE" class="org.apache.cassandra.TeeingAppender">
-      <appender-ref ref="FILE"/>
-      <appender-ref ref="STDOUT"/>
-  </appender>
-
   <logger name="org.apache.hadoop" level="WARN"/>
 
-  <logger name="org.apache.cassandra.db.monitoring" level="DEBUG"/>
-
-  <!-- Do not change the name of this appender. LogbackStatusListener uses the thread name
-       tied to the appender name to know when to write to real stdout/stderr vs forwarding to logback -->
-  <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
-      <discardingThreshold>0</discardingThreshold>
-      <maxFlushTime>0</maxFlushTime>
-      <queueSize>1024</queueSize>
-      <appender-ref ref="TEE"/>
-      <includeCallerData>true</includeCallerData>
-  </appender>
-
   <root level="DEBUG">
-    <appender-ref ref="ASYNC" />
+    <appender-ref ref="ASYNCFILE" />
+    <appender-ref ref="STDERR" />
+    <appender-ref ref="STDOUT" />
   </root>
 </configuration>

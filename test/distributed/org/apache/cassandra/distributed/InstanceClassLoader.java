@@ -98,4 +98,12 @@ public class InstanceClassLoader extends URLClassLoader
         return id -> new InstanceClassLoader(id, urls, commonClassNames::contains, contextClassLoader);
     }
 
+    /**
+     * @return true iff this class was loaded by an InstanceClassLoader, and as such is used by a dtest node
+     */
+    public static boolean wasLoadedByAnInstanceClassLoader(Class<?> clazz)
+    {
+        return clazz.getClassLoader().getClass().getName().equals(InstanceClassLoader.class.getName());
+    }
+
 }

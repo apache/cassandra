@@ -30,6 +30,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -83,7 +85,7 @@ public class Instance extends InvokableInstance
 
     public Instance(InstanceConfig config, ClassLoader classLoader)
     {
-        super(classLoader);
+        super("node" + config.num, classLoader);
         this.config = config;
     }
 
@@ -332,9 +334,9 @@ public class Instance extends InvokableInstance
 
     void shutdown()
     {
-        runOnInstance(() -> {
+        acceptsOnInstance((ExecutorService executor) -> {
             Throwable error = null;
-            error = runAndMergeThrowable(error,
+            error = parallelRun(error, executor,
                     Gossiper.instance::stop,
                     CompactionManager.instance::forceShutdown,
                     CommitLog.instance::shutdownBlocking,
@@ -345,32 +347,54 @@ public class Instance extends InvokableInstance
                     StorageService.instance::shutdownBGMonitor,
                     Ref::shutdownReferenceReaper,
                     Memtable.MEMORY_POOL::shutdown,
-                    StageManager::shutdownAndWait,
-                    MessagingService.instance()::shutdown,
-                    SharedExecutorPool.SHARED::shutdown,
                     ScheduledExecutors::shutdownAndWait,
-                    SSTableReader::shutdownBlocking);
-
+                    SSTableReader::shutdownBlocking
+            );
+            error = parallelRun(error, executor,
+                                MessagingService.instance()::shutdown
+            );
+            error = parallelRun(error, executor,
+                                StageManager::shutdownAndWait,
+                                SharedExecutorPool.SHARED::shutdown
+            );
             LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
             loggerContext.stop();
             Throwables.maybeFail(error);
-        });
+        }).accept(isolatedExecutor);
+        super.shutdown();
     }
 
-    private static Throwable runAndMergeThrowable(Throwable existing, ThrowingRunnable ... runnables)
+    private static Throwable parallelRun(Throwable accumulate, ExecutorService runOn, ThrowingRunnable ... runnables)
     {
+        List<Future<Throwable>> results = new ArrayList<>();
         for (ThrowingRunnable runnable : runnables)
+        {
+            results.add(runOn.submit(() -> {
+                try
+                {
+                    runnable.run();
+                    return null;
+                }
+                catch (Throwable t)
+                {
+                    return t;
+                }
+            }));
+        }
+        for (Future<Throwable> future : results)
         {
             try
             {
-                runnable.run();
+                Throwable t = future.get();
+                if (t != null)
+                    throw t;
             }
             catch (Throwable t)
             {
-                existing = Throwables.merge(existing, t);
+                accumulate = Throwables.merge(accumulate, t);
             }
         }
-        return existing;
+        return accumulate;
     }
 
     public static interface ThrowingRunnable
