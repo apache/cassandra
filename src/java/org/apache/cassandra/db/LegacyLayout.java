@@ -514,7 +514,7 @@ public abstract class LegacyLayout
             else if (cell.isCounterUpdate())
             {
                 out.writeLong(cell.timestamp);
-                long count = CounterContext.instance().getLocalCount(cell.value);
+                long count = CounterContext.instance().getUpdateCount(cell.value);
                 ByteBufferUtil.writeWithLength(ByteBufferUtil.bytes(count), out);
                 continue;
             }
@@ -585,7 +585,7 @@ public abstract class LegacyLayout
             else if (cell.isCounterUpdate())
             {
                 size += TypeSizes.sizeof(cell.timestamp);
-                long count = CounterContext.instance().getLocalCount(cell.value);
+                long count = CounterContext.instance().getUpdateCount(cell.value);
                 size += ByteBufferUtil.serializedSizeWithLength(ByteBufferUtil.bytes(count));
                 continue;
             }
