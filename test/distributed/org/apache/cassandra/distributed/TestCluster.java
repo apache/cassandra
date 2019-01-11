@@ -31,22 +31,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 
-import io.netty.util.concurrent.FastThreadLocal;
-import io.netty.util.concurrent.FastThreadLocalThread;
-import io.netty.util.internal.InternalThreadLocalMap;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
@@ -84,8 +76,6 @@ import org.apache.cassandra.utils.concurrent.SimpleCondition;
  */
 public class TestCluster implements AutoCloseable
 {
-    private final ExecutorService exec = Executors.newCachedThreadPool(new NamedThreadFactory("cluster-async-tasks"));
-
     private final File root;
     private final List<Instance> instances;
     private final Coordinator coordinator;
@@ -104,7 +94,7 @@ public class TestCluster implements AutoCloseable
     void launch()
     {
         FBUtilities.waitOnFutures(instances.stream()
-                .map(i -> exec.submit(() -> i.launch(this)))
+                .map(i -> i.isolatedExecutor.submit(() -> i.launch(this)))
                 .collect(Collectors.toList())
         );
         for (Instance instance : instances)
@@ -276,36 +266,17 @@ public class TestCluster implements AutoCloseable
     }
 
     @Override
-    public void close() throws InterruptedException, TimeoutException, ExecutionException
+    public void close()
     {
         List<Future<?>> futures = instances.stream()
-                .map(i -> exec.submit(i::shutdown))
+                .map(i -> i.isolatedExecutor.submit(i::shutdown))
                 .collect(Collectors.toList());
 
         // Make sure to only delete directory when threads are stopped
-        Future combined = exec.submit(() -> {
-            FBUtilities.waitOnFutures(futures);
-            FileUtils.deleteRecursive(root);
-        });
-
-        combined.get(60, TimeUnit.SECONDS);
-
-        exec.shutdownNow();
-        exec.awaitTermination(10, TimeUnit.SECONDS);
+        FBUtilities.waitOnFutures(futures, 60, TimeUnit.SECONDS);
+        FileUtils.deleteRecursive(root);
 
         //withThreadLeakCheck(futures);
-        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-        for (Thread thread : threadSet)
-        {
-            if (thread instanceof FastThreadLocalThread)
-                ((FastThreadLocalThread)thread).setThreadLocalMap(null);
-        }
-
-        InternalThreadLocalMap.remove();
-        InternalThreadLocalMap.destroy();
-
-        FastThreadLocal.removeAll();
-        FastThreadLocal.destroy();
         System.gc();
     }
 
