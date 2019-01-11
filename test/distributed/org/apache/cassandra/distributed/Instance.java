@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
@@ -88,7 +89,7 @@ public class Instance extends InvokableInstance
 
     public Instance(InstanceConfig config, ClassLoader classLoader)
     {
-        super(classLoader);
+        super("node-" + config.num, classLoader);
         this.config = config;
     }
 
@@ -337,16 +338,15 @@ public class Instance extends InvokableInstance
 
     void shutdown()
     {
-        runOnInstance(() -> {
+        acceptsOnInstance((ExecutorService executor) -> {
             Throwable error = null;
-            error = runAndMergeThrowable(error,
+            error = parallelRun(error, executor,
+                    Gossiper.instance::stop,
                     CompactionManager.instance::forceShutdown,
                     BatchlogManager.instance::shutdown,
                     HintsService.instance::shutdownBlocking,
                     CommitLog.instance::shutdownBlocking,
-                    Gossiper.instance::stop,
                     SecondaryIndexManager::shutdownExecutors,
-                    MessagingService.instance()::shutdown,
                     ColumnFamilyStore::shutdownFlushExecutor,
                     ColumnFamilyStore::shutdownPostFlushExecutor,
                     ColumnFamilyStore::shutdownReclaimExecutor,
@@ -354,42 +354,70 @@ public class Instance extends InvokableInstance
                     PendingRangeCalculatorService.instance::shutdownExecutor,
                     BufferPool::shutdownLocalCleaner,
                     Ref::shutdownReferenceReaper,
-                    StageManager::shutdownAndWait,
-                    SharedExecutorPool.SHARED::shutdown,
                     Memtable.MEMORY_POOL::shutdown,
                     ScheduledExecutors::shutdownAndWait,
-                    SSTableReader::shutdownBlocking);
-
-            error = shutdownAndWait(error, ActiveRepairService.repairCommandExecutor);
+                    SSTableReader::shutdownBlocking,
+                    () -> shutdownAndWait(ActiveRepairService.repairCommandExecutor)
+            );
+            error = parallelRun(error, executor,
+                                MessagingService.instance()::shutdown
+            );
+            error = parallelRun(error, executor,
+                                StageManager::shutdownAndWait,
+                                SharedExecutorPool.SHARED::shutdown
+            );
             LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
             loggerContext.stop();
             Throwables.maybeFail(error);
-        });
+        }).accept(isolatedExecutor);
+        super.shutdown();
     }
 
-    private static Throwable shutdownAndWait(Throwable existing, ExecutorService executor)
+    private static void shutdownAndWait(ExecutorService executor)
     {
-        return runAndMergeThrowable(existing, () -> {
+        try
+        {
             executor.shutdownNow();
             executor.awaitTermination(20, TimeUnit.SECONDS);
-            assert executor.isTerminated() && executor.isShutdown() : executor;
-        });
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        assert executor.isTerminated() && executor.isShutdown() : executor;
     }
 
-    private static Throwable runAndMergeThrowable(Throwable existing, ThrowingRunnable ... runnables)
+    private static Throwable parallelRun(Throwable accumulate, ExecutorService runOn, ThrowingRunnable ... runnables)
     {
+        List<Future<Throwable>> results = new ArrayList<>();
         for (ThrowingRunnable runnable : runnables)
+        {
+            results.add(runOn.submit(() -> {
+                try
+                {
+                    runnable.run();
+                    return null;
+                }
+                catch (Throwable t)
+                {
+                    return t;
+                }
+            }));
+        }
+        for (Future<Throwable> future : results)
         {
             try
             {
-                runnable.run();
+                Throwable t = future.get();
+                if (t != null)
+                    throw t;
             }
             catch (Throwable t)
             {
-                existing = Throwables.merge(existing, t);
+                accumulate = Throwables.merge(accumulate, t);
             }
         }
-        return existing;
+        return accumulate;
     }
 
     public static interface ThrowingRunnable

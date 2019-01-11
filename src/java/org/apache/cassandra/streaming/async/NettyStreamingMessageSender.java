@@ -511,7 +511,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         List<Future<Void>> futures = new ArrayList<>(threadToChannelMap.size());
         for (Channel channel : threadToChannelMap.values())
             futures.add(channel.close());
-        FBUtilities.waitOnFutures(futures, 10 * 1000);
+        FBUtilities.waitOnFutures(futures, 10, TimeUnit.SECONDS);
         threadToChannelMap.clear();
         fileTransferExecutor.shutdownNow();
 
