@@ -1098,14 +1098,14 @@
 
     <target name="release" depends="eclipse-warnings,artifacts,rat-init"
             description="Create and QC release artifacts">
-      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".md5"
-                algorithm="MD5">
+      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha256"
+                algorithm="SHA-256">
         <fileset dir="${build.dir}">
           <include name="*.tar.gz" />
         </fileset>
       </checksum>
-      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha"
-                algorithm="SHA">
+      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha512"
+                algorithm="SHA-512">
         <fileset dir="${build.dir}">
           <include name="*.tar.gz" />
         </fileset>
