@@ -7,6 +7,8 @@
    in mixed order (CASSANDRA-14899)
  * Fix incorrect cqlsh results when selecting same columns multiple times (CASSANDRA-13262)
  * Returns null instead of NaN or Infinity in JSON strings (CASSANDRA-14377)
+Merged from 2.1:
+ * Update release checksum algorithms to SHA-256, SHA-512 (CASSANDRA-14970)
 
 
 2.2.13
