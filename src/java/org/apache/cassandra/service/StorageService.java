@@ -3382,7 +3382,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void refreshSizeEstimates() throws ExecutionException
     {
+        cleanupSizeEstimates();
         FBUtilities.waitOnFuture(ScheduledExecutors.optionalTasks.submit(SizeEstimatesRecorder.instance));
+    }
+
+    public void cleanupSizeEstimates()
+    {
+        SetMultimap<String, String> sizeEstimates = SystemKeyspace.getTablesWithSizeEstimates();
+
+        for (Entry<String, Collection<String>> tablesByKeyspace : sizeEstimates.asMap().entrySet())
+        {
+            String keyspace = tablesByKeyspace.getKey();
+            if (!Schema.instance.getKeyspaces().contains(keyspace))
+            {
+                SystemKeyspace.clearSizeEstimates(keyspace);
+            }
+            else
+            {
+                for (String table : tablesByKeyspace.getValue())
+                {
+                    if (!Schema.instance.hasCF(Pair.create(keyspace, table)))
+                        SystemKeyspace.clearSizeEstimates(keyspace, table);
+                }
+            }
+        }
     }
 
     /**

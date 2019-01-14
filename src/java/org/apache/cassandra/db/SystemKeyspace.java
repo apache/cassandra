@@ -1277,6 +1277,32 @@ public final class SystemKeyspace
         executeInternal(cql, keyspace, table);
     }
 
+    /**
+     * Clears size estimates for a keyspace (used to manually clean when we miss a keyspace drop)
+     */
+    public static void clearSizeEstimates(String keyspace)
+    {
+        String cql = String.format("DELETE FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SIZE_ESTIMATES);
+        executeInternal(cql, keyspace);
+    }
+
+    /**
+     * @return A multimap from keyspace to table for all tables with entries in size estimates
+     */
+
+    public static synchronized SetMultimap<String, String> getTablesWithSizeEstimates()
+    {
+        SetMultimap<String, String> keyspaceTableMap = HashMultimap.create();
+        String cql = String.format("SELECT keyspace_name, table_name FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SIZE_ESTIMATES);
+        UntypedResultSet rs = executeInternal(cql);
+        for (UntypedResultSet.Row row : rs)
+        {
+            keyspaceTableMap.put(row.getString("keyspace_name"), row.getString("table_name"));
+        }
+
+        return keyspaceTableMap;
+    }
+
     public static synchronized void updateAvailableRanges(String keyspace, Collection<Range<Token>> completedRanges)
     {
         String cql = "UPDATE system.%s SET ranges = ranges + ? WHERE keyspace_name = ?";
