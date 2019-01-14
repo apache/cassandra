@@ -2,6 +2,7 @@
  * Make stop-server.bat wait for Cassandra to terminate (CASSANDRA-14829)
  * Correct sstable sorting for garbagecollect and levelled compaction (CASSANDRA-14870)
 Merged from 3.0:
+ * Counters fail to increment in 2.1/2.2 to 3.X mixed version clusters (CASSANDRA-14958)
  * Streaming needs to synchronise access to LifecycleTransaction (CASSANDRA-14554)
  * Fix cassandra-stress write hang with default options (CASSANDRA-14616)
  * Differentiate between slices and RTs when decoding legacy bounds (CASSANDRA-14919)
