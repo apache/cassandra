@@ -1,4 +1,5 @@
 4.0
+ * Fix generating javadoc with Java11 (CASSANDRA-14988)
  * Only cancel conflicting compactions when starting anticompactions and sub range compactions (CASSANDRA-14935)
  * Use a stub IndexRegistry for non-daemon use cases (CASSANDRA-14938)
  * Don't enable client transports when bootstrap is pending (CASSANDRA-14525)
