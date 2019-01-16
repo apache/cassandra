@@ -343,6 +343,8 @@
  * Make stop-server.bat wait for Cassandra to terminate (CASSANDRA-14829)
  * Correct sstable sorting for garbagecollect and levelled compaction (CASSANDRA-14870)
 Merged from 3.0:
+ * Add a script to make running the cqlsh tests in cassandra repo easier (CASSANDRA-14951)
+ * If SizeEstimatesRecorder misses a 'onDropTable' notification, the size_estimates table will never be cleared for that table. (CASSANDRA-14905)
  * Streaming needs to synchronise access to LifecycleTransaction (CASSANDRA-14554)
  * Fix cassandra-stress write hang with default options (CASSANDRA-14616)
  * Netty epoll IOExceptions caused by unclean client disconnects being logged at INFO (CASSANDRA-14909)
@@ -372,6 +374,8 @@ Merged from 3.0:
  Merged from 2.2:
  * MigrationManager attempts to pull schema from different major version nodes (CASSANDRA-14928)
  * Returns null instead of NaN or Infinity in JSON strings (CASSANDRA-14377)
+Merged from 2.1:
+ * Update release checksum algorithms to SHA-256, SHA-512 (CASSANDRA-14970)
 
 
 3.11.3

@@ -777,7 +777,7 @@ public final class SystemKeyspace
 
     /**
      * This method is used to update the System Keyspace with the new tokens for this node
-    */
+     */
     public static synchronized void updateTokens(Collection<Token> tokens)
     {
         assert !tokens.isEmpty() : "removeEndpoint should be used instead";
@@ -1273,6 +1273,30 @@ public final class SystemKeyspace
     {
         String cql = format("DELETE FROM %s WHERE keyspace_name = ? AND table_name = ?", SizeEstimates.toString());
         executeInternal(cql, keyspace, table);
+    }
+
+    /**
+     * Clears size estimates for a keyspace (used to manually clean when we miss a keyspace drop)
+     */
+    public static void clearSizeEstimates(String keyspace)
+    {
+        String cql = String.format("DELETE FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SIZE_ESTIMATES);
+        executeInternal(cql, keyspace);
+    }
+
+    /**
+     * @return A multimap from keyspace to table for all tables with entries in size estimates
+     */
+    public static synchronized SetMultimap<String, String> getTablesWithSizeEstimates()
+    {
+        SetMultimap<String, String> keyspaceTableMap = HashMultimap.create();
+        String cql = String.format("SELECT keyspace_name, table_name FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SIZE_ESTIMATES);
+        UntypedResultSet rs = executeInternal(cql);
+        for (UntypedResultSet.Row row : rs)
+        {
+            keyspaceTableMap.put(row.getString("keyspace_name"), row.getString("table_name"));
+        }
+        return keyspaceTableMap;
     }
 
     public static synchronized void updateAvailableRanges(String keyspace, Collection<Range<Token>> completedFullRanges, Collection<Range<Token>> completedTransientRanges)
