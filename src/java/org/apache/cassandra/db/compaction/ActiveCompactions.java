@@ -48,12 +48,16 @@ public class ActiveCompactions implements ActiveCompactionsTracker
         CompactionManager.instance.getMetrics().totalCompactionsCompleted.mark();
     }
 
+    /**
+     * Iterates over the active compactions and tries to find the CompactionInfo for the given sstable
+     *
+     * Number of entries in compactions should be small (< 10) but avoid calling in any time-sensitive context
+     */
     public CompactionInfo getCompactionForSSTable(SSTableReader sstable)
     {
         CompactionInfo toReturn = null;
         for (CompactionInfo.Holder holder : compactions)
         {
-            // todo: change compactions datastructure to avoid iterating all active compactions
             if (holder.getCompactionInfo().getSSTables().contains(sstable))
             {
                 if (toReturn != null)

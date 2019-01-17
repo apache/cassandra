@@ -188,6 +188,8 @@ public class PendingAntiCompaction
             // up to a minute, after which point, null will be returned
             try
             {
+                // Note that anticompactions are not disabled when running this. This is safe since runWithCompactionsDisabled
+                // is synchronized - acquireTuple and predicate can only be run by a single thread (for the given cfs).
                 return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, false, false);
             }
             catch (SSTableAcquisitionException e)
