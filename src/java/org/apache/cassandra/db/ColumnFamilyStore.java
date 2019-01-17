@@ -2201,7 +2201,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                : concatWithIndexes();
 
             for (ColumnFamilyStore cfs : selfWithAuxiliaryCfs)
-                cfs.getCompactionStrategyManager().pause(); // todo: make sure anticompaction pauses!
+                cfs.getCompactionStrategyManager().pause();
             try
             {
                 // interrupt in-progress compactions
