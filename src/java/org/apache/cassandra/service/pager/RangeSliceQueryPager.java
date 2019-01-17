@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.pager;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -112,6 +113,28 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         return !first.cf.deletionInfo().isDeleted(firstCell)
                 && firstCell.isLive(timestamp())
                 && firstCell.name().isSameCQL3RowAs(metadata.comparator, lastReturnedName);
+    }
+
+    protected List<Row> discardFirst(List<Row> rows)
+    {
+        if (rows.isEmpty())
+            return rows;
+
+        // Special case for distinct queries because the superclass' discardFirst keeps dropping cells
+        // until it has removed the first *live* row. In a distinct query we only fetch the first row
+        // from a given partition, which may be entirely non-live. In the case where such a non-live
+        // row is the last in page N & the first in page N+1, we would also end up discarding an
+        // additional live row from page N+1.
+        // The simplest solution is to just remove whichever row is first in the page, without bothering
+        // to do liveness checks etc.
+        if (isDistinct())
+        {
+            List<Row> newRows = new ArrayList<>(Math.max(1, rows.size() - 1));
+            newRows.addAll(rows.subList(1, rows.size()));
+            return newRows;
+        }
+
+        return super.discardFirst(rows);
     }
 
     private boolean isDistinct()
