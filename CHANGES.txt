@@ -373,6 +373,7 @@ Merged from 3.0:
  * sstableloader should use discovered broadcast address to connect intra-cluster (CASSANDRA-14522)
  * Fix reading columns with non-UTF names from schema (CASSANDRA-14468)
  Merged from 2.2:
+ * CircleCI docker image should bake in more dependencies (CASSANDRA-14985)
  * MigrationManager attempts to pull schema from different major version nodes (CASSANDRA-14928)
  * Returns null instead of NaN or Infinity in JSON strings (CASSANDRA-14377)
 Merged from 2.1:

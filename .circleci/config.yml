@@ -75,7 +75,7 @@ workflows:
     #build_and_run_tests: *with_dtest_jobs_only
     #build_and_run_tests: *with_dtest_jobs
     #build_and_run_tests: *upgrade_job_only
-docker_image: &docker_image spod/cassandra-testing-ubuntu18-java11
+docker_image: &docker_image aweisberg/cassandra-testing-ubuntu18-java11-w-dependencies
 version: 2
 jobs:
   build:
