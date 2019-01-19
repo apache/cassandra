@@ -1215,6 +1215,7 @@ public class StorageProxy implements StorageProxyMBean
                     // (1.1 knows how to forward old-style String message IDs; updated to int in 2.0)
                     if (localDataCenter.equals(dc))
                     {
+                        logger.info("Running from local datacenter");
                         if (localDc == null)
                             localDc = new ArrayList<>(plan.contacts().size());
 
@@ -1266,6 +1267,7 @@ public class StorageProxy implements StorageProxyMBean
 
         if (localDc != null)
         {
+            logger.info("Starting to send messages to local dc");
             for (Replica destination : localDc)
                 MessagingService.instance().sendWriteRR(message, destination, responseHandler, true);
         }
