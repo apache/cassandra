@@ -39,6 +39,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
+import org.apache.cassandra.db.compaction.ActiveCompactions;
+import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionIterator;
@@ -107,9 +109,9 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
 
     private static class ValidationCompactionIterator extends CompactionIterator
     {
-        public ValidationCompactionIterator(List<ISSTableScanner> scanners, ValidationCompactionController controller, int nowInSec, CompactionMetrics metrics)
+        public ValidationCompactionIterator(List<ISSTableScanner> scanners, ValidationCompactionController controller, int nowInSec, ActiveCompactionsTracker activeCompactions)
         {
-            super(OperationType.VALIDATION, scanners, controller, nowInSec, UUIDGen.getTimeUUID(), metrics);
+            super(OperationType.VALIDATION, scanners, controller, nowInSec, UUIDGen.getTimeUUID(), activeCompactions);
         }
     }
 
@@ -226,7 +228,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         Preconditions.checkArgument(sstables != null);
         controller = new ValidationCompactionController(cfs, getDefaultGcBefore(cfs, nowInSec));
         scanners = cfs.getCompactionStrategyManager().getScanners(sstables, ranges);
-        ci = new ValidationCompactionIterator(scanners.scanners, controller, nowInSec, CompactionManager.instance.getMetrics());
+        ci = new ValidationCompactionIterator(scanners.scanners, controller, nowInSec, CompactionManager.instance.active);
 
         long allPartitions = 0;
         rangePartitionCounts = Maps.newHashMapWithExpectedSize(ranges.size());

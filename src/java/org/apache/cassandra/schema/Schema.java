@@ -759,7 +759,7 @@ public final class Schema
         assert cfs != null;
         // make sure all the indexes are dropped, or else.
         cfs.indexManager.markAllIndexesRemoved();
-        CompactionManager.instance.interruptCompactionFor(Collections.singleton(metadata), true);
+        CompactionManager.instance.interruptCompactionFor(Collections.singleton(metadata), (sstable) -> true, true);
         if (DatabaseDescriptor.isAutoSnapshot())
             cfs.snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(cfs.name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
         CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
