@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
@@ -43,6 +44,10 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.reads.AbstractReadExecutor;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
@@ -74,10 +79,14 @@ import org.apache.cassandra.service.paxos.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.ProposeCallback;
 import org.apache.cassandra.service.paxos.ProposeVerbHandler;
 import org.apache.cassandra.net.MessagingService.Verb;
+import org.apache.cassandra.stress.settings.SettingsRate;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.hsqldb.Column;
+
+import org.apache.commons.lang3.SerializationUtils;
 
 import static org.apache.cassandra.service.BatchlogResponseHandler.BatchlogCleanup;
 
@@ -1220,6 +1229,7 @@ public class StorageProxy implements StorageProxyMBean
                             localDc = new ArrayList<>(plan.contacts().size());
 
                         localDc.add(destination);
+                        System.out.println();
                     }
                     else
                     {
@@ -1252,6 +1262,48 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
         }
+        List<PartitionUpdate> partitionUpdates =  mutation.getPartitionUpdates().asList();
+        Map<Integer,Map<Integer,Map<Integer,List<Character>>>> changes = new HashMap<>();
+        int partitionId =0;
+        ColumnIdentifier columnIdentifier = new ColumnIdentifier("Kishori", true);
+        for(PartitionUpdate partitionUpdate:partitionUpdates){
+            Iterator<Row> rowIterator = partitionUpdate.iterator();
+            int rowId = 0;
+            Map<Integer,Map<Integer,List<Character>>> partitionChages = new HashMap<>();
+            while(rowIterator.hasNext())
+            {
+                    Map<Integer,List<Character>> rowChanges = new HashMap<>();
+                    Row row = rowIterator.next();
+                    int cellId = 0;
+                    for (Cell c : row.cells())
+
+                    {
+                        if (c.column().name.equals(columnIdentifier))
+                        {
+                            List<Character> dataSplits = new ArrayList<>();
+                            try
+                            {
+                                String data = ByteBufferUtil.string(c.value());
+                                dataSplits.add(data.charAt(0));
+                                dataSplits.add(data.charAt(1));
+                            }
+                            catch (CharacterCodingException e){
+                                logger.error("Unable to parse string from bytes");
+
+                            }
+                            rowChanges.put(cellId,dataSplits);
+                        }
+                        cellId++;
+                    }
+                    partitionChages.put(rowId,rowChanges);
+                    rowId++;
+                }
+            changes.put(partitionId,partitionChages);
+            partitionId++;
+            }
+        int nReplications = 2;
+        List<MessageOut<Mutation>> replications = createReplication(changes,message,nReplications,columnIdentifier);
+        Mutation localMutation = replications.get(0).payload;
 
         if (backPressureHosts != null)
             MessagingService.instance().applyBackPressure(backPressureHosts, responseHandler.currentTimeout());
@@ -1261,15 +1313,19 @@ public class StorageProxy implements StorageProxyMBean
 
         if (insertLocal)
         {
+
             Preconditions.checkNotNull(localReplica);
-            performLocally(stage, localReplica, Optional.of(mutation), mutation::apply, responseHandler);
+            logger.info("Performing local changes");
+            performLocally(stage, localReplica, Optional.of(localMutation), localMutation::apply, responseHandler);
         }
 
         if (localDc != null)
         {
             logger.info("Starting to send messages to local dc");
-            for (Replica destination : localDc)
-                MessagingService.instance().sendWriteRR(message, destination, responseHandler, true);
+            for (Replica destination : localDc){
+                logger.info("Sending to a foreign replica");
+                MessagingService.instance().sendWriteRR(replications.get(1), destination, responseHandler, true);
+            }
         }
         if (dcGroups != null)
         {
@@ -1278,6 +1334,47 @@ public class StorageProxy implements StorageProxyMBean
                 sendMessagesToNonlocalDC(message, EndpointsForToken.copyOf(mutation.key().getToken(), dcTargets), responseHandler);
         }
     }
+    private static List<MessageOut<Mutation>> createReplication(Map<Integer,Map<Integer,Map<Integer,List<Character>>>> changes,
+                                                                MessageOut<Mutation> originalMessage, int nReplications,
+                                                                ColumnIdentifier columnIdentifier)
+        {
+        List<MessageOut<Mutation>> dataPartitionMessages = new ArrayList<>();
+        for (int r = 0; r < nReplications; r++)
+        {
+            MessageOut<Mutation> dataPartitionMessage = SerializationUtils.clone(originalMessage);
+            List<PartitionUpdate> partitionUpdates = dataPartitionMessage.payload.getPartitionUpdates().asList();
+            int partitionId = 0;
+            for (PartitionUpdate partitionUpdate : partitionUpdates)
+            {
+                Iterator<Row> rowIterator = partitionUpdate.iterator();
+                int rowId = 0;
+                while (rowIterator.hasNext())
+                {
+                    Row row = rowIterator.next();
+                    int cellId = 0;
+                    for (Cell c : row.cells())
+
+                    {
+                        if (c.column().name.equals(columnIdentifier))
+                        {
+                            Character newValue = changes
+                                              .get(partitionId)
+                                              .get(rowId)
+                                              .get(cellId)
+                                              .get(r);
+                            c.withUpdatedValue(ByteBufferUtil.bytes(newValue));
+                        }
+                        cellId++;
+                    }
+                    rowId++;
+                }
+                partitionId++;
+            }
+            dataPartitionMessages.add(dataPartitionMessage);
+        }
+        return dataPartitionMessages;
+        }
+
 
     private static void checkHintOverload(Replica destination)
     {

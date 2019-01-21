@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -76,7 +77,7 @@ import static org.apache.cassandra.tracing.Tracing.isTracing;
  *
  * * @param <T> The type of the message payload.
  */
-public class MessageOut<T>
+public class MessageOut<T> implements Serializable
 {
     private static final int SERIALIZED_SIZE_VERSION_UNDEFINED = -1;
     //Parameters are stored in an object array as tuples of size two
