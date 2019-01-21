@@ -18,7 +18,10 @@
  */
 package org.apache.cassandra.utils.memory;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -64,6 +67,14 @@ public abstract class MemtablePool
     }
 
     public abstract boolean needToCopyOnHeap();
+
+    @VisibleForTesting
+    public void shutdown() throws InterruptedException
+    {
+        cleaner.shutdown();
+        cleaner.awaitTermination(60, TimeUnit.SECONDS);
+    }
+
     public abstract MemtableAllocator newAllocator();
 
     /**
