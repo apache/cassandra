@@ -39,8 +39,8 @@
 
     <encoder>
       <pattern>%-5level [%thread] %date{ISO8601} %msg%n</pattern>
-      <immediateFlush>false</immediateFlush>
     </encoder>
+    <immediateFlush>false</immediateFlush>
   </appender>
 
   <appender name="STDOUT" target="System.out" class="org.apache.cassandra.ConsoleAppender">

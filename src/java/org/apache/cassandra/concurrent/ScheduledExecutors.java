@@ -17,6 +17,11 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import com.google.common.annotations.VisibleForTesting;
+
 /**
  * Centralized location for shared executors
  */
@@ -41,4 +46,14 @@ public class ScheduledExecutors
      * This executor is used for tasks that do not need to be waited for on shutdown/drain.
      */
     public static final DebuggableScheduledThreadPoolExecutor optionalTasks = new DebuggableScheduledThreadPoolExecutor("OptionalTasks");
+
+    @VisibleForTesting
+    public static void shutdownAndWait() throws InterruptedException
+    {
+        ExecutorService[] executors = new ExecutorService[] { scheduledFastTasks, scheduledTasks, nonPeriodicTasks, optionalTasks };
+        for (ExecutorService executor : executors)
+            executor.shutdownNow();
+        for (ExecutorService executor : executors)
+            executor.awaitTermination(60, TimeUnit.SECONDS);
+    }
 }

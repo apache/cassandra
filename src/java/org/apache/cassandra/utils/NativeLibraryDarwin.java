@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.utils;
 
+import java.util.Collections;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +52,7 @@ public class NativeLibraryDarwin implements NativeLibraryWrapper
     {
         try
         {
-            Native.register("c");
+            Native.register(com.sun.jna.NativeLibrary.getInstance("c", Collections.emptyMap()));
             available = true;
         }
         catch (NoClassDefFoundError e)

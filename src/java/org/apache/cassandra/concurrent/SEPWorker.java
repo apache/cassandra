@@ -73,9 +73,14 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         {
             while (true)
             {
+                if (pool.shuttingDown)
+                    return;
+
                 if (isSpinning() && !selfAssign())
                 {
                     doWaitSpin();
+                    // if the pool is terminating, but we have been assigned STOP_SIGNALLED, if we do not re-check
+                    // whether the pool is shutting down this thread will go to sleep and block forever
                     continue;
                 }
 
@@ -117,8 +122,12 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
 
                 // return our work permit, and maybe signal shutdown
                 assigned.returnWorkPermit();
-                if (shutdown && assigned.getActiveCount() == 0)
-                    assigned.shutdown.signalAll();
+                if (shutdown)
+                {
+                    if (assigned.getActiveCount() == 0)
+                        assigned.shutdown.signalAll();
+                    return;
+                }
                 assigned = null;
 
                 // try to immediately reassign ourselves some work; if we fail, start spinning
@@ -168,7 +177,11 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
 
             // if we're being descheduled, place ourselves in the descheduled collection
             if (work.isStop())
+            {
                 pool.descheduled.put(workerId, this);
+                if (pool.shuttingDown)
+                    return true;
+            }
 
             // if we're currently stopped, and the new state is not a stop signal
             // (which we can immediately convert to stopped), unpark the worker

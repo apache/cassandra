@@ -18,16 +18,12 @@
 
 package org.apache.cassandra.auth;
 
-import java.lang.management.ManagementFactory;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
-import javax.management.ObjectName;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -36,6 +32,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 
@@ -84,20 +81,12 @@ public class AuthCache<K, V> implements AuthCacheMBean
     {
         this.cacheRefreshExecutor = new DebuggableThreadPoolExecutor(name + "Refresh", Thread.NORM_PRIORITY);
         this.cache = initCache(null);
-        try
-        {
-            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            mbs.registerMBean(this, getObjectName());
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        MBeanWrapper.instance.registerMBean(this, getObjectName());
     }
 
-    protected ObjectName getObjectName() throws MalformedObjectNameException
+    protected String getObjectName()
     {
-        return new ObjectName(MBEAN_NAME_BASE + name);
+        return MBEAN_NAME_BASE + name;
     }
 
     public V get(K k) throws ExecutionException
