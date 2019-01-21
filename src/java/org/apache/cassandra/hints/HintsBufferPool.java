@@ -17,18 +17,21 @@
  */
 package org.apache.cassandra.hints;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.net.MessagingService;
+import sun.nio.ch.DirectBuffer;
 
 /**
  * A primitive pool of {@link HintsBuffer} buffers. Under normal conditions should only hold two buffers - the currently
  * written to one, and a reserve buffer to switch to when the first one is beyond capacity.
  */
-final class HintsBufferPool
+final class HintsBufferPool implements Closeable
 {
     interface FlushCallback
     {
@@ -128,5 +131,10 @@ final class HintsBufferPool
     {
         allocatedBuffers++;
         return HintsBuffer.create(bufferSize);
+    }
+
+    public void close()
+    {
+        currentBuffer.free();
     }
 }

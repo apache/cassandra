@@ -17,13 +17,10 @@
  */
 package org.apache.cassandra.db;
 
-import java.lang.management.ManagementFactory;
 import java.util.List;
 
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-
 import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 /**
  * A proxy class that implement the deprecated legacy HintedHandoffManagerMBean interface.
@@ -44,15 +41,7 @@ public final class HintedHandOffManager implements HintedHandOffManagerMBean
 
     public void registerMBean()
     {
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
     public void deleteHintsForEndpoint(String host)

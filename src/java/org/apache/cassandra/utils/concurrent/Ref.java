@@ -31,6 +31,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -354,11 +355,10 @@ public final class Ref<T> implements RefCounted<T>
     static final Set<Class<?>> concurrentIterables = Collections.newSetFromMap(new IdentityHashMap<>());
     private static final Set<GlobalState> globallyExtant = Collections.newSetFromMap(new ConcurrentHashMap<>());
     static final ReferenceQueue<Object> referenceQueue = new ReferenceQueue<>();
-    private static final ExecutorService EXEC = Executors.newFixedThreadPool(1, new NamedThreadFactory("Reference-Reaper"));
+    private static final InfiniteLoopExecutor EXEC = new InfiniteLoopExecutor("Reference-Reaper", Ref::reapOneReference).start();
     static final ScheduledExecutorService STRONG_LEAK_DETECTOR = !DEBUG_ENABLED ? null : Executors.newScheduledThreadPool(1, new NamedThreadFactory("Strong-Reference-Leak-Detector"));
     static
     {
-        EXEC.execute(new ReferenceReaper());
         if (DEBUG_ENABLED)
         {
             STRONG_LEAK_DETECTOR.scheduleAtFixedRate(new Visitor(), 1, 15, TimeUnit.MINUTES);
@@ -367,28 +367,12 @@ public final class Ref<T> implements RefCounted<T>
         concurrentIterables.addAll(Arrays.asList(concurrentIterableClasses));
     }
 
-    static final class ReferenceReaper implements Runnable
+    private static void reapOneReference() throws InterruptedException
     {
-        public void run()
+        Object obj = referenceQueue.remove(100);
+        if (obj instanceof Ref.State)
         {
-            try
-            {
-                while (true)
-                {
-                    Object obj = referenceQueue.remove();
-                    if (obj instanceof Ref.State)
-                    {
-                        ((Ref.State) obj).release(true);
-                    }
-                }
-            }
-            catch (InterruptedException e)
-            {
-            }
-            finally
-            {
-                EXEC.execute(this);
-            }
+            ((Ref.State) obj).release(true);
         }
     }
 
@@ -717,6 +701,18 @@ public final class Ref<T> implements RefCounted<T>
                         reader.addTo(expected);
                 }
             }
+        }
+    }
+
+    @VisibleForTesting
+    public static void shutdownReferenceReaper() throws InterruptedException
+    {
+        EXEC.shutdown();
+        EXEC.awaitTermination(60, TimeUnit.SECONDS);
+        if (STRONG_LEAK_DETECTOR != null)
+        {
+            STRONG_LEAK_DETECTOR.shutdownNow();
+            STRONG_LEAK_DETECTOR.awaitTermination(60, TimeUnit.SECONDS);
         }
     }
 }
