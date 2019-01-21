@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Sets;
@@ -248,6 +249,7 @@ public class Config
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
     private static boolean isClientMode = false;
+    private static Supplier<Config> overrideLoadConfig = null;
 
     public Integer file_cache_size_in_mb = 512;
 
@@ -361,6 +363,16 @@ public class Config
     public static void setClientMode(boolean clientMode)
     {
         isClientMode = clientMode;
+    }
+
+    public static Supplier<Config> getOverrideLoadConfig()
+    {
+        return overrideLoadConfig;
+    }
+
+    public static void setOverrideLoadConfig(Supplier<Config> loadConfig)
+    {
+        overrideLoadConfig = loadConfig;
     }
 
     public enum CommitLogSync

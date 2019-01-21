@@ -200,7 +200,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private static final BackgroundActivityMonitor bgMonitor = new BackgroundActivityMonitor();
 
-    private final ObjectName jmxObjectName;
+    private final String jmxObjectName;
 
     private Collection<Token> bootstrapTokens = null;
 
@@ -249,17 +249,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // use dedicated executor for sending JMX notifications
         super(Executors.newSingleThreadExecutor());
 
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            jmxObjectName = new ObjectName("org.apache.cassandra.db:type=StorageService");
-            mbs.registerMBean(this, jmxObjectName);
-            mbs.registerMBean(StreamManager.instance, new ObjectName(StreamManager.OBJECT_NAME));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        jmxObjectName = "org.apache.cassandra.db:type=StorageService";
+        MBeanWrapper.instance.registerMBean(this, jmxObjectName);
+        MBeanWrapper.instance.registerMBean(StreamManager.instance, StreamManager.OBJECT_NAME);
 
         legacyProgressSupport = new LegacyJMXProgressSupport(this, jmxObjectName);
 
@@ -1405,6 +1397,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public double getSeverity(InetAddress endpoint)
     {
         return bgMonitor.getSeverity(endpoint);
+    }
+
+    public void shutdownBGMonitor()
+    {
+        bgMonitor.shutdown();
     }
 
     /**
