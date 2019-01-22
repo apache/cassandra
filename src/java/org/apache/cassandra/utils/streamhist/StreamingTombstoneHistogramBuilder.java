@@ -38,11 +38,12 @@ import static org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramB
  * <ol>
  * <li>If point <i>p</i> is already exists in collection, add <i>m</i> to recorded value of point <i>p</i> </li>
  * <li>If there is no point <i>p</i> in the collection, add point <i>p</i> with weight <i>m</i> </li>
- * <li>If point was added and collection size became lorger than maxBinSize:</li>
+ * <li>If point was added and collection size became lorger than maxBinSize:
  * <ol type="a">
  * <li>Find nearest points <i>p1</i> and <i>p2</i> in the collection </li>
  * <li>Replace theese two points with one weighted point <i>p3 = (p1*m1+p2*m2)/(p1+p2)</i></li>
  * </ol>
+ * </li>
  * </ol>
  * <p>
  * There are some optimization to make histogram builder faster:
@@ -50,10 +51,10 @@ import static org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramB
  *     <li>Spool: big map that saves from excessively merging of small bin. This map can contains up to maxSpoolSize points and accumulate weight from same points.
  *     For example, if spoolSize=100, binSize=10 and there are only 50 different points. it will be only 40 merges regardless how many points will be added.</li>
  *     <li>Spool is organized as open-addressing primitive hash map where odd elements are points and event elements are values.
- *     Spool can not resize => when number of collisions became bigger than threashold or size became large that <i>array_size/2</i> Spool is drained to bin</li>
+ *     Spool can not resize when number of collisions became bigger than threashold or size became large that <i>array_size/2</i> Spool is drained to bin</li>
  *     <li>DistanceHolder - sorted collection of distances between points in Bin. It is used to find nearest points in constant time</li>
  *     <li>Distances and Bin organized as sorted arrays. It reduces garbage collection pressure and allows to find elements in log(binSize) time via binary search</li>
- *     <li>To use existing Arrays.binarySearch <i></>{point, values}</i> in bin and <i></>{distance, left_point}</i> pairs is packed in one long</li>
+ *     <li>To use existing Arrays.binarySearch <i>{point, values}</i> in bin and <i>{distance, left_point}</i> pairs is packed in one long</li>
  * </ol>
  */
 public class StreamingTombstoneHistogramBuilder

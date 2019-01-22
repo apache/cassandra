@@ -48,7 +48,7 @@ public interface FrameBodyTransformer
 
     /**
      * Returns an EnumSet of the flags that should be added to the header for any message whose frame body has been
-     * modified by the transformer. E.g. it may add perform chunking & checksumming to the frame body,
+     * modified by the transformer. E.g. it may add perform chunking &amp; checksumming to the frame body,
      * compress it, or both.
      * @return EnumSet containing the header flags to set on messages transformed
      */

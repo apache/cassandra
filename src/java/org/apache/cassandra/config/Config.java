@@ -423,8 +423,8 @@ public class Config
 
     /**
      * flags for enabling tracking repaired state of data during reads
-     * separate flags for range & single partition reads as single partition reads are only tracked
-     * when CL > 1 and a digest mismatch occurs. Currently, range queries don't use digests so if
+     * separate flags for range &amp; single partition reads as single partition reads are only tracked
+     * when {@code CL > 1} and a digest mismatch occurs. Currently, range queries don't use digests so if
      * enabled for range reads, all such reads will include repaired data tracking. As this adds
      * some overhead, operators may wish to disable it whilst still enabling it for partition reads
      */

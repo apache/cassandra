@@ -1624,7 +1624,7 @@ public final class MessagingService implements MessagingServiceMBean
     }
 
     /**
-     * This method is used to determine the preferred IP & Port of a peer using the
+     * This method is used to determine the preferred IP &amp; Port of a peer using the
      * {@link OutboundMessagingPool} and SystemKeyspace.
      */
     public InetAddressAndPort getPreferredRemoteAddr(InetAddressAndPort to)

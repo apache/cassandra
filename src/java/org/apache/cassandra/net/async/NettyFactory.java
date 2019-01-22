@@ -359,8 +359,8 @@ public final class NettyFactory
         /**
          * {@inheritDoc}
          *
-         * To determine if we should enable TLS, we only need to check if {@link #params#encryptionOptions} is set.
-         * The logic for figuring that out is is located in {@link MessagingService#getMessagingConnection(InetAddress)};
+         * To determine if we should enable TLS, we only need to check if {@link #params}'s {@code encryptionOptions} is set.
+         * The logic for figuring that out is is located in {@link MessagingService#getMessagingConnection(InetAddressAndPort)};
          */
         public void initChannel(SocketChannel channel) throws Exception
         {

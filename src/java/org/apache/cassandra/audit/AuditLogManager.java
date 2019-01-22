@@ -181,6 +181,14 @@ public class AuditLogManager
 
     /**
      * Logs Batch queries to both FQL and standard audit logger.
+     *
+     * @param type The type of the batch
+     * @param queryOrIdList
+     * @param values Values to bind to as parameters for the queries
+     * @param prepared Prepared statement
+     * @param options Options associated with the query invocation
+     * @param state Timestamp state associated with the query invocation
+     * @param queryStartTimeMillis Timestamp when the query was started
      */
     public void logBatch(BatchStatement.Type type,
                          List<Object> queryOrIdList,
@@ -287,6 +295,18 @@ public class AuditLogManager
         oldLogger.stop();
     }
 
+
+    /**
+     * Configure FQL
+     *
+     * @param path Path to store FQL files
+     * @param rollCycle How often to roll FQL log segments so they can potentially be reclaimed
+     * @param blocking Whether the FQL should block if the FQL falls behind or should drop log records
+     * @param maxQueueWeight Maximum weight of in memory queue for records waiting to be written to the file before blocking or dropping
+     * @param maxLogSize Maximum size of the rolled files to retain on disk before deleting the oldest file
+     * @param archiveCommand the archive command to execute on rolled log files
+     * @param maxArchiveRetries max number of retries of failed archive commands
+     */
     public void configureFQL(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
     {
         if (path.equals(auditLogger.path()))
@@ -311,6 +331,7 @@ public class AuditLogManager
     /**
      * ONLY FOR TESTING
      */
+    @VisibleForTesting
     FullQueryLogger getFullQueryLogger()
     {
         return fullQueryLogger;

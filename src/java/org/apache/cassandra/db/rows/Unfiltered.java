@@ -41,7 +41,7 @@ public interface Unfiltered extends Clusterable
     /**
      * Digest the atom using the provided {@link Hasher}.
      *
-     * @param hasher the {@see Hasher} to use.
+     * @param hasher the {@link Hasher} to use.
      */
     public void digest(Hasher hasher);
 

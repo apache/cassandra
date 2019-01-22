@@ -89,7 +89,8 @@ public class CompactionStrategyManagerTest
         DatabaseDescriptor.setIncrementalBackupsEnabled(false);
         /**
          * We use byte ordered partitioner in this test to be able to easily infer an SSTable
-         * disk assignment based on its generation - See {@link this#getSSTableIndex(Integer[], SSTableReader)}
+         * disk assignment based on its generation - See
+         * {@link CompactionStrategyManagerTest#getSSTableIndex(Integer[], SSTableReader)}
          */
         originalPartitioner = StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
         SchemaLoader.createKeyspace(KS_PREFIX,

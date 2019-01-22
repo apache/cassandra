@@ -57,7 +57,7 @@ public interface StandardTokenizerInterface
      *
      * All internal variables are reset, the old input stream
      * <b>cannot</b> be reused (internal buffer is discarded and lost).
-     * Lexical state is set to <tt>ZZ_INITIAL</tt>.
+     * Lexical state is set to <code>{@literal ZZ_INITIAL}</code>.
      *
      * @param reader   the new input stream
      */

@@ -45,6 +45,8 @@ public abstract class DiagnosticEvent
      * maps, but must be Serializable, as returned values may be consumed by external clients. It's strongly recommended
      * to stick to standard Java classes to avoid distributing custom classes to clients and also prevent potential
      * class versioning conflicts.
+     *
+     * @return Returns map of key-value pairs containing relevant event details.
      */
     public abstract Map<String, Serializable> toMap();
 }

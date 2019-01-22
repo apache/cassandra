@@ -51,7 +51,7 @@ public class ActiveCompactions implements ActiveCompactionsTracker
     /**
      * Iterates over the active compactions and tries to find the CompactionInfo for the given sstable
      *
-     * Number of entries in compactions should be small (< 10) but avoid calling in any time-sensitive context
+     * Number of entries in compactions should be small ({@code < 10}) but avoid calling in any time-sensitive context
      */
     public CompactionInfo getCompactionForSSTable(SSTableReader sstable)
     {

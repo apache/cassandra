@@ -155,7 +155,7 @@ public abstract class DataLimits
      * @param countPartitionsWithOnlyStaticData if {@code true} the partitions with only static data should be counted
      * as 1 valid row.
      * @param enforceStrictLiveness whether the row should be purged if there is no PK liveness info,
-     *                              normally retrieved from {@link CFMetaData#enforceStrictLiveness()}
+     *                              normally retrieved from {@link org.apache.cassandra.schema.TableMetadata#enforceStrictLiveness()}
      * @return a new {@code Counter} for this limits.
      */
     public abstract Counter newCounter(int nowInSec,

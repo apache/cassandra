@@ -394,7 +394,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @param components
      * @param metadata
      * @return opened SSTableReader
-     * @throws IOException
+     * @throws CorruptSSTableException
      */
     public static SSTableReader openForBatch(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
     {
@@ -477,7 +477,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @param isOffline Whether we are opening this SSTable "offline", for example from an external tool or not for inclusion in queries (validations)
      *                  This stops regenerating BF + Summaries and also disables tracking of hotness for the SSTable.
      * @return {@link SSTableReader}
-     * @throws IOException
+     * @throws CorruptSSTableException
      */
     public static SSTableReader open(Descriptor descriptor,
                                      Set<Component> components,

@@ -379,7 +379,7 @@ public class BTreeRow extends AbstractRow
      * Returns a copy of the row where all timestamps for live data have replaced by {@code newTimestamp} and
      * all deletion timestamp by {@code newTimestamp - 1}.
      *
-     * This exists for the Paxos path, see {@link PartitionUpdate#updateAllTimestamp} for additional details.
+     * This exists for the Paxos path, see {@link PartitionUpdate.Builder#updateAllTimestamp(long)} for additional details.
      */
     public Row updateAllTimestamp(long newTimestamp)
     {

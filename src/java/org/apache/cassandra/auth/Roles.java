@@ -70,7 +70,7 @@ public class Roles
      * Get detailed info on all the roles granted to the role identified by the supplied RoleResource.
      * This includes superuser status and login privileges for the primary role and all roles granted directly
      * to it or inherited.
-     * The returnred roles may be cached if roles_validity_in_ms > 0
+     * The returnred roles may be cached if {@code roles_validity_in_ms > 0}
      * This method is used where we need to know specific attributes of the collection of granted roles, i.e.
      * when checking for superuser status which may be inherited from *any* granted role.
      *
@@ -117,7 +117,7 @@ public class Roles
      * Returns the map of custom options for the named role. These options are not inherited from granted roles, but
      * are set directly.
      * @param role the role identifier
-     * @return map of option_name -> value. If no options are set for the named role, the map will be empty
+     * @return map of {@code option_name -> value}. If no options are set for the named role, the map will be empty
      * but never null.
      */
     public static Map<String, String> getOptions(RoleResource role)

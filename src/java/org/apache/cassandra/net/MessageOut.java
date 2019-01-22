@@ -74,7 +74,7 @@ import static org.apache.cassandra.tracing.Tracing.isTracing;
  * encoded as two bytes, followed by the UTF-8 byte encoding of the string (see {@link java.io.DataOutput#writeUTF(java.lang.String)}).
  * The body is serialized with it's length, encoded as four bytes, followed by the bytes of the value.
  *
- * * @param <T> The type of the message payload.
+ * @param <T> The type of the message payload.
  */
 public class MessageOut<T>
 {

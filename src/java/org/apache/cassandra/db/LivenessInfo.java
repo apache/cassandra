@@ -183,11 +183,11 @@ public class LivenessInfo
      * Whether this liveness information supersedes another one (that is
      * whether is has a greater timestamp than the other or not).
      *
-     * </br>
+     * <br>
      *
      * If timestamps are the same and none of them are expired livenessInfo,
      * livenessInfo with greater TTL supersedes another. It also means, if timestamps are the same,
-     * ttl superseders no-ttl. This is the same rule as {@link Conflicts#resolveRegular}
+     * ttl superseders no-ttl. This is the same rule as {@link org.apache.cassandra.db.rows.Cells#resolveRegular}
      *
      * If timestamps are the same and one of them is expired livenessInfo. Expired livenessInfo
      * supersedes, ie. tombstone supersedes.

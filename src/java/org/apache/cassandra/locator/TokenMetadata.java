@@ -57,7 +57,7 @@ public class TokenMetadata
     /** Maintains endpoint to host ID map of every node in the cluster */
     private final BiMap<InetAddressAndPort, UUID> endpointToHostIdMap;
 
-    // Prior to CASSANDRA-603, we just had <tt>Map<Range, InetAddressAndPort> pendingRanges<tt>,
+    // Prior to CASSANDRA-603, we just had <code>{@literal Map<Range, InetAddressAndPort> pendingRanges}</code>,
     // which was added to when a node began bootstrap and removed from when it finished.
     //
     // This is inadequate when multiple changes are allowed simultaneously.  For example,
@@ -70,8 +70,8 @@ public class TokenMetadata
     //
     // So, we made two changes:
     //
-    // First, we changed pendingRanges to a <tt>Multimap<Range, InetAddressAndPort></tt> (now
-    // <tt>Map<String, Multimap<Range, InetAddressAndPort>></tt>, because replication strategy
+    // First, we changed pendingRanges to a <code>{@literal Multimap<Range, InetAddressAndPort>}</code> (now
+    // <code>{@literal Map<String, Multimap<Range, InetAddressAndPort>>}</code>, because replication strategy
     // and options are per-KeySpace).
     //
     // Second, we added the bootstrapTokens and leavingEndpoints collections, so we can

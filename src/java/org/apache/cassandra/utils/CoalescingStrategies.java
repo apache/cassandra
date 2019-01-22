@@ -100,7 +100,7 @@ public class CoalescingStrategies
      * {@link #currentCoalescingTimeNanos()}.
      * <p>
      * Note that it is expected that a call {@link #currentCoalescingTimeNanos()} will come just after a call to
-     * {@link #newArrival(Coalescable))}, as the intent of the value returned by the former method is "Given a new message, how much
+     * {@link #newArrival(Coalescable)}, as the intent of the value returned by the former method is "Given a new message, how much
      * time should I wait for more messages to arrive and be coalesced with that message". But both calls are separated
      * as one may not want to call {@link #currentCoalescingTimeNanos()} after every call to {@link #newArrival(Coalescable)}
      * and we thus save processing. How arrivals influence the coalescing time is however entirely up to the strategy and some
