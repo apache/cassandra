@@ -90,7 +90,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     abstract KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table);
 
     /**
-     * ALTER TABLE <table> ALTER <column> TYPE <newtype>;
+     * {@code ALTER TABLE <table> ALTER <column> TYPE <newtype>;}
      *
      * No longer supported.
      */

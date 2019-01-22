@@ -83,7 +83,7 @@ public abstract class ColumnData
      * Returns a copy of the data where all timestamps for live data have replaced by {@code newTimestamp} and
      * all deletion timestamp by {@code newTimestamp - 1}.
      *
-     * This exists for the Paxos path, see {@link PartitionUpdate#updateAllTimestamp} for additional details.
+     * This exists for the Paxos path, see {@link PartitionUpdate.Builder#updateAllTimestamp} for additional details.
      */
     public abstract ColumnData updateAllTimestamp(long newTimestamp);
 

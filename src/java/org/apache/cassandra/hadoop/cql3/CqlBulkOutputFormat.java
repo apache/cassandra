@@ -43,11 +43,8 @@ import org.apache.hadoop.util.Progressable;
  *
  * <p>
  * As is the case with the {@link org.apache.cassandra.hadoop.cql3.CqlOutputFormat}, 
- * you need to set the prepared statement in your
- * Hadoop job Configuration. The {@link CqlConfigHelper} class, through its
- * {@link org.apache.cassandra.hadoop.ConfigHelper#setOutputPreparedStatement} method, is provided to make this
- * simple.
- * you need to set the Keyspace. The {@link ConfigHelper} class, through its
+ * you need to set the prepared statement in your Hadoop job Configuration.
+ * You need to set the Keyspace. The {@link ConfigHelper} class, through its
  * {@link org.apache.cassandra.hadoop.ConfigHelper#setOutputColumnFamily} method, is provided to make this
  * simple.
  * </p>

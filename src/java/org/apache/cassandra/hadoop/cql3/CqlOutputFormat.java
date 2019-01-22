@@ -34,8 +34,7 @@ import org.apache.hadoop.mapreduce.*;
  * table.
  *
  * <p>
- * As is the case with the {@link org.apache.cassandra.hadoop.ColumnFamilyInputFormat}, 
- * you need to set the prepared statement in your
+ * You need to set the prepared statement in your
  * Hadoop job Configuration. The {@link CqlConfigHelper} class, through its
  * {@link CqlConfigHelper#setOutputCql} method, is provided to make this
  * simple.

@@ -110,7 +110,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
  * a target replica.
  * <br><br>
  * Finally, this class provides a clear and safe lifecycle to manage index builds, either full rebuilds via
- * {@link this#rebuildIndexesBlocking(Set)} or builds of new sstables
+ * {@link SecondaryIndexManager#rebuildIndexesBlocking} or builds of new sstables
  * added via {@link org.apache.cassandra.notifications.SSTableAddedNotification}s, guaranteeing
  * the following:
  * <ul>

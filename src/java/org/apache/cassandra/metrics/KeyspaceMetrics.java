@@ -135,7 +135,7 @@ public class KeyspaceMetrics
      */
     public final Meter confirmedRepairedInconsistencies;
     /**
-     * Incremented where an inconsistency is detected, but there are pending & uncommitted repair sessions
+     * Incremented where an inconsistency is detected, but there are pending &amp; uncommitted repair sessions
      * in play on at least one replica. This may indicate a false positive as the inconsistency could be due to
      * replicas marking the repair session as committed at slightly different times and so some consider it to
      * be part of the repaired set whilst others do not.

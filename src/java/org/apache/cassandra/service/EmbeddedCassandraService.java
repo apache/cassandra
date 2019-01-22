@@ -24,7 +24,6 @@ import java.io.IOException;
  * This kind of service is useful when running unit tests of
  * services using cassandra for example.
  *
- * See {@link org.apache.cassandra.service.EmbeddedCassandraServiceTest} for usage.
  * <p>
  * This is the implementation of https://issues.apache.org/jira/browse/CASSANDRA-740
  * <p>

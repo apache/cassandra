@@ -108,7 +108,6 @@ public abstract class Selector
         /**
          * Checks if this factory creates <code>Selector</code>s that simply return a column value.
          *
-         * @param index the column index
          * @return <code>true</code> if this factory creates <code>Selector</code>s that simply return a column value,
          * <code>false</code> otherwise.
          */
