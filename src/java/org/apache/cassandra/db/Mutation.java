@@ -49,7 +49,7 @@ public class Mutation implements IMutation
 
     private final DecoratedKey key;
     // map of column family id to mutations for that column family.
-    private final ImmutableMap<TableId, PartitionUpdate> modifications;
+    private ImmutableMap<TableId, PartitionUpdate> modifications;
 
     // Time at which this mutation or the builder that built it was instantiated
     final long createdAt;
@@ -116,6 +116,15 @@ public class Mutation implements IMutation
     public ImmutableCollection<PartitionUpdate> getPartitionUpdates()
     {
         return modifications.values();
+    }
+
+    public ImmutableMap<TableId, PartitionUpdate> getModifications()
+    {
+        return modifications;
+    }
+
+    public void setModifications(ImmutableMap<TableId, PartitionUpdate> mods){
+        modifications = mods;
     }
 
     public PartitionUpdate getPartitionUpdate(TableMetadata table)

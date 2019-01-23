@@ -380,15 +380,18 @@ public abstract class AbstractReadExecutor
             }
         }
 
+        ReadResponse mergerdResponse = digestResolver.mergeResponse();
+
         // return immediately, or begin a read repair
-        if (digestResolver.responsesMatch())
+        if (mergerdResponse != null)
         {
-            setResult(digestResolver.getData());
+            setResult(UnfilteredPartitionIterators.filter(mergerdResponse.makeIterator(command), command.nowInSec()));
         }
         else
         {
-            Tracing.trace("Digest mismatch: Mismatch for key {}", getKey());
-            readRepair.startRepair(digestResolver, this::setResult);
+            // Tracing.trace("Digest mismatch: Mismatch for key {}", getKey());
+            // readRepair.startRepair(digestResolver, this::setResult);
+            setResult(digestResolver.getData());
         }
     }
 

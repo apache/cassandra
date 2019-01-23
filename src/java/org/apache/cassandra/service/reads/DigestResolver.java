@@ -19,6 +19,7 @@ package org.apache.cassandra.service.reads;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -37,6 +38,8 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import sun.jvm.hotspot.debugger.ReadResult;
 
 import static com.google.common.collect.Iterables.any;
 
@@ -126,6 +129,83 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
             logger.trace("responsesMatch: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
         return true;
+    }
+
+    public ReadResponse mergedResponse()
+    {
+        ReadResponse result = responses.get(0).payload;
+
+        for (MessageIn<ReadResponse> msg : responses){
+            ReadResponse readRes = msg.payload;
+
+            assert readRes.isDigestResponse() == false;
+            PartitionIterator pi = UnfilteredPartitionIterators.filter(readRes.makeIterator(command), command.nowInSec());
+            ColumnIdentifier col = new ColumnIdentifier("Kishori", true);
+            
+            Map<Integer,Map<Integer,List<String>>> partitionRes = new HashMap<>();
+            int pId = 0;
+            while(pi.hasNext())
+            {   
+                Map<Integer,List<String>> rowRes = partitionRes.get(pId);
+                if(rowRes == null)
+                    rowRes = new HashMap<>();
+                RowIterator ri = pi.next();
+                int rowId = 0;
+                while(ri.hasNext())
+                {
+                    List<String> dataRes = rowRes.get(rowId);
+                    if(dataRes == null)
+                        dataRes = new ArrayList<>();
+                    for(Cell c : ri.next().cells())
+                    {
+                        if(c.column().name.equals(col))
+                        {
+                            try
+                            {
+                                dataRes.add(ByteBufferUtil.string(c.value()));
+                            }
+                            catch(CharacterCodingException e)
+                            {
+                                logger.error("Couldnt extract writer id");
+                            }
+                        }
+                    }
+                    rowRes.put(rowId,dataRes);
+                    rowId++;
+                }
+                partitionRes.put(pId,rowRes);
+                pId++;
+            }
+        }
+
+        pi = UnfilteredPartitionIterators.filter(result.makeIterator(command), command.nowInSec());
+        int pId = 0;
+        while(pi.hasNext())
+        {   
+            rowRes = partitionRes.get(pId);
+            if(rowRes == null)
+                rowRes = new HashMap<>();
+            RowIterator ri = pi.next();
+            int rowId = 0;
+            while(ri.hasNext())
+            {
+                dataRes = rowRes.get(rowId);
+                if(dataRes == null)
+                    dataRes = new ArrayList<>();
+                for(Cell c : ri.next().cells())
+                {
+                    if(c.column().name.equals(col))
+                    {
+                        String newVal = String.join("",dataRes);
+                        c.withUpdatedValue(ByteBufferUtil.bytes(newVal));
+                    }
+                }
+                rowId++;
+            }
+            pId++;
+        }
+
+        return result;
     }
 
     public boolean isDataPresent()
