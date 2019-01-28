@@ -4712,6 +4712,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, TimeUnit.MINUTES))
                 logger.warn("Failed to wait for non periodic tasks to shutdown");
 
+            ScheduledExecutors.shutdownAndWait();
+
             ColumnFamilyStore.shutdownPostFlushExecutor();
             setMode(Mode.DRAINED, !isFinalShutdown);
         }
@@ -5057,14 +5059,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (dynamicSnitchClassName != null && dynamicSnitchClassName.isEmpty())
                     dynamicSnitchClassName = DatabaseDescriptor.getDynamicSnitchClassName();
 
-                newSnitch = DatabaseDescriptor.createEndpointSnitch(dynamicSnitchClassName, epSnitchClassName);
+                newSnitch = DatabaseDescriptor.createEndpointSnitch(dynamicSnitchClassName, epSnitchClassName, true);
             }
             catch (ConfigurationException e)
             {
-                // Have to re-register the mbean
+                // Have to re-register the old snitch mbean and re-register for latency updates
                 if (oldSnitch instanceof DynamicEndpointSnitch)
                 {
-                    ((DynamicEndpointSnitch) oldSnitch).open();
+                    DynamicEndpointSnitch oldDynamicSnitch = (DynamicEndpointSnitch) oldSnitch;
+                    oldDynamicSnitch.open(true);
                     DatabaseDescriptor.setDynamicSnitchClassName(oldSnitch.getClass().getName());
                 }
 
@@ -5108,6 +5111,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         updateTopology();
+    }
+
+    public void doLocalReadTest()
+    {
+
     }
 
     /**

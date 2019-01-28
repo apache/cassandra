@@ -18,8 +18,16 @@
 package org.apache.cassandra.locator;
 
 import org.apache.cassandra.net.LatencyMeasurementType;
+import org.apache.cassandra.net.MessageOut;
 
 public interface ILatencySubscriber
 {
+    /**
+     * Receives a latency measurement in microseconds of a particular type from a message to a remote (or local)
+     * address. Not that this is called
+     * @param address
+     * @param latencyMicros
+     * @param measurementType
+     */
     public void receiveTiming(InetAddressAndPort address, long latencyMicros, LatencyMeasurementType measurementType);
 }

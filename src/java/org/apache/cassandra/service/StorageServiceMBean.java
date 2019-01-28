@@ -488,9 +488,12 @@ public interface StorageServiceMBean extends NotificationEmitter
      *                                     null while epSnitchClassName is not null, this turns off dynamic snitching;
      *                                     otherwise just settings are updated. If an empty string is passed then
      *                                     dynamic snitching is kept with the default implementation.
-     * @param dynamicUpdateInterval        integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 100)
-     * @param dynamicSampleUpdateInterval  integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 1,000)
-     * @param dynamicBadnessThreshold      double, (defaults to the value configured in cassandra.yaml, which defaults to 0.0)
+     * @param dynamicUpdateInterval        integer, in ms (defaults to the value configured in cassandra.yaml)
+     * @param dynamicSampleUpdateInterval  integer, in ms (defaults to the value configured in cassandra.yaml)
+     * @param dynamicBadnessThreshold      double, (defaults to the value configured in cassandra.yaml)
+     * @throws ClassNotFoundException      If the provided class names for the epSnitch or the dynamicSnitch are not found
+     *                                     This exception is mostly safe and Cassandra will automatically put the old
+     *                                     snitch back in place
      */
     public void updateEndpointSnitch(String epSnitchClassName, String dynamicSnitchClassName, Integer dynamicUpdateInterval, Integer dynamicSampleUpdateInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
 

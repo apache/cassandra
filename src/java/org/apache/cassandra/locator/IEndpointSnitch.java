@@ -76,6 +76,11 @@ public interface IEndpointSnitch
     public void gossiperStarting();
 
     /**
+     * called after Messaging service exists
+     */
+    default public void messagingStarting() { }
+
+    /**
      * Returns whether for a range query doing a query against merged is likely
      * to be faster than 2 sequential queries, one against l1 followed by one against l2.
      */

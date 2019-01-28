@@ -49,7 +49,7 @@ public class ResponseVerbHandler implements IVerbHandler
         else
         {
             //TODO: Should we add latency only in success cases?
-            MessagingService.instance().maybeAddLatency(cb, message.from, latencyMicros);
+            MessagingService.instance().addLatency(message.from, latencyMicros, cb.latencyMeasurementType());
             cb.response(message);
         }
 

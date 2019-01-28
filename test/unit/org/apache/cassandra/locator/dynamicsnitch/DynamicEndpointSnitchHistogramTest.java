@@ -60,14 +60,18 @@ public class DynamicEndpointSnitchHistogramTest
     public void testReceiveTiming() throws IOException, ConfigurationException
     {
         List<Double> timings;
+        List<Double> timingsMicros;
 
         dsnitch.receiveTiming(hosts[0], 1, LatencyMeasurementType.IGNORE);
         dsnitch.receiveTiming(hosts[0], 2, LatencyMeasurementType.READ);
         dsnitch.receiveTiming(hosts[0], 3, LatencyMeasurementType.READ);
         dsnitch.receiveTiming(hosts[0], 4, LatencyMeasurementType.PROBE);
         timings = dsnitch.dumpTimings(hosts[0].getHostAddress(false));
+        timingsMicros = dsnitch.dumpTimingsMicros((hosts[0].getHostAddress(false)));
         Collections.sort(timings);
-        assertEquals(Arrays.asList(2.0, 3.0, 4.0), timings);
+        Collections.sort(timingsMicros);
+        assertEquals(Arrays.asList(0.002, 0.003, 0.004), timings);
+        assertEquals(Arrays.asList(2.0, 3.0, 4.0), timingsMicros);
 
         dsnitch.reset();
 
@@ -75,7 +79,7 @@ public class DynamicEndpointSnitchHistogramTest
         dsnitch.receiveTiming(hosts[0], 2, LatencyMeasurementType.PROBE);
         dsnitch.receiveTiming(hosts[0], 3, LatencyMeasurementType.READ);
         dsnitch.receiveTiming(hosts[0], 4, LatencyMeasurementType.PROBE);
-        timings = dsnitch.dumpTimings(hosts[0].getHostAddress(false));
+        timings = dsnitch.dumpTimingsMicros(hosts[0].getHostAddress(false));
         Collections.sort(timings);
         assertEquals(Arrays.asList(1.0, 2.0, 3.0, 4.0), timings);
     }

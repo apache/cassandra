@@ -1797,7 +1797,8 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 MessagingService.instance().addLatency(FBUtilities.getBroadcastAddressAndPort(),
-                                                       TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - start));
+                                                       TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - start),
+                                                       LatencyMeasurementType.READ);
             }
             catch (Throwable t)
             {

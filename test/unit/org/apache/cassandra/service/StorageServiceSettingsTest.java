@@ -18,19 +18,24 @@
 
 package org.apache.cassandra.service;
 
+import java.net.UnknownHostException;
+import java.util.Set;
+import java.util.regex.Pattern;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.locator.dynamicsnitch.DynamicEndpointSnitchHistogram;
 import org.apache.cassandra.locator.dynamicsnitch.DynamicEndpointSnitchLegacyHistogram;
-
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -43,6 +48,8 @@ public class StorageServiceSettingsTest
     private static final int UPDATE_INTERVAL = 103;
     private static final int UPDATE_SAMPLE_INTERVAL = 2002;
     private static final double BADNESS = 0.23;
+    private static final String TP_NAME = "LatencyProbes";
+    private static final Pattern PATTERN_TP_NAME = Pattern.compile(".*" + TP_NAME + ".*");
 
     @BeforeClass
     public static void setUp() throws ConfigurationException
@@ -107,7 +114,38 @@ public class StorageServiceSettingsTest
         catch (ClassNotFoundException ignored) {}
         assertTrue(DatabaseDescriptor.getEndpointSnitch() instanceof DynamicEndpointSnitch);
         assertEquals(oldSnitch, DatabaseDescriptor.getEndpointSnitch());
+    }
 
+    @Test
+    public void testDESThreadLeaks() throws ClassNotFoundException
+    {
+        // Since the DES now has a dedicated thread pool, let's make sure that we don't leak anything when we stop
+        // and start the DES. There should only ever be one thread.
+        for (int i = 0; i < 1000; i ++)
+        {
+            StorageService.instance.updateEndpointSnitch(null, "DynamicEndpointSnitchLegacyHistogram", null, null, null);
+            assertTrue(DatabaseDescriptor.getEndpointSnitch() instanceof DynamicEndpointSnitchLegacyHistogram);
+
+            StorageService.instance.updateEndpointSnitch("PropertyFileSnitch", "DynamicEndpointSnitchHistogram", null, null, null);
+            assertTrue(DatabaseDescriptor.getEndpointSnitch() instanceof DynamicEndpointSnitchHistogram);
+
+            // Force the thread pool to actually do something so a thread spawns
+            ScheduledExecutors.getOrCreateSharedExecutor(DynamicEndpointSnitch.LATENCY_PROBE_TP_NAME).submit(() -> {});
+            assertEquals(1, ScheduledExecutors.getOrCreateSharedExecutor(DynamicEndpointSnitch.LATENCY_PROBE_TP_NAME).getMaximumPoolSize());
+        }
+
+        int matchingThreadCount = 0;
+        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+        for (Thread t: threadSet)
+        {
+            if (PATTERN_TP_NAME.matcher(t.getName()).matches())
+            {
+                matchingThreadCount++;
+            }
+        }
+
+        // There should only ever be a single thread for latency probes
+        assertEquals(matchingThreadCount, 1);
     }
 
     @Test
@@ -138,7 +176,7 @@ public class StorageServiceSettingsTest
     }
 
     @Test
-    public void testDESSnitchSwaps() throws ClassNotFoundException
+    public void testDESSnitchSwaps() throws ClassNotFoundException, UnknownHostException
     {
         // Able to change the underlying snitch
         StorageService.instance.updateEndpointSnitch("PropertyFileSnitch", "", null, null, null);

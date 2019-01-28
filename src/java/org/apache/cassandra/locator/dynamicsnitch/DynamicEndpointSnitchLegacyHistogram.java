@@ -24,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessagingService;
 
 /**
  * The legacy dynamic snitching implementation (prior to 4.0) that uses Exponentially Decaying Histograms to

@@ -61,10 +61,12 @@ import org.apache.cassandra.io.util.SsdDiskOptimizationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.net.BackPressureStrategy;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RateBasedBackPressure;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
@@ -1034,7 +1036,9 @@ public class DatabaseDescriptor
         if (!conf.dynamic_snitch_class_name.equals("org.apache.cassandra.locator.dynamicsnitch.DynamicEndpointSnitchHistogram"))
             logger.warn("Using the non standard DynamicSnitch is unsupported. Use at your own risk!");
 
-        snitch = createEndpointSnitch(conf.dynamic_snitch_class_name, conf.endpoint_snitch);
+        // We don't want to instantiate the MessagingService at this point, let the MessagingService register
+        // the snitch for latency updates from its constructor.
+        snitch = createEndpointSnitch(conf.dynamic_snitch_class_name, conf.endpoint_snitch, false);
         EndpointSnitchInfo.create();
 
         localDC = snitch.getLocalDatacenter();
@@ -1102,7 +1106,8 @@ public class DatabaseDescriptor
         }
     }
 
-    public static IEndpointSnitch createEndpointSnitch(String dynamicSnitchClassName, String snitchClassName) throws ConfigurationException
+    public static IEndpointSnitch createEndpointSnitch(String dynamicSnitchClassName, String snitchClassName,
+                                                       boolean registerForLatencyUpdates) throws ConfigurationException
     {
         if (!snitchClassName.contains("."))
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
@@ -1115,13 +1120,16 @@ public class DatabaseDescriptor
                                                                         "dynamicSnitch");
             try
             {
-                return cls.getConstructor(IEndpointSnitch.class).newInstance(snitch);
+                IEndpointSnitch endpointSnitch = cls.getConstructor(IEndpointSnitch.class).newInstance(snitch);
+                if (registerForLatencyUpdates)
+                    MessagingService.instance().registerLatencySubscriber((ILatencySubscriber) endpointSnitch);
+                return endpointSnitch;
             }
             catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | InstantiationException e)
             {
                 logger.error("Failed to construct Dynamic Snitch", e);
                 throw new ConfigurationException(
-                    String.format("Constructor for dynamic_snitch_class_name '%s' is inaccessible.",
+                    String.format("Unable to construct dynamic_snitch_class_name: '%s'",
                                   conf.dynamic_snitch_class_name)
                 );
             }
