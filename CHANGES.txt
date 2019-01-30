@@ -1,4 +1,5 @@
 4.0
+ * Avoid leaking threads when failing anticompactions and rate limit anticompactions (CASSANDRA-15002)
  * Validate token() arguments early instead of throwing NPE at execution (CASSANDRA-14989)
  * Add a new tool to dump audit logs (CASSANDRA-14885)
  * Fix generating javadoc with Java11 (CASSANDRA-14988)

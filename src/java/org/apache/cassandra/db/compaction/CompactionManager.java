@@ -1491,6 +1491,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         File destination = cfs.getDirectories().getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(sstableAsSet, OperationType.ANTICOMPACTION));
         int nowInSec = FBUtilities.nowInSeconds();
+        RateLimiter limiter = getRateLimiter();
 
         CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
         try (SSTableRewriter fullWriter = SSTableRewriter.constructWithoutEarlyOpening(txn, false, groupMaxDataAge);
@@ -1509,6 +1510,12 @@ public class CompactionManager implements CompactionManagerMBean
 
             Predicate<Token> fullChecker = !ranges.onlyFull().isEmpty() ? new Range.OrderedRangeContainmentChecker(ranges.onlyFull().ranges()) : t -> false;
             Predicate<Token> transChecker = !ranges.onlyTransient().isEmpty() ? new Range.OrderedRangeContainmentChecker(ranges.onlyTransient().ranges()) : t -> false;
+            double compressionRatio = scanners.getCompressionRatio();
+            if (compressionRatio == MetadataCollector.NO_COMPRESSION_RATIO)
+                compressionRatio = 1.0;
+
+            long lastBytesScanned = 0;
+
             while (ci.hasNext())
             {
                 try (UnfilteredRowIterator partition = ci.next())
@@ -1528,6 +1535,9 @@ public class CompactionManager implements CompactionManagerMBean
                         // otherwise, append it to the unrepaired sstable
                         unrepairedWriter.append(partition);
                     }
+                    long bytesScanned = scanners.getTotalBytesScanned();
+                    compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio);
+                    lastBytesScanned = bytesScanned;
                 }
             }
 
@@ -1562,7 +1572,7 @@ public class CompactionManager implements CompactionManagerMBean
     @VisibleForTesting
     public static CompactionIterator getAntiCompactionIterator(List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID timeUUID, ActiveCompactionsTracker activeCompactions)
     {
-        return new CompactionIterator(OperationType.ANTICOMPACTION, scanners, controller, nowInSec, timeUUID, activeCompactions, false);
+        return new CompactionIterator(OperationType.ANTICOMPACTION, scanners, controller, nowInSec, timeUUID, activeCompactions);
     }
 
     @VisibleForTesting
