@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.net.InetAddress;
 import java.util.Iterator;
-import java.util.List;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -33,7 +31,6 @@ import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.EmbeddedCassandraService;
@@ -48,6 +45,7 @@ public class PagingTest
 {
     private static Cluster cluster;
     private static Session session;
+    private static EmbeddedCassandraService cassandra;
 
     private static final String KEYSPACE = "paging_test";
     private static final String createKsStatement = "CREATE KEYSPACE " + KEYSPACE +
@@ -59,7 +57,7 @@ public class PagingTest
     public static void setup() throws Exception
     {
         System.setProperty("cassandra.config", "cassandra-murmur.yaml");
-        EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
+        cassandra = new EmbeddedCassandraService();
         cassandra.start();
 
         // Currently the native server start method return before the server is fully binded to the socket, so we need
@@ -79,6 +77,7 @@ public class PagingTest
     public static void tearDown()
     {
         cluster.close();
+        cassandra.stop();
     }
 
     /**
