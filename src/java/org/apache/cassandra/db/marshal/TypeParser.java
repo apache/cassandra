@@ -23,6 +23,9 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.base.Verify;
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -38,7 +41,7 @@ public class TypeParser
     private int idx;
 
     // A cache of parsed string, specially useful for DynamicCompositeType
-    private static final Map<String, AbstractType<?>> cache = new HashMap<>();
+    private static volatile ImmutableMap<String, AbstractType<?>> cache = ImmutableMap.of();
 
     public static final TypeParser EMPTY_PARSER = new TypeParser("", 0);
 
@@ -61,6 +64,7 @@ public class TypeParser
         if (str == null)
             return BytesType.instance;
 
+        // A single volatile read of 'cache' should not hurt.
         AbstractType<?> type = cache.get(str);
 
         if (type != null)
@@ -84,9 +88,27 @@ public class TypeParser
         else
             type = getAbstractType(name);
 
-        // We don't really care about concurrency here. Worst case scenario, we do some parsing unnecessarily
-        cache.put(str, type);
-        return type;
+        Verify.verify(type != null, "Parsing %s yielded null, which is a bug", str);
+
+        // Prevent concurrent modification to the map acting as the cache for TypeParser at the expense of
+        // more allocation when the cache needs to be updated, since updates to the cache are rare compared
+        // to the amount of reads.
+        //
+        // Copy the existing cache into a new map and add the parsed AbstractType instance and replace
+        // the cache, if the type is not already in the cache.
+        //
+        // The cache-update is done in a short synchronized block to prevent duplicate instances of AbstractType
+        // for the same string representation.
+        synchronized (TypeParser.class)
+        {
+            if (!cache.containsKey(str))
+            {
+                ImmutableMap.Builder<String, AbstractType<?>> builder = ImmutableMap.builder();
+                builder.putAll(cache).put(str, type);
+                cache = builder.build();
+            }
+            return type;
+        }
     }
 
     public static AbstractType<?> parse(CharSequence compareWith) throws SyntaxException, ConfigurationException
