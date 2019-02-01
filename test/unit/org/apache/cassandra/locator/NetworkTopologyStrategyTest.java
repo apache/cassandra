@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 
 import org.junit.Assert;
@@ -296,7 +297,7 @@ public class NetworkTopologyStrategyTest
         // all endpoints in each DC, so we can check when we have exhausted all the members of a DC
         Multimap<String, InetAddress> allEndpoints = topology.getDatacenterEndpoints();
         // all racks in a DC so we can check when we have exhausted all racks in a DC
-        Map<String, Multimap<String, InetAddress>> racks = topology.getDatacenterRacks();
+        Map<String, ImmutableMultimap<String, InetAddress>> racks = topology.getDatacenterRacks();
         assert !allEndpoints.isEmpty() && !racks.isEmpty() : "not aware of any cluster members";
 
         // tracks the racks we have already placed replicas in
