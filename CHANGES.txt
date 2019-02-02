@@ -1,3 +1,7 @@
+3.0.19
+ * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
+
+
 3.0.18
  * Severe concurrency issues in STCS,DTCS,TWCS,TMD.Topology,TypeParser
  * Add a script to make running the cqlsh tests in cassandra repo easier (CASSANDRA-14951)
