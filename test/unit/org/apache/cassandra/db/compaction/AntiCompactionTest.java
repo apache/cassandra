@@ -27,6 +27,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -137,6 +138,7 @@ public class AntiCompactionTest
         assertEquals(0, store.getTracker().getCompacting().size());
         assertEquals(repairedKeys, 4);
         assertEquals(nonRepairedKeys, 6);
+        assertOnDiskState(store, 2);
     }
 
     @Test
@@ -164,6 +166,7 @@ public class AntiCompactionTest
         }
         assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(rows, 1000 * (1000 * 5));//See writeFile for how this number is derived
+        assertOnDiskState(cfs, 2);
     }
 
     private SSTableReader writeFile(ColumnFamilyStore cfs, int count)
@@ -259,6 +262,7 @@ public class AntiCompactionTest
         }
         assertEquals(repairedKeys, 40);
         assertEquals(nonRepairedKeys, 60);
+        assertOnDiskState(store, 10);
     }
 
     @Test
@@ -282,6 +286,7 @@ public class AntiCompactionTest
         assertThat(sstable.isRepaired(), is(true));
         assertThat(sstable.selfRef().globalCount(), is(1));
         assertThat(store.getTracker().getCompacting().size(), is(0));
+        assertOnDiskState(store, 1);
     }
 
     @Test
@@ -381,6 +386,7 @@ public class AntiCompactionTest
         assertThat(sstablesSorted.first().selfRef().globalCount(), is(1));
         assertThat(sstablesSorted.last().selfRef().globalCount(), is(1));
         assertThat(store.getTracker().getCompacting().size(), is(0));
+        assertOnDiskState(store, 2);
     }
 
 
@@ -410,6 +416,7 @@ public class AntiCompactionTest
 
         assertThat(store.getLiveSSTables().size(), is(10));
         assertThat(Iterables.get(store.getLiveSSTables(), 0).isRepaired(), is(false));
+        assertOnDiskState(store, 10);
     }
 
     private ColumnFamilyStore prepareColumnFamilyStore()
@@ -440,6 +447,27 @@ public class AntiCompactionTest
     private static Set<SSTableReader> getUnrepairedSSTables(ColumnFamilyStore cfs)
     {
         return ImmutableSet.copyOf(cfs.getTracker().getView().sstables(SSTableSet.LIVE, (s) -> !s.isRepaired()));
+    }
+
+    static void assertOnDiskState(ColumnFamilyStore cfs, int expectedSSTableCount)
+    {
+        LifecycleTransaction.waitForDeletions();
+        assertEquals(expectedSSTableCount, cfs.getLiveSSTables().size());
+        Set<Integer> liveGenerations = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+        int fileCount = 0;
+        for (File f : cfs.getDirectories().getCFDirectories())
+        {
+            for (File sst : f.listFiles())
+            {
+                if (sst.getName().contains("Data"))
+                {
+                    Descriptor d = Descriptor.fromFilename(sst.getAbsolutePath());
+                    assertTrue(liveGenerations.contains(d.generation));
+                    fileCount++;
+                }
+            }
+        }
+        assertEquals(expectedSSTableCount, fileCount);
     }
 
 }

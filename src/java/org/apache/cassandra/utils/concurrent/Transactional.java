@@ -74,7 +74,6 @@ public interface Transactional extends AutoCloseable
             ABORTED;
         }
 
-        private boolean permitRedundantTransitions;
         private State state = State.IN_PROGRESS;
 
         // the methods for actually performing the necessary behaviours, that are themselves protected against
@@ -109,8 +108,6 @@ public interface Transactional extends AutoCloseable
          */
         public final Throwable commit(Throwable accumulate)
         {
-            if (permitRedundantTransitions && state == State.COMMITTED)
-                return accumulate;
             if (state != State.READY_TO_COMMIT)
                 throw new IllegalStateException("Cannot commit unless READY_TO_COMMIT; state is " + state);
             accumulate = doCommit(accumulate);
@@ -165,8 +162,6 @@ public interface Transactional extends AutoCloseable
          */
         public final void prepareToCommit()
         {
-            if (permitRedundantTransitions && state == State.READY_TO_COMMIT)
-                return;
             if (state != State.IN_PROGRESS)
                 throw new IllegalStateException("Cannot prepare to commit unless IN_PROGRESS; state is " + state);
 
@@ -203,11 +198,6 @@ public interface Transactional extends AutoCloseable
         public final State state()
         {
             return state;
-        }
-
-        protected void permitRedundantTransitions()
-        {
-            permitRedundantTransitions = true;
         }
     }
 
