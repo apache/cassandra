@@ -68,7 +68,7 @@ public class DefaultConnectionFactory implements StreamConnectionFactory
 
         int sendBufferSize = DatabaseDescriptor.getInternodeSendBufferSize() > 0
                              ? DatabaseDescriptor.getInternodeSendBufferSize()
-                             : OutboundConnectionParams.DEFAULT_SEND_BUFFER_SIZE;
+                             : 0;
 
         int tcpConnectTimeout = DatabaseDescriptor.getInternodeTcpConnectTimeoutInMS();
         int tcpUserTimeout = DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();

@@ -18,194 +18,281 @@
 
 package org.apache.cassandra.net.async;
 
+import java.io.EOFException;
+import java.io.IOError;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.BooleanSupplier;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.google.common.primitives.Ints;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
-import org.apache.cassandra.io.util.DataInputBuffer;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.util.ReferenceCountUtil;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ParameterType;
-import org.apache.cassandra.utils.vint.VIntCoding;
+import org.apache.cassandra.net.MessageIn.MessageInProcessor;
+import org.apache.cassandra.net.async.RebufferingByteBufDataInputPlus.InputTimeoutException;
 
 /**
  * Parses incoming messages as per the 4.0 internode messaging protocol.
  */
-public class MessageInHandler extends BaseMessageInHandler
+public class MessageInHandler extends ChannelInboundHandlerAdapter
 {
     public static final Logger logger = LoggerFactory.getLogger(MessageInHandler.class);
 
-    private MessageHeader messageHeader;
+    private final InetAddressAndPort peer;
 
-    MessageInHandler(InetAddressAndPort peer, int messagingVersion)
+    private final BufferHandler bufferHandler;
+    private volatile boolean closed;
+
+    public MessageInHandler(InetAddressAndPort peer, Channel channel, MessageInProcessor messageProcessor, boolean handlesLargeMessages)
     {
-        this (peer, messagingVersion, MESSAGING_SERVICE_CONSUMER);
+        this.peer = peer;
+
+        bufferHandler = handlesLargeMessages
+                        ? new BlockingBufferHandler(channel, messageProcessor)
+                        : new NonblockingBufferHandler(messageProcessor);
     }
 
-    public MessageInHandler(InetAddressAndPort peer, int messagingVersion, BiConsumer<MessageIn, Integer> messageConsumer)
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws IOException
     {
-        super(peer, messagingVersion, messageConsumer);
+        if (!closed)
+        {
+            bufferHandler.channelRead(ctx, (ByteBuf) msg);
+        }
+        else
+        {
+            ReferenceCountUtil.release(msg);
+            ctx.close();
+        }
+    }
 
-        assert messagingVersion >= MessagingService.VERSION_40 : String.format("wrong messaging version for this handler: got %d, but expect %d or higher",
-                                                                              messagingVersion, MessagingService.VERSION_40);
-        state = State.READ_FIRST_CHUNK;
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
+    {
+        if (cause instanceof EOFException || (cause.getCause() != null && cause.getCause() instanceof EOFException))
+            logger.trace("eof reading from socket; closing", cause);
+        else if (cause instanceof UnknownTableException)
+            logger.warn("Got message from unknown table while reading from socket; closing", cause);
+        else if (cause instanceof IOException || cause instanceof IOError)
+            logger.trace("IOException reading from socket; closing", cause);
+        else
+            logger.warn("Unexpected exception caught in inbound channel pipeline from " + ctx.channel().remoteAddress(), cause);
+
+        close();
+        ctx.close();
+    }
+
+    public void channelInactive(ChannelHandlerContext ctx)
+    {
+        logger.trace("received channel closed message for peer {} on local addr {}", ctx.channel().remoteAddress(), ctx.channel().localAddress());
+        close();
+        ctx.fireChannelInactive();
+    }
+
+    void close()
+    {
+        closed = true;
+        bufferHandler.close();
+    }
+
+    boolean isClosed()
+    {
+        return closed;
     }
 
     /**
-     * For each new message coming in, builds up a {@link MessageHeader} instance incrementally. This method
-     * attempts to deserialize as much header information as it can out of the incoming {@link ByteBuf}, and
-     * maintains a trivial state machine to remember progress across invocations.
+     * An abstraction around how incoming buffers are handled: either in a non-blocking manner ({@link NonblockingBufferHandler})
+     * or in a blocking manner ({@link BlockingBufferHandler}).
+     *
+     * The methods declared here will only be invoked on the netty event loop.
      */
-    @SuppressWarnings("resource")
-    public void handleDecode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception
+    interface BufferHandler
     {
-        ByteBufDataInputPlus inputPlus = new ByteBufDataInputPlus(in);
-        while (true)
+        void channelRead(ChannelHandlerContext ctx, ByteBuf in) throws IOException;
+
+        void close();
+    }
+
+    /**
+     * Processes incoming buffers on the netty event loop, in a non-blocking manner. If buffers are not completely consumed,
+     * it is stashed in {@link #retainedInlineBuffer}, and the next incoming buffer is combined with it.
+     */
+    static class NonblockingBufferHandler implements BufferHandler
+    {
+        private final MessageInProcessor messageProcessor;
+
+        /**
+         * If a buffer is not completely consumed, stash it here for the next invocation of
+         * {@link #channelRead(ChannelHandlerContext, ByteBuf)}.
+         */
+        private ByteBuf retainedInlineBuffer;
+
+        NonblockingBufferHandler(MessageInProcessor messageProcessor)
         {
-            switch (state)
+            this.messageProcessor = messageProcessor;
+        }
+
+        public void channelRead(ChannelHandlerContext ctx, ByteBuf in) throws IOException
+        {
+            final ByteBuf toProcess;
+            if (retainedInlineBuffer != null)
+                toProcess = ByteToMessageDecoder.MERGE_CUMULATOR.cumulate(ctx.alloc(), retainedInlineBuffer, in);
+            else
+                toProcess = in;
+
+            try
             {
-                case READ_FIRST_CHUNK:
-                    MessageHeader header = readFirstChunk(in);
-                    if (header == null)
-                        return;
-                    header.from = peer;
-                    messageHeader = header;
-                    state = State.READ_VERB;
-                    // fall-through
-                case READ_VERB:
-                    if (in.readableBytes() < VERB_LENGTH)
-                        return;
-                    messageHeader.verb = MessagingService.Verb.fromId(in.readInt());
-                    state = State.READ_PARAMETERS_SIZE;
-                    // fall-through
-                case READ_PARAMETERS_SIZE:
-                    long length = VIntCoding.readUnsignedVInt(in);
-                    if (length < 0)
-                        return;
-                    messageHeader.parameterLength = (int) length;
-                    messageHeader.parameters = messageHeader.parameterLength == 0 ? Collections.emptyMap() : new EnumMap<>(ParameterType.class);
-                    state = State.READ_PARAMETERS_DATA;
-                    // fall-through
-                case READ_PARAMETERS_DATA:
-                    if (messageHeader.parameterLength > 0)
-                    {
-                        if (in.readableBytes() < messageHeader.parameterLength)
-                            return;
-                        readParameters(in, inputPlus, messagingVersion, messageHeader.parameterLength, messageHeader.parameters);
-                    }
-                    state = State.READ_PAYLOAD_SIZE;
-                    // fall-through
-                case READ_PAYLOAD_SIZE:
-                    length = VIntCoding.readUnsignedVInt(in);
-                    if (length < 0)
-                        return;
-                    messageHeader.payloadSize = (int) length;
-                    state = State.READ_PAYLOAD;
-                    // fall-through
-                case READ_PAYLOAD:
-                    if (in.readableBytes() < messageHeader.payloadSize)
-                        return;
+                messageProcessor.process(toProcess);
+            }
+            finally
+            {
+                if (toProcess.isReadable())
+                {
+                    retainedInlineBuffer = toProcess;
+                }
+                else
+                {
+                    toProcess.release();
+                    retainedInlineBuffer = null;
+                }
+            }
+        }
 
-                    // TODO consider deserializing the message not on the event loop
-                    MessageIn<Object> messageIn = MessageIn.read(inputPlus, messagingVersion,
-                                                                     messageHeader.messageId, messageHeader.constructionTime, messageHeader.from,
-                                                                     messageHeader.payloadSize, messageHeader.verb, messageHeader.parameters);
-
-                    if (messageIn != null)
-                        messageConsumer.accept(messageIn, messageHeader.messageId);
-
-                    state = State.READ_FIRST_CHUNK;
-                    messageHeader = null;
-                    break;
-                default:
-                    throw new IllegalStateException("unknown/unhandled state: " + state);
+        public void close()
+        {
+            if (retainedInlineBuffer != null)
+            {
+                retainedInlineBuffer.release();
+                retainedInlineBuffer = null;
             }
         }
     }
 
-    private static void readParameters(ByteBuf buf, DataInputPlus in, int messagingVersion, int parameterLength, Map<ParameterType, Object> parameters) throws IOException
+    /**
+     * Processes incoming buffers in a blocking manner; primarily useful for handling large messages to avoid allocating
+     * very large buffers before the data can actually be deserialized. To perform blocking IO, we cannot do that
+     * on the netty event loop itself, and thus we have a deserialization task execute on a separate background thread
+     * ({@link #executorService}).
+     */
+    class BlockingBufferHandler implements BufferHandler
     {
-        // makes the assumption we have all the bytes required to read the headers
-        final int endIndex = buf.readerIndex() + parameterLength;
-        while (buf.readerIndex() < endIndex)
+        /**
+         * Default time in milliseconds that {@link #queuedBuffers} should wait for new buffers to arrive.
+         * See {@link RebufferingByteBufDataInputPlus} for more information.
+         */
+        private static final long QUEUED_BUFFERS_REBUFFER_MILLIS = 10 * 1000;
+
+        private final MessageInProcessor messageProcessor;
+
+        /**
+         * Intended to be a single-threaded pool, and if there is no inboound activity (no incoming buffers
+         * on the channel), the thread should be shut down (timed out) to conserve resources.
+         */
+        private final ThreadPoolExecutor executorService;
+
+        /**
+         * A queue in which to stash incoming {@link ByteBuf}s.
+         */
+        private final RebufferingByteBufDataInputPlus queuedBuffers;
+
+        private final AtomicBoolean executing;
+
+        BlockingBufferHandler(Channel channel, MessageInProcessor messageProcessor)
         {
-            String key = in.readUTF();
-            ParameterType parameterType = ParameterType.byName.get(key);
-            long valueLength =  in.readUnsignedVInt();
-            byte[] value = new byte[Ints.checkedCast(valueLength)];
-            in.readFully(value);
-            try (DataInputBuffer buffer = new DataInputBuffer(value))
+            this.messageProcessor = messageProcessor;
+            executing = new AtomicBoolean(false);
+            queuedBuffers = new RebufferingByteBufDataInputPlus(channel, QUEUED_BUFFERS_REBUFFER_MILLIS);
+
+            // bound the LBQ to a handful element so we don't inadvertently add a bunch of empty tasks to the queue,
+            // but we need more than one to allow for the current executing task (so it can exit) and an entry after it
+            // so we can schedule resumption tasks if channelRead
+            RejectedExecutionHandler nopHandler = (r, executor) -> {};
+            String threadName = "MessagingService-NettyInbound-" + peer.toString() + "-LargeMessages";
+            executorService = new ThreadPoolExecutor(1, 1, 5L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(3),
+                                                     new NamedThreadFactory(threadName), nopHandler);
+            executorService.allowCoreThreadTimeOut(true);
+            executorService.setRejectedExecutionHandler((r, executor) -> {});
+        }
+
+        /**
+         * This will execute on the netty event loop
+         */
+        public void channelRead(ChannelHandlerContext ctx, ByteBuf in)
+        {
+            try
             {
-                parameters.put(parameterType, parameterType.serializer.deserialize(buffer, messagingVersion));
+                queuedBuffers.append(in);
+            }
+            catch (IllegalStateException ise)
+            {
+                // this catch block serves mainly to not make the logs a mess with multiple stack traces
+                // when a race happens between inserting into the queue on the netty event loop after the background
+                // task has closed the queue.
+                // we would only get here if we are racing with the processInBackground() task, and it marked
+                // the closed flag as false after we read it as true.
+                // in any case, we are done processing, and catchException()/properly closing the channel will be soon invoked.
+                ReferenceCountUtil.release(in);
+                return;
+            }
+
+            // if we are racing with processInBackground(), go ahead and add another task to the queue
+            // as the number of tasks in the queue is bounded (and we throw away any rejection exceptions).
+            // We could get a bunch of incoming buffers and add them to the queue before the background thread has
+            // a chance to start executing.
+            if (executing.compareAndSet(false, true))
+                executorService.submit(() -> processInBackground(ctx));
+        }
+
+        /**
+         * This will execute on a thread in {@link #executorService}, not on the netty event loop.
+         */
+        private void processInBackground(ChannelHandlerContext ctx)
+        {
+            if (closed)
+                return;
+
+            try
+            {
+                // this will block until the either the channel is closed or there is no incoming data.
+                messageProcessor.process(queuedBuffers);
+            }
+            catch (InputTimeoutException | EOFException e)
+            {
+                //nop - nothing to see here
+            }
+            catch (Throwable cause)
+            {
+                 // this is the safest way to indicate to the netty event loop that no more buffers should be processed
+                closed = true;
+
+                // close the buffers as we're on the consuming thread
+                queuedBuffers.close();
+                exceptionCaught(ctx, cause);
+            }
+            finally
+            {
+                executing.set(false);
+
+                // if we are racing with channelRead(), go ahead and add another task to the queue
+                // as the number of tasks in the queue is bounded (and we throw away any rejection exceptions)
+                if (!closed && !queuedBuffers.isEmpty())
+                    executorService.submit(() -> processInBackground(ctx));
             }
         }
-    }
 
-    private static void readParameters(BooleanSupplier isDone, DataInputPlus in, int messagingVersion, Map<ParameterType, Object> parameters) throws IOException
-    {
-        // makes the assumption we have all the bytes required to read the headers
-        while (!isDone.getAsBoolean())
+        public void close()
         {
-            String key = in.readUTF();
-            ParameterType parameterType = ParameterType.byName.get(key);
-            in.readUnsignedVInt();
-            parameters.put(parameterType, parameterType.serializer.deserialize(in, messagingVersion));
+            if (queuedBuffers != null)
+                queuedBuffers.markClose();
         }
-    }
-
-    public static MessageIn<?> deserialize(DataInputPlus in, int id, int version, InetAddressAndPort from) throws IOException
-    {
-        if (version >= MessagingService.VERSION_40)
-            return deserialize40(in, id, version, from);
-        else
-            return MessageInHandlerPre40.deserializePre40(in, id, version, from);
-    }
-
-    private static MessageIn<?> deserialize40(DataInputPlus in, int id, int version, InetAddressAndPort from) throws IOException
-    {
-        MessagingService.Verb verb = MessagingService.Verb.fromId(in.readInt());
-
-        Map<ParameterType, Object> parameters = Collections.emptyMap();
-        int parameterLength = (int) in.readUnsignedVInt();
-        if (parameterLength != 0)
-        {
-            parameters = new EnumMap<>(ParameterType.class);
-            byte[] bytes = new byte[parameterLength];
-            in.readFully(bytes);
-            try (DataInputBuffer buffer = new DataInputBuffer(bytes))
-            {
-                readParameters(() -> buffer.available() == 0, buffer, version, parameters);
-            }
-        }
-
-        Object payload = null;
-        int payloadSize = (int) in.readUnsignedVInt();
-        if (payloadSize > 0)
-        {
-            IVersionedSerializer serializer = MessagingService.getVerbSerializer(verb, id);
-            if (serializer == null) in.skipBytesFully(payloadSize);
-            else payload = serializer.deserialize(in, version);
-        }
-
-        return new MessageIn<>(from, payload, parameters, verb, version, System.nanoTime());
-    }
-
-    @Override
-    MessageHeader getMessageHeader()
-    {
-        return messageHeader;
     }
 }

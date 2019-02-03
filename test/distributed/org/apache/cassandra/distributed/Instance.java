@@ -185,7 +185,7 @@ public class Instance extends InvokableInstance
         {
             try (DataInputBuffer in = new DataInputBuffer(m.bytes))
             {
-                MessageIn<?> messageIn = MessageInHandler.deserialize(in, m.id, m.version, m.from);
+                MessageIn<?> messageIn = null;//MessageInHandler.deserialize(in, m.id, m.version, m.from);
                 Runnable deliver = new MessageDeliveryTask(messageIn, m.id);
                 deliver.run();
             }

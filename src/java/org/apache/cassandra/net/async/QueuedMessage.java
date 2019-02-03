@@ -53,9 +53,9 @@ public class QueuedMessage implements CoalescingStrategies.Coalescable
     }
 
     /** don't drop a non-droppable message just because it's timestamp is expired */
-    public boolean isTimedOut()
+    public boolean isTimedOut(long nowNanos)
     {
-        return droppable && timestampNanos < System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(message.getTimeout());
+        return droppable && nowNanos - timestampNanos  > TimeUnit.MILLISECONDS.toNanos(message.getTimeout());
     }
 
     public boolean shouldRetry()
@@ -71,5 +71,15 @@ public class QueuedMessage implements CoalescingStrategies.Coalescable
     public long timestampNanos()
     {
         return timestampNanos;
+    }
+
+    @Override
+    public String toString()
+    {
+        return new StringBuilder()
+               .append("QueuedMessage: message = ").append(message)
+               .append(", id = ").append(id)
+               .append(", timedout = ").append(isTimedOut(System.nanoTime()))
+               .toString();
     }
 }

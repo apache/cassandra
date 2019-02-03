@@ -85,6 +85,8 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     private static final int DEFAULT_MAX_PARALLEL_TRANSFERS = FBUtilities.getAvailableProcessors();
     private static final int MAX_PARALLEL_TRANSFERS = Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "streaming.session.parallelTransfers", Integer.toString(DEFAULT_MAX_PARALLEL_TRANSFERS)));
 
+    private static final long DEFAULT_CLOSE_WAIT_IN_MILLIS = TimeUnit.MINUTES.toMillis(5);
+
     // a simple mechansim for allowing a degree of fairnes across multiple sessions
     private static final Semaphore fileTransferSemaphore = new Semaphore(DEFAULT_MAX_PARALLEL_TRANSFERS, true);
 
@@ -322,7 +324,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                     throw new IllegalStateException("channel's transferring state is currently set to true. refusing to start new stream");
 
                 // close the DataOutputStreamPlus as we're done with it - but don't close the channel
-                try (DataOutputStreamPlus outPlus = ByteBufDataOutputStreamPlus.create(session, channel, 1 << 20))
+                try (DataOutputStreamPlus outPlus = ByteBufDataOutputStreamPlus.create(channel, 1 << 20, this::onError, 2, TimeUnit.MINUTES))
                 {
                     StreamMessage.serialize(msg, outPlus, protocolVersion, session);
                     channel.flush();
@@ -390,6 +392,18 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             catch (Exception e)
             {
                 throw new IOError(e);
+            }
+        }
+
+        private void onError(Throwable t)
+        {
+            try
+            {
+                session.onError(t).get(DEFAULT_CLOSE_WAIT_IN_MILLIS, TimeUnit.MILLISECONDS);
+            }
+            catch (Exception e)
+            {
+                // nop - let the Throwable param be the main failure point here, and let session handle it
             }
         }
 

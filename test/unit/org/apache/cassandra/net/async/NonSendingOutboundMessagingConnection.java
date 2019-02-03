@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.net.async;
 
-import java.util.Optional;
-
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.utils.CoalescingStrategies;
@@ -28,7 +26,7 @@ class NonSendingOutboundMessagingConnection extends OutboundMessagingConnection
 {
     boolean sendMessageInvoked;
 
-    NonSendingOutboundMessagingConnection(OutboundConnectionIdentifier connectionId, EncryptionOptions.ServerEncryptionOptions encryptionOptions, Optional<CoalescingStrategies.CoalescingStrategy> coalescingStrategy)
+    NonSendingOutboundMessagingConnection(OutboundConnectionIdentifier connectionId, EncryptionOptions.ServerEncryptionOptions encryptionOptions, CoalescingStrategies.CoalescingStrategy coalescingStrategy)
     {
         super(connectionId, encryptionOptions, coalescingStrategy, new AllowAllInternodeAuthenticator());
     }

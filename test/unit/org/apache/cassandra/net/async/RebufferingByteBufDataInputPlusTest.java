@@ -22,6 +22,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -32,6 +33,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+import org.apache.cassandra.net.async.RebufferingByteBufDataInputPlus.InputTimeoutException;
 
 public class RebufferingByteBufDataInputPlusTest
 {
@@ -43,7 +45,7 @@ public class RebufferingByteBufDataInputPlusTest
     public void setUp()
     {
         channel = new EmbeddedChannel();
-        inputPlus = new RebufferingByteBufDataInputPlus(1 << 10, 1 << 11, channel.config());
+        inputPlus = new RebufferingByteBufDataInputPlus(channel);
     }
 
     @After
@@ -54,12 +56,6 @@ public class RebufferingByteBufDataInputPlusTest
 
         if (buf != null && buf.refCnt() > 0)
             buf.release(buf.refCnt());
-    }
-
-    @Test (expected = IllegalArgumentException.class)
-    public void ctor_badWaterMarks()
-    {
-        inputPlus = new RebufferingByteBufDataInputPlus(2, 1, null);
     }
 
     @Test
@@ -79,13 +75,13 @@ public class RebufferingByteBufDataInputPlusTest
     }
 
     @Test
-    public void append_normal() throws EOFException
+    public void append_normal()
     {
         int size = 4;
         buf = channel.alloc().buffer(size);
         buf.writerIndex(size);
         inputPlus.append(buf);
-        Assert.assertEquals(buf.readableBytes(), inputPlus.available());
+        Assert.assertEquals(buf.readableBytes(), inputPlus.unsafeAvailable());
     }
 
     @Test
@@ -102,21 +98,21 @@ public class RebufferingByteBufDataInputPlusTest
         buf.writeInt(42);
         buf.writerIndex(8);
         inputPlus.append(buf);
-        Assert.assertEquals(16, inputPlus.available());
+        Assert.assertEquals(16, inputPlus.unsafeAvailable());
 
         ByteBuffer out = ByteBuffer.allocate(4);
         int readCount = inputPlus.read(out);
         Assert.assertEquals(4, readCount);
         out.flip();
         Assert.assertEquals(42, out.getInt());
-        Assert.assertEquals(12, inputPlus.available());
+        Assert.assertEquals(12, inputPlus.unsafeAvailable());
 
         out = ByteBuffer.allocate(8);
         readCount = inputPlus.read(out);
         Assert.assertEquals(8, readCount);
         out.flip();
         Assert.assertEquals(42, out.getLong());
-        Assert.assertEquals(4, inputPlus.available());
+        Assert.assertEquals(4, inputPlus.unsafeAvailable());
     }
 
     @Test (expected = EOFException.class)
@@ -127,32 +123,32 @@ public class RebufferingByteBufDataInputPlusTest
         inputPlus.read(buf);
     }
 
-    @Test (expected = EOFException.class)
-    public void available_closed() throws EOFException
+    @Test
+    public void available_closed()
     {
         inputPlus.markClose();
-        inputPlus.available();
+        inputPlus.unsafeAvailable();
     }
 
     @Test
-    public void available_HappyPath() throws EOFException
+    public void available_HappyPath()
     {
         int size = 4;
         buf = channel.alloc().heapBuffer(size);
         buf.writerIndex(size);
         inputPlus.append(buf);
-        Assert.assertEquals(size, inputPlus.available());
+        Assert.assertEquals(size, inputPlus.unsafeAvailable());
     }
 
     @Test
-    public void available_ClosedButWithBytes() throws EOFException
+    public void available_ClosedButWithBytes()
     {
         int size = 4;
         buf = channel.alloc().heapBuffer(size);
         buf.writerIndex(size);
         inputPlus.append(buf);
         inputPlus.markClose();
-        Assert.assertEquals(size, inputPlus.available());
+        Assert.assertEquals(size, inputPlus.unsafeAvailable());
     }
 
     @Test
@@ -216,8 +212,8 @@ public class RebufferingByteBufDataInputPlusTest
         BufferedDataOutputStreamPlus writer = new BufferedDataOutputStreamPlus(wbc);
         inputPlus.consumeUntil(writer, len);
 
-        Assert.assertEquals(String.format("Test with {} buffers starting at {} consuming {} bytes", nBuffs, startOffset,
-                                          len), len, wbc.writtenBytes.readableBytes());
+        Assert.assertEquals(String.format("Test with %d buffers starting at %d consuming %d bytes", nBuffs, startOffset, len),
+                            len, wbc.writtenBytes.readableBytes());
 
         Assert.assertArrayEquals(expectedBytes, wbc.writtenBytes.array());
     }
@@ -232,7 +228,7 @@ public class RebufferingByteBufDataInputPlusTest
              writtenBytes = Unpooled.buffer(initialCapacity);
         }
 
-        public int write(ByteBuffer src) throws IOException
+        public int write(ByteBuffer src)
         {
             int size = src.remaining();
             writtenBytes.writeBytes(src);
@@ -244,9 +240,30 @@ public class RebufferingByteBufDataInputPlusTest
             return isOpen;
         }
 
-        public void close() throws IOException
+        public void close()
         {
             isOpen = false;
         }
-    };
+    }
+
+    @Test
+    public void rebufferTimeout() throws IOException
+    {
+        long timeoutMillis = 1000;
+        inputPlus = new RebufferingByteBufDataInputPlus(channel, timeoutMillis);
+
+        long startNanos = System.nanoTime();
+        try
+        {
+            inputPlus.readInt();
+            Assert.fail("should not have been able to read from the queue");
+        }
+        catch (InputTimeoutException e)
+        {
+            // this is the success case, and is expected. any other exception is a failure.
+        }
+
+        long durationNanos = System.nanoTime() - startNanos;
+        Assert.assertTrue(TimeUnit.MILLISECONDS.toNanos(timeoutMillis) <= durationNanos);
+    }
 }

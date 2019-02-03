@@ -20,10 +20,12 @@ package org.apache.cassandra.net.async;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
@@ -34,12 +36,12 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
-import org.apache.cassandra.streaming.StreamSession;
 
 /**
  * A {@link DataOutputStreamPlus} that writes to a {@link ByteBuf}. The novelty here is that all writes
@@ -50,10 +52,12 @@ import org.apache.cassandra.streaming.StreamSession;
  */
 public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
 {
-    private final StreamSession session;
+    private final Logger logger = LoggerFactory.getLogger(ByteBufDataOutputStreamPlus.class);
     private final Channel channel;
     private final int bufferSize;
-    private final Logger logger = LoggerFactory.getLogger(ByteBufDataOutputStreamPlus.class);
+    private final Consumer<Throwable> errorHandler;
+    private final int rateLimiterBlockTime;
+    private final TimeUnit rateLimiterBlockTimeUnit;
 
     /**
      * Tracks how many bytes we've written to the netty channel. This more or less follows the channel's
@@ -64,17 +68,28 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
     private final Semaphore channelRateLimiter;
 
     /**
+     * An optional function that can receive and observe all of the {@link ChannelFuture}s that are emitted
+     * when writing an object to the {@link #channel}. Useful if the caller needs to know the success of each
+     * buffer written to the channel.
+     */
+    private final Consumer<ChannelPromise> futureConsumer;
+
+    /**
      * This *must* be the owning {@link ByteBuf} for the {@link BufferedDataOutputStreamPlus#buffer}
      */
     private ByteBuf currentBuf;
 
-    private ByteBufDataOutputStreamPlus(StreamSession session, Channel channel, ByteBuf buffer, int bufferSize)
+    private ByteBufDataOutputStreamPlus(Channel channel, ByteBuf buffer, int bufferSize, Consumer<Throwable> errorHandler,
+                                        int rateLimiterBlockTime, TimeUnit rateLimiterBlockTimeUnit, Consumer<ChannelPromise> futureConsumer)
     {
         super(buffer.nioBuffer(0, bufferSize));
-        this.session = session;
         this.channel = channel;
         this.currentBuf = buffer;
         this.bufferSize = bufferSize;
+        this.errorHandler = errorHandler;
+        this.rateLimiterBlockTime = rateLimiterBlockTime;
+        this.rateLimiterBlockTimeUnit = rateLimiterBlockTimeUnit;
+        this.futureConsumer = futureConsumer;
         channelRateLimiter = new Semaphore(channel.config().getWriteBufferHighWaterMark(), true);
     }
 
@@ -100,32 +115,43 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
 
             @Override
             public void close()
-            {   }
+            {
+            }
         };
     }
 
-    public static ByteBufDataOutputStreamPlus create(StreamSession session, Channel channel, int bufferSize)
+    public static ByteBufDataOutputStreamPlus create(Channel channel, int bufferSize, Consumer<Throwable> errorHandler,
+                                                     int rateLimiterBlockTime, TimeUnit timeUnit)
+    {
+        return create(channel, bufferSize, errorHandler, rateLimiterBlockTime, timeUnit, future -> {
+        });
+    }
+
+    public static ByteBufDataOutputStreamPlus create(Channel channel, int bufferSize, Consumer<Throwable> errorHandler,
+                                                     int rateLimiterBlockTime, TimeUnit timeUnit, Consumer<ChannelPromise> futureConsumer)
     {
         ByteBuf buf = channel.alloc().directBuffer(bufferSize, bufferSize);
-        return new ByteBufDataOutputStreamPlus(session, channel, buf, bufferSize);
+        return new ByteBufDataOutputStreamPlus(channel, buf, bufferSize, errorHandler, rateLimiterBlockTime, timeUnit, futureConsumer);
     }
 
     /**
      * Writes the incoming buffer directly to the backing {@link #channel}, without copying to the intermediate {@link #buffer}.
      */
-    public ChannelFuture writeToChannel(ByteBuf buf) throws IOException
+    public ChannelPromise writeToChannel(ByteBuf buf) throws IOException
     {
         doFlush(buffer.position());
 
         int byteCount = buf.readableBytes();
 
-        if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, byteCount, 5, TimeUnit.MINUTES))
+        if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, byteCount, rateLimiterBlockTime, rateLimiterBlockTimeUnit))
             throw new IOException(String.format("outbound channel was not writable. Failed to acquire sufficient permits %d", byteCount));
 
         // the (possibly naive) assumption that we should always flush after each incoming buf
-        ChannelFuture channelFuture = channel.writeAndFlush(buf);
-        channelFuture.addListener(future -> handleBuffer(future, byteCount));
-        return channelFuture;
+        ChannelPromise promise = channel.newPromise();
+        channel.writeAndFlush(buf, promise);
+        promise.addListener(future -> handleBuffer(future, byteCount));
+        futureConsumer.accept(promise);
+        return promise;
     }
 
     /**
@@ -160,7 +186,7 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
                 int toRead = (int) Math.min(bufferSize, length - bytesTransferred);
                 NonClosingDefaultFileRegion fileRegion = new NonClosingDefaultFileRegion(f, bytesTransferred, toRead);
 
-                if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, toRead, 5, TimeUnit.MINUTES))
+                if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, toRead, rateLimiterBlockTime, rateLimiterBlockTimeUnit))
                     throw new IOException(String.format("outbound channel was not writable. Failed to acquire sufficient permits %d", toRead));
 
                 limiter.acquire(toRead);
@@ -168,17 +194,21 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
                 bytesTransferred += toRead;
                 final boolean shouldClose = (bytesTransferred == length); // this is the last buffer, can safely close channel
 
-                channel.writeAndFlush(fileRegion).addListener(future -> {
+                ChannelPromise promise = channel.newPromise();
+                channel.writeAndFlush(fileRegion, promise);
+                promise.addListener(future -> {
                     handleBuffer(future, toRead);
 
                     if ((shouldClose || !future.isSuccess()) && f.isOpen())
                         f.close();
                 });
+                futureConsumer.accept(promise);
                 logger.trace("{} of {} (toRead {} cs {})", bytesTransferred, length, toRead, f.isOpen());
             }
 
             return bytesTransferred;
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             if (f.isOpen())
                 f.close();
@@ -190,16 +220,25 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
     @Override
     protected void doFlush(int count) throws IOException
     {
+        if (!channel.isOpen())
+        {
+            releaseBuffer();
+            throw new ClosedChannelException();
+        }
+
         // flush the current backing write buffer only if there's any pending data
-        if (buffer.position() > 0 && channel.isOpen())
+        if (buffer.position() > 0)
         {
             int byteCount = buffer.position();
             currentBuf.writerIndex(byteCount);
 
-            if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, byteCount, 2, TimeUnit.MINUTES))
+            if (!Uninterruptibles.tryAcquireUninterruptibly(channelRateLimiter, byteCount, rateLimiterBlockTime, rateLimiterBlockTimeUnit))
                 throw new IOException(String.format("outbound channel was not writable. Failed to acquire sufficient permits %d", byteCount));
 
-            channel.writeAndFlush(currentBuf).addListener(future -> handleBuffer(future, byteCount));
+            ChannelPromise promise = channel.newPromise();
+            channel.writeAndFlush(currentBuf, promise);
+            promise.addListener(future -> handleBuffer(future, byteCount));
+            futureConsumer.accept(promise);
             currentBuf = channel.alloc().directBuffer(bufferSize, bufferSize);
             buffer = currentBuf.nioBuffer(0, bufferSize);
         }
@@ -207,15 +246,15 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
 
     /**
      * Handles the result of publishing a buffer to the channel.
-     *
+     * <p>
      * Note: this will be executed on the event loop.
      */
     private void handleBuffer(Future<? super Void> future, int bytesWritten)
     {
         channelRateLimiter.release(bytesWritten);
-        logger.trace("bytesWritten {} {} because {}", bytesWritten, (future.isSuccess() == true) ? "Succeeded" : "Failed", future.cause());
+
         if (!future.isSuccess() && channel.isOpen())
-            session.onError(future.cause());
+            errorHandler.accept(future.cause());
     }
 
     public ByteBufAllocator getAllocator()
@@ -223,21 +262,38 @@ public class ByteBufDataOutputStreamPlus extends BufferedDataOutputStreamPlus
         return channel.alloc();
     }
 
+    private void releaseBuffer()
+    {
+        if (currentBuf != null)
+        {
+            if (currentBuf.refCnt() > 0)
+                currentBuf.release();
+            currentBuf = null;
+            buffer = null;
+        }
+    }
+
     /**
      * {@inheritDoc}
-     *
+     * <p>
      * Flush any last buffered (if the channel is open), and release any buffers. *Not* responsible for closing
      * the netty channel as we might use it again for transferring more files.
-     *
+     * <p>
      * Note: should be called on the producer thread, not the netty event loop.
      */
     @Override
     public void close() throws IOException
     {
-        doFlush(0);
-        if (currentBuf.refCnt() > 0)
-            currentBuf.release();
-        currentBuf = null;
-        buffer = null;
+        try
+        {
+            if (channel.isOpen())
+                doFlush(0);
+        }
+        catch (ClosedChannelException cce)
+        {
+            // ignore a closed channel
+        }
+
+        releaseBuffer();
     }
 }

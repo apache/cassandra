@@ -29,7 +29,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel.MapMode;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.Locale;
 
@@ -402,7 +401,7 @@ public class CoalescingStrategies
         }
     }
 
-    public static Optional<CoalescingStrategy> newCoalescingStrategy(String strategy, int coalesceWindow, Logger logger, String displayName)
+    public static CoalescingStrategy newCoalescingStrategy(String strategy, int coalesceWindow, Logger logger, String displayName)
     {
         String strategyCleaned = strategy.trim().toUpperCase(Locale.ENGLISH);
 
@@ -411,14 +410,14 @@ public class CoalescingStrategies
             switch (Enum.valueOf(Strategy.class, strategyCleaned))
             {
                 case MOVINGAVERAGE:
-                    return Optional.of(new MovingAverageCoalescingStrategy(coalesceWindow, logger, displayName));
+                    return new MovingAverageCoalescingStrategy(coalesceWindow, logger, displayName);
                 case FIXED:
-                    return Optional.of(new FixedCoalescingStrategy(coalesceWindow, logger, displayName));
+                    return new FixedCoalescingStrategy(coalesceWindow, logger, displayName);
                 case TIMEHORIZON:
                     long initialEpoch = System.nanoTime();
-                    return Optional.of(new TimeHorizonMovingAverageCoalescingStrategy(coalesceWindow, logger, displayName, initialEpoch));
+                    return new TimeHorizonMovingAverageCoalescingStrategy(coalesceWindow, logger, displayName, initialEpoch);
                 case DISABLED:
-                    return Optional.empty();
+                    return null;
                 default:
                     throw new IllegalArgumentException("supported coalese strategy");
             }
@@ -433,7 +432,7 @@ public class CoalescingStrategies
                     throw new RuntimeException(strategy + " is not an instance of CoalescingStrategy");
 
                 Constructor<?> constructor = clazz.getConstructor(int.class, Logger.class, String.class);
-                return Optional.of((CoalescingStrategy)constructor.newInstance(coalesceWindow, logger, displayName));
+                return (CoalescingStrategy)constructor.newInstance(coalesceWindow, logger, displayName);
             }
             catch (Exception e)
             {
