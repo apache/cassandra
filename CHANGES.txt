@@ -1,3 +1,7 @@
+3.0.19
+ * Catch CorruptSSTableExceptions and FSErrors in ALAExecutorService (CASSANDRA-14993)
+
+
 3.0.18
  * Severe concurrency issues in STCS,DTCS,TWCS,TMD.Topology,TypeParser
  * Add a script to make running the cqlsh tests in cassandra repo easier (CASSANDRA-14951)
