@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Sets;
@@ -267,6 +268,7 @@ public class Config
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
     private static boolean isClientMode = false;
+    private static Supplier<Config> overrideLoadConfig = null;
 
     public Integer file_cache_size_in_mb;
 
@@ -423,8 +425,8 @@ public class Config
 
     /**
      * flags for enabling tracking repaired state of data during reads
-     * separate flags for range &amp; single partition reads as single partition reads are only tracked
-     * when {@code CL > 1} and a digest mismatch occurs. Currently, range queries don't use digests so if
+     * separate flags for range & single partition reads as single partition reads are only tracked
+     * when CL > 1 and a digest mismatch occurs. Currently, range queries don't use digests so if
      * enabled for range reads, all such reads will include repaired data tracking. As this adds
      * some overhead, operators may wish to disable it whilst still enabling it for partition reads
      */
@@ -460,6 +462,16 @@ public class Config
     public static void setClientMode(boolean clientMode)
     {
         isClientMode = clientMode;
+    }
+
+    public static Supplier<Config> getOverrideLoadConfig()
+    {
+        return overrideLoadConfig;
+    }
+
+    public static void setOverrideLoadConfig(Supplier<Config> loadConfig)
+    {
+        overrideLoadConfig = loadConfig;
     }
 
     public enum CommitLogSync
