@@ -16,36 +16,44 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed;
+package org.apache.cassandra.distributed.impl;
 
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiConsumer;
 
+import org.apache.cassandra.distributed.api.IInstance;
+import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 
-public class MessageFilters
+public class MessageFilters implements IMessageFilters
 {
-    private final TestCluster cluster;
+    private final ICluster cluster;
     private final Set<Filter> filters = new CopyOnWriteArraySet<>();
 
-    public MessageFilters(TestCluster cluster)
+    public MessageFilters(AbstractCluster cluster)
     {
         this.cluster = cluster;
     }
 
-    BiConsumer<InetAddressAndPort, Message> filter(BiConsumer<InetAddressAndPort, Message> applyIfNotFiltered)
+    public BiConsumer<InetAddressAndPort, IMessage> filter(BiConsumer<InetAddressAndPort, IMessage> applyIfNotFiltered)
     {
         return (toAddress, message) ->
         {
-            int from = cluster.get(message.from).config.num;
-            int to = cluster.get(toAddress).config.num;
-            int verb = message.verb;
+            IInstance from = cluster.get(message.from());
+            IInstance to = cluster.get(toAddress);
+            if (from == null || to == null)
+                return; // cannot deliver
+            int fromNum = from.config().num();
+            int toNum = to.config().num();
+            int verb = message.verb();
             for (Filter filter : filters)
             {
-                if (filter.matches(from, to, verb))
+                if (filter.matches(fromNum, toNum, verb))
                     return;
             }
 
@@ -53,7 +61,7 @@ public class MessageFilters
         };
     }
 
-    public class Filter
+    public class Filter implements IMessageFilters.Filter
     {
         final int[] from;
         final int[] to;
@@ -120,7 +128,7 @@ public class MessageFilters
         }
     }
 
-    public class Builder
+    public class Builder implements IMessageFilters.Builder
     {
         int[] from;
         int[] to;
@@ -154,7 +162,8 @@ public class MessageFilters
         }
     }
 
-    public Builder verbs(MessagingService.Verb ... verbs)
+    @Override
+    public Builder verbs(MessagingService.Verb... verbs)
     {
         int[] ids = new int[verbs.length];
         for (int i = 0 ; i < verbs.length ; ++i)
@@ -162,11 +171,13 @@ public class MessageFilters
         return new Builder(ids);
     }
 
+    @Override
     public Builder allVerbs()
     {
         return new Builder(null);
     }
 
+    @Override
     public void reset()
     {
         filters.clear();
