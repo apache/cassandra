@@ -50,9 +50,6 @@ public class AuditLogFilter
 
     /**
      * (Re-)Loads filters from config. Called during startup as well as JMX invocations.
-     *
-     * @param auditLogOptions
-     * @return
      */
     public static AuditLogFilter create(AuditLogOptions auditLogOptions)
     {

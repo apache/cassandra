@@ -16,26 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed;
+package org.apache.cassandra.distributed.impl;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.distributed.api.IInstance;
 
-// a container for simplifying the method signature for per-instance message handling/delivery
-public class Message
+// this lives outside the api package so that we do not have to worry about inter-version compatibility
+public interface IUpgradeableInstance extends IInstance
 {
-    public final int verb;
-    public final byte[] bytes;
-    public final int id;
-    public final int version;
-    public final InetAddressAndPort from;
-
-    public Message(int verb, byte[] bytes, int id, int version, InetAddressAndPort from)
-    {
-        this.verb = verb;
-        this.bytes = bytes;
-        this.id = id;
-        this.version = version;
-        this.from = from;
-    }
+    // only to be invoked while the node is shutdown!
+    public void setVersion(Versions.Version version);
 }
-

@@ -57,11 +57,9 @@ public class AuthCache<K, V> implements AuthCacheMBean
 
     /**
      * @param name Used for MBean
-     * @param setValidityDelegate Used to set cache validity period.
-     *                            See {@link Caffeine#expireAfterAccess}
+     * @param setValidityDelegate Used to set cache validity period. See {@link Policy#expireAfterWrite()}
      * @param getValidityDelegate Getter for validity period
-     * @param setUpdateIntervalDelegate Used to set cache update interval.
-     *                                  See {@link Caffeine#refreshAfterWrite}
+     * @param setUpdateIntervalDelegate Used to set cache update interval. See {@link Policy#refreshAfterWrite()}
      * @param getUpdateIntervalDelegate Getter for update interval
      * @param setMaxEntriesDelegate Used to set max # entries in cache. See {@link com.github.benmanes.caffeine.cache.Policy.Eviction#setMaximum(long)}
      * @param getMaxEntriesDelegate Getter for max entries.
