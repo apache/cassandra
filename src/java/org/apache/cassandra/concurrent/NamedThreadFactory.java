@@ -31,6 +31,9 @@ import io.netty.util.concurrent.FastThreadLocalThread;
 
 public class NamedThreadFactory implements ThreadFactory
 {
+    private static volatile String globalPrefix;
+    public static void setGlobalPrefix(String prefix) { globalPrefix = prefix; }
+
     public final String id;
     private final int priority;
     private final ClassLoader contextClassLoader;
@@ -58,7 +61,8 @@ public class NamedThreadFactory implements ThreadFactory
     public Thread newThread(Runnable runnable)
     {
         String name = id + ':' + n.getAndIncrement();
-        Thread thread = new FastThreadLocalThread(threadGroup, threadLocalDeallocator(runnable), name);
+        String prefix = globalPrefix;
+        Thread thread = new FastThreadLocalThread(threadGroup, threadLocalDeallocator(runnable), prefix != null ? prefix + name : name);
         thread.setPriority(priority);
         thread.setDaemon(true);
         if (contextClassLoader != null)

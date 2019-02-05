@@ -16,16 +16,18 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed;
+package org.apache.cassandra.distributed.test;
 
 import java.util.Arrays;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
+import org.apache.cassandra.distributed.impl.AbstractCluster;
+
 public class DistributedTestBase
 {
-    static String KEYSPACE = "distributed_test_keyspace";
+    public static String KEYSPACE = "distributed_test_keyspace";
 
     @BeforeClass
     public static void setup()
@@ -33,11 +35,9 @@ public class DistributedTestBase
         System.setProperty("org.apache.cassandra.disable_mbean_registration", "true");
     }
 
-    TestCluster createCluster(int nodeCount) throws Throwable
+    protected static <C extends AbstractCluster<?>> C init(C cluster)
     {
-        TestCluster cluster = TestCluster.create(nodeCount);
-        cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + nodeCount + "};");
-
+        cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + cluster.size() + "};");
         return cluster;
     }
 

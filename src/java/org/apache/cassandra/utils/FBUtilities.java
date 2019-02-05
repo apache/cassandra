@@ -61,6 +61,7 @@ import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.AsyncOneResponse;
 
 import org.codehaus.jackson.JsonFactory;
@@ -158,6 +159,14 @@ public class FBUtilities
         return broadcastInetAddress;
     }
 
+    /**
+     * <b>THIS IS FOR TESTING ONLY!!</b>
+     */
+    @VisibleForTesting
+    public static void setBroadcastInetAddress(InetAddress addr)
+    {
+        broadcastInetAddress = addr;
+    }
 
     public static InetAddress getBroadcastRpcAddress()
     {
