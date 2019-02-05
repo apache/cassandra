@@ -1,4 +1,5 @@
 2.2.15
+ * Make tools/bin/token-generator py2/3 compatible (CASSANDRA-15012)
  * Multi-version in-JVM dtests (CASSANDRA-14937)
 
 

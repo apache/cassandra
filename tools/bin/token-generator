@@ -16,14 +16,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
 from __future__ import with_statement
 
+# Py2/3 input compatibility
+try:
+    user_input = raw_input
+except NameError:
+    user_input = input
 import os
 import sys
 import math
 import optparse
 import webbrowser
-import urllib
+# Py2/3 quote compat
+try:
+    from urllib import quote
+except ImportError:
+    from urllib.parse import quote
+
 from time import sleep
 from itertools import cycle
 from tempfile import NamedTemporaryFile
@@ -139,7 +150,7 @@ class Ring:
         for (dcnum, dccount) in enumerate(self.dc_counts):
             offset = dcnum * dc_offset
             arcsize = self.ringrange // (dccount or 1)
-            dcs.append(sorted([self.bound_token((n * arcsize + offset) - self.ringoffset % self.ringrange) for n in xrange(dccount)]))
+            dcs.append(sorted([self.bound_token((n * arcsize + offset) - self.ringoffset % self.ringrange) for n in range(dccount)]))
         return dcs
 
     def calc_offset_tokens_onts(self):
@@ -157,10 +168,10 @@ class Ring:
 def print_tokens(tokens, tokenwidth, indent=0):
     indentstr = ' ' * indent
     for dcnum, toklist in enumerate(tokens):
-        print "%sDC #%d:" % (indentstr, dcnum + 1)
+        print("%sDC #%d:" % (indentstr, dcnum + 1))
         nwidth = len(str(len(toklist)))
         for tnum, tok in enumerate(toklist):
-            print "%s  Node #%0*d: % *d" % (indentstr, nwidth, tnum + 1, tokenwidth, tok)
+            print("%s  Node #%0*d: % *d" % (indentstr, nwidth, tnum + 1, tokenwidth, tok))
 
 def calculate_ideal_tokens(datacenters, ringoffset, ringrange, strategy):
     return Ring(datacenters, ringoffset, ringrange, strategy).calculate_offset_tokens()
@@ -171,7 +182,7 @@ def file_to_url(path):
         host, path = os.path.splitunc(path)
         drive, path = os.path.splitdrive(path)
         path = (host or (drive + '|')) + path.replace(os.sep, '/')
-    return 'file://' + urllib.quote(path, safe='/')
+    return 'file://' + quote(path, safe='/')
 
 html_template = """<!DOCTYPE html>
 <html>
@@ -270,7 +281,7 @@ def run_tests(opts):
 
     tokensets = []
     for test in tests:
-        print "Test %r" % (test,)
+        print("Test %r" % (test,))
         tokens = calculate_ideal_tokens(test, opts.ringoffset, opts.ringrange, opts.strat)
         print_tokens(tokens, len(str(opts.ringrange)) + 1, indent=2)
         tokensets.append(tokens)
@@ -279,7 +290,7 @@ def run_tests(opts):
 # ===========================
 
 def display_html(html, wait_time):
-    with NamedTemporaryFile(suffix='.html') as f:
+    with NamedTemporaryFile('wt', suffix='.html') as f:
         f.write(html)
         f.flush()
         webbrowser.open(file_to_url(f.name), new=2)
@@ -298,28 +309,28 @@ def write_output(html, opts):
 
 def readnum(prompt, min=None, max=None):
     while True:
-        x = raw_input(prompt + ' ')
+        x = input(prompt + ' ')
         try:
             val = int(x)
         except ValueError:
-            print "Oops, %r is not an integer. Try again.\n" % (x,)
+            print("Oops, %r is not an integer. Try again.\n" % (x,))
             continue
         if min is not None and val < min:
-            print "Oops, the answer must be at least %d. Try again.\n" % (min,)
+            print("Oops, the answer must be at least %d. Try again.\n" % (min,))
         elif max is not None and val > max:
-            print "Oops, the answer must be at most %d. Try again.\n" % (max,)
+            print("Oops, the answer must be at most %d. Try again.\n" % (max,))
         else:
             return val
 
 def get_dc_sizes_interactive():
-    print "Token Generator Interactive Mode"
-    print "--------------------------------"
-    print
+    print("Token Generator Interactive Mode")
+    print("--------------------------------")
+    print()
     dcs = readnum(" How many datacenters will participate in this Cassandra cluster?", min=1)
     sizes = []
-    for n in xrange(dcs):
+    for n in range(dcs):
         sizes.append(readnum(" How many nodes are in datacenter #%d?" % (n + 1), min=0))
-    print
+    print()
     return sizes
 
 def main(opts, args):
@@ -333,8 +344,8 @@ def main(opts, args):
         if len(args) == 0:
             args = get_dc_sizes_interactive()
         try:
-            datacenters = map(int, args)
-        except ValueError, e:
+            datacenters = [int(arg) for arg in args]
+        except ValueError as e:
             parser.error('Arguments should be integers.')
         renderer = RingRenderer(ringrange=opts.ringrange, graphsize=opts.graphsize,
                                 colors=opts.colorlist)
