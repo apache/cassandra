@@ -16,27 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed;
+package org.apache.cassandra.distributed.impl;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.distributed.api.IInstance;
 
-import java.net.InetAddress;
-
-public class LegacyAdapter
+// this lives outside the api package so that we do not have to worry about inter-version compatibility
+public interface IUpgradeableInstance extends IInstance
 {
-    private static final InetAddressAndPort broadcastAddressAndPort;
-    static
-    {
-        InetAddress address = FBUtilities.getBroadcastAddress();
-        int port = DatabaseDescriptor.getStoragePort();
-        broadcastAddressAndPort = InetAddressAndPort.getByAddressOverrideDefaults(address, port);
-    }
-
-    public static InetAddressAndPort getBroadcastAddressAndPort()
-    {
-        return broadcastAddressAndPort;
-    }
-
+    // only to be invoked while the node is shutdown!
+    public void setVersion(Versions.Version version);
 }

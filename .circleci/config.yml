@@ -172,7 +172,7 @@ jobs:
             # get all of our unit test filenames
             set -eo pipefail && circleci tests glob "$HOME/cassandra/test/unit/**/*.java" > /tmp/all_java_unit_tests.txt
             # append distributed tests
-            set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" > /tmp/all_java_distributed_tests.txt
+            set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/test/*.java" > /tmp/all_java_distributed_tests.txt
 
             # split up the unit tests into groups based on the number of containers we have
             set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
