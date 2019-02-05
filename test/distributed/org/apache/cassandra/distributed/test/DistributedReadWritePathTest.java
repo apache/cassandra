@@ -16,19 +16,20 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed;
+package org.apache.cassandra.distributed.test;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.distributed.Cluster;
 
 public class DistributedReadWritePathTest extends DistributedTestBase
 {
     @Test
     public void coordinatorRead() throws Throwable
     {
-        try (TestCluster cluster = createCluster(3))
+        try (Cluster cluster = init(Cluster.create(3)))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -36,7 +37,7 @@ public class DistributedReadWritePathTest extends DistributedTestBase
             cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, 2)");
             cluster.get(3).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 3, 3)");
 
-            assertRows(cluster.coordinator().execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
+            assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
                                                      ConsistencyLevel.ALL,
                                                      1),
                        row(1, 1, 1),
@@ -48,11 +49,11 @@ public class DistributedReadWritePathTest extends DistributedTestBase
     @Test
     public void coordinatorWrite() throws Throwable
     {
-        try (TestCluster cluster = createCluster(3))
+        try (Cluster cluster = init(Cluster.create(3)))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
-            cluster.coordinator().execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)",
+            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)",
                                           ConsistencyLevel.QUORUM);
 
             for (int i = 0; i < 3; i++)
@@ -61,7 +62,7 @@ public class DistributedReadWritePathTest extends DistributedTestBase
                            row(1, 1, 1));
             }
 
-            assertRows(cluster.coordinator().execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
+            assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
                                                      ConsistencyLevel.QUORUM),
                        row(1, 1, 1));
         }
@@ -70,7 +71,7 @@ public class DistributedReadWritePathTest extends DistributedTestBase
     @Test
     public void readRepairTest() throws Throwable
     {
-        try (TestCluster cluster = createCluster(3))
+        try (Cluster cluster = init(Cluster.create(3)))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -79,7 +80,7 @@ public class DistributedReadWritePathTest extends DistributedTestBase
 
             assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
 
-            assertRows(cluster.coordinator().execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
+            assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
                                                      ConsistencyLevel.QUORUM),
                        row(1, 1, 1));
 
@@ -92,7 +93,7 @@ public class DistributedReadWritePathTest extends DistributedTestBase
     @Test
     public void writeWithSchemaDisagreement() throws Throwable
     {
-        try (TestCluster cluster = createCluster(3))
+        try (Cluster cluster = init(Cluster.create(3)))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, PRIMARY KEY (pk, ck))");
 
@@ -106,7 +107,7 @@ public class DistributedReadWritePathTest extends DistributedTestBase
             Exception thrown = null;
             try
             {
-                cluster.coordinator().execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) VALUES (2, 2, 2, 2)",
+                cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) VALUES (2, 2, 2, 2)",
                                               ConsistencyLevel.QUORUM);
             }
             catch (RuntimeException e)
@@ -114,15 +115,15 @@ public class DistributedReadWritePathTest extends DistributedTestBase
                 thrown = e;
             }
 
-            Assert.assertTrue(thrown.getMessage().contains("Exception occurred on the node"));
-            Assert.assertTrue(thrown.getCause().getMessage().contains("Unknown column v2 during deserialization"));
+            Assert.assertTrue(thrown.getMessage().contains("Exception occurred on node"));
+            Assert.assertTrue(thrown.getCause().getCause().getCause().getMessage().contains("Unknown column v2 during deserialization"));
         }
     }
 
     @Test
     public void readWithSchemaDisagreement() throws Throwable
     {
-        try (TestCluster cluster = createCluster(3))
+        try (Cluster cluster = init(Cluster.create(3)))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, PRIMARY KEY (pk, ck))");
 
@@ -136,7 +137,7 @@ public class DistributedReadWritePathTest extends DistributedTestBase
             Exception thrown = null;
             try
             {
-                assertRows(cluster.coordinator().execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
+                assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
                                                          ConsistencyLevel.ALL),
                            row(1, 1, 1, null));
             }
@@ -144,8 +145,8 @@ public class DistributedReadWritePathTest extends DistributedTestBase
             {
                 thrown = e;
             }
-            Assert.assertTrue(thrown.getMessage().contains("Exception occurred on the node"));
-            Assert.assertTrue(thrown.getCause().getMessage().contains("Unknown column v2 during deserialization"));
+            Assert.assertTrue(thrown.getMessage().contains("Exception occurred on node"));
+            Assert.assertTrue(thrown.getCause().getCause().getCause().getMessage().contains("Unknown column v2 during deserialization"));
         }
     }
 }
