@@ -342,6 +342,7 @@
  * nodetool clearsnapshot requires --all to clear all snapshots (CASSANDRA-13391)
  * Correctly count range tombstones in traces and tombstone thresholds (CASSANDRA-8527)
  * cqlshrc.sample uses incorrect option for time formatting (CASSANDRA-14243)
+ * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
 
 
 3.11.4
