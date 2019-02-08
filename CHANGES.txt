@@ -1,4 +1,5 @@
 4.0
+ * SSL Cert Hot Reloading should check for sanity of the new keystore/truststore before loading it (CASSANDRA-14991)
  * Avoid leaking threads when failing anticompactions and rate limit anticompactions (CASSANDRA-15002)
  * Validate token() arguments early instead of throwing NPE at execution (CASSANDRA-14989)
  * Add a new tool to dump audit logs (CASSANDRA-14885)

@@ -24,6 +24,7 @@ import java.security.cert.CertificateException;
 import java.util.Arrays;
 import javax.net.ssl.TrustManagerFactory;
 
+import org.apache.commons.io.FileUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -95,8 +96,7 @@ public class SSLFactoryTest
         }
 
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
-        SslContext sslContext = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
-                                                         SSLFactory.SocketType.CLIENT, true);
+        SslContext sslContext = SSLFactory.getSslContext(options, true, SSLFactory.SocketType.CLIENT, true);
         Assert.assertNotNull(sslContext);
         Assert.assertTrue(sslContext instanceof OpenSslContext);
     }
@@ -105,8 +105,7 @@ public class SSLFactoryTest
     public void getSslContext_JdkSsl() throws IOException
     {
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
-        SslContext sslContext = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
-                                                         SSLFactory.SocketType.CLIENT, false);
+        SslContext sslContext = SSLFactory.getSslContext(options, true, SSLFactory.SocketType.CLIENT, false);
         Assert.assertNotNull(sslContext);
         Assert.assertTrue(sslContext instanceof JdkSslContext);
         Assert.assertEquals(Arrays.asList(encryptionOptions.cipher_suites), sslContext.cipherSuites());
@@ -175,17 +174,17 @@ public class SSLFactoryTest
 
             SSLFactory.initHotReloading((ServerEncryptionOptions) options, options, true);
 
-            SslContext oldCtx = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
-                                                         SSLFactory.SocketType.CLIENT, OpenSsl.isAvailable());
+            SslContext oldCtx = SSLFactory.getSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
+                                                                                                           .isAvailable());
             File keystoreFile = new File(options.keystore);
 
-            SSLFactory.checkCertFilesForHotReloading();
+            SSLFactory.checkCertFilesForHotReloading((ServerEncryptionOptions) options, options);
             Thread.sleep(5000);
-            keystoreFile.setLastModified(System.currentTimeMillis());
+            FileUtils.touch(keystoreFile);
 
-            SSLFactory.checkCertFilesForHotReloading();
-            SslContext newCtx = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
-                                                         SSLFactory.SocketType.CLIENT, OpenSsl.isAvailable());
+            SSLFactory.checkCertFilesForHotReloading((ServerEncryptionOptions) options, options);;
+            SslContext newCtx = SSLFactory.getSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
+                                                                                                          .isAvailable());
 
             Assert.assertNotSame(oldCtx, newCtx);
         }
@@ -199,6 +198,94 @@ public class SSLFactoryTest
         }
     }
 
+    @Test(expected = IOException.class)
+    public void testSslFactorySslInit_BadPassword_ThrowsException() throws IOException
+    {
+        EncryptionOptions options = addKeystoreOptions(encryptionOptions);
+        options.keystore_password = "bad password";
+        options.enabled = true;
+
+        SSLFactory.initHotReloading((ServerEncryptionOptions) options, options, true);
+    }
+
+    @Test
+    public void testSslFactoryHotReload_BadPassword_DoesNotClearExistingSslContext() throws IOException,
+                                                                                            InterruptedException
+    {
+        try
+        {
+            addKeystoreOptions(encryptionOptions);
+
+            EncryptionOptions options = new ServerEncryptionOptions(encryptionOptions);
+            options.enabled = true;
+
+            SSLFactory.initHotReloading((ServerEncryptionOptions) options, options, true);
+            SslContext oldCtx = SSLFactory.getSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
+                                                                                                          .isAvailable());
+            File keystoreFile = new File(options.keystore);
+
+            SSLFactory.checkCertFilesForHotReloading((ServerEncryptionOptions) options, options);
+            Thread.sleep(5000);
+            FileUtils.touch(keystoreFile);
+
+            options.keystore_password = "bad password";
+            SSLFactory.checkCertFilesForHotReloading((ServerEncryptionOptions) options, options);;
+            SslContext newCtx = SSLFactory.getSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
+                                                                                                          .isAvailable());
+
+            Assert.assertSame(oldCtx, newCtx);
+        }
+        catch (Exception e)
+        {
+            throw e;
+        }
+        finally
+        {
+            DatabaseDescriptor.loadConfig();
+        }
+    }
+
+    @Test
+    public void testSslFactoryHotReload_CorruptOrNonExistentFile_DoesNotClearExistingSslContext() throws IOException,
+                                                                                                         InterruptedException
+    {
+        try
+        {
+            addKeystoreOptions(encryptionOptions);
+
+            File testKeystoreFile = new File(encryptionOptions.keystore + ".test");
+            FileUtils.copyFile(new File(encryptionOptions.keystore),testKeystoreFile);
+            encryptionOptions.keystore = testKeystoreFile.getPath();
+
+            EncryptionOptions options = new ServerEncryptionOptions(encryptionOptions);
+            options.enabled = true;
+
+            SSLFactory.initHotReloading((ServerEncryptionOptions) options, options, true);
+            SslContext oldCtx = SSLFactory.getSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
+                                                                                                          .isAvailable());
+            SSLFactory.checkCertFilesForHotReloading((ServerEncryptionOptions) options, options);
+            Thread.sleep(5000);
+
+            FileUtils.touch(testKeystoreFile);
+            FileUtils.forceDelete(testKeystoreFile);
+
+            SSLFactory.checkCertFilesForHotReloading((ServerEncryptionOptions) options, options);;
+            SslContext newCtx = SSLFactory.getSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
+                                                                                                          .isAvailable());
+
+            Assert.assertSame(oldCtx, newCtx);
+        }
+        catch (Exception e)
+        {
+            throw e;
+        }
+        finally
+        {
+            DatabaseDescriptor.loadConfig();
+            FileUtils.deleteQuietly(new File(encryptionOptions.keystore + ".test"));
+        }
+    }
+
     @Test
     public void getSslContext_ParamChanges() throws IOException
     {
@@ -206,15 +293,15 @@ public class SSLFactoryTest
         options.enabled = true;
         options.cipher_suites = new String[]{ "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256" };
 
-        SslContext ctx1 = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
-                                                   SSLFactory.SocketType.CLIENT, OpenSsl.isAvailable());
+        SslContext ctx1 = SSLFactory.getSslContext(options, true,
+                                                   SSLFactory.SocketType.SERVER, OpenSsl.isAvailable());
 
-        Assert.assertTrue(ctx1.isClient());
+        Assert.assertTrue(ctx1.isServer());
         Assert.assertArrayEquals(ctx1.cipherSuites().toArray(), options.cipher_suites);
 
         options.cipher_suites = new String[]{ "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256" };
 
-        SslContext ctx2 = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
+        SslContext ctx2 = SSLFactory.getSslContext(options, true,
                                                    SSLFactory.SocketType.CLIENT, OpenSsl.isAvailable());
 
         Assert.assertTrue(ctx2.isClient());
