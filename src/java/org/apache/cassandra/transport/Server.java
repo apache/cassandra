@@ -406,8 +406,7 @@ public class Server implements CassandraDaemon.Server
 
         protected final SslHandler createSslHandler(ByteBufAllocator allocator) throws IOException
         {
-            SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, encryptionOptions.require_client_auth,
-                                                             SSLFactory.ConnectionType.NATIVE_TRANSPORT, SSLFactory.SocketType.SERVER);
+            SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, encryptionOptions.require_client_auth, SSLFactory.SocketType.SERVER);
             return sslContext.newHandler(allocator);
         }
     }
