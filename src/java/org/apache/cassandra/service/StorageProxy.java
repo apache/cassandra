@@ -2047,6 +2047,15 @@ public class StorageProxy implements StorageProxyMBean
         private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
         {
             PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
+            // If enabled, request repaired data tracking info from full replicas but
+            // only if there are multiple full replicas to compare results from
+            if (DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
+                && replicaPlan.contacts().filter(Replica::isFull).size() > 1)
+            {
+                command.trackRepairedStatus();
+                rangeCommand.trackRepairedStatus();
+            }
+
             ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
             ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair
                     = ReadRepair.create(command, sharedReplicaPlan, queryStartNanoTime);
@@ -2055,13 +2064,6 @@ public class StorageProxy implements StorageProxyMBean
             ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler
                     = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, queryStartNanoTime);
 
-            // If enabled, request repaired data tracking info from full replicas but
-            // only if there are multiple full replicas to compare results from
-            if (DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled()
-                    && replicaPlan.contacts().filter(Replica::isFull).size() > 1)
-            {
-                command.trackRepairedStatus();
-            }
 
             if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
             {
