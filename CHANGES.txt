@@ -1,6 +1,8 @@
 3.11.5
-Merged from 3.0:
+ Merged from 3.0:
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
+ Merged from 2.2:
+ * Multi-version in-JVM dtests (CASSANDRA-14937)
 
 
 3.11.4
