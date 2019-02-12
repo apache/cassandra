@@ -1,3 +1,9 @@
+cassandra (3.0.19) unstable; urgency=medium
+
+  * New release
+
+ -- Michael Shuler <mshuler@apache.org>  Mon, 11 Feb 2019 21:07:19 -0600
+
 cassandra (3.0.18) unstable; urgency=medium
 
   * New release
