@@ -51,7 +51,7 @@ public class OptionalSslHandler extends ByteToMessageDecoder
         if (SslHandler.isEncrypted(in))
         {
             // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use encryption.
-            SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, true, SSLFactory.SocketType.SERVER);
+            SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, true, SSLFactory.SocketType.SERVER);
             Channel channel = ctx.channel();
             InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
             SslHandler sslHandler = NettyFactory.newSslHandler(channel, sslContext, peer);

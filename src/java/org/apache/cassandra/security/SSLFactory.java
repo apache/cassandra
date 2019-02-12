@@ -129,6 +129,15 @@ public final class SSLFactory
             lastModTime = curModTime;
             return result;
         }
+
+        @Override
+        public String toString()
+        {
+            return "HotReloadableFile{" +
+                       "file=" + file +
+                       ", lastModTime=" + lastModTime +
+                       '}';
+        }
     }
 
     /**
@@ -221,18 +230,18 @@ public final class SSLFactory
     /**
      * get a netty {@link SslContext} instance
      */
-    public static SslContext getSslContext(EncryptionOptions options, boolean buildTruststore,
-                                           SocketType socketType) throws IOException
+    public static SslContext getOrCreateSslContext(EncryptionOptions options, boolean buildTruststore,
+                                                   SocketType socketType) throws IOException
     {
-        return getSslContext(options, buildTruststore, socketType, OpenSsl.isAvailable());
+        return getOrCreateSslContext(options, buildTruststore, socketType, OpenSsl.isAvailable());
     }
 
     /**
      * Get a netty {@link SslContext} instance.
      */
     @VisibleForTesting
-    static SslContext getSslContext(EncryptionOptions options, boolean buildTruststore,
-                                    SocketType socketType, boolean useOpenSsl) throws IOException
+    static SslContext getOrCreateSslContext(EncryptionOptions options, boolean buildTruststore,
+                                            SocketType socketType, boolean useOpenSsl) throws IOException
     {
         CacheKey key = new CacheKey(options, socketType);
         SslContext sslContext;
@@ -302,7 +311,7 @@ public final class SSLFactory
         if (!isHotReloadingInitialized)
             throw new IllegalStateException("Hot reloading functionality has not been initialized.");
 
-        logger.trace("Checking whether certificates have been updated");
+        logger.debug("Checking whether certificates have been updated {}", hotReloadableFiles);
 
         if (hotReloadableFiles.stream().anyMatch(HotReloadableFile::shouldReload))
         {
@@ -311,7 +320,8 @@ public final class SSLFactory
             {
                 validateSslCerts(serverOpts, clientOpts);
                 cachedSslContexts.clear();
-            } catch(Exception e)
+            }
+            catch(Exception e)
             {
                 logger.error("Failed to hot reload the SSL Certificates! Please check the certificate files.", e);
             }
@@ -378,7 +388,8 @@ public final class SSLFactory
                 createNettySslContext(serverOpts, true, SocketType.SERVER, OpenSsl.isAvailable());
                 createNettySslContext(serverOpts, true, SocketType.CLIENT, OpenSsl.isAvailable());
             }
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             throw new IOException("Failed to create SSL context using server_encryption_options!", e);
         }
@@ -391,7 +402,8 @@ public final class SSLFactory
                 createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.SERVER, OpenSsl.isAvailable());
                 createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.CLIENT, OpenSsl.isAvailable());
             }
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             throw new IOException("Failed to create SSL context using client_encryption_options!", e);
         }
