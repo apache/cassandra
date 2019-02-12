@@ -905,7 +905,8 @@ public class DatabaseDescriptor
         try
         {
             SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
-        } catch(IOException e)
+        }
+        catch(IOException e)
         {
             throw new ConfigurationException("Failed to initialize SSL hot reloading", e);
         }
