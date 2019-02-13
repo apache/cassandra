@@ -38,12 +38,14 @@ import org.apache.cassandra.dht.Token;
  */
 public class SimpleStrategy extends AbstractReplicationStrategy
 {
+    private static final String REPLICATION_FACTOR = "replication_factor";
     private final ReplicationFactor rf;
 
     public SimpleStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
-        this.rf = ReplicationFactor.fromString(this.configOptions.get("replication_factor"));
+        validateOptionsInternal(configOptions);
+        this.rf = ReplicationFactor.fromString(this.configOptions.get(REPLICATION_FACTOR));
     }
 
     public EndpointsForRange calculateNaturalReplicas(Token token, TokenMetadata metadata)
@@ -76,16 +78,20 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         return rf;
     }
 
+    private final static void validateOptionsInternal(Map<String, String> configOptions) throws ConfigurationException
+    {
+        if (configOptions.get(REPLICATION_FACTOR) == null)
+            throw new ConfigurationException("SimpleStrategy requires a replication_factor strategy option.");
+    }
+
     public void validateOptions() throws ConfigurationException
     {
-        String rf = configOptions.get("replication_factor");
-        if (rf == null)
-            throw new ConfigurationException("SimpleStrategy requires a replication_factor strategy option.");
-        validateReplicationFactor(rf);
+        validateOptionsInternal(configOptions);
+        validateReplicationFactor(configOptions.get(REPLICATION_FACTOR));
     }
 
     public Collection<String> recognizedOptions()
     {
-        return Collections.<String>singleton("replication_factor");
+        return Collections.singleton(REPLICATION_FACTOR);
     }
 }

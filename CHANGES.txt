@@ -1,4 +1,5 @@
 4.0
+ * Fix SimpleStrategy option validation (CASSANDRA-15007)
  * Don't try to cancel 2i compactions when starting anticompaction (CASSANDRA-15024)
  * Avoid NPE in RepairRunnable.recordFailure (CASSANDRA-15025)
  * SSL Cert Hot Reloading should check for sanity of the new keystore/truststore before loading it (CASSANDRA-14991)
