@@ -1,5 +1,6 @@
 3.11.5
  Merged from 3.0:
+ * Add missing commands to nodetool_completion (CASSANDRA-14916)
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
  Merged from 2.2:
  * Multi-version in-JVM dtests (CASSANDRA-14937)
