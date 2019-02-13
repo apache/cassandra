@@ -53,15 +53,16 @@ have nodetool && have cqlsh &&
         _get_comp_words_by_ref cur prev
 
         local shopt='
-            cfstats
-            compactionstats
+            bootstrap
             compactionhistory
+            compactionstats
             decommission
             describecluster
             disablebackup
             disablebinary
             disablegossip
             disablehandoff
+            disablehintsfordc
             disablethrift
             drain
             enablebackup
@@ -69,9 +70,16 @@ have nodetool && have cqlsh &&
             enablegossip
             enablehandoff
             enablethrift
+            enablehintsfordc
+            failuredetector
+            gcstats
             getcompactionthroughput
+            getconcurrentcompactors
+            getinterdcstreamthroughput
             getlogginglevels
             getstreamthroughput
+            gettimeout
+            gettraceprobability
             gossipinfo
             help
             invalidatecountercache
@@ -82,21 +90,32 @@ have nodetool && have cqlsh &&
             pausehandoff
             proxyhistograms
             rangekeysample
+            refreshsizeestimates
+            reloadlocalschema
             reloadtriggers
+            replaybatchlog
             resetlocalschema
             resumehandoff
             ring
+            setconcurrentcompactors
+            sethintedhandoffthrottlekb
+            setinterdcstreamthroughput
             setlogginglevel
+            settimeout
             status
+            statusbackup
             statusbinary
             statusthrift
+            statusgossip
+            statushandoff
             stopdaemon
+            tablestats
             tpstats
             version
             '
 
         local lngopt='
-            cfhistograms
+            assassinate
             cleanup
             clearsnapshot
             compact
@@ -104,6 +123,7 @@ have nodetool && have cqlsh &&
             disableautocompaction
             enableautocompaction
             flush
+            garbagecollect
             getcompactionthreshold
             getendpoints
             getsstables
@@ -113,6 +133,7 @@ have nodetool && have cqlsh &&
             rebuild
             rebuild_index
             refresh
+            relocatesstables
             removenode
             repair
             scrub
@@ -124,27 +145,35 @@ have nodetool && have cqlsh &&
             settraceprobability
             snapshot
             stop
-            taketoken
+            tablehistograms
+            toppartitions
             truncatehints
             upgradesstables
-            '
+            verify
+            viewbuildstatus
+	    '
 
         local optwks='
-            cfhistograms
             cleanup
             clearsnapshot
             compact
             describering
             flush
+            garbagecollect
             getcompactionthreshold
             getendpoints
             getsstables
             rebuild_index
             refresh
+            relocatesstables
             repair
             scrub
             setcompactionthreshold
             snapshot
+            tablehistograms
+            toppartitions
+            verify
+            viewbuildstatus
             '
 
         local optwcfs='
@@ -153,9 +182,13 @@ have nodetool && have cqlsh &&
             disableautocompaction
             enableautocompaction
             flush
+            garbagecollect
+            relocatesstables
             repair
             scrub
+            toppartitions
             upgradesstables
+            verify
             '
 
         if [[ $COMP_CWORD -eq 1 ]] ; then
@@ -177,14 +210,14 @@ have nodetool && have cqlsh &&
                         return 0
                         ;;
                     stop)
-                        COMPREPLY=( $(compgen -W "COMPACTION VALIDATION CLEANUP SCRUB INDEX_BUILD" -- "${cur}") )
+                        COMPREPLY=( $(compgen -W "COMPACTION VALIDATION CLEANUP SCRUB VERIFY INDEX_BUILD" -- "${cur}") )
                         return 0
                         ;;
                     info)
                         COMPREPLY=( $(compgen -W "-T --tokens" -- "${cur}") )
                         return 0
                         ;;
-                    rebuild)
+                    rebuild|disablehintsfordc|enablehintsfordc)
                         show_datacenters "${cur}"
                         return 0
                         ;;
@@ -197,7 +230,7 @@ have nodetool && have cqlsh &&
             fi
         elif [[ $COMP_CWORD -eq 3 ]] ; then
             case "${COMP_WORDS[1]}" in
-                cfhistograms|cleanup|compact|flush|getcompactionthreshold|getendpoints|getsstables|rebuild_index|refresh|repair|scrub|setcompactionthreshold)
+                cleanup|compact|flush|garbagecollect|getcompactionthreshold|getendpoints|getsstables|rebuild_index|refresh|relocatesstables|repair|scrub|setcompactionthreshold|tablehistograms|toppartitions|verify)
                     show_cfs ${prev} ${cur}
                     return 0
                     ;;
