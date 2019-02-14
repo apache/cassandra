@@ -208,6 +208,9 @@ Upgrading
       `cassandra.yaml:internode_tcp_connect_timeout_in_ms` and
       `cassandra.yaml:internode_tcp_user_timeout_in_ms` options respectively.
       See CASSANDRA-14358 for details.
+	- repair_session_space_in_mb setting has been added to cassandra.yaml to allow operators to reduce
+	  merkle tree size if repair is creating too much heap pressure. The repair_session_max_tree_depth
+	  setting added in 3.0.19 and 3.11.5 is deprecated in favor of this setting. See CASSANDRA-14096 
 
 Materialized Views
 -------------------

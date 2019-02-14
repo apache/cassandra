@@ -461,6 +461,27 @@ public class DatabaseDescriptor
         else
             logger.info("Global memtable off-heap threshold is enabled at {}MB", conf.memtable_offheap_space_in_mb);
 
+        if (conf.repair_session_max_tree_depth != null)
+        {
+            logger.warn("repair_session_max_tree_depth has been deprecated and should be removed from cassandra.yaml. Use repair_session_space_in_mb instead");
+            if (conf.repair_session_max_tree_depth < 10)
+                throw new ConfigurationException("repair_session_max_tree_depth should not be < 10, but was " + conf.repair_session_max_tree_depth);
+            if (conf.repair_session_max_tree_depth > 20)
+                logger.warn("repair_session_max_tree_depth of " + conf.repair_session_max_tree_depth + " > 20 could lead to excessive memory usage");
+        }
+        else
+        {
+            conf.repair_session_max_tree_depth = 20;
+        }
+
+        if (conf.repair_session_space_in_mb == null)
+            conf.repair_session_space_in_mb = Math.max(1, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576)));
+
+        if (conf.repair_session_space_in_mb < 1)
+            throw new ConfigurationException("repair_session_space_in_mb must be > 0, but was " + conf.repair_session_space_in_mb);
+        else if (conf.repair_session_space_in_mb > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
+            logger.warn("A repair_session_space_in_mb of " + conf.repair_session_space_in_mb + " megabytes is likely to cause heap pressure");
+
         checkForLowestAcceptedTimeouts(conf);
 
         if (conf.native_transport_max_frame_size_in_mb <= 0)
@@ -2380,6 +2401,39 @@ public class DatabaseDescriptor
     public static Config.MemtableAllocationType getMemtableAllocationType()
     {
         return conf.memtable_allocation_type;
+    }
+
+    public static int getRepairSessionMaxTreeDepth()
+    {
+        return conf.repair_session_max_tree_depth;
+    }
+
+    public static void setRepairSessionMaxTreeDepth(int depth)
+    {
+        if (depth < 10)
+            throw new ConfigurationException("Cannot set repair_session_max_tree_depth to " + depth +
+                                             " which is < 10, doing nothing");
+        else if (depth > 20)
+            logger.warn("repair_session_max_tree_depth of " + depth + " > 20 could lead to excessive memory usage");
+
+        conf.repair_session_max_tree_depth = depth;
+    }
+
+    public static int getRepairSessionSpaceInMegabytes()
+    {
+        return conf.repair_session_space_in_mb;
+    }
+
+    public static void setRepairSessionSpaceInMegabytes(int sizeInMegabytes)
+    {
+        if (sizeInMegabytes < 1)
+            throw new ConfigurationException("Cannot set repair_session_space_in_mb to " + sizeInMegabytes +
+                                             " < 1 megabyte");
+        else if (sizeInMegabytes > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
+            logger.warn("A repair_session_space_in_mb of " + conf.repair_session_space_in_mb +
+                        " megabytes is likely to cause heap pressure.");
+
+        conf.repair_session_space_in_mb = sizeInMegabytes;
     }
 
     public static Float getMemtableCleanupThreshold()

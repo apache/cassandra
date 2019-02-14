@@ -17,11 +17,12 @@
  */
 package org.apache.cassandra.repair;
 
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -29,10 +30,11 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.hash.Hasher;
 
-import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionsTest;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -70,6 +72,7 @@ import static org.junit.Assert.assertTrue;
 public class ValidatorTest
 {
     private static final long TEST_TIMEOUT = 60; //seconds
+    private static int testSizeMegabytes;
 
     private static final String keyspace = "ValidatorTest";
     private static final String columnFamily = "Standard1";
@@ -83,12 +86,20 @@ public class ValidatorTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(keyspace, columnFamily));
         partitioner = Schema.instance.getTableMetadata(keyspace, columnFamily).partitioner;
+        testSizeMegabytes = DatabaseDescriptor.getRepairSessionSpaceInMegabytes();
     }
 
     @After
     public void tearDown()
     {
         MessagingService.instance().clearMessageSinks();
+        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(testSizeMegabytes);
+    }
+
+    @Before
+    public void setup()
+    {
+        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(testSizeMegabytes);
     }
 
     @Test
@@ -215,6 +226,149 @@ public class ValidatorTest
             assertEquals(Math.pow(2, Math.ceil(Math.log(n) / Math.log(2))), iterator.next().getValue().size(), 0.0);
         }
         assertEquals(trees.rowCount(), n);
+    }
+
+    /*
+     * Test for CASSANDRA-14096 size limiting. We:
+     * 1. Limit the size of a repair session
+     * 2. Submit a validation
+     * 3. Check that the resulting tree is of limited depth
+     */
+    @Test
+    public void testSizeLimiting() throws Exception
+    {
+        Keyspace ks = Keyspace.open(keyspace);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnFamily);
+        cfs.clearUnsafe();
+
+        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(1);
+
+        // disable compaction while flushing
+        cfs.disableAutoCompaction();
+
+        // 2 ** 14 rows would normally use 2^14 leaves, but with only 1 meg we should only use 2^12
+        CompactionsTest.populate(keyspace, columnFamily, 0, 1 << 14, 0);
+
+        cfs.forceBlockingFlush();
+        assertEquals(1, cfs.getLiveSSTables().size());
+
+        // wait enough to force single compaction
+        TimeUnit.SECONDS.sleep(5);
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        UUID repairSessionId = UUIDGen.getTimeUUID();
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
+                                                     cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
+                                                                                                               sstable.last.getToken())));
+
+        ActiveRepairService.instance.registerParentRepairSession(repairSessionId, FBUtilities.getBroadcastAddressAndPort(),
+                                                                 Collections.singletonList(cfs), desc.ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                                 false, PreviewKind.NONE);
+
+        final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
+        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddressAndPort(), 0, true, false, PreviewKind.NONE);
+        ValidationManager.instance.submitValidation(cfs, validator);
+
+        MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        MerkleTrees trees = ((ValidationComplete) message.payload).trees;
+
+        Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();
+        int numTrees = 0;
+        while (iterator.hasNext())
+        {
+            assertEquals(1 << 12, iterator.next().getValue().size(), 0.0);
+            numTrees++;
+        }
+        assertEquals(1, numTrees);
+
+        assertEquals(trees.rowCount(), 1 << 14);
+    }
+
+    /*
+     * Test for CASSANDRA-11390. When there are multiple subranges the trees should
+     * automatically size down to make each subrange fit in the provided memory
+     * 1. Limit the size of all the trees
+     * 2. Submit a validation against more than one range
+     * 3. Check that we have the right number and sizes of trees
+     */
+    @Test
+    public void testRangeSplittingTreeSizeLimit() throws Exception
+    {
+        Keyspace ks = Keyspace.open(keyspace);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnFamily);
+        cfs.clearUnsafe();
+
+        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(1);
+
+        // disable compaction while flushing
+        cfs.disableAutoCompaction();
+
+        // 2 ** 14 rows would normally use 2^14 leaves, but with only 1 meg we should only use 2^12
+        CompactionsTest.populate(keyspace, columnFamily, 0, 1 << 14, 0);
+
+        cfs.forceBlockingFlush();
+        assertEquals(1, cfs.getLiveSSTables().size());
+
+        // wait enough to force single compaction
+        TimeUnit.SECONDS.sleep(5);
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        UUID repairSessionId = UUIDGen.getTimeUUID();
+
+        List<Range<Token>> ranges = splitHelper(new Range<>(sstable.first.getToken(), sstable.last.getToken()), 2);
+
+
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
+                                                     cfs.getTableName(), ranges);
+
+        ActiveRepairService.instance.registerParentRepairSession(repairSessionId, FBUtilities.getBroadcastAddressAndPort(),
+                                                                 Collections.singletonList(cfs), desc.ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                                 false, PreviewKind.NONE);
+
+        final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
+        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddressAndPort(), 0, true, false, PreviewKind.NONE);
+        ValidationManager.instance.submitValidation(cfs, validator);
+
+        MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        MerkleTrees trees = ((ValidationComplete) message.payload).trees;
+
+        // Should have 4 trees each with a depth of on average 10 (since each range should have gotten 0.25 megabytes)
+        Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();
+        int numTrees = 0;
+        double totalResolution = 0;
+        while (iterator.hasNext())
+        {
+            long size = iterator.next().getValue().size();
+            // So it turns out that sstable range estimates are pretty variable, depending on the sampling we can
+            // get a wide range of values here. So we just make sure that we're smaller than in the single range
+            // case and have the right total size.
+            assertTrue(size <= (1 << 11));
+            assertTrue(size >= (1 << 9));
+            totalResolution += size;
+            numTrees += 1;
+        }
+
+        assertEquals(trees.rowCount(), 1 << 14);
+        assertEquals(4, numTrees);
+
+        // With a single tree and a megabyte we should had a total resolution of 2^12 leaves; with multiple
+        // ranges we should get similar overall resolution, but not more.
+        assertTrue(totalResolution > (1 << 11) && totalResolution < (1 << 13));
+    }
+
+    private List<Range<Token>> splitHelper(Range<Token> range, int depth)
+    {
+        if (depth <= 0)
+        {
+            List<Range<Token>> tokens = new ArrayList<>();
+            tokens.add(range);
+            return tokens;
+        }
+        Token midpoint = partitioner.midpoint(range.left, range.right);
+        List<Range<Token>> left = splitHelper(new Range<>(range.left, midpoint), depth - 1);
+        List<Range<Token>> right = splitHelper(new Range<>(midpoint, range.right), depth - 1);
+        left.addAll(right);
+        return left;
     }
 
     @Test

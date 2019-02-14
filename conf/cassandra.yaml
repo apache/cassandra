@@ -506,6 +506,17 @@ concurrent_materialized_view_writes: 32
 #    off heap objects
 memtable_allocation_type: heap_buffers
 
+# Limit memory usage for Merkle tree calculations during repairs. The default
+# is 1/16th of the available heap. The main tradeoff is that smaller trees
+# have less resolution, which can lead to over-streaming data. If you see heap
+# pressure during repairs, consider lowering this, but you cannot go below
+# one megabyte. If you see lots of over-streaming, consider raising
+# this or using subrange repair.
+#
+# For more details see https://issues.apache.org/jira/browse/CASSANDRA-14096.
+#
+# repair_session_space_in_mb:
+
 # Total space to use for commit logs on disk.
 #
 # If space gets above this value, Cassandra will flush every dirty CF
