@@ -1155,4 +1155,50 @@ public class MerkleTree implements Serializable
             public TooDeep(){ super(); }
         }
     }
+
+    /**
+     * Estimate the allowable depth while keeping the resulting heap usage of this tree under the provided
+     * number of bytes. This is important for ensuring that we do not allocate overly large trees that could
+     * OOM the JVM and cause instability.
+     *
+     * Calculated using the following logic:
+     *
+     * Let T = size of a tree of depth n
+     *
+     * T = #leafs  * sizeof(leaf) + #inner  * sizeof(inner)
+     * T = 2^n     * L            + 2^n - 1 * I
+     *
+     * T = 2^n * L + 2^n * I - I;
+     *
+     * So to solve for n given sizeof(tree_n) T:
+     *
+     * n = floor(log_2((T + I) / (L + I))
+     *
+     * @param numBytes: The number of bytes to fit the tree within
+     * @param bytesPerHash: The number of bytes stored in a leaf node, for example 2 * murmur128 will be 256 bits
+     *                    or 32 bytes
+     * @return the estimated depth that will fit within the provided number of bytes
+     */
+    public static int estimatedMaxDepthForBytes(IPartitioner partitioner, long numBytes, int bytesPerHash)
+    {
+        byte[] hashLeft = new byte[bytesPerHash];
+        byte[] hashRigth = new byte[bytesPerHash];
+        Leaf left = new Leaf(hashLeft);
+        Leaf right = new Leaf(hashRigth);
+        Inner inner = new Inner(partitioner.getMinimumToken(), left, right);
+        inner.calc();
+
+        // Some partioners have variable token sizes, try to estimate as close as we can by using the same
+        // heap estimate as the memtables use.
+        long innerTokenSize = ObjectSizes.measureDeep(partitioner.getMinimumToken());
+        long realInnerTokenSize = partitioner.getMinimumToken().getHeapSize();
+
+        long sizeOfLeaf = ObjectSizes.measureDeep(left);
+        long sizeOfInner = ObjectSizes.measureDeep(inner) -
+                           (ObjectSizes.measureDeep(left) + ObjectSizes.measureDeep(right) + innerTokenSize) +
+                           realInnerTokenSize;
+
+        long adjustedBytes = Math.max(1, (numBytes + sizeOfInner) / (sizeOfLeaf + sizeOfInner));
+        return Math.max(1, (int) Math.floor(Math.log(adjustedBytes) / Math.log(2)));
+    }
 }

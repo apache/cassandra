@@ -19,32 +19,54 @@
 package org.apache.cassandra.repair;
 
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.ListenableFuture;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.IMessageSink;
+import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
+import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.UUIDGen;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -53,41 +75,184 @@ import static org.junit.Assert.assertTrue;
 
 public class RepairJobTest
 {
+    private static final long TEST_TIMEOUT_S = 10;
+    private static final long THREAD_TIMEOUT_MILLIS = 100;
     private static final IPartitioner PARTITIONER = ByteOrderedPartitioner.instance;
+    private static final IPartitioner MURMUR3_PARTITIONER = Murmur3Partitioner.instance;
+    private static final String KEYSPACE = "RepairJobTest";
+    private static final String CF = "Standard1";
+    private static final Object messageLock = new Object();
 
-    static InetAddressAndPort addr1;
-    static InetAddressAndPort addr2;
-    static InetAddressAndPort addr3;
-    static InetAddressAndPort addr4;
-    static InetAddressAndPort addr5;
+    private static final Range<Token> range1 = range(0, 1);
+    private static final Range<Token> range2 = range(2, 3);
+    private static final Range<Token> range3 = range(4, 5);
+    private static final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), KEYSPACE, CF, Arrays.asList());
+    private static final List<Range<Token>> fullRange = Collections.singletonList(new Range<>(MURMUR3_PARTITIONER.getMinimumToken(),
+                                                                                              MURMUR3_PARTITIONER.getMaximumToken()));
+    private static InetAddressAndPort addr1;
+    private static InetAddressAndPort addr2;
+    private static InetAddressAndPort addr3;
+    private static InetAddressAndPort addr4;
+    private static InetAddressAndPort addr5;
+    private RepairSession session;
+    private RepairJob job;
+    private RepairJobDesc sessionJobDesc;
 
-    static Range<Token> range1 = range(0, 1);
-    static Range<Token> range2 = range(2, 3);
-    static Range<Token> range3 = range(4, 5);
-    static RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), "ks", "cf", Arrays.asList());
+    // So that threads actually get recycled and we can have accurate memory accounting while testing
+    // memory retention from CASSANDRA-14096
+    private static class MeasureableRepairSession extends RepairSession
+    {
+        public MeasureableRepairSession(UUID parentRepairSession, UUID id, CommonRange commonRange, String keyspace,
+                                        RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
+                                        boolean force, PreviewKind previewKind, boolean optimiseStreams, String... cfnames)
+        {
+            super(parentRepairSession, id, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair, force, previewKind, optimiseStreams, cfnames);
+        }
+
+        protected DebuggableThreadPoolExecutor createExecutor()
+        {
+            DebuggableThreadPoolExecutor executor = super.createExecutor();
+            executor.setKeepAliveTime(THREAD_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            return executor;        }
+    }
+    @BeforeClass
+    public static void setupClass() throws UnknownHostException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE,
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE, CF));
+        addr1 = InetAddressAndPort.getByName("127.0.0.1");
+        addr2 = InetAddressAndPort.getByName("127.0.0.2");
+        addr3 = InetAddressAndPort.getByName("127.0.0.3");
+        addr4 = InetAddressAndPort.getByName("127.0.0.4");
+        addr5 = InetAddressAndPort.getByName("127.0.0.5");
+    }
+
+    @Before
+    public void setup()
+    {
+        Set<InetAddressAndPort> neighbors = new HashSet<>(Arrays.asList(addr2, addr3));
+
+        UUID parentRepairSession = UUID.randomUUID();
+        ActiveRepairService.instance.registerParentRepairSession(parentRepairSession, FBUtilities.getBroadcastAddressAndPort(),
+                                                                 Collections.singletonList(Keyspace.open(KEYSPACE).getColumnFamilyStore(CF)), fullRange, false,
+                                                                 ActiveRepairService.UNREPAIRED_SSTABLE, false, PreviewKind.NONE);
+
+        this.session = new MeasureableRepairSession(parentRepairSession, UUIDGen.getTimeUUID(),
+                                                    new CommonRange(neighbors, Collections.emptySet(), fullRange),
+                                                    KEYSPACE, RepairParallelism.SEQUENTIAL,
+                                                    false, false, false,
+                                                    PreviewKind.NONE, false, CF);
+
+        this.job = new RepairJob(session, CF);
+        this.sessionJobDesc = new RepairJobDesc(session.parentRepairSession, session.getId(),
+                                                session.keyspace, CF, session.ranges());
+
+        FBUtilities.setBroadcastInetAddress(addr1.address);
+    }
 
     @After
     public void reset()
     {
+        ActiveRepairService.instance.terminateSessions();
+        MessagingService.instance().clearMessageSinks();
         FBUtilities.reset();
-        DatabaseDescriptor.setBroadcastAddress(addr1.address);
     }
 
-    static
+    /**
+     * Ensure RepairJob issues the right messages in an end to end repair of consistent data
+     */
+    @Test
+    public void testEndToEndNoDifferences() throws InterruptedException, ExecutionException, TimeoutException
     {
-        try
+        Map<InetAddressAndPort, MerkleTrees> mockTrees = new HashMap<>();
+        mockTrees.put(FBUtilities.getBroadcastAddressAndPort(), createInitialTree(false));
+        mockTrees.put(addr2, createInitialTree(false));
+        mockTrees.put(addr3, createInitialTree(false));
+
+        List<MessageOut> observedMessages = new ArrayList<>();
+        interceptRepairMessages(mockTrees, observedMessages);
+
+        job.run();
+
+        RepairResult result = job.get(TEST_TIMEOUT_S, TimeUnit.SECONDS);
+
+        // Since there are no differences, there should be nothing to sync.
+        assertEquals(0, result.stats.size());
+
+        // RepairJob should send out SNAPSHOTS -> VALIDATIONS -> done
+        List<RepairMessage.Type> expectedTypes = new ArrayList<>();
+        for (int i = 0; i < 3; i++)
+            expectedTypes.add(RepairMessage.Type.SNAPSHOT);
+        for (int i = 0; i < 3; i++)
+            expectedTypes.add(RepairMessage.Type.VALIDATION_REQUEST);
+
+        assertEquals(expectedTypes, observedMessages.stream()
+                                                    .map(k -> ((RepairMessage) k.payload).messageType)
+                                                    .collect(Collectors.toList()));
+    }
+
+    /**
+     * Regression test for CASSANDRA-14096. We should not retain memory in the RepairSession once the
+     * ValidationTask -> SyncTask transform is done.
+     */
+    @Test
+    public void testNoTreesRetainedAfterDifference() throws Throwable
+    {
+        Map<InetAddressAndPort, MerkleTrees> mockTrees = new HashMap<>();
+        mockTrees.put(addr1, createInitialTree(true));
+        mockTrees.put(addr2, createInitialTree(false));
+        mockTrees.put(addr3, createInitialTree(false));
+
+        List<TreeResponse> mockTreeResponses = mockTrees.entrySet().stream()
+                                                        .map(e -> new TreeResponse(e.getKey(), e.getValue()))
+                                                        .collect(Collectors.toList());
+        List<MessageOut> messages = new ArrayList<>();
+        interceptRepairMessages(mockTrees, messages);
+
+        long singleTreeSize = ObjectSizes.measureDeep(mockTrees.get(addr1));
+
+        // Use addr4 instead of one of the provided trees to force everything to be remote sync tasks as
+        // LocalSyncTasks try to reach over the network.
+        List<SyncTask> syncTasks = RepairJob.createStandardSyncTasks(sessionJobDesc, mockTreeResponses,
+                                                                     addr4, // local
+                                                                     noTransient(),
+                                                                     session.isIncremental,
+                                                                     session.pullRepair,
+                                                                     session.previewKind);
+
+        // SyncTasks themselves should not contain significant memory
+        assertTrue(ObjectSizes.measureDeep(syncTasks) < 0.2 * singleTreeSize);
+
+        ListenableFuture<List<SyncStat>> syncResults = job.executeTasks(syncTasks);
+
+        // Immediately following execution the internal execution queue should still retain the trees
+        assertTrue(ObjectSizes.measureDeep(session) > singleTreeSize);
+
+        // The session retains memory in the contained executor until the threads expire, so we wait for the threads
+        // that ran the Tree -> SyncTask conversions to die and release the memory
+        int millisUntilFreed;
+        for (millisUntilFreed = 0; millisUntilFreed < TEST_TIMEOUT_S * 1000; millisUntilFreed += THREAD_TIMEOUT_MILLIS)
         {
-            addr1 = InetAddressAndPort.getByName("127.0.0.1");
-            addr2 = InetAddressAndPort.getByName("127.0.0.2");
-            addr3 = InetAddressAndPort.getByName("127.0.0.3");
-            addr4 = InetAddressAndPort.getByName("127.0.0.4");
-            addr5 = InetAddressAndPort.getByName("127.0.0.5");
-            DatabaseDescriptor.setBroadcastAddress(addr1.address);
+            // The measured size of the syncingTasks, and result of the computation should be much smaller
+            TimeUnit.MILLISECONDS.sleep(THREAD_TIMEOUT_MILLIS);
+            if (ObjectSizes.measureDeep(session) < 0.8 * singleTreeSize)
+                break;
         }
-        catch (UnknownHostException e)
-        {
-            e.printStackTrace();
-        }
+
+        assertTrue(millisUntilFreed < TEST_TIMEOUT_S * 1000);
+
+        List<SyncStat> results = syncResults.get(TEST_TIMEOUT_S, TimeUnit.SECONDS);
+
+        assertTrue(ObjectSizes.measureDeep(results) < 0.2 * singleTreeSize);
+
+        assertEquals(2, results.size());
+        assertEquals(0, session.getSyncingTasks().size());
+        assertTrue(results.stream().allMatch(s -> s.numberOfDifferences == 1));
+
+        assertEquals(2, messages.size());
+        assertTrue(messages.stream().allMatch(m -> ((RepairMessage) m.payload).messageType == RepairMessage.Type.SYNC_REQUEST));
     }
 
     @Test
@@ -323,40 +488,23 @@ public class RepairJobTest
     @Test
     public void testLocalSyncWithTransient()
     {
-        try
-        {
-            for (InetAddressAndPort local : new InetAddressAndPort[]{ addr1, addr2, addr3 })
-            {
-                FBUtilities.reset();
-                DatabaseDescriptor.setBroadcastAddress(local.address);
-                testLocalSyncWithTransient(local, false);
-            }
-        }
-        finally
+        for (InetAddressAndPort local : new InetAddressAndPort[]{ addr1, addr2, addr3 })
         {
             FBUtilities.reset();
-            DatabaseDescriptor.setBroadcastAddress(addr1.address);
+            FBUtilities.setBroadcastInetAddress(local.address);
+            testLocalSyncWithTransient(local, false);
         }
     }
 
     @Test
     public void testLocalSyncWithTransientPullRepair()
     {
-        try
-        {
-            for (InetAddressAndPort local : new InetAddressAndPort[]{ addr1, addr2, addr3 })
-            {
-                FBUtilities.reset();
-                DatabaseDescriptor.setBroadcastAddress(local.address);
-                testLocalSyncWithTransient(local, true);
-            }
-        }
-        finally
+        for (InetAddressAndPort local : new InetAddressAndPort[]{ addr1, addr2, addr3 })
         {
             FBUtilities.reset();
-            DatabaseDescriptor.setBroadcastAddress(addr1.address);
+            FBUtilities.setBroadcastInetAddress(local.address);
+            testLocalSyncWithTransient(local, true);
         }
-
     }
 
     public static void testLocalSyncWithTransient(InetAddressAndPort local, boolean pullRepair)
@@ -410,7 +558,7 @@ public class RepairJobTest
 
     private static void testLocalAndRemoteTransient(boolean pullRepair)
     {
-        DatabaseDescriptor.setBroadcastAddress(addr4.address);
+        FBUtilities.setBroadcastInetAddress(addr4.address);
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, range1, "one", range2, "one", range3, "one"),
                                                          treeResponse(addr2, range1, "two", range2, "two", range3, "two"),
                                                          treeResponse(addr3, range1, "three", range2, "three", range3, "three"),
@@ -512,9 +660,8 @@ public class RepairJobTest
         assertStreamRangeFromEither(tasks, Arrays.asList(range3),
                                     addr2, addr1, addr3);
 
-        task = tasks.get(pair(addr2, addr3));
-        assertFalse(task.isLocal());
-        assertElementEquals(Arrays.asList(range1), task.rangesToSync);
+        assertStreamRangeFromEither(tasks, Arrays.asList(range1),
+                                    addr2, addr1, addr3);
     }
 
     // Asserts that ranges are streamed from one of the nodes but not from the both
@@ -523,7 +670,7 @@ public class RepairJobTest
     {
         InetAddressAndPort streamsFrom;
         InetAddressAndPort doesntStreamFrom;
-        if (tasks.containsKey(pair(target, either)))
+        if (tasks.containsKey(pair(target, either)) && tasks.get(pair(target, either)).rangesToSync.equals(ranges))
         {
             streamsFrom = either;
             doesntStreamFrom = or;
@@ -621,5 +768,73 @@ public class RepairJobTest
     public static Predicate<InetAddressAndPort> noTransient()
     {
         return node -> false;
+    }
+
+    private MerkleTrees createInitialTree(boolean invalidate)
+    {
+        MerkleTrees tree = new MerkleTrees(MURMUR3_PARTITIONER);
+        tree.addMerkleTrees((int) Math.pow(2, 15), fullRange);
+        tree.init();
+        for (MerkleTree.TreeRange r : tree.invalids())
+        {
+            r.ensureHashInitialised();
+        }
+
+        if (invalidate)
+        {
+            // change a range in one of the trees
+            Token token = MURMUR3_PARTITIONER.midpoint(fullRange.get(0).left, fullRange.get(0).right);
+            tree.invalidate(token);
+            tree.get(token).hash("non-empty hash!".getBytes());
+        }
+
+        return tree;
+    }
+
+    private void interceptRepairMessages(Map<InetAddressAndPort, MerkleTrees> mockTrees,
+                                         List<MessageOut> messageCapture)
+    {
+        MessagingService.instance().addMessageSink(new IMessageSink()
+        {
+            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddressAndPort to)
+            {
+                if (message == null || !(message.payload instanceof RepairMessage))
+                    return false;
+
+                // So different Thread's messages don't overwrite each other.
+                synchronized (messageLock)
+                {
+                    messageCapture.add(message);
+                }
+
+                RepairMessage rm = (RepairMessage) message.payload;
+                switch (rm.messageType)
+                {
+                    case SNAPSHOT:
+                        MessageIn<?> messageIn = MessageIn.create(to, null,
+                                                                  Collections.emptyMap(),
+                                                                  MessagingService.Verb.REQUEST_RESPONSE,
+                                                                  MessagingService.current_version);
+                        MessagingService.instance().receive(messageIn, id);
+                        break;
+                    case VALIDATION_REQUEST:
+                        session.validationComplete(sessionJobDesc, to, mockTrees.get(to));
+                        break;
+                    case SYNC_REQUEST:
+                        SyncRequest syncRequest = (SyncRequest) rm;
+                        session.syncComplete(sessionJobDesc, new SyncNodePair(syncRequest.src, syncRequest.dst),
+                                             true, Collections.emptyList());
+                        break;
+                    default:
+                        break;
+                }
+                return false;
+            }
+
+            public boolean allowIncomingMessage(MessageIn message, int id)
+            {
+                return message.verb == MessagingService.Verb.REQUEST_RESPONSE;
+            }
+        });
     }
 }

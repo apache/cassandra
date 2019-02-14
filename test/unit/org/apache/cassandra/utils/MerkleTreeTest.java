@@ -19,14 +19,18 @@
 package org.apache.cassandra.utils;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Lists;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
@@ -62,7 +66,7 @@ public class MerkleTreeTest
     }
 
     @Before
-    public void clear()
+    public void setup()
     {
         TOKEN_SCALE = new BigInteger("8");
         partitioner = RandomPartitioner.instance;
@@ -92,7 +96,7 @@ public class MerkleTreeTest
     {
         if (i == -1)
             return new BigIntegerToken(new BigInteger("-1"));
-        BigInteger bint = RandomPartitioner.MAXIMUM.divide(TOKEN_SCALE).multiply(new BigInteger(""+i));
+        BigInteger bint = RandomPartitioner.MAXIMUM.divide(TOKEN_SCALE).multiply(new BigInteger("" + i));
         return new BigIntegerToken(bint);
     }
 
@@ -113,10 +117,10 @@ public class MerkleTreeTest
         assertEquals(new Range<>(tok(6), tok(7)), mt.get(tok(7)));
 
         // check depths
-        assertEquals((byte)1, mt.get(tok(4)).depth);
-        assertEquals((byte)2, mt.get(tok(6)).depth);
-        assertEquals((byte)3, mt.get(tok(7)).depth);
-        assertEquals((byte)3, mt.get(tok(-1)).depth);
+        assertEquals((byte) 1, mt.get(tok(4)).depth);
+        assertEquals((byte) 2, mt.get(tok(6)).depth);
+        assertEquals((byte) 3, mt.get(tok(7)).depth);
+        assertEquals((byte) 3, mt.get(tok(-1)).depth);
 
         try
         {
@@ -132,7 +136,7 @@ public class MerkleTreeTest
     @Test
     public void testSplitLimitDepth()
     {
-        mt = new MerkleTree(partitioner, fullRange(), (byte)2, Integer.MAX_VALUE);
+        mt = new MerkleTree(partitioner, fullRange(), (byte) 2, Integer.MAX_VALUE);
 
         assertTrue(mt.split(tok(4)));
         assertTrue(mt.split(tok(2)));
@@ -472,7 +476,7 @@ public class MerkleTreeTest
 
         List<TreeRange> diffs = MerkleTree.difference(ltree, rtree);
         assertEquals(Lists.newArrayList(range), diffs);
-        assertEquals(MerkleTree.FULLY_INCONSISTENT, MerkleTree.differenceHelper(ltree, rtree, new ArrayList<>(), new MerkleTree.TreeDifference(ltree.fullRange.left, ltree.fullRange.right, (byte)0)));
+        assertEquals(MerkleTree.FULLY_INCONSISTENT, MerkleTree.differenceHelper(ltree, rtree, new ArrayList<>(), new MerkleTree.TreeDifference(ltree.fullRange.left, ltree.fullRange.right, (byte) 0)));
     }
 
     /**
@@ -530,7 +534,7 @@ public class MerkleTreeTest
             {
                 // consume the stack
                 hash = Hashable.binaryHash(hstack.pop(), hash);
-                depth = dstack.pop()-1;
+                depth = dstack.pop() - 1;
             }
             dstack.push(depth);
             hstack.push(hash);
@@ -562,5 +566,81 @@ public class MerkleTreeTest
                 return new RowHash(tokens.next(), DUMMY, DUMMY.length);
             return endOfData();
         }
+    }
+
+    @Test
+    public void testEstimatedSizes()
+    {
+        // With no or negative allowed space we should still get a depth of 1
+        Assert.assertEquals(1, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance, -20, 32));
+        Assert.assertEquals(1, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance, 0, 32));
+        Assert.assertEquals(1, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance, 1, 32));
+
+        // The minimum of 1 megabyte split between RF=3 should yield trees of around 10
+        Assert.assertEquals(10, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance,
+                                                                     1048576 / 3, 32));
+
+        // With a single megabyte of space we should get 12
+        Assert.assertEquals(12, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance,
+                                                                     1048576, 32));
+
+        // With 100 megabytes we should get a limit of 19
+        Assert.assertEquals(19, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance,
+                                                                     100 * 1048576, 32));
+
+        // With 300 megabytes we should get the old limit of 20
+        Assert.assertEquals(20, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance,
+                                                                     300 * 1048576, 32));
+        Assert.assertEquals(20, MerkleTree.estimatedMaxDepthForBytes(RandomPartitioner.instance,
+                                                                     300 * 1048576, 32));
+        Assert.assertEquals(20, MerkleTree.estimatedMaxDepthForBytes(ByteOrderedPartitioner.instance,
+                                                                     300 * 1048576, 32));
+    }
+
+    @Test
+    public void testEstimatedSizesRealMeasurement()
+    {
+        // Use a fixed source of randomness so that the test does not flake.
+        Random random = new Random(1);
+        checkEstimatedSizes(RandomPartitioner.instance, random);
+        checkEstimatedSizes(Murmur3Partitioner.instance, random);
+    }
+
+    private void checkEstimatedSizes(IPartitioner partitioner, Random random)
+    {
+        Range<Token> fullRange = new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken());
+        MerkleTree tree = new MerkleTree(partitioner, fullRange, RECOMMENDED_DEPTH, 0);
+
+        // Test 16 kilobyte -> 16 megabytes
+        for (int i = 14; i < 24; i ++)
+        {
+            long numBytes = 1 << i;
+            int maxDepth = MerkleTree.estimatedMaxDepthForBytes(partitioner, numBytes, 32);
+            long realSizeOfMerkleTree = measureTree(tree, fullRange, maxDepth, random);
+            long biggerTreeSize = measureTree(tree, fullRange, maxDepth + 1, random);
+
+            Assert.assertTrue(realSizeOfMerkleTree < numBytes);
+            Assert.assertTrue(biggerTreeSize > numBytes);
+        }
+    }
+
+    private long measureTree(MerkleTree tree, Range<Token> fullRange, int depth, Random random)
+    {
+        tree = new MerkleTree(tree.partitioner(), fullRange, RECOMMENDED_DEPTH, (long) Math.pow(2, depth));
+        // Initializes it as a fully balanced tree.
+        tree.init();
+
+        byte[] key = new byte[128];
+        // Try to actually allocate some hashes. Note that this is not guaranteed to actually populate the tree,
+        // but we re-use the source of randomness to try to make it reproducible.
+        for (int i = 0; i < tree.maxsize() * 8; i++)
+        {
+            random.nextBytes(key);
+            Token token = tree.partitioner().getToken(ByteBuffer.wrap(key));
+            tree.get(token).addHash(new RowHash(token, new byte[32], 32));
+        }
+
+        tree.hash(fullRange);
+        return ObjectSizes.measureDeep(tree);
     }
 }

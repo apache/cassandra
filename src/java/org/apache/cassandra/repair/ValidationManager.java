@@ -28,12 +28,14 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
 
 public class ValidationManager
@@ -50,13 +52,24 @@ public class ValidationManager
         long allPartitions = validationIterator.estimatedPartitions();
         Map<Range<Token>, Long> rangePartitionCounts = validationIterator.getRangePartitionCounts();
 
+        // The repair coordinator must hold RF trees in memory at once, so a given validation compaction can only
+        // use 1 / RF of the allowed space.
+        long availableBytes = (DatabaseDescriptor.getRepairSessionSpaceInMegabytes() * 1048576) /
+                              cfs.keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
+
         for (Range<Token> range : ranges)
         {
             long numPartitions = rangePartitionCounts.get(range);
             double rangeOwningRatio = allPartitions > 0 ? (double)numPartitions / allPartitions : 0;
             // determine max tree depth proportional to range size to avoid blowing up memory with multiple tress,
-            // capping at 20 to prevent large tree (CASSANDRA-11390)
-            int maxDepth = rangeOwningRatio > 0 ? (int) Math.floor(20 - Math.log(1 / rangeOwningRatio) / Math.log(2)) : 0;
+            // capping at a depth that does not exceed our memory budget (CASSANDRA-11390, CASSANDRA-14096)
+            int rangeAvailableBytes = Math.max(1, (int) (rangeOwningRatio * availableBytes));
+            // Try to estimate max tree depth that fits the space budget assuming hashes of 256 bits = 32 bytes
+            // note that estimatedMaxDepthForBytes cannot return a number lower than 1
+            int estimatedMaxDepth = MerkleTree.estimatedMaxDepthForBytes(cfs.getPartitioner(), rangeAvailableBytes, 32);
+            int maxDepth = rangeOwningRatio > 0
+                           ? Math.min(estimatedMaxDepth, DatabaseDescriptor.getRepairSessionMaxTreeDepth())
+                           : 0;
             // determine tree depth from number of partitions, capping at max tree depth (CASSANDRA-5263)
             int depth = numPartitions > 0 ? (int) Math.min(Math.ceil(Math.log(numPartitions) / Math.log(2)), maxDepth) : 0;
             tree.addMerkleTree((int) Math.pow(2, depth), range);
