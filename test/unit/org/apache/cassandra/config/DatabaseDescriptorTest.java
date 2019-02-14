@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -44,6 +45,7 @@ import org.apache.cassandra.thrift.ThriftConversion;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 import static org.junit.Assert.assertTrue;
 
@@ -275,15 +277,48 @@ public class DatabaseDescriptorTest
         DatabaseDescriptor.applyAddressConfig(testConfig);
 
     }
-    
+
     @Test
     public void testTokensFromString()
     {
         assertTrue(DatabaseDescriptor.tokensFromString(null).isEmpty());
         Collection<String> tokens = DatabaseDescriptor.tokensFromString(" a,b ,c , d, f,g,h");
         assertEquals(7, tokens.size());
-        assertTrue(tokens.containsAll(Arrays.asList(new String[]{"a", "b", "c", "d", "f", "g", "h"})));
+        assertTrue(tokens.containsAll(Arrays.asList(new String[]{ "a", "b", "c", "d", "f", "g", "h" })));
+    }
 
-        
+    @Test
+    public void testRepairSessionSizeToggles()
+    {
+        int previousDepth = DatabaseDescriptor.getRepairSessionMaxTreeDepth();
+        try
+        {
+            Assert.assertEquals(18, DatabaseDescriptor.getRepairSessionMaxTreeDepth());
+            DatabaseDescriptor.setRepairSessionMaxTreeDepth(10);
+            Assert.assertEquals(10, DatabaseDescriptor.getRepairSessionMaxTreeDepth());
+
+            try
+            {
+                DatabaseDescriptor.setRepairSessionMaxTreeDepth(9);
+                fail("Should have received a ConfigurationException for depth of 9");
+            }
+            catch (ConfigurationException ignored) { }
+            Assert.assertEquals(10, DatabaseDescriptor.getRepairSessionMaxTreeDepth());
+
+            try
+            {
+                DatabaseDescriptor.setRepairSessionMaxTreeDepth(-20);
+                fail("Should have received a ConfigurationException for depth of -20");
+            }
+            catch (ConfigurationException ignored) { }
+            Assert.assertEquals(10, DatabaseDescriptor.getRepairSessionMaxTreeDepth());
+
+            DatabaseDescriptor.setRepairSessionMaxTreeDepth(22);
+            Assert.assertEquals(22, DatabaseDescriptor.getRepairSessionMaxTreeDepth());
+        }
+        finally
+        {
+            DatabaseDescriptor.setRepairSessionMaxTreeDepth(previousDepth);
+        }
     }
 }

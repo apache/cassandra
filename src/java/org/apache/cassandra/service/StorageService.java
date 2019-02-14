@@ -3688,6 +3688,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ActiveRepairService.instance.terminateSessions();
     }
 
+    public void setRepairSessionMaxTreeDepth(int depth)
+    {
+        DatabaseDescriptor.setRepairSessionMaxTreeDepth(depth);
+    }
+
+    public int getRepairSessionMaxTreeDepth()
+    {
+        return DatabaseDescriptor.getRepairSessionMaxTreeDepth();
+    }
+
     /* End of MBean interface methods */
 
     /**
