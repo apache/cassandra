@@ -618,18 +618,37 @@ public class LocalSessions
         {
             public void onSuccess(@Nullable Object result)
             {
-                logger.debug("Prepare phase for incremental repair session {} completed", sessionID);
-                setStateAndSave(session, PREPARED);
-                sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), true));
-                executor.shutdown();
+                try
+                {
+                    logger.debug("Prepare phase for incremental repair session {} completed", sessionID);
+                    if (session.getState() != FAILED)
+                    {
+                        setStateAndSave(session, PREPARED);
+                        sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), true));
+                    }
+                    else
+                    {
+                        logger.debug("Session {} failed before anticompaction completed", sessionID);
+                    }
+                }
+                finally
+                {
+                    executor.shutdown();
+                }
             }
 
             public void onFailure(Throwable t)
             {
-                logger.error("Prepare phase for incremental repair session {} failed", sessionID, t);
-                sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), false));
-                failSession(sessionID, false);
-                executor.shutdown();
+                try
+                {
+                    logger.error("Prepare phase for incremental repair session {} failed", sessionID, t);
+                    sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), false));
+                    failSession(sessionID, false);
+                }
+                finally
+                {
+                    executor.shutdown();
+                }
             }
         });
     }

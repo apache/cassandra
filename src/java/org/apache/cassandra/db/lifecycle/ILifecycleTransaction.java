@@ -16,26 +16,24 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed;
+package org.apache.cassandra.db.lifecycle;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
+import java.util.Collection;
+import java.util.Set;
 
-// a container for simplifying the method signature for per-instance message handling/delivery
-public class Message
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.concurrent.Transactional;
+
+public interface ILifecycleTransaction extends Transactional, LifecycleNewTracker
 {
-    public final int verb;
-    public final byte[] bytes;
-    public final int id;
-    public final int version;
-    public final InetAddressAndPort from;
-
-    public Message(int verb, byte[] bytes, int id, int version, InetAddressAndPort from)
-    {
-        this.verb = verb;
-        this.bytes = bytes;
-        this.id = id;
-        this.version = version;
-        this.from = from;
-    }
+    void checkpoint();
+    void update(SSTableReader reader, boolean original);
+    void update(Collection<SSTableReader> readers, boolean original);
+    public SSTableReader current(SSTableReader reader);
+    void obsolete(SSTableReader reader);
+    void obsoleteOriginals();
+    Set<SSTableReader> originals();
+    boolean isObsolete(SSTableReader reader);
+    boolean isOffline();
 }
-

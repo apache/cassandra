@@ -1,4 +1,9 @@
 4.0
+ * SSL Cert Hot Reloading should check for sanity of the new keystore/truststore before loading it (CASSANDRA-14991)
+ * Avoid leaking threads when failing anticompactions and rate limit anticompactions (CASSANDRA-15002)
+ * Validate token() arguments early instead of throwing NPE at execution (CASSANDRA-14989)
+ * Add a new tool to dump audit logs (CASSANDRA-14885)
+ * Fix generating javadoc with Java11 (CASSANDRA-14988)
  * Only cancel conflicting compactions when starting anticompactions and sub range compactions (CASSANDRA-14935)
  * Use a stub IndexRegistry for non-daemon use cases (CASSANDRA-14938)
  * Don't enable client transports when bootstrap is pending (CASSANDRA-14525)
@@ -340,10 +345,17 @@
  * cqlshrc.sample uses incorrect option for time formatting (CASSANDRA-14243)
 
 
+3.11.5
+ * Add missing commands to nodetool_completion (CASSANDRA-14916)
+ * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
+
+
 3.11.4
  * Make stop-server.bat wait for Cassandra to terminate (CASSANDRA-14829)
  * Correct sstable sorting for garbagecollect and levelled compaction (CASSANDRA-14870)
 Merged from 3.0:
+ * Improve merkle tree size and time on heap (CASSANDRA-14096)
+ * Severe concurrency issues in STCS,DTCS,TWCS,TMD.Topology,TypeParser
  * Add a script to make running the cqlsh tests in cassandra repo easier (CASSANDRA-14951)
  * If SizeEstimatesRecorder misses a 'onDropTable' notification, the size_estimates table will never be cleared for that table. (CASSANDRA-14905)
  * Streaming needs to synchronise access to LifecycleTransaction (CASSANDRA-14554)

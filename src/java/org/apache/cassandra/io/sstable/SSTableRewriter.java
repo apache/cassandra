@@ -28,6 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -59,7 +60,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private final long maxAge;
     private long repairedAt = -1;
     // the set of final readers we will expose on commit
-    private final LifecycleTransaction transaction; // the readers we are rewriting (updated as they are replaced)
+    private final ILifecycleTransaction transaction; // the readers we are rewriting (updated as they are replaced)
     private final List<SSTableReader> preparedForCommit = new ArrayList<>();
 
     private long currentlyOpenedEarlyAt; // the position (in MB) in the target file we last (re)opened at
@@ -74,18 +75,18 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private boolean throwEarly, throwLate;
 
     @Deprecated
-    public SSTableRewriter(LifecycleTransaction transaction, long maxAge, boolean isOffline)
+    public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, boolean isOffline)
     {
         this(transaction, maxAge, isOffline, true);
     }
     @Deprecated
-    public SSTableRewriter(LifecycleTransaction transaction, long maxAge, boolean isOffline, boolean shouldOpenEarly)
+    public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, boolean isOffline, boolean shouldOpenEarly)
     {
         this(transaction, maxAge, calculateOpenInterval(shouldOpenEarly), false);
     }
 
     @VisibleForTesting
-    public SSTableRewriter(LifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals)
+    public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals)
     {
         this.transaction = transaction;
         this.maxAge = maxAge;
@@ -94,22 +95,22 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     }
 
     @Deprecated
-    public static SSTableRewriter constructKeepingOriginals(LifecycleTransaction transaction, boolean keepOriginals, long maxAge, boolean isOffline)
+    public static SSTableRewriter constructKeepingOriginals(ILifecycleTransaction transaction, boolean keepOriginals, long maxAge, boolean isOffline)
     {
         return constructKeepingOriginals(transaction, keepOriginals, maxAge);
     }
 
-    public static SSTableRewriter constructKeepingOriginals(LifecycleTransaction transaction, boolean keepOriginals, long maxAge)
+    public static SSTableRewriter constructKeepingOriginals(ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
         return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(true), keepOriginals);
     }
 
-    public static SSTableRewriter constructWithoutEarlyOpening(LifecycleTransaction transaction, boolean keepOriginals, long maxAge)
+    public static SSTableRewriter constructWithoutEarlyOpening(ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
         return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(false), keepOriginals);
     }
 
-    public static SSTableRewriter construct(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean keepOriginals, long maxAge)
+    public static SSTableRewriter construct(ColumnFamilyStore cfs, ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
         return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(cfs.supportsEarlyOpen()), keepOriginals);
     }

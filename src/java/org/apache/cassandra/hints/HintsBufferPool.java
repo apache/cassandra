@@ -18,14 +18,12 @@
 package org.apache.cassandra.hints;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.net.MessagingService;
-import sun.nio.ch.DirectBuffer;
 
 /**
  * A primitive pool of {@link HintsBuffer} buffers. Under normal conditions should only hold two buffers - the currently

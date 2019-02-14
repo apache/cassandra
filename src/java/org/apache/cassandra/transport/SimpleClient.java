@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
@@ -292,8 +291,8 @@ public class SimpleClient implements Closeable
         protected void initChannel(Channel channel) throws Exception
         {
             super.initChannel(channel);
-            SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, encryptionOptions.require_client_auth,
-                                                             SSLFactory.ConnectionType.NATIVE_TRANSPORT, SSLFactory.SocketType.CLIENT);
+            SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.require_client_auth,
+                                                                     SSLFactory.SocketType.CLIENT);
             channel.pipeline().addFirst("ssl", sslContext.newHandler(channel.alloc()));
         }
     }

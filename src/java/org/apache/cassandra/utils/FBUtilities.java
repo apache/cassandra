@@ -171,6 +171,15 @@ public class FBUtilities
     }
 
     /**
+     * <b>THIS IS FOR TESTING ONLY!!</b>
+     */
+    public static void setBroadcastInetAddressAndPort(InetAddressAndPort addr)
+    {
+        broadcastInetAddress = addr.address;
+        broadcastInetAddressAndPort = addr;
+    }
+
+    /**
      * This returns the address that is bound to for the native protocol for communicating with clients. This is ambiguous
      * because it doesn't include the port and it's almost always the wrong thing to be using you want getBroadcastNativeAddressAndPort
      */

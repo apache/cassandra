@@ -359,6 +359,10 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void forceTerminateAllRepairSessions();
 
+    public void setRepairSessionMaxTreeDepth(int depth);
+
+    public int getRepairSessionMaxTreeDepth();
+
     /**
      * Get the status of a given parent repair session.
      * @param cmd the int reference returned when issuing the repair

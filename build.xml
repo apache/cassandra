@@ -1262,6 +1262,15 @@
     </copy>
   </target>
 
+  <target name="dtest-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
+      <jar jarfile="${build.dir}/dtest-${base.version}.jar">
+          <zipgroupfileset dir="${build.lib}" includes="*.jar" excludes="META-INF/*.SF"/>
+          <fileset dir="${build.classes.main}"/>
+          <fileset dir="${test.classes}"/>
+          <fileset dir="${test.conf}" />
+      </jar>
+  </target>
+
   <!-- Defines how to run a set of tests. If you change the defaults for attributes
        you should also update them in testmacro.,
        The two are split because the helper doesn't generate
@@ -1844,7 +1853,7 @@
 
   <target name="test" depends="build-test,get-cores,get-mem" description="Parallel Test Runner">
     <path id="all-test-classes-path">
-      <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
+      <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UpgradeTest*.java" />
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testparallel testdelegate="testlist"/>

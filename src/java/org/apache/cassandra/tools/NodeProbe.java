@@ -1746,7 +1746,7 @@ public class NodeProbe implements AutoCloseable
         return arsProxy;
     }
 
-    public void reloadSslCerts()
+    public void reloadSslCerts() throws IOException
     {
         msProxy.reloadSslCertificates();
     }

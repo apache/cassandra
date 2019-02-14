@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -207,6 +208,7 @@ public class AntiCompactionTest
         assertEquals(stats.pendingKeys, 4);
         assertEquals(stats.transKeys, 0);
         assertEquals(stats.unrepairedKeys, 6);
+        assertOnDiskState(store, 2);
     }
 
     @Test
@@ -218,6 +220,7 @@ public class AntiCompactionTest
         assertEquals(stats.pendingKeys, 4);
         assertEquals(stats.transKeys, 4);
         assertEquals(stats.unrepairedKeys, 2);
+        assertOnDiskState(store, 3);
     }
 
     @Test
@@ -229,6 +232,7 @@ public class AntiCompactionTest
         assertEquals(stats.pendingKeys, 0);
         assertEquals(stats.transKeys, 4);
         assertEquals(stats.unrepairedKeys, 6);
+        assertOnDiskState(store, 2);
     }
 
     @Test
@@ -258,6 +262,7 @@ public class AntiCompactionTest
         }
         assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(rows, 1000 * (1000 * 5));//See writeFile for how this number is derived
+        assertOnDiskState(cfs, 2);
     }
 
     private SSTableReader writeFile(ColumnFamilyStore cfs, int count)
@@ -316,6 +321,7 @@ public class AntiCompactionTest
         assertEquals(stats.pendingKeys, 40);
         assertEquals(stats.transKeys, 0);
         assertEquals(stats.unrepairedKeys, 60);
+        assertOnDiskState(store, 10);
     }
 
     @Test
@@ -338,6 +344,7 @@ public class AntiCompactionTest
         assertEquals(stats.pendingKeys, 0);
         assertEquals(stats.transKeys, 40);
         assertEquals(stats.unrepairedKeys, 60);
+        assertOnDiskState(store, 10);
     }
 
     @Test
@@ -356,6 +363,7 @@ public class AntiCompactionTest
         assertEquals(stats.pendingKeys, 40);
         assertEquals(stats.transKeys, 40);
         assertEquals(stats.unrepairedKeys, 20);
+        assertOnDiskState(store, 15);
     }
 
     @Test
@@ -381,6 +389,7 @@ public class AntiCompactionTest
         assertThat(Iterables.get(store.getLiveSSTables(), 0).isPendingRepair(), is(true));
         assertThat(Iterables.get(store.getLiveSSTables(), 0).selfRef().globalCount(), is(1));
         assertThat(store.getTracker().getCompacting().size(), is(0));
+        assertOnDiskState(store, 1);
     }
 
     @Test
@@ -414,9 +423,9 @@ public class AntiCompactionTest
         }
 
         assertTrue(gotException);
-        assertThat(store.getLiveSSTables().size(), is(10));
         assertThat(Iterables.get(store.getLiveSSTables(), 0).isRepaired(), is(false));
         assertEquals(refCountBefore, Iterables.get(store.getLiveSSTables(), 0).selfRef().globalCount());
+        assertOnDiskState(cfs, 10);
     }
 
     private ColumnFamilyStore prepareColumnFamilyStore()
@@ -571,5 +580,26 @@ public class AntiCompactionTest
     private Token t(long t)
     {
         return new Murmur3Partitioner.LongToken(t);
+    }
+
+    static void assertOnDiskState(ColumnFamilyStore cfs, int expectedSSTableCount)
+    {
+        LifecycleTransaction.waitForDeletions();
+        assertEquals(expectedSSTableCount, cfs.getLiveSSTables().size());
+        Set<Integer> liveGenerations = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+        int fileCount = 0;
+        for (File f : cfs.getDirectories().getCFDirectories())
+        {
+            for (File sst : f.listFiles())
+            {
+                if (sst.getName().contains("Data"))
+                {
+                    Descriptor d = Descriptor.fromFilename(sst.getAbsolutePath());
+                    assertTrue(liveGenerations.contains(d.generation));
+                    fileCount++;
+                }
+            }
+        }
+        assertEquals(expectedSSTableCount, fileCount);
     }
 }
