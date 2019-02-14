@@ -1461,8 +1461,12 @@ public class CompactionManager implements CompactionManagerMBean
             long numPartitions = rangePartitionCounts.get(range);
             double rangeOwningRatio = allPartitions > 0 ? (double)numPartitions / allPartitions : 0;
             // determine max tree depth proportional to range size to avoid blowing up memory with multiple tress,
-            // capping at 20 to prevent large tree (CASSANDRA-11390)
-            int maxDepth = rangeOwningRatio > 0 ? (int) Math.floor(20 - Math.log(1 / rangeOwningRatio) / Math.log(2)) : 0;
+            // capping at a configurable depth (default 18) to prevent large tree (CASSANDRA-11390, CASSANDRA-14096)
+            int maxDepth = rangeOwningRatio > 0
+                           ? (int) Math.floor(Math.max(0.0, DatabaseDescriptor.getRepairSessionMaxTreeDepth() -
+                                                            Math.log(1 / rangeOwningRatio) / Math.log(2)))
+                           : 0;
+
             // determine tree depth from number of partitions, capping at max tree depth (CASSANDRA-5263)
             int depth = numPartitions > 0 ? (int) Math.min(Math.ceil(Math.log(numPartitions) / Math.log(2)), maxDepth) : 0;
             tree.addMerkleTree((int) Math.pow(2, depth), range);

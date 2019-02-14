@@ -20,14 +20,18 @@ package org.apache.cassandra.repair;
 import java.net.InetAddress;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -105,33 +109,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         {
             public ListenableFuture<List<SyncStat>> apply(List<TreeResponse> trees)
             {
-                InetAddress local = FBUtilities.getLocalAddress();
-
-                List<SyncTask> syncTasks = new ArrayList<>();
-                // We need to difference all trees one against another
-                for (int i = 0; i < trees.size() - 1; ++i)
-                {
-                    TreeResponse r1 = trees.get(i);
-                    for (int j = i + 1; j < trees.size(); ++j)
-                    {
-                        TreeResponse r2 = trees.get(j);
-                        SyncTask task;
-                        if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
-                        {
-                            task = new LocalSyncTask(desc, r1, r2, repairedAt, session.pullRepair);
-                        }
-                        else
-                        {
-                            task = new RemoteSyncTask(desc, r1, r2);
-                            // RemoteSyncTask expects SyncComplete message sent back.
-                            // Register task to RepairSession to receive response.
-                            session.waitForSync(Pair.create(desc, new NodePair(r1.endpoint, r2.endpoint)), (RemoteSyncTask) task);
-                        }
-                        syncTasks.add(task);
-                        taskExecutor.submit(task);
-                    }
-                }
-                return Futures.allAsList(syncTasks);
+                return Futures.allAsList(createSyncTasks(trees, FBUtilities.getLocalAddress()));
             }
         }, taskExecutor);
 
@@ -158,6 +136,39 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
         // Wait for validation to complete
         Futures.getUnchecked(validations);
+    }
+
+    @VisibleForTesting
+    List<SyncTask> createSyncTasks(List<TreeResponse> trees, InetAddress local)
+    {
+        List<SyncTask> syncTasks = new ArrayList<>();
+        // We need to difference all trees one against another
+        for (int i = 0; i < trees.size() - 1; ++i)
+        {
+            TreeResponse r1 = trees.get(i);
+            for (int j = i + 1; j < trees.size(); ++j)
+            {
+                TreeResponse r2 = trees.get(j);
+                SyncTask task;
+
+                List<Range<Token>> differences = MerkleTrees.difference(r1.trees, r2.trees);
+
+                if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
+                {
+                    task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, differences, repairedAt, session.pullRepair);
+                }
+                else
+                {
+                    task = new RemoteSyncTask(desc, r1.endpoint, r2.endpoint, differences);
+                    // RemoteSyncTask expects SyncComplete message sent back.
+                    // Register task to RepairSession to receive response.
+                    session.waitForSync(Pair.create(desc, new NodePair(r1.endpoint, r2.endpoint)), (RemoteSyncTask) task);
+                }
+                syncTasks.add(task);
+                taskExecutor.submit(task);
+            }
+        }
+        return syncTasks;
     }
 
     /**
