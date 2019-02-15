@@ -25,6 +25,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 import static java.util.Arrays.asList;
 import static org.apache.cassandra.cql3.FieldIdentifier.forUnquoted;
@@ -32,7 +33,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-public class AbstractTypeVersionComparatorTest
+public class ColumnMetadataVersionComparatorTest
 {
     private UserType udtWith2Fields;
     private UserType udtWith3Fields;
@@ -57,6 +58,13 @@ public class AbstractTypeVersionComparatorTest
     {
         udtWith2Fields = null;
         udtWith3Fields = null;
+    }
+
+    @Test
+    public void testWithSimpleTypes()
+    {
+        checkComparisonResults(Int32Type.instance, BytesType.instance);
+        checkComparisonResults(EmptyType.instance, BytesType.instance);
     }
 
     @Test
@@ -142,19 +150,22 @@ public class AbstractTypeVersionComparatorTest
     @Test
     public void testInvalidComparison()
     {
-        assertInvalidComparison("Trying to compare 2 different types: org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.UserType(ks,6d7954797065,61:org.apache.cassandra.db.marshal.Int32Type,62:org.apache.cassandra.db.marshal.Int32Type)) and org.apache.cassandra.db.marshal.Int32Type",
+        assertInvalidComparison("Found 2 incompatible versions of column c in ks.t: one of type org.apache.cassandra.db.marshal.Int32Type and one of type org.apache.cassandra.db.marshal.UTF8Type (but both types are incompatible)",
+                                Int32Type.instance,
+                                UTF8Type.instance);
+        assertInvalidComparison("Found 2 incompatible versions of column c in ks.t: one of type org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.UserType(ks,6d7954797065,61:org.apache.cassandra.db.marshal.Int32Type,62:org.apache.cassandra.db.marshal.Int32Type)) and one of type org.apache.cassandra.db.marshal.Int32Type (but both types are incompatible)",
                                 udtWith2Fields,
                                 Int32Type.instance);
-        assertInvalidComparison("Trying to compare 2 different types: org.apache.cassandra.db.marshal.UTF8Type and org.apache.cassandra.db.marshal.InetAddressType",
+        assertInvalidComparison("Found 2 incompatible versions of column c in ks.t: one of type org.apache.cassandra.db.marshal.SetType(org.apache.cassandra.db.marshal.UTF8Type) and one of type org.apache.cassandra.db.marshal.SetType(org.apache.cassandra.db.marshal.InetAddressType) (but both types are incompatible)",
                                 SetType.getInstance(UTF8Type.instance, true),
                                 SetType.getInstance(InetAddressType.instance, true));
-        assertInvalidComparison("Trying to compare 2 different types: org.apache.cassandra.db.marshal.UTF8Type and org.apache.cassandra.db.marshal.InetAddressType",
+        assertInvalidComparison("Found 2 incompatible versions of column c in ks.t: one of type org.apache.cassandra.db.marshal.ListType(org.apache.cassandra.db.marshal.UTF8Type) and one of type org.apache.cassandra.db.marshal.ListType(org.apache.cassandra.db.marshal.InetAddressType) (but both types are incompatible)",
                                 ListType.getInstance(UTF8Type.instance, true),
                                 ListType.getInstance(InetAddressType.instance, true));
-        assertInvalidComparison("Trying to compare 2 different types: org.apache.cassandra.db.marshal.UTF8Type and org.apache.cassandra.db.marshal.InetAddressType",
+        assertInvalidComparison("Found 2 incompatible versions of column c in ks.t: one of type org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.IntegerType) and one of type org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.InetAddressType,org.apache.cassandra.db.marshal.IntegerType) (but both types are incompatible)",
                                 MapType.getInstance(UTF8Type.instance, IntegerType.instance, true),
                                 MapType.getInstance(InetAddressType.instance, IntegerType.instance, true));
-        assertInvalidComparison("Trying to compare 2 different types: org.apache.cassandra.db.marshal.UTF8Type and org.apache.cassandra.db.marshal.InetAddressType",
+        assertInvalidComparison("Found 2 incompatible versions of column c in ks.t: one of type org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.IntegerType,org.apache.cassandra.db.marshal.UTF8Type) and one of type org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.IntegerType,org.apache.cassandra.db.marshal.InetAddressType) (but both types are incompatible)",
                                 MapType.getInstance(IntegerType.instance, UTF8Type.instance, true),
                                 MapType.getInstance(IntegerType.instance, InetAddressType.instance, true));
     }
@@ -169,7 +180,7 @@ public class AbstractTypeVersionComparatorTest
         catch (IllegalArgumentException e)
         {
             System.out.println(e.getMessage());
-            assertEquals(e.getMessage(), expectedMessage);
+            assertEquals(expectedMessage, e.getMessage());
         }
     }
 
@@ -183,6 +194,8 @@ public class AbstractTypeVersionComparatorTest
 
     private static int compare(AbstractType<?> left, AbstractType<?> right)
     {
-        return AbstractTypeVersionComparator.INSTANCE.compare(left, right);
+        ColumnMetadata v1 = ColumnMetadata.regularColumn("ks", "t", "c", left);
+        ColumnMetadata v2 = ColumnMetadata.regularColumn("ks", "t", "c", right);
+        return ColumnMetadataVersionComparator.INSTANCE.compare(v1, v2);
     }
 }

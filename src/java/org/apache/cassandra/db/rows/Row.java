@@ -764,7 +764,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                 if (column == null)
                     return true;
 
-                return AbstractTypeVersionComparator.INSTANCE.compare(column.type, dataColumn.type) < 0;
+                return ColumnMetadataVersionComparator.INSTANCE.compare(column, dataColumn) < 0;
             }
 
             @SuppressWarnings("resource")
