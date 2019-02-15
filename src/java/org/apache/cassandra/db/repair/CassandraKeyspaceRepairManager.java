@@ -21,6 +21,7 @@ package org.apache.cassandra.db.repair;
 import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -42,9 +43,10 @@ public class CassandraKeyspaceRepairManager implements KeyspaceRepairManager
     public ListenableFuture prepareIncrementalRepair(UUID sessionID,
                                                      Collection<ColumnFamilyStore> tables,
                                                      RangesAtEndpoint tokenRanges,
-                                                     ExecutorService executor)
+                                                     ExecutorService executor,
+                                                     BooleanSupplier isCancelled)
     {
-        PendingAntiCompaction pac = new PendingAntiCompaction(sessionID, tables, tokenRanges, executor);
+        PendingAntiCompaction pac = new PendingAntiCompaction(sessionID, tables, tokenRanges, executor, isCancelled);
         return pac.run();
     }
 }
