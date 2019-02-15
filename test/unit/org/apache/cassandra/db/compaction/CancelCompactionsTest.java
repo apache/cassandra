@@ -36,9 +36,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.repair.PendingAntiCompaction;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -61,14 +63,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-public class CancelCompactionsTest
+public class CancelCompactionsTest extends CQLTester
 {
-    @BeforeClass
-    public static void setup()
-    {
-        DatabaseDescriptor.daemonInitialization();
-    }
-
     /**
      * makes sure we only cancel compactions if the precidate says we have overlapping sstables
      */
@@ -88,14 +84,14 @@ public class CancelCompactionsTest
             assertEquals(1, activeCompactions.size());
             assertEquals(activeCompactions.get(0).getCompactionInfo().getSSTables(), toMarkCompacting);
             // predicate requires the non-compacting sstables, should not cancel the one currently compacting:
-            cfs.runWithCompactionsDisabled(() -> null, (sstable) -> !toMarkCompacting.contains(sstable), false, false);
+            cfs.runWithCompactionsDisabled(() -> null, (sstable) -> !toMarkCompacting.contains(sstable), false, false, true);
             assertEquals(1, activeCompactions.size());
             assertFalse(activeCompactions.get(0).isStopRequested());
 
             // predicate requires the compacting ones - make sure stop is requested and that when we abort that
             // compaction we actually run the callable (countdown the latch)
             CountDownLatch cdl = new CountDownLatch(1);
-            Thread t = new Thread(() -> cfs.runWithCompactionsDisabled(() -> { cdl.countDown(); return null; }, toMarkCompacting::contains, false, false));
+            Thread t = new Thread(() -> cfs.runWithCompactionsDisabled(() -> { cdl.countDown(); return null; }, toMarkCompacting::contains, false, false, true));
             t.start();
             while (!activeCompactions.get(0).isStopRequested())
                 Thread.sleep(100);
@@ -141,13 +137,13 @@ public class CancelCompactionsTest
             expectedSSTables.add(new HashSet<>(sstables.subList(6, 9)));
             assertEquals(compactingSSTables, expectedSSTables);
 
-            cfs.runWithCompactionsDisabled(() -> null, (sstable) -> false, false, false);
+            cfs.runWithCompactionsDisabled(() -> null, (sstable) -> false, false, false, true);
             assertEquals(2, activeCompactions.size());
             assertTrue(activeCompactions.stream().noneMatch(CompactionInfo.Holder::isStopRequested));
 
             CountDownLatch cdl = new CountDownLatch(1);
             // start a compaction which only needs the sstables where first token is > 50 - these are the sstables compacted by tcts.get(1)
-            Thread t = new Thread(() -> cfs.runWithCompactionsDisabled(() -> { cdl.countDown(); return null; }, (sstable) -> first(sstable) > 50, false, false));
+            Thread t = new Thread(() -> cfs.runWithCompactionsDisabled(() -> { cdl.countDown(); return null; }, (sstable) -> first(sstable) > 50, false, false, true));
             t.start();
             activeCompactions = CompactionManager.instance.active.getCompactions();
             assertEquals(2, activeCompactions.size());
@@ -335,7 +331,7 @@ public class CancelCompactionsTest
             }
         }
         assertTrue(foundCompaction);
-        cfs.runWithCompactionsDisabled(() -> {compactionsStopped.countDown(); return null;}, (sstable) -> true, false, false);
+        cfs.runWithCompactionsDisabled(() -> {compactionsStopped.countDown(); return null;}, (sstable) -> true, false, false, true);
         // wait for the runWithCompactionsDisabled callable
         compactionsStopped.await();
         assertEquals(1, CompactionManager.instance.active.getCompactions().size());
@@ -416,6 +412,42 @@ public class CancelCompactionsTest
                 scanners.forEach(ISSTableScanner::close);
             CompactionManager.instance.active.finishCompaction(ci);
 
+        }
+    }
+
+    @Test
+    public void test2iCancellation() throws Throwable
+    {
+        createTable("create table %s (id int primary key, something int)");
+        createIndex("create index on %s(something)");
+        getCurrentColumnFamilyStore().disableAutoCompaction();
+        for (int i = 0; i < 10; i++)
+            execute("insert into %s (id, something) values (?, ?)", i, i);
+        flush();
+        ColumnFamilyStore idx = getCurrentColumnFamilyStore().indexManager.getAllIndexColumnFamilyStores().iterator().next();
+        Set<SSTableReader> sstables = new HashSet<>();
+        try (LifecycleTransaction txn = idx.getTracker().tryModify(idx.getLiveSSTables(), OperationType.COMPACTION))
+        {
+            getCurrentColumnFamilyStore().runWithCompactionsDisabled(() -> true, (sstable) -> { sstables.add(sstable); return true;}, false, false, false);
+        }
+        // the predicate only gets compacting sstables, and we are only compacting the 2i sstables - with interruptIndexes = false we should see no sstables here
+        assertTrue(sstables.isEmpty());
+    }
+
+    @Test
+    public void testSubrangeCompactionWith2i() throws Throwable
+    {
+        createTable("create table %s (id int primary key, something int)");
+        createIndex("create index on %s(something)");
+        getCurrentColumnFamilyStore().disableAutoCompaction();
+        for (int i = 0; i < 10; i++)
+            execute("insert into %s (id, something) values (?, ?)", i, i);
+        flush();
+        ColumnFamilyStore idx = getCurrentColumnFamilyStore().indexManager.getAllIndexColumnFamilyStores().iterator().next();
+        try (LifecycleTransaction txn = idx.getTracker().tryModify(idx.getLiveSSTables(), OperationType.COMPACTION))
+        {
+            IPartitioner partitioner = getCurrentColumnFamilyStore().getPartitioner();
+            getCurrentColumnFamilyStore().forceCompactionForTokenRange(Collections.singleton(new Range<>(partitioner.getMinimumToken(), partitioner.getMaximumToken())));
         }
     }
 }
