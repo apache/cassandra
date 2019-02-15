@@ -87,6 +87,8 @@ public class FBUtilities
     private static volatile InetAddress broadcastInetAddress;
     private static volatile InetAddress broadcastRpcAddress;
 
+    private static volatile String previousReleaseVersionString;
+
     public static int getAvailableProcessors()
     {
         String availableProcessors = System.getProperty("cassandra.available_processors");
@@ -333,6 +335,16 @@ public class FBUtilities
             return null;
         }
         return triggerDir;
+    }
+
+    public static void setPreviousReleaseVersionString(String previousReleaseVersionString)
+    {
+        FBUtilities.previousReleaseVersionString = previousReleaseVersionString;
+    }
+
+    public static String getPreviousReleaseVersionString()
+    {
+        return previousReleaseVersionString;
     }
 
     public static String getReleaseVersionString()

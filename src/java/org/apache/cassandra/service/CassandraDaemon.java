@@ -60,6 +60,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.LegacyHintsMigrator;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
@@ -266,6 +267,8 @@ public class CassandraDaemon
 
         // load schema from disk
         Schema.instance.loadFromDisk();
+
+        SSTableHeaderFix.fixNonFrozenUDTIfUpgradeFrom30();
 
         // clean up debris in the rest of the keyspaces
         for (String keyspaceName : Schema.instance.getKeyspaces())
