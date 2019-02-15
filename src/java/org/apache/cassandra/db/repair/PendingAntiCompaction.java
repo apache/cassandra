@@ -140,8 +140,8 @@ public class PendingAntiCompaction
             {
                 // todo: start tracking the parent repair session id that created the anticompaction to be able to give a better error messsage here:
                 String message = String.format("Prepare phase for incremental repair session %s has failed because it encountered " +
-                                               "intersecting sstables belonging to another incremental repair session. This is " +
-                                               "caused by starting multiple conflicting incremental repairs at the same time", prsid);
+                                               "intersecting sstables (%s) belonging to another incremental repair session. This is " +
+                                               "caused by starting multiple conflicting incremental repairs at the same time", prsid, ci.getSSTables());
                 throw new SSTableAcquisitionException(message);
             }
             return true;
@@ -185,6 +185,8 @@ public class PendingAntiCompaction
                 LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
                 if (txn != null)
                     return new AcquireResult(cfs, Refs.ref(sstables), txn);
+                else
+                    logger.error("Could not mark compacting for {} (sstables = {}, compacting = {})", sessionID, sstables, cfs.getTracker().getCompacting());
             }
             catch (SSTableAcquisitionException e)
             {
@@ -212,7 +214,7 @@ public class PendingAntiCompaction
                 {
                     // Note that anticompactions are not disabled when running this. This is safe since runWithCompactionsDisabled
                     // is synchronized - acquireTuple and predicate can only be run by a single thread (for the given cfs).
-                    return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, false, false);
+                    return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, false, false, false);
                 }
                 catch (SSTableAcquisitionException e)
                 {
@@ -224,8 +226,13 @@ public class PendingAntiCompaction
                     Uninterruptibles.sleepUninterruptibly(acquireSleepMillis, TimeUnit.MILLISECONDS);
 
                     if (System.currentTimeMillis() - start > delay)
-                        logger.debug("{} Timed out waiting to acquire sstables", sessionID, e);
+                        logger.warn("{} Timed out waiting to acquire sstables", sessionID, e);
 
+                }
+                catch (Throwable t)
+                {
+                    logger.error("Got exception disabling compactions for session {}", sessionID, t);
+                    throw t;
                 }
             } while (System.currentTimeMillis() - start < delay);
             return null;

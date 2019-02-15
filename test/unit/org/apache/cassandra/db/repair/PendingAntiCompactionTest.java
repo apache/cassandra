@@ -677,6 +677,35 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         }
     }
 
+    @Test
+    public void testWith2i() throws ExecutionException, InterruptedException
+    {
+        cfs2.disableAutoCompaction();
+        makeSSTables(2, cfs2, 100);
+        ColumnFamilyStore idx = cfs2.indexManager.getAllIndexColumnFamilyStores().iterator().next();
+        ExecutorService es = Executors.newFixedThreadPool(1);
+        try
+        {
+            UUID prsid = prepareSession();
+            for (SSTableReader sstable : cfs2.getLiveSSTables())
+                assertFalse(sstable.isPendingRepair());
+
+            // mark the sstables pending, with a 2i compaction going, which should be untouched;
+            try (LifecycleTransaction txn = idx.getTracker().tryModify(idx.getLiveSSTables(), OperationType.COMPACTION))
+            {
+                PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Collections.singleton(cfs2), atEndpoint(FULL_RANGE, NO_RANGES), es);
+                pac.run().get();
+            }
+            // and make sure it succeeded;
+            for (SSTableReader sstable : cfs2.getLiveSSTables())
+                assertTrue(sstable.isPendingRepair());
+        }
+        finally
+        {
+            es.shutdown();
+        }
+    }
+
     private static RangesAtEndpoint atEndpoint(Collection<Range<Token>> full, Collection<Range<Token>> trans)
     {
         RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(local);
