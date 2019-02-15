@@ -74,4 +74,9 @@ public interface IMetadataSerializer
      * Mutate the repairedAt time, pendingRepair ID, and transient status
      */
     public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException;
+
+    /**
+     * Replace the sstable metadata file ({@code -Statistics.db}) with the given components.
+     */
+    void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException;
 }

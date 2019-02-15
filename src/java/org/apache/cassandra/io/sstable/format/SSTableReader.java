@@ -1821,6 +1821,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public void createLinks(String snapshotDirectoryPath)
     {
+        createLinks(descriptor, components, snapshotDirectoryPath);
+    }
+
+    public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath)
+    {
         for (Component component : components)
         {
             File sourceFile = new File(descriptor.filenameFor(component));

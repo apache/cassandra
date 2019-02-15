@@ -28,6 +28,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
@@ -204,7 +205,19 @@ public abstract class AbstractCell extends Cell
         if (isTombstone())
             return String.format("[%s=<tombstone> %s]", column().name, livenessInfoString());
         else
-            return String.format("[%s=%s %s]", column().name, type.getString(value()), livenessInfoString());
+            return String.format("[%s=%s %s]", column().name, safeToString(type, value()), livenessInfoString());
+    }
+
+    private static String safeToString(AbstractType<?> type, ByteBuffer data)
+    {
+        try
+        {
+            return type.getString(data);
+        }
+        catch (Exception e)
+        {
+            return "0x" + ByteBufferUtil.bytesToHex(data);
+        }
     }
 
     private String livenessInfoString()

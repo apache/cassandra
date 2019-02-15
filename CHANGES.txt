@@ -25,6 +25,7 @@
    otherwise synchronize their clocks, and that clocks are mostly in sync, since
    this is a requirement for general correctness of last write wins. (CASSANDRA-15216)
 Merged from 3.11:
+ * Fix bad UDT sstable metadata serialization headers written by C* 3.0 on upgrade and in sstablescrub (CASSANDRA-15035)
  * Fix nodetool compactionstats showing extra pending task for TWCS - patch implemented (CASSANDRA-15409)
  * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)
  * Update nodetool help stop output (CASSANDRA-15401)

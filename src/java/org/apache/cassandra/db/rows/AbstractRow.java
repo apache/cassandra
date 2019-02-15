@@ -77,15 +77,31 @@ public abstract class AbstractRow implements Row
         {
             ByteBuffer value = clustering.get(i);
             if (value != null)
-                metadata.comparator.subtype(i).validate(value);
+            {
+                try
+                {
+                    metadata.comparator.subtype(i).validate(value);
+                }
+                catch (Exception e)
+                {
+                    throw new MarshalException("comparator #" + i + " '" + metadata.comparator.subtype(i) + "' in '" + metadata + "' didn't validate", e);
+                }
+            }
         }
 
         primaryKeyLivenessInfo().validate();
         if (deletion().time().localDeletionTime() < 0)
-            throw new MarshalException("A local deletion time should not be negative");
+            throw new MarshalException("A local deletion time should not be negative in '" + metadata + "'");
 
         for (ColumnData cd : this)
-            cd.validate();
+            try
+            {
+                cd.validate();
+            }
+            catch (Exception e)
+            {
+                throw new MarshalException("data for '" + cd.column.debugString() + "', " + cd + " in '" + metadata + "' didn't validate", e);
+            }
     }
 
     public boolean hasInvalidDeletions()

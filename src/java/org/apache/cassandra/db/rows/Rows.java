@@ -410,7 +410,7 @@ public abstract class Rows
         if (curb == null)
             return cura.column;
 
-        if (AbstractTypeVersionComparator.INSTANCE.compare(cura.column.type, curb.column.type) >= 0)
+        if (ColumnMetadataVersionComparator.INSTANCE.compare(cura.column, curb.column) >= 0)
             return cura.column;
 
         return curb.column;

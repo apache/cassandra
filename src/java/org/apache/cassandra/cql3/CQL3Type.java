@@ -704,8 +704,10 @@ public interface CQL3Type
             {
                 if (innerType instanceof RawCollection)
                     throw new InvalidRequestException("Non-frozen collections are not allowed inside collections: " + this);
-                else
+                else if (innerType.isUDT())
                     throw new InvalidRequestException("Non-frozen UDTs are not allowed inside collections: " + this);
+                else
+                    throw new InvalidRequestException("Non-frozen tuples are not allowed inside collections: " + this);
             }
 
             public boolean referencesUserType(String name)
