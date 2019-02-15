@@ -25,8 +25,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.DecimalFormat;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
@@ -46,7 +48,6 @@ public class Status extends NodeToolCmd
     private boolean resolveIp = false;
 
     private boolean isTokenPerNode = true;
-    private int maxAddressLength = 0;
     private String format = null;
     private Collection<String> joiningNodes, leavingNodes, movingNodes, liveNodes, unreachableNodes;
     private Map<String, String> loadMap, hostIDMap;
@@ -91,13 +92,13 @@ public class Status extends NodeToolCmd
         if (dcs.values().size() < tokensToEndpoints.keySet().size())
             isTokenPerNode = false;
 
-        findMaxAddressLength(dcs);
+        int maxAddressLength = computeMaxAddressLength(dcs);
 
         // Datacenters
         for (Map.Entry<String, SetHostStat> dc : dcs.entrySet())
         {
             String dcHeader = String.format("Datacenter: %s%n", dc.getKey());
-            System.out.printf(dcHeader);
+            System.out.print(dcHeader);
             for (int i = 0; i < (dcHeader.length() - 1); i++) System.out.print('=');
             System.out.println();
 
@@ -105,7 +106,7 @@ public class Status extends NodeToolCmd
             System.out.println("Status=Up/Down");
             System.out.println("|/ State=Normal/Leaving/Joining/Moving");
 
-            printNodesHeader(hasEffectiveOwns, isTokenPerNode);
+            printNodesHeader(hasEffectiveOwns, isTokenPerNode, maxAddressLength);
 
             ArrayListMultimap<InetAddress, HostStat> hostToTokens = ArrayListMultimap.create();
             for (HostStat stat : dc.getValue())
@@ -115,29 +116,30 @@ public class Status extends NodeToolCmd
             {
                 Float owns = ownerships.get(endpoint);
                 List<HostStat> tokens = hostToTokens.get(endpoint);
-                printNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
+                printNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, isTokenPerNode, maxAddressLength);
             }
         }
 
-        System.out.printf("%n" + errors.toString());
+        System.out.printf("%n" + errors);
 
     }
 
-    private void findMaxAddressLength(Map<String, SetHostStat> dcs)
+    private int computeMaxAddressLength(Map<String, SetHostStat> dcs)
     {
-        maxAddressLength = 0;
-        for (Map.Entry<String, SetHostStat> dc : dcs.entrySet())
-        {
-            for (HostStat stat : dc.getValue())
-            {
-                maxAddressLength = Math.max(maxAddressLength, stat.ipOrDns().length());
-            }
-        }
+        int maxAddressLength = 0;
+
+        Set<InetAddress> seenHosts = new HashSet<>();
+        for (SetHostStat stats : dcs.values())
+            for (HostStat stat : stats)
+                if (seenHosts.add(stat.endpoint))
+                    maxAddressLength = Math.max(maxAddressLength, stat.ipOrDns().length());
+
+        return maxAddressLength;
     }
 
-    private void printNodesHeader(boolean hasEffectiveOwns, boolean isTokenPerNode)
+    private void printNodesHeader(boolean hasEffectiveOwns, boolean isTokenPerNode, int maxAddressLength)
     {
-        String fmt = getFormat(hasEffectiveOwns, isTokenPerNode);
+        String fmt = getFormat(hasEffectiveOwns, isTokenPerNode, maxAddressLength);
         String owns = hasEffectiveOwns ? "Owns (effective)" : "Owns";
 
         if (isTokenPerNode)
@@ -146,10 +148,11 @@ public class Status extends NodeToolCmd
             System.out.printf(fmt, "-", "-", "Address", "Load", "Tokens", owns, "Host ID", "Rack");
     }
 
-    private void printNode(String endpoint, Float owns, List<HostStat> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode)
+    private void printNode(String endpoint, Float owns, List<HostStat> tokens, boolean hasEffectiveOwns,
+                           boolean isTokenPerNode, int maxAddressLength)
     {
         String status, state, load, strOwns, hostID, rack, fmt;
-        fmt = getFormat(hasEffectiveOwns, isTokenPerNode);
+        fmt = getFormat(hasEffectiveOwns, isTokenPerNode, maxAddressLength);
         if (liveNodes.contains(endpoint)) status = "U";
         else if (unreachableNodes.contains(endpoint)) status = "D";
         else status = "?";
@@ -177,9 +180,7 @@ public class Status extends NodeToolCmd
             System.out.printf(fmt, status, state, endpointDns, load, tokens.size(), strOwns, hostID, rack);
     }
 
-    private String getFormat(
-            boolean hasEffectiveOwns,
-            boolean isTokenPerNode)
+    private String getFormat(boolean hasEffectiveOwns, boolean isTokenPerNode, int maxAddressLength)
     {
         if (format == null)
         {
