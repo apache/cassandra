@@ -1493,7 +1493,8 @@ public final class SchemaKeyspace
      * We do it for dropped_columns, to allow safely dropping unused user types without retaining any references
      * in dropped_columns.
      */
-    private static AbstractType<?> expandUserTypes(AbstractType<?> original)
+    @VisibleForTesting
+    public static AbstractType<?> expandUserTypes(AbstractType<?> original)
     {
         if (original instanceof UserType)
             return new TupleType(expandUserTypes(((UserType) original).fieldTypes()));

@@ -73,4 +73,9 @@ public interface IMetadataSerializer
      * Mutate repairedAt time
      */
     void mutateRepairedAt(Descriptor descriptor, long newRepairedAt) throws IOException;
+
+    /**
+     * Replace the sstable metadata file ({@code -Statistics.db}) with the given components.
+     */
+    void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException;
 }
