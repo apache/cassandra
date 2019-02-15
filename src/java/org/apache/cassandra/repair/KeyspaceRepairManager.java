@@ -21,6 +21,7 @@ package org.apache.cassandra.repair;
 import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -40,5 +41,6 @@ public interface KeyspaceRepairManager
     ListenableFuture prepareIncrementalRepair(UUID sessionID,
                                               Collection<ColumnFamilyStore> tables,
                                               RangesAtEndpoint tokenRanges,
-                                              ExecutorService executor);
+                                              ExecutorService executor,
+                                              BooleanSupplier isCancelled);
 }

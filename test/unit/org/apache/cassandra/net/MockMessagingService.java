@@ -81,6 +81,14 @@ public class MockMessagingService
     }
 
     /**
+     * Creates a matcher that will indicate if the target address of the outgoing message matches the provided predicate.
+     */
+    public static Matcher<InetAddressAndPort> to(Predicate<InetAddressAndPort> predicate)
+    {
+        return (in, to) -> predicate.test(to);
+    }
+
+    /**
      * Creates a matcher that will indicate if the verb of the outgoing message equals the
      * provided value.
      */

@@ -374,31 +374,42 @@ public class CoordinatorSessionTest extends AbstractRepairTest
 
         coordinator.sentMessages.clear();
 
-        // participants respond to coordinator, and repair begins once all participants have responded with success
+        // participants respond to coordinator, and repair begins once all participants have responded
         Assert.assertEquals(ConsistentSession.State.PREPARING, coordinator.getState());
 
         coordinator.handlePrepareResponse(PARTICIPANT1, true);
         Assert.assertEquals(ConsistentSession.State.PREPARING, coordinator.getState());
+        Assert.assertEquals(PREPARED, coordinator.getParticipantState(PARTICIPANT1));
+        Assert.assertFalse(sessionResult.isDone());
 
         // participant 2 fails to prepare for consistent repair
         Assert.assertFalse(coordinator.failCalled);
         coordinator.handlePrepareResponse(PARTICIPANT2, false);
-        Assert.assertEquals(ConsistentSession.State.FAILED, coordinator.getState());
-        Assert.assertTrue(coordinator.failCalled);
+        Assert.assertEquals(ConsistentSession.State.PREPARING, coordinator.getState());
+        // we should have sent failure messages to the other participants, but not yet marked them failed internally
+        assertMessageSent(coordinator, PARTICIPANT1, new FailSession(coordinator.sessionID));
+        assertMessageSent(coordinator, PARTICIPANT2, new FailSession(coordinator.sessionID));
+        assertMessageSent(coordinator, PARTICIPANT3, new FailSession(coordinator.sessionID));
+        Assert.assertEquals(FAILED, coordinator.getParticipantState(PARTICIPANT2));
+        Assert.assertEquals(PREPARED, coordinator.getParticipantState(PARTICIPANT1));
+        Assert.assertEquals(PREPARING, coordinator.getParticipantState(PARTICIPANT3));
+        Assert.assertFalse(sessionResult.isDone());
+        Assert.assertFalse(coordinator.failCalled);
+        coordinator.sentMessages.clear();
 
-        // additional success messages should be ignored
+        // last outstanding response should cause repair to complete in failed state
         Assert.assertFalse(coordinator.setRepairingCalled);
         coordinator.onSetRepairing = Assert::fail;
         coordinator.handlePrepareResponse(PARTICIPANT3, true);
+        Assert.assertTrue(coordinator.failCalled);
         Assert.assertFalse(coordinator.setRepairingCalled);
         Assert.assertFalse(repairSubmitted.get());
 
-        // all participants should have been notified of session failure
-        for (InetAddressAndPort participant : PARTICIPANTS)
-        {
-            RepairMessage expected = new FailSession(coordinator.sessionID);
-            assertMessageSent(coordinator, participant, expected);
-        }
+        // all participants that did not fail should have been notified of session failure
+        RepairMessage expected = new FailSession(coordinator.sessionID);
+        assertMessageSent(coordinator, PARTICIPANT1, expected);
+        assertMessageSent(coordinator, PARTICIPANT3, expected);
+        Assert.assertFalse(coordinator.sentMessages.containsKey(PARTICIPANT2));
 
         Assert.assertTrue(sessionResult.isDone());
         Assert.assertTrue(hasFailures.get());
