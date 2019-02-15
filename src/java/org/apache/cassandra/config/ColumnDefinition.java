@@ -141,6 +141,11 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
         return new ColumnDefinition(cfm, name, type, NO_POSITION, Kind.STATIC);
     }
 
+    public static ColumnDefinition staticDef(String ksName, String cfName, String name, AbstractType<?> type)
+    {
+        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.STATIC);
+    }
+
     public ColumnDefinition(CFMetaData cfm, ByteBuffer name, AbstractType<?> type, int position, Kind kind)
     {
         this(cfm.ksName,
