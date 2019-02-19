@@ -31,9 +31,9 @@ import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.RawSelector;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.statements.StatementType;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.*;
@@ -98,7 +98,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
 
     public Keyspaces apply(Keyspaces schema)
     {
-        if (!DatabaseDescriptor.enableMaterializedViews())
+        if (!DatabaseDescriptor.getEnableMaterializedViews())
             throw ire("Materialized views are disabled. Enable in cassandra.yaml to use.");
 
         /*
@@ -337,7 +337,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
     @Override
     Set<String> clientWarnings(KeyspacesDiff diff)
     {
-        return ImmutableSet.of("Materialized views are experimental and are not recommended for production use.");
+        return ImmutableSet.of(View.USAGE_WARNING);
     }
 
     @Override

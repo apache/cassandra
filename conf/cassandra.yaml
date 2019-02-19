@@ -1075,14 +1075,6 @@ enable_user_defined_functions: false
 # This option has no effect, if enable_user_defined_functions is false.
 enable_scripted_user_defined_functions: false
 
-# Enables materialized view creation on this node.
-# Materialized views are considered experimental and are not recommended for production use.
-enable_materialized_views: true
-
-# Enables creation of transiently replicated keyspaces on this node.
-# Transient replication is experimental and is not recommended for production use.
-#enable_transient_replication: true
-
 # The default Windows kernel timer and scheduling resolution is 15.6ms for power conservation.
 # Lowering this value on Windows can provide much tighter latency and better throughput, however
 # some virtualized environments may see a negative performance impact from changing this setting
@@ -1299,3 +1291,18 @@ repaired_data_tracking_for_partition_reads_enabled: false
 # mismatches are less actionable than confirmed ones.
 report_unconfirmed_repaired_data_mismatches: false
 
+#########################
+# EXPERIMENTAL FEATURES #
+#########################
+
+# Enables materialized view creation on this node.
+# Materialized views are considered experimental and are not recommended for production use.
+enable_materialized_views: false
+
+# Enables SASI index creation on this node.
+# SASI indexes are considered experimental and are not recommended for production use.
+enable_sasi_indexes: false
+
+# Enables creation of transiently replicated keyspaces on this node.
+# Transient replication is experimental and is not recommended for production use.
+enable_transient_replication: false

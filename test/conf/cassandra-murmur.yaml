@@ -40,3 +40,5 @@ row_cache_class_name: org.apache.cassandra.cache.OHCProvider
 row_cache_size_in_mb: 16
 enable_user_defined_functions: true
 enable_scripted_user_defined_functions: true
+enable_sasi_indexes: true
+enable_materialized_views: true
