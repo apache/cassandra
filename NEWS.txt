@@ -210,7 +210,11 @@ Upgrading
       See CASSANDRA-14358 for details.
 	- repair_session_space_in_mb setting has been added to cassandra.yaml to allow operators to reduce
 	  merkle tree size if repair is creating too much heap pressure. The repair_session_max_tree_depth
-	  setting added in 3.0.19 and 3.11.5 is deprecated in favor of this setting. See CASSANDRA-14096 
+	  setting added in 3.0.19 and 3.11.5 is deprecated in favor of this setting. See CASSANDRA-14096
+    - The flags 'enable_materialized_views' and 'enable_sasi_indexes' in cassandra.yaml
+      have been set as false by default. Operators should modify them to allow the
+      creation of new views and SASI indexes, the existing ones will continue working.
+      See CASSANDRA-14866 for details.
 
 Materialized Views
 -------------------
@@ -222,6 +226,17 @@ Materialized Views
    - CREATE MATERIALIZED VIEW syntax has become stricter. Partition key columns are no longer implicitly considered
      to be NOT NULL, and no base primary key columns get automatically included in view definition. You have to
      specify them explicitly now.
+
+3.11.5
+======
+
+Experimental features
+---------------------
+    - An 'enable_sasi_indexes' flag, true by default, has been added to cassandra.yaml to allow operators to prevent
+      the creation of new SASI indexes, which are considered experimental and are not recommended for production use.
+      (See https://www.mail-archive.com/dev@cassandra.apache.org/msg13582.html)
+    - The flags 'enable_sasi_indexes' and 'enable_materialized_views' have been grouped under an experimental features
+      section in cassandra.yaml.
 
 3.11.4
 ======

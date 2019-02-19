@@ -62,6 +62,8 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class SASIIndex implements Index, INotificationConsumer
 {
+    public final static String USAGE_WARNING = "SASI indexes are experimental and are not recommended for production use.";
+
     private static class SASIIndexBuildingSupport implements IndexBuildingSupport
     {
         public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs,

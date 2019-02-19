@@ -349,6 +349,7 @@
 
 
 3.11.5
+ * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
  * Improve `nodetool status -r` speed (CASSANDRA-14847)
  * Improve merkle tree size and time on heap (CASSANDRA-14096)
@@ -390,7 +391,7 @@ Merged from 3.0:
  * Fix static column order for SELECT * wildcard queries (CASSANDRA-14638)
  * sstableloader should use discovered broadcast address to connect intra-cluster (CASSANDRA-14522)
  * Fix reading columns with non-UTF names from schema (CASSANDRA-14468)
- Merged from 2.2:
+Merged from 2.2:
  * CircleCI docker image should bake in more dependencies (CASSANDRA-14985)
  * MigrationManager attempts to pull schema from different major version nodes (CASSANDRA-14928)
  * Returns null instead of NaN or Infinity in JSON strings (CASSANDRA-14377)
