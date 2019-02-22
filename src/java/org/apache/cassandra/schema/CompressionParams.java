@@ -179,6 +179,16 @@ public final class CompressionParams
         return new CompressionParams(LZ4Compressor.create(Collections.emptyMap()), chunkLength, maxCompressedLength, calcMinCompressRatio(chunkLength, maxCompressedLength), Collections.emptyMap());
     }
 
+    public static CompressionParams zstd()
+    {
+        return zstd(null);
+    }
+
+    public static CompressionParams zstd(Integer chunkLength)
+    {
+        return new CompressionParams(ZSTDCompressor.create(Collections.emptyMap()), chunkLength, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
+    }
+
     public CompressionParams(String sstableCompressorClass, Map<String, String> otherOptions, int chunkLength, double minCompressRatio) throws ConfigurationException
     {
         this(createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, otherOptions);
