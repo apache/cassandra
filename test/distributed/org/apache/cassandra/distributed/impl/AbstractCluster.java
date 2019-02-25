@@ -30,6 +30,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -143,13 +146,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
 
         @Override
-        public synchronized void shutdown()
+        public synchronized Future<Void> shutdown()
         {
             if (isShutdown)
                 throw new IllegalStateException();
             isShutdown = true;
-            delegate.shutdown();
+            Future<Void> future = delegate.shutdown();
             delegate = null;
+            return future;
         }
 
         @Override
@@ -238,12 +242,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     public void schemaChange(String query)
     {
-        try (SchemaChangeMonitor monitor = new SchemaChangeMonitor())
-        {
-            // execute the schema change
-            coordinator(1).execute(query, ConsistencyLevel.ALL);
-            monitor.waitForAgreement();
-        }
+        get(1).sync(() -> {
+            try (SchemaChangeMonitor monitor = new SchemaChangeMonitor())
+            {
+                // execute the schema change
+                coordinator(1).execute(query, ConsistencyLevel.ALL);
+                monitor.waitForAgreement();
+            }
+        }).run();
     }
 
     /**
@@ -375,13 +381,17 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
     @Override
     public void close()
     {
-        parallelForEach(IInstance::shutdown, 1L, TimeUnit.MINUTES);
+        FBUtilities.waitOnFutures(instances.stream()
+                                           .map(IInstance::shutdown)
+                                           .collect(Collectors.toList()),
+                                  1L, TimeUnit.MINUTES);
 
+        instances.clear();
+        instanceMap.clear();
         // Make sure to only delete directory when threads are stopped
         FileUtils.deleteRecursive(root);
 
         //withThreadLeakCheck(futures);
-        System.gc();
     }
 
     // We do not want this check to run every time until we fix problems with tread stops

@@ -92,9 +92,9 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     }
 
     @Override
-    public void shutdown()
+    public Future<Void> shutdown()
     {
-        delegate().shutdown();
+        return delegate().shutdown();
     }
 
     @Override
