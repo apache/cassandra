@@ -22,6 +22,9 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractIterator;
 
@@ -51,6 +54,20 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     public static UntypedResultSet create(SelectStatement select, QueryPager pager, int pageSize)
     {
         return new FromPager(select, pager, pageSize);
+    }
+
+    /**
+     * This method is intended for testing purposes, since it executes query on cluster
+     * and not on the local node only.
+     */
+    @VisibleForTesting
+    public static UntypedResultSet create(SelectStatement select,
+                                          ConsistencyLevel cl,
+                                          ClientState clientState,
+                                          QueryPager pager,
+                                          int pageSize)
+    {
+        return new FromDistributedPager(select, cl, clientState, pager, pageSize);
     }
 
     public boolean isEmpty()
@@ -103,6 +120,71 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         public List<ColumnSpecification> metadata()
         {
             return cqlRows.metadata.requestNames();
+        }
+    }
+
+    /**
+     * Pager that calls `execute` rather than `executeInternal`
+     */
+    private static class FromDistributedPager extends UntypedResultSet
+    {
+        private final SelectStatement select;
+        private final ConsistencyLevel cl;
+        private final ClientState clientState;
+        private final QueryPager pager;
+        private final int pageSize;
+        private final List<ColumnSpecification> metadata;
+
+        private FromDistributedPager(SelectStatement select,
+                                     ConsistencyLevel cl,
+                                     ClientState clientState,
+                                     QueryPager pager, int pageSize)
+        {
+            this.select = select;
+            this.cl = cl;
+            this.clientState = clientState;
+            this.pager = pager;
+            this.pageSize = pageSize;
+            this.metadata = select.getResultMetadata().requestNames();
+        }
+
+        public int size()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public Row one()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public Iterator<Row> iterator()
+        {
+            return new AbstractIterator<Row>()
+            {
+                private Iterator<List<ByteBuffer>> currentPage;
+
+                protected Row computeNext()
+                {
+                    int nowInSec = FBUtilities.nowInSeconds();
+                    while (currentPage == null || !currentPage.hasNext())
+                    {
+                        if (pager.isExhausted())
+                            return endOfData();
+
+                        try (PartitionIterator iter = pager.fetchPage(pageSize, cl, clientState, System.nanoTime()))
+                        {
+                            currentPage = select.process(iter, nowInSec).rows.iterator();
+                        }
+                    }
+                    return new Row(metadata, currentPage.next());
+                }
+            };
+        }
+
+        public List<ColumnSpecification> metadata()
+        {
+            return metadata;
         }
     }
 
