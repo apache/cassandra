@@ -65,6 +65,7 @@
     <property name="test.burn.src" value="${test.dir}/burn"/>
     <property name="test.microbench.src" value="${test.dir}/microbench"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
+    <property name="test.distributed.listfile" value="ant-jvm-dtest-list"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
 
@@ -98,7 +99,7 @@
     <property name="test.timeout" value="240000" />
     <property name="test.long.timeout" value="600000" />
     <property name="test.burn.timeout" value="60000000" />
-    <property name="test.distributed.timeout" value="600000" />
+    <property name="test.distributed.timeout" value="360000" />
 
     <!-- default for cql tests. Can be override by -Dcassandra.test.use_prepared=false -->
     <property name="cassandra.test.use_prepared" value="true" />
@@ -1169,15 +1170,6 @@
     </copy>
   </target>
 
-  <target name="dtest-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
-      <jar jarfile="${build.dir}/dtest-${base.version}.jar">
-          <zipgroupfileset dir="${build.lib}" includes="*.jar" excludes="META-INF/*.SF"/>
-          <fileset dir="${build.classes.main}"/>
-          <fileset dir="${test.classes}"/>
-          <fileset dir="${test.conf}" />
-      </jar>
-  </target>
-
   <!-- Defines how to run a set of tests. If you change the defaults for attributes
        you should also update them in testmacro.,
        The two are split because the helper doesn't generate
@@ -1194,6 +1186,7 @@
     <attribute name="poffset" default="0"/>
     <attribute name="testtag" default=""/>
     <attribute name="usejacoco" default="no"/>
+    <attribute name="showoutput" default="false"/>
 
     <sequential>
       <condition property="additionalagent"
@@ -1206,7 +1199,7 @@
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
-      <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}">
+      <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}" showoutput="@{showoutput}">
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1365,7 +1358,7 @@
   -->
   <target name="testsome" depends="build-test" description="Execute specific unit tests" >
     <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
-      <test name="${test.name}" methods="${test.methods}"/>
+      <test name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
@@ -1607,6 +1600,7 @@
     <attribute name="inputdir" />
     <attribute name="timeout" default="${test.timeout}" />
     <attribute name="forkmode" default="perTest"/>
+    <attribute name="showoutput" default="true"/>
     <element name="optjvmargs" implicit="true" optional="true" />
     <attribute name="filter" default="**/${test.name}.java"/>
     <attribute name="exclude" default="" />
@@ -1618,7 +1612,7 @@
       <testmacrohelper inputdir="@{inputdir}" timeout="@{timeout}"
                        forkmode="@{forkmode}" filter="@{filter}"
                        exclude="@{exclude}" filelist="@{filelist}" poffset="@{poffset}"
-                       testtag="@{testtag}" >
+                       testtag="@{testtag}" showoutput="false" >
           <optjvmargs/>
       </testmacrohelper>
       <junitreport todir="${build.test.dir}">
@@ -1762,6 +1756,46 @@
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testparallel testdelegate="testlist"/>
+  </target>
+
+  <!-- In-JVM dtest targets -->
+  <target name="list-jvm-dtests" depends="build-test">
+    <java classname="org.apache.cassandra.distributed.test.TestLocator" fork="no">
+          <classpath>
+              <path refid="cassandra.classpath" />
+              <pathelement location="${test.classes}"/>
+              <pathelement location="${test.conf}"/>
+              <fileset dir="${test.lib}">
+                  <include name="**/*.jar" />
+              </fileset>
+          </classpath>
+        <arg value="${test.distributed.listfile}"/>
+    </java>
+  </target>
+
+  <target name="test-jvm-dtest-forking" depends="list-jvm-dtests" description="Execute In-JVM 'distributed' tests" >
+    <chmod file="${test.distributed.listfile}" perm="+x"/>
+    <exec executable="./${test.distributed.listfile}" failonerror="true"/>
+    <delete file="${test.distributed.listfile}"/>
+  </target>
+
+  <target name="dtest-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
+      <jar jarfile="${build.dir}/dtest-${base.version}.jar">
+          <zipgroupfileset dir="${build.lib}" includes="*.jar" excludes="META-INF/*.SF"/>
+          <fileset dir="${build.classes.main}"/>
+          <fileset dir="${test.classes}"/>
+          <fileset dir="${test.conf}" />
+      </jar>
+  </target>
+
+  <target name="test-jvm-dtest" depends="build-test" description="Execute unit tests">
+    <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true" filter="**/test/*Test.java">
+      <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
+      <jvmarg value="-Dcassandra.skip_sync=true" />
+    </testmacro>
   </target>
 
   <!-- run microbenchmarks suite -->
