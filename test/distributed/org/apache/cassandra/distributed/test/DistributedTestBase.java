@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 
 import com.google.common.collect.Iterators;
 import org.junit.After;
@@ -64,9 +67,35 @@ public class DistributedTestBase
         }
     }
 
-    public static String rowsNotEqualErrorMessage(Object[][] actual, Object[][] expected)
+    public static void assertRow(Object[] actual, Object... expected)
+    {
+        Assert.assertTrue(rowNotEqualErrorMessage(actual, expected),
+                          Arrays.equals(actual, expected));
+    }
+
+    public static void assertRows(Iterator<Object[]> actual, Iterator<Object[]> expected)
+    {
+        while (actual.hasNext() && expected.hasNext())
+            assertRow(actual.next(), expected.next());
+
+        Assert.assertEquals("Resultsets have different sizes", actual.hasNext(), expected.hasNext());
+    }
+
+    public static void assertRows(Iterator<Object[]> actual, Object[]... expected)
+    {
+        assertRows(actual, Iterators.forArray(expected));
+    }
+
+    public static String rowNotEqualErrorMessage(Object[] actual, Object[] expected)
     {
         return String.format("Expected: %s\nActual:%s\n",
+                             Arrays.toString(expected),
+                             Arrays.toString(actual));
+    }
+
+    public static String rowsNotEqualErrorMessage(Object[][] actual, Object[][] expected)
+    {
+        return String.format("Expected: %s\nActual: %s\n",
                              rowsToString(expected),
                              rowsToString(actual));
     }
@@ -86,6 +115,15 @@ public class DistributedTestBase
         }
         builder.append("]");
         return builder.toString();
+    }
+
+    public static Object[][] toObjectArray(Iterator<Object[]> iter)
+    {
+        List<Object[]> res = new ArrayList<>();
+        while (iter.hasNext())
+            res.add(iter.next());
+
+        return res.toArray(new Object[res.size()][]);
     }
 
     public static Object[] row(Object... expected)
