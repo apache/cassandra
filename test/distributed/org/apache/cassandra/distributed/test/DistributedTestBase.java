@@ -20,6 +20,8 @@ package org.apache.cassandra.distributed.test;
 
 import java.util.Arrays;
 
+import com.google.common.collect.Iterators;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
@@ -27,6 +29,13 @@ import org.apache.cassandra.distributed.impl.AbstractCluster;
 
 public class DistributedTestBase
 {
+    @After
+    public void afterEach()
+    {
+        System.runFinalization();
+        System.gc();
+    }
+
     public static String KEYSPACE = "distributed_test_keyspace";
 
     @BeforeClass
