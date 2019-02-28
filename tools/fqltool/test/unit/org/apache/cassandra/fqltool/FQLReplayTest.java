@@ -52,10 +52,12 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.fqltool.QueryReplayer.ParsedTargetHost.fromString;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class FQLReplayTest
@@ -542,6 +544,46 @@ public class FQLReplayTest
         assertEquals(12345, batchStmt.getDefaultTimestamp());
         for (int i = 0; i < statements.size(); i++)
             compareStatements(statements.get(i), fromFQLQueries.get(i));
+    }
+
+    @Test
+    public void testParser() {
+        QueryReplayer.ParsedTargetHost pth;
+        pth = fromString("127.0.0.1");
+        assertEquals("127.0.0.1", pth.host);
+        assertEquals(9042, pth.port );
+        assertNull(pth.user);
+        assertNull(pth.password);
+
+        pth = fromString("127.0.0.1:3333");
+        assertEquals("127.0.0.1", pth.host);
+        assertEquals(3333, pth.port );
+        assertNull(pth.user);
+        assertNull(pth.password);
+
+        pth = fromString("aaa:bbb@127.0.0.1:3333");
+        assertEquals("127.0.0.1", pth.host);
+        assertEquals(3333, pth.port );
+        assertEquals("aaa", pth.user);
+        assertEquals("bbb", pth.password);
+
+        pth = fromString("aaa:bbb@127.0.0.1");
+        assertEquals("127.0.0.1", pth.host);
+        assertEquals(9042, pth.port );
+        assertEquals("aaa", pth.user);
+        assertEquals("bbb", pth.password);
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testNoPass()
+    {
+        fromString("blabla@abc.com:1234");
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testBadPort()
+    {
+        fromString("aaa:bbb@abc.com:xyz");
     }
 
     private void compareStatements(Statement statement1, Statement statement2)

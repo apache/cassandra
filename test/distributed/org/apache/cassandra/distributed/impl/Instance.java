@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -52,7 +53,6 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ICoordinator;
-import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
@@ -355,9 +355,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     }
 
     @Override
-    public void shutdown()
+    public Future<Void> shutdown()
     {
-        sync((ExecutorService executor) -> {
+        Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
             error = parallelRun(error, executor,
                     Gossiper.instance::stop,
@@ -385,11 +385,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 StageManager::shutdownAndWait,
                                 SharedExecutorPool.SHARED::shutdown
             );
+
             LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
             loggerContext.stop();
-            super.shutdown();
             Throwables.maybeFail(error);
-        }).accept(isolatedExecutor);
+        }).apply(isolatedExecutor);
+
+        return CompletableFuture.runAsync(ThrowingRunnable.toRunnable(future::get), isolatedExecutor)
+                                .thenRun(super::shutdown);
     }
 
     private static void shutdownAndWait(ExecutorService executor)
@@ -437,10 +440,5 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             }
         }
         return accumulate;
-    }
-
-    public static interface ThrowingRunnable
-    {
-        public void run() throws Throwable;
     }
 }

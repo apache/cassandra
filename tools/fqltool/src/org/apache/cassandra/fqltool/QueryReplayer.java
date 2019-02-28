@@ -21,22 +21,23 @@ package org.apache.cassandra.fqltool;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-//import javax.annotation.Nullable;
-
-import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
@@ -48,33 +49,51 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class QueryReplayer implements Closeable
 {
+    private static final Logger logger = LoggerFactory.getLogger(QueryReplayer.class);
     private static final int PRINT_RATE = 5000;
     private final ExecutorService es = Executors.newFixedThreadPool(1);
     private final Iterator<List<FQLQuery>> queryIterator;
-    private final List<Cluster> targetClusters;
     private final List<Predicate<FQLQuery>> filters;
     private final List<Session> sessions;
     private final ResultHandler resultHandler;
     private final MetricRegistry metrics = new MetricRegistry();
-    private final boolean debug;
-    private final PrintStream out;
+    private final SessionProvider sessionProvider;
 
+    /**
+     * @param queryIterator the queries to be replayed
+     * @param targetHosts hosts to connect to, in the format "<user>:<password>@<host>:<port>" where only <host> is mandatory, port defaults to 9042
+     * @param resultPaths where to write the results of the queries, for later comparisons, size should be the same as the number of iterators
+     * @param filters query filters
+     * @param queryFilePathString where to store the queries executed
+     */
     public QueryReplayer(Iterator<List<FQLQuery>> queryIterator,
                          List<String> targetHosts,
                          List<File> resultPaths,
                          List<Predicate<FQLQuery>> filters,
-                         PrintStream out,
-                         String queryFilePathString,
-                         boolean debug)
+                         String queryFilePathString)
     {
+        this(queryIterator, targetHosts, resultPaths, filters, queryFilePathString, new DefaultSessionProvider(), null);
+    }
+
+    /**
+     * Constructor public to allow external users to build their own session provider
+     *
+     * sessionProvider takes the hosts in targetHosts and creates one session per entry
+     */
+    public QueryReplayer(Iterator<List<FQLQuery>> queryIterator,
+                         List<String> targetHosts,
+                         List<File> resultPaths,
+                         List<Predicate<FQLQuery>> filters,
+                         String queryFilePathString,
+                         SessionProvider sessionProvider,
+                         MismatchListener mismatchListener)
+    {
+        this.sessionProvider = sessionProvider;
         this.queryIterator = queryIterator;
-        targetClusters = targetHosts.stream().map(h -> Cluster.builder().addContactPoint(h).build()).collect(Collectors.toList());
         this.filters = filters;
-        sessions = targetClusters.stream().map(Cluster::connect).collect(Collectors.toList());
+        sessions = targetHosts.stream().map(sessionProvider::connect).collect(Collectors.toList());
         File queryFilePath = queryFilePathString != null ? new File(queryFilePathString) : null;
-        resultHandler = new ResultHandler(targetHosts, resultPaths, queryFilePath);
-        this.debug = debug;
-        this.out = out;
+        resultHandler = new ResultHandler(targetHosts, resultPaths, queryFilePath, mismatchListener);
     }
 
     public void replay()
@@ -93,11 +112,8 @@ public class QueryReplayer implements Closeable
                     for (Session session : sessions)
                     {
                         maybeSetKeyspace(session, query);
-                        if (debug)
-                        {
-                            out.println("Executing query:");
-                            out.println(query);
-                        }
+                        if (logger.isDebugEnabled())
+                            logger.debug("Executing query: {}", query);
                         ListenableFuture<ResultSet> future = session.executeAsync(statement);
                         results.add(handleErrors(future));
                     }
@@ -106,7 +122,7 @@ public class QueryReplayer implements Closeable
 
                     Futures.addCallback(resultList, new FutureCallback<List<ResultHandler.ComparableResultSet>>()
                     {
-                        public void onSuccess(/*@Nullable */List<ResultHandler.ComparableResultSet> resultSets)
+                        public void onSuccess(List<ResultHandler.ComparableResultSet> resultSets)
                         {
                             // note that the order of resultSets is signifcant here - resultSets.get(x) should
                             // be the result from a query against targetHosts.get(x)
@@ -123,12 +139,12 @@ public class QueryReplayer implements Closeable
                 }
                 catch (Throwable t)
                 {
-                    out.printf("QUERY %s got exception: %s", query, t.getMessage());
+                    logger.error("QUERY %s got exception: %s", query, t.getMessage());
                 }
 
                 Timer timer = metrics.timer("queries");
                 if (timer.getCount() % PRINT_RATE == 0)
-                    out.printf("%d queries, rate = %.2f%n", timer.getCount(), timer.getOneMinuteRate());
+                    logger.info(String.format("%d queries, rate = %.2f", timer.getCount(), timer.getOneMinuteRate()));
             }
         }
     }
@@ -139,14 +155,14 @@ public class QueryReplayer implements Closeable
         {
             if (query.keyspace() != null && !query.keyspace().equals(session.getLoggedKeyspace()))
             {
-                if (debug)
-                    out.printf("Switching keyspace from %s to %s%n", session.getLoggedKeyspace(), query.keyspace());
+                if (logger.isDebugEnabled())
+                    logger.debug("Switching keyspace from {} to {}", session.getLoggedKeyspace(), query.keyspace());
                 session.execute("USE " + query.keyspace());
             }
         }
         catch (Throwable t)
         {
-            out.printf("USE %s failed: %s%n", query.keyspace(), t.getMessage());
+            logger.error("USE {} failed: {}", query.keyspace(), t.getMessage());
         }
     }
 
@@ -158,15 +174,101 @@ public class QueryReplayer implements Closeable
      */
     private static ListenableFuture<ResultHandler.ComparableResultSet> handleErrors(ListenableFuture<ResultSet> result)
     {
-        FluentFuture<ResultHandler.ComparableResultSet> fluentFuture = FluentFuture.from(result)
-                                                                                   .transform(DriverResultSet::new, MoreExecutors.directExecutor());
-        return fluentFuture.catching(Throwable.class, DriverResultSet::failed, MoreExecutors.directExecutor());
+        ListenableFuture<ResultHandler.ComparableResultSet> res = Futures.transform(result, DriverResultSet::new, MoreExecutors.directExecutor());
+        return Futures.catching(res, Throwable.class, DriverResultSet::failed, MoreExecutors.directExecutor());
     }
 
     public void close() throws IOException
     {
-        sessions.forEach(Session::close);
-        targetClusters.forEach(Cluster::close);
+        es.shutdown();
+        sessionProvider.close();
         resultHandler.close();
+    }
+
+    static class ParsedTargetHost
+    {
+        final int port;
+        final String user;
+        final String password;
+        final String host;
+
+        ParsedTargetHost(String host, int port, String user, String password)
+        {
+            this.host = host;
+            this.port = port;
+            this.user = user;
+            this.password = password;
+        }
+
+        static ParsedTargetHost fromString(String s)
+        {
+            String [] userInfoHostPort = s.split("@");
+
+            String hostPort = null;
+            String user = null;
+            String password = null;
+            if (userInfoHostPort.length == 2)
+            {
+                String [] userPassword = userInfoHostPort[0].split(":");
+                if (userPassword.length != 2)
+                    throw new RuntimeException("Username provided but no password");
+                hostPort = userInfoHostPort[1];
+                user = userPassword[0];
+                password = userPassword[1];
+            }
+            else if (userInfoHostPort.length == 1)
+                hostPort = userInfoHostPort[0];
+            else
+                throw new RuntimeException("Malformed target host: "+s);
+
+            String[] splitHostPort = hostPort.split(":");
+            int port = 9042;
+            if (splitHostPort.length == 2)
+                port = Integer.parseInt(splitHostPort[1]);
+
+            return new ParsedTargetHost(splitHostPort[0], port, user, password);
+        }
+    }
+
+    public static interface SessionProvider extends Closeable
+    {
+        Session connect(String connectionString);
+        void close();
+    }
+
+    private static final class DefaultSessionProvider implements SessionProvider
+    {
+        private final static Map<String, Session> sessionCache = new HashMap<>();
+
+        public synchronized Session connect(String connectionString)
+        {
+            if (sessionCache.containsKey(connectionString))
+                return sessionCache.get(connectionString);
+            Cluster.Builder builder = Cluster.builder();
+            ParsedTargetHost pth = ParsedTargetHost.fromString(connectionString);
+            builder.addContactPoint(pth.host);
+            builder.withPort(pth.port);
+            if (pth.user != null)
+                builder.withCredentials(pth.user, pth.password);
+            Cluster c = builder.build();
+            sessionCache.put(connectionString, c.connect());
+            return sessionCache.get(connectionString);
+        }
+
+        public void close()
+        {
+            for (Session s : sessionCache.values())
+            {
+                try
+                {
+                    s.close();
+                    s.getCluster().close();
+                }
+                catch (Throwable t)
+                {
+                    logger.error("Could not close connection", t);
+                }
+            }
+        }
     }
 }

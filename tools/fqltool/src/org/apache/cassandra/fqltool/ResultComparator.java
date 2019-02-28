@@ -21,12 +21,25 @@ package org.apache.cassandra.fqltool;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
-import com.google.common.collect.Streams;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ResultComparator
 {
+    private static final Logger logger = LoggerFactory.getLogger(ResultComparator.class);
+    private final MismatchListener mismatchListener;
+
+    public ResultComparator()
+    {
+        this(null);
+    }
+
+    public ResultComparator(MismatchListener mismatchListener)
+    {
+        this.mismatchListener = mismatchListener;
+    }
     /**
      * Compares the rows in rows
      * the row at position x in rows will have come from host at position x in targetHosts
@@ -80,18 +93,46 @@ public class ResultComparator
 
     private void handleMismatch(List<String> targetHosts, FQLQuery query, List<ResultHandler.ComparableRow> rows)
     {
-        System.out.println("MISMATCH:");
-        System.out.println("Query = " + query);
-        System.out.println("Results:");
-        System.out.println(Streams.zip(rows.stream(), targetHosts.stream(), (r, host) -> String.format("%s: %s%n", host, r == null ? "null" : r)).collect(Collectors.joining()));
+        UUID mismatchUUID = UUID.randomUUID();
+        StringBuilder sb = new StringBuilder("{} - MISMATCH Query = {} ");
+        for (int i = 0; i < targetHosts.size(); i++)
+            sb.append("mismatch").append(i)
+              .append('=')
+              .append('"').append(targetHosts.get(i)).append(':').append(rows.get(i)).append('"')
+              .append(',');
+
+        logger.warn(sb.toString(), mismatchUUID, query);
+        try
+        {
+            if (mismatchListener != null)
+                mismatchListener.mismatch(mismatchUUID, targetHosts, query, rows);
+        }
+        catch (Throwable t)
+        {
+            logger.error("ERROR notifying listener", t);
+        }
     }
 
     private void handleColumnDefMismatch(List<String> targetHosts, FQLQuery query, List<ResultHandler.ComparableColumnDefinitions> cds)
     {
-        System.out.println("COLUMN DEFINITION MISMATCH:");
-        System.out.println("Query = " + query);
-        System.out.println("Results: ");
-        System.out.println(Streams.zip(cds.stream(), targetHosts.stream(), (cd, host) -> String.format("%s: %s%n", host, columnDefinitionsString(cd))).collect(Collectors.joining()));
+        UUID mismatchUUID = UUID.randomUUID();
+        StringBuilder sb = new StringBuilder("{} - COLUMN DEFINITION MISMATCH Query = {} ");
+        for (int i = 0; i < targetHosts.size(); i++)
+            sb.append("mismatch").append(i)
+              .append('=')
+              .append('"').append(targetHosts.get(i)).append(':').append(columnDefinitionsString(cds.get(i))).append('"')
+              .append(',');
+
+        logger.warn(sb.toString(), mismatchUUID, query);
+        try
+        {
+            if (mismatchListener != null)
+                mismatchListener.columnDefMismatch(mismatchUUID, targetHosts, query, cds);
+        }
+        catch (Throwable t)
+        {
+            logger.error("ERROR notifying listener", t);
+        }
     }
 
     private String columnDefinitionsString(ResultHandler.ComparableColumnDefinitions cd)
@@ -110,7 +151,4 @@ public class ResultComparator
         }
         return sb.toString();
     }
-
-
-
 }

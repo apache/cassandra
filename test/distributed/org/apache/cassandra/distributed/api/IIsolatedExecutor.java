@@ -20,7 +20,6 @@ package org.apache.cassandra.distributed.api;
 
 import java.io.Serializable;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -52,7 +51,7 @@ public interface IIsolatedExecutor
     }
     public interface SerializableTriFunction<I1, I2, I3, O> extends Serializable, TriFunction<I1, I2, I3, O> { }
 
-    void shutdown();
+    Future<Void> shutdown();
 
     /**
      * Convert the execution to one performed asynchronously on the IsolatedExecutor, returning a Future of the execution result

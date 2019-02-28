@@ -1,4 +1,9 @@
 4.0
+ * Add Zstd compressor (CASSANDRA-14482)
+ * Fix IR prepare anti-compaction race (CASSANDRA-15027)
+ * Fix SimpleStrategy option validation (CASSANDRA-15007)
+ * Don't try to cancel 2i compactions when starting anticompaction (CASSANDRA-15024)
+ * Avoid NPE in RepairRunnable.recordFailure (CASSANDRA-15025)
  * SSL Cert Hot Reloading should check for sanity of the new keystore/truststore before loading it (CASSANDRA-14991)
  * Avoid leaking threads when failing anticompactions and rate limit anticompactions (CASSANDRA-15002)
  * Validate token() arguments early instead of throwing NPE at execution (CASSANDRA-14989)
@@ -346,6 +351,10 @@
 
 
 3.11.5
+ * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
+Merged from 3.0:
+ * Improve `nodetool status -r` speed (CASSANDRA-14847)
+ * Improve merkle tree size and time on heap (CASSANDRA-14096)
  * Add missing commands to nodetool_completion (CASSANDRA-14916)
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
 
@@ -384,7 +393,7 @@ Merged from 3.0:
  * Fix static column order for SELECT * wildcard queries (CASSANDRA-14638)
  * sstableloader should use discovered broadcast address to connect intra-cluster (CASSANDRA-14522)
  * Fix reading columns with non-UTF names from schema (CASSANDRA-14468)
- Merged from 2.2:
+Merged from 2.2:
  * CircleCI docker image should bake in more dependencies (CASSANDRA-14985)
  * MigrationManager attempts to pull schema from different major version nodes (CASSANDRA-14928)
  * Returns null instead of NaN or Infinity in JSON strings (CASSANDRA-14377)

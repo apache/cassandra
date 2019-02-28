@@ -28,7 +28,11 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import org.junit.Assert;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.service.ClientWarn;
 
 public class SASICQLTest extends CQLTester
 {
@@ -76,6 +80,51 @@ public class SASICQLTest extends CQLTester
             stmt.setFetchSize(5);
             List<Row> rs = session.execute(stmt).all();
             Assert.assertEquals(20, rs.size());
+        }
+    }
+
+    /**
+     * Tests that a client warning is issued on SASI index creation.
+     */
+    @Test
+    public void testClientWarningOnCreate()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        ClientWarn.instance.captureWarnings();
+        createIndex("CREATE CUSTOM INDEX ON %s (v) USING 'org.apache.cassandra.index.sasi.SASIIndex'");
+        List<String> warnings = ClientWarn.instance.getWarnings();
+
+        Assert.assertNotNull(warnings);
+        Assert.assertEquals(1, warnings.size());
+        Assert.assertEquals(SASIIndex.USAGE_WARNING, warnings.get(0));
+    }
+
+    /**
+     * Tests the configuration flag to disable SASI indexes.
+     */
+    @Test
+    public void testDisableSASIIndexes()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        boolean enableSASIIndexes = DatabaseDescriptor.getEnableSASIIndexes();
+        try
+        {
+            DatabaseDescriptor.setEnableSASIIndexes(false);
+            createIndex("CREATE CUSTOM INDEX ON %s (v) USING 'org.apache.cassandra.index.sasi.SASIIndex'");
+            Assert.fail("Should not be able to create a SASI index if they are disabled");
+        }
+        catch (RuntimeException e)
+        {
+            Throwable cause = e.getCause();
+            Assert.assertNotNull(cause);
+            Assert.assertTrue(cause instanceof InvalidRequestException);
+            Assert.assertTrue(cause.getMessage().contains("SASI indexes are disabled"));
+        }
+        finally
+        {
+            DatabaseDescriptor.setEnableSASIIndexes(enableSASIIndexes);
         }
     }
 }

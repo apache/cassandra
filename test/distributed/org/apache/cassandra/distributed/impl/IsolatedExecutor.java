@@ -26,10 +26,13 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URLClassLoader;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -37,7 +40,6 @@ import java.util.function.Function;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
-import org.apache.cassandra.utils.Throwables;
 
 public class IsolatedExecutor implements IIsolatedExecutor
 {
@@ -52,9 +54,12 @@ public class IsolatedExecutor implements IIsolatedExecutor
         this.deserializeOnInstance = lookupDeserializeOneObject(classLoader);
     }
 
-    public void shutdown()
+    public Future<Void> shutdown()
     {
         isolatedExecutor.shutdown();
+        ThrowingRunnable.toRunnable(((URLClassLoader) classLoader)::close).run();
+        return CompletableFuture.runAsync(ThrowingRunnable.toRunnable(() -> isolatedExecutor.awaitTermination(60, TimeUnit.SECONDS)),
+                                          Executors.newSingleThreadExecutor());
     }
 
     public <O> CallableNoExcept<Future<O>> async(CallableNoExcept<O> call) { return () -> isolatedExecutor.submit(call); }
@@ -162,4 +167,22 @@ public class IsolatedExecutor implements IIsolatedExecutor
         }
     }
 
+    public interface ThrowingRunnable
+    {
+        public void run() throws Throwable;
+
+        public static Runnable toRunnable(ThrowingRunnable runnable)
+        {
+            return () -> {
+                try
+                {
+                    runnable.run();
+                }
+                catch (Throwable throwable)
+                {
+                    throw new RuntimeException(throwable);
+                }
+            };
+        }
+    }
 }
