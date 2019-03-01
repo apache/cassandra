@@ -27,7 +27,6 @@ import java.util.*;
 import java.util.concurrent.*;
 
 import com.google.common.collect.Sets;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -40,6 +39,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.IPartitioner;
@@ -55,8 +56,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FilterFactory;
-import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -760,5 +761,23 @@ public class SSTableReaderTest
         }
         cfs.forceBlockingFlush();
         return Sets.difference(cfs.getLiveSSTables(), before).iterator().next();
+    }
+
+    @Test
+    public void testGetApproximateKeyCount() throws InterruptedException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
+        cfs.discardSSTables(System.currentTimeMillis()); //Cleaning all existing SSTables.
+        getNewSSTable(cfs);
+
+        try (ColumnFamilyStore.RefViewFragment viewFragment1 = cfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
+        {
+            cfs.discardSSTables(System.currentTimeMillis());
+
+            TimeUnit.MILLISECONDS.sleep(1000); //Giving enough time to clear files.
+            List<SSTableReader> sstables = new ArrayList<>(viewFragment1.sstables);
+            assertEquals(50, SSTableReader.getApproximateKeyCount(sstables));
+        }
     }
 }
