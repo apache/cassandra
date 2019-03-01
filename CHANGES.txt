@@ -1,4 +1,5 @@
 4.0
+ * Take sstable references before calculating approximate key count (CASSANDRA-14647)
  * Restore snapshotting of system keyspaces on version change (CASSANDRA-14412)
  * Fix AbstractBTreePartition locking in java 11 (CASSANDRA-14607)
  * SimpleClient should pass connection properties as options (CASSANDRA-15056)
