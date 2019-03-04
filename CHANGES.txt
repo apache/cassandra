@@ -1,4 +1,5 @@
 4.0
+ * Make TableCQLHelper reuse the single quote pattern (CASSANDRA-15033)
  * Add Zstd compressor (CASSANDRA-14482)
  * Fix IR prepare anti-compaction race (CASSANDRA-15027)
  * Fix SimpleStrategy option validation (CASSANDRA-15007)

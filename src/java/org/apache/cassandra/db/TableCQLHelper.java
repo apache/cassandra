@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.*;
 import java.util.function.*;
+import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
@@ -36,6 +37,8 @@ import org.apache.cassandra.utils.*;
  */
 public class TableCQLHelper
 {
+    private static final Pattern singleQuotePattern = Pattern.compile("'");
+
     public static List<String> dumpReCreateStatements(TableMetadata metadata)
     {
         List<String> l = new ArrayList<>();
@@ -393,7 +396,7 @@ public class TableCQLHelper
 
     private static String singleQuote(String s)
     {
-        return String.format("'%s'", s.replaceAll("'", "''"));
+        return String.format("'%s'", singleQuotePattern.matcher(s).replaceAll("''"));
     }
 
     private static Consumer<StringBuilder> commaAppender(String afterComma)
