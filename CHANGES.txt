@@ -358,6 +358,7 @@ Merged from 3.0:
  * Add missing commands to nodetool_completion (CASSANDRA-14916)
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
 Merged from 2.2:
+ * Fixing invalid CQL in security documentation (CASSANDRA-15020)
  * Make tools/bin/token-generator py2/3 compatible (CASSANDRA-15012)
 
 
