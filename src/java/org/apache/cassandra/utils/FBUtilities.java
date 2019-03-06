@@ -866,6 +866,27 @@ public class FBUtilities
         digest.update((byte)  ((val >>> 0) & 0xFF));
     }
 
+    public static void closeAll(Collection<? extends AutoCloseable> l) throws Exception
+    {
+        Exception toThrow = null;
+        for (AutoCloseable c : l)
+        {
+            try
+            {
+                c.close();
+            }
+            catch (Exception e)
+            {
+                if (toThrow == null)
+                    toThrow = e;
+                else
+                    toThrow.addSuppressed(e);
+            }
+        }
+        if (toThrow != null)
+            throw toThrow;
+    }
+
     public static byte[] toWriteUTFBytes(String s)
     {
         try
