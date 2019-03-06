@@ -7,7 +7,6 @@ Merged from 3.0:
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
 Merged from 2.2:
  * Fixing invalid CQL in security documentation (CASSANDRA-15020)
- * Make tools/bin/token-generator py2/3 compatible (CASSANDRA-15012)
  * Multi-version in-JVM dtests (CASSANDRA-14937)
 
 
