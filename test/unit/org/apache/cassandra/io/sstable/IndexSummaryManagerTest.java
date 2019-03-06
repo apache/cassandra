@@ -592,6 +592,34 @@ public class IndexSummaryManagerTest
     @Test
     public void testCancelIndex() throws Exception
     {
+        testCancelIndexHelper(new CancelFunction()
+        {
+            public void cancel(ColumnFamilyStore cfs)
+            {
+                CompactionManager.instance.stopCompaction("INDEX_SUMMARY");
+            }
+        });
+    }
+
+    @Test
+    public void testCancelIndexInterrupt() throws Exception
+    {
+        testCancelIndexHelper(new CancelFunction()
+        {
+            public void cancel(ColumnFamilyStore cfs)
+            {
+                CompactionManager.instance.interruptCompactionFor(Collections.singleton(cfs.metadata), false);
+            }
+        });
+    }
+
+    private static interface CancelFunction
+    {
+        void cancel(ColumnFamilyStore cfs);
+    }
+
+    public void testCancelIndexHelper(CancelFunction cf) throws Exception
+    {
         String ksname = KEYSPACE1;
         String cfname = CF_STANDARDLOWiINTERVAL; // index interval of 8, no key caching
         Keyspace keyspace = Keyspace.open(ksname);
@@ -642,7 +670,7 @@ public class IndexSummaryManagerTest
         // to ensure that the stop condition check in IndexSummaryRedistribution::redistributeSummaries
         // is made *after* the halt request is made to the CompactionManager, don't allow the redistribution
         // to proceed until stopCompaction has been called.
-        CompactionManager.instance.stopCompaction("INDEX_SUMMARY");
+        cf.cancel(cfs);
         // allows the redistribution to proceed
         barrier.countDown();
         t.join();
