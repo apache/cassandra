@@ -646,7 +646,7 @@ public class Config
 
     public Integer bad_query_max_samples_per_interval_in_syslog = 5;
 
-    public Double bad_query_tracing_fraction = 0.10;
+    public Double bad_query_tracing_fraction = 0.35;
 
     public Long bad_query_read_max_partitionsize_in_bytes = 50 * 1024 * 1024L;
 
@@ -664,7 +664,7 @@ public class Config
 
     public String bad_query_ignore_keyspaces = "";
 
-    public Boolean auto_repair_enabled = false;
+    public Boolean auto_repair_enabled = true;
 
     public Integer auto_repair_no_of_subranges = 1;
 
@@ -680,7 +680,7 @@ public class Config
 
     public Integer auto_repair_min_repair_frequency_in_hours = 24;
 
-    public String auto_repair_ignore_dc = "phx2";
+    public String auto_repair_ignore_dc = "";
 
     public Long auto_repair_table_max_repair_time_in_sec = 6 * 60 * 60L;
     /**
