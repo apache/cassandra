@@ -40,7 +40,7 @@ import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.WireIn;
-import org.apache.cassandra.audit.FullQueryLogger;
+import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.binlog.BinLog;

@@ -27,7 +27,7 @@ public class InMemoryAuditLogger implements IAuditLogger
     private boolean enabled = true;
 
     @Override
-    public boolean enabled()
+    public boolean isEnabled()
     {
         return enabled;
     }

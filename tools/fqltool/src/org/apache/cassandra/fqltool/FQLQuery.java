@@ -28,7 +28,7 @@ import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
-import org.apache.cassandra.audit.FullQueryLogger;
+import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;

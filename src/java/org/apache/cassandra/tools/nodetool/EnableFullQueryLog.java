@@ -51,6 +51,6 @@ public class EnableFullQueryLog extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.getSpProxy().configureFullQueryLogger(path, rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, archiveRetries);
+        probe.enableFullQueryLogger(path, rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, archiveRetries);
     }
 }

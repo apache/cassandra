@@ -251,7 +251,7 @@ public class AuditLoggerAuthTest
 
     private static Queue<AuditLogEntry> getInMemAuditLogger()
     {
-        return ((InMemoryAuditLogger) AuditLogManager.getInstance().getLogger()).inMemQueue;
+        return ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue;
     }
 
     private static void assertLogEntry(AuditLogEntry logEntry, AuditLogEntryType type, String cql, String username)

@@ -42,6 +42,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import javax.annotation.Nullable;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
@@ -195,7 +196,7 @@ public class NodeProbe implements AutoCloseable
     protected void connect() throws IOException
     {
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
-        Map<String,Object> env = new HashMap<String,Object>();
+        Map<String, Object> env = new HashMap<String, Object>();
         if (username != null)
         {
             String[] creds = { username, password };
@@ -1683,7 +1684,7 @@ public class NodeProbe implements AutoCloseable
         }
         catch (Exception e)
         {
-          throw new RuntimeException("Error setting log for " + classQualifier +" on level " + level +". Please check logback configuration and ensure to have <jmxConfigurator /> set", e);
+            throw new RuntimeException("Error setting log for " + classQualifier + " on level " + level + ". Please check logback configuration and ensure to have <jmxConfigurator /> set", e);
         }
     }
 
@@ -1806,6 +1807,21 @@ public class NodeProbe implements AutoCloseable
     public MessagingServiceMBean getMessagingServiceProxy()
     {
         return msProxy;
+    }
+
+    public void enableFullQueryLogger(String path, String rollCycle, Boolean blocking, int maxQueueWeight, long maxLogSize, @Nullable String archiveCommand, int maxArchiveRetries)
+    {
+        ssProxy.enableFullQueryLogger(path, rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
+    }
+
+    public void stopFullQueryLogger()
+    {
+        ssProxy.stopFullQueryLogger();
+    }
+
+    public void resetFullQueryLogger()
+    {
+        ssProxy.resetFullQueryLogger();
     }
 }
 

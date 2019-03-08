@@ -53,8 +53,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.audit.AuditLogManager;
-import org.apache.cassandra.audit.FullQueryLoggerOptions;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.Stage;
@@ -2777,34 +2775,6 @@ public class StorageProxy implements StorageProxyMBean
         ConsistencyLevel newCL = ConsistencyLevel.valueOf(cl.trim().toUpperCase());
         DatabaseDescriptor.setIdealConsistencyLevel(newCL);
         return String.format("Updating ideal consistency level new value: %s old value %s", newCL, original.toString());
-    }
-
-    @Override
-    public void configureFullQueryLogger(String path, String rollCycle, Boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
-    {
-        FullQueryLoggerOptions fqlOptions = DatabaseDescriptor.getFullQueryLogOptions();
-        path = path != null ? path : fqlOptions.log_dir;
-        rollCycle = rollCycle != null ? rollCycle : fqlOptions.roll_cycle;
-        blocking = blocking != null ? blocking : fqlOptions.block;
-        maxQueueWeight = maxQueueWeight != Integer.MIN_VALUE ? maxQueueWeight : fqlOptions.max_queue_weight;
-        maxLogSize = maxLogSize != Long.MIN_VALUE ? maxLogSize : fqlOptions.max_log_size;
-        archiveCommand = archiveCommand != null ? archiveCommand : fqlOptions.archive_command;
-        maxArchiveRetries = maxArchiveRetries != Integer.MIN_VALUE ? maxArchiveRetries : fqlOptions.max_archive_retries;
-
-        Preconditions.checkNotNull(path, "cassandra.yaml did not set log_dir and not set as parameter");
-        AuditLogManager.getInstance().configureFQL(Paths.get(path), rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
-    }
-
-    @Override
-    public void resetFullQueryLogger()
-    {
-        AuditLogManager.getInstance().resetFQL(DatabaseDescriptor.getFullQueryLogOptions().log_dir);
-    }
-
-    @Override
-    public void stopFullQueryLogger()
-    {
-        AuditLogManager.getInstance().disableFQL();
     }
 
     @Deprecated

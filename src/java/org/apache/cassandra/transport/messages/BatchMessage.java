@@ -24,12 +24,10 @@ import java.util.List;
 import com.google.common.collect.ImmutableMap;
 
 import io.netty.buffer.ByteBuf;
-import org.apache.cassandra.audit.AuditLogEntry;
-import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.BatchQueryOptions;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -165,15 +163,14 @@ public class BatchMessage extends Message.Request
     @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
-        AuditLogManager auditLogManager = AuditLogManager.getInstance();
-
+        List<QueryHandler.Prepared> prepared = null;
         try
         {
             if (traceRequest)
                 traceQuery(state);
 
             QueryHandler handler = ClientState.getCQLQueryHandler();
-            List<QueryHandler.Prepared> prepared = new ArrayList<>(queryOrIdList.size());
+            prepared = new ArrayList<>(queryOrIdList.size());
             for (int i = 0; i < queryOrIdList.size(); i++)
             {
                 Object query = queryOrIdList.get(i);
@@ -202,9 +199,12 @@ public class BatchMessage extends Message.Request
 
             BatchQueryOptions batchOptions = BatchQueryOptions.withPerStatementVariables(options, values, queryOrIdList);
             List<ModificationStatement> statements = new ArrayList<>(prepared.size());
+            List<String> queries = QueryEvents.instance.hasListeners() ? new ArrayList<>(prepared.size()) : null;
             for (int i = 0; i < prepared.size(); i++)
             {
                 CQLStatement statement = prepared.get(i).statement;
+                if (queries != null)
+                    queries.add(prepared.get(i).rawCQLStatement);
                 batchOptions.prepareStatement(i, statement.getBindVariables());
 
                 if (!(statement instanceof ModificationStatement))
@@ -217,18 +217,15 @@ public class BatchMessage extends Message.Request
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
             BatchStatement batch = new BatchStatement(batchType, VariableSpecifications.empty(), statements, Attributes.none());
 
-            long fqlTime = auditLogManager.isLoggingEnabled() ? System.currentTimeMillis() : 0;
+            long queryTime = System.currentTimeMillis();
             Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);
-
-            if (auditLogManager.isLoggingEnabled())
-                auditLogManager.logBatch(batchType, queryOrIdList, values, prepared, options, state, fqlTime);
-
+            if (queries != null)
+                QueryEvents.instance.notifyBatchSuccess(batchType, statements, queries, values, options, state, queryTime, response);
             return response;
         }
         catch (Exception e)
         {
-            if (auditLogManager.isAuditingEnabled())
-                logException(state, e);
+            QueryEvents.instance.notifyBatchFailure(prepared, batchType, queryOrIdList, values, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }
@@ -246,17 +243,6 @@ public class BatchMessage extends Message.Request
         Tracing.instance.begin("Execute batch of CQL3 queries", state.getClientAddress(), builder.build());
     }
 
-    private void logException(QueryState state, Exception e)
-    {
-        AuditLogEntry entry =
-            new AuditLogEntry.Builder(state)
-                             .setOperation(getAuditString())
-                             .setOptions(options)
-                             .setType(AuditLogEntryType.BATCH)
-                             .build();
-        AuditLogManager.getInstance().log(entry, e);
-    }
-
     @Override
     public String toString()
     {
@@ -269,10 +255,5 @@ public class BatchMessage extends Message.Request
         }
         sb.append("] at consistency ").append(options.getConsistency());
         return sb.toString();
-    }
-
-    private String getAuditString()
-    {
-        return String.format("BATCH of %d statements at consistency %s", queryOrIdList.size(), options.getConsistency());
     }
 }

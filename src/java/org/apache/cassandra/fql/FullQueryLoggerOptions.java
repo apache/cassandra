@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.audit;
+package org.apache.cassandra.fql;
 
 import org.apache.commons.lang3.StringUtils;
 

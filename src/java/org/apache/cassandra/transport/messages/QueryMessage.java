@@ -20,11 +20,10 @@ package org.apache.cassandra.transport.messages;
 import com.google.common.collect.ImmutableMap;
 
 import io.netty.buffer.ByteBuf;
-import org.apache.cassandra.audit.AuditLogEntry;
-import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryEvents;
+import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
@@ -93,8 +92,7 @@ public class QueryMessage extends Message.Request
     @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
-        AuditLogManager auditLogManager = AuditLogManager.getInstance();
-
+        CQLStatement statement = null;
         try
         {
             if (options.getPageSize() == 0)
@@ -103,12 +101,12 @@ public class QueryMessage extends Message.Request
             if (traceRequest)
                 traceQuery(state);
 
-            long queryStartTime = auditLogManager.isLoggingEnabled() ? System.currentTimeMillis() : 0L;
+            long queryStartTime = System.currentTimeMillis();
 
-            Message.Response response = ClientState.getCQLQueryHandler().process(query, state, options, getCustomPayload(), queryStartNanoTime);
-
-            if (auditLogManager.isLoggingEnabled())
-                logSuccess(state, queryStartTime);
+            QueryHandler queryHandler = ClientState.getCQLQueryHandler();
+            statement = queryHandler.parse(query, state, options);
+            Message.Response response = queryHandler.process(statement, state, options, getCustomPayload(), queryStartNanoTime);
+            QueryEvents.instance.notifyQuerySuccess(statement, query, options, state, queryStartTime, response);
 
             if (options.skipMetadata() && response instanceof ResultMessage.Rows)
                 ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
@@ -117,8 +115,7 @@ public class QueryMessage extends Message.Request
         }
         catch (Exception e)
         {
-            if (auditLogManager.isLoggingEnabled())
-                logException(state, e);
+            QueryEvents.instance.notifyQueryFailure(statement, query, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
             if (!((e instanceof RequestValidationException) || (e instanceof RequestExecutionException)))
                 logger.error("Unexpected error during query", e);
@@ -138,32 +135,6 @@ public class QueryMessage extends Message.Request
             builder.put("serial_consistency_level", options.getSerialConsistency().name());
 
         Tracing.instance.begin("Execute CQL3 query", state.getClientAddress(), builder.build());
-    }
-
-    private void logSuccess(QueryState state, long queryStartTime)
-    {
-        // FIXME: we are parsing the statement twice if audit logging is enabled. Why?
-        CQLStatement statement = QueryProcessor.parseStatement(query, state.getClientState());
-        AuditLogEntry entry =
-            new AuditLogEntry.Builder(state)
-                             .setType(statement.getAuditLogContext().auditLogEntryType)
-                             .setOperation(query)
-                             .setTimestamp(queryStartTime)
-                             .setScope(statement)
-                             .setKeyspace(state, statement)
-                             .setOptions(options)
-                             .build();
-        AuditLogManager.getInstance().log(entry);
-    }
-
-    private void logException(QueryState state, Exception e)
-    {
-        AuditLogEntry entry =
-            new AuditLogEntry.Builder(state)
-                             .setOperation(query)
-                             .setOptions(options)
-                             .build();
-        AuditLogManager.getInstance().log(entry, e);
     }
 
     @Override

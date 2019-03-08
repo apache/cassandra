@@ -186,7 +186,8 @@ public class CustomNowInSecondsTest extends CQLTester
         }
         else
         {
-            return QueryProcessor.instance.process(query, qs, queryOptions(nowInSeconds), Collections.emptyMap(), System.nanoTime());
+            CQLStatement statement = QueryProcessor.instance.parse(query, qs, queryOptions(nowInSeconds));
+            return QueryProcessor.instance.process(statement, qs, queryOptions(nowInSeconds), Collections.emptyMap(), System.nanoTime());
         }
     }
 

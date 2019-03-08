@@ -30,7 +30,9 @@ import org.apache.cassandra.utils.MD5Digest;
 
 public interface QueryHandler
 {
-    ResultMessage process(String query,
+    CQLStatement parse(String queryString, QueryState queryState, QueryOptions options);
+
+    ResultMessage process(CQLStatement statement,
                           QueryState state,
                           QueryOptions options,
                           Map<String, ByteBuffer> customPayload,
