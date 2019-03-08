@@ -146,10 +146,6 @@
       <available file="${build.src.java}" type="dir" />
     </condition>
 
-    <tstamp>
-      <format property="YEAR" pattern="yyyy"/>
-    </tstamp>
-
     <!-- Check if all tests are being run or just one. If it's all tests don't spam the console with test output.
          If it's an individual test print the output from the test under the assumption someone is debugging the test
          and wants to know what is going on without having to context switch to the log file that is generated.
@@ -219,7 +215,7 @@
     <sequential>
       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-        bottom="Copyright &amp;copy; ${YEAR} The Apache Software Foundation"
+        bottom="Copyright &amp;copy; 2009-2019 The Apache Software Foundation"
         useexternalfile="yes" encoding="UTF-8"
         maxmemory="256m">
         <filesets/>
