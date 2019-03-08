@@ -36,7 +36,7 @@ public class FileAuditLogger implements IAuditLogger
     }
 
     @Override
-    public boolean enabled()
+    public boolean isEnabled()
     {
         return enabled;
     }

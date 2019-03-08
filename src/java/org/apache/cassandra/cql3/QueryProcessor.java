@@ -221,22 +221,28 @@ public class QueryProcessor implements QueryHandler
     public static ResultMessage process(String queryString, ConsistencyLevel cl, QueryState queryState, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
-        return instance.process(queryString, queryState, QueryOptions.forInternalCalls(cl, Collections.<ByteBuffer>emptyList()), queryStartNanoTime);
+        QueryOptions options = QueryOptions.forInternalCalls(cl, Collections.<ByteBuffer>emptyList());
+        CQLStatement statement = instance.parse(queryString, queryState, options);
+        return instance.process(statement, queryState, options, queryStartNanoTime);
     }
 
-    public ResultMessage process(String query,
+    public CQLStatement parse(String queryString, QueryState queryState, QueryOptions options)
+    {
+        return getStatement(queryString, queryState.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace()));
+    }
+
+    public ResultMessage process(CQLStatement statement,
                                  QueryState state,
                                  QueryOptions options,
                                  Map<String, ByteBuffer> customPayload,
                                  long queryStartNanoTime) throws RequestExecutionException, RequestValidationException
     {
-        return process(query, state, options, queryStartNanoTime);
+        return process(statement, state, options, queryStartNanoTime);
     }
 
-    public ResultMessage process(String queryString, QueryState queryState, QueryOptions options, long queryStartNanoTime)
+    public ResultMessage process(CQLStatement prepared, QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
-        CQLStatement prepared = getStatement(queryString, queryState.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace()));
         options.prepare(prepared.getBindVariables());
         if (prepared.getBindVariables().size() != options.getValues().size())
             throw new InvalidRequestException("Invalid amount of bind variables");
@@ -259,7 +265,10 @@ public class QueryProcessor implements QueryHandler
 
     public static UntypedResultSet process(String query, ConsistencyLevel cl, List<ByteBuffer> values) throws RequestExecutionException
     {
-        ResultMessage result = instance.process(query, QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, values), System.nanoTime());
+        QueryState queryState = QueryState.forInternalCalls();
+        QueryOptions options = QueryOptions.forInternalCalls(cl, values);
+        CQLStatement statement = instance.parse(query, queryState, options);
+        ResultMessage result = instance.process(statement, queryState, options, System.nanoTime());
         if (result instanceof ResultMessage.Rows)
             return UntypedResultSet.create(((ResultMessage.Rows)result).result);
         else

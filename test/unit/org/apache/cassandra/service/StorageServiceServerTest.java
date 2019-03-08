@@ -628,7 +628,7 @@ public class StorageServiceServerTest
     public void testAuditLogEnableLoggerNotFound() throws Exception
     {
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
-        assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
+        assertTrue(AuditLogManager.instance.isEnabled());
         try
         {
             StorageService.instance.enableAuditLog("foobar", null, null, null, null, null, null);
@@ -644,7 +644,7 @@ public class StorageServiceServerTest
     public void testAuditLogEnableLoggerTransitions() throws Exception
     {
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
-        assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
+        assertTrue(AuditLogManager.instance.isEnabled());
 
         try
         {
@@ -656,8 +656,7 @@ public class StorageServiceServerTest
         }
 
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
-        assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
-
+        assertTrue(AuditLogManager.instance.isEnabled());
         StorageService.instance.disableAuditLog();
     }
 }

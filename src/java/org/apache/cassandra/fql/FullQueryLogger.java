@@ -15,25 +15,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.audit;
+package org.apache.cassandra.fql;
 
+import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 import net.openhft.chronicle.bytes.BytesStore;
 import net.openhft.chronicle.wire.ValueOut;
 import net.openhft.chronicle.wire.WireOut;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLog;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
@@ -42,9 +52,14 @@ import org.github.jamm.MemoryLayoutSpecification;
 /**
  * A logger that logs entire query contents after the query finishes (or times out).
  */
-public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
+public class FullQueryLogger implements QueryEvents.Listener
 {
-    public static final long CURRENT_VERSION = 0;
+    protected static final Logger logger = LoggerFactory.getLogger(FullQueryLogger.class);
+
+    public static final long CURRENT_VERSION = 0; // encode a dummy version, to prevent pain in decoding in the future
+
+    public static final String VERSION = "version";
+    public static final String TYPE = "type";
 
     public static final String PROTOCOL_VERSION = "protocol-version";
     public static final String QUERY_OPTIONS = "query-options";
@@ -70,6 +85,25 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
     private static final int OBJECT_HEADER_SIZE = MemoryLayoutSpecification.SPEC.getObjectHeaderSize();
     private static final int OBJECT_REFERENCE_SIZE = MemoryLayoutSpecification.SPEC.getReferenceSize();
 
+    public static final FullQueryLogger instance = new FullQueryLogger();
+
+    volatile BinLog binLog;
+
+    public synchronized void enable(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
+    {
+        if (this.binLog != null)
+            throw new IllegalStateException("Binlog is already configured");
+        this.binLog = new BinLog.Builder().path(path)
+                                          .rollCycle(rollCycle)
+                                          .blocking(blocking)
+                                          .maxQueueWeight(maxQueueWeight)
+                                          .maxLogSize(maxLogSize)
+                                          .archiveCommand(archiveCommand)
+                                          .maxArchiveRetries(maxArchiveRetries)
+                                          .build(true);
+        QueryEvents.instance.registerListener(this);
+    }
+
     static
     {
         ByteBuf buf = CBUtil.allocator.buffer(0, 0);
@@ -83,27 +117,123 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
         }
     }
 
-    @Override
-    public void log(AuditLogEntry entry)
+    public synchronized void stop()
     {
-        logQuery(entry.getOperation(), entry.getOptions(), entry.getState(), entry.getTimestamp());
+        try
+        {
+            BinLog binLog = this.binLog;
+            if (binLog != null)
+            {
+                logger.info("Stopping full query logging to {}", binLog.path);
+                binLog.stop();
+            }
+            else
+            {
+                logger.info("Full query log already stopped");
+            }
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        finally
+        {
+            QueryEvents.instance.unregisterListener(this);
+            this.binLog = null;
+        }
+    }
+
+    /**
+     * Need the path as a parameter as well because if the process is restarted the config file might be the only
+     * location for retrieving the path to the full query log files, but JMX also allows you to specify a path
+     * that isn't persisted anywhere so we have to clean that one as well.
+     */
+    public synchronized void reset(String fullQueryLogPath)
+    {
+        try
+        {
+            Set<File> pathsToClean = Sets.newHashSet();
+
+            //First decide whether to clean the path configured in the YAML
+            if (fullQueryLogPath != null)
+            {
+                File fullQueryLogPathFile = new File(fullQueryLogPath);
+                if (fullQueryLogPathFile.exists())
+                {
+                    pathsToClean.add(fullQueryLogPathFile);
+                }
+            }
+
+            //Then decide whether to clean the last used path, possibly configured by JMX
+            if (binLog != null && binLog.path != null)
+            {
+                File pathFile = binLog.path.toFile();
+                if (pathFile.exists())
+                {
+                    pathsToClean.add(pathFile);
+                }
+            }
+
+            logger.info("Reset (and deactivation) of full query log requested.");
+            if (binLog != null)
+            {
+                logger.info("Stopping full query log. Cleaning {}.", pathsToClean);
+                binLog.stop();
+                binLog = null;
+            }
+            else
+            {
+                logger.info("Full query log already deactivated. Cleaning {}.", pathsToClean);
+            }
+
+            Throwable accumulate = null;
+            for (File f : pathsToClean)
+            {
+                accumulate = BinLog.cleanDirectory(f, accumulate);
+            }
+            if (accumulate != null)
+            {
+                throw new RuntimeException(accumulate);
+            }
+        }
+        catch (Exception e)
+        {
+            if (e instanceof RuntimeException)
+            {
+                throw (RuntimeException)e;
+            }
+            throw new RuntimeException(e);
+        }
+        finally
+        {
+            QueryEvents.instance.unregisterListener(this);
+        }
+    }
+
+    public boolean isEnabled()
+    {
+        return this.binLog != null;
     }
 
     /**
      * Log an invocation of a batch of queries
      * @param type The type of the batch
+     * @param statements the prepared cql statements (unused here)
      * @param queries CQL text of the queries
      * @param values Values to bind to as parameters for the queries
      * @param queryOptions Options associated with the query invocation
      * @param queryState Timestamp state associated with the query invocation
      * @param batchTimeMillis Approximate time in milliseconds since the epoch since the batch was invoked
+     * @param response the response from the batch query
      */
-    void logBatch(BatchStatement.Type type,
-                  List<String> queries,
-                  List<List<ByteBuffer>> values,
-                  QueryOptions queryOptions,
-                  QueryState queryState,
-                  long batchTimeMillis)
+    public void batchSuccess(BatchStatement.Type type,
+                             List<? extends CQLStatement> statements,
+                             List<String> queries,
+                             List<List<ByteBuffer>> values,
+                             QueryOptions queryOptions,
+                             QueryState queryState,
+                             long batchTimeMillis,
+                             Message.Response response)
     {
         Preconditions.checkNotNull(type, "type was null");
         Preconditions.checkNotNull(queries, "queries was null");
@@ -120,7 +250,7 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
         }
 
         Batch wrappedBatch = new Batch(type, queries, values, queryOptions, queryState, batchTimeMillis);
-        logRecord(wrappedBatch, binLog);
+        binLog.logRecord(wrappedBatch);
     }
 
     /**
@@ -129,8 +259,14 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
      * @param queryOptions Options associated with the query invocation
      * @param queryState Timestamp state associated with the query invocation
      * @param queryTimeMillis Approximate time in milliseconds since the epoch since the batch was invoked
+     * @param response the response from this query
      */
-    void logQuery(String query, QueryOptions queryOptions, QueryState queryState, long queryTimeMillis)
+    public void querySuccess(CQLStatement statement,
+                             String query,
+                             QueryOptions queryOptions,
+                             QueryState queryState,
+                             long queryTimeMillis,
+                             Message.Response response)
     {
         Preconditions.checkNotNull(query, "query was null");
         Preconditions.checkNotNull(queryOptions, "queryOptions was null");
@@ -140,12 +276,15 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
         //Don't construct the wrapper if the log is disabled
         BinLog binLog = this.binLog;
         if (binLog == null)
-        {
             return;
-        }
 
         Query wrappedQuery = new Query(query, queryOptions, queryState, queryTimeMillis);
-        logRecord(wrappedQuery, binLog);
+        binLog.logRecord(wrappedQuery);
+    }
+
+    public void executeSuccess(CQLStatement statement, String query, QueryOptions options, QueryState state, long queryTime, Message.Response response)
+    {
+        querySuccess(statement, query, options, state, queryTime, response);
     }
 
     public static class Query extends AbstractLogEntry

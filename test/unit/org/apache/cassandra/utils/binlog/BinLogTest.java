@@ -63,8 +63,12 @@ public class BinLogTest
     public void setUp() throws Exception
     {
         path = tempDir();
-        binLog = new BinLog(path, RollCycles.TEST_SECONDLY, 10, new DeletingArchiver(1024 * 1024 * 128));
-        binLog.start();
+        binLog = new BinLog.Builder().path(path)
+                                     .rollCycle(RollCycles.TEST_SECONDLY.toString())
+                                     .maxQueueWeight(10)
+                                     .maxLogSize(1024 * 1024 * 128)
+                                     .blocking(false)
+                                     .build(false);
     }
 
     @After
@@ -83,25 +87,25 @@ public class BinLogTest
     @Test(expected = NullPointerException.class)
     public void testConstructorNullPath() throws Exception
     {
-        new BinLog(null, RollCycles.TEST_SECONDLY, 1, new DeletingArchiver(1));
+        new BinLog.Builder().path(null).build(false);
     }
 
     @Test(expected = NullPointerException.class)
     public void testConstructorNullRollCycle() throws Exception
     {
-        new BinLog(tempDir(), null, 1, new DeletingArchiver(1));
+        new BinLog.Builder().path(tempDir()).rollCycle(null).build(false);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testConstructorZeroWeight() throws Exception
     {
-        new BinLog(tempDir(), RollCycles.TEST_SECONDLY, 0, new DeletingArchiver(1));
+        new BinLog.Builder().path(tempDir()).rollCycle(RollCycles.TEST_SECONDLY.toString()).maxQueueWeight(0).build(false);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testConstructorLogSize() throws Exception
     {
-        new BinLog(tempDir(), RollCycles.TEST_SECONDLY, 0, new DeletingArchiver(1));
+        new BinLog.Builder().path(tempDir()).rollCycle(RollCycles.TEST_SECONDLY.toString()).maxLogSize(0).build(false);
     }
 
     /**
@@ -394,8 +398,7 @@ public class BinLogTest
     public void testCleanupOnOversize() throws Exception
     {
         tearDown();
-        binLog = new BinLog(path, RollCycles.TEST_SECONDLY, 1, new DeletingArchiver(10000));
-        binLog.start();
+        binLog = new BinLog.Builder().path(path).rollCycle(RollCycles.TEST_SECONDLY.toString()).maxQueueWeight(1).maxLogSize(10000).blocking(false).build(false);
         for (int ii = 0; ii < 5; ii++)
         {
             binLog.put(record(String.valueOf(ii)));

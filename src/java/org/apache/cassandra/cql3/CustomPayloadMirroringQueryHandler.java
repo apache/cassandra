@@ -35,13 +35,18 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
 {
     static QueryProcessor queryProcessor = QueryProcessor.instance;
 
-    public ResultMessage process(String query,
+    public CQLStatement parse(String query, QueryState state, QueryOptions options)
+    {
+        return queryProcessor.parse(query, state, options);
+    }
+
+    public ResultMessage process(CQLStatement statement,
                                  QueryState state,
                                  QueryOptions options,
                                  Map<String, ByteBuffer> customPayload,
                                  long queryStartNanoTime)
     {
-        ResultMessage result = queryProcessor.process(query, state, options, customPayload, queryStartNanoTime);
+        ResultMessage result = queryProcessor.process(statement, state, options, customPayload, queryStartNanoTime);
         result.setCustomPayload(customPayload);
         return result;
     }

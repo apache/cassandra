@@ -28,6 +28,6 @@ public class DisableFullQueryLog extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.getSpProxy().stopFullQueryLogger();
+        probe.stopFullQueryLogger();
     }
 }

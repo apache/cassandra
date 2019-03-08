@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.audit;
+package org.apache.cassandra.fql;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -46,8 +46,9 @@ import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.audit.FullQueryLogger.Query;
-import org.apache.cassandra.audit.FullQueryLogger.Batch;
+import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.fql.FullQueryLogger.Query;
+import org.apache.cassandra.fql.FullQueryLogger.Batch;
 import org.apache.cassandra.cql3.statements.BatchStatement.Type;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.ClientState;
@@ -60,20 +61,19 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import static org.apache.cassandra.audit.FullQueryLogger.BATCH;
-import static org.apache.cassandra.audit.FullQueryLogger.BATCH_TYPE;
-import static org.apache.cassandra.audit.FullQueryLogger.GENERATED_NOW_IN_SECONDS;
-import static org.apache.cassandra.audit.FullQueryLogger.GENERATED_TIMESTAMP;
-import static org.apache.cassandra.audit.FullQueryLogger.PROTOCOL_VERSION;
-import static org.apache.cassandra.audit.FullQueryLogger.QUERIES;
-import static org.apache.cassandra.audit.FullQueryLogger.QUERY;
-import static org.apache.cassandra.audit.FullQueryLogger.QUERY_OPTIONS;
-import static org.apache.cassandra.audit.FullQueryLogger.QUERY_START_TIME;
-import static org.apache.cassandra.audit.FullQueryLogger.SINGLE_QUERY;
-import static org.apache.cassandra.audit.FullQueryLogger.VALUES;
-
-import static org.apache.cassandra.utils.binlog.BinLog.TYPE;
-import static org.apache.cassandra.utils.binlog.BinLog.VERSION;
+import static org.apache.cassandra.fql.FullQueryLogger.BATCH;
+import static org.apache.cassandra.fql.FullQueryLogger.BATCH_TYPE;
+import static org.apache.cassandra.fql.FullQueryLogger.GENERATED_NOW_IN_SECONDS;
+import static org.apache.cassandra.fql.FullQueryLogger.GENERATED_TIMESTAMP;
+import static org.apache.cassandra.fql.FullQueryLogger.PROTOCOL_VERSION;
+import static org.apache.cassandra.fql.FullQueryLogger.QUERIES;
+import static org.apache.cassandra.fql.FullQueryLogger.QUERY;
+import static org.apache.cassandra.fql.FullQueryLogger.QUERY_OPTIONS;
+import static org.apache.cassandra.fql.FullQueryLogger.QUERY_START_TIME;
+import static org.apache.cassandra.fql.FullQueryLogger.SINGLE_QUERY;
+import static org.apache.cassandra.fql.FullQueryLogger.TYPE;
+import static org.apache.cassandra.fql.FullQueryLogger.VALUES;
+import static org.apache.cassandra.fql.FullQueryLogger.VERSION;
 
 public class FullQueryLoggerTest extends CQLTester
 {
@@ -85,48 +85,41 @@ public class FullQueryLoggerTest extends CQLTester
         tempDir = BinLogTest.tempDir();
     }
 
-    private FullQueryLogger instance;
-    
-    @Before
-    public void setUp()
-    {
-        instance = AuditLogManager.getInstance().getFullQueryLogger();
-    }
-    
     @After
     public void tearDown()
     {
-        instance.reset(tempDir.toString());
+        FullQueryLogger.instance.stop();
+        FullQueryLogger.instance.reset(tempDir.toString());
     }
 
     @Test(expected = NullPointerException.class)
     public void testConfigureNullPath() throws Exception
     {
-        instance.configure(null, "", true, 1, 1, StringUtils.EMPTY, 10);
+        FullQueryLogger.instance.enable(null, "", true, 1, 1, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = NullPointerException.class)
     public void testConfigureNullRollCycle() throws Exception
     {
-        instance.configure(BinLogTest.tempDir(), null, true, 1, 1, StringUtils.EMPTY, 10);
+        FullQueryLogger.instance.enable(BinLogTest.tempDir(), null, true, 1, 1, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testConfigureInvalidRollCycle() throws Exception
     {
-        instance.configure(BinLogTest.tempDir(), "foobar", true, 1, 1, StringUtils.EMPTY, 10);
+        FullQueryLogger.instance.enable(BinLogTest.tempDir(), "foobar", true, 1, 1, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testConfigureInvalidMaxQueueWeight() throws Exception
     {
-        instance.configure(BinLogTest.tempDir(), "DAILY", true, 0, 1, StringUtils.EMPTY, 10);
+        FullQueryLogger.instance.enable(BinLogTest.tempDir(), "DAILY", true, 0, 1, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testConfigureInvalidMaxQueueLogSize() throws Exception
     {
-        instance.configure(BinLogTest.tempDir(), "DAILY", true, 1, 0, StringUtils.EMPTY, 10);
+        FullQueryLogger.instance.enable(BinLogTest.tempDir(), "DAILY", true, 1, 0, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -134,7 +127,7 @@ public class FullQueryLoggerTest extends CQLTester
     {
         File f = FileUtils.createTempFile("foo", "bar");
         f.deleteOnExit();
-        instance.configure(f.toPath(), "TEST_SECONDLY", true, 1, 1, StringUtils.EMPTY, 10);
+        FullQueryLogger.instance.enable(f.toPath(), "TEST_SECONDLY", true, 1, 1, StringUtils.EMPTY, 10);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -182,15 +175,15 @@ public class FullQueryLoggerTest extends CQLTester
     @Test
     public void testResetWithoutConfigure() throws Exception
     {
-        instance.reset(tempDir.toString());
-        instance.reset(tempDir.toString());
+        FullQueryLogger.instance.reset(tempDir.toString());
+        FullQueryLogger.instance.reset(tempDir.toString());
     }
 
     @Test
     public void stopWithoutConfigure() throws Exception
     {
-        instance.stop();
-        instance.stop();
+        FullQueryLogger.instance.stop();
+        FullQueryLogger.instance.stop();
     }
 
     /**
@@ -203,7 +196,7 @@ public class FullQueryLoggerTest extends CQLTester
         File tempA = File.createTempFile("foo", "bar", tempDir.toFile());
         assertTrue(tempA.exists());
         File tempB = File.createTempFile("foo", "bar", BinLogTest.tempDir().toFile());
-        instance.reset(tempB.getParent());
+        FullQueryLogger.instance.reset(tempB.getParent());
         assertFalse(tempA.exists());
         assertFalse(tempB.exists());
     }
@@ -217,7 +210,7 @@ public class FullQueryLoggerTest extends CQLTester
         configureFQL();
         File tempA = File.createTempFile("foo", "bar", tempDir.toFile());
         assertTrue(tempA.exists());
-        instance.reset(tempA.getParent());
+        FullQueryLogger.instance.reset(tempA.getParent());
         assertFalse(tempA.exists());
     }
 
@@ -240,21 +233,21 @@ public class FullQueryLoggerTest extends CQLTester
     @Test
     public void testEnabledReset() throws Exception
     {
-        assertFalse(instance.enabled());
+        assertFalse(FullQueryLogger.instance.isEnabled());
         configureFQL();
-        assertTrue(instance.enabled());
-        instance.reset(tempDir.toString());
-        assertFalse(instance.enabled());
+        assertTrue(FullQueryLogger.instance.isEnabled());
+        FullQueryLogger.instance.reset(tempDir.toString());
+        assertFalse(FullQueryLogger.instance.isEnabled());
     }
 
     @Test
     public void testEnabledStop() throws Exception
     {
-        assertFalse(instance.enabled());
+        assertFalse(FullQueryLogger.instance.isEnabled());
         configureFQL();
-        assertTrue(instance.enabled());
-        instance.stop();
-        assertFalse(instance.enabled());
+        assertTrue(FullQueryLogger.instance.isEnabled());
+        FullQueryLogger.instance.stop();
+        assertFalse(FullQueryLogger.instance.isEnabled());
     }
 
     /**
@@ -270,7 +263,7 @@ public class FullQueryLoggerTest extends CQLTester
         {
             //Find out when the bin log thread has been blocked, necessary to not run into batch task drain behavior
             Semaphore binLogBlocked = new Semaphore(0);
-            instance.binLog.put(new Query("foo1", QueryOptions.DEFAULT, queryState(), 1)
+            FullQueryLogger.instance.binLog.put(new Query("foo1", QueryOptions.DEFAULT, queryState(), 1)
             {
 
                 public void writeMarshallablePayload(WireOut wire)
@@ -345,14 +338,14 @@ public class FullQueryLoggerTest extends CQLTester
     @Test
     public void testNonBlocking() throws Exception
     {
-        instance.configure(tempDir, "TEST_SECONDLY", false, 1, 1024 * 1024 * 256, StringUtils.EMPTY, 10);
+        FullQueryLogger.instance.enable(tempDir, "TEST_SECONDLY", false, 1, 1024 * 1024 * 256, StringUtils.EMPTY, 10);
         //Prevent the bin log thread from making progress, causing the task queue to refuse tasks
         Semaphore blockBinLog = new Semaphore(0);
         try
         {
             //Find out when the bin log thread has been blocked, necessary to not run into batch task drain behavior
             Semaphore binLogBlocked = new Semaphore(0);
-            instance.binLog.put(new Query("foo1", QueryOptions.DEFAULT, queryState(), 1)
+            FullQueryLogger.instance.binLog.put(new Query("foo1", QueryOptions.DEFAULT, queryState(), 1)
             {
 
                 public void writeMarshallablePayload(WireOut wire)
@@ -386,7 +379,7 @@ public class FullQueryLoggerTest extends CQLTester
             //This sample should get dropped AKA released without being written
             AtomicInteger releasedCount = new AtomicInteger(0);
             AtomicInteger writtenCount = new AtomicInteger(0);
-            instance.logRecord(new Query("foo3", QueryOptions.DEFAULT, queryState(), 1) {
+            FullQueryLogger.instance.binLog.logRecord(new Query("foo3", QueryOptions.DEFAULT, queryState(), 1) {
                 public void writeMarshallablePayload(WireOut wire)
                 {
                     writtenCount.incrementAndGet();
@@ -398,7 +391,7 @@ public class FullQueryLoggerTest extends CQLTester
                     releasedCount.incrementAndGet();
                     super.release();
                 }
-            }, instance.binLog);
+            });
 
             Util.spinAssertEquals(1, releasedCount::get, 60);
             assertEquals(0, writtenCount.get());
@@ -462,14 +455,14 @@ public class FullQueryLoggerTest extends CQLTester
     public void testRoundTripBatchWithKeyspace() throws Exception
     {
         configureFQL();
-        instance.logBatch(Type.UNLOGGED,
-                          Arrays.asList("foo1", "foo2"),
-                          Arrays.asList(Arrays.asList(ByteBuffer.allocate(1),
-                                                      ByteBuffer.allocateDirect(2)),
-                                        Collections.emptyList()),
-                          QueryOptions.DEFAULT,
-                          queryState("abcdefgh"),
-                          1);
+        logBatch(Type.UNLOGGED,
+                 Arrays.asList("foo1", "foo2"),
+                 Arrays.asList(Arrays.asList(ByteBuffer.allocate(1),
+                                             ByteBuffer.allocateDirect(2)),
+                               Collections.emptyList()),
+                 QueryOptions.DEFAULT,
+                 queryState("abcdefgh"),
+                 1);
 
         Util.spinAssertEquals(true, () ->
         {
@@ -486,14 +479,14 @@ public class FullQueryLoggerTest extends CQLTester
     public void testRoundTripBatchWithKeyspaceNull() throws Exception
     {
         configureFQL();
-        instance.logBatch(Type.UNLOGGED,
-                          Arrays.asList("foo1", "foo2"),
-                          Arrays.asList(Arrays.asList(ByteBuffer.allocate(1),
-                                                      ByteBuffer.allocateDirect(2)),
-                                        Collections.emptyList()),
-                          QueryOptions.DEFAULT,
-                          queryState(),
-                          1);
+        logBatch(Type.UNLOGGED,
+                 Arrays.asList("foo1", "foo2"),
+                 Arrays.asList(Arrays.asList(ByteBuffer.allocate(1),
+                                             ByteBuffer.allocateDirect(2)),
+                               Collections.emptyList()),
+                 QueryOptions.DEFAULT,
+                 queryState(),
+                 1);
 
         Util.spinAssertEquals(true, () ->
         {
@@ -619,62 +612,62 @@ public class FullQueryLoggerTest extends CQLTester
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullType() throws Exception
     {
-        instance.logBatch(null, new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, queryState(), 1);
+        logBatch(null, new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, queryState(), 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullQueries() throws Exception
     {
-        instance.logBatch(Type.UNLOGGED, null, new ArrayList<>(), QueryOptions.DEFAULT, queryState(), 1);
+        logBatch(Type.UNLOGGED, null, new ArrayList<>(), QueryOptions.DEFAULT, queryState(), 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullQueriesQuery() throws Exception
     {
         configureFQL();
-        instance.logBatch(Type.UNLOGGED, Arrays.asList((String)null), new ArrayList<>(), QueryOptions.DEFAULT, queryState(), 1);
+        logBatch(Type.UNLOGGED, Arrays.asList((String)null), new ArrayList<>(), QueryOptions.DEFAULT, queryState(), 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullValues() throws Exception
     {
-        instance.logBatch(Type.UNLOGGED, new ArrayList<>(), null, QueryOptions.DEFAULT, queryState(), 1);
+        logBatch(Type.UNLOGGED, new ArrayList<>(), null, QueryOptions.DEFAULT, queryState(), 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullValuesValue() throws Exception
     {
-        instance.logBatch(Type.UNLOGGED, new ArrayList<>(), Arrays.asList((List<ByteBuffer>)null), null, queryState(), 1);
+        logBatch(Type.UNLOGGED, new ArrayList<>(), Arrays.asList((List<ByteBuffer>)null), null, queryState(), 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullQueryOptions() throws Exception
     {
-        instance.logBatch(Type.UNLOGGED, new ArrayList<>(), new ArrayList<>(), null, queryState(), 1);
+        logBatch(Type.UNLOGGED, new ArrayList<>(), new ArrayList<>(), null, queryState(), 1);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testLogBatchNegativeTime() throws Exception
     {
-        instance.logBatch(Type.UNLOGGED, new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, queryState(), -1);
+        logBatch(Type.UNLOGGED, new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, queryState(), -1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogQueryNullQuery() throws Exception
     {
-        instance.logQuery(null, QueryOptions.DEFAULT, queryState(), 1);
+        logQuery(null, QueryOptions.DEFAULT, queryState(), 1);
     }
 
     @Test(expected = NullPointerException.class)
     public void testLogQueryNullQueryOptions() throws Exception
     {
-        instance.logQuery("", null, queryState(), 1);
+        logQuery("", null, queryState(), 1);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testLogQueryNegativeTime() throws Exception
     {
-        instance.logQuery("", QueryOptions.DEFAULT, queryState(), -1);
+        logQuery("", QueryOptions.DEFAULT, queryState(), -1);
     }
 
     private static void compareQueryOptions(QueryOptions a, QueryOptions b)
@@ -690,17 +683,42 @@ public class FullQueryLoggerTest extends CQLTester
 
     private void configureFQL() throws Exception
     {
-        instance.configure(tempDir, "TEST_SECONDLY", true, 1, 1024 * 1024 * 256, StringUtils.EMPTY, 10);
+        FullQueryLogger.instance.enable(tempDir, "TEST_SECONDLY", true, 1, 1024 * 1024 * 256, StringUtils.EMPTY, 10);
     }
 
     private void logQuery(String query)
     {
-        instance.logQuery(query, QueryOptions.DEFAULT, queryState(), 1);
+        FullQueryLogger.instance.querySuccess(null, query, QueryOptions.DEFAULT, queryState(), 1, null);
     }
 
     private void logQuery(String query, String keyspace)
     {
-        instance.logQuery(query, QueryOptions.DEFAULT, queryState(keyspace), 1);
+        logQuery(query, keyspace, 1);
+    }
+    private void logQuery(String query, String keyspace, long time)
+    {
+        FullQueryLogger.instance.querySuccess(null, query, QueryOptions.DEFAULT, queryState(keyspace), time, null);
+    }
+    private void logQuery(String query, QueryOptions options, QueryState state, long time)
+    {
+        FullQueryLogger.instance.querySuccess(null, query, options, state, time, null);
+    }
+
+    private void logBatch(BatchStatement.Type type,
+                          List<String> queries,
+                          List<List<ByteBuffer>> values,
+                          QueryOptions options,
+                          QueryState queryState,
+                          long time)
+    {
+        FullQueryLogger.instance.batchSuccess(type,
+                              Collections.emptyList(),
+                              queries,
+                              values,
+                              options,
+                              queryState,
+                              time,
+                              null);
     }
 
     private QueryState queryState(String keyspace)

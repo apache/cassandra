@@ -22,31 +22,62 @@ import java.nio.file.Paths;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLog;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
 
-public class BinAuditLogger extends BinLogAuditLogger implements IAuditLogger
+public class BinAuditLogger implements IAuditLogger
 {
     public static final long CURRENT_VERSION = 0;
     public static final String AUDITLOG_TYPE = "audit";
     public static final String AUDITLOG_MESSAGE = "message";
+    private static final Logger logger = LoggerFactory.getLogger(BinAuditLogger.class);
+
+    private volatile BinLog binLog;
 
     public BinAuditLogger()
     {
-        // due to the way that IAuditLogger instance are created in AuditLogManager, via reflection, we can't assume
-        // the manager will call configure() (it won't). thus, we have to call it here from the constructor.
         AuditLogOptions auditLoggingOptions = DatabaseDescriptor.getAuditLoggingOptions();
-        configure(Paths.get(auditLoggingOptions.audit_logs_dir),
-                  auditLoggingOptions.roll_cycle,
-                  auditLoggingOptions.block,
-                  auditLoggingOptions.max_queue_weight,
-                  auditLoggingOptions.max_log_size,
-                  false,
-                  auditLoggingOptions.archive_command,
-                  auditLoggingOptions.max_archive_retries);
+
+        this.binLog = new BinLog.Builder().path(Paths.get(auditLoggingOptions.audit_logs_dir))
+                                          .rollCycle(auditLoggingOptions.roll_cycle)
+                                          .blocking(auditLoggingOptions.block)
+                                          .maxQueueWeight(auditLoggingOptions.max_queue_weight)
+                                          .maxLogSize(auditLoggingOptions.max_log_size)
+                                          .archiveCommand(auditLoggingOptions.archive_command)
+                                          .maxArchiveRetries(auditLoggingOptions.max_archive_retries)
+                                          .build(false);
+    }
+
+    /**
+     * Stop the audit log leaving behind any generated files.
+     */
+    public synchronized void stop()
+    {
+        try
+        {
+            logger.info("Deactivation of audit log requested.");
+            if (binLog != null)
+            {
+                logger.info("Stopping audit logger");
+                binLog.stop();
+                binLog = null;
+            }
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public boolean isEnabled()
+    {
+        return binLog != null;
     }
 
     @Override
@@ -57,9 +88,9 @@ public class BinAuditLogger extends BinLogAuditLogger implements IAuditLogger
         {
             return;
         }
-
-        super.logRecord(new Message(auditLogEntry.getLogString()), binLog);
+        binLog.logRecord(new Message(auditLogEntry.getLogString()));
     }
+
 
     @VisibleForTesting
     public static class Message extends BinLog.ReleaseableWriteMarshallable implements WeightedQueue.Weighable

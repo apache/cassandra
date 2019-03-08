@@ -20,10 +20,9 @@ package org.apache.cassandra.transport.messages;
 import com.google.common.collect.ImmutableMap;
 
 import io.netty.buffer.ByteBuf;
-import org.apache.cassandra.audit.AuditLogEntry;
-import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
@@ -113,12 +112,11 @@ public class ExecuteMessage extends Message.Request
     @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
-        AuditLogManager auditLogManager = AuditLogManager.getInstance();
-
+        QueryHandler.Prepared prepared = null;
         try
         {
             QueryHandler handler = ClientState.getCQLQueryHandler();
-            QueryHandler.Prepared prepared = handler.getPrepared(statementId);
+            prepared = handler.getPrepared(statementId);
             if (prepared == null)
                 throw new PreparedQueryNotFoundException(statementId);
 
@@ -135,12 +133,11 @@ public class ExecuteMessage extends Message.Request
             // by wrapping the QueryOptions.
             QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.statement.getBindVariables());
 
-            long requestStartTime = auditLogManager.isLoggingEnabled() ? System.currentTimeMillis() : 0L;
+            long requestStartTime = System.currentTimeMillis();
 
             Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
 
-            if (auditLogManager.isLoggingEnabled())
-                logSuccess(state, prepared, requestStartTime);
+            QueryEvents.instance.notifyExecuteSuccess(prepared.statement, prepared.rawCQLStatement, options, state, requestStartTime, response);
 
             if (response instanceof ResultMessage.Rows)
             {
@@ -176,8 +173,7 @@ public class ExecuteMessage extends Message.Request
         }
         catch (Exception e)
         {
-            if (auditLogManager.isAuditingEnabled())
-                logException(state, e);
+            QueryEvents.instance.notifyExecuteFailure(prepared, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }
@@ -209,48 +205,6 @@ public class ExecuteMessage extends Message.Request
         }
 
         Tracing.instance.begin("Execute CQL3 prepared query", state.getClientAddress(), builder.build());
-    }
-
-    private void logSuccess(QueryState state, QueryHandler.Prepared prepared, long requestStartTime)
-    {
-        AuditLogEntry entry =
-            new AuditLogEntry.Builder(state)
-                             .setType(prepared.statement.getAuditLogContext().auditLogEntryType)
-                             .setOperation(prepared.rawCQLStatement)
-                             .setTimestamp(requestStartTime)
-                             .setScope(prepared.statement)
-                             .setKeyspace(state, prepared.statement)
-                             .setOptions(options)
-                             .build();
-        AuditLogManager.getInstance().log(entry);
-    }
-
-    private void logException(QueryState state, Exception e)
-    {
-        if (e instanceof PreparedQueryNotFoundException)
-        {
-            AuditLogEntry entry =
-                new AuditLogEntry.Builder(state)
-                                 .setOperation(toString())
-                                 .setOptions(options)
-                                 .build();
-            AuditLogManager.getInstance().log(entry, e);
-            return;
-        }
-
-        QueryHandler.Prepared prepared = ClientState.getCQLQueryHandler().getPrepared(statementId);
-        if (prepared != null)
-        {
-            AuditLogEntry entry =
-                new AuditLogEntry.Builder(state)
-                                 .setOperation(toString())
-                                 .setType(prepared.statement.getAuditLogContext().auditLogEntryType)
-                                 .setScope(prepared.statement)
-                                 .setKeyspace(state, prepared.statement)
-                                 .setOptions(options)
-                                 .build();
-            AuditLogManager.getInstance().log(entry, e);
-        }
     }
 
     @Override

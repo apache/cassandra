@@ -43,6 +43,7 @@ import com.datastax.driver.core.exceptions.AuthenticationException;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.audit.AuditEvent;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.cql3.CQLTester;
@@ -84,6 +85,7 @@ public class CQLUserAuditTest
                   "cassandra", "cassandra", null);
 
         DiagnosticEventService.instance().subscribe(AuditEvent.class, auditEvents::add);
+        AuditLogManager.instance.initialize();
     }
 
     @AfterClass

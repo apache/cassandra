@@ -23,7 +23,7 @@ package org.apache.cassandra.audit;
 public class NoOpAuditLogger implements IAuditLogger
 {
     @Override
-    public boolean enabled()
+    public boolean isEnabled()
     {
         return false;
     }

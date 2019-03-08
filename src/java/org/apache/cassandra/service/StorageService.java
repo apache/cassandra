@@ -21,6 +21,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
@@ -47,6 +48,8 @@ import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
+import org.apache.cassandra.fql.FullQueryLogger;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.commons.lang3.StringUtils;
 
@@ -5400,7 +5403,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
     public void disableAuditLog()
     {
-        AuditLogManager.getInstance().disableAuditLog();
+        AuditLogManager.instance.disableAuditLog();
         logger.info("Auditlog is disabled");
     }
 
@@ -5422,7 +5425,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         auditLogOptions.included_users = includedUsers != null ? includedUsers : DatabaseDescriptor.getAuditLoggingOptions().included_users;
         auditLogOptions.excluded_users = excludedUsers != null ? excludedUsers : DatabaseDescriptor.getAuditLoggingOptions().excluded_users;
 
-        AuditLogManager.getInstance().enableAuditLog(auditLogOptions);
+        AuditLogManager.instance.enable(auditLogOptions);
 
         logger.info("AuditLog is enabled with logger: [{}], included_keyspaces: [{}], excluded_keyspaces: [{}], " +
                     "included_categories: [{}], excluded_categories: [{}], included_users: [{}], "
@@ -5434,7 +5437,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isAuditLogEnabled()
     {
-        return AuditLogManager.getInstance().isAuditingEnabled();
+        return AuditLogManager.instance.isEnabled();
     }
 
     public String getCorruptedTombstoneStrategy()
@@ -5479,5 +5482,33 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
         }
+    }
+
+    @Override
+    public void enableFullQueryLogger(String path, String rollCycle, Boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
+    {
+        FullQueryLoggerOptions fqlOptions = DatabaseDescriptor.getFullQueryLogOptions();
+        path = path != null ? path : fqlOptions.log_dir;
+        rollCycle = rollCycle != null ? rollCycle : fqlOptions.roll_cycle;
+        blocking = blocking != null ? blocking : fqlOptions.block;
+        maxQueueWeight = maxQueueWeight != Integer.MIN_VALUE ? maxQueueWeight : fqlOptions.max_queue_weight;
+        maxLogSize = maxLogSize != Long.MIN_VALUE ? maxLogSize : fqlOptions.max_log_size;
+        archiveCommand = archiveCommand != null ? archiveCommand : fqlOptions.archive_command;
+        maxArchiveRetries = maxArchiveRetries != Integer.MIN_VALUE ? maxArchiveRetries : fqlOptions.max_archive_retries;
+
+        Preconditions.checkNotNull(path, "cassandra.yaml did not set log_dir and not set as parameter");
+        FullQueryLogger.instance.enable(Paths.get(path), rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
+    }
+
+    @Override
+    public void resetFullQueryLogger()
+    {
+        FullQueryLogger.instance.reset(DatabaseDescriptor.getFullQueryLogOptions().log_dir);
+    }
+
+    @Override
+    public void stopFullQueryLogger()
+    {
+        FullQueryLogger.instance.stop();
     }
 }

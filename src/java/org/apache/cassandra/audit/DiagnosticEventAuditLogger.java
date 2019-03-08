@@ -27,7 +27,7 @@ public class DiagnosticEventAuditLogger implements IAuditLogger
         AuditEvent.create(logMessage);
     }
 
-    public boolean enabled()
+    public boolean isEnabled()
     {
         return DiagnosticEventService.instance().isDiagnosticsEnabled();
     }

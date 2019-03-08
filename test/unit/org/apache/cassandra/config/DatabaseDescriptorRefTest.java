@@ -54,6 +54,10 @@ import static org.junit.Assert.fail;
 public class DatabaseDescriptorRefTest
 {
     static final String[] validClasses = {
+    "org.apache.cassandra.audit.AuditLogOptions",
+    "org.apache.cassandra.audit.BinAuditLogger",
+    "org.apache.cassandra.audit.BinLogAuditLogger",
+    "org.apache.cassandra.audit.IAuditLogger",
     "org.apache.cassandra.auth.AllowAllInternodeAuthenticator",
     "org.apache.cassandra.auth.IInternodeAuthenticator",
     "org.apache.cassandra.auth.IAuthenticator",
@@ -116,6 +120,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.exceptions.RequestValidationException",
     "org.apache.cassandra.exceptions.CassandraException",
     "org.apache.cassandra.exceptions.TransportException",
+    "org.apache.cassandra.fql.FullQueryLogger",
+    "org.apache.cassandra.fql.FullQueryLoggerOptions",
     "org.apache.cassandra.locator.IEndpointSnitch",
     "org.apache.cassandra.io.FSWriteError",
     "org.apache.cassandra.io.FSError",
@@ -135,6 +141,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.net.BackPressureStrategy",
     "org.apache.cassandra.security.EncryptionContext",
     "org.apache.cassandra.service.CacheService$CacheType",
+    "org.apache.cassandra.utils.binlog.BinLogOptions",
     "org.apache.cassandra.utils.FBUtilities",
     "org.apache.cassandra.utils.FBUtilities$1",
     "org.apache.cassandra.utils.CloseableIterator",
@@ -146,13 +153,6 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.LogbackStatusListener$ToLoggerOutputStream",
     "org.apache.cassandra.LogbackStatusListener$WrappedPrintStream",
     "org.apache.cassandra.TeeingAppender",
-    "org.apache.cassandra.audit.IAuditLogger",
-    "org.apache.cassandra.audit.BinAuditLogger",
-    "org.apache.cassandra.audit.BinLogAuditLogger",
-    "org.apache.cassandra.audit.FullQueryLogger",
-    "org.apache.cassandra.audit.AuditLogOptions",
-    "org.apache.cassandra.utils.binlog.BinLogOptions",
-    "org.apache.cassandra.audit.FullQueryLoggerOptions",
     // generated classes
     "org.apache.cassandra.config.ConfigBeanInfo",
     "org.apache.cassandra.config.ConfigCustomizer",
