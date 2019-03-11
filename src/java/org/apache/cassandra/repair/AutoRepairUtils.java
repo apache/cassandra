@@ -33,6 +33,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
+import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
@@ -220,8 +221,14 @@ public class AutoRepairUtils
                     logger.debug("Ignore node {} because its datacenter is {}", node, nodeDC);
                     continue;
                 }
-                UUID hostId = Gossiper.instance.getHostId(node);
-                hostIdsInCurrentRing.add(hostId);
+                /** Check if endpoint state exists in gossip or not. If it
+                 * does not then this maybe a ghost node so ignore it
+                 */
+                if (Gossiper.instance.getEndpointStateForEndpoint(node) !=  null)
+                {
+                    UUID hostId = Gossiper.instance.getHostId(node);
+                    hostIdsInCurrentRing.add(hostId);
+                }
             }
             logger.info("Total nodes qualified for repair {}", hostIdsInCurrentRing.size());
 
