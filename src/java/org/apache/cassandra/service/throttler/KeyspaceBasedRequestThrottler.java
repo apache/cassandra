@@ -292,14 +292,16 @@ public class KeyspaceBasedRequestThrottler implements IRequestThrottler
                 throw new RequestThrottledException(msg);
             }
         }
-
-        int limit = keyspaceLimits.singleMutationLimit.decrementAndGet();
-        if (limit < 0)
+        else
         {
-            final String msg = "Throttling single mutation for keyspace " + keyspaceName + ": over limit by " + (-limit);
-            logger.info(msg);
-            metrics.serialMutationThrottles.inc();
-            throw new RequestThrottledException(msg);
+            int limit = keyspaceLimits.singleMutationLimit.decrementAndGet();
+            if (limit < 0)
+            {
+                final String msg = "Throttling single mutation for keyspace " + keyspaceName + ": over limit by " + (-limit);
+                logger.info(msg);
+                metrics.singleMutationThrottles.inc();
+                throw new RequestThrottledException(msg);
+            }
         }
     }
 }
