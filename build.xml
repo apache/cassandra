@@ -35,8 +35,6 @@
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.src.java" value="${basedir}/src/java"/>
     <property name="build.src.antlr" value="${basedir}/src/antlr"/>
-    <property name="build.src.java8" value="${basedir}/src/java8"/>
-    <property name="build.src.java11" value="${basedir}/src/java11"/>
     <property name="build.src.resources" value="${basedir}/src/resources"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
@@ -811,14 +809,13 @@
         depends="maven-ant-tasks-retrieve-build,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
-    <target name="_build_java8_only" if="java.version.8">
+    <target name="_build_java8" if="java.version.8">
         <echo message="Compiling only for Java 8 ..."/>
         <javac fork="true"
                debug="true" debuglevel="${debuglevel}" encoding="utf-8"
                destdir="${build.classes.main}" includeantruntime="false" source="8" target="8"
                memorymaximumsize="512M">
             <src path="${build.src.java}"/>
-            <src path="${build.src.java8}"/>
             <src path="${build.src.gen-java}"/>
             <compilerarg value="-XDignore.symbol.file"/>
             <classpath>
@@ -826,9 +823,12 @@
             </classpath>
         </javac>
     </target>
-    <target name="_build_multi_java" unless="java.version.8">
+    <target name="_build_java11" unless="java.version.8">
         <!-- Note: we cannot use javac's 'release' option, as that does not allow accessing sun.misc.Unsafe nor
         Nashorn's ClassFilter class as any javac modules option is invalid for relase 8. -->
+        <fail message="JAVA8_HOME env variable must be set when building with java >= 11">
+            <condition><not><isset property="env.JAVA8_HOME"/></not></condition>
+        </fail>
         <echo message="Compiling for Java 8 (using ${env.JAVA8_HOME}/bin/javac) ..."/>
         <javac fork="true"
                debug="true" debuglevel="${debuglevel}" encoding="utf-8"
@@ -836,21 +836,7 @@
                executable="${env.JAVA8_HOME}/bin/javac"
                memorymaximumsize="512M">
             <src path="${build.src.java}"/>
-            <src path="${build.src.java8}"/>
             <src path="${build.src.gen-java}"/>
-            <compilerarg value="-XDignore.symbol.file"/>
-            <classpath>
-                <path refid="cassandra.classpath"/>
-            </classpath>
-        </javac>
-        <echo message="Compiling for current java version ..."/>
-        <javac fork="true"
-               debug="true" debuglevel="${debuglevel}" encoding="utf-8"
-               destdir="${build.classes.main}/META-INF/versions/11" includeantruntime="false"
-               memorymaximumsize="512M">
-            <src path="${build.src.java11}"/>
-            <compilerarg value="--release"/>
-            <compilerarg value="${release.version}"/>
             <compilerarg value="-XDignore.symbol.file"/>
             <classpath>
                 <path refid="cassandra.classpath"/>
@@ -861,8 +847,8 @@
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
-        <antcall target="_build_java8_only"/>
-        <antcall target="_build_multi_java"/>
+        <antcall target="_build_java8"/>
+        <antcall target="_build_java11"/>
         <antcall target="createVersionPropFile"/>
         <copy todir="${build.classes.main}">
             <fileset dir="${build.src.resources}" />
@@ -1032,9 +1018,6 @@
           <fileset dir="${build.src.java}" defaultexcludes="yes">
             <include name="org/apache/**/*.java"/>
           </fileset>
-          <fileset dir="${build.src.java11}" defaultexcludes="yes">
-            <include name="org/apache/**/*.java"/>
-          </fileset>
           <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
             <include name="org/apache/**/*.java"/>
           </fileset>
@@ -1054,9 +1037,6 @@
     <target name="sources-jar" depends="init" description="Assemble Cassandra Sources JAR file">
       <jar jarfile="${build.dir}/${final.name}-sources.jar">
         <fileset dir="${build.src.java}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
-        <fileset dir="${build.src.java11}" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>
         </fileset>
         <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
@@ -1234,11 +1214,11 @@
   </target>
 
   <target name="build-test" depends="_main-jar, stress-build, fqltool-build, write-poms" description="Compile test classes">
-    <antcall target="_build-test_java8_only"/>
-    <antcall target="_build-test_multi_java"/>
+    <antcall target="_build-test_java8"/>
+    <antcall target="_build-test_java11"/>
   </target>
 
-  <target name="_build-test_java8_only" if="java.version.8">
+  <target name="_build-test_java8" if="java.version.8">
     <javac
      fork="true"
      compiler="modern"
@@ -1266,7 +1246,7 @@
     </copy>
   </target>
 
-  <target name="_build-test_multi_java" unless="java.version.8">
+  <target name="_build-test_java11" unless="java.version.8">
     <javac
      fork="true"
      compiler="modern"
@@ -2032,7 +2012,6 @@
 	<echo file=".classpath"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <classpath>
   <classpathentry kind="src" path="src/java"/>
-  <classpathentry kind="src" path="src/java8"/>
   <classpathentry kind="src" path="src/resources"/>
   <classpathentry kind="src" path="src/gen-java"/>
   <classpathentry kind="src" path="conf" including="hotspot_compiler"/>

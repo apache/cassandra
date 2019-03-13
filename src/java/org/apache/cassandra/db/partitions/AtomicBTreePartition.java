@@ -47,7 +47,7 @@ import org.apache.cassandra.utils.memory.MemtableAllocator;
  * other thread can see the state where only parts but not all rows have
  * been added.
  */
-public final class AtomicBTreePartition extends AtomicBTreePartitionBase
+public final class AtomicBTreePartition extends AbstractBTreePartition
 {
     public static final long EMPTY_SIZE = ObjectSizes.measure(new AtomicBTreePartition(null,
                                                                                        DatabaseDescriptor.getPartitioner().decorateKey(ByteBuffer.allocate(1)),
@@ -108,6 +108,50 @@ public final class AtomicBTreePartition extends AtomicBTreePartitionBase
         return true;
     }
 
+    private long[] addAllWithSizeDeltaInternal(RowUpdater updater, PartitionUpdate update, UpdateTransaction indexer)
+    {
+        Holder current = ref;
+        updater.ref = current;
+        updater.reset();
+
+        if (!update.deletionInfo().getPartitionDeletion().isLive())
+            indexer.onPartitionDeletion(update.deletionInfo().getPartitionDeletion());
+
+        if (update.deletionInfo().hasRanges())
+            update.deletionInfo().rangeIterator(false).forEachRemaining(indexer::onRangeTombstone);
+
+        DeletionInfo deletionInfo;
+        if (update.deletionInfo().mayModify(current.deletionInfo))
+        {
+            if (updater.inputDeletionInfoCopy == null)
+                updater.inputDeletionInfoCopy = update.deletionInfo().copy(HeapAllocator.instance);
+
+            deletionInfo = current.deletionInfo.mutableCopy().add(updater.inputDeletionInfoCopy);
+            updater.allocated(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
+        }
+        else
+        {
+            deletionInfo = current.deletionInfo;
+        }
+
+        RegularAndStaticColumns columns = update.columns().mergeTo(current.columns);
+        Row newStatic = update.staticRow();
+        Row staticRow = newStatic.isEmpty()
+                        ? current.staticRow
+                        : (current.staticRow.isEmpty() ? updater.apply(newStatic) : updater.apply(current.staticRow, newStatic));
+        Object[] tree = BTree.update(current.tree, update.metadata().comparator, update, update.rowCount(), updater);
+        EncodingStats newStats = current.stats.mergeWith(update.stats());
+
+        if (tree != null && refUpdater.compareAndSet(this, current, new Holder(columns, tree, deletionInfo, staticRow, newStats)))
+        {
+            updater.finish();
+            return new long[]{ updater.dataSize, updater.colUpdateTimeDelta };
+        }
+        else
+        {
+            return null;
+        }
+    }
     /**
      * Adds a given update to this in-memtable partition.
      *
@@ -117,68 +161,33 @@ public final class AtomicBTreePartition extends AtomicBTreePartitionBase
     public long[] addAllWithSizeDelta(final PartitionUpdate update, OpOrder.Group writeOp, UpdateTransaction indexer)
     {
         RowUpdater updater = new RowUpdater(this, allocator, writeOp, indexer);
-        DeletionInfo inputDeletionInfoCopy = null;
-        boolean monitorOwned = false;
         try
         {
-            if (usePessimisticLocking())
-            {
-                acquireLock();
-                monitorOwned = true;
-            }
+            boolean shouldLock = usePessimisticLocking();
 
             indexer.start();
 
             while (true)
             {
-                Holder current = ref;
-                updater.ref = current;
-                updater.reset();
-
-                if (!update.deletionInfo().getPartitionDeletion().isLive())
-                    indexer.onPartitionDeletion(update.deletionInfo().getPartitionDeletion());
-
-                if (update.deletionInfo().hasRanges())
-                    update.deletionInfo().rangeIterator(false).forEachRemaining(indexer::onRangeTombstone);
-
-                DeletionInfo deletionInfo;
-                if (update.deletionInfo().mayModify(current.deletionInfo))
+                if (shouldLock)
                 {
-                    if (inputDeletionInfoCopy == null)
-                        inputDeletionInfoCopy = update.deletionInfo().copy(HeapAllocator.instance);
-
-                    deletionInfo = current.deletionInfo.mutableCopy().add(inputDeletionInfoCopy);
-                    updater.allocated(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
+                    synchronized (this)
+                    {
+                        long[] result = addAllWithSizeDeltaInternal(updater, update, indexer);
+                        if (result != null)
+                            return result;
+                    }
                 }
                 else
                 {
-                    deletionInfo = current.deletionInfo;
-                }
+                    long[] result = addAllWithSizeDeltaInternal(updater, update, indexer);
+                    if (result != null)
+                        return result;
 
-                RegularAndStaticColumns columns = update.columns().mergeTo(current.columns);
-                Row newStatic = update.staticRow();
-                Row staticRow = newStatic.isEmpty()
-                              ? current.staticRow
-                              : (current.staticRow.isEmpty() ? updater.apply(newStatic) : updater.apply(current.staticRow, newStatic));
-                Object[] tree = BTree.update(current.tree, update.metadata().comparator, update, update.rowCount(), updater);
-                EncodingStats newStats = current.stats.mergeWith(update.stats());
-
-                if (tree != null && refUpdater.compareAndSet(this, current, new Holder(columns, tree, deletionInfo, staticRow, newStats)))
-                {
-                    updater.finish();
-                    return new long[]{ updater.dataSize, updater.colUpdateTimeDelta };
-                }
-                else if (!monitorOwned)
-                {
-                    boolean shouldLock = usePessimisticLocking();
+                    shouldLock = usePessimisticLocking();
                     if (!shouldLock)
                     {
                         shouldLock = updateWastedAllocationTracker(updater.heapSize);
-                    }
-                    if (shouldLock)
-                    {
-                        acquireLock();
-                        monitorOwned = true;
                     }
                 }
             }
@@ -186,8 +195,6 @@ public final class AtomicBTreePartition extends AtomicBTreePartitionBase
         finally
         {
             indexer.commit();
-            if (monitorOwned)
-                releaseLock();
         }
     }
 
@@ -311,6 +318,8 @@ public final class AtomicBTreePartition extends AtomicBTreePartitionBase
         long heapSize;
         long colUpdateTimeDelta = Long.MAX_VALUE;
         List<Row> inserted; // TODO: replace with walk of aborted BTree
+
+        DeletionInfo inputDeletionInfoCopy = null;
 
         private RowUpdater(AtomicBTreePartition updating, MemtableAllocator allocator, OpOrder.Group writeOp, UpdateTransaction indexer)
         {
