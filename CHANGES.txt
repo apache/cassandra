@@ -4,6 +4,7 @@
  * Add missing commands to nodetool-completion (CASSANDRA-14916)
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
  Merged from 2.2:
+ * Refactor Circle CI configuration (CASSANDRA-14806)
  * Fixing invalid CQL in security documentation (CASSANDRA-15020)
  * Multi-version in-JVM dtests (CASSANDRA-14937)
 
