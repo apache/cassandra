@@ -25,6 +25,7 @@ import java.util.Random;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 
@@ -35,6 +36,11 @@ abstract class TokenAllocatorTestBase
 {
     protected static final int TARGET_CLUSTER_SIZE = 250;
     protected static final int MAX_VNODE_COUNT = 64;
+
+    public TokenAllocatorTestBase()
+    {
+        DatabaseDescriptor.clientInitialization();
+    }
 
     interface TestReplicationStrategy extends ReplicationStrategy<Unit>
     {
