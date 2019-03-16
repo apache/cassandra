@@ -56,6 +56,15 @@ public class ValidationComplete extends RepairMessage
         return trees != null;
     }
 
+    /**
+     * @return a new {@link ValidationComplete} instance with all trees moved off heap, or {@code this}
+     * if it's a failure response.
+     */
+    public ValidationComplete tryMoveOffHeap() throws IOException
+    {
+        return trees == null ? this : new ValidationComplete(desc, trees.tryMoveOffHeap());
+    }
+
     @Override
     public boolean equals(Object o)
     {

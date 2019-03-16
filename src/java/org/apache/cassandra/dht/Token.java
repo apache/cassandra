@@ -26,7 +26,6 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class Token implements RingPosition<Token>, Serializable
 {
@@ -40,8 +39,30 @@ public abstract class Token implements RingPosition<Token>, Serializable
         public abstract Token fromByteArray(ByteBuffer bytes);
         public abstract String toString(Token token); // serialize as string, not necessarily human-readable
         public abstract Token fromString(String string); // deserialize
-
         public abstract void validate(String token) throws ConfigurationException;
+
+        public void serialize(Token token, DataOutputPlus out) throws IOException
+        {
+            out.write(toByteArray(token));
+        }
+
+        public void serialize(Token token, ByteBuffer out) throws IOException
+        {
+            out.put(toByteArray(token));
+        }
+
+        public Token fromByteBuffer(ByteBuffer bytes, int position, int length)
+        {
+            bytes = bytes.duplicate();
+            bytes.position(position)
+                 .limit(position + length);
+            return fromByteArray(bytes);
+        }
+
+        public int byteSize(Token token)
+        {
+            return toByteArray(token).remaining();
+        }
     }
 
     public static class TokenSerializer implements IPartitionerDependentSerializer<Token>
@@ -49,23 +70,28 @@ public abstract class Token implements RingPosition<Token>, Serializable
         public void serialize(Token token, DataOutputPlus out, int version) throws IOException
         {
             IPartitioner p = token.getPartitioner();
-            ByteBuffer b = p.getTokenFactory().toByteArray(token);
-            ByteBufferUtil.writeWithLength(b, out);
+            out.writeInt(p.getTokenFactory().byteSize(token));
+            p.getTokenFactory().serialize(token, out);
         }
 
         public Token deserialize(DataInput in, IPartitioner p, int version) throws IOException
         {
-            int size = in.readInt();
+            int size = deserializeSize(in);
             byte[] bytes = new byte[size];
             in.readFully(bytes);
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
         }
 
+        public int deserializeSize(DataInput in) throws IOException
+        {
+            return in.readInt();
+        }
+
         public long serializedSize(Token object, int version)
         {
             IPartitioner p = object.getPartitioner();
-            ByteBuffer b = p.getTokenFactory().toByteArray(object);
-            return TypeSizes.sizeof(b.remaining()) + b.remaining();
+            int byteSize = p.getTokenFactory().byteSize(object);
+            return TypeSizes.sizeof(byteSize) + byteSize;
         }
     }
 

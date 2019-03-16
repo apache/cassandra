@@ -2907,4 +2907,15 @@ public class DatabaseDescriptor
     {
         return strictRuntimeChecks;
     }
+
+    public static boolean useOffheapMerkleTrees()
+    {
+        return conf.use_offheap_merkle_trees;
+    }
+
+    public static void useOffheapMerkleTrees(boolean value)
+    {
+        logger.info("Setting use_offheap_merkle_trees to {}", value);
+        conf.use_offheap_merkle_trees = value;
+    }
 }

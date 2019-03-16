@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -25,10 +26,12 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PreHashedDecoratedKey;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -42,6 +45,7 @@ public class Murmur3Partitioner implements IPartitioner
 {
     public static final LongToken MINIMUM = new LongToken(Long.MIN_VALUE);
     public static final long MAXIMUM = Long.MAX_VALUE;
+    private static final int MAXIMUM_TOKEN_SIZE = TypeSizes.sizeof(MAXIMUM);
 
     private static final int HEAP_SIZE = (int) ObjectSizes.measureDeep(MINIMUM);
 
@@ -224,6 +228,11 @@ public class Murmur3Partitioner implements IPartitioner
         return new LongToken(normalize(hash[0]));
     }
 
+    public int getMaxTokenSize()
+    {
+        return MAXIMUM_TOKEN_SIZE;
+    }
+
     private long[] getHash(ByteBuffer key)
     {
         long[] hash = new long[2];
@@ -300,9 +309,33 @@ public class Murmur3Partitioner implements IPartitioner
             return ByteBufferUtil.bytes(longToken.token);
         }
 
+        @Override
+        public void serialize(Token token, DataOutputPlus out) throws IOException
+        {
+            out.writeLong(((LongToken) token).token);
+        }
+
+        @Override
+        public void serialize(Token token, ByteBuffer out)
+        {
+            out.putLong(((LongToken) token).token);
+        }
+
+        @Override
+        public int byteSize(Token token)
+        {
+            return 8;
+        }
+
         public Token fromByteArray(ByteBuffer bytes)
         {
             return new LongToken(ByteBufferUtil.toLong(bytes));
+        }
+
+        @Override
+        public Token fromByteBuffer(ByteBuffer bytes, int position, int length)
+        {
+            return new LongToken(bytes.getLong(position));
         }
 
         public String toString(Token token)

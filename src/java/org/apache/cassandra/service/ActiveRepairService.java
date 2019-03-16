@@ -71,7 +71,6 @@ import org.apache.cassandra.repair.consistent.LocalSessions;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
@@ -246,6 +245,16 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }, MoreExecutors.directExecutor());
         session.start(executor);
         return session;
+    }
+
+    public boolean getUseOffheapMerkleTrees()
+    {
+        return DatabaseDescriptor.useOffheapMerkleTrees();
+    }
+
+    public void setUseOffheapMerkleTrees(boolean value)
+    {
+        DatabaseDescriptor.useOffheapMerkleTrees(value);
     }
 
     private <T extends AbstractFuture &

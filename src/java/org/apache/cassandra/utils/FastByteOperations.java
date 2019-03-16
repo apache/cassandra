@@ -55,6 +55,16 @@ public class FastByteOperations
         return -BestHolder.BEST.compare(b2, b1, s1, l1);
     }
 
+    public static int compareUnsigned(ByteBuffer b1, int s1, int l1, byte[] b2, int s2, int l2)
+    {
+        return BestHolder.BEST.compare(b1, s1, l1, b2, s2, l2);
+    }
+
+    public static int compareUnsigned(byte[] b1, int s1, int l1, ByteBuffer b2, int s2, int l2)
+    {
+        return -BestHolder.BEST.compare(b2, s2, l2, b1, s1, l1);
+    }
+
     public static int compareUnsigned(ByteBuffer b1, ByteBuffer b2)
     {
         return BestHolder.BEST.compare(b1, b2);
@@ -76,6 +86,8 @@ public class FastByteOperations
                                     byte[] buffer2, int offset2, int length2);
 
         abstract public int compare(ByteBuffer buffer1, byte[] buffer2, int offset2, int length2);
+
+        abstract public int compare(ByteBuffer buffer1, int offset1, int length1, byte[] buffer2, int offset2, int length2);
 
         abstract public int compare(ByteBuffer buffer1, ByteBuffer buffer2);
 
@@ -187,25 +199,24 @@ public class FastByteOperations
 
         public int compare(ByteBuffer buffer1, byte[] buffer2, int offset2, int length2)
         {
+            return compare(buffer1, buffer1.position(), buffer1.remaining(), buffer2, offset2, length2);
+        }
+
+        public int compare(ByteBuffer buffer1, int position1, int length1, byte[] buffer2, int offset2, int length2)
+        {
             Object obj1;
             long offset1;
             if (buffer1.hasArray())
             {
                 obj1 = buffer1.array();
-                offset1 = BYTE_ARRAY_BASE_OFFSET + buffer1.arrayOffset();
+                offset1 = BYTE_ARRAY_BASE_OFFSET + buffer1.arrayOffset() + position1;
             }
             else
             {
                 obj1 = null;
-                offset1 = theUnsafe.getLong(buffer1, DIRECT_BUFFER_ADDRESS_OFFSET);
+                offset1 = theUnsafe.getLong(buffer1, DIRECT_BUFFER_ADDRESS_OFFSET) + position1;
             }
-            int length1;
-            {
-                int position = buffer1.position();
-                int limit = buffer1.limit();
-                length1 = limit - position;
-                offset1 += position;
-            }
+
             return compareTo(obj1, offset1, length1, buffer2, BYTE_ARRAY_BASE_OFFSET + offset2, length2);
         }
 
@@ -397,11 +408,28 @@ public class FastByteOperations
             return length1 - length2;
         }
 
+        public int compare(ByteBuffer buffer1, int position1, int length1, byte[] buffer2, int offset2, int length2)
+        {
+            if (buffer1.hasArray())
+                return compare(buffer1.array(), buffer1.arrayOffset() + position1, length1, buffer2, offset2, length2);
+
+            if (position1 != buffer1.position())
+            {
+                buffer1 = buffer1.duplicate();
+                buffer1.position(position1);
+            }
+
+            return compare(buffer1, ByteBuffer.wrap(buffer2, offset2, length2));
+        }
+
         public int compare(ByteBuffer buffer1, byte[] buffer2, int offset2, int length2)
         {
             if (buffer1.hasArray())
+            {
                 return compare(buffer1.array(), buffer1.arrayOffset() + buffer1.position(), buffer1.remaining(),
                                buffer2, offset2, length2);
+            }
+
             return compare(buffer1, ByteBuffer.wrap(buffer2, offset2, length2));
         }
 

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -31,6 +32,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
@@ -46,6 +48,7 @@ public class RandomPartitioner implements IPartitioner
     public static final BigInteger ZERO = new BigInteger("0");
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
     public static final BigInteger MAXIMUM = new BigInteger("2").pow(127);
+    public static final int MAXIMUM_TOKEN_SIZE = MAXIMUM.bitLength() / 8 + 1;
 
     /**
      * Maintain a separate threadlocal message digest, exclusively for token hashing. This is necessary because
@@ -162,9 +165,33 @@ public class RandomPartitioner implements IPartitioner
             return ByteBuffer.wrap(bigIntegerToken.token.toByteArray());
         }
 
+        @Override
+        public void serialize(Token token, DataOutputPlus out) throws IOException
+        {
+            out.write(((BigIntegerToken) token).token.toByteArray());
+        }
+
+        @Override
+        public void serialize(Token token, ByteBuffer out)
+        {
+            out.put(((BigIntegerToken) token).token.toByteArray());
+        }
+
+        @Override
+        public int byteSize(Token token)
+        {
+            return ((BigIntegerToken) token).token.bitLength() / 8 + 1;
+        }
+
         public Token fromByteArray(ByteBuffer bytes)
         {
             return new BigIntegerToken(new BigInteger(ByteBufferUtil.getArray(bytes)));
+        }
+
+        @Override
+        public Token fromByteBuffer(ByteBuffer bytes, int position, int length)
+        {
+            return new BigIntegerToken(new BigInteger(ByteBufferUtil.getArray(bytes, position, length)));
         }
 
         public String toString(Token token)
@@ -250,6 +277,11 @@ public class RandomPartitioner implements IPartitioner
             return MINIMUM;
 
         return new BigIntegerToken(hashToBigInteger(key));
+    }
+
+    public int getMaxTokenSize()
+    {
+        return MAXIMUM_TOKEN_SIZE;
     }
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)

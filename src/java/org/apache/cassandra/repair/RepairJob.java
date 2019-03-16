@@ -236,7 +236,10 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 }
                 syncTasks.add(task);
             }
+            trees.get(i).trees.release();
         }
+        trees.get(trees.size() - 1).trees.release();
+
         return syncTasks;
     }
 
