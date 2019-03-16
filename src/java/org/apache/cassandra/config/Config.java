@@ -130,6 +130,8 @@ public class Config
     public volatile Integer repair_session_max_tree_depth = null;
     public volatile Integer repair_session_space_in_mb = null;
 
+    public volatile boolean use_offheap_merkle_trees = true;
+
     public int storage_port = 7000;
     public int ssl_storage_port = 7001;
     public String listen_address;

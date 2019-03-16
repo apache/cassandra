@@ -774,10 +774,6 @@ public class RepairJobTest
         MerkleTrees tree = new MerkleTrees(MURMUR3_PARTITIONER);
         tree.addMerkleTrees((int) Math.pow(2, 15), fullRange);
         tree.init();
-        for (MerkleTree.TreeRange r : tree.invalids())
-        {
-            r.ensureHashInitialised();
-        }
 
         if (invalidate)
         {
