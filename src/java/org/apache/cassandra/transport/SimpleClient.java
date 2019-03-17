@@ -133,10 +133,13 @@ public class SimpleClient implements Closeable
         {
             Compressor compressor = useCompression ? LZ4Compressor.INSTANCE : null;
             connection.setTransformer(ChecksummingTransformer.getTransformer(ChecksumType.CRC32, compressor));
+            options.put(StartupMessage.CHECKSUM, "crc32");
+            options.put(StartupMessage.COMPRESSION, "lz4");
         }
         else if (useCompression)
         {
             connection.setTransformer(CompressingTransformer.getTransformer(LZ4Compressor.INSTANCE));
+            options.put(StartupMessage.COMPRESSION, "lz4");
         }
 
         execute(new StartupMessage(options));
