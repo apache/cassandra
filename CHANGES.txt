@@ -1,4 +1,5 @@
 4.0
+ * SimpleClient should pass connection properties as options (CASSANDRA-15056)
  * Set repaired data tracking flag on range reads if enabled (CASSANDRA-15019)
  * Calculate pending ranges for BOOTSTRAP_REPLACE correctly (CASSANDRA-14802)
  * Make TableCQLHelper reuse the single quote pattern (CASSANDRA-15033)
