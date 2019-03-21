@@ -106,6 +106,9 @@ public class DatabaseDescriptor
 
     private static boolean daemonInitialized;
 
+    // turns some warnings into exceptions for testing
+    private static final boolean strictRuntimeChecks = Boolean.getBoolean("cassandra.strict.runtime.checks");
+
     public static boolean isDaemonInitialized()
     {
         return daemonInitialized;
@@ -2104,5 +2107,10 @@ public class DatabaseDescriptor
     public static long getGCWarnThreshold()
     {
         return conf.gc_warn_threshold_in_ms;
+    }
+
+    public static boolean strictRuntimeChecks()
+    {
+        return strictRuntimeChecks;
     }
 }

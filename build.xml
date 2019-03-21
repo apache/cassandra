@@ -1224,6 +1224,7 @@
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
         <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
+        <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
 	<optjvmargs/>
         <classpath>
           <pathelement path="${java.class.path}"/>
