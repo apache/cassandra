@@ -47,6 +47,7 @@ public class GossiperTest
 {
     static
     {
+        System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
         DatabaseDescriptor.setDaemonInitialized();
     }
     static final IPartitioner partitioner = new RandomPartitioner();
