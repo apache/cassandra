@@ -115,10 +115,20 @@ public class SimpleClient implements Closeable
 
     public void connect(boolean useCompression) throws IOException
     {
+        connect(useCompression, false);
+    }
+
+    public void connect(boolean useCompression, boolean throwOnOverload) throws IOException
+    {
         establishConnection();
 
         Map<String, String> options = new HashMap<>();
         options.put(StartupMessage.CQL_VERSION, "3.0.0");
+
+        if (throwOnOverload)
+            options.put(StartupMessage.THROW_ON_OVERLOAD, "1");
+        connection.setThrowOnOverload(throwOnOverload);
+
         if (useCompression)
         {
             options.put(StartupMessage.COMPRESSION, "snappy");
