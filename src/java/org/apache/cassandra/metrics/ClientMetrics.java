@@ -18,9 +18,14 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
+import org.apache.cassandra.transport.Server;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -28,11 +33,38 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 public class ClientMetrics
 {
     private static final MetricNameFactory factory = new DefaultNameFactory("Client");
-    
     public static final ClientMetrics instance = new ClientMetrics();
-    
+
+    private volatile boolean initialized = false;
+
+    private Collection<Server> servers = Collections.emptyList();
+
+    private AtomicInteger pausedConnections;
+    private Gauge<Integer> pausedConnectionsGauge;
+    private Meter requestDiscarded;
+
     private ClientMetrics()
     {
+    }
+
+    public void pauseConnection() { pausedConnections.incrementAndGet(); }
+    public void unpauseConnection() { pausedConnections.decrementAndGet(); }
+    public void markRequestDiscarded() { requestDiscarded.mark(); }
+
+    public synchronized void init(Collection<Server> servers)
+    {
+        if (initialized)
+            return;
+
+        this.servers = servers;
+
+        registerGauge("connectedNativeClients", this::countConnectedClients);
+
+        pausedConnections = new AtomicInteger();
+        pausedConnectionsGauge = registerGauge("PausedConnections", pausedConnections::get);
+        requestDiscarded = registerMeter("RequestDiscarded");
+
+        initialized = true;
     }
 
     public void addCounter(String name, final Callable<Integer> provider)
@@ -50,5 +82,25 @@ public class ClientMetrics
                 }
             }
         });
+    }
+
+    private int countConnectedClients()
+    {
+        int count = 0;
+
+        for (Server server : servers)
+            count += server.getConnectedClients();
+
+        return count;
+    }
+
+    private <T> Gauge<T> registerGauge(String name, Gauge<T> gauge)
+    {
+        return Metrics.register(factory.createMetricName(name), gauge);
+    }
+
+    private Meter registerMeter(String name)
+    {
+        return Metrics.meter(factory.createMetricName(name));
     }
 }
