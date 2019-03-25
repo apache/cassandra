@@ -22,7 +22,11 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.impl.IInvokableInstance;
+
+import static org.junit.Assert.assertEquals;
 
 public class DistributedReadWritePathTest extends DistributedTestBase
 {
@@ -266,5 +270,31 @@ public class DistributedReadWritePathTest extends DistributedTestBase
             }
 
         }
+    }
+
+    @Test
+    public void metricsCountQueriesTest() throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.create(2)))
+        {
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+            for (int i = 0; i < 100; i++)
+                cluster.coordinator(1).execute("INSERT INTO "+KEYSPACE+".tbl (pk, ck, v) VALUES (?,?,?)", ConsistencyLevel.ALL, i, i, i);
+
+            long readCount1 = readCount(cluster.get(1));
+            long readCount2 = readCount(cluster.get(2));
+            for (int i = 0; i < 100; i++)
+                cluster.coordinator(1).execute("SELECT * FROM "+KEYSPACE+".tbl WHERE pk = ? and ck = ?", ConsistencyLevel.ALL, i, i);
+
+            readCount1 = readCount(cluster.get(1)) - readCount1;
+            readCount2 = readCount(cluster.get(2)) - readCount2;
+            assertEquals(readCount1, readCount2);
+            assertEquals(100, readCount1);
+        }
+    }
+
+    private long readCount(IInvokableInstance instance)
+    {
+        return instance.callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.latency.getCount());
     }
 }
