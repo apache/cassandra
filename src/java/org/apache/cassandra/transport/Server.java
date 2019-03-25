@@ -23,7 +23,9 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +59,8 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.RefCounted;
 
 public class Server implements CassandraDaemon.Server
 {
@@ -83,7 +87,6 @@ public class Server implements CassandraDaemon.Server
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
 
     private EventLoopGroup workerGroup;
-    private EventExecutor eventExecutorGroup;
 
     private Server (Builder builder)
     {
@@ -100,8 +103,6 @@ public class Server implements CassandraDaemon.Server
             else
                 workerGroup = new NioEventLoopGroup();
         }
-        if (builder.eventExecutorGroup != null)
-            eventExecutorGroup = builder.eventExecutorGroup;
         EventNotifier notifier = new EventNotifier(this);
         StorageService.instance.register(notifier);
         Schema.instance.registerListener(notifier);
@@ -230,12 +231,6 @@ public class Server implements CassandraDaemon.Server
             return this;
         }
 
-        public Builder withEventExecutor(EventExecutor eventExecutor)
-        {
-            this.eventExecutorGroup = eventExecutor;
-            return this;
-        }
-
         public Builder withHost(InetAddress host)
         {
             this.hostAddr = host;
@@ -337,6 +332,65 @@ public class Server implements CassandraDaemon.Server
 
     }
 
+    // inflight payload per endpoint across corresponding channels
+    public static final ConcurrentMap<InetAddress, EndpointPayloadTracker> requestPayloadInFlightPerEndpoint = new ConcurrentHashMap<>();
+
+    // global inflight payload across all channels across all endpoints
+    public static final AtomicLong globalRequestPayloadInFlight = new AtomicLong(0L);
+
+    public static class EndpointPayloadTracker
+    {
+        private final Ref<EndpointPayloadTracker> selfRef;
+
+        // inflight payload per endpoint
+        public AtomicLong requestPayloadInFlight = new AtomicLong(0L);
+
+        public EndpointPayloadTracker(InetAddress endpoint)
+        {
+            selfRef = new Ref<>(this, new CleanUp(endpoint));
+        }
+
+        public Ref<EndpointPayloadTracker> tryRef()
+        {
+            return selfRef.tryRef();
+        }
+
+        public void ensureReleased()
+        {
+            selfRef.ensureReleased();
+        }
+
+        /**
+         * Indicates no live references
+         * @return
+         */
+        public boolean hasNoLiveRefs()
+        {
+            // globalCount returns the number of currently extant references globally, including the shared reference.
+            return selfRef.globalCount() <= 1;
+        }
+
+        private static class CleanUp implements RefCounted.Tidy
+        {
+            private final InetAddress endpoint;
+
+            public CleanUp(InetAddress endpoint)
+            {
+                this.endpoint = endpoint;
+            }
+
+            public void tidy()
+            {
+                requestPayloadInFlightPerEndpoint.remove(endpoint);
+            }
+
+            public String name()
+            {
+                return endpoint.getHostAddress();
+            }
+        }
+    }
+
     private static class Initializer extends ChannelInitializer<Channel>
     {
         // Stateless handlers
@@ -346,7 +400,6 @@ public class Server implements CassandraDaemon.Server
         private static final Frame.OutboundBodyTransformer outboundFrameTransformer = new Frame.OutboundBodyTransformer();
         private static final Frame.Encoder frameEncoder = new Frame.Encoder();
         private static final Message.ExceptionHandler exceptionHandler = new Message.ExceptionHandler();
-        private static final Message.Dispatcher dispatcher = new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher());
         private static final ConnectionLimitHandler connectionLimitHandler = new ConnectionLimitHandler();
 
         private final Server server;
@@ -358,6 +411,19 @@ public class Server implements CassandraDaemon.Server
 
         protected void initChannel(Channel channel) throws Exception
         {
+            // Account for the new channel by incrementing the ref count, for the corresponding endpoint.
+            InetAddress endpoint = ((InetSocketAddress) channel.remoteAddress()).getAddress();
+            Ref<EndpointPayloadTracker> endpointPayloadTrackerRef;
+            while (true)
+            {
+                requestPayloadInFlightPerEndpoint.computeIfAbsent(endpoint, (endpointPayloadTracker) -> new EndpointPayloadTracker(endpoint));
+                if ((endpointPayloadTrackerRef = requestPayloadInFlightPerEndpoint.get(endpoint).tryRef()) != null)
+                {
+                    // we have successfully accounted for the new channel
+                    break;
+                }
+            }
+
             ChannelPipeline pipeline = channel.pipeline();
 
             // Add the ConnectionLimitHandler to the pipeline if configured to do so.
@@ -379,6 +445,8 @@ public class Server implements CassandraDaemon.Server
             pipeline.addLast("messageDecoder", messageDecoder);
             pipeline.addLast("messageEncoder", messageEncoder);
 
+            pipeline.addLast("executor", new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(), endpointPayloadTrackerRef));
+
             // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
             // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
             // eventExecutorGroup may not enforce strict ordering for channel events.
@@ -386,11 +454,6 @@ public class Server implements CassandraDaemon.Server
             // correctly handled before the handler itself is removed.
             // See https://issues.apache.org/jira/browse/CASSANDRA-13649
             pipeline.addLast("exceptionHandler", exceptionHandler);
-
-            if (server.eventExecutorGroup != null)
-                pipeline.addLast(server.eventExecutorGroup, "executor", dispatcher);
-            else
-                pipeline.addLast("executor", dispatcher);
         }
     }
 

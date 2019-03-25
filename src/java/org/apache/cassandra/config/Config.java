@@ -170,6 +170,9 @@ public class Config
     public boolean native_transport_flush_in_batches_legacy = false;
     public volatile boolean native_transport_allow_older_protocols = true;
     public int native_transport_frame_block_size_in_kb = 32;
+    // TODO: Revisit limit
+    public volatile long max_inflight_requests_payload_per_endpoint_in_bytes = 3000000000L;
+    public volatile long max_inflight_global_requests_payload_in_bytes = 5000000000L;
 
     /**
      * Max size of values in SSTables, in MegaBytes.

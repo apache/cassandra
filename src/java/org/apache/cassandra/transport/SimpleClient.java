@@ -124,10 +124,16 @@ public class SimpleClient implements Closeable
 
     public SimpleClient connect(boolean useCompression, boolean useChecksums) throws IOException
     {
+        return connect(useCompression, useChecksums, false);
+    }
+
+    public SimpleClient connect(boolean useCompression, boolean useChecksums, boolean isOverloadedExceptionEnabled) throws IOException
+    {
         establishConnection();
 
         Map<String, String> options = new HashMap<>();
         options.put(StartupMessage.CQL_VERSION, "3.0.0");
+        options.put(StartupMessage.OVERLOADED_EXCEPTION_ENABLED, Boolean.toString(isOverloadedExceptionEnabled));
 
         if (useChecksums)
         {
@@ -141,6 +147,8 @@ public class SimpleClient implements Closeable
             connection.setTransformer(CompressingTransformer.getTransformer(LZ4Compressor.INSTANCE));
             options.put(StartupMessage.COMPRESSION, "lz4");
         }
+
+        connection.setOverloadedExceptionEnabled(isOverloadedExceptionEnabled);
 
         execute(new StartupMessage(options));
         return this;

@@ -46,6 +46,7 @@ public class StartupMessage extends Message.Request
     public static final String DRIVER_NAME = "DRIVER_NAME";
     public static final String DRIVER_VERSION = "DRIVER_VERSION";
     public static final String CHECKSUM = "CONTENT_CHECKSUM";
+    public static final String OVERLOADED_EXCEPTION_ENABLED = "OVERLOADED_EXCEPTION_ENABLED";
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
@@ -103,6 +104,8 @@ public class StartupMessage extends Message.Request
         {
             connection.setTransformer(CompressingTransformer.getTransformer(compressor));
         }
+
+        connection.setOverloadedExceptionEnabled(Boolean.parseBoolean(options.get(OVERLOADED_EXCEPTION_ENABLED)));
 
         ClientState clientState = state.getClientState();
         String driverName = options.get(DRIVER_NAME);
