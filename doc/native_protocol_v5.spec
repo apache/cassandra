@@ -298,7 +298,9 @@ Table of Contents
       different from the protocol version.
     - "COMPRESSION": the compression algorithm to use for frames (See section 5).
       This is optional; if not specified no compression will be used.
-
+    - "THROW_ON_OVERLOAD": In case of server overloaded with too many requests, by default the server puts
+      back pressure on the client connection. Instead, the server can send an OverloadedException error message back to
+      the client if this option is set to true.
 
 4.1.2. AUTH_RESPONSE
 
@@ -1265,3 +1267,4 @@ Table of Contents
   * Added now_in_seconds field in QUERY, EXECUTE, and BATCH messages (Sections 4.1.4, 4.1.6, and 4.1.7).
   * Added [int] flags field in PREPARE message (Section 4.1.5).
   * Removed NO_COMPACT startup option (Section 4.1.1.)
+  * Added THROW_ON_OVERLOAD startup option (Section 4.1.1).

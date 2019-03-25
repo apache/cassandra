@@ -490,6 +490,16 @@ public class DatabaseDescriptor
             throw new ConfigurationException("native_transport_max_frame_size_in_mb must be smaller than 2048, but was "
                     + conf.native_transport_max_frame_size_in_mb, false);
 
+        if (conf.native_transport_max_concurrent_requests_in_bytes <= 0)
+        {
+            conf.native_transport_max_concurrent_requests_in_bytes = Runtime.getRuntime().maxMemory() / 10;
+        }
+
+        if (conf.native_transport_max_concurrent_requests_in_bytes_per_ip <= 0)
+        {
+            conf.native_transport_max_concurrent_requests_in_bytes_per_ip = Runtime.getRuntime().maxMemory() / 40;
+        }
+
         // if data dirs, commitlog dir, or saved caches dir are set in cassandra.yaml, use that.  Otherwise,
         // use -Dcassandra.storagedir (set in cassandra-env.sh) as the parent dir for data/, commitlog/, and saved_caches/
         if (conf.commitlog_directory == null)
@@ -1939,6 +1949,26 @@ public class DatabaseDescriptor
     public static int getNativeTransportFrameBlockSize()
     {
         return conf.native_transport_frame_block_size_in_kb * 1024;
+    }
+
+    public static long getNativeTransportMaxConcurrentRequestsInBytesPerIp()
+    {
+        return conf.native_transport_max_concurrent_requests_in_bytes_per_ip;
+    }
+
+    public static void setNativeTransportMaxConcurrentRequestsInBytesPerIp(long maxConcurrentRequestsInBytes)
+    {
+        conf.native_transport_max_concurrent_requests_in_bytes_per_ip = maxConcurrentRequestsInBytes;
+    }
+
+    public static long getNativeTransportMaxConcurrentRequestsInBytes()
+    {
+        return conf.native_transport_max_concurrent_requests_in_bytes;
+    }
+
+    public static void setNativeTransportMaxConcurrentRequestsInBytes(long maxConcurrentRequestsInBytes)
+    {
+        conf.native_transport_max_concurrent_requests_in_bytes = maxConcurrentRequestsInBytes;
     }
 
     public static double getCommitLogSyncGroupWindow()
