@@ -40,6 +40,9 @@ public final class ClientMetrics
     private Meter authSuccess;
     private Meter authFailure;
 
+    private Meter requestProcessed;
+    private Meter requestDiscarded;
+
     private ClientMetrics()
     {
     }
@@ -53,6 +56,10 @@ public final class ClientMetrics
     {
         authFailure.mark();
     }
+
+    public void markRequestProcessed() { requestProcessed.mark(); }
+
+    public void markRequestDiscarded() { requestDiscarded.mark(); }
 
     public List<ConnectedClient> allConnectedClients()
     {
@@ -78,6 +85,9 @@ public final class ClientMetrics
 
         authSuccess = registerMeter("AuthSuccess");
         authFailure = registerMeter("AuthFailure");
+
+        requestProcessed = registerMeter("RequestProcessed");
+        requestDiscarded = registerMeter("RequestDiscarded");
 
         initialized = true;
     }
