@@ -1,6 +1,7 @@
 3.11.5
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Avoid double closing the iterator to avoid overcounting the number of requests (CASSANDRA-15058)
  * Improve `nodetool status -r` speed (CASSANDRA-14847)
  * Improve merkle tree size and time on heap (CASSANDRA-14096)
  * Add missing commands to nodetool_completion (CASSANDRA-14916)
