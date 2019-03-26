@@ -68,15 +68,6 @@
 
     <property name="doc.dir" value="${basedir}/doc"/>
 
-    <!--
-    We specify '8' instead of '1.8' in source.version to indicate that that this build requires Java 11 _and_ Java 8.
-    Builds that only run against Java 8, _have to_ specify '1.8' for source version. This makes it possible to let
-    CI scripts distinguish between "pure Java 8" releases and "hybrid" releases.
-    -->
-    <property name="source.version" value="8"/>
-    <property name="target.version" value="8"/>
-    <property name="release.version" value="10"/>
-
     <condition property="version" value="${base.version}">
       <isset property="release"/>
     </condition>
@@ -119,11 +110,11 @@
     <property name="jacoco.finalexecfile" value="${jacoco.export.dir}/jacoco.exec" />
     <property name="jacoco.version" value="0.7.5.201505241946"/>
 
-    <property name="byteman.version" value="4.0.2"/>
+    <property name="byteman.version" value="4.0.6"/>
     <property name="jamm.version" value="0.3.2"/>
     <property name="ecj.version" value="4.6.1"/>
     <property name="ohc.version" value="0.5.1"/>
-    <property name="asm.version" value="6.2"/>
+    <property name="asm.version" value="7.1"/>
 
     <!-- https://mvnrepository.com/artifact/net.openhft/chronicle-bom/1.16.23 -->
     <property name="chronicle-queue.version" value="4.16.3" />
@@ -158,23 +149,64 @@
         }
     </script>
 
-    <!--
-    Build instructions for release builds / builds that support both Java 8 and 11:
-    - requires JDK 11 in JAVA_HOME
-    - requires JDK 8 in JAVA8_HOME
-
-    Build instructions for development buils that only support Java 8:
-    - requires JDK 8 in JAVA_HOME
-    -->
     <condition property="java.version.8">
         <equals arg1="${ant.java.version}" arg2="1.8"/>
     </condition>
-    <condition property="java11-jvmargs" value="-Djdk.attach.allowAttachSelf=true --add-exports java.sql/java.sql=ALL-UNNAMED --add-exports java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/jdk.internal.module=ALL-UNNAMED --add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-exports java.base/sun.nio.ch=ALL-UNNAMED --add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED --add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.server=ALL-UNNAMED --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED">
+    <condition property="java.version.11">
+        <not><isset property="java.version.8"/></not>
+    </condition>
+    <fail><condition><not><or>
+        <isset property="java.version.8"/>
+        <isset property="java.version.11"/>
+    </or></not></condition></fail>
+
+    <resources id="_jvm11_arg_items">
+        <string>-Djdk.attach.allowAttachSelf=true</string>
+
+        <string>-XX:+UseConcMarkSweepGC</string>
+        <string>-XX:+CMSParallelRemarkEnabled</string>
+        <string>-XX:SurvivorRatio=8</string>
+        <string>-XX:MaxTenuringThreshold=1</string>
+        <string>-XX:CMSInitiatingOccupancyFraction=75</string>
+        <string>-XX:+UseCMSInitiatingOccupancyOnly</string>
+        <string>-XX:CMSWaitDuration=10000</string>
+        <string>-XX:+CMSParallelInitialMarkEnabled</string>
+        <string>-XX:+CMSEdenChunksRecordAlways</string>
+
+        <string>--add-exports java.base/jdk.internal.misc=ALL-UNNAMED</string>
+        <string>--add-exports java.base/jdk.internal.ref=ALL-UNNAMED</string>
+        <string>--add-exports java.base/sun.nio.ch=ALL-UNNAMED</string>
+        <string>--add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.server=ALL-UNNAMED</string>
+        <string>--add-exports java.sql/java.sql=ALL-UNNAMED</string>
+
+        <string>--add-opens java.base/java.lang.module=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.loader=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.ref=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.reflect=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.math=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.module=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.util.jar=ALL-UNNAMED</string>
+        <string>--add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</string>
+    </resources>
+    <pathconvert property="_jvm_args_concat" refid="_jvm11_arg_items" pathsep=" "/>
+    <condition property="java11-jvmargs" value="${_jvm_args_concat}" else="">
         <not>
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
     </condition>
-    <property name="java11-jvmargs" value=""/>
+
+    <condition property="build.java.11">
+        <istrue value="${use.jdk11}"/>
+    </condition>
+
+    <condition property="source.version" value="8" else="11">
+        <equals arg1="${java.version.8}" arg2="true"/>
+    </condition>
+    <condition property="target.version" value="8" else="11">
+        <equals arg1="${java.version.8}" arg2="true"/>
+    </condition>
 
     <!--
          Add all the dependencies.
@@ -221,13 +253,60 @@
     </sequential>
   </macrodef>
 
+    <target name="validate-build-conf">
+        <condition property="use-jdk11">
+            <or>
+                <isset property="build.java.11"/>
+                <istrue value="${env.CASSANDRA_USE_JDK11}"/>
+            </or>
+        </condition>
+        <fail message="Inconsistent JDK11 options set">
+            <condition>
+                    <and>
+                        <istrue value="${env.CASSANDRA_USE_JDK11}"/>
+                        <isset property="use.jdk11"/>
+                        <not>
+                            <istrue value="${use.jdk11}"/>
+                        </not>
+                    </and>
+            </condition>
+                </fail>
+        <fail message="Inconsistent JDK11 options set">
+            <condition>
+                    <and>
+                        <isset property="env.CASSANDRA_USE_JDK11"/>
+                        <not>
+                            <istrue value="${env.CASSANDRA_USE_JDK11}"/>
+                        </not>
+                        <istrue value="${use.jdk11}"/>
+                    </and>
+            </condition>
+        </fail>
+        <fail message="-Duse.jdk11=true or $CASSANDRA_USE_JDK11=true cannot be set when building from java 8">
+            <condition>
+                <not><or>
+                    <not><isset property="java.version.8"/></not>
+                    <not><isset property="use-jdk11"/></not>
+                </or></not>
+            </condition>
+        </fail>
+        <fail message="-Duse.jdk11=true or $CASSANDRA_USE_JDK11=true must be set when building from java 11">
+            <condition>
+                <not><or>
+                    <isset property="java.version.8"/>
+                    <isset property="use-jdk11"/>
+                </or></not>
+            </condition>
+        </fail>
+    </target>
+
     <!--
         Setup the output directories.
     -->
-    <target name="init">
+    <target name="init" depends="validate-build-conf">
         <fail unless="is.source.artifact"
             message="Not a source artifact, stopping here." />
-        <mkdir dir="${build.classes.main}/META-INF/versions/11"/>
+        <mkdir dir="${build.classes.main}"/>
         <mkdir dir="${test.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${stress.test.classes}"/>
@@ -809,31 +888,13 @@
         depends="maven-ant-tasks-retrieve-build,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
-    <target name="_build_java8" if="java.version.8">
-        <echo message="Compiling only for Java 8 ..."/>
-        <javac fork="true"
-               debug="true" debuglevel="${debuglevel}" encoding="utf-8"
-               destdir="${build.classes.main}" includeantruntime="false" source="8" target="8"
-               memorymaximumsize="512M">
-            <src path="${build.src.java}"/>
-            <src path="${build.src.gen-java}"/>
-            <compilerarg value="-XDignore.symbol.file"/>
-            <classpath>
-                <path refid="cassandra.classpath"/>
-            </classpath>
-        </javac>
-    </target>
-    <target name="_build_java11" unless="java.version.8">
+    <target name="_build_java">
         <!-- Note: we cannot use javac's 'release' option, as that does not allow accessing sun.misc.Unsafe nor
         Nashorn's ClassFilter class as any javac modules option is invalid for relase 8. -->
-        <fail message="JAVA8_HOME env variable must be set when building with java >= 11">
-            <condition><not><isset property="env.JAVA8_HOME"/></not></condition>
-        </fail>
-        <echo message="Compiling for Java 8 (using ${env.JAVA8_HOME}/bin/javac) ..."/>
+        <echo message="Compiling for Java ${target.version}..."/>
         <javac fork="true"
                debug="true" debuglevel="${debuglevel}" encoding="utf-8"
-               destdir="${build.classes.main}" includeantruntime="false" source="8" target="8"
-               executable="${env.JAVA8_HOME}/bin/javac"
+               destdir="${build.classes.main}" includeantruntime="false" source="${source.version}" target="${target.version}"
                memorymaximumsize="512M">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
@@ -843,12 +904,12 @@
             </classpath>
         </javac>
     </target>
+
     <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
-        <antcall target="_build_java8"/>
-        <antcall target="_build_java11"/>
+        <antcall target="_build_java"/>
         <antcall target="createVersionPropFile"/>
         <copy todir="${build.classes.main}">
             <fileset dir="${build.src.resources}" />
@@ -1217,11 +1278,10 @@
   </target>
 
   <target name="build-test" depends="_main-jar, stress-build, fqltool-build, write-poms" description="Compile test classes">
-    <antcall target="_build-test_java8"/>
-    <antcall target="_build-test_java11"/>
+    <antcall target="_build-test"/>
   </target>
 
-  <target name="_build-test_java8" if="java.version.8">
+  <target name="_build-test">
     <javac
      fork="true"
      compiler="modern"
@@ -1232,35 +1292,6 @@
      source="${source.version}"
      target="${target.version}"
      encoding="utf-8">
-     <classpath>
-        <path refid="cassandra.classpath"/>
-     </classpath>
-     <compilerarg value="-XDignore.symbol.file"/>
-     <src path="${test.unit.src}"/>
-     <src path="${test.long.src}"/>
-     <src path="${test.burn.src}"/>
-     <src path="${test.microbench.src}"/>
-     <src path="${test.distributed.src}"/>
-    </javac>
-
-    <!-- Non-java resources needed by the test suite -->
-    <copy todir="${test.classes}">
-      <fileset dir="${test.resources}"/>
-    </copy>
-  </target>
-
-  <target name="_build-test_java11" unless="java.version.8">
-    <javac
-     fork="true"
-     compiler="modern"
-     debug="true"
-     debuglevel="${debuglevel}"
-     destdir="${test.classes}"
-     includeantruntime="true"
-     source="${source.version}"
-     target="${target.version}"
-     encoding="utf-8"
-     executable="${env.JAVA8_HOME}/bin/javac">
      <classpath>
         <path refid="cassandra.classpath"/>
      </classpath>
@@ -1975,11 +2006,21 @@
       </java>
   </target>
 
+  <target name="_maybe_update_idea_to_java11" if="java.version.11">
+    <replace file="${eclipse.project.name}.iml" token="JDK_1_8" value="JDK_11"/>
+    <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_11"/>
+    <replace file=".idea/misc.xml" token="1.8" value="11"/>
+    <replaceregexp file=".idea/workspace.xml"
+                   match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)&quot;"
+                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java11-jvmargs}&quot;"
+                   byline="true"/>
+  </target>
+
   <!-- Generate IDEA project description files -->
   <target name="generate-idea-files" depends="build-test" description="Generate IDEA files">
     <mkdir dir=".idea"/>
     <mkdir dir=".idea/libraries"/>
-    <copy todir=".idea">
+    <copy todir=".idea" overwrite="true">
         <fileset dir="ide/idea"/>
     </copy>
     <replace file=".idea/workspace.xml" token="trunk" value="${eclipse.project.name}"/>
@@ -1993,6 +2034,7 @@
     </modules>
   </component>
 </project>]]></echo>
+      <antcall target="_maybe_update_idea_to_java11"/>
   </target>
 
   <!-- Generate Eclipse project description files -->

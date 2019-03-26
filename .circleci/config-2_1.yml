@@ -1,8 +1,6 @@
 version: 2.1
 
 default_env_vars: &default_env_vars
-    JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     ANT_HOME: /usr/share/ant
     LANG: en_US.UTF-8
     KEEP_TEST_DIR: true
@@ -36,98 +34,133 @@ j11_par_executor: &j11_par_executor
     #exec_resource_class: xlarge
   parallelism: 4
 
-with_dtests_jobs: &with_dtest_jobs
+j8_with_dtests_jobs: &j8_with_dtests_jobs
+  jobs:
+    - j8_build
+    # Java 8 unit tests will be run automatically
+    - j8_unit_tests:
+        requires:
+          - j8_build
+    - j8_jvm_dtests:
+        requires:
+          - j8_build
+    # Java 11 unit tests (on request, currently not working)
+    - start_j11_unit_tests:
+        type: approval
+        requires:
+          - j8_build
+    - j11_unit_tests:
+        requires:
+          - start_j11_unit_tests
+    # specialized unit tests (all run on request using Java 8)
+    - start_utests_long:
+        type: approval
+        requires:
+          - j8_build
+    - utests_long:
+        requires:
+          - start_utests_long
+    - start_utests_compression:
+        type: approval
+        requires:
+          - j8_build
+    - utests_compression:
+        requires:
+          - start_utests_compression
+    - start_utests_stress:
+        type: approval
+        requires:
+          - j8_build
+    - utests_stress:
+        requires:
+          - start_utests_stress
+    - start_utests_fqltool:
+        type: approval
+        requires:
+          - j8_build
+    - utests_fqltool:
+        requires:
+          - start_utests_fqltool
+    # Java 8 dtests (on request)
+    - start_j8_dtests:
+        type: approval
+        requires:
+          - j8_build
+    - j8_dtests-with-vnodes:
+        requires:
+          - start_j8_dtests
+    - j8_dtests-no-vnodes:
+        requires:
+          - start_j8_dtests
+    # Java 11 dtests (on request)
+    - start_j11_dtests:
+        type: approval
+        requires:
+          - j8_build
+    - j11_dtests-with-vnodes:
+        requires:
+        - start_j11_dtests
+    - j11_dtests-no-vnodes:
+        requires:
+        - start_j11_dtests
+    # Java 8 upgrade tests
+    - start_upgrade_tests:
+        type: approval
+        requires:
+          - j8_build
+    - j8_upgradetests-no-vnodes:
+        requires:
+          - start_upgrade_tests
+
+j11_with_dtests_jobs: &j11_with_dtests_jobs
+  jobs:
+    - j11_build
+    # Java 11 unit tests (on request, currently not working)
+    - start_j11_unit_tests:
+        type: approval
+        requires:
+          - j11_build
+    - j11_unit_tests:
+        requires:
+          - start_j11_unit_tests
+    # Java 11 dtests (on request)
+    - start_j11_dtests:
+        type: approval
+        requires:
+          - j11_build
+    - j11_dtests-with-vnodes:
+        requires:
+          - start_j11_dtests
+    - j11_dtests-no-vnodes:
+        requires:
+          - start_j11_dtests
+
+j8_with_dtest_jobs_only: &j8_with_dtest_jobs_only
+        jobs:
+            - j8_build
+            - j8_dtests-with-vnodes:
+                  requires:
+                      - j8_build
+            - j8_dtests-no-vnodes:
+                  requires:
+                      - j8_build
+
+j11_with_dtest_jobs_only: &j11_with_dtest_jobs_only
         jobs:
             - build
-            # Java 8 unit tests will be run automatically
-            - j8_unit_tests:
+            - j11-with-vnodes:
                 requires:
-                  - build
-            - j8_jvm_dtests:
-                requires:
-                  - build
-            # Java 11 unit tests (on request, currently not working)
-            - start_j11_unit_tests:
-                type: approval
-                requires:
-                  - build
-            - j11_unit_tests:
-                requires:
-                  - start_j11_unit_tests
-            # specialized unit tests (all run on request using Java 8)
-            - start_utests_long:
-                type: approval
-                requires:
-                  - build
-            - utests_long:
-                requires:
-                  - start_utests_long
-            - start_utests_compression:
-                type: approval
-                requires:
-                  - build
-            - utests_compression:
-                requires:
-                  - start_utests_compression
-            - start_utests_stress:
-                type: approval
-                requires:
-                  - build
-            - utests_stress:
-                requires:
-                  - start_utests_stress
-            - start_utests_fqltool:
-                type: approval
-                requires:
-                  - build
-            - utests_fqltool:
-                requires:
-                  - start_utests_fqltool
-            # Java 8 dtests (on request)
-            - start_j8_dtests:
-                type: approval
-                requires:
-                  - build
-            - j8_dtests-with-vnodes:
-                requires:
-                  - start_j8_dtests
-            - j8_dtests-no-vnodes:
-                requires:
-                  - start_j8_dtests
-            # Java 11 dtests (on request)
-            - start_j11_dtests:
-                type: approval
-                requires:
-                  - build
-            - j11_dtests-with-vnodes:
-                requires:
-                - start_j11_dtests
+                  - j11_build
             - j11_dtests-no-vnodes:
                 requires:
-                - start_j11_dtests
-            # Java 8 upgrade tests
-            - start_upgrade_tests:
-                type: approval
-                requires:
-                  - build
-            - j8_upgradetests-no-vnodes:
-                requires:
-                  - start_upgrade_tests
-
-with_dtest_jobs_only: &with_dtest_jobs_only
-        jobs:
-            - build
-            - j8_dtests-with-vnodes:
-                  requires:
-                      - build
-            - j8_dtests-no-vnodes:
-                  requires:
-                      - build
+                  - j11_build
 
 workflows:
     version: 2
-    build_and_run_tests: *with_dtest_jobs
-    #build_and_run_tests: *with_dtest_jobs_only
+    java8_build_and_run_tests: *j8_with_dtests_jobs
+#    java8_build_and_run_tests: *j8_with_dtest_jobs_only
+    java11_build_and_run_tests: *j11_with_dtests_jobs
+#    java11_build_and_run_tests: *j11_with_dtest_jobs_only
 
 executors:
   java8-executor:
@@ -159,21 +192,29 @@ executors:
       <<: *default_env_vars
       JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
       JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+      CASSANDRA_USE_JDK11: true
+
+build_common: &build_common
+  parallelism: 1 # This job doesn't benefit from parallelism
+  steps:
+    - log_environment
+    - clone_cassandra
+    - build_cassandra
+    - run_eclipse_warnings
+    - persist_to_workspace:
+        root: /home/cassandra
+        paths:
+          - cassandra
+          - .m2
 
 jobs:
-  build:
+  j8_build:
+    executor: java8-executor
+    <<: *build_common
+
+  j11_build:
     executor: java11-executor
-    parallelism: 1 # This job doesn't benefit from parallelism
-    steps:
-      - log_environment
-      - clone_cassandra
-      - build_cassandra
-      - run_eclipse_warnings
-      - persist_to_workspace:
-            root: /home/cassandra
-            paths:
-                - cassandra
-                - .m2
+    <<: *build_common
 
   j8_unit_tests:
     <<: *j8_par_executor
@@ -359,7 +400,7 @@ commands:
           cd ~/cassandra
           # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
           for x in $(seq 1 3); do
-              ${ANT_HOME}/bin/ant clean jar
+              ${ANT_HOME}/bin/ant clean realclean jar
               RETURN="$?"
               if [ "${RETURN}" -eq "0" ]; then
                   break
@@ -414,13 +455,11 @@ commands:
     steps:
     - run:
         name: Run Unit Tests (<<parameters.target>>)
-        # Please note that we run `clean` and therefore rebuild the project, as we can't run tests on Java 8 in case
-        # based on Java 11 builds.
         command: |
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
           cd /tmp/cassandra
-          ant clean <<parameters.target>>
+          ant <<parameters.target>>
         no_output_timeout: <<parameters.no_output_timeout>>
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -442,8 +481,6 @@ commands:
     steps:
     - run:
         name: Run Unit Tests (<<parameters.target>>)
-        # Please note that we run `clean` and therefore rebuild the project, as we can't run tests on Java 8 in case
-        # based on Java 11 builds.
         command: |
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
