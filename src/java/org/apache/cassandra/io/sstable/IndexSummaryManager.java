@@ -37,12 +37,14 @@ import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -224,10 +226,22 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
                                                                  compactingAndNonCompacting.right,
                                                                  this.memoryPoolBytes));
         }
+        catch (Exception e)
+        {
+            if (!(e instanceof CompactionInterruptedException))
+                logger.error("Got exception during index summary redistribution", e);
+            throw e;
+        }
         finally
         {
-            for (LifecycleTransaction modifier : compactingAndNonCompacting.right.values())
-                modifier.close();
+            try
+            {
+                FBUtilities.closeAll(compactingAndNonCompacting.right.values());
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
     }
 
