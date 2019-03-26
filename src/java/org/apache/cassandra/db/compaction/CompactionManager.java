@@ -1811,7 +1811,8 @@ public class CompactionManager implements CompactionManagerMBean
             if ((info.getTaskType() == OperationType.VALIDATION) && !interruptValidation)
                 continue;
 
-            if (Iterables.contains(columnFamilies, info.getCFMetaData()))
+            // cfmetadata is null for index summary redistributions which are 'global' - they involve all keyspaces/tables
+            if (info.getCFMetaData() == null || Iterables.contains(columnFamilies, info.getCFMetaData()))
                 compactionHolder.stop(); // signal compaction to stop
         }
     }
