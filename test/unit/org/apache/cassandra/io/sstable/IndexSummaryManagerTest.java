@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Sets;
@@ -40,6 +42,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.compaction.AntiCompactionTest;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -604,15 +607,30 @@ public class IndexSummaryManagerTest
     @Test
     public void testCancelIndex() throws Exception
     {
+        testCancelIndexHelper((cfs) -> CompactionManager.instance.stopCompaction("INDEX_SUMMARY"));
+    }
+
+    @Test
+    public void testCancelIndexInterrupt() throws Exception
+    {
+        testCancelIndexHelper((cfs) -> CompactionManager.instance.interruptCompactionFor(Collections.singleton(cfs.metadata()), (sstable) -> true, false));
+    }
+
+    public void testCancelIndexHelper(Consumer<ColumnFamilyStore> cancelFunction) throws Exception
+    {
         String ksname = KEYSPACE1;
         String cfname = CF_STANDARDLOWiINTERVAL; // index interval of 8, no key caching
         Keyspace keyspace = Keyspace.open(ksname);
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
-        final int numSSTables = 4;
+        cfs.disableAutoCompaction();
+        final int numSSTables = 8;
         int numRows = 256;
         createSSTables(ksname, cfname, numSSTables, numRows);
 
-        final List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
+        List<SSTableReader> allSSTables = new ArrayList<>(cfs.getLiveSSTables());
+        List<SSTableReader> sstables = allSSTables.subList(0, 4);
+        List<SSTableReader> compacting = allSSTables.subList(4, 8);
+
         for (SSTableReader sstable : sstables)
             sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
 
@@ -622,52 +640,68 @@ public class IndexSummaryManagerTest
         final AtomicReference<CompactionInterruptedException> exception = new AtomicReference<>();
         // barrier to control when redistribution runs
         final CountDownLatch barrier = new CountDownLatch(1);
-
-        Thread t = NamedThreadFactory.createThread(new Runnable()
+        CompactionInfo.Holder ongoingCompaction = new CompactionInfo.Holder()
         {
-            public void run()
+            public CompactionInfo getCompactionInfo()
             {
-                try
+                return new CompactionInfo(cfs.metadata(), OperationType.UNKNOWN, 0, 0, UUID.randomUUID(), compacting);
+            }
+        };
+        try (LifecycleTransaction ignored = cfs.getTracker().tryModify(compacting, OperationType.UNKNOWN))
+        {
+            CompactionManager.instance.active.beginCompaction(ongoingCompaction);
+
+            Thread t = NamedThreadFactory.createThread(new Runnable()
+            {
+                public void run()
                 {
-                    // Don't leave enough space for even the minimal index summaries
-                    try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
+                    try
                     {
-                        IndexSummaryManager.redistributeSummaries(new ObservableRedistribution(Collections.EMPTY_LIST,
-                                                                                               of(cfs.metadata.id, txn),
-                                                                                               singleSummaryOffHeapSpace,
-                                                                                               barrier));
+                        // Don't leave enough space for even the minimal index summaries
+                        try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
+                        {
+                            IndexSummaryManager.redistributeSummaries(new ObservableRedistribution(of(cfs.metadata.id, txn),
+                                                                                                   0,
+                                                                                                   singleSummaryOffHeapSpace,
+                                                                                                   barrier));
+                        }
+                    }
+                    catch (CompactionInterruptedException ex)
+                    {
+                        exception.set(ex);
+                    }
+                    catch (IOException ignored)
+                    {
                     }
                 }
-                catch (CompactionInterruptedException ex)
-                {
-                    exception.set(ex);
-                }
-                catch (IOException ignored)
-                {
-                }
-            }
-        });
-        t.start();
-        while (CompactionManager.instance.getActiveCompactions() == 0 && t.isAlive())
-            Thread.sleep(1);
-        // to ensure that the stop condition check in IndexSummaryRedistribution::redistributeSummaries
-        // is made *after* the halt request is made to the CompactionManager, don't allow the redistribution
-        // to proceed until stopCompaction has been called.
-        CompactionManager.instance.stopCompaction("INDEX_SUMMARY");
-        // allows the redistribution to proceed
-        barrier.countDown();
-        t.join();
+            });
+
+            t.start();
+            while (CompactionManager.instance.getActiveCompactions() < 2 && t.isAlive())
+                Thread.sleep(1);
+            // to ensure that the stop condition check in IndexSummaryRedistribution::redistributeSummaries
+            // is made *after* the halt request is made to the CompactionManager, don't allow the redistribution
+            // to proceed until stopCompaction has been called.
+            cancelFunction.accept(cfs);
+            // allows the redistribution to proceed
+            barrier.countDown();
+            t.join();
+        }
+        finally
+        {
+            CompactionManager.instance.active.finishCompaction(ongoingCompaction);
+        }
 
         assertNotNull("Expected compaction interrupted exception", exception.get());
         assertTrue("Expected no active compactions", CompactionManager.instance.active.getCompactions().isEmpty());
 
-        Set<SSTableReader> beforeRedistributionSSTables = new HashSet<>(sstables);
+        Set<SSTableReader> beforeRedistributionSSTables = new HashSet<>(allSSTables);
         Set<SSTableReader> afterCancelSSTables = new HashSet<>(cfs.getLiveSSTables());
         Set<SSTableReader> disjoint = Sets.symmetricDifference(beforeRedistributionSSTables, afterCancelSSTables);
         assertTrue(String.format("Mismatched files before and after cancelling redistribution: %s",
                                  Joiner.on(",").join(disjoint)),
                    disjoint.isEmpty());
-
+        Util.assertOnDiskState(cfs, 8);
         validateData(cfs, numRows);
     }
 
@@ -676,8 +710,9 @@ public class IndexSummaryManagerTest
                                                              long memoryPoolBytes)
     throws IOException
     {
-        return IndexSummaryManager.redistributeSummaries(new IndexSummaryRedistribution(compacting,
-                                                                                        transactions,
+        long nonRedistributingOffHeapSize = compacting.stream().mapToLong(SSTableReader::getIndexSummaryOffHeapSize).sum();
+        return IndexSummaryManager.redistributeSummaries(new IndexSummaryRedistribution(transactions,
+                                                                                        nonRedistributingOffHeapSize,
                                                                                         memoryPoolBytes));
     }
 
@@ -685,12 +720,12 @@ public class IndexSummaryManagerTest
     {
         CountDownLatch barrier;
 
-        ObservableRedistribution(List<SSTableReader> compacting,
-                                 Map<TableId, LifecycleTransaction> transactions,
+        ObservableRedistribution(Map<TableId, LifecycleTransaction> transactions,
+                                 long nonRedistributingOffHeapSize,
                                  long memoryPoolBytes,
                                  CountDownLatch barrier)
         {
-            super(compacting, transactions, memoryPoolBytes);
+            super(transactions, nonRedistributingOffHeapSize, memoryPoolBytes);
             this.barrier = barrier;
         }
 

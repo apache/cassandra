@@ -89,12 +89,14 @@ public class ActiveCompactionsTest extends CQLTester
         try (LifecycleTransaction txn = getCurrentColumnFamilyStore().getTracker().tryModify(sstables, OperationType.INDEX_SUMMARY))
         {
             Map<TableId, LifecycleTransaction> transactions = ImmutableMap.<TableId, LifecycleTransaction>builder().put(getCurrentColumnFamilyStore().metadata().id, txn).build();
-            IndexSummaryRedistribution isr = new IndexSummaryRedistribution(new ArrayList<>(sstables), transactions, 1000);
+            IndexSummaryRedistribution isr = new IndexSummaryRedistribution(transactions, 0, 1000);
             MockActiveCompactions mockActiveCompactions = new MockActiveCompactions();
             CompactionManager.instance.runIndexSummaryRedistribution(isr, mockActiveCompactions);
             assertTrue(mockActiveCompactions.finished);
             assertNotNull(mockActiveCompactions.holder);
-            assertEquals(sstables, mockActiveCompactions.holder.getCompactionInfo().getSSTables());
+            // index redistribution operates over all keyspaces/tables, we always cancel them
+            assertTrue(mockActiveCompactions.holder.getCompactionInfo().getSSTables().isEmpty());
+            assertTrue(mockActiveCompactions.holder.getCompactionInfo().shouldStop((sstable) -> false));
         }
     }
 

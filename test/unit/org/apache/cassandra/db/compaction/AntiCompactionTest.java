@@ -69,6 +69,7 @@ import org.apache.cassandra.utils.concurrent.Transactional;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+import static org.apache.cassandra.Util.assertOnDiskState;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -580,26 +581,5 @@ public class AntiCompactionTest
     private Token t(long t)
     {
         return new Murmur3Partitioner.LongToken(t);
-    }
-
-    static void assertOnDiskState(ColumnFamilyStore cfs, int expectedSSTableCount)
-    {
-        LifecycleTransaction.waitForDeletions();
-        assertEquals(expectedSSTableCount, cfs.getLiveSSTables().size());
-        Set<Integer> liveGenerations = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
-        int fileCount = 0;
-        for (File f : cfs.getDirectories().getCFDirectories())
-        {
-            for (File sst : f.listFiles())
-            {
-                if (sst.getName().contains("Data"))
-                {
-                    Descriptor d = Descriptor.fromFilename(sst.getAbsolutePath());
-                    assertTrue(liveGenerations.contains(d.generation));
-                    fileCount++;
-                }
-            }
-        }
-        assertEquals(expectedSSTableCount, fileCount);
     }
 }

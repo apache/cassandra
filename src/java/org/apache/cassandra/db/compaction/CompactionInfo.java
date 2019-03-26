@@ -56,11 +56,6 @@ public final class CompactionInfo
         this(metadata, tasktype, bytesComplete, totalBytes, Unit.BYTES, compactionId, sstables);
     }
 
-    public CompactionInfo(OperationType tasktype, long completed, long total, Unit unit, UUID compactionId, Collection<SSTableReader> sstables)
-    {
-        this(null, tasktype, completed, total, unit, compactionId, sstables);
-    }
-
     private CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, UUID compactionId, Collection<SSTableReader> sstables)
     {
         this.tasktype = tasktype;

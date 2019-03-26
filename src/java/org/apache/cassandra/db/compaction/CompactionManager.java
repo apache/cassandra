@@ -2107,7 +2107,7 @@ public class CompactionManager implements CompactionManagerMBean
             if ((info.getTaskType() == OperationType.VALIDATION) && !interruptValidation)
                 continue;
 
-            if (Iterables.contains(columnFamilies, info.getTableMetadata()))
+            if (info.getTableMetadata() == null || Iterables.contains(columnFamilies, info.getTableMetadata()))
             {
                 if (info.shouldStop(sstablePredicate))
                     compactionHolder.stop();
