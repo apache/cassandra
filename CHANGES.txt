@@ -1,4 +1,5 @@
 4.0-alpha5
+ * Add fqltool and auditlogviewer to rpm and deb packages (CASSANDRA-14712)
  * Include DROPPED_COLUMNS in schema digest computation (CASSANDRA-15843)
  * Fix Cassandra restart from rpm install (CASSANDRA-15830)
  * Improve handling of 2i initialization failures (CASSANDRA-13606)

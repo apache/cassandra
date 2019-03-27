@@ -51,6 +51,10 @@ install: build
 	dh_install build/tools/lib/stress.jar \
 		usr/share/cassandra
 
+	# Copy fqltool jars
+	dh_install build/tools/lib/fqltool.jar \
+		usr/share/cassandra
+
 	dh_link usr/share/cassandra/apache-cassandra-$(VERSION).jar \
 		usr/share/cassandra/apache-cassandra.jar
 
