@@ -54,6 +54,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
+import static com.google.common.base.Throwables.propagate;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -576,6 +577,20 @@ public final class FileUtils
     public static void handleFSError(FSError e)
     {
         fsErrorHandler.get().ifPresent(handler -> handler.handleFSError(e));
+    }
+
+    /**
+     * handleFSErrorAndPropagate will invoke the disk failure policy error handler,
+     * which may or may not stop the daemon or transports. However, if we don't exit,
+     * we still want to propagate the exception to the caller in case they have custom
+     * exception handling
+     *
+     * @param e A filesystem error
+     */
+    public static void handleFSErrorAndPropagate(FSError e)
+    {
+        handleFSError(e);
+        throw propagate(e);
     }
 
     /**
