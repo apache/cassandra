@@ -1,4 +1,5 @@
 4.0
+ * Add fqltool and auditlogviewer to rpm and deb packages (CASSANDRA-14712) 
  * Fix AbstractBTreePartition locking in java 11 (CASSANDRA-14607)
  * SimpleClient should pass connection properties as options (CASSANDRA-15056)
  * Set repaired data tracking flag on range reads if enabled (CASSANDRA-15019)

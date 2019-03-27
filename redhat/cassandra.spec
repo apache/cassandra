@@ -76,7 +76,6 @@ sed -i 's/^# hints_directory:/hints_directory:/' conf/cassandra.yaml
 # remove batch, powershell, and other files not being installed
 rm conf/*.ps1
 rm bin/*.bat
-rm bin/*.orig
 rm bin/*.ps1
 rm bin/cassandra.in.sh
 rm lib/sigar-bin/*winnt*  # strip segfaults on dll..
@@ -97,6 +96,9 @@ cp -pr lib/* %{buildroot}/usr/share/%{username}/lib/
 
 # copy stress jar
 cp -p build/tools/lib/stress.jar %{buildroot}/usr/share/%{username}/
+
+# copy fqltool jar
+cp -p build/tools/lib/fqltool.jar %{buildroot}/usr/share/%{username}/
 
 # copy binaries
 mv bin/cassandra %{buildroot}/usr/sbin/
@@ -173,6 +175,8 @@ This package contains extra tools for working with Cassandra clusters.
 %attr(755,root,root) %{_bindir}/sstableofflinerelevel
 %attr(755,root,root) %{_bindir}/sstablerepairedset
 %attr(755,root,root) %{_bindir}/sstablesplit
+%attr(755,root,root) %{_bindir}/auditlogviewer
+%attr(755,root,root) %{_bindir}/fqltool
 
 
 %changelog
