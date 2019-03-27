@@ -100,6 +100,9 @@ cp -pr lib/* %{buildroot}/usr/share/%{username}/lib/
 # copy stress jar
 cp -p build/tools/lib/stress.jar %{buildroot}/usr/share/%{username}/
 
+# copy fqltool jar
+cp -p build/tools/lib/fqltool.jar %{buildroot}/usr/share/%{username}/
+
 # copy binaries
 mv bin/cassandra %{buildroot}/usr/sbin/
 cp -p bin/* %{buildroot}/usr/bin/
@@ -177,6 +180,8 @@ This package contains extra tools for working with Cassandra clusters.
 %attr(755,root,root) %{_bindir}/sstableofflinerelevel
 %attr(755,root,root) %{_bindir}/sstablerepairedset
 %attr(755,root,root) %{_bindir}/sstablesplit
+%attr(755,root,root) %{_bindir}/auditlogviewer
+%attr(755,root,root) %{_bindir}/fqltool
 
 
 %changelog
