@@ -20,8 +20,8 @@ import io
 import os.path
 import tempfile
 
-from test.basecase import cql, cqlsh, cqlshlog, TEST_HOST, TEST_PORT, rundir, policy, quote_name
-from test.run_cqlsh import run_cqlsh, call_cqlsh
+from .basecase import TEST_HOST, TEST_PORT, cql, cqlsh, cqlshlog, policy, quote_name, rundir
+from .run_cqlsh import run_cqlsh, call_cqlsh
 
 test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
 
@@ -117,8 +117,6 @@ def cassandra_cursor(cql_version=None, ks=''):
         c = conn.connect(ks)
         # increase default timeout to fix flacky tests, see CASSANDRA-12481
         c.default_timeout = 60.0
-        # if ks is not None:
-        #     c.execute('USE %s;' % quote_name(c, ks))
         yield c
     finally:
         conn.shutdown()

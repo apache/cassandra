@@ -21,8 +21,8 @@
 import locale
 import os
 import re
-from test.basecase import BaseTestCase, cqlsh, cqlshlog
-from test.cassconnect import create_db, remove_db, testrun_cqlsh
+from .basecase import BaseTestCase, cqlsh, cqlshlog
+from .cassconnect import create_db, remove_db, testrun_cqlsh
 import unittest
 import sys
 
@@ -51,13 +51,12 @@ class CqlshCompletionCase(BaseTestCase):
         remove_db()
 
     def setUp(self):
-        env = {}
+        env = os.environ
         env['COLUMNS'] = '100000'
         if (locale.getpreferredencoding() != 'UTF-8'):
              env['LC_CTYPE'] = 'en_US.utf8'
         if ('PATH' in os.environ.keys()):
             env['PATH'] = os.environ['PATH']
-        env['CQLSH_COVERAGE'] = 'true'
         self.cqlsh_runner = testrun_cqlsh(cqlver=None, env=env)
         self.cqlsh = self.cqlsh_runner.__enter__()
 

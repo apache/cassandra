@@ -26,7 +26,7 @@ import subprocess
 import signal
 import math
 from time import time
-from test import basecase
+from . import basecase
 from os.path import join, normpath
 
 

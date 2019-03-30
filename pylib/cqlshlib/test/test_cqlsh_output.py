@@ -25,13 +25,13 @@ import re
 import sys
 import unittest
 
-from test.basecase import (BaseTestCase, cqlshlog, dedent, at_a_time, cqlsh,
-                       TEST_HOST, TEST_PORT)
-from test.cassconnect import (cassandra_cursor, create_db, get_keyspace,
-                              quote_name, remove_db, split_cql_commands,
-                              testcall_cqlsh, testrun_cqlsh)
-from test.ansi_colors import (ColoredText, lookup_colorcode, lookup_colorname,
-                          lookup_colorletter, ansi_seq)
+from .basecase import (BaseTestCase, TEST_HOST, TEST_PORT,
+                       at_a_time, cqlsh, cqlshlog, dedent)
+from .cassconnect import (cassandra_cursor, create_db, get_keyspace,
+                          quote_name, remove_db, split_cql_commands,
+                          testcall_cqlsh, testrun_cqlsh)
+from .ansi_colors import (ColoredText, ansi_seq, lookup_colorcode,
+                          lookup_colorname, lookup_colorletter)
 
 CONTROL_C = '\x03'
 CONTROL_D = '\x04'
@@ -47,7 +47,7 @@ class TestCqlshOutput(BaseTestCase):
         remove_db()
 
     def setUp(self):
-        env = {}
+        env = os.environ
         env['COLUMNS'] = '100000'
         # carry forward or override locale LC_CTYPE for UTF-8 encoding
         if (locale.getpreferredencoding() != 'UTF-8'):
@@ -56,7 +56,6 @@ class TestCqlshOutput(BaseTestCase):
             env['LC_CTYPE'] = os.environ.get('LC_CTYPE', 'en_US.utf8')
         if ('PATH' in os.environ.keys()):
             env['PATH'] = os.environ['PATH']
-        env['CQLSH_COVERAGE'] = 'true'
         self.default_env = env
 
     def tearDown(self):
