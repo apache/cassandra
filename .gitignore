@@ -43,7 +43,7 @@ cscope.*
 # NetBeans
 nbbuild/
 nbdist/
-nbproject/
+ide/nbproject/private
 nb-configuration.xml
 nbactions.xml
 
