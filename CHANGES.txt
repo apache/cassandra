@@ -1,4 +1,9 @@
 4.0
+ * Fix AbstractBTreePartition locking in java 11 (CASSANDRA-14607)
+ * SimpleClient should pass connection properties as options (CASSANDRA-15056)
+ * Set repaired data tracking flag on range reads if enabled (CASSANDRA-15019)
+ * Calculate pending ranges for BOOTSTRAP_REPLACE correctly (CASSANDRA-14802)
+ * Make TableCQLHelper reuse the single quote pattern (CASSANDRA-15033)
  * Add Zstd compressor (CASSANDRA-14482)
  * Fix IR prepare anti-compaction race (CASSANDRA-15027)
  * Fix SimpleStrategy option validation (CASSANDRA-15007)
@@ -353,10 +358,16 @@
 3.11.5
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Fix handling FS errors on writing and reading flat files - LogTransaction and hints (CASSANDRA-15053)
+ * Avoid double closing the iterator to avoid overcounting the number of requests (CASSANDRA-15058)
  * Improve `nodetool status -r` speed (CASSANDRA-14847)
  * Improve merkle tree size and time on heap (CASSANDRA-14096)
  * Add missing commands to nodetool_completion (CASSANDRA-14916)
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
+Merged from 2.2:
+ * Fix index summary redistribution cancellation (CASSANDRA-15045)
+ * Refactor Circle CI configuration (CASSANDRA-14806)
+ * Fixing invalid CQL in security documentation (CASSANDRA-15020)
 
 
 3.11.4

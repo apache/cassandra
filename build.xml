@@ -35,8 +35,6 @@
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.src.java" value="${basedir}/src/java"/>
     <property name="build.src.antlr" value="${basedir}/src/antlr"/>
-    <property name="build.src.java8" value="${basedir}/src/java8"/>
-    <property name="build.src.java11" value="${basedir}/src/java11"/>
     <property name="build.src.resources" value="${basedir}/src/resources"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
@@ -146,10 +144,6 @@
       <available file="${build.src.java}" type="dir" />
     </condition>
 
-    <tstamp>
-      <format property="YEAR" pattern="yyyy"/>
-    </tstamp>
-
     <!-- Check if all tests are being run or just one. If it's all tests don't spam the console with test output.
          If it's an individual test print the output from the test under the assumption someone is debugging the test
          and wants to know what is going on without having to context switch to the log file that is generated.
@@ -219,7 +213,7 @@
     <sequential>
       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-        bottom="Copyright &amp;copy; ${YEAR} The Apache Software Foundation"
+        bottom="Copyright &amp;copy; 2009-2019 The Apache Software Foundation"
         useexternalfile="yes" encoding="UTF-8"
         maxmemory="256m">
         <filesets/>
@@ -815,14 +809,13 @@
         depends="maven-ant-tasks-retrieve-build,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
-    <target name="_build_java8_only" if="java.version.8">
+    <target name="_build_java8" if="java.version.8">
         <echo message="Compiling only for Java 8 ..."/>
         <javac fork="true"
                debug="true" debuglevel="${debuglevel}" encoding="utf-8"
                destdir="${build.classes.main}" includeantruntime="false" source="8" target="8"
                memorymaximumsize="512M">
             <src path="${build.src.java}"/>
-            <src path="${build.src.java8}"/>
             <src path="${build.src.gen-java}"/>
             <compilerarg value="-XDignore.symbol.file"/>
             <classpath>
@@ -830,9 +823,12 @@
             </classpath>
         </javac>
     </target>
-    <target name="_build_multi_java" unless="java.version.8">
+    <target name="_build_java11" unless="java.version.8">
         <!-- Note: we cannot use javac's 'release' option, as that does not allow accessing sun.misc.Unsafe nor
         Nashorn's ClassFilter class as any javac modules option is invalid for relase 8. -->
+        <fail message="JAVA8_HOME env variable must be set when building with java >= 11">
+            <condition><not><isset property="env.JAVA8_HOME"/></not></condition>
+        </fail>
         <echo message="Compiling for Java 8 (using ${env.JAVA8_HOME}/bin/javac) ..."/>
         <javac fork="true"
                debug="true" debuglevel="${debuglevel}" encoding="utf-8"
@@ -840,21 +836,7 @@
                executable="${env.JAVA8_HOME}/bin/javac"
                memorymaximumsize="512M">
             <src path="${build.src.java}"/>
-            <src path="${build.src.java8}"/>
             <src path="${build.src.gen-java}"/>
-            <compilerarg value="-XDignore.symbol.file"/>
-            <classpath>
-                <path refid="cassandra.classpath"/>
-            </classpath>
-        </javac>
-        <echo message="Compiling for current java version ..."/>
-        <javac fork="true"
-               debug="true" debuglevel="${debuglevel}" encoding="utf-8"
-               destdir="${build.classes.main}/META-INF/versions/11" includeantruntime="false"
-               memorymaximumsize="512M">
-            <src path="${build.src.java11}"/>
-            <compilerarg value="--release"/>
-            <compilerarg value="${release.version}"/>
             <compilerarg value="-XDignore.symbol.file"/>
             <classpath>
                 <path refid="cassandra.classpath"/>
@@ -865,8 +847,8 @@
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
-        <antcall target="_build_java8_only"/>
-        <antcall target="_build_multi_java"/>
+        <antcall target="_build_java8"/>
+        <antcall target="_build_java11"/>
         <antcall target="createVersionPropFile"/>
         <copy todir="${build.classes.main}">
             <fileset dir="${build.src.resources}" />
@@ -1036,9 +1018,6 @@
           <fileset dir="${build.src.java}" defaultexcludes="yes">
             <include name="org/apache/**/*.java"/>
           </fileset>
-          <fileset dir="${build.src.java11}" defaultexcludes="yes">
-            <include name="org/apache/**/*.java"/>
-          </fileset>
           <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
             <include name="org/apache/**/*.java"/>
           </fileset>
@@ -1058,9 +1037,6 @@
     <target name="sources-jar" depends="init" description="Assemble Cassandra Sources JAR file">
       <jar jarfile="${build.dir}/${final.name}-sources.jar">
         <fileset dir="${build.src.java}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
-        <fileset dir="${build.src.java11}" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>
         </fileset>
         <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
@@ -1238,7 +1214,13 @@
   </target>
 
   <target name="build-test" depends="_main-jar, stress-build, fqltool-build, write-poms" description="Compile test classes">
+    <antcall target="_build-test_java8"/>
+    <antcall target="_build-test_java11"/>
+  </target>
+
+  <target name="_build-test_java8" if="java.version.8">
     <javac
+     fork="true"
      compiler="modern"
      debug="true"
      debuglevel="${debuglevel}"
@@ -1247,6 +1229,35 @@
      source="${source.version}"
      target="${target.version}"
      encoding="utf-8">
+     <classpath>
+        <path refid="cassandra.classpath"/>
+     </classpath>
+     <compilerarg value="-XDignore.symbol.file"/>
+     <src path="${test.unit.src}"/>
+     <src path="${test.long.src}"/>
+     <src path="${test.burn.src}"/>
+     <src path="${test.microbench.src}"/>
+     <src path="${test.distributed.src}"/>
+    </javac>
+
+    <!-- Non-java resources needed by the test suite -->
+    <copy todir="${test.classes}">
+      <fileset dir="${test.resources}"/>
+    </copy>
+  </target>
+
+  <target name="_build-test_java11" unless="java.version.8">
+    <javac
+     fork="true"
+     compiler="modern"
+     debug="true"
+     debuglevel="${debuglevel}"
+     destdir="${test.classes}"
+     includeantruntime="true"
+     source="${source.version}"
+     target="${target.version}"
+     encoding="utf-8"
+     executable="${env.JAVA8_HOME}/bin/javac">
      <classpath>
         <path refid="cassandra.classpath"/>
      </classpath>
@@ -1397,6 +1408,10 @@
     <attribute name="testlist.offset" />
     <sequential>
       <property name="compressed_yaml" value="${build.test.dir}/cassandra.compressed.yaml"/>
+      <concat destfile="${compressed_yaml}">
+          <fileset file="${test.conf}/cassandra.yaml"/>
+          <fileset file="${test.conf}/commitlog_compression.yaml"/>
+      </concat>
       <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}" poffset="@{testlist.offset}"
                        exclude="**/*.java" timeout="${test.timeout}" testtag="compression">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
@@ -1866,6 +1881,13 @@
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testparallel testdelegate="testlist"/>
   </target>
+  <target name="testclasslist-compression" depends="build-test" description="Parallel-run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+      <path id="all-test-classes-path">
+          <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
+      </path>
+      <property name="all-test-classes" refid="all-test-classes-path"/>
+      <testparallel testdelegate="testlist-compression"/>
+  </target>
 
   <!-- In-JVM dtest targets -->
   <target name="list-jvm-dtests" depends="build-test">
@@ -1990,7 +2012,6 @@
 	<echo file=".classpath"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <classpath>
   <classpathentry kind="src" path="src/java"/>
-  <classpathentry kind="src" path="src/java8"/>
   <classpathentry kind="src" path="src/resources"/>
   <classpathentry kind="src" path="src/gen-java"/>
   <classpathentry kind="src" path="conf" including="hotspot_compiler"/>

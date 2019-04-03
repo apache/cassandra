@@ -906,19 +906,23 @@ public class TokenMetadata
         // At this stage newPendingRanges has been updated according to leave operations. We can
         // now continue the calculation by checking bootstrapping nodes.
 
-        // For each of the bootstrapping nodes, simply add and remove them one by one to
-        // allLeftMetadata and check in between what their ranges would be.
+        // For each of the bootstrapping nodes, simply add to the allLeftMetadata and check what their
+        // ranges would be. We actually need to clone allLeftMetadata each time as resetting its state
+        // after getting the new pending ranges is not as simple as just removing the bootstrapping
+        // endpoint. If the bootstrapping endpoint constitutes a replacement, removing it after checking
+        // the newly pending ranges means there are now fewer endpoints that there were originally and
+        // causes its next neighbour to take over its primary range which affects the next RF endpoints
+        // in the ring.
         Multimap<InetAddressAndPort, Token> bootstrapAddresses = bootstrapTokens.inverse();
         for (InetAddressAndPort endpoint : bootstrapAddresses.keySet())
         {
             Collection<Token> tokens = bootstrapAddresses.get(endpoint);
-
-            allLeftMetadata.updateNormalTokens(tokens, endpoint);
-            for (Replica replica : strategy.getAddressReplicas(allLeftMetadata, endpoint))
+            TokenMetadata cloned = allLeftMetadata.cloneOnlyTokenMap();
+            cloned.updateNormalTokens(tokens, endpoint);
+            for (Replica replica : strategy.getAddressReplicas(cloned, endpoint))
             {
                 newPendingRanges.addPendingRange(replica.range(), replica);
             }
-            allLeftMetadata.removeEndpoint(endpoint);
         }
 
         // At this stage newPendingRanges has been updated according to leaving and bootstrapping nodes.
