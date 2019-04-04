@@ -74,6 +74,18 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     }
 
     @Override
+    public int getMessagingVersion()
+    {
+        return delegate().getMessagingVersion();
+    }
+
+    @Override
+    public void setMessagingVersion(InetAddressAndPort endpoint, int version)
+    {
+        delegate().setMessagingVersion(endpoint, version);
+    }
+
+    @Override
     public IInstanceConfig config()
     {
         return delegate().config();
