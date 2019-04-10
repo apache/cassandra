@@ -358,6 +358,7 @@
 3.11.5
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * cassandra-stress works with frozen collections: list and set (CASSANDRA-14907)
  * Fix handling FS errors on writing and reading flat files - LogTransaction and hints (CASSANDRA-15053)
  * Avoid double closing the iterator to avoid overcounting the number of requests (CASSANDRA-15058)
  * Improve `nodetool status -r` speed (CASSANDRA-14847)
