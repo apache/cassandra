@@ -1288,3 +1288,5 @@ repaired_data_tracking_for_partition_reads_enabled: false
 # mismatches are less actionable than confirmed ones.
 report_unconfirmed_repaired_data_mismatches: false
 
+# enables direct_io for read path of data files.
+enable_direct_io_for_read_path: false
