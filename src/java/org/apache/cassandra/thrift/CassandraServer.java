@@ -416,7 +416,7 @@ public class CassandraServer implements Cassandra.Iface
                 return toInternalFilter(metadata, parent, predicate.slice_range);
             }
         }
-        catch (UnknownColumnException e)
+        catch (UnknownColumnException | IllegalLegacyColumnException e)
         {
             throw new org.apache.cassandra.exceptions.InvalidRequestException(e.getMessage());
         }
@@ -521,7 +521,7 @@ public class CassandraServer implements Cassandra.Iface
                 return makeColumnFilter(metadata, parent, predicate.slice_range);
             }
         }
-        catch (UnknownColumnException e)
+        catch (UnknownColumnException | IllegalLegacyColumnException e)
         {
             throw new org.apache.cassandra.exceptions.InvalidRequestException(e.getMessage());
         }
@@ -660,7 +660,7 @@ public class CassandraServer implements Cassandra.Iface
                 return tcolumns.get(0);
             }
         }
-        catch (UnknownColumnException e)
+        catch (UnknownColumnException | IllegalLegacyColumnException e)
         {
             throw new InvalidRequestException(e.getMessage());
         }
@@ -859,7 +859,7 @@ public class CassandraServer implements Cassandra.Iface
 
             mutation = new org.apache.cassandra.db.Mutation(update);
         }
-        catch (MarshalException|UnknownColumnException e)
+        catch (MarshalException | UnknownColumnException | IllegalLegacyColumnException e)
         {
             throw new org.apache.cassandra.exceptions.InvalidRequestException(e.getMessage());
         }
@@ -964,7 +964,7 @@ public class CassandraServer implements Cassandra.Iface
                      : new CASResult(false).setCurrent_values(thriftifyColumnsAsColumns(metadata, LegacyLayout.fromRowIterator(result).right));
             }
         }
-        catch (UnknownColumnException e)
+        catch (UnknownColumnException | IllegalLegacyColumnException e)
         {
             throw new InvalidRequestException(e.getMessage());
         }
@@ -986,13 +986,13 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    private LegacyLayout.LegacyCell toLegacyCell(CFMetaData metadata, Column column, int nowInSec) throws UnknownColumnException
+    private LegacyLayout.LegacyCell toLegacyCell(CFMetaData metadata, Column column, int nowInSec) throws UnknownColumnException, IllegalLegacyColumnException
     {
         return toLegacyCell(metadata, null, column, nowInSec);
     }
 
     private LegacyLayout.LegacyCell toLegacyCell(CFMetaData metadata, ByteBuffer superColumnName, Column column, int nowInSec)
-    throws UnknownColumnException
+    throws UnknownColumnException, IllegalLegacyColumnException
     {
         return column.ttl > 0
              ? LegacyLayout.LegacyCell.expiring(metadata, superColumnName, column.name, column.value, column.timestamp, column.ttl, nowInSec)
@@ -1000,25 +1000,25 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     private LegacyLayout.LegacyCell toLegacyDeletion(CFMetaData metadata, ByteBuffer name, long timestamp, int nowInSec)
-    throws UnknownColumnException
+    throws UnknownColumnException, IllegalLegacyColumnException
     {
         return toLegacyDeletion(metadata, null, name, timestamp, nowInSec);
     }
 
     private LegacyLayout.LegacyCell toLegacyDeletion(CFMetaData metadata, ByteBuffer superColumnName, ByteBuffer name, long timestamp, int nowInSec)
-    throws UnknownColumnException
+    throws UnknownColumnException, IllegalLegacyColumnException
     {
         return LegacyLayout.LegacyCell.tombstone(metadata, superColumnName, name, timestamp, nowInSec);
     }
 
     private LegacyLayout.LegacyCell toCounterLegacyCell(CFMetaData metadata, CounterColumn column)
-    throws UnknownColumnException
+    throws UnknownColumnException, IllegalLegacyColumnException
     {
         return toCounterLegacyCell(metadata, null, column);
     }
 
     private LegacyLayout.LegacyCell toCounterLegacyCell(CFMetaData metadata, ByteBuffer superColumnName, CounterColumn column)
-    throws UnknownColumnException
+    throws UnknownColumnException, IllegalLegacyColumnException
     {
         return LegacyLayout.LegacyCell.counterUpdate(metadata, superColumnName, column.name, column.value);
     }
@@ -1085,7 +1085,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     private List<LegacyLayout.LegacyCell> toLegacyCells(CFMetaData metadata, List<Column> columns, int nowInSec)
-    throws UnknownColumnException
+    throws UnknownColumnException, IllegalLegacyColumnException
     {
         List<LegacyLayout.LegacyCell> cells = new ArrayList<>(columns.size());
         for (Column column : columns)
@@ -1205,7 +1205,7 @@ public class CassandraServer implements Cassandra.Iface
                 cells.add(toCounterLegacyCell(cfm, cosc.counter_column));
             }
         }
-        catch (UnknownColumnException e)
+        catch (UnknownColumnException | IllegalLegacyColumnException e)
         {
             throw new InvalidRequestException(e.getMessage());
         }
@@ -1232,7 +1232,7 @@ public class CassandraServer implements Cassandra.Iface
                     else
                         cells.add(toLegacyDeletion(cfm, c, del.timestamp, nowInSec));
                 }
-                catch (UnknownColumnException e)
+                catch (UnknownColumnException | IllegalLegacyColumnException e)
                 {
                     throw new InvalidRequestException(e.getMessage());
                 }
@@ -1370,7 +1370,7 @@ public class CassandraServer implements Cassandra.Iface
                 Cell cell = BufferCell.tombstone(name.column, timestamp, nowInSec, path);
                 update = PartitionUpdate.singleRowUpdate(metadata, dk, BTreeRow.singleCellRow(name.clustering, cell));
             }
-            catch (UnknownColumnException e)
+            catch (UnknownColumnException | IllegalLegacyColumnException e)
             {
                 throw new org.apache.cassandra.exceptions.InvalidRequestException(e.getMessage());
             }
@@ -1633,7 +1633,7 @@ public class CassandraServer implements Cassandra.Iface
                     return thriftifyKeySlices(results, new ColumnParent(column_family), limits.perPartitionCount());
                 }
             }
-            catch (UnknownColumnException e)
+            catch (UnknownColumnException | IllegalLegacyColumnException e)
             {
                 throw new InvalidRequestException(e.getMessage());
             }
@@ -2178,7 +2178,7 @@ public class CassandraServer implements Cassandra.Iface
                 org.apache.cassandra.db.Mutation mutation = new org.apache.cassandra.db.Mutation(update);
                 doInsert(consistency_level, Arrays.asList(new CounterMutation(mutation, ThriftConversion.fromThrift(consistency_level))));
             }
-            catch (MarshalException|UnknownColumnException e)
+            catch (MarshalException | UnknownColumnException | IllegalLegacyColumnException e)
             {
                 throw new InvalidRequestException(e.getMessage());
             }

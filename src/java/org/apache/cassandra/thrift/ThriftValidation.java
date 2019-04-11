@@ -31,6 +31,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.IllegalLegacyColumnException;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -269,7 +270,7 @@ public class ThriftValidation
                     if (cname.column != null && cname.collectionElement != null && !cname.column.type.isCollection())
                         throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Invalid collection component, %s is not a collection", cname.column.name));
                 }
-                catch (IllegalArgumentException | UnknownColumnException e)
+                catch (IllegalArgumentException | UnknownColumnException | IllegalLegacyColumnException e )
                 {
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Error validating cell name for CQL3 table %s: %s", metadata.cfName, e.getMessage()));
                 }
@@ -466,7 +467,7 @@ public class ThriftValidation
             cn.column.validateCellValue(column.value);
 
         }
-        catch (UnknownColumnException e)
+        catch (UnknownColumnException | IllegalLegacyColumnException e)
         {
             throw new org.apache.cassandra.exceptions.InvalidRequestException(e.getMessage());
         }

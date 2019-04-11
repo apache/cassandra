@@ -55,7 +55,7 @@ public class LegacyCellNameTest
         assertTrue(cellName.column.isRegular());
     }
 
-    @Test(expected=IllegalArgumentException.class)
+    @Test(expected=IllegalLegacyColumnException.class)
     public void testColumnSameNameAsPartitionKeyCql3() throws Exception
     {
         CFMetaData cfm = CFMetaData.compile("CREATE TABLE cs (" +
@@ -67,6 +67,21 @@ public class LegacyCellNameTest
                                                       .fromString("k"));
     }
 
+    @Test(expected=IllegalLegacyColumnException.class)
+    public void testCompositeWithColumnNameSameAsClusteringKeyCql3() throws Exception
+    {
+        CFMetaData cfm = CFMetaData.compile("CREATE TABLE cs (" +
+                                            "k int, c text, v int, PRIMARY KEY(k, c))", "ks");
+
+        LegacyLayout.LegacyCellName cellName
+        = LegacyLayout.decodeCellName(cfm,
+                                      LegacyLayout.makeLegacyComparator(cfm)
+                                                  .fromString("c_value:c"));
+    }
+
+    // This throws IllegalArgumentException not because the cellname's value matches
+    // the clustering key name, but because when converted to a Composite, the buffer
+    // contains only a single component and so has no column name component
     @Test(expected=IllegalArgumentException.class)
     public void testColumnSameNameAsClusteringKeyCql3() throws Exception
     {
