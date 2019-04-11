@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
@@ -24,16 +25,17 @@ import org.apache.cassandra.config.CFMetaData;
 import static org.apache.cassandra.db.LegacyLayout.stringify;
 
 /**
- * Exception thrown when we read a column internally that is unknown. Note that
- * this is an internal exception and is not meant to be user facing.
+ * Exception thrown when we attempt to decode a legacy cellname
+ * and the column name component refers to a primary key column.
  */
-public class UnknownColumnException extends Exception
+public class IllegalLegacyColumnException extends Exception
 {
     public final ByteBuffer columnName;
 
-    public UnknownColumnException(CFMetaData metadata, ByteBuffer columnName)
+    public IllegalLegacyColumnException(CFMetaData metaData, ByteBuffer columnName)
     {
-        super(String.format("Unknown column %s in table %s.%s", stringify(columnName), metadata.ksName, metadata.cfName));
+        super(String.format("Illegal cell name for CQL3 table %s.%s. %s is defined as a primary key column",
+                            metaData.ksName, metaData.cfName, stringify(columnName)));
         this.columnName = columnName;
     }
 }
