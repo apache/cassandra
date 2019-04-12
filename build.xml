@@ -297,7 +297,7 @@
         </wikitext-to-html>
     </target>
 
-    <target name="gen-doc" depends="maven-ant-tasks-init" description="Generate documentation">
+    <target name="gen-doc" depends="maven-ant-tasks-init" description="Generate documentation" unless="ant.gen-doc.skip">
         <exec executable="make" osfamily="unix" dir="${doc.dir}">
             <arg value="html"/>
         </exec>
@@ -1045,10 +1045,7 @@
       </jar>
     </target>
 
-    <!-- creates release tarballs -->
-    <target name="artifacts" depends="jar,javadoc,gen-doc"
-            unless="java.version.8"
-            description="Create Cassandra release artifacts">
+    <target name="_artifacts-init" depends="jar,javadoc,gen-doc" unless="java.version.8">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
       <fixcrlf srcdir="bin" includes="**/*" excludes="**/*.bat, **/*.ps1" eol="lf" eof="remove" />
@@ -1060,17 +1057,17 @@
           <include name="${final.name}.jar" />
         </fileset>
       </copy>
-      <copy todir="${dist.dir}/javadoc">
+      <copy todir="${dist.dir}/javadoc" failonerror="false">
         <fileset dir="${javadoc.dir}"/>
       </copy>
-      <copy todir="${dist.dir}/doc">
+      <copy todir="${dist.dir}/doc" failonerror="false">
         <fileset dir="doc">
           <include name="cql3/CQL.html" />
           <include name="cql3/CQL.css" />
           <include name="SASI.md" />
         </fileset>
       </copy>
-      <copy todir="${dist.dir}/doc/html">
+      <copy todir="${dist.dir}/doc/html" failonerror="false">
         <fileset dir="doc" />
         <globmapper from="build/html/*" to="*"/>
       </copy>
@@ -1106,6 +1103,12 @@
       </copy>
       <artifact:writepom pomRefId="dist-pom"
             file="${build.dir}/${final.name}-dist.pom"/>
+    </target>
+
+    <!-- creates release tarballs -->
+    <target name="artifacts" depends="_artifacts-init"
+            unless="java.version.8"
+            description="Create Cassandra release artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
 
