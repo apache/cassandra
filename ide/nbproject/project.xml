@@ -84,54 +84,66 @@
             </folders>
             <ide-actions>
                 <action name="build">
-                    <script>nbproject/nbjdk.xml</script>
+                    <script>nbproject/ide-actions.xml</script>
                     <target>build</target>
                 </action>
                 <action name="clean">
-                    <script>nbproject/nbjdk.xml</script>
+                    <script>nbproject/ide-actions.xml</script>
                     <target>clean</target>
                 </action>
                 <action name="rebuild">
-                    <script>nbproject/nbjdk.xml</script>
+                    <script>nbproject/ide-actions.xml</script>
                     <target>clean</target>
                     <target>build</target>
+                </action>
+                <action name="run">
+                    <script>nbproject/ide-actions.xml</script>
+                    <target>run</target>
+                </action>
+                <action name="debug">
+                    <script>nbproject/ide-actions.xml</script>
+                    <target>debug</target>
+                </action>
+                <action name="profile">
+                    <script>nbproject/ide-actions.xml</script>
+                    <target>profile</target>
                 </action>
             </ide-actions>
             <export>
                 <type>folder</type>
                 <location>${project.dir}/build/classes/main</location>
-                <script>nbproject/nbjdk.xml</script>
+                <script>../build.xml</script>
                 <build-target>build</build-target>
             </export>
             <export>
                 <type>folder</type>
                 <location>${project.dir}/build/classes/fqltool</location>
-                <script>nbproject/nbjdk.xml</script>
-                <build-target>build</build-target>
+                <script>../build.xml</script>
+                <build-target>fqltool-build</build-target>
             </export>
             <export>
                 <type>folder</type>
                 <location>${project.dir}/build/classes/stress</location>
-                <script>nbproject/nbjdk.xml</script>
-                <build-target>build</build-target>
+                <script>../build.xml</script>
+                <build-target>stress-build</build-target>
             </export>
             <export>
                 <type>folder</type>
                 <location>${project.dir}/build/test/classes</location>
-                <script>nbproject/nbjdk.xml</script>
-                <build-target>build</build-target>
+                <script>../build.xml</script>
+                <build-target>build-test</build-target>
             </export>
             <export>
                 <type>folder</type>
                 <location>${project.dir}/build/test/fqltool-classes</location>
-                <script>nbproject/nbjdk.xml</script>
-                <build-target>build</build-target>
+                <script>../build.xml</script>
+                <build-target>fqltool-build-test</build-target>
             </export>
             <export>
                 <type>folder</type>
                 <location>${project.dir}/build/test/stress-classes</location>
-                <script>nbproject/nbjdk.xml</script>
-                <build-target>build</build-target>
+                <script>../build.xml</script>
+                <build-target>stress-build-test</build-target>
             </export>
             <view>
                 <items>
@@ -187,6 +199,8 @@
                     <ide-action name="build"/>
                     <ide-action name="rebuild"/>
                     <ide-action name="clean"/>
+                    <ide-action name="run"/>
+                    <ide-action name="debug"/>
                 </context-menu>
             </view>
         </general-data>
