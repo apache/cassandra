@@ -356,6 +356,7 @@
 
 
 3.11.5
+ * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
  * cassandra-stress works with frozen collections: list and set (CASSANDRA-14907)
