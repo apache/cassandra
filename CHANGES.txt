@@ -1,4 +1,5 @@
 4.0-alpha5
+ * Several mbeans are not unregistered when dropping a keyspace and table (CASSANDRA-14888)
  * Update defaults for server and client TLS settings (CASSANDRA-15262)
  * Differentiate follower/initator in StreamMessageHeader (CASSANDRA-15665)
  * Add a startup check to detect if LZ4 uses java rather than native implementation (CASSANDRA-15884)
