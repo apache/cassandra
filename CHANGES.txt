@@ -1,4 +1,6 @@
 4.0
+ * CassandraNetworkAuthorizer uses cached roles info (CASSANDRA-15089)
+ * Introduce optional timeouts for idle client sessions (CASSANDRA-11097)
  * Fix AlterTableStatement dropped type validation order (CASSANDRA-15203)
  * Update Netty dependencies to latest, clean up SocketFactory (CASSANDRA-15195)
  * Native Transport - Apply noSpamLogger to ConnectionLimitHandler (CASSANDRA-15167)
