@@ -73,6 +73,8 @@ public final class SystemDistributedKeyspace
 
     public static final String VIEW_BUILD_STATUS = "view_build_status";
 
+    public static final String BLACKLISTED_PARTITIONS = "blacklisted_partitions";
+
     private static final TableMetadata RepairHistory =
         parse(REPAIR_HISTORY,
                 "Repair history",
@@ -120,6 +122,15 @@ public final class SystemDistributedKeyspace
                      + "status text,"
                      + "PRIMARY KEY ((keyspace_name, view_name), host_id))");
 
+    private static final TableMetadata BlacklistedPartitions =
+        parse(BLACKLISTED_PARTITIONS,
+              "Blacklisted Partitions",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "columnfamily_name text,"
+              + "partition_key text,"
+              + "PRIMARY KEY ((keyspace_name, columnfamily_name), partition_key))");
+
     private static TableMetadata parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
@@ -130,7 +141,7 @@ public final class SystemDistributedKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(3), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus));
+        return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(3), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, BlacklistedPartitions));
     }
 
     public static void startParentRepair(UUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
@@ -330,6 +341,25 @@ public final class SystemDistributedKeyspace
         String buildReq = "DELETE FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
         QueryProcessor.executeInternal(format(buildReq, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, VIEW_BUILD_STATUS), keyspaceName, viewName);
         forceBlockingFlush(VIEW_BUILD_STATUS);
+    }
+
+    /**
+     * Reads blacklisted partitions from system_distributed.blacklisted_partitions table.
+     * @return
+     */
+    public static UntypedResultSet getBlacklistedPartitions()
+    {
+        String query = "SELECT keyspace_name, columnfamily_name, partition_key FROM %s.%s";
+        try
+        {
+            return QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, BLACKLISTED_PARTITIONS),
+                                             ConsistencyLevel.ONE);
+        }
+        catch (Exception e)
+        {
+            logger.error("Error querying blacklisted partitions", e);
+            return null;
+        }
     }
 
     private static void processSilent(String fmtQry, String... values)

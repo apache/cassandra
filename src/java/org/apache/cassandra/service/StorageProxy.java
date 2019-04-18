@@ -41,6 +41,7 @@ import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.FullQueryLoggerOptions;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
+import org.apache.cassandra.cache.BlacklistedPartitionCache;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.service.reads.AbstractReadExecutor;
@@ -1533,6 +1534,18 @@ public class StorageProxy implements StorageProxyMBean
             readMetrics.unavailables.mark();
             readMetricsMap.get(consistencyLevel).unavailables.mark();
             throw new IsBootstrappingException();
+        }
+
+        // check if the partition in question is blacklisted; if yes, reject READ operation
+        if (BlacklistedPartitionCache.instance.size() > 0)
+        {
+            for (SinglePartitionReadQuery query : group.queries)
+            {
+                if (BlacklistedPartitionCache.instance.contains(query.metadata().id, query.partitionKey()))
+                {
+                    throw new InvalidRequestException(String.format("Cannot perform READ on a blacklisted partition: %s", query.partitionKey().toString()));
+                }
+            }
         }
 
         return consistencyLevel.isSerialConsistency()

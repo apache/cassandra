@@ -193,7 +193,8 @@ public class NodeTool
                 GetReplicas.class,
                 DisableAuditLog.class,
                 EnableOldProtocolVersions.class,
-                DisableOldProtocolVersions.class
+                DisableOldProtocolVersions.class,
+                BlacklistedPartitions.class
         );
 
         Cli.CliBuilder<Runnable> builder = Cli.builder("nodetool");

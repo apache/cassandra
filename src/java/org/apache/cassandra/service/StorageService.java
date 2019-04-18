@@ -46,6 +46,7 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 
+import org.apache.cassandra.cache.BlacklistedPartitionCache;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.commons.lang3.StringUtils;
@@ -5447,5 +5448,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.valueOf(strategy));
         logger.info("Setting corrupted tombstone strategy to {}", strategy);
+    }
+
+    /**
+     * Refreshes BlacklistedPartitionsCache
+     */
+    public void refreshBlacklistedPartitionsCache()
+    {
+        BlacklistedPartitionCache.instance.refreshCache();
+    }
+
+    /**
+     * Sets limit on blacklisted partitions cache size
+     * @param cacheSizeInMB
+     */
+    public void setBlacklistedPartitionsCacheSizeLimit(int cacheSizeInMB)
+    {
+        if (cacheSizeInMB >= 0)
+        {
+            DatabaseDescriptor.setBlackListedPartitionsCacheSizeLimitInMB(cacheSizeInMB);
+        }
     }
 }
