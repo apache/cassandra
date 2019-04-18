@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
@@ -1252,10 +1253,24 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
         Set<Entry<ApplicationState, VersionedValue>> remoteStates = remoteState.states();
         assert remoteState.getHeartBeatState().getGeneration() == localState.getHeartBeatState().getGeneration();
-        localState.addApplicationStates(remoteStates);
 
-        for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteStates)
-            doOnChangeNotifications(addr, remoteEntry.getKey(), remoteEntry.getValue());
+        // filter out the states that are already up to date (has the same or higher version)
+        Set<Entry<ApplicationState, VersionedValue>> updatedStates = remoteStates.stream().filter(entry -> {
+            VersionedValue local = localState.getApplicationState(entry.getKey());
+            return (local == null || local.version < entry.getValue().version);
+            }).collect(Collectors.toSet());
+
+        if (logger.isTraceEnabled() && updatedStates.size() > 0)
+        {
+            for (Entry<ApplicationState, VersionedValue> entry : updatedStates)
+            {
+                logger.trace("Updating {} state version to {} for {}", entry.getKey().toString(), entry.getValue().version, addr);
+            }
+        }
+        localState.addApplicationStates(updatedStates);
+
+        for (Entry<ApplicationState, VersionedValue> updatedEntry : updatedStates)
+            doOnChangeNotifications(addr, updatedEntry.getKey(), updatedEntry.getValue());
     }
     
     // notify that a local application state is going to change (doesn't get triggered for remote changes)
