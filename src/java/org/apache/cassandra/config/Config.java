@@ -174,7 +174,7 @@ public class Config
     public int commitlog_periodic_queue_size = -1;
 
     public String endpoint_snitch;
-    public Boolean dynamic_snitch = true;
+    public Boolean dynamic_snitch;
     public Integer dynamic_snitch_update_interval_in_ms = 100;
     public Integer dynamic_snitch_reset_interval_in_ms = 600000;
     public Double dynamic_snitch_badness_threshold = 0.1;

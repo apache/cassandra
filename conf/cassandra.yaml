@@ -729,6 +729,10 @@ cross_node_timeout: false
 # of the snitch, which will be assumed to be on your classpath.
 endpoint_snitch: SimpleSnitch
 
+# if set true will use DynamicEndpointSnitch , and the endpoint_snitch
+# will be used as the subsnitch in the DynamicEndpointSnitch, if set false
+# will directly use the configured endpoint_snitch.
+dynamic_snitch: true
 # controls how often to perform the more expensive part of host score
 # calculation
 dynamic_snitch_update_interval_in_ms: 100 
