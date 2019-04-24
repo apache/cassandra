@@ -40,6 +40,7 @@ import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.WireIn;
 import org.apache.cassandra.audit.BinAuditLogger;
+import org.apache.cassandra.utils.binlog.BinLog;
 
 /**
  * Tool to view the contenst of AuditLog files in human readable format. Default implementation for AuditLog files
@@ -51,6 +52,7 @@ public class AuditLogViewer
     private static final String TOOL_NAME = "auditlogviewer";
     private static final String ROLL_CYCLE = "roll_cycle";
     private static final String FOLLOW = "follow";
+    private static final String IGNORE = "ignore";
     private static final String HELP_OPTION = "help";
 
     public static void main(String[] args)
@@ -59,7 +61,7 @@ public class AuditLogViewer
 
         try
         {
-            dump(options.pathList, options.rollCycle, options.follow, System.out::print);
+            dump(options.pathList, options.rollCycle, options.follow, options.ignoreUnsupported, System.out::print);
         }
         catch (Exception e)
         {
@@ -68,7 +70,7 @@ public class AuditLogViewer
         }
     }
 
-    static void dump(List<String> pathList, String rollCycle, boolean follow, Consumer<String> displayFun)
+    static void dump(List<String> pathList, String rollCycle, boolean follow, boolean ignoreUnsupported, Consumer<String> displayFun)
     {
         //Backoff strategy for spinning on the queue, not aggressive at all as this doesn't need to be low latency
         Pauser pauser = Pauser.millis(100);
@@ -83,7 +85,7 @@ public class AuditLogViewer
             hadWork = false;
             for (ExcerptTailer tailer : tailers)
             {
-                while (tailer.readDocument(new DisplayRecord(displayFun)))
+                while (tailer.readDocument(new DisplayRecord(ignoreUnsupported, displayFun)))
                 {
                     hadWork = true;
                 }
@@ -104,28 +106,69 @@ public class AuditLogViewer
 
     private static class DisplayRecord implements ReadMarshallable
     {
+        private final boolean ignoreUnsupported;
         private final Consumer<String> displayFun;
 
-        DisplayRecord(Consumer<String> displayFun)
+        DisplayRecord(boolean ignoreUnsupported, Consumer<String> displayFun)
         {
+            this.ignoreUnsupported = ignoreUnsupported;
             this.displayFun = displayFun;
         }
 
         public void readMarshallable(WireIn wireIn) throws IORuntimeException
         {
-            StringBuilder sb = new StringBuilder();
-
-            String type = wireIn.read(BinAuditLogger.TYPE).text();
-            sb.append("Type: ")
-              .append(type)
-              .append(System.lineSeparator());
-
-            if (null != type && type.equals(BinAuditLogger.AUDITLOG_TYPE))
+            int version = wireIn.read(BinLog.VERSION).int16();
+            if (!isSupportedVersion(version))
             {
-                sb.append("LogMessage: ").append(wireIn.read(BinAuditLogger.AUDITLOG_MESSAGE).text()).append(System.lineSeparator());
+                return;
+            }
+            String type = wireIn.read(BinLog.TYPE).text();
+            if (!isSupportedType(type))
+            {
+                return;
             }
 
+            StringBuilder sb = new StringBuilder();
+            sb.append("Type: ")
+              .append(type)
+              .append(System.lineSeparator())
+              .append("LogMessage: ")
+              .append(wireIn.read(BinAuditLogger.AUDITLOG_MESSAGE).text())
+              .append(System.lineSeparator());
+
             displayFun.accept(sb.toString());
+        }
+
+        private boolean isSupportedVersion(int version)
+        {
+            if (version <= BinAuditLogger.CURRENT_VERSION)
+            {
+                return true;
+            }
+
+            if (ignoreUnsupported)
+            {
+                return false;
+            }
+
+            throw new IORuntimeException("Unsupported record version [" + version
+                                         + "] - highest supported version is [" + BinAuditLogger.CURRENT_VERSION + ']');
+        }
+
+        private boolean isSupportedType(String type)
+        {
+            if (BinAuditLogger.AUDITLOG_TYPE.equals(type))
+            {
+                return true;
+            }
+
+            if (ignoreUnsupported)
+            {
+                return false;
+            }
+
+            throw new IORuntimeException("Unsupported record type field [" + type
+                                         + "] - supported type is [" + BinAuditLogger.AUDITLOG_TYPE + ']');
         }
     }
 
@@ -134,6 +177,7 @@ public class AuditLogViewer
         private final List<String> pathList;
         private String rollCycle = "HOURLY";
         private boolean follow;
+        private boolean ignoreUnsupported;
 
         private AuditLogViewerOptions(String[] pathList)
         {
@@ -166,6 +210,8 @@ public class AuditLogViewer
 
                 opts.follow = cmd.hasOption(FOLLOW);
 
+                opts.ignoreUnsupported = cmd.hasOption(IGNORE);
+
                 if (cmd.hasOption(ROLL_CYCLE))
                 {
                     opts.rollCycle = cmd.getOptionValue(ROLL_CYCLE);
@@ -191,8 +237,9 @@ public class AuditLogViewer
         {
             Options options = new Options();
 
-            options.addOption(new Option("r", ROLL_CYCLE, false, "How often to roll the log file was rolled. May be necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY, DAILY). Default HOURLY."));
+            options.addOption(new Option("r", ROLL_CYCLE, true, "How often to roll the log file was rolled. May be necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY, DAILY). Default HOURLY."));
             options.addOption(new Option("f", FOLLOW, false, "Upon reacahing the end of the log continue indefinitely waiting for more records"));
+            options.addOption(new Option("i", IGNORE, false, "Silently ignore unsupported records"));
             options.addOption(new Option("h", HELP_OPTION, false, "display this help message"));
 
             return options;
