@@ -953,6 +953,8 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
                 limits = DataLimits.distinctLimits(maxResults);
             else if (compositesToGroup == -1)
                 limits = DataLimits.thriftLimits(maxResults, perPartitionLimit);
+            else if (metadata.isStaticCompactTable())
+                limits = DataLimits.legacyCompactStaticCqlLimits(maxResults);
             else
                 limits = DataLimits.cqlLimits(maxResults);
 
