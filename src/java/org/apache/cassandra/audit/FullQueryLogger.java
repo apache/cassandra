@@ -23,7 +23,6 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 
@@ -45,10 +44,7 @@ import org.github.jamm.MemoryLayoutSpecification;
  */
 public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
 {
-    public static final long CURRENT_VERSION = 0; // encode a dummy version, to prevent pain in decoding in the future
-
-    public static final String VERSION = "version";
-    public static final String TYPE = "type";
+    public static final long CURRENT_VERSION = 0;
 
     public static final String PROTOCOL_VERSION = "protocol-version";
     public static final String QUERY_OPTIONS = "query-options";
@@ -169,9 +165,9 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
         }
 
         @Override
-        public void writeMarshallable(WireOut wire)
+        public void writeMarshallablePayload(WireOut wire)
         {
-            super.writeMarshallable(wire);
+            super.writeMarshallablePayload(wire);
             wire.write(QUERY).text(query);
         }
 
@@ -229,9 +225,9 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
         }
 
         @Override
-        public void writeMarshallable(WireOut wire)
+        public void writeMarshallablePayload(WireOut wire)
         {
-            super.writeMarshallable(wire);
+            super.writeMarshallablePayload(wire);
             wire.write(BATCH_TYPE).text(batchType.name());
             ValueOut valueOut = wire.write(QUERIES);
             valueOut.int32(queries.size());
@@ -305,11 +301,14 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
         }
 
         @Override
-        public void writeMarshallable(WireOut wire)
+        protected long version()
         {
-            wire.write(VERSION).int16(CURRENT_VERSION);
-            wire.write(TYPE).text(type());
+            return CURRENT_VERSION;
+        }
 
+        @Override
+        public void writeMarshallablePayload(WireOut wire)
+        {
             wire.write(QUERY_START_TIME).int64(queryStartTime);
             wire.write(PROTOCOL_VERSION).int32(protocolVersion);
             wire.write(QUERY_OPTIONS).bytes(BytesStore.wrap(queryOptionsBuffer.nioBuffer()));
@@ -339,8 +338,6 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
                     ? Ints.checkedCast(ObjectSizes.sizeOf(keyspace))  // keyspace
                     : OBJECT_REFERENCE_SIZE);                         // null
         }
-
-        protected abstract String type();
     }
 
 }

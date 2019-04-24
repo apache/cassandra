@@ -55,11 +55,9 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLogTest;
-import org.apache.cassandra.utils.binlog.DeletingArchiver;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import static org.apache.cassandra.audit.FullQueryLogger.BATCH;
@@ -72,9 +70,10 @@ import static org.apache.cassandra.audit.FullQueryLogger.QUERY;
 import static org.apache.cassandra.audit.FullQueryLogger.QUERY_OPTIONS;
 import static org.apache.cassandra.audit.FullQueryLogger.QUERY_START_TIME;
 import static org.apache.cassandra.audit.FullQueryLogger.SINGLE_QUERY;
-import static org.apache.cassandra.audit.FullQueryLogger.TYPE;
 import static org.apache.cassandra.audit.FullQueryLogger.VALUES;
-import static org.apache.cassandra.audit.FullQueryLogger.VERSION;
+
+import static org.apache.cassandra.utils.binlog.BinLog.TYPE;
+import static org.apache.cassandra.utils.binlog.BinLog.VERSION;
 
 public class FullQueryLoggerTest extends CQLTester
 {
@@ -274,7 +273,7 @@ public class FullQueryLoggerTest extends CQLTester
             instance.binLog.put(new Query("foo1", QueryOptions.DEFAULT, queryState(), 1)
             {
 
-                public void writeMarshallable(WireOut wire)
+                public void writeMarshallablePayload(WireOut wire)
                 {
                     //Notify that the bin log is blocking now
                     binLogBlocked.release();
@@ -287,7 +286,7 @@ public class FullQueryLoggerTest extends CQLTester
                     {
                         e.printStackTrace();
                     }
-                    super.writeMarshallable(wire);
+                    super.writeMarshallablePayload(wire);
                 }
 
                 public void release()
@@ -356,7 +355,7 @@ public class FullQueryLoggerTest extends CQLTester
             instance.binLog.put(new Query("foo1", QueryOptions.DEFAULT, queryState(), 1)
             {
 
-                public void writeMarshallable(WireOut wire)
+                public void writeMarshallablePayload(WireOut wire)
                 {
                     //Notify that the bin log is blocking now
                     binLogBlocked.release();
@@ -369,7 +368,7 @@ public class FullQueryLoggerTest extends CQLTester
                     {
                         e.printStackTrace();
                     }
-                    super.writeMarshallable(wire);
+                    super.writeMarshallablePayload(wire);
                 }
 
                 public void release()
@@ -388,10 +387,10 @@ public class FullQueryLoggerTest extends CQLTester
             AtomicInteger releasedCount = new AtomicInteger(0);
             AtomicInteger writtenCount = new AtomicInteger(0);
             instance.logRecord(new Query("foo3", QueryOptions.DEFAULT, queryState(), 1) {
-                public void writeMarshallable(WireOut wire)
+                public void writeMarshallablePayload(WireOut wire)
                 {
                     writtenCount.incrementAndGet();
-                    super.writeMarshallable(wire);
+                    super.writeMarshallablePayload(wire);
                 }
 
                 public void release()

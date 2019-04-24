@@ -76,12 +76,14 @@ public class BinAuditLoggerTest extends CQLTester
         {
             ExcerptTailer tailer = queue.createTailer();
             assertTrue(tailer.readDocument(wire -> {
-                assertEquals("AuditLog", wire.read("type").text());
+                assertEquals(0L, wire.read("version").int16());
+                assertEquals("audit", wire.read("type").text());
                 assertThat(wire.read("message").text(), containsString(AuditLogEntryType.PREPARE_STATEMENT.toString()));
             }));
 
             assertTrue(tailer.readDocument(wire -> {
-                assertEquals("AuditLog", wire.read("type").text());
+                assertEquals(0L, wire.read("version").int16());
+                assertEquals("audit", wire.read("type").text());
                 assertThat(wire.read("message").text(), containsString(AuditLogEntryType.SELECT.toString()));
             }));
             assertFalse(tailer.readDocument(wire -> {
