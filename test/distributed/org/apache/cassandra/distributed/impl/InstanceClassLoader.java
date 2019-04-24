@@ -61,11 +61,15 @@ public class InstanceClassLoader extends URLClassLoader
         InstanceClassLoader create(int id, URL[] urls, ClassLoader sharedClassLoader);
     }
 
+    private final int id;
+    private final URL[] urls;
     private final ClassLoader sharedClassLoader;
 
     InstanceClassLoader(int id, URL[] urls, ClassLoader sharedClassLoader)
     {
         super(urls, null);
+        this.id = id;
+        this.urls = urls;
         this.sharedClassLoader = sharedClassLoader;
     }
 
@@ -100,4 +104,11 @@ public class InstanceClassLoader extends URLClassLoader
         return clazz.getClassLoader().getClass().getName().equals(InstanceClassLoader.class.getName());
     }
 
+    public String toString()
+    {
+        return "InstanceClassLoader{" +
+               "id=" + id +
+               ", urls=" + Arrays.toString(urls) +
+               '}';
+    }
 }

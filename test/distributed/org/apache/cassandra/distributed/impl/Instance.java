@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
@@ -57,11 +56,11 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
-import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
@@ -71,7 +70,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.net.IMessageSink;
 import org.apache.cassandra.net.MessageDeliveryTask;
 import org.apache.cassandra.net.MessageIn;
@@ -206,8 +204,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 InetAddressAndPort from = broadcastAddressAndPort();
                 assert from.equals(lookupAddressAndPort.apply(messageOut.from));
                 InetAddressAndPort toFull = lookupAddressAndPort.apply(to);
-                messageOut.serialize(out, MessagingService.current_version);
-                deliver.accept(toFull, new Message(messageOut.verb.ordinal(), out.toByteArray(), id, MessagingService.current_version, from));
+                int version = MessagingService.instance().getVersion(to);
+                messageOut.serialize(out, version);
+                deliver.accept(toFull, new Message(messageOut.verb.ordinal(), out.toByteArray(), id, version, from));
             }
             catch (IOException e)
             {
@@ -237,6 +236,16 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 throw new RuntimeException("Exception occurred on node " + broadcastAddressAndPort(), t);
             }
         }).run();
+    }
+
+    public int getMessagingVersion()
+    {
+        return callsOnInstance(() -> MessagingService.current_version).call();
+    }
+
+    public void setMessagingVersion(InetAddressAndPort endpoint, int version)
+    {
+        runOnInstance(() -> MessagingService.instance().setVersion(endpoint.address, version));
     }
 
     @Override
@@ -347,7 +356,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                         ApplicationState.STATUS,
                         new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(tokens.get(i))));
                 Gossiper.instance.realMarkAlive(ep.address, Gossiper.instance.getEndpointStateForEndpoint(ep.address));
-                MessagingService.instance().setVersion(ep.address, MessagingService.current_version);
+
+                int version = Math.min(MessagingService.current_version, cluster.get(ep).getMessagingVersion());
+                MessagingService.instance().setVersion(ep.address, version);
             }
 
             // check that all nodes are in token metadata
