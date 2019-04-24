@@ -31,11 +31,15 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.audit.BinAuditLogger;
+
+import static org.junit.Assert.assertTrue;
 
 public class AuditLogViewerTest
 {
@@ -79,6 +83,64 @@ public class AuditLogViewerTest
             {
                 Assert.assertTrue(actualRecords.get(i).contains(records.get(i)));
             }
+        }
+    }
+
+    @Test (expected = IORuntimeException.class)
+    public void testRejectFutureVersion()
+    {
+        try (ChronicleQueue queue = ChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        {
+            ExcerptAppender appender = queue.acquireAppender();
+            appender.writeDocument(new BinAuditLogger.Message("dummy message") {
+                protected long version()
+                {
+                    return 999;
+                }
+
+                @Override
+                public void writeMarshallablePayload(WireOut wire)
+                {
+                    super.writeMarshallablePayload(wire);
+                    wire.write("future-field").text("future_value");
+                }
+            });
+
+            AuditLogViewer.dump(ImmutableList.of(path.toString()), RollCycles.TEST_SECONDLY.toString(), false, dummy -> {});
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().contains("Unsupported record version"));
+            throw e;
+        }
+    }
+
+    @Test (expected = IORuntimeException.class)
+    public void testRejectUnknownType()
+    {
+        try (ChronicleQueue queue = ChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        {
+            ExcerptAppender appender = queue.acquireAppender();
+            appender.writeDocument(new BinAuditLogger.Message("dummy message") {
+                protected String type()
+                {
+                    return "unknown-type";
+                }
+
+                @Override
+                public void writeMarshallablePayload(WireOut wire)
+                {
+                    super.writeMarshallablePayload(wire);
+                    wire.write("unknown-field").text("unknown_value");
+                }
+            });
+
+            AuditLogViewer.dump(ImmutableList.of(path.toString()), RollCycles.TEST_SECONDLY.toString(), false, dummy -> {});
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().contains("Unsupported record type field"));
+            throw e;
         }
     }
 }

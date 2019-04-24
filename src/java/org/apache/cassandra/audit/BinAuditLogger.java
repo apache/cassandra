@@ -30,8 +30,8 @@ import org.apache.cassandra.utils.concurrent.WeightedQueue;
 
 public class BinAuditLogger extends BinLogAuditLogger implements IAuditLogger
 {
-    public static final String TYPE = "type";
-    public static final String AUDITLOG_TYPE = "AuditLog";
+    public static final long CURRENT_VERSION = 0;
+    public static final String AUDITLOG_TYPE = "audit";
     public static final String AUDITLOG_MESSAGE = "message";
 
     public BinAuditLogger()
@@ -71,10 +71,19 @@ public class BinAuditLogger extends BinLogAuditLogger implements IAuditLogger
             this.message = message;
         }
 
-        @Override
-        public void writeMarshallable(WireOut wire)
+        protected long version()
         {
-            wire.write(TYPE).text(AUDITLOG_TYPE);
+            return CURRENT_VERSION;
+        }
+
+        protected String type()
+        {
+            return AUDITLOG_TYPE;
+        }
+
+        @Override
+        public void writeMarshallablePayload(WireOut wire)
+        {
             wire.write(AUDITLOG_MESSAGE).text(message);
         }
 

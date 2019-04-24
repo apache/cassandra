@@ -40,6 +40,7 @@ import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.WireIn;
 import org.apache.cassandra.audit.BinAuditLogger;
+import org.apache.cassandra.utils.binlog.BinLog;
 
 /**
  * Tool to view the contenst of AuditLog files in human readable format. Default implementation for AuditLog files
@@ -113,19 +114,41 @@ public class AuditLogViewer
 
         public void readMarshallable(WireIn wireIn) throws IORuntimeException
         {
-            StringBuilder sb = new StringBuilder();
+            verifyVersion(wireIn);
+            String type = readType(wireIn);
 
-            String type = wireIn.read(BinAuditLogger.TYPE).text();
+            StringBuilder sb = new StringBuilder();
             sb.append("Type: ")
               .append(type)
+              .append(System.lineSeparator())
+              .append("LogMessage: ")
+              .append(wireIn.read(BinAuditLogger.AUDITLOG_MESSAGE).text())
               .append(System.lineSeparator());
 
-            if (null != type && type.equals(BinAuditLogger.AUDITLOG_TYPE))
+            displayFun.accept(sb.toString());
+        }
+
+        private void verifyVersion(WireIn wireIn)
+        {
+            int version = wireIn.read(BinLog.VERSION).int16();
+
+            if (version > BinAuditLogger.CURRENT_VERSION)
             {
-                sb.append("LogMessage: ").append(wireIn.read(BinAuditLogger.AUDITLOG_MESSAGE).text()).append(System.lineSeparator());
+                throw new IORuntimeException("Unsupported record version [" + version
+                                             + "] - highest supported version is [" + BinAuditLogger.CURRENT_VERSION + ']');
+            }
+        }
+
+        private String readType(WireIn wireIn) throws IORuntimeException
+        {
+            String type = wireIn.read(BinLog.TYPE).text();
+            if (!BinAuditLogger.AUDITLOG_TYPE.equals(type))
+            {
+                throw new IORuntimeException("Unsupported record type field [" + type
+                                             + "] - supported type is [" + BinAuditLogger.AUDITLOG_TYPE + ']');
             }
 
-            displayFun.accept(sb.toString());
+            return type;
         }
     }
 
