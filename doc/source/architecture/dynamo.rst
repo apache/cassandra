@@ -22,17 +22,45 @@ Dynamo
 Gossip
 ^^^^^^
 
-.. todo:: todo
+Gossip is a peer-to-peer communication protocol in which nodes periodically exchange exchange information 
+about themselves and about other nodes they know about. The gossip process runs every second and exchanges
+state messages with up to three other nodes in the cluster. 
+
+Nodes exchange information about themselves and about the other nodes that they have gossiped about, so all nodes 
+quickly learn about all other nodes in the cluster. This supports decentralization, which leads to no single point 
+of failure. Having no single point of failure leads to high availability of data. A gossip message has a version 
+associated with it, so that during a gossip exchange, older information is overwritten with the most current state 
+for a particular node.
 
 Failure Detection
 ^^^^^^^^^^^^^^^^^
 
-.. todo:: todo
+Failure detection is a method for locally determining from gossip state and history if another node in the system 
+is down or has come back up. Cassandra uses this information to avoid routing client requests to unreachable nodes 
+whenever possible. 
+
+The gossip process tracks state from other nodes both directly (nodes gossiping directly to it) and indirectly.
+Rather than have a fixed threshold for marking failing nodes, Cassandra uses an accrual detection mechanism to 
+calculate a per-node threshold that takes into account network performance, workload, and historical conditions. 
+During gossip exchanges, every node maintains a sliding window of inter-arrival times of gossip messages from 
+other nodes in the cluster.
+
+Node failures can result from various causes such as hardware failures and network outages. Node outages are often 
+transient but can last for extended periods. Because a node outage rarely signifies a permanent departure from the 
+cluster it does not automatically result in permanent removal of the node from the ring. Other nodes will periodically 
+try to re-establish contact with failed nodes to see if they are back up.
 
 Token Ring/Ranges
 ^^^^^^^^^^^^^^^^^
 
-.. todo:: todo
+Cassandra manages the distribution of data in a cluster commonly refered to as a Token Ring. Nodes in the ring
+are assigned to a token. The token is what Cassandra uses to decide which node the data will be stored on. 
+
+The range of the tokens is  between -2^63 to +2^63 - 1. The node is resposible for storing data less than the value 
+of the assigned token but greater than the value of the token assigned to the previous node. Data is assigned to nodes 
+by passing the partition key into a hash function to calculate a token. This partition key token is compared to the 
+token values for the various nodes to identify the range, and therefore the node, that owns the data. Token ranges 
+are represented by the org.apache.cassandra.dht.Range class. 
 
 .. _replication-strategy:
 
