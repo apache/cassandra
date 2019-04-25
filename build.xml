@@ -1334,6 +1334,7 @@
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
         <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
+          <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg line="${java11-jvmargs}"/>
         <optjvmargs/>
         <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
