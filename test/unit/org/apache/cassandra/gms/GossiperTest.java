@@ -50,6 +50,7 @@ public class GossiperTest
     @BeforeClass
     public static void before()
     {
+        System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
         DatabaseDescriptor.daemonInitialization();
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace("schema_test_ks",
