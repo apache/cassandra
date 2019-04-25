@@ -141,7 +141,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         {
             if (!isShutdown)
                 throw new IllegalStateException();
-            delegate.startup(AbstractCluster.this);
+            delegate().startup(AbstractCluster.this);
             isShutdown = false;
             updateMessagingVersions();
         }
