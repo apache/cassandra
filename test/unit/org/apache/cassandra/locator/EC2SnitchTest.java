@@ -58,6 +58,7 @@ public class EC2SnitchTest
     @BeforeClass
     public static void setup() throws Exception
     {
+        System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
         DatabaseDescriptor.daemonInitialization();
         SchemaLoader.mkdirs();
         SchemaLoader.cleanup();

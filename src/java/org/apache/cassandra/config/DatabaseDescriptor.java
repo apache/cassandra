@@ -141,6 +141,9 @@ public class DatabaseDescriptor
     private static final boolean disableSTCSInL0 = Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_stcs_in_l0");
     private static final boolean unsafeSystem = Boolean.getBoolean(Config.PROPERTY_PREFIX + "unsafesystem");
 
+    // turns some warnings into exceptions for testing
+    private static final boolean strictRuntimeChecks = Boolean.getBoolean("cassandra.strict.runtime.checks");
+
     public static void daemonInitialization() throws ConfigurationException
     {
         daemonInitialization(DatabaseDescriptor::loadConfig);
@@ -2806,5 +2809,10 @@ public class DatabaseDescriptor
     public static void reportUnconfirmedRepairedDataMismatches(boolean enabled)
     {
         conf.report_unconfirmed_repaired_data_mismatches = enabled;
+    }
+
+    public static boolean strictRuntimeChecks()
+    {
+        return strictRuntimeChecks;
     }
 }

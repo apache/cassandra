@@ -281,7 +281,7 @@ public class StartupClusterConnectivityCheckerTest
             }
 
             if (markAliveInGossip)
-                Gossiper.instance.realMarkAlive(to, new EndpointState(new HeartBeatState(1, 1)));
+                Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.realMarkAlive(to, new EndpointState(new HeartBeatState(1, 1))));
             return false;
         }
 
