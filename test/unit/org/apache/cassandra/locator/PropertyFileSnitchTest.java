@@ -72,6 +72,7 @@ public class PropertyFileSnitchTest
     @Before
     public void setup() throws ConfigurationException, IOException
     {
+        System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
         String confFile = FBUtilities.resourceToFile(PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME);
         effectiveFile = Paths.get(confFile);
         backupFile = Paths.get(confFile + ".bak");
