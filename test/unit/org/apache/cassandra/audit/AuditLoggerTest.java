@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.audit;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -61,6 +62,12 @@ public class AuditLoggerTest extends CQLTester
     {
         AuditLogOptions options = new AuditLogOptions();
         enableAuditLogOptions(options);
+    }
+
+    @After
+    public void afterTestMethod()
+    {
+        disableAuditLogOptions();
     }
 
     private void enableAuditLogOptions(AuditLogOptions options)
@@ -165,8 +172,6 @@ public class AuditLoggerTest extends CQLTester
         options.excluded_keyspaces = KEYSPACE;
         enableAuditLogOptions(options);
         Assert.assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
-
-        disableAuditLogOptions();
     }
 
     @Test
