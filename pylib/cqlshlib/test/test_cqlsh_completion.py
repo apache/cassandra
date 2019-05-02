@@ -23,6 +23,7 @@ import os
 import re
 from .basecase import BaseTestCase, cqlsh, cqlshlog
 from .cassconnect import create_db, remove_db, testrun_cqlsh
+from .run_cqlsh import TimeoutError
 import unittest
 import sys
 
@@ -147,8 +148,14 @@ class CqlshCompletionCase(BaseTestCase):
                                        other_choices_ok=other_choices_ok,
                                        split_completed_lines=split_completed_lines)
         finally:
-            self.cqlsh.send(CTRL_C)  # cancel any current line
-            self.cqlsh.read_to_next_prompt()
+            try:
+                self.cqlsh.send(CTRL_C)  # cancel any current line
+                self.cqlsh.read_to_next_prompt(timeout=1.0)
+            except TimeoutError:
+                # retry once
+                self.cqlsh.send(CTRL_C)
+                self.cqlsh.read_to_next_prompt(timeout=10.0)
+ 
 
     def strategies(self):
         return self.module.CqlRuleSet.replication_strategies
@@ -358,8 +365,6 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             split_completed_lines=False)
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs'",
                             choices=[',', 'WHERE'])
-        self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE ",
-                            choices=['TOKEN(', 'lonelykey'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE ",
                             choices=['TOKEN(', 'lonelykey'])
 
