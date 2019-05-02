@@ -56,7 +56,7 @@ public class SEPExecutorTest
         }
 
         // shutdown does not guarantee that threads are actually dead once it exits, only that they will stop promptly afterwards
-        sharedPool.shutdown();
+        sharedPool.shutdownAndWait();
         for (Thread thread : Thread.getAllStackTraces().keySet())
         {
             if (thread.getName().contains(MAGIC))

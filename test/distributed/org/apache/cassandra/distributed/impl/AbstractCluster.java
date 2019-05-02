@@ -30,9 +30,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -47,6 +44,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -94,6 +92,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     private final File root;
     private final ClassLoader sharedClassLoader;
+    private final Set<Feature> features;
 
     // mutated by starting/stopping a node
     private final List<I> instances;
@@ -136,23 +135,28 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             return config;
         }
 
+        public boolean isShutdown()
+        {
+            return isShutdown;
+        }
+
         @Override
         public synchronized void startup()
         {
             if (!isShutdown)
                 throw new IllegalStateException();
-            delegate().startup(AbstractCluster.this);
+            delegate().startup(AbstractCluster.this, features);
             isShutdown = false;
             updateMessagingVersions();
         }
 
         @Override
-        public synchronized Future<Void> shutdown()
+        public synchronized Future<Void> shutdown(boolean graceful)
         {
             if (isShutdown)
                 throw new IllegalStateException();
             isShutdown = true;
-            Future<Void> future = delegate.shutdown();
+            Future<Void> future = delegate.shutdown(graceful);
             delegate = null;
             return future;
         }
@@ -181,9 +185,10 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
     }
 
-    protected AbstractCluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader)
+    protected AbstractCluster(File root, Versions.Version version, List<InstanceConfig> configs, Set<Feature> features, ClassLoader sharedClassLoader)
     {
         this.root = root;
+        this.features = features;
         this.sharedClassLoader = sharedClassLoader;
         this.instances = new ArrayList<>();
         this.instanceMap = new HashMap<>();
@@ -325,36 +330,59 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         get(instance).schemaChangeInternal(statement);
     }
 
-    void startup()
+    public void startup()
     {
-        parallelForEach(I::startup, 0, null);
+        forEach(I::startup);
     }
 
     protected interface Factory<I extends IInstance, C extends AbstractCluster<I>>
     {
-        C newCluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader);
+        C newCluster(File root, Versions.Version version, List<InstanceConfig> configs, Set<Feature> features, ClassLoader sharedClassLoader);
     }
 
     protected static <I extends IInstance, C extends AbstractCluster<I>> C
     create(int nodeCount, Factory<I, C> factory) throws Throwable
     {
-        return create(nodeCount, Files.createTempDirectory("dtests").toFile(), factory);
+        return create(nodeCount, Collections.emptySet(), factory);
+    }
+
+    protected static <I extends IInstance, C extends AbstractCluster<I>> C
+    create(int nodeCount, Set<Feature> features, Factory<I, C> factory) throws Throwable
+    {
+        return create(nodeCount, Files.createTempDirectory("dtests").toFile(), features, factory);
     }
 
     protected static <I extends IInstance, C extends AbstractCluster<I>> C
     create(int nodeCount, File root, Factory<I, C> factory)
     {
-        return create(nodeCount, Versions.CURRENT, root, factory);
+        return create(nodeCount, root, Collections.emptySet(), factory);
+    }
+
+    protected static <I extends IInstance, C extends AbstractCluster<I>> C
+    create(int nodeCount, File root, Set<Feature> features, Factory<I, C> factory)
+    {
+        return create(nodeCount, Versions.CURRENT, root, features, factory);
     }
 
     protected static <I extends IInstance, C extends AbstractCluster<I>> C
     create(int nodeCount, Versions.Version version, Factory<I, C> factory) throws IOException
     {
-        return create(nodeCount, version, Files.createTempDirectory("dtests").toFile(), factory);
+        return create(nodeCount, version, Collections.emptySet(), factory);
+    }
+
+    protected static <I extends IInstance, C extends AbstractCluster<I>> C
+    create(int nodeCount, Versions.Version version, Set<Feature> features, Factory<I, C> factory) throws IOException
+    {
+        return create(nodeCount, version, Files.createTempDirectory("dtests").toFile(), features, factory);
     }
 
     protected static <I extends IInstance, C extends AbstractCluster<I>> C
     create(int nodeCount, Versions.Version version, File root, Factory<I, C> factory)
+    {
+        return create(nodeCount, version, root, Collections.emptySet(), factory);
+    }
+    protected static <I extends IInstance, C extends AbstractCluster<I>> C
+    create(int nodeCount, Versions.Version version, File root, Set<Feature> features, Factory<I, C> factory)
     {
         root.mkdirs();
         setupLogging(root);
@@ -370,8 +398,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             token += increment;
         }
 
-        C cluster = factory.newCluster(root, version, configs, sharedClassLoader);
-        cluster.startup();
+        C cluster = factory.newCluster(root, version, configs, features, sharedClassLoader);
         return cluster;
     }
 
@@ -398,6 +425,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
     public void close()
     {
         FBUtilities.waitOnFutures(instances.stream()
+                                           .filter(i -> !i.isShutdown())
                                            .map(IInstance::shutdown)
                                            .collect(Collectors.toList()),
                                   1L, TimeUnit.MINUTES);

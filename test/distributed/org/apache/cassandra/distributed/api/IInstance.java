@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.api;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Future;
 
@@ -37,10 +38,12 @@ public interface IInstance extends IIsolatedExecutor
     UUID schemaVersion();
 
     void startup();
+    boolean isShutdown();
     Future<Void> shutdown();
+    Future<Void> shutdown(boolean graceful);
 
     // these methods are not for external use, but for simplicity we leave them public and on the normal IInstance interface
-    void startup(ICluster cluster);
+    void startup(ICluster cluster, Set<Feature> with);
     void receiveMessage(IMessage message);
 
     int getMessagingVersion();

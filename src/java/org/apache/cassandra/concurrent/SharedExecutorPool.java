@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -107,16 +108,17 @@ public class SharedExecutorPool
             schedule(Work.SPINNING);
     }
 
-    public LocalAwareExecutorService newExecutor(int maxConcurrency, int maxQueuedTasks, String jmxPath, String name)
+    public synchronized LocalAwareExecutorService newExecutor(int maxConcurrency, int maxQueuedTasks, String jmxPath, String name)
     {
         SEPExecutor executor = new SEPExecutor(this, maxConcurrency, maxQueuedTasks, jmxPath, name);
         executors.add(executor);
         return executor;
     }
 
-    public void shutdown() throws InterruptedException
+    public synchronized void shutdownAndWait() throws InterruptedException
     {
         shuttingDown = true;
+        List<SEPExecutor> executors = new ArrayList<>(this.executors);
         for (SEPExecutor executor : executors)
             executor.shutdownNow();
 
@@ -127,7 +129,7 @@ public class SharedExecutorPool
             executor.shutdown.await(until - System.nanoTime(), TimeUnit.NANOSECONDS);
     }
 
-    void terminateWorkers()
+    private void terminateWorkers()
     {
         assert shuttingDown;
 

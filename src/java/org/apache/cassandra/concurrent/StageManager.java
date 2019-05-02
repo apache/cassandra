@@ -125,7 +125,7 @@ public class StageManager
     public static void shutdownAndWait() throws InterruptedException
     {
         for (Stage stage : Stage.values())
-            StageManager.stages.get(stage).shutdown();
+            StageManager.stages.get(stage).shutdownNow();
         for (Stage stage : Stage.values())
             StageManager.stages.get(stage).awaitTermination(60, TimeUnit.SECONDS);
     }

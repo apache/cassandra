@@ -174,7 +174,11 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
             long current = permits.get();
             int workPermits = workPermits(current);
             if (permits.compareAndSet(current, updateWorkPermits(current, workPermits + 1)))
-                return;
+            {
+                if (shuttingDown && workPermits + 1 == maxWorkers)
+                    shutdown.signalAll();
+                break;
+            }
         }
     }
 
@@ -206,7 +210,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
     {
         shuttingDown = true;
         pool.executors.remove(this);
-        if (getActiveCount() == 0)
+        if (getActiveCount() == 0 && getPendingTasks() == 0)
             shutdown.signalAll();
 
         // release metrics
@@ -219,6 +223,8 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
         List<Runnable> aborted = new ArrayList<>();
         while (takeTaskPermit())
             aborted.add(tasks.poll());
+        if (getActiveCount() == 0)
+            shutdown.signalAll();
         return aborted;
     }
 
