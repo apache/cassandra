@@ -171,6 +171,12 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                 Set<InetAddress> neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range,
                                                                               options.getDataCenters(),
                                                                               options.getHosts());
+                if (neighbors.isEmpty())
+                {
+                    throw new IllegalArgumentException(
+                      String.format("No neighbors for repair range %s. Filters dataCenters=%s hosts=%s",
+                                    range, options.getDataCenters(), options.getHosts()));
+                }
 
                 addRangeToNeighbors(commonRanges, range, neighbors);
                 allNeighbors.addAll(neighbors);
