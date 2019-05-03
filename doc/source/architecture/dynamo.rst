@@ -32,7 +32,14 @@ Failure Detection
 Token Ring/Ranges
 ^^^^^^^^^^^^^^^^^
 
-.. todo:: todo
+Cassandra manages the distribution of data in a cluster commonly referred to as a Token Ring. Nodes in that ring 
+are assigned to a token. The token is what Cassandra uses to decide which node the data will be stored on. The range 
+of the tokens is  between -2^63 to +2^63 - 1. 
+
+The node is responsible for storing data less than the value of the 
+assigned token but greater than the value of the token assigned to the previous node. Data is assigned to nodes by 
+passing the partition key into a hash function to calculate a token. This partition key token is compared to the token values 
+for the various nodes to identify the range, and therefore the node, that owns the data.
 
 .. _replication-strategy:
 
