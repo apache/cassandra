@@ -22,7 +22,32 @@ Dynamo
 Gossip
 ^^^^^^
 
-.. todo:: todo
+Gossip is a peer-to-peer communication protocol in which nodes periodically exchange state information
+about themselves and about other nodes they know about. The gossiper runs every second and exchanges 
+state messages with up to three other nodes in the cluster. The nodes exchange information about themselves
+and about the other nodes that they have gossiped about, so all nodes quickly learn about all other nodes in the cluster. 
+
+Gossiper Steps
+
+1. Gossiper will choose a random node in the ring and initialize a gossip session with it. Each round of gossip requires three messages
+2. The gossip initiator sends its chosen friend a GossipDigestSynMessage.
+3. When the friend receives this message, it returns a GossipDigestAckMessage.
+4. When the initiator receives the ack message from the friend, it sends the friend a
+GossipDigestAck2Message to complete the round of gossip.
+
+
+This supports decentralization, which leads to no single point of failure. Having no single point of failure 
+leads to high availability of data. A gossip message has a version associated with it, so that during a gossip
+exchange, older information is overwritten with the most current state for a particular node.
+
+The Failure Dectector figures out if a node is up or down. Each node has heartbeat state that frequently changes. 
+The Failure Dector is a heartbeat listener that markes down the timestamps and keeps backlogs of intervals when it
+recieves updates from each node. Based on the reported data, it determines if a peer is up or down.
+
+In addition to Gossip, Cassandra uses another tool called Dynamic Snitch to record and analyze the latency of read 
+requests to nodes. The latencies are ranked and recalcuated every 100ms. These records help identify the slowlest 
+nodes to avoid when using Gossip.
+
 
 Failure Detection
 ^^^^^^^^^^^^^^^^^
