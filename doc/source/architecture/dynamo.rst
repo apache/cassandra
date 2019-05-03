@@ -27,7 +27,21 @@ Gossip
 Failure Detection
 ^^^^^^^^^^^^^^^^^
 
-.. todo:: todo
+Failure detection is a method for locally determining from gossip state and history if another node in 
+the system is down or has come back up. Cassandra uses this information to avoid routing client requests 
+to unreachable nodes whenever possible. (Cassandra can also avoid routing requests to nodes that are alive,
+but performing poorly, through the dynamic snitch.)
+
+The gossip process tracks state from other nodes both directly (nodes gossiping directly to it) and indirectly
+(nodes communicated about secondhand, third-hand, and so on). Rather than have a fixed threshold for marking 
+failing nodes, Cassandra uses an accrual detection mechanism to calculate a per-node threshold that takes into 
+account network performance, workload, and historical conditions. During gossip exchanges, every node maintains 
+a sliding window of inter-arrival times of gossip messages from other nodes in the cluster.
+
+Node failures can result from various causes such as hardware failures and network outages. Node outages are often 
+transient but can last for extended periods. Because a node outage rarely signifies a permanent departure from the
+cluster it does not automatically result in permanent removal of the node from the ring. Other nodes will periodically
+try to re-establish contact with failed nodes to see if they are back up.
 
 Token Ring/Ranges
 ^^^^^^^^^^^^^^^^^
