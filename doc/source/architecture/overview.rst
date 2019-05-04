@@ -17,11 +17,12 @@
 Overview
 --------
 
-# Architecture overview
+
 
 This document is meant to present a high level overview of the architecture of Apache Cassandra. More in depth information is available throughout the rest of the documentation. This section breaks up and describes the subsections of the architecture titled dynamo, storage engine, and guarantee. For each section it first provides a clear definition of the title to provide the context necessary to understand the subsections.  Then it connects how each subsection fits into the greater architecture.
 
-## Dynamo
+Dynamo
+^^^^^^
 
 Dynamo is a set of techniques that lead to a highly available key value structured storage system. These principles underlie the motivation for the architectural decisions made during the development and maintenance of Cassandra.
 
@@ -35,7 +36,8 @@ Decentralization, which extends symmetry, meaning nodes should communicate in a 
 
 Heterogeneity, meaning the system can automatically exploit the benefits of the infrastructure it runs on. For example,  a system based on Dynamo knows to store more data on hardware that is optimized for storage.
 
-### Implementation of Dynamo
+Implementation of Dynamo
+^^^^^^^^^^^^^^^^
 
 Apache Cassandra is designed to distribute data typically across several physically separate locations. This is achieved through storing data on clusters of nodes. The topology of a cluster is described by data centers and racks. A rack contains many nodes and a data center can have many racks. By default Cassandra is configured with a single data center and a single rack. By defining the cluster’s topology Cassandra is able to use this information to store the data optimally as well as query efficiently. Nodes understand where other nodes are placed in the network in relation to each other by the snitch. The snitch gives Cassandra the awareness of its clusters topology which allows for these optimizations. 
 
@@ -54,10 +56,12 @@ SimpleStrategy uses the replication factor, simply an integer, to determine the 
 NetworkTopologyStrategy uses a replication factor per datacenter and intelligently determines the best nodes to choose as replicas from each rack.
 
 
-## Storage Engine
+Storage Engine
+^^^^^^^^^^^^^^^^
 
 .. todo:: todo
 
-## Guarantees
+Guarantees
+^^^^^^^^^^^^^^^^
 
 .. todo:: todo
