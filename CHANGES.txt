@@ -2,6 +2,7 @@
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Skip cells with illegal column names when reading legacy sstables (CASSANDRA-15086)
  * Fix assorted gossip races and add related runtime checks (CASSANDRA-15059)
  * Fix mixed mode partition range scans with limit (CASSANDRA-15072)
  * cassandra-stress works with frozen collections: list and set (CASSANDRA-14907)
