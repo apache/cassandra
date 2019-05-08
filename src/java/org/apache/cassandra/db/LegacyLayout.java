@@ -23,6 +23,7 @@ import java.io.IOError;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.SuperColumnCompatibility;
@@ -56,6 +57,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 public abstract class LegacyLayout
 {
     private static final Logger logger = LoggerFactory.getLogger(LegacyLayout.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
 
     public final static int MAX_CELL_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
 
@@ -123,7 +125,7 @@ public abstract class LegacyLayout
     }
 
     public static LegacyCellName decodeCellName(CFMetaData metadata, ByteBuffer superColumnName, ByteBuffer cellname)
-    throws UnknownColumnException
+    throws UnknownColumnException, IllegalLegacyColumnException
     {
         assert cellname != null;
         if (metadata.isSuper())
@@ -150,12 +152,12 @@ public abstract class LegacyLayout
         return new LegacyCellName(clustering, def, subcol);
     }
 
-    public static LegacyCellName decodeCellName(CFMetaData metadata, ByteBuffer cellname) throws UnknownColumnException
+    public static LegacyCellName decodeCellName(CFMetaData metadata, ByteBuffer cellname) throws UnknownColumnException, IllegalLegacyColumnException
     {
         return decodeCellName(metadata, cellname, false);
     }
 
-    public static LegacyCellName decodeCellName(CFMetaData metadata, ByteBuffer cellname, boolean readAllAsDynamic) throws UnknownColumnException
+    public static LegacyCellName decodeCellName(CFMetaData metadata, ByteBuffer cellname, boolean readAllAsDynamic) throws UnknownColumnException, IllegalLegacyColumnException
     {
         Clustering clustering = decodeClustering(metadata, cellname);
 
@@ -190,9 +192,15 @@ public abstract class LegacyLayout
                 return new LegacyCellName(Clustering.make(column), metadata.compactValueColumn(), null);
 
             if (def == null)
+            {
                 throw new UnknownColumnException(metadata, column);
+            }
             else
-                throw new IllegalArgumentException("Cannot add primary key column to partition update");
+            {
+                noSpamLogger.warn("Illegal cell name for CQL3 table {}.{}. {} is defined as a primary key column",
+                                 metadata.ksName, metadata.cfName, stringify(column));
+                throw new IllegalLegacyColumnException(metadata, column);
+            }
         }
 
         ByteBuffer collectionElement = metadata.isCompound() ? CompositeType.extractComponent(cellname, metadata.comparator.size() + 1) : null;
@@ -743,6 +751,13 @@ public abstract class LegacyLayout
             {
                 // Simply skip, as the method name implies.
             }
+            catch (IllegalLegacyColumnException e)
+            {
+                // We can arrive here if the table is non-compact and an sstable contains cells whose column name components
+                // refer to a primary key column. This is not possible through CQL, but is through thrift or side loading
+                // sstables. In this case, we treat the column as an unknown and skip, which is equivalent to the pre
+                // 3.0 read path behaviour
+            }
         }
 
     }
@@ -1102,7 +1117,7 @@ public abstract class LegacyLayout
     }
 
     public static LegacyAtom readLegacyAtom(CFMetaData metadata, DataInputPlus in, boolean readAllAsDynamic)
-    throws IOException, UnknownColumnException
+    throws IOException, UnknownColumnException, IllegalLegacyColumnException
     {
         ByteBuffer cellname = ByteBufferUtil.readWithShortLength(in);
         if (!cellname.hasRemaining())
@@ -1134,7 +1149,7 @@ public abstract class LegacyLayout
         }
     }
 
-    public static LegacyCell readLegacyCell(CFMetaData metadata, DataInput in, SerializationHelper.Flag flag) throws IOException, UnknownColumnException
+    public static LegacyCell readLegacyCell(CFMetaData metadata, DataInput in, SerializationHelper.Flag flag) throws IOException, UnknownColumnException, IllegalLegacyColumnException
     {
         ByteBuffer cellname = ByteBufferUtil.readWithShortLength(in);
         int b = in.readUnsignedByte();
@@ -1142,7 +1157,7 @@ public abstract class LegacyLayout
     }
 
     public static LegacyCell readLegacyCellBody(CFMetaData metadata, DataInput in, ByteBuffer cellname, int mask, SerializationHelper.Flag flag, boolean readAllAsDynamic)
-    throws IOException, UnknownColumnException
+    throws IOException, UnknownColumnException, IllegalLegacyColumnException
     {
         // Note that we want to call decodeCellName only after we've deserialized other parts, since it can throw
         // and we want to throw only after having deserialized the full cell.
@@ -1213,6 +1228,14 @@ public abstract class LegacyLayout
                         return computeNext();
                     else
                         throw new IOError(e);
+                }
+                catch (IllegalLegacyColumnException e)
+                {
+                    // We can arrive here if the table is non-compact and an sstable contains cells whose column name components
+                    // refer to a primary key column. This is not possible through CQL, but is through thrift or side loading
+                    // sstables. In this case, we treat the atom as though it were unknown and skip on to the next, which is
+                    // equivalent to the pre 3.0 behaviour
+                    return computeNext();
                 }
                 catch (IOException e)
                 {
@@ -1612,13 +1635,13 @@ public abstract class LegacyLayout
         }
 
         public static LegacyCell regular(CFMetaData metadata, ByteBuffer superColumnName, ByteBuffer name, ByteBuffer value, long timestamp)
-        throws UnknownColumnException
+        throws UnknownColumnException, IllegalLegacyColumnException
         {
             return new LegacyCell(Kind.REGULAR, decodeCellName(metadata, superColumnName, name), value, timestamp, Cell.NO_DELETION_TIME, Cell.NO_TTL);
         }
 
         public static LegacyCell expiring(CFMetaData metadata, ByteBuffer superColumnName, ByteBuffer name, ByteBuffer value, long timestamp, int ttl, int nowInSec)
-        throws UnknownColumnException
+        throws UnknownColumnException, IllegalLegacyColumnException
         {
             /*
              * CASSANDRA-14092: Max expiration date capping is maybe performed here, expiration overflow policy application
@@ -1628,13 +1651,13 @@ public abstract class LegacyLayout
         }
 
         public static LegacyCell tombstone(CFMetaData metadata, ByteBuffer superColumnName, ByteBuffer name, long timestamp, int nowInSec)
-        throws UnknownColumnException
+        throws UnknownColumnException, IllegalLegacyColumnException
         {
             return new LegacyCell(Kind.DELETED, decodeCellName(metadata, superColumnName, name), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp, nowInSec, LivenessInfo.NO_TTL);
         }
 
         public static LegacyCell counterUpdate(CFMetaData metadata, ByteBuffer superColumnName, ByteBuffer name, long value)
-        throws UnknownColumnException
+        throws UnknownColumnException, IllegalLegacyColumnException
         {
             // See UpdateParameters.addCounter() for more details on this
             ByteBuffer counterValue = CounterContext.instance().createUpdate(value);
@@ -2583,6 +2606,18 @@ public abstract class LegacyLayout
                 size += TypeSizes.sizeof(markedAts[i]);
             }
             return size;
+        }
+    }
+
+    public static String stringify(ByteBuffer name)
+    {
+        try
+        {
+            return UTF8Type.instance.getString(name);
+        }
+        catch (Exception e)
+        {
+            return ByteBufferUtil.bytesToHex(name);
         }
     }
 }
