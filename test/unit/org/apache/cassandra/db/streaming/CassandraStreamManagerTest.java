@@ -33,7 +33,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.cassandra.locator.EndpointsForRange;
+
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.junit.Assert;
 import org.junit.Before;
@@ -195,7 +195,7 @@ public class CassandraStreamManagerTest
         Collection<SSTableReader> allSSTables = cfs.getLiveSSTables();
         Assert.assertEquals(1, allSSTables.size());
         final Token firstToken = allSSTables.iterator().next().first.getToken();
-        DatabaseDescriptor.setSSTablePreempiveOpenIntervalInMB(1);
+        DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMB(1);
 
         Set<SSTableReader> sstablesBeforeRewrite = getReadersForRange(new Range<>(firstToken, firstToken));
         Assert.assertEquals(1, sstablesBeforeRewrite.size());
@@ -227,7 +227,7 @@ public class CassandraStreamManagerTest
         }
         finally
         {
-            DatabaseDescriptor.setSSTablePreempiveOpenIntervalInMB(50);
+            DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMB(50);
             done.set(true);
             t.join(20);
         }
