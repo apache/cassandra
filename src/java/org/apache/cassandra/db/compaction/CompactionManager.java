@@ -784,36 +784,39 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void forceCompactionForTokenRange(ColumnFamilyStore cfStore, Collection<Range<Token>> ranges)
     {
-        final Collection<AbstractCompactionTask> tasks = cfStore.runWithCompactionsDisabled(() ->
-                   {
-                       Collection<SSTableReader> sstables = sstablesInBounds(cfStore, ranges);
-                       if (sstables == null || sstables.isEmpty())
-                       {
-                           logger.debug("No sstables found for the provided token range");
-                           return null;
-                       }
-                       return cfStore.getCompactionStrategyManager().getUserDefinedTasks(sstables, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()));
-                   }, false, false);
+        Callable<Collection<AbstractCompactionTask>> taskCreator = () -> {
+            Collection<SSTableReader> sstables = sstablesInBounds(cfStore, ranges);
+            if (sstables == null || sstables.isEmpty())
+            {
+                logger.debug("No sstables found for the provided token range");
+                return null;
+            }
+            return cfStore.getCompactionStrategyManager().getUserDefinedTasks(sstables, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()));
+        };
+
+        final Collection<AbstractCompactionTask> tasks = cfStore.runWithCompactionsDisabled(taskCreator, false, false);
 
         if (tasks == null)
             return;
 
         Runnable runnable = new WrappedRunnable()
         {
-            protected void runMayThrow()
+            protected void runMayThrow() throws Exception
             {
-                for (AbstractCompactionTask task : tasks)
-                    if (task != null)
-                        task.execute(metrics);
+                try
+                {
+                    for (AbstractCompactionTask task : tasks)
+                        if (task != null)
+                            task.execute(metrics);
+                }
+                finally
+                {
+                    FBUtilities.closeAll(tasks.stream().map(task -> task.transaction).collect(Collectors.toList()));
+                }
             }
         };
 
-        if (executor.isShutdown())
-        {
-            logger.info("Compaction executor has shut down, not submitting task");
-            return;
-        }
-        FBUtilities.waitOnFuture(executor.submit(runnable));
+        FBUtilities.waitOnFuture(executor.submitIfRunning(runnable, "force compaction for token range"));
     }
 
     private static Collection<SSTableReader> sstablesInBounds(ColumnFamilyStore cfs, Collection<Range<Token>> tokenRangeCollection)
@@ -915,7 +918,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         Runnable runnable = new WrappedRunnable()
         {
-            protected void runMayThrow()
+            protected void runMayThrow() throws Exception
             {
                 // look up the sstables now that we're on the compaction executor, so we don't try to re-compact
                 // something that was already being compacted earlier.
@@ -941,10 +944,17 @@ public class CompactionManager implements CompactionManagerMBean
                 else
                 {
                     List<AbstractCompactionTask> tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstables, gcBefore);
-                    for (AbstractCompactionTask task : tasks)
+                    try
                     {
-                        if (task != null)
-                            task.execute(metrics);
+                        for (AbstractCompactionTask task : tasks)
+                        {
+                            if (task != null)
+                                task.execute(metrics);
+                        }
+                    }
+                    finally
+                    {
+                        FBUtilities.closeAll(tasks.stream().map(task -> task.transaction).collect(Collectors.toList()));
                     }
                 }
             }
