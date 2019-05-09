@@ -24,7 +24,6 @@ import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.SSTableIterator;
 import org.apache.cassandra.db.columniterator.SSTableReversedIterator;
@@ -155,9 +154,8 @@ public class BigTableReader extends SSTableReader
         // next, the key cache (only make sense for valid row key)
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
-            DecoratedKey decoratedKey = (DecoratedKey)key;
-            KeyCacheKey cacheKey = new KeyCacheKey(metadata(), descriptor, decoratedKey.getKey());
-            RowIndexEntry cachedPosition = getCachedPosition(cacheKey, updateCacheAndStats);
+            DecoratedKey decoratedKey = (DecoratedKey) key;
+            RowIndexEntry cachedPosition = getCachedPosition(decoratedKey, updateCacheAndStats);
             if (cachedPosition != null)
             {
                 listener.onSSTableSelected(this, cachedPosition, SelectionReason.KEY_CACHE_HIT);

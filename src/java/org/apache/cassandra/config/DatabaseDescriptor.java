@@ -2241,11 +2241,21 @@ public class DatabaseDescriptor
         return conf.commitlog_total_space_in_mb;
     }
 
-    public static int getSSTablePreempiveOpenIntervalInMB()
+    public static boolean shouldMigrateKeycacheOnCompaction()
+    {
+        return conf.key_cache_migrate_during_compaction;
+    }
+
+    public static void setMigrateKeycacheOnCompaction(boolean migrateCacheEntry)
+    {
+        conf.key_cache_migrate_during_compaction = migrateCacheEntry;
+    }
+
+    public static int getSSTablePreemptiveOpenIntervalInMB()
     {
         return FBUtilities.isWindows ? -1 : conf.sstable_preemptive_open_interval_in_mb;
     }
-    public static void setSSTablePreempiveOpenIntervalInMB(int mb)
+    public static void setSSTablePreemptiveOpenIntervalInMB(int mb)
     {
         conf.sstable_preemptive_open_interval_in_mb = mb;
     }
