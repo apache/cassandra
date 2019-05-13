@@ -280,12 +280,21 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 {
                     // The filter might be on static columns, so need to check static row first.
                     if (filterStaticColumns && applyToRow(partition.staticRow()) == null)
+                    {
+                        partition.close();
                         return null;
+                    }
 
                     pk = partition.partitionKey();
                     UnfilteredRowIterator iterator = Transformation.apply(partition, this);
 
-                    return (filterNonStaticColumns && !iterator.hasNext()) ? null : iterator;
+                    if (filterNonStaticColumns && !iterator.hasNext())
+                    {
+                        iterator.close();
+                        return null;
+                    }
+
+                    return iterator;
                 }
 
                 public Row applyToRow(Row row)
