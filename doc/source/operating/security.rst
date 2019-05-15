@@ -182,6 +182,8 @@ See also: :ref:`setting-credentials-for-internal-authentication`, :ref:`CREATE R
 :ref:`ALTER ROLE <alter-role-statement>`, :ref:`ALTER KEYSPACE <alter-keyspace-statement>` and :ref:`GRANT PERMISSION
 <grant-permission-statement>`,
 
+.. _authorization:
+
 Authorization
 ^^^^^^^^^^^^^
 
@@ -232,6 +234,8 @@ The following assumes that authentication has already been enabled via the proce
 
 See also: :ref:`GRANT PERMISSION <grant-permission-statement>`, `GRANT ALL <grant-all>` and :ref:`REVOKE PERMISSION
 <revoke-permission-statement>`
+
+.. _auth-caching:
 
 Caching
 ^^^^^^^
