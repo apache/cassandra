@@ -19,6 +19,9 @@ package org.apache.cassandra.db.rows;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Function;
+
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
@@ -41,7 +44,7 @@ public class EncodingStats
 {
     // Default values for the timestamp, deletion time and ttl. We use this both for NO_STATS, but also to serialize
     // an EncodingStats. Basically, we encode the diff of each value of to these epoch, which give values with better vint encoding.
-    private static final long TIMESTAMP_EPOCH;
+    public static final long TIMESTAMP_EPOCH;
     private static final int DELETION_TIME_EPOCH;
     private static final int TTL_EPOCH = 0;
     static
@@ -93,18 +96,40 @@ public class EncodingStats
     public EncodingStats mergeWith(EncodingStats that)
     {
         long minTimestamp = this.minTimestamp == TIMESTAMP_EPOCH
-                          ? that.minTimestamp
-                          : (that.minTimestamp == TIMESTAMP_EPOCH ? this.minTimestamp : Math.min(this.minTimestamp, that.minTimestamp));
+                            ? that.minTimestamp
+                            : (that.minTimestamp == TIMESTAMP_EPOCH ? this.minTimestamp : Math.min(this.minTimestamp, that.minTimestamp));
 
         int minDelTime = this.minLocalDeletionTime == DELETION_TIME_EPOCH
-                       ? that.minLocalDeletionTime
-                       : (that.minLocalDeletionTime == DELETION_TIME_EPOCH ? this.minLocalDeletionTime : Math.min(this.minLocalDeletionTime, that.minLocalDeletionTime));
+                         ? that.minLocalDeletionTime
+                         : (that.minLocalDeletionTime == DELETION_TIME_EPOCH ? this.minLocalDeletionTime : Math.min(this.minLocalDeletionTime, that.minLocalDeletionTime));
 
         int minTTL = this.minTTL == TTL_EPOCH
-                   ? that.minTTL
-                   : (that.minTTL == TTL_EPOCH ? this.minTTL : Math.min(this.minTTL, that.minTTL));
+                     ? that.minTTL
+                     : (that.minTTL == TTL_EPOCH ? this.minTTL : Math.min(this.minTTL, that.minTTL));
 
         return new EncodingStats(minTimestamp, minDelTime, minTTL);
+    }
+
+    /**
+     * Merge one or more EncodingStats, that are lazily materialized from some list of arbitrary type by the provided function
+     */
+    public static <V, F extends Function<V, EncodingStats>> EncodingStats merge(List<V> values, F function)
+    {
+        if (values.size() == 1)
+            return function.apply(values.get(0));
+
+        Collector collector = new Collector();
+        for (V v : values)
+        {
+            EncodingStats stats = function.apply(v);
+            if (stats.minTimestamp != TIMESTAMP_EPOCH)
+                collector.updateTimestamp(stats.minTimestamp);
+            if(stats.minLocalDeletionTime != DELETION_TIME_EPOCH)
+                collector.updateLocalDeletionTime(stats.minLocalDeletionTime);
+            if(stats.minTTL != TTL_EPOCH)
+                collector.updateTTL(stats.minTTL);
+        }
+        return collector.get();
     }
 
     @Override

@@ -253,12 +253,14 @@ public class Config
     public int hints_flush_period_in_ms = 10000;
     public int max_hints_file_size_in_mb = 128;
     public ParameterizedClass hints_compression;
-    public int sstable_preemptive_open_interval_in_mb = 50;
 
     public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;
     public int trickle_fsync_interval_in_kb = 10240;
 
+    public volatile int sstable_preemptive_open_interval_in_mb = 50;
+
+    public volatile boolean key_cache_migrate_during_compaction = true;
     public Long key_cache_size_in_mb = null;
     public volatile int key_cache_save_period = 14400;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;

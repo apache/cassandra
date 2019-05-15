@@ -699,15 +699,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // under normal operation we can do this at any time, but SSTR is also used outside C* proper,
         // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
         // here when we know we're being wired into the rest of the server infrastructure.
-        keyCache = CacheService.instance.keyCache;
+        InstrumentingCache<KeyCacheKey, RowIndexEntry> maybeKeyCache = CacheService.instance.keyCache;
+        if (maybeKeyCache.getCapacity() > 0)
+            keyCache = maybeKeyCache;
+
         final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata().id);
         if (cfs != null)
             setCrcCheckChance(cfs.getCrcCheckChance());
-    }
-
-    public boolean isKeyCacheSetup()
-    {
-        return keyCache != null;
     }
 
     /**
@@ -1534,12 +1532,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public RowIndexEntry getCachedPosition(DecoratedKey key, boolean updateStats)
     {
-        return getCachedPosition(new KeyCacheKey(metadata(), descriptor, key.getKey()), updateStats);
+        if (isKeyCacheEnabled())
+            return getCachedPosition(new KeyCacheKey(metadata(), descriptor, key.getKey()), updateStats);
+        return null;
     }
 
     protected RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
     {
-        if (keyCacheEnabled())
+        if (isKeyCacheEnabled())
         {
             if (updateStats)
             {
@@ -1560,9 +1560,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return null;
     }
 
-    private boolean keyCacheEnabled()
+    public boolean isKeyCacheEnabled()
     {
-        return keyCache != null && keyCache.getCapacity() > 0 && metadata().params.caching.cacheKeys();
+        return keyCache != null && metadata().params.caching.cacheKeys();
     }
 
     /**
@@ -1830,7 +1830,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             // hint read path about key location if caching is enabled
             // this saves index summary lookup and index file iteration which whould be pretty costly
             // especially in presence of promoted column indexes
-            if (isKeyCacheSetup())
+            if (isKeyCacheEnabled())
                 cacheKey(key, rowIndexEntrySerializer.deserialize(in, in.getFilePointer()));
         }
 
@@ -2101,7 +2101,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         // We could return sstable.header.stats(), but this may not be as accurate than the actual sstable stats (see
         // SerializationHeader.make() for details) so we use the latter instead.
-        return new EncodingStats(getMinTimestamp(), getMinLocalDeletionTime(), getMinTTL());
+        return sstableMetadata.encodingStats;
     }
 
     public Ref<SSTableReader> tryRef()
