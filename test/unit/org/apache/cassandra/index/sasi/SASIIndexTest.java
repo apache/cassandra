@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.index.sasi;
 
+import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
@@ -24,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -70,8 +73,11 @@ import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.QueryController;
 import org.apache.cassandra.index.sasi.plan.QueryPlan;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -91,6 +97,9 @@ import org.assertj.core.api.Assertions;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.junit.*;
 
 public class SASIIndexTest
@@ -137,7 +146,87 @@ public class SASIIndexTest
     }
 
     @Test
-    public void testSingleExpressionQueries()
+    public void testSASIComponentsAddedToSnapshot() throws Throwable
+    {
+        String snapshotName = "sasi_test";
+        Map<String, Pair<String, Integer>> data = new HashMap<>();
+        Random r = new Random();
+
+        for (int i = 0; i < 100; i++)
+        {
+            data.put(UUID.randomUUID().toString(), Pair.create(UUID.randomUUID().toString(), r.nextInt()));
+        }
+
+        ColumnFamilyStore store = loadData(data, true);
+        store.forceMajorCompaction();
+
+        try
+        {
+            // left holds table component sizes, right holds total size of index components (SI_*)
+            Pair<Long, Long> tableIndexSizes = takeSnapshotAndCheckComponents(store, snapshotName);
+            Map<String, Pair<Long, Long>> details = store.getSnapshotDetails();
+
+            // check that SASI components are included in the computation of snapshot size
+            Assert.assertEquals((long) details.get("sasi_test").right, tableIndexSizes.left + tableIndexSizes.right);
+        }
+        finally
+        {
+            store.clearSnapshot("sasi_test");
+        }
+    }
+
+    private Pair<Long, Long> takeSnapshotAndCheckComponents(ColumnFamilyStore cfs, String snapshotName) throws Throwable
+    {
+        Set<SSTableReader> ssTableReaders = cfs.getLiveSSTables();
+        Set<Component> sasiComponents = new HashSet<>();
+        for (Index index : cfs.indexManager.listIndexes())
+        {
+            if (index instanceof SASIIndex)
+                sasiComponents.add(((SASIIndex) index).getIndex().getComponent());
+        }
+
+        cfs.snapshot(snapshotName);
+        JSONObject manifest = (JSONObject) new JSONParser().parse(new FileReader(cfs.getDirectories().getSnapshotManifestFile(snapshotName)));
+        JSONArray files = (JSONArray) manifest.get("files");
+        Assert.assertEquals(ssTableReaders.size(), files.size());
+        Map<Descriptor, Set<Component>> snapshots = cfs.getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).snapshots(snapshotName).list();
+
+        long indexSize = 0;
+        long tableSize = 0;
+
+        for (SSTableReader sstable : ssTableReaders)
+        {
+
+            File snapshotDirectory = Directories.getSnapshotDirectory(sstable.descriptor, snapshotName);
+            Descriptor tmp = new Descriptor(snapshotDirectory,
+                                            sstable.getKeyspaceName(),
+                                            sstable.getColumnFamilyName(),
+                                            sstable.descriptor.generation,
+                                            sstable.descriptor.formatType);
+
+            Set<Component> components = snapshots.get(tmp);
+
+
+            Assert.assertNotNull(components);
+            Assert.assertTrue(components.containsAll(sasiComponents));
+
+            for (Component c : components)
+            {
+                Path p = Paths.get(sstable.descriptor + "-" + c.name);
+                long size = Files.size(p);
+                if (c.name.contains("SI_")) {
+                    indexSize += size;
+                } else {
+                    tableSize += size;
+                }
+            }
+        }
+
+        return Pair.create(tableSize, indexSize);
+    }
+
+    @Test
+    public void testSingleExpressionQueries() throws Exception
     {
         testSingleExpressionQueries(false);
         cleanupData();
