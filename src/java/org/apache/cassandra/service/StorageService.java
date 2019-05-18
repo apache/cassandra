@@ -4438,6 +4438,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (InetAddressAndPort endpoint : tokenMetadata.getLeavingEndpoints())
             {
                 UUID hostId = tokenMetadata.getHostId(endpoint);
+                if (hostId == null)
+                {
+                    logger.warn("Node {} is already removed, skip it", endpoint);
+                    continue;
+                }
                 Gossiper.instance.advertiseTokenRemoved(endpoint, hostId);
                 excise(tokenMetadata.getTokens(endpoint), endpoint);
             }
