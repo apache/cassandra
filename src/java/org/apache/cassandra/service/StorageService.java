@@ -948,7 +948,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         // if we don't have system_traces keyspace at this point, then create it manually
-        maybeAddOrUpdateKeyspace(TraceKeyspace.definition());
+        ensureTraceKeyspace();
         maybeAddOrUpdateKeyspace(SystemDistributedKeyspace.definition());
 
         if (!isSurveyMode)
@@ -976,6 +976,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             else
                 logger.warn("Some data streaming failed. Use nodetool to check bootstrap state and resume. For more, see `nodetool help bootstrap`. {}", SystemKeyspace.getBootstrapState());
         }
+    }
+
+    @VisibleForTesting
+    public void ensureTraceKeyspace()
+    {
+        maybeAddOrUpdateKeyspace(TraceKeyspace.definition());
     }
 
     public static boolean isReplacingSameAddress()

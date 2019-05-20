@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.Future;
 
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -36,6 +38,7 @@ import org.apache.cassandra.service.pager.Pageable;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.service.pager.QueryPagers;
 import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -78,6 +81,53 @@ public class Coordinator implements ICoordinator
                 return new Object[][]{};
             }
         }).call();
+    }
+
+    @Override
+    public Future<Object[][]> asyncTraceExecute(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    {
+        return instance.async(() -> {
+            try
+            {
+                Tracing.instance.newSession(sessionId);
+                ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
+                CQLStatement prepared = QueryProcessor.getStatement(query, ClientState.forInternalCalls()).statement;
+                List<ByteBuffer> boundBBValues = new ArrayList<>();
+                for (Object boundValue : boundValues)
+                {
+                    boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
+                }
+
+                prepared.validate(QueryState.forInternalCalls().getClientState());
+                ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
+                                                     QueryOptions.create(consistencyLevel,
+                                                                         boundBBValues,
+                                                                         false,
+                                                                         Integer.MAX_VALUE,
+                                                                         null,
+                                                                         null,
+                                                                         Server.CURRENT_VERSION));
+
+                if (res != null && res.kind == ResultMessage.Kind.ROWS)
+                {
+                    return RowUtil.toObjects((ResultMessage.Rows) res);
+                }
+                else
+                {
+                    return new Object[][]{};
+                }
+            }
+            finally
+            {
+                Tracing.instance.stopSession();
+            }
+        }).call();
+    }
+    
+    @Override
+    public Object[][] traceExecute(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    {
+        return IsolatedExecutor.waitOn(asyncTraceExecute(sessionId, query, consistencyLevelOrigin, boundValues));
     }
 
     @Override
