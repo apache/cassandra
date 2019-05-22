@@ -8,7 +8,7 @@
  ~ "License"); you may not use this file except in compliance
  ~ with the License.  You may obtain a copy of the License at
  ~
- ~    http://www.apache.org/licenses/LICENSE-2.0
+ ~    https://www.apache.org/licenses/LICENSE-2.0
  ~
  ~ Unless required by applicable law or agreed to in writing,
  ~ software distributed under the License is distributed on an
@@ -26,9 +26,9 @@
 
     <!-- default version and SCM information -->
     <property name="base.version" value="3.0.19"/>
-    <property name="scm.connection" value="scm:git://git.apache.org/cassandra.git"/>
-    <property name="scm.developerConnection" value="scm:git://git.apache.org/cassandra.git"/>
-    <property name="scm.url" value="http://git-wip-us.apache.org/repos/asf?p=cassandra.git;a=tree"/>
+    <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
+    <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
+    <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
 
     <!-- directory details -->
     <property name="basedir" value="."/>
@@ -84,7 +84,7 @@
     <property name="maven-ant-tasks.version" value="2.1.3" />
     <property name="maven-ant-tasks.local" value="${user.home}/.m2/repository/org/apache/maven/maven-ant-tasks"/>
     <property name="maven-ant-tasks.url"
-              value="http://repo2.maven.org/maven2/org/apache/maven/maven-ant-tasks" />
+              value="https://repo.maven.apache.org/maven2/org/apache/maven/maven-ant-tasks" />
     <!-- details of how and which Maven repository we publish to -->
     <property name="maven.version" value="3.0.3" />
     <condition property="maven-repository-url" value="https://repository.apache.org/service/local/staging/deploy/maven2">
@@ -107,7 +107,7 @@
     <!-- skip flushing schema tables during tests -->
     <property name="cassandra.test.flush_local_schema_changes" value="false" />
 
-    <!-- http://www.eclemma.org/jacoco/ -->
+    <!-- https://www.eclemma.org/jacoco/ -->
     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
     <property name="jacoco.partials.dir" value="${jacoco.export.dir}/partials" />
     <property name="jacoco.partialexecfile" value="${jacoco.partials.dir}/partial.exec" />
@@ -332,11 +332,11 @@
                     artifactId="cassandra-parent"
                     packaging="pom"
                     version="${version}"
-                    url="http://cassandra.apache.org"
+                    url="https://cassandra.apache.org"
                     name="Apache Cassandra"
                     inceptionYear="2009"
                     description="The Apache Cassandra Project develops a highly scalable second-generation distributed database, bringing together Dynamo's fully distributed design and Bigtable's ColumnFamily-based data model.">
-        <license name="The Apache Software License, Version 2.0" url="http://www.apache.org/licenses/LICENSE-2.0.txt"/>
+        <license name="The Apache Software License, Version 2.0" url="https://www.apache.org/licenses/LICENSE-2.0.txt"/>
         <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
         <dependencyManagement>
           <dependency groupId="org.xerial.snappy" artifactId="snappy-java" version="1.1.1.7"/>
@@ -531,7 +531,7 @@
 
       <artifact:pom id="all-pom"
                     artifactId="cassandra-all"
-                    url="http://cassandra.apache.org"
+                    url="https://cassandra.apache.org"
                     name="Apache Cassandra">
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
@@ -593,7 +593,7 @@
       </artifact:pom>
       <artifact:pom id="thrift-pom"
                     artifactId="cassandra-thrift"
-                    url="http://cassandra.apache.org"
+                    url="https://cassandra.apache.org"
                     name="Apache Cassandra">
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
@@ -607,7 +607,7 @@
       </artifact:pom>
       <artifact:pom id="clientutil-pom"
                     artifactId="cassandra-clientutil"
-                    url="http://cassandra.apache.org"
+                    url="https://cassandra.apache.org"
                     name="Apache Cassandra">
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
@@ -619,7 +619,7 @@
       <artifact:pom id="dist-pom"
                     artifactId="apache-cassandra"
                     packaging="pom"
-                    url="http://cassandra.apache.org"
+                    url="https://cassandra.apache.org"
                     name="Apache Cassandra">
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
