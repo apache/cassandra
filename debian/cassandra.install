@@ -8,9 +8,9 @@ conf/logback-tools.xml etc/cassandra
 conf/jvm*.options etc/cassandra
 conf/hotspot_compiler etc/cassandra
 conf/triggers/* etc/cassandra/triggers
-debian/cassandra.in.sh usr/share/cassandra
 debian/cassandra.conf etc/security/limits.d
 debian/cassandra-sysctl.conf etc/sysctl.d
+bin/cassandra.in.sh usr/share/cassandra
 bin/cassandra usr/sbin
 bin/nodetool usr/bin
 bin/sstableutil usr/bin

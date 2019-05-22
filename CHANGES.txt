@@ -1,4 +1,9 @@
 4.0
+ * Reduce heap pressure during compactions (CASSANDRA-14654)
+ * Support building Cassandra with JDK 11 (CASSANDRA-15108)
+ * Use quilt to patch cassandra.in.sh in Debian packaging (CASSANDRA-14710)
+ * Take sstable references before calculating approximate key count (CASSANDRA-14647)
+ * Restore snapshotting of system keyspaces on version change (CASSANDRA-14412)
  * Fix AbstractBTreePartition locking in java 11 (CASSANDRA-14607)
  * SimpleClient should pass connection properties as options (CASSANDRA-15056)
  * Set repaired data tracking flag on range reads if enabled (CASSANDRA-15019)
@@ -356,8 +361,11 @@
 
 
 3.11.5
+ * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Fix assorted gossip races and add related runtime checks (CASSANDRA-15059)
+ * cassandra-stress works with frozen collections: list and set (CASSANDRA-14907)
  * Fix handling FS errors on writing and reading flat files - LogTransaction and hints (CASSANDRA-15053)
  * Avoid double closing the iterator to avoid overcounting the number of requests (CASSANDRA-15058)
  * Improve `nodetool status -r` speed (CASSANDRA-14847)
@@ -365,6 +373,7 @@ Merged from 3.0:
  * Add missing commands to nodetool_completion (CASSANDRA-14916)
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
 Merged from 2.2:
+ * Support cross version messaging in in-jvm upgrade dtests (CASSANDRA-15078)
  * Fix index summary redistribution cancellation (CASSANDRA-15045)
  * Refactor Circle CI configuration (CASSANDRA-14806)
  * Fixing invalid CQL in security documentation (CASSANDRA-15020)

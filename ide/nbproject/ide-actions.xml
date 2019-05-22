@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project basedir=".." name="apache-cassandra">
+
+    <condition property="java.version.8">
+        <equals arg1="${ant.java.version}" arg2="1.8"/>
+    </condition>
+
+    <target name="_check_java8_home_defined" unless="java.version.8">
+        <property environment="env"/>
+        <!-- Copied from build.xml and used here for a fail-fast error check -->
+        <fail message="JAVA8_HOME env variable must be set when building with java >= 11">
+            <condition><not><isset property="env.JAVA8_HOME"/></not></condition>
+        </fail>
+    </target>
+
+    <target name="build">
+        <ant antfile="../build.xml" inheritall="false" target="build"/>
+        <ant antfile="../build.xml" inheritall="false" target="build-test"/>
+        <ant antfile="../build.xml" inheritall="false" target="fqltool-build-test"/>
+        <ant antfile="../build.xml" inheritall="false" target="stress-build-test"/>
+    </target>
+    <target name="clean">
+        <ant antfile="../build.xml" inheritall="false" target="clean"/>
+    </target>
+    <target name="run" depends="_check_java8_home_defined">
+        <ant antfile="../build.xml" inheritall="false" target="_artifacts-init">
+            <property name="no-javadoc" value="true"/>
+            <property name="ant.gen-doc.skip" value="true"/>
+        </ant>
+        <property environment="env"/>
+        <exec executable="sh">
+            <arg value="../build/dist/bin/cassandra"/>
+            <arg value="-f"/>
+        </exec>
+    </target>
+    <target name="debug" depends="_check_java8_home_defined">
+        <ant antfile="../build.xml" inheritall="false" target="_artifacts-init">
+            <property name="no-javadoc" value="true"/>
+            <property name="ant.gen-doc.skip" value="true"/>
+        </ant>
+        <nbjpdastart addressproperty="nbjpdastart.address" name="Cassandra" transport="dt_socket"/>
+        <exec executable="sh">
+            <env key="JVM_OPTS" value="-Xdebug -Xnoagent -Xrunjdwp:transport=dt_socket,server=n,suspend=y,address=${nbjpdastart.address}"/>
+            <arg value="../build/dist/bin/cassandra"/>
+            <arg value="-f"/>
+        </exec>
+    </target>
+    <target name="profile" depends="_check_java8_home_defined">
+        <ant antfile="../build.xml" inheritall="false" target="_artifacts-init">
+            <property name="no-javadoc" value="true"/>
+            <property name="ant.gen-doc.skip" value="true"/>
+        </ant>
+        <startprofiler freeform="true"/>
+        <exec executable="sh">
+            <env key="JVM_OPTS" value="-agentpath:${netbeans.home}/../profiler/lib/deployed/jdk16/mac/libprofilerinterface.jnilib=${netbeans.home}/../profiler/lib,5140"/>
+            <arg value="../build/dist/bin/cassandra"/>
+            <arg value="-f"/>
+        </exec>
+    </target>
+</project>

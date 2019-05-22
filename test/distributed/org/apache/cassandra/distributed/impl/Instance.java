@@ -52,11 +52,11 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
-import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
@@ -192,8 +192,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try (DataOutputBuffer out = new DataOutputBuffer(1024))
             {
                 InetAddressAndPort from = broadcastAddressAndPort();
-                messageOut.serialize(out, MessagingService.current_version);
-                deliver.accept(to, new Message(messageOut.verb.getId(), out.toByteArray(), id, MessagingService.current_version, from));
+                int version = MessagingService.instance().getVersion(to);
+                messageOut.serialize(out, version);
+                deliver.accept(to, new Message(messageOut.verb.getId(), out.toByteArray(), id, version, from));
             }
             catch (IOException e)
             {
@@ -225,6 +226,16 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 throw new RuntimeException("Exception occurred on node " + broadcastAddressAndPort(), t);
             }
         }).run();
+    }
+
+    public int getMessagingVersion()
+    {
+        return callsOnInstance(() -> MessagingService.current_version).call();
+    }
+
+    public void setMessagingVersion(InetAddressAndPort endpoint, int version)
+    {
+        runOnInstance(() -> MessagingService.instance().setVersion(endpoint, version));
     }
 
     @Override
@@ -330,18 +341,23 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             for (int i = 0; i < tokens.size(); i++)
             {
                 InetAddressAndPort ep = hosts.get(i);
-                Gossiper.instance.initializeNodeUnsafe(ep, hostIds.get(i), 1);
-                Gossiper.instance.injectApplicationState(ep,
-                        ApplicationState.TOKENS,
-                        new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(tokens.get(i))));
-                storageService.onChange(ep,
-                        ApplicationState.STATUS_WITH_PORT,
-                        new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(tokens.get(i))));
-                storageService.onChange(ep,
-                        ApplicationState.STATUS,
-                        new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(tokens.get(i))));
-                Gossiper.instance.realMarkAlive(ep, Gossiper.instance.getEndpointStateForEndpoint(ep));
-                MessagingService.instance().setVersion(ep, MessagingService.current_version);
+                UUID hostId = hostIds.get(i);
+                Token token = tokens.get(i);
+                Gossiper.runInGossipStageBlocking(() -> {
+                    Gossiper.instance.initializeNodeUnsafe(ep, hostId, 1);
+                    Gossiper.instance.injectApplicationState(ep,
+                                                             ApplicationState.TOKENS,
+                                                             new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(token)));
+                    storageService.onChange(ep,
+                                            ApplicationState.STATUS_WITH_PORT,
+                                            new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token)));
+                    storageService.onChange(ep,
+                                            ApplicationState.STATUS,
+                                            new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token)));
+                    Gossiper.instance.realMarkAlive(ep, Gossiper.instance.getEndpointStateForEndpoint(ep));
+                });
+                int version = Math.min(MessagingService.current_version, cluster.get(ep).getMessagingVersion());
+                MessagingService.instance().setVersion(ep, version);
             }
 
             // check that all nodes are in token metadata
