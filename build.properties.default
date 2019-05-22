@@ -1,4 +1,4 @@
 # Maven2 Repository Locations (you can override these in "build.properties" to point to a local proxy, e.g. Nexus)
-artifact.remoteRepository.central:     http://repo1.maven.org/maven2
-artifact.remoteRepository.apache:      http://repo.maven.apache.org/maven2
+artifact.remoteRepository.central:     https://repo1.maven.org/maven2
+artifact.remoteRepository.apache:      https://repo.maven.apache.org/maven2
 
