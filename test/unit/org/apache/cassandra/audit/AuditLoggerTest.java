@@ -96,7 +96,7 @@ public class AuditLoggerTest extends CQLTester
         execute("INSERT INTO %s (id, v1, v2) VALUES (?, ?, ?)", 2, "trace", "test");
 
         AuditLogOptions options = new AuditLogOptions();
-        options.excluded_keyspaces = KEYSPACE;
+        options.excluded_keyspaces += ',' + KEYSPACE;
         enableAuditLogOptions(options);
 
         String cql = "SELECT id, v1, v2 FROM " + KEYSPACE + '.' + currentTable() + " WHERE id = ?";
@@ -113,7 +113,7 @@ public class AuditLoggerTest extends CQLTester
 
         options = new AuditLogOptions();
         options.included_keyspaces = KEYSPACE;
-        options.excluded_keyspaces = KEYSPACE;
+        options.excluded_keyspaces += ',' + KEYSPACE;
         enableAuditLogOptions(options);
 
         cql = "SELECT id, v1, v2 FROM " + KEYSPACE + '.' + currentTable() + " WHERE id = ?";
@@ -136,7 +136,7 @@ public class AuditLoggerTest extends CQLTester
         execute("INSERT INTO %s (id, v1, v2) VALUES (?, ?, ?)", 2, "trace", "test");
 
         AuditLogOptions options = new AuditLogOptions();
-        options.excluded_keyspaces = KEYSPACE;
+        options.excluded_keyspaces += ',' + KEYSPACE;
         enableAuditLogOptions(options);
 
         String cql = "SELECT id, v1, v2 FROM " + KEYSPACE + '.' + currentTable() + " WHERE id = ?";
@@ -151,7 +151,7 @@ public class AuditLoggerTest extends CQLTester
 
         options = new AuditLogOptions();
         options.included_keyspaces = KEYSPACE;
-        options.excluded_keyspaces = KEYSPACE;
+        options.excluded_keyspaces += ',' + KEYSPACE;
         enableAuditLogOptions(options);
 
         cql = "SELECT id, v1, v2 FROM " + KEYSPACE + '.' + currentTable() + " WHERE id = ?";
@@ -169,7 +169,7 @@ public class AuditLoggerTest extends CQLTester
     public void testAuditLogExceptions()
     {
         AuditLogOptions options = new AuditLogOptions();
-        options.excluded_keyspaces = KEYSPACE;
+        options.excluded_keyspaces += ',' + KEYSPACE;
         enableAuditLogOptions(options);
         Assert.assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
     }
@@ -625,7 +625,7 @@ public class AuditLoggerTest extends CQLTester
     {
         AuditLogOptions options = new AuditLogOptions();
         options.included_categories = "QUERY,DML,PREPARE";
-        options.excluded_keyspaces = "system";
+        options.excluded_keyspaces = "system,system_schema";
         enableAuditLogOptions(options);
 
         Session session = sessionNet();
