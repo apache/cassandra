@@ -30,6 +30,7 @@
 #   JVM_OPTS -- Additional arguments to the JVM for heap size, etc
 #   JVM_ON_OUT_OF_MEMORY_ERROR_OPT -- The OnOutOfMemoryError JVM option if specified
 #   CASSANDRA_CONF -- Directory containing Cassandra configuration files.
+#   CASSANDRA_LOG_DIR -- Directory containing logs(default: $CASSANDRA_HOME/logs).
 #
 # As a convenience, a fragment of shell is sourced in order to set one or
 # more of these variables. This so-called `include' can be placed in a 
@@ -107,6 +108,10 @@ if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
     . "$CASSANDRA_CONF/cassandra-env.sh"
 fi
 
+if [ -z "$CASSANDRA_LOG_DIR" ]; then
+  CASSANDRA_LOG_DIR=$CASSANDRA_HOME/logs
+fi
+
 # Special-case path variables.
 case "`uname`" in
     CYGWIN*|MINGW*) 
@@ -171,7 +176,7 @@ launch_service()
     props="$3"
     class="$4"
     cassandra_parms="-Dlogback.configurationFile=logback.xml"
-    cassandra_parms="$cassandra_parms -Dcassandra.logdir=$CASSANDRA_HOME/logs"
+    cassandra_parms="$cassandra_parms -Dcassandra.logdir=$CASSANDRA_LOG_DIR"
     cassandra_parms="$cassandra_parms -Dcassandra.storagedir=$cassandra_storagedir"
 
     if [ "x$pidpath" != "x" ]; then
