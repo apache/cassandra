@@ -83,7 +83,7 @@ public class PasswordAuthenticator implements IAuthenticator
         catch (RequestExecutionException e)
         {
             logger.trace("Error performing internal authentication", e);
-            throw new AuthenticationException(e.toString());
+            throw new AuthenticationException("Unable to perform authentication: " + e.getMessage(), e);
         }
     }
 
