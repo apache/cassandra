@@ -286,6 +286,31 @@ public class AutoRepairUtils
                     //for some reason I was not done with the repair hence resume (maybe node restart in-between, etc.)
                     myTurn = MY_TURN;
                 }
+
+                if (myTurn != MY_TURN)
+                {
+                    //check who is next, which is helpful for debugging
+                    UUID nextNode = null;
+                    boolean currentNodeFound = false;
+                    for (UUID hostId : hostIdsInCurrentRing)
+                    {
+                        if (nextNode == null)
+                        {
+                            nextNode = hostId;
+                        }
+                        if (currentNodeFound)
+                        {
+                            nextNode = hostId;
+                            break;
+                        }
+                        if (hostId.equals(currentRepairStatus.hostIdWithOnGoingRepair))
+                        {
+                            currentNodeFound = true;
+                        }
+                    }
+                    logger.info("Next node in sequence is {}", StorageService.instance.getTokenMetadata().getEndpointForHostId(nextNode));
+                }
+
             }
             else if (firstInTheRing)
             {

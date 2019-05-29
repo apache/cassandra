@@ -179,30 +179,19 @@ public class AutoRepair
         }
 
         AutoRepairUtils.setup();
-        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> repair(true),
+        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> repair(false),
                 30,
                 DatabaseDescriptor.getAutoRepairCheckInterval(),
                 TimeUnit.SECONDS);
     }
 
     @VisibleForTesting
-    public static void repair(boolean doTransportCheck)
+    public static void repair(boolean skipWait)
     {
         if (!AutoRepairService.instance.isAutoRepairStarted())
         {
             logger.info("AutoRepair is stopped hence not running repair");
             return;
-        }
-
-        //only for utest we don't want to check transport hence this flag
-        if (doTransportCheck)
-        {
-            //wait for C* to initialize fully before continue with repair
-            if (!StorageService.instance.isNativeTransportRunning())
-            {
-                logger.info("Native transport is not yet running, wait and retry...");
-                return;
-            }
         }
 
         try
@@ -399,9 +388,10 @@ public class AutoRepair
                 }
 
                 nodeRepairTimeInSec = (int)stopWatch.elapsed(TimeUnit.SECONDS);
+                long timeInHours = TimeUnit.SECONDS.toHours(nodeRepairTimeInSec);
                 logger.info("Local repair time {} hour(s), stats: repairKeyspaceCount {}, " +
                                 "repairTableSuccessCount {}, repairTableFailureCount {}, " +
-                                "repairTableSkipCount {}", TimeUnit.SECONDS.toHours(nodeRepairTimeInSec),
+                                "repairTableSkipCount {}", timeInHours,
                         repairKeyspaceCount,
                         repairTableSuccessCount,
                         repairTableFailureCount,
@@ -413,6 +403,12 @@ public class AutoRepair
                     logger.info("Cluster repair time {} day(s)", TimeUnit.SECONDS.toDays(clusterRepairTimeInSec));
                 }
                 lastRepairTimeInMs = System.currentTimeMillis();
+                if (timeInHours == 0 && !skipWait)
+                {
+                    //If repair finished quickly, happens for an empty instance, in such case
+                    //wait for a minute so that the JMX metrics can detect the repairInProgress
+                    Thread.sleep(60000);
+                }
                 repairInProgress = 0;
             }
             else

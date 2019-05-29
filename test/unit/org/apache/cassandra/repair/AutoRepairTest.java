@@ -103,7 +103,7 @@ public class AutoRepairTest extends CQLTester
     public void testRepair() throws Throwable
     {
         AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
-        AutoRepair.repair(false);
+        AutoRepair.repair(true);
         long lastRepairTime = AutoRepair.instance.getLastRepairTime();
         //if repair was done then lastRepairTime should be non-zero
         Assert.assertTrue(String.format("Expected lastRepairTime > 0, actual value lastRepairTime %d",
@@ -115,14 +115,14 @@ public class AutoRepairTest extends CQLTester
     {
         //in the first round let repair run
         AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
-        AutoRepair.repair(false);
+        AutoRepair.repair(true);
         long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
         Assert.assertNotSame(String.format("Expected total repaired tables > 0, actual value %s ", AutoRepair.instance
                 .getTotalTablesConsideredForRepair()), AutoRepair.instance.getTotalTablesConsideredForRepair(), 0);
 
         //if repair was done in last 24 hours then it should not trigger another repair
         AutoRepairService.instance.setRepairMinFrequencyInHours(24);
-        AutoRepair.repair(false);
+        AutoRepair.repair(true);
         long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
         Assert.assertEquals(String.format("Expected repair time to be same, actual value lastRepairTime1 %d, " +
                 "lastRepairTime2 %d", lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
@@ -135,14 +135,14 @@ public class AutoRepairTest extends CQLTester
     public void testNonFrequentRepairs() throws Throwable
     {
         AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
-        AutoRepair.repair(false);
+        AutoRepair.repair(true);
         long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
         Assert.assertTrue(String.format("Expected lastRepairTime1 > 0, actual value lastRepairTime1 %d",
                 lastRepairTime1), lastRepairTime1 > 0);
         UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
         Assert.assertTrue("Expected my turn for the repair", AutoRepairUtils.myTurnToRunRepair(myId) !=
                 NOT_MY_TURN);
-        AutoRepair.repair(false);
+        AutoRepair.repair(true);
         long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
         Assert.assertNotSame(String.format("Expected repair time to be same, actual value lastRepairTime1 %d, " +
                 "lastRepairTime2 ", lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
@@ -158,7 +158,7 @@ public class AutoRepairTest extends CQLTester
         Assert.assertTrue("Expected my turn for the repair", AutoRepairUtils.myTurnToRunRepair(myId) !=
                 NOT_MY_TURN);
         AutoRepairUtils.addPriorityHost(Sets.newHashSet(FBUtilities.getBroadcastAddressAndPort().getAddress()));
-        AutoRepair.repair(false);
+        AutoRepair.repair(true);
         Assert.assertSame(String.format("Priority host count is not same actual value %d, expected value %d", AutoRepairUtils
                 .getPriorityHosts().size(), 0), AutoRepairUtils.getPriorityHosts().size(), 0);
     }
@@ -169,14 +169,14 @@ public class AutoRepairTest extends CQLTester
         AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
         AutoRepairService.instance.stopAutoRepair();
         long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
-        AutoRepair.repair(false);
+        AutoRepair.repair(true);
         long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
         //Since repair has not happened, both the last repair times should be same
         Assert.assertEquals(String.format("Expected lastRepairTime1 %d, and lastRepairTime2 %d to be same",
                 lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
 
         AutoRepairService.instance.startAutoRepair();
-        AutoRepair.repair(false);
+        AutoRepair.repair(true);
         //since repair is done now, so lastRepairTime1/lastRepairTime2 and lastRepairTime3 should not be same
         long lastRepairTime3 = AutoRepair.instance.getLastRepairTime();
         Assert.assertNotSame(String.format("Expected lastRepairTime1 %d, and lastRepairTime3 %d to be not same",
