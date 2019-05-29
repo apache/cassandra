@@ -59,6 +59,8 @@ public class CassandraStreamReceiver implements StreamReceiver
     private static final Logger logger = LoggerFactory.getLogger(CassandraStreamReceiver.class);
 
     private static final int MAX_ROWS_PER_BATCH = Integer.getInteger("cassandra.repair.mutation_repair_rows_per_batch", 100);
+    // This is a parameter we use to disable materialized view build
+    private boolean uberRequiresViewBuild = Boolean.parseBoolean(System.getProperty("cassandra.streaming.requires_view_build", "true"));
 
     private final ColumnFamilyStore cfs;
     private final StreamSession session;
@@ -183,7 +185,7 @@ public class CassandraStreamReceiver implements StreamReceiver
      */
     private boolean requiresWritePath(ColumnFamilyStore cfs)
     {
-        return hasCDC(cfs) || cfs.streamToMemtable() || (session.streamOperation().requiresViewBuild() && hasViews(cfs));
+        return hasCDC(cfs) || cfs.streamToMemtable() || (session.streamOperation().requiresViewBuild() && hasViews(cfs) && uberRequiresViewBuild);
     }
 
     private void sendThroughWritePath(ColumnFamilyStore cfs, Collection<SSTableReader> readers)
