@@ -978,11 +978,18 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void shutdown()
     {
+        shutdown(true);
+    }
+    public void shutdown(boolean gracefully)
+    {
         logger.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
         assert !StageManager.getStage(Stage.MUTATION).isShutdown();
 
         // the important part
+        if (!gracefully)
+            callbacks.reset();
+
         if (!callbacks.shutdownBlocking())
             logger.warn("Failed to wait for messaging service callbacks shutdown");
 
@@ -991,6 +998,7 @@ public final class MessagingService implements MessagingServiceMBean
         {
             clearMessageSinks();
             for (SocketThread th : socketThreads)
+            {
                 try
                 {
                     th.close();
@@ -1000,6 +1008,8 @@ public final class MessagingService implements MessagingServiceMBean
                     // see https://issues.apache.org/jira/browse/CASSANDRA-10545
                     handleIOExceptionOnClose(e);
                 }
+            }
+            connectionManagers.values().forEach(OutboundTcpConnectionPool::close);
         }
         catch (IOException e)
         {

@@ -22,7 +22,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Set;
 
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.IUpgradeableInstance;
@@ -38,9 +40,9 @@ import org.apache.cassandra.distributed.impl.Versions;
  */
 public class UpgradeableCluster extends AbstractCluster<IUpgradeableInstance> implements ICluster, AutoCloseable
 {
-    private UpgradeableCluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader)
+    private UpgradeableCluster(File root, Versions.Version version, List<InstanceConfig> configs, Set<Feature> features, ClassLoader sharedClassLoader)
     {
-        super(root, version, configs, sharedClassLoader);
+        super(root, version, configs, features, sharedClassLoader);
     }
 
     protected IUpgradeableInstance newInstanceWrapper(Versions.Version version, InstanceConfig config)
@@ -52,15 +54,17 @@ public class UpgradeableCluster extends AbstractCluster<IUpgradeableInstance> im
     {
         return create(nodeCount, UpgradeableCluster::new);
     }
+
     public static UpgradeableCluster create(int nodeCount, File root)
     {
-        return create(nodeCount, Versions.CURRENT, root, UpgradeableCluster::new);
+        return create(nodeCount, root, UpgradeableCluster::new);
     }
 
     public static UpgradeableCluster create(int nodeCount, Versions.Version version) throws IOException
     {
-        return create(nodeCount, version, Files.createTempDirectory("dtests").toFile(), UpgradeableCluster::new);
+        return create(nodeCount, version, UpgradeableCluster::new);
     }
+
     public static UpgradeableCluster create(int nodeCount, Versions.Version version, File root)
     {
         return create(nodeCount, version, root, UpgradeableCluster::new);
