@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -54,6 +55,7 @@ public class RowFilterTest
     public void testCQLFilterClose()
     {
         // CASSANDRA-15126
+        SchemaLoader.prepareServer();
         CFMetaData metadata = CFMetaData.Builder.create("testks", "testcf")
                                                 .addPartitionKey("pk", Int32Type.instance)
                                                 .addStaticColumn("s", Int32Type.instance)
