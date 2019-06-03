@@ -2457,6 +2457,84 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         tokenMetadata.updateHostId(Gossiper.instance.getHostId(newNode), newNode);
     }
 
+    private void ensureUpToDateTokenMetadata(String status, InetAddressAndPort endpoint)
+    {
+        Set<Token> tokens = new TreeSet<>(getTokensFor(endpoint));
+
+        if (logger.isDebugEnabled())
+            logger.debug("Node {} state {}, tokens {}", endpoint, status, tokens);
+
+        // If the node is previously unknown or tokens do not match, update tokenmetadata to
+        // have this node as 'normal' (it must have been using this token before the
+        // leave). This way we'll get pending ranges right.
+        if (!tokenMetadata.isMember(endpoint))
+        {
+            logger.info("Node {} state jump to {}", endpoint, status);
+            updateTokenMetadata(endpoint, tokens);
+        }
+        else if (!tokens.equals(new TreeSet<>(tokenMetadata.getTokens(endpoint))))
+        {
+            logger.warn("Node {} '{}' token mismatch. Long network partition?", endpoint, status);
+            updateTokenMetadata(endpoint, tokens);
+        }
+    }
+
+    private void updateTokenMetadata(InetAddressAndPort endpoint, Iterable<Token> tokens)
+    {
+        updateTokenMetadata(endpoint, tokens, new HashSet<>());
+    }
+
+    private void updateTokenMetadata(InetAddressAndPort endpoint, Iterable<Token> tokens, Set<InetAddressAndPort> endpointsToRemove)
+    {
+        Set<Token> tokensToUpdateInMetadata = new HashSet<>();
+        Set<Token> tokensToUpdateInSystemKeyspace = new HashSet<>();
+
+        for (final Token token : tokens)
+        {
+            // we don't want to update if this node is responsible for the token and it has a later startup time than endpoint.
+            InetAddressAndPort currentOwner = tokenMetadata.getEndpoint(token);
+            if (currentOwner == null)
+            {
+                logger.debug("New node {} at token {}", endpoint, token);
+                tokensToUpdateInMetadata.add(token);
+                tokensToUpdateInSystemKeyspace.add(token);
+            }
+            else if (endpoint.equals(currentOwner))
+            {
+                // set state back to normal, since the node may have tried to leave, but failed and is now back up
+                tokensToUpdateInMetadata.add(token);
+                tokensToUpdateInSystemKeyspace.add(token);
+            }
+            else if (Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
+            {
+                tokensToUpdateInMetadata.add(token);
+                tokensToUpdateInSystemKeyspace.add(token);
+
+                // currentOwner is no longer current, endpoint is.  Keep track of these moves, because when
+                // a host no longer has any tokens, we'll want to remove it.
+                Multimap<InetAddressAndPort, Token> epToTokenCopy = getTokenMetadata().getEndpointToTokenMapForReading();
+                epToTokenCopy.get(currentOwner).remove(token);
+                if (epToTokenCopy.get(currentOwner).isEmpty())
+                    endpointsToRemove.add(currentOwner);
+
+                logger.info("Nodes {} and {} have the same token {}. {} is the new owner", endpoint, currentOwner, token, endpoint);
+            }
+            else
+            {
+                logger.info("Nodes () and {} have the same token {}.  Ignoring {}", endpoint, currentOwner, token, endpoint);
+            }
+        }
+
+        tokenMetadata.updateNormalTokens(tokensToUpdateInMetadata, endpoint);
+        for (InetAddressAndPort ep : endpointsToRemove)
+        {
+            removeEndpoint(ep);
+            if (replacing && ep.equals(DatabaseDescriptor.getReplaceAddress()))
+                Gossiper.instance.replacementQuarantine(ep); // quarantine locally longer than normally; see CASSANDRA-8260
+        }
+        if (!tokensToUpdateInSystemKeyspace.isEmpty())
+            SystemKeyspace.updateTokens(endpoint, tokensToUpdateInSystemKeyspace);
+    }
     /**
      * Handle node move to normal state. That is, node is entering token ring and participating
      * in reads.
@@ -2466,8 +2544,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void handleStateNormal(final InetAddressAndPort endpoint, final String status)
     {
         Collection<Token> tokens = getTokensFor(endpoint);
-        Set<Token> tokensToUpdateInMetadata = new HashSet<>();
-        Set<Token> tokensToUpdateInSystemKeyspace = new HashSet<>();
         Set<InetAddressAndPort> endpointsToRemove = new HashSet<>();
 
         if (logger.isDebugEnabled())
@@ -2535,62 +2611,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 tokenMetadata.updateHostId(hostId, endpoint);
         }
 
-        for (final Token token : tokens)
-        {
-            // we don't want to update if this node is responsible for the token and it has a later startup time than endpoint.
-            InetAddressAndPort currentOwner = tokenMetadata.getEndpoint(token);
-            if (currentOwner == null)
-            {
-                logger.debug("New node {} at token {}", endpoint, token);
-                tokensToUpdateInMetadata.add(token);
-                tokensToUpdateInSystemKeyspace.add(token);
-            }
-            else if (endpoint.equals(currentOwner))
-            {
-                // set state back to normal, since the node may have tried to leave, but failed and is now back up
-                tokensToUpdateInMetadata.add(token);
-                tokensToUpdateInSystemKeyspace.add(token);
-            }
-            else if (Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
-            {
-                tokensToUpdateInMetadata.add(token);
-                tokensToUpdateInSystemKeyspace.add(token);
-
-                // currentOwner is no longer current, endpoint is.  Keep track of these moves, because when
-                // a host no longer has any tokens, we'll want to remove it.
-                Multimap<InetAddressAndPort, Token> epToTokenCopy = getTokenMetadata().getEndpointToTokenMapForReading();
-                epToTokenCopy.get(currentOwner).remove(token);
-                if (epToTokenCopy.get(currentOwner).size() < 1)
-                    endpointsToRemove.add(currentOwner);
-
-                logger.info("Nodes {} and {} have the same token {}.  {} is the new owner",
-                            endpoint,
-                            currentOwner,
-                            token,
-                            endpoint);
-            }
-            else
-            {
-                logger.info("Nodes {} and {} have the same token {}.  Ignoring {}",
-                            endpoint,
-                            currentOwner,
-                            token,
-                            endpoint);
-            }
-        }
-
         // capture because updateNormalTokens clears moving and member status
         boolean isMember = tokenMetadata.isMember(endpoint);
         boolean isMoving = tokenMetadata.isMoving(endpoint);
-        tokenMetadata.updateNormalTokens(tokensToUpdateInMetadata, endpoint);
-        for (InetAddressAndPort ep : endpointsToRemove)
-        {
-            removeEndpoint(ep);
-            if (replacing && DatabaseDescriptor.getReplaceAddress().equals(ep))
-                Gossiper.instance.replacementQuarantine(ep); // quarantine locally longer than normally; see CASSANDRA-8260
-        }
-        if (!tokensToUpdateInSystemKeyspace.isEmpty())
-            SystemKeyspace.updateTokens(endpoint, tokensToUpdateInSystemKeyspace);
+
+        updateTokenMetadata(endpoint, tokens, endpointsToRemove);
 
         if (isMoving || operationMode == Mode.MOVING)
         {
@@ -2612,24 +2637,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private void handleStateLeaving(InetAddressAndPort endpoint)
     {
-        Collection<Token> tokens = getTokensFor(endpoint);
-
-        if (logger.isDebugEnabled())
-            logger.debug("Node {} state leaving, tokens {}", endpoint, tokens);
-
         // If the node is previously unknown or tokens do not match, update tokenmetadata to
         // have this node as 'normal' (it must have been using this token before the
         // leave). This way we'll get pending ranges right.
-        if (!tokenMetadata.isMember(endpoint))
-        {
-            logger.info("Node {} state jump to leaving", endpoint);
-            tokenMetadata.updateNormalTokens(tokens, endpoint);
-        }
-        else if (!tokenMetadata.getTokens(endpoint).containsAll(tokens))
-        {
-            logger.warn("Node {} 'leaving' token mismatch. Long network partition?", endpoint);
-            tokenMetadata.updateNormalTokens(tokens, endpoint);
-        }
+
+        ensureUpToDateTokenMetadata(VersionedValue.STATUS_LEAVING, endpoint);
 
         // at this point the endpoint is certainly a member with this token, so let's proceed
         // normally
@@ -2662,6 +2674,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private void handleStateMoving(InetAddressAndPort endpoint, String[] pieces)
     {
+        ensureUpToDateTokenMetadata(VersionedValue.STATUS_MOVING, endpoint);
+
         assert pieces.length >= 2;
         Token token = getTokenFactory().fromString(pieces[1]);
 
@@ -2707,6 +2721,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
             else if (VersionedValue.REMOVING_TOKEN.equals(state))
             {
+                ensureUpToDateTokenMetadata(state, endpoint);
+
                 if (logger.isDebugEnabled())
                     logger.debug("Tokens {} removed manually (endpoint was {})", removeTokens, endpoint);
 
