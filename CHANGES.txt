@@ -3,6 +3,7 @@
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Update token metadata when handling MOVING/REMOVING_TOKEN events (CASSANDRA-15120)
  * Add ability to customize cassandra log directory using $CASSANDRA_LOG_DIR (CASSANDRA-15090)
  * Skip cells with illegal column names when reading legacy sstables (CASSANDRA-15086)
  * Fix assorted gossip races and add related runtime checks (CASSANDRA-15059)

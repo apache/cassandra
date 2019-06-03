@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -36,7 +37,6 @@ import java.util.function.Function;
 import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.LoggerContext;
-import com.codahale.metrics.MetricFilter;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
@@ -57,6 +57,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -99,6 +100,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         this.config = config;
         InstanceIDDefiner.setInstanceId(config.num());
         FBUtilities.setBroadcastInetAddress(config.broadcastAddressAndPort().address);
+        acceptsOnInstance((IInstanceConfig override) -> {
+            Config.setOverrideLoadConfig(() -> loadConfig(override));
+            DatabaseDescriptor.daemonInitialization();
+        }).accept(config);
     }
 
     public IInstanceConfig config()
@@ -142,6 +147,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     }
 
     public void startup()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public boolean isShutdown()
     {
         throw new UnsupportedOperationException();
     }
@@ -250,18 +260,15 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     }
 
     @Override
-    public void startup(ICluster cluster)
+    public void startup(ICluster cluster, Set<Feature> with)
     {
         sync(() -> {
             try
             {
                 mkdirs();
-                Config.setOverrideLoadConfig(() -> loadConfig(config));
-                DatabaseDescriptor.daemonInitialization();
-
                 DatabaseDescriptor.createAllDirectories();
 
-                // We need to persist this as soon as possible after startup checks.
+                // We need to  persist this as soon as possible after startup checks.
                 // This should be the first write to SystemKeyspace (CASSANDRA-11742)
                 SystemKeyspace.persistLocalMetadata();
                 LegacySchemaMigrator.migrate();
@@ -288,8 +295,17 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     throw new RuntimeException(e);
                 }
 
-                initializeRing(cluster);
-                registerMockMessaging(cluster);
+                // TODO: support each separately
+                if (with.contains(Feature.GOSSIP) || with.contains(Feature.NETWORK))
+                {
+                    StorageService.instance.prepareToJoin();
+                    StorageService.instance.joinTokenRing(5000);
+                }
+                else
+                {
+                    initializeRing(cluster);
+                    registerMockMessaging(cluster);
+                }
 
                 SystemKeyspace.finishStartup();
 
@@ -378,6 +394,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public Future<Void> shutdown()
     {
+        return shutdown(true);
+    }
+
+    public Future<Void> shutdown(boolean graceful)
+    {
+        if (!graceful)
+            MessagingService.instance().shutdown(false);
+
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
             error = parallelRun(error, executor,
@@ -385,7 +409,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     CompactionManager.instance::forceShutdown,
                     BatchlogManager.instance::shutdown,
                     HintsService.instance::shutdownBlocking,
-                    CommitLog.instance::shutdownBlocking,
                     SecondaryIndexManager::shutdownExecutors,
                     ColumnFamilyStore::shutdownFlushExecutor,
                     ColumnFamilyStore::shutdownPostFlushExecutor,
@@ -403,7 +426,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             );
             error = parallelRun(error, executor,
                                 StageManager::shutdownAndWait,
-                                SharedExecutorPool.SHARED::shutdown
+                                SharedExecutorPool.SHARED::shutdownAndWait
+            );
+            error = parallelRun(error, executor,
+                                CommitLog.instance::shutdownBlocking
             );
 
             LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();

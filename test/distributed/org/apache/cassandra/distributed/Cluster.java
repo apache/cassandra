@@ -19,10 +19,10 @@
 package org.apache.cassandra.distributed;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.List;
+import java.util.Set;
 
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.IInvokableInstance;
@@ -35,9 +35,9 @@ import org.apache.cassandra.distributed.impl.Versions;
  */
 public class Cluster extends AbstractCluster<IInvokableInstance> implements ICluster, AutoCloseable
 {
-    private Cluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader)
+    private Cluster(File root, Versions.Version version, List<InstanceConfig> configs, Set<Feature> features, ClassLoader sharedClassLoader)
     {
-        super(root, version, configs, sharedClassLoader);
+        super(root, version, configs, features, sharedClassLoader);
     }
 
     protected IInvokableInstance newInstanceWrapper(Versions.Version version, InstanceConfig config)
@@ -49,9 +49,17 @@ public class Cluster extends AbstractCluster<IInvokableInstance> implements IClu
     {
         return create(nodeCount, Cluster::new);
     }
+    public static Cluster create(int nodeCount, Set<Feature> with) throws Throwable
+    {
+        return create(nodeCount, with, Cluster::new);
+    }
     public static Cluster create(int nodeCount, File root)
     {
-        return create(nodeCount, Versions.CURRENT, root, Cluster::new);
+        return create(nodeCount, root, Cluster::new);
+    }
+    public static Cluster create(int nodeCount, File root, Set<Feature> with)
+    {
+        return create(nodeCount, Versions.CURRENT, root, with, Cluster::new);
     }
 }
 

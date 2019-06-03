@@ -47,7 +47,7 @@ public class InstanceClassLoader extends URLClassLoader
             || name.startsWith("sun.")
             || name.startsWith("oracle.")
             || name.startsWith("com.sun.")
-            || name.startsWith("com.oracle.")
+            || name.startsWith("com.sun.")
             || name.startsWith("java.")
             || name.startsWith("javax.")
             || name.startsWith("jdk.")
