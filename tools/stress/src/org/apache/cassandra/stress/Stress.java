@@ -87,6 +87,7 @@ public final class Stress
                 printHelpMessage();
                 return 1;
             }
+            
 
             MultiResultLogger logout = settings.log.getOutput();
 

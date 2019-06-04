@@ -26,7 +26,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+
 import java.util.function.BiPredicate;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -47,6 +53,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.ByteConvertor;
 
 /**
  * Encapsulate handling of paths to the data files.
@@ -421,7 +428,7 @@ public class Directories
             // exclude directory if its total writeSize does not fit to data directory
             if (candidate.availableSpace < writeSize)
             {
-                logger.trace("removing candidate {}, usable={}, requested={}", candidate.dataDirectory.location, candidate.availableSpace, writeSize);
+                logger.trace("removing candidate {}, usable={}, requested={} MB", candidate.dataDirectory.location, candidate.availableSpace, ByteConvertor.bytesToMeg(writeSize));
                 tooBig = true;
                 continue;
             }
