@@ -19,7 +19,6 @@
 package org.apache.cassandra.utils;
 
 import java.lang.management.ManagementFactory;
-import java.util.function.Consumer;
 import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
@@ -205,5 +204,11 @@ public interface MBeanWrapper
         {
             this.handler = handler;
         }
+    }
+
+    // Locally defined Consumer interface, to be compatible with Java 7. Only needed for cassandra-2.2
+    interface Consumer<T>
+    {
+        void accept(T e);
     }
 }
