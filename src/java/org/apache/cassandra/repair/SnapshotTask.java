@@ -72,8 +72,6 @@ public class SnapshotTask extends AbstractFuture<InetAddressAndPort> implements 
             task.set(task.endpoint);
         }
 
-        public boolean isLatencyForSnitch() { return false; }
-
         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
         {
             //listener.failedSnapshot();

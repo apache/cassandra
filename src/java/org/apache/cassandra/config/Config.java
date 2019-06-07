@@ -238,8 +238,13 @@ public class Config
 
     public String endpoint_snitch;
     public boolean dynamic_snitch = true;
+    // Pluggability of the DES for easing implementation of CASSANDRA-14817. This is not something we expect
+    // or want users to change. Users: this is unsupported and please do not rely on this!
+    String dynamic_snitch_class_name = "org.apache.cassandra.locator.dynamicsnitch.DynamicEndpointSnitchHistogram";
     public int dynamic_snitch_update_interval_in_ms = 100;
-    public int dynamic_snitch_reset_interval_in_ms = 600000;
+    @Deprecated
+    public Integer dynamic_snitch_reset_interval_in_ms = null;
+    public int dynamic_snitch_sample_update_interval_in_ms = 1000;
     public double dynamic_snitch_badness_threshold = 0.1;
 
     public EncryptionOptions.ServerEncryptionOptions server_encryption_options = new EncryptionOptions.ServerEncryptionOptions();

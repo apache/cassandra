@@ -1149,11 +1149,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         logger.trace("Sending a EchoMessage to {}", addr);
         IAsyncCallback echoHandler = new IAsyncCallback()
         {
-            public boolean isLatencyForSnitch()
-            {
-                return false;
-            }
-
             public void response(MessageIn msg)
             {
                 // force processing of the echo response onto the gossip stage, as it comes in on the REQUEST_RESPONSE stage

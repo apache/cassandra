@@ -20,6 +20,7 @@ package org.apache.cassandra.config;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.net.*;
 import java.nio.file.FileStore;
 import java.nio.file.NoSuchFileException;
@@ -60,10 +61,12 @@ import org.apache.cassandra.io.util.SsdDiskOptimizationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.net.BackPressureStrategy;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RateBasedBackPressure;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
@@ -1029,7 +1032,16 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException("Missing endpoint_snitch directive", false);
         }
-        snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
+
+        if (conf.dynamic_snitch_reset_interval_in_ms != null)
+            logger.warn("dynamic_snitch_reset_interval_in_ms has been deprecated and should be removed from cassandra.yaml");
+
+        if (!conf.dynamic_snitch_class_name.equals("org.apache.cassandra.locator.dynamicsnitch.DynamicEndpointSnitchHistogram"))
+            logger.warn("Using the non standard DynamicSnitch is unsupported. Use at your own risk!");
+
+        // We don't want to instantiate the MessagingService at this point, let the MessagingService register
+        // the snitch for latency updates from its constructor.
+        snitch = createEndpointSnitch(conf.dynamic_snitch_class_name, conf.endpoint_snitch, false);
         EndpointSnitchInfo.create();
 
         localDC = snitch.getLocalDatacenter();
@@ -1097,12 +1109,35 @@ public class DatabaseDescriptor
         }
     }
 
-    public static IEndpointSnitch createEndpointSnitch(boolean dynamic, String snitchClassName) throws ConfigurationException
+    public static IEndpointSnitch createEndpointSnitch(String dynamicSnitchClassName, String snitchClassName,
+                                                       boolean registerForLatencyUpdates) throws ConfigurationException
     {
         if (!snitchClassName.contains("."))
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
         IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch");
-        return dynamic ? new DynamicEndpointSnitch(snitch) : snitch;
+        if (dynamicSnitchClassName != null)
+        {
+            if (!dynamicSnitchClassName.contains("."))
+                dynamicSnitchClassName = "org.apache.cassandra.locator.dynamicsnitch." + dynamicSnitchClassName;
+            Class<DynamicEndpointSnitch> cls = FBUtilities.classForName(dynamicSnitchClassName,
+                                                                        "dynamicSnitch");
+            try
+            {
+                IEndpointSnitch endpointSnitch = cls.getConstructor(IEndpointSnitch.class).newInstance(snitch);
+                if (registerForLatencyUpdates)
+                    MessagingService.instance().registerLatencySubscriber((ILatencySubscriber) endpointSnitch);
+                return endpointSnitch;
+            }
+            catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | InstantiationException e)
+            {
+                logger.error("Failed to construct Dynamic Snitch", e);
+                throw new ConfigurationException(
+                    String.format("Unable to construct dynamic_snitch_class_name: '%s'",
+                                  conf.dynamic_snitch_class_name)
+                );
+            }
+        }
+        return snitch;
     }
 
     public static IAuthenticator getAuthenticator()
@@ -2099,6 +2134,15 @@ public class DatabaseDescriptor
         return new File(conf.saved_caches_directory, name);
     }
 
+    public static void setDynamicSnitchClassName(String dynamicSnitchClassName)
+    {
+        conf.dynamic_snitch_class_name = dynamicSnitchClassName;
+    }
+    public static String getDynamicSnitchClassName()
+    {
+        return conf.dynamic_snitch_class_name;
+    }
+
     public static int getDynamicUpdateInterval()
     {
         return conf.dynamic_snitch_update_interval_in_ms;
@@ -2108,13 +2152,13 @@ public class DatabaseDescriptor
         conf.dynamic_snitch_update_interval_in_ms = dynamicUpdateInterval;
     }
 
-    public static int getDynamicResetInterval()
+    public static int getDynamicSampleUpdateInterval()
     {
-        return conf.dynamic_snitch_reset_interval_in_ms;
+        return conf.dynamic_snitch_sample_update_interval_in_ms;
     }
-    public static void setDynamicResetInterval(int dynamicResetInterval)
+    public static void setDynamicSampleUpdateInterval(int latencyProbeInterval)
     {
-        conf.dynamic_snitch_reset_interval_in_ms = dynamicResetInterval;
+        conf.dynamic_snitch_sample_update_interval_in_ms = latencyProbeInterval;
     }
 
     public static double getDynamicBadnessThreshold()

@@ -472,21 +472,36 @@ public interface StorageServiceMBean extends NotificationEmitter
     public Map<String, String> getViewBuildStatusesWithPort(String keyspace, String view);
 
     /**
-     * Change endpointsnitch class and dynamic-ness (and dynamic attributes) at runtime.
+     * Change endpointsnitch class and dynamicsnitch class at runtime.
      *
      * This method is used to change the snitch implementation and/or dynamic snitch parameters.
      * If {@code epSnitchClassName} is specified, it will configure a new snitch instance and make it a
-     * 'dynamic snitch' if {@code dynamic} is specified and {@code true}.
+     * 'dynamic snitch' if {@code dynamicSnitchClassName} is not null.
      *
-     * The parameters {@code dynamicUpdateInterval}, {@code dynamicResetInterval} and {@code dynamicBadnessThreshold}
+     * The parameters {@code dynamicUpdateInterval}, {@code dynamicSampleUpdateInterval} and {@code dynamicBadnessThreshold}
      * can be specified individually to update the parameters of the dynamic snitch during runtime.
      *
-     * @param epSnitchClassName        the canonical path name for a class implementing IEndpointSnitch
-     * @param dynamic                  boolean that decides whether dynamicsnitch is used or not - only valid, if {@code epSnitchClassName} is specified
-     * @param dynamicUpdateInterval    integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 100)
-     * @param dynamicResetInterval     integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 600,000)
-     * @param dynamicBadnessThreshold  double, (defaults to the value configured in cassandra.yaml, which defaults to 0.0)
+     * @param epSnitchClassName            the canonical path name for a class implementing IEndpointSnitch or null.
+     *                                     If null then no snitch change is made. If an empty string the existing
+     *                                     Snitch class is used.
+     * @param dynamicSnitchClassName       the canonical path name for a class extending DynamicEndpointSnitch. If
+     *                                     null while epSnitchClassName is not null, this turns off dynamic snitching;
+     *                                     otherwise just settings are updated. If an empty string is passed then
+     *                                     dynamic snitching is kept with the default implementation.
+     * @param dynamicUpdateInterval        integer, in ms (defaults to the value configured in cassandra.yaml)
+     * @param dynamicSampleUpdateInterval  integer, in ms (defaults to the value configured in cassandra.yaml)
+     * @param dynamicBadnessThreshold      double, (defaults to the value configured in cassandra.yaml)
+     * @throws ClassNotFoundException      If the provided class names for the epSnitch or the dynamicSnitch are not found
+     *                                     This exception is mostly safe and Cassandra will automatically put the old
+     *                                     snitch back in place
      */
+    public void updateEndpointSnitch(String epSnitchClassName, String dynamicSnitchClassName, Integer dynamicUpdateInterval, Integer dynamicSampleUpdateInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
+
+    /**
+     * Kept for backwards compatibility
+     * @deprecated use {@link #updateEndpointSnitch(String, String, Integer, Integer, Double)} instead
+     */
+    @Deprecated
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
 
     /*

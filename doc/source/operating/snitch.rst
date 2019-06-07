@@ -28,16 +28,20 @@ In cassandra, the snitch has two functions:
 
 Dynamic snitching
 ^^^^^^^^^^^^^^^^^
-
 The dynamic snitch monitor read latencies to avoid reading from hosts that have slowed down. The dynamic snitch is
 configured with the following properties on ``cassandra.yaml``:
 
 - ``dynamic_snitch``: whether the dynamic snitch should be enabled or disabled.
 - ``dynamic_snitch_update_interval_in_ms``: controls how often to perform the more expensive part of host score
   calculation.
-- ``dynamic_snitch_reset_interval_in_ms``: if set greater than zero, this will allow 'pinning' of replicas to hosts
-  in order to increase cache capacity.
-- ``dynamic_snitch_badness_threshold:``: The badness threshold will control how much worse the pinned host has to be
+- ``dynamic_snitch_sample_update_interval_in_ms``: controls how often this node performs background cleanup and
+  maintenance of the snitch's latency data (pretty cheap). Most interestingly this controls
+  how fast Cassandra can send latency probes to nodes ranked by the snitch that have not received any latency data.
+  For example the default setting of 1000ms means that we limit the rate of latency probing to one per second
+  (and probes exponentially backoff per host, so the rate of messaging is quite low).
+- ``dynamic_snitch_badness_threshold:``: If set greater than zero, this will
+  allow 'pinning' of replicas to hosts in order to increase cache capacity.
+  The badness threshold will control how much worse the pinned host has to be
   before the dynamic snitch will prefer other replicas over it.  This is expressed as a double which represents a
   percentage.  Thus, a value of 0.2 means Cassandra would continue to prefer the static snitch values until the pinned
   host was 20% worse than the fastest.

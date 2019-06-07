@@ -4729,6 +4729,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, TimeUnit.MINUTES))
                 logger.warn("Failed to wait for non periodic tasks to shutdown");
 
+            ScheduledExecutors.shutdownAndWait();
+
             ColumnFamilyStore.shutdownPostFlushExecutor();
             setMode(Mode.DRAINED, !isFinalShutdown);
         }
@@ -5017,7 +5019,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             try
             {
-                updateSnitch(null, true, dynamicUpdateInterval, null, null);
+                updateEndpointSnitch(null, null, dynamicUpdateInterval, null, null);
             }
             catch (ClassNotFoundException e)
             {
@@ -5031,42 +5033,72 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getDynamicUpdateInterval();
     }
 
+    @Deprecated
+    @Override
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException
+    {
+        updateEndpointSnitch(epSnitchClassName, dynamic ? "" : null, dynamicUpdateInterval, null, dynamicBadnessThreshold);
+    }
+
+    @Override
+    public void updateEndpointSnitch(String epSnitchClassName, String dynamicSnitchClassName, Integer dynamicUpdateInterval, Integer dynamicSampleUpdateInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException
     {
         // apply dynamic snitch configuration
         if (dynamicUpdateInterval != null)
             DatabaseDescriptor.setDynamicUpdateInterval(dynamicUpdateInterval);
-        if (dynamicResetInterval != null)
-            DatabaseDescriptor.setDynamicResetInterval(dynamicResetInterval);
         if (dynamicBadnessThreshold != null)
             DatabaseDescriptor.setDynamicBadnessThreshold(dynamicBadnessThreshold);
+        if (dynamicSampleUpdateInterval != null)
+            DatabaseDescriptor.setDynamicSampleUpdateInterval(dynamicSampleUpdateInterval);
+        if (dynamicSnitchClassName != null && !dynamicSnitchClassName.isEmpty())
+            DatabaseDescriptor.setDynamicSnitchClassName(dynamicSnitchClassName);
 
         IEndpointSnitch oldSnitch = DatabaseDescriptor.getEndpointSnitch();
+        IEndpointSnitch newSnitch;
 
         // new snitch registers mbean during construction
-        if(epSnitchClassName != null)
+        if (epSnitchClassName != null || dynamicSnitchClassName != null)
         {
-
             // need to unregister the mbean _before_ the new dynamic snitch is instantiated (and implicitly initialized
             // and its mbean registered)
             if (oldSnitch instanceof DynamicEndpointSnitch)
-                ((DynamicEndpointSnitch)oldSnitch).close();
+            {
+                ((DynamicEndpointSnitch) oldSnitch).close();
+                if (epSnitchClassName == null || epSnitchClassName.isEmpty())
+                    epSnitchClassName = ((DynamicEndpointSnitch)oldSnitch).subsnitch.getClass().getName();
 
-            IEndpointSnitch newSnitch;
+            }
+            else if (epSnitchClassName == null || epSnitchClassName.isEmpty())
+                epSnitchClassName = oldSnitch.getClass().getName();
+
             try
             {
-                newSnitch = DatabaseDescriptor.createEndpointSnitch(dynamic != null && dynamic, epSnitchClassName);
+                if (dynamicSnitchClassName != null && dynamicSnitchClassName.isEmpty())
+                    dynamicSnitchClassName = DatabaseDescriptor.getDynamicSnitchClassName();
+
+                newSnitch = DatabaseDescriptor.createEndpointSnitch(dynamicSnitchClassName, epSnitchClassName, true);
             }
             catch (ConfigurationException e)
             {
+                // Have to re-register the old snitch mbean and re-register for latency updates
+                if (oldSnitch instanceof DynamicEndpointSnitch)
+                {
+                    DynamicEndpointSnitch oldDynamicSnitch = (DynamicEndpointSnitch) oldSnitch;
+                    oldDynamicSnitch.open(true);
+                    DatabaseDescriptor.setDynamicSnitchClassName(oldSnitch.getClass().getName());
+                }
+
                 throw new ClassNotFoundException(e.getMessage());
             }
 
             if (newSnitch instanceof DynamicEndpointSnitch)
             {
-                logger.info("Created new dynamic snitch {} with update-interval={}, reset-interval={}, badness-threshold={}",
-                            ((DynamicEndpointSnitch)newSnitch).subsnitch.getClass().getName(), DatabaseDescriptor.getDynamicUpdateInterval(),
-                            DatabaseDescriptor.getDynamicResetInterval(), DatabaseDescriptor.getDynamicBadnessThreshold());
+                logger.info("Created new {} wrapping {} with update-scores-interval={}, update-sample-interval={}, badness-threshold={}",
+                            newSnitch.getClass().getName(),
+                            ((DynamicEndpointSnitch)newSnitch).subsnitch.getClass().getName(),
+                            DatabaseDescriptor.getDynamicUpdateInterval(),
+                            DatabaseDescriptor.getDynamicSampleUpdateInterval(),
+                            DatabaseDescriptor.getDynamicBadnessThreshold());
             }
             else
             {
@@ -5084,16 +5116,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             if (oldSnitch instanceof DynamicEndpointSnitch)
             {
-                logger.info("Applying config change to dynamic snitch {} with update-interval={}, reset-interval={}, badness-threshold={}",
-                            ((DynamicEndpointSnitch)oldSnitch).subsnitch.getClass().getName(), DatabaseDescriptor.getDynamicUpdateInterval(),
-                            DatabaseDescriptor.getDynamicResetInterval(), DatabaseDescriptor.getDynamicBadnessThreshold());
+                logger.info("Applying config change to dynamic snitch {} with update-scores-interval={}, update-sample-interval={}, badness-threshold={}",
+                            ((DynamicEndpointSnitch) oldSnitch).subsnitch.getClass().getName(), DatabaseDescriptor.getDynamicUpdateInterval(),
+                            DatabaseDescriptor.getDynamicSampleUpdateInterval(), DatabaseDescriptor.getDynamicBadnessThreshold());
 
-                DynamicEndpointSnitch snitch = (DynamicEndpointSnitch)oldSnitch;
-                snitch.applyConfigChanges();
+                DynamicEndpointSnitch snitch = (DynamicEndpointSnitch) oldSnitch;
+                snitch.applyConfigChanges(DatabaseDescriptor.getDynamicUpdateInterval(),
+                                          DatabaseDescriptor.getDynamicSampleUpdateInterval(),
+                                          DatabaseDescriptor.getDynamicBadnessThreshold());
             }
         }
 
         updateTopology();
+    }
+
+    public void doLocalReadTest()
+    {
+
     }
 
     /**

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -85,6 +86,7 @@ import org.apache.cassandra.hints.HintResponse;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -116,8 +118,9 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.StatusLogger;
 import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
+import org.hsqldb.Database;
 
-public final class MessagingService implements MessagingServiceMBean
+    public final class MessagingService implements MessagingServiceMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=MessagingService";
 
@@ -538,7 +541,7 @@ public final class MessagingService implements MessagingServiceMBean
     // total dropped message counts for server lifetime
     private final Map<Verb, DroppedMessages> droppedMessagesMap = new EnumMap<>(Verb.class);
 
-    private final List<ILatencySubscriber> subscribers = new ArrayList<ILatencySubscriber>();
+    private final Set<ILatencySubscriber> latencySubscribers = new CopyOnWriteArraySet<>();
 
     // protocol versions of the other nodes in the cluster
     private final ConcurrentMap<InetAddressAndPort, Integer> versions = new NonBlockingHashMap<>();
@@ -594,7 +597,8 @@ public final class MessagingService implements MessagingServiceMBean
             {
                 final CallbackInfo expiredCallbackInfo = pair.right.value;
 
-                maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, pair.right.timeout);
+                addLatency(expiredCallbackInfo.target, TimeUnit.MILLISECONDS.toMicros(pair.right.timeout),
+                           expiredCallbackInfo.callback.latencyMeasurementType());
 
                 ConnectionMetrics.totalTimeouts.mark();
                 markTimeout(expiredCallbackInfo.target);
@@ -628,6 +632,11 @@ public final class MessagingService implements MessagingServiceMBean
         };
 
         callbacks = new ExpiringMap<>(DatabaseDescriptor.getMinRpcTimeout(), timeoutReporter);
+
+        // Now that the MessagingService is constructed, register the DES for latency updates
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        if (snitch instanceof DynamicEndpointSnitch)
+            registerLatencySubscriber((ILatencySubscriber) snitch);
 
         if (!testOnly)
         {
@@ -729,21 +738,14 @@ public final class MessagingService implements MessagingServiceMBean
 
     /**
      * Track latency information for the dynamic snitch
-     *
-     * @param cb      the callback associated with this message -- this lets us know if it's a message type we're interested in
-     * @param address the host that replied to the message
-     * @param latency
+     * @param address                the host that replied to the message
+     * @param latencyMicros          the number of microseconds to record for this host
+     * @param latencyMeasurementType the type of latency event this is (for the subscriber to use)
      */
-    public void maybeAddLatency(IAsyncCallback cb, InetAddressAndPort address, long latency)
+    public void addLatency(InetAddressAndPort address, long latencyMicros, LatencyMeasurementType latencyMeasurementType)
     {
-        if (cb.isLatencyForSnitch())
-            addLatency(address, latency);
-    }
-
-    public void addLatency(InetAddressAndPort address, long latency)
-    {
-        for (ILatencySubscriber subscriber : subscribers)
-            subscriber.receiveTiming(address, latency);
+        for (ILatencySubscriber subscriber : latencySubscribers)
+            subscriber.receiveTiming(address, latencyMicros, latencyMeasurementType);
     }
 
     /**
@@ -1102,9 +1104,20 @@ public final class MessagingService implements MessagingServiceMBean
         return iar;
     }
 
-    public void register(ILatencySubscriber subcriber)
+    public void registerLatencySubscriber(ILatencySubscriber subcriber)
     {
-        subscribers.add(subcriber);
+        latencySubscribers.add(subcriber);
+    }
+
+    public void unregisterLatencySubscriber(ILatencySubscriber subscriber)
+    {
+        latencySubscribers.remove(subscriber);
+    }
+
+    @VisibleForTesting
+    public Set<ILatencySubscriber> getLatencySubscribers()
+    {
+        return Collections.unmodifiableSet(latencySubscribers);
     }
 
     public void clearCallbacksUnsafe()
@@ -1129,6 +1142,8 @@ public final class MessagingService implements MessagingServiceMBean
         // the important part
         if (!callbacks.shutdownBlocking())
             logger.warn("Failed to wait for messaging service callbacks shutdown");
+
+        latencySubscribers.clear();
 
         // attempt to humor tests that try to stop and restart MS
         try

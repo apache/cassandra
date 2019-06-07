@@ -28,10 +28,13 @@ public interface DynamicEndpointSnitchMBean
     @Deprecated
     public Map<InetAddress, Double> getScores();
     public int getUpdateInterval();
+    @Deprecated
     public int getResetInterval();
+    public int getSampleUpdateInterval();
     public double getBadnessThreshold();
     public String getSubsnitchClassName();
     public List<Double> dumpTimings(String hostname) throws UnknownHostException;
+    public List<Double> dumpTimingsMicros(String hostname) throws UnknownHostException;
 
     /**
      * Setting a Severity allows operators to inject preference information into the Dynamic Snitch

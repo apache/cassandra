@@ -15,19 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.locator;
 
-import org.apache.cassandra.net.LatencyMeasurementType;
-import org.apache.cassandra.net.MessageOut;
+package org.apache.cassandra.net;
 
-public interface ILatencySubscriber
+public enum LatencyMeasurementType
 {
-    /**
-     * Receives a latency measurement in microseconds of a particular type from a message to a remote (or local)
-     * address. Not that this is called
-     * @param address
-     * @param latencyMicros
-     * @param measurementType
-     */
-    public void receiveTiming(InetAddressAndPort address, long latencyMicros, LatencyMeasurementType measurementType);
+    // Do not use this latency measurement
+    IGNORE,
+    // A "high quality" measurement from a real user read
+    READ,
+    // A "low quality" measurement from a latency probe (typically a PING message)
+    // These are useful for when we don't have high quality measurements from real traffic
+    PROBE
 }

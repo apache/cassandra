@@ -235,8 +235,8 @@ public class StartupClusterConnectivityCheckerTest
             if (!result)
                 break;
 
-            result = recorder.seenSmallMessageRequest;
-            result &= recorder.seenLargeMessageRequest;
+            result = recorder.smallMessageRequestCount > 0;
+            result &= recorder.largeMessageRequestCount > 0;
         }
         return result;
     }
@@ -262,13 +262,13 @@ public class StartupClusterConnectivityCheckerTest
             ConnectionTypeRecorder recorder = seenConnectionRequests.computeIfAbsent(to, inetAddress ->  new ConnectionTypeRecorder());
             if (message.connectionType == SMALL_MESSAGE)
             {
-                Assert.assertFalse(recorder.seenSmallMessageRequest);
-                recorder.seenSmallMessageRequest = true;
+                Assert.assertFalse(recorder.smallMessageRequestCount > 1);
+                recorder.smallMessageRequestCount += 1;
             }
             else
             {
-                Assert.assertFalse(recorder.seenLargeMessageRequest);
-                recorder.seenLargeMessageRequest = true;
+                Assert.assertFalse(recorder.largeMessageRequestCount > 1);
+                recorder.largeMessageRequestCount += 1;
             }
 
             if (!aliveHosts.contains(to))
@@ -294,7 +294,7 @@ public class StartupClusterConnectivityCheckerTest
 
     private static class ConnectionTypeRecorder
     {
-        boolean seenSmallMessageRequest;
-        boolean seenLargeMessageRequest;
+        int smallMessageRequestCount;
+        int largeMessageRequestCount;
     }
 }

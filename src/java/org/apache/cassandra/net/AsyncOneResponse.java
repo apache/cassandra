@@ -37,11 +37,6 @@ public class AsyncOneResponse<T> extends AbstractFuture<T> implements IAsyncCall
         set(response.payload);
     }
 
-    public boolean isLatencyForSnitch()
-    {
-        return false;
-    }
-
     @Override
     public T get(long timeout, TimeUnit unit) throws TimeoutException
     {

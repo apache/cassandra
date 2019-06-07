@@ -51,7 +51,7 @@ public class TestScheduledFuture implements ScheduledFuture<Object>
 
     public boolean isDone()
     {
-        return false;
+        return cancelled;
     }
 
     public Object get() throws InterruptedException, ExecutionException

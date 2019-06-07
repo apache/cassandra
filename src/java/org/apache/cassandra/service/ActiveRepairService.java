@@ -403,11 +403,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 prepareLatch.countDown();
             }
 
-            public boolean isLatencyForSnitch()
-            {
-                return false;
-            }
-
             public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
             {
                 status.set(false);

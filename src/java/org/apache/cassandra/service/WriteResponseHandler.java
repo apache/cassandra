@@ -65,9 +65,4 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
     {
         return blockFor() - responses;
     }
-
-    public boolean isLatencyForSnitch()
-    {
-        return false;
-    }
 }

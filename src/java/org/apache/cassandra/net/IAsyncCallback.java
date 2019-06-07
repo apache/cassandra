@@ -31,10 +31,14 @@ public interface IAsyncCallback<T>
     void response(MessageIn<T> msg);
 
     /**
-     * @return true if this callback is on the read path and its latency should be
-     * given as input to the dynamic snitch.
+     * @return The type of latency measurement that this callback will provide. For example if the request is
+     * on the read path versus if it is an offline latency probe. Most snitches ignore all IGNORE latencies while
+     * keeping READ latencies and possibly keeping PROBE latencies.
      */
-    boolean isLatencyForSnitch();
+    default LatencyMeasurementType latencyMeasurementType()
+    {
+        return LatencyMeasurementType.IGNORE;
+    }
 
     default boolean supportsBackPressure()
     {

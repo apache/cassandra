@@ -249,11 +249,6 @@ final class HintsDispatcher implements AutoCloseable
             condition.signalAll();
         }
 
-        public boolean isLatencyForSnitch()
-        {
-            return false;
-        }
-
         @Override
         public boolean supportsBackPressure()
         {

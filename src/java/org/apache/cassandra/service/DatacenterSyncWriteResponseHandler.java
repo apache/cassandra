@@ -96,10 +96,4 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
     {
         return acks.get();
     }
-
-    public boolean isLatencyForSnitch()
-    {
-        return false;
-    }
-
 }

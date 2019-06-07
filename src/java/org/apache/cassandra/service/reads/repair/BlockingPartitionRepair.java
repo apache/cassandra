@@ -116,12 +116,6 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
         ack(msg.from);
     }
 
-    @Override
-    public boolean isLatencyForSnitch()
-    {
-        return false;
-    }
-
     private static PartitionUpdate extractUpdate(Mutation mutation)
     {
         return Iterables.getOnlyElement(mutation.getPartitionUpdates());

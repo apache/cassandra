@@ -1796,7 +1796,9 @@ public class StorageProxy implements StorageProxyMBean
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.UNKNOWN);
                 }
 
-                MessagingService.instance().addLatency(FBUtilities.getBroadcastAddressAndPort(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+                MessagingService.instance().addLatency(FBUtilities.getBroadcastAddressAndPort(),
+                                                       TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - start),
+                                                       LatencyMeasurementType.READ);
             }
             catch (Throwable t)
             {
@@ -2188,11 +2190,6 @@ public class StorageProxy implements StorageProxyMBean
                 // record the response from the remote node.
                 versions.put(message.from, message.payload);
                 latch.countDown();
-            }
-
-            public boolean isLatencyForSnitch()
-            {
-                return false;
             }
         };
         // an empty message acts as a request to the SchemaVersionVerbHandler.

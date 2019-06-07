@@ -100,11 +100,6 @@ final class MigrationTask extends WrappedRunnable
                     completionLatch.countDown();
                 }
             }
-
-            public boolean isLatencyForSnitch()
-            {
-                return false;
-            }
         };
 
         // Only save the latches if we need bootstrap or are bootstrapping
