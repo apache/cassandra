@@ -39,15 +39,10 @@ Subscribe by sending an email to the email address in the Subscribe links above.
 email to confirm your subscription. Make sure to keep the welcome email as it contains instructions on how to
 unsubscribe.
 
-.. _irc-channels:
-
-IRC
----
-
-To chat with developers or users in real-time, join our channels on `IRC freenode <http://webchat.freenode.net/>`__. The
-following channels are available:
-
+.. _slack:
+Slack
+_____
+To chat with developers or users in real-time, join our rooms on `ASF Slack <https://s.apache.org/slack-invite>`__:
 - ``#cassandra`` - for user questions and general discussions.
 - ``#cassandra-dev`` - strictly for questions or discussions related to Cassandra development.
-- ``#cassandra-builds`` - results of automated test builds.
 
