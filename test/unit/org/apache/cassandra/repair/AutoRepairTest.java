@@ -81,6 +81,10 @@ public class AutoRepairTest extends CQLTester
     {
         cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
         cfs.truncateBlocking();
+
+        cfs = Keyspace.open(AutoRepairUtils.KEYSPACE_NAME).getColumnFamilyStore(AutoRepairUtils.REPAIR_STATUS);
+        cfs.truncateBlocking();
+
         AutoRepairService.instance.startAutoRepair();
         executeCQL();
     }
@@ -157,6 +161,7 @@ public class AutoRepairTest extends CQLTester
         UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
         Assert.assertTrue("Expected my turn for the repair", AutoRepairUtils.myTurnToRunRepair(myId) !=
                 NOT_MY_TURN);
+        AutoRepair.repair(true);
         AutoRepairUtils.addPriorityHost(Sets.newHashSet(FBUtilities.getBroadcastAddressAndPort().getAddress()));
         AutoRepair.repair(true);
         Assert.assertSame(String.format("Priority host count is not same actual value %d, expected value %d", AutoRepairUtils
