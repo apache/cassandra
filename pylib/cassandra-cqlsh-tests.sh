@@ -33,6 +33,10 @@ export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
 export NUM_TOKENS="32"
 export CASSANDRA_DIR=${WORKSPACE}
 
+if [ -z "$CASSANDRA_USE_JDK11" ]; then
+    export CASSANDRA_USE_JDK11=true
+fi
+
 # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
 for x in $(seq 1 3); do
     ant -buildfile ${CASSANDRA_DIR}/build.xml realclean jar
