@@ -44,7 +44,7 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepairEvent.ReadRepairEventType;
 
@@ -187,7 +187,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
             Assert.assertNotNull(e.toMap());
         }
 
-        protected void sendRR(MessageOut<Mutation> message, InetAddressAndPort endpoint)
+        protected void sendRR(Message<Mutation> message, InetAddressAndPort endpoint)
         {
         }
     }

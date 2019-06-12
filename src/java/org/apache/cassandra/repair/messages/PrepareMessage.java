@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -92,7 +93,7 @@ public class PrepareMessage extends RepairMessage
             out.writeInt(message.ranges.size());
             for (Range<Token> r : message.ranges)
             {
-                MessagingService.validatePartitioner(r);
+                IPartitioner.validate(r);
                 Range.tokenSerializer.serialize(r, out, version);
             }
             out.writeBoolean(message.isIncremental);
@@ -111,7 +112,7 @@ public class PrepareMessage extends RepairMessage
             int rangeCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangeCount);
             for (int i = 0; i < rangeCount; i++)
-                ranges.add((Range<Token>) Range.tokenSerializer.deserialize(in, MessagingService.globalPartitioner(), version));
+                ranges.add((Range<Token>) Range.tokenSerializer.deserialize(in, IPartitioner.global(), version));
             boolean isIncremental = in.readBoolean();
             long timestamp = in.readLong();
             boolean isGlobal = in.readBoolean();

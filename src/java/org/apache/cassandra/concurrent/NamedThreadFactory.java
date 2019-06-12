@@ -24,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import io.netty.util.concurrent.FastThreadLocalThread;
+import org.apache.cassandra.utils.memory.BufferPool;
 
 /**
  * This class is an implementation of the <i>ThreadFactory</i> interface. This
@@ -35,6 +36,7 @@ public class NamedThreadFactory implements ThreadFactory
 {
     private static volatile String globalPrefix;
     public static void setGlobalPrefix(String prefix) { globalPrefix = prefix; }
+    public static String globalPrefix() { return globalPrefix == null ? "" : globalPrefix; }
 
     public final String id;
     private final int priority;

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -25,11 +24,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.IAsyncCallback;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
-public class TruncateResponseHandler implements IAsyncCallback
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
+public class TruncateResponseHandler implements RequestCallback
 {
     protected static final Logger logger = LoggerFactory.getLogger(TruncateResponseHandler.class);
     protected final SimpleCondition condition = new SimpleCondition();
@@ -49,11 +50,11 @@ public class TruncateResponseHandler implements IAsyncCallback
 
     public void get() throws TimeoutException
     {
-        long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getTruncateRpcTimeout()) - (System.nanoTime() - start);
+        long timeoutNanos = DatabaseDescriptor.getTruncateRpcTimeout(NANOSECONDS) - (System.nanoTime() - start);
         boolean success;
         try
         {
-            success = condition.await(timeout, TimeUnit.NANOSECONDS); // TODO truncate needs a much longer timeout
+            success = condition.await(timeoutNanos, NANOSECONDS); // TODO truncate needs a much longer timeout
         }
         catch (InterruptedException ex)
         {
@@ -66,15 +67,10 @@ public class TruncateResponseHandler implements IAsyncCallback
         }
     }
 
-    public void response(MessageIn message)
+    public void onResponse(Message message)
     {
         responses.incrementAndGet();
         if (responses.get() >= responseCount)
             condition.signalAll();
-    }
-
-    public boolean isLatencyForSnitch()
-    {
-        return false;
     }
 }

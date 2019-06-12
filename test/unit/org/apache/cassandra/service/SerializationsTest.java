@@ -41,7 +41,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.Validator;
@@ -88,9 +88,6 @@ public class SerializationsTest extends AbstractSerializationsTester
                 testSerializedSize(message, RepairMessage.serializer);
                 RepairMessage.serializer.serialize(message, out, getVersion());
             }
-            // also serialize MessageOut
-            for (RepairMessage message : messages)
-                message.createMessage().serialize(out,  getVersion());
         }
     }
 
@@ -112,8 +109,6 @@ public class SerializationsTest extends AbstractSerializationsTester
             assert message.messageType == RepairMessage.Type.VALIDATION_REQUEST;
             assert DESC.equals(message.desc);
             assert ((ValidationRequest) message).nowInSec == 1234;
-
-            assert MessageIn.read(in, getVersion(), -1) != null;
         }
     }
 
@@ -173,10 +168,6 @@ public class SerializationsTest extends AbstractSerializationsTester
 
             assert !((ValidationComplete) message).success();
             assert ((ValidationComplete) message).trees == null;
-
-            // MessageOuts
-            for (int i = 0; i < 3; i++)
-                assert MessageIn.read(in, getVersion(), -1) != null;
         }
     }
 
@@ -209,8 +200,6 @@ public class SerializationsTest extends AbstractSerializationsTester
             assert src.equals(((SyncRequest) message).src);
             assert dest.equals(((SyncRequest) message).dst);
             assert ((SyncRequest) message).ranges.size() == 1 && ((SyncRequest) message).ranges.contains(FULL_RANGE);
-
-            assert MessageIn.read(in, getVersion(), -1) != null;
         }
     }
 
@@ -260,10 +249,6 @@ public class SerializationsTest extends AbstractSerializationsTester
 
             assert nodes.equals(((SyncComplete) message).nodes);
             assert !((SyncComplete) message).success;
-
-            // MessageOuts
-            for (int i = 0; i < 2; i++)
-                assert MessageIn.read(in, getVersion(), -1) != null;
         }
     }
 }

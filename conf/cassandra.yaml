@@ -870,6 +870,32 @@ request_timeout_in_ms: 10000
 # which picks up the OS default and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
 # internode_tcp_user_timeout_in_ms = 30000
 
+# The maximum continuous period a connection may be unwritable in application space
+# internode_application_timeout_in_ms = 30000
+
+# Global, per-endpoint and per-connection limits imposed on messages queued for delivery to other nodes
+# and waiting to be processed on arrival from other nodes in the cluster.  These limits are applied to the on-wire
+# size of the message being sent or received.
+#
+# The basic per-link limit is consumed in isolation before any endpoint or global limit is imposed.
+# Each node-pair has three links: urgent, small and large.  So any given node may have a maximum of
+# N*3*(internode_application_send_queue_capacity_in_bytes+internode_application_receive_queue_capacity_in_bytes)
+# messages queued without any coordination between them although in practice, with token-aware routing, only RF*tokens
+# nodes should need to communicate with significant bandwidth.
+#
+# The per-endpoint limit is imposed on all messages exceeding the per-link limit, simultaneously with the global limit,
+# on all links to or from a single node in the cluster.
+# The global limit is imposed on all messages exceeding the per-link limit, simultaneously with the per-endpoint limit,
+# on all links to or from any node in the cluster.
+#
+# internode_application_send_queue_capacity_in_bytes: 4194304                       #4MiB
+# internode_application_send_queue_reserve_endpoint_capacity_in_bytes: 134217728    #128MiB
+# internode_application_send_queue_reserve_global_capacity_in_bytes: 536870912      #512MiB
+# internode_application_receive_queue_capacity_in_bytes: 4194304                    #4MiB
+# internode_application_receive_queue_reserve_endpoint_capacity_in_bytes: 134217728 #128MiB
+# internode_application_receive_queue_reserve_global_capacity_in_bytes: 536870912   #512MiB
+
+
 # How long before a node logs slow queries. Select queries that take longer than
 # this timeout to execute, will generate an aggregated log message, so that slow queries
 # can be identified. Set this value to zero to disable slow query logging.

@@ -39,6 +39,9 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.tracing.Tracing;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
 /**
  * 'Classic' read repair. Doesn't allow the client read to return until
  *  updates have been written to nodes needing correction. Breaks write
@@ -84,7 +87,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         boolean timedOut = false;
         for (BlockingPartitionRepair repair: repairs)
         {
-            if (!repair.awaitRepairs(DatabaseDescriptor.getWriteRpcTimeout(), TimeUnit.MILLISECONDS))
+            if (!repair.awaitRepairs(DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS), NANOSECONDS))
             {
                 timedOut = true;
             }

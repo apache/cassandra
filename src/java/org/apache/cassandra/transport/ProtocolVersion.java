@@ -104,13 +104,13 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
             // if this is not a supported version check the old versions
             for (ProtocolVersion version : UNSUPPORTED)
             {
-                // if it is an old version that is no longer supported this ensures that we reply
+                // if it is an old version that is no longer supported this ensures that we respond
                 // with that same version
                 if (version.num == versionNum)
                     throw new ProtocolException(ProtocolVersion.invalidVersionMessage(versionNum), version);
             }
 
-            // If the version is invalid reply with the highest version that we support
+            // If the version is invalid response with the highest version that we support
             throw new ProtocolException(invalidVersionMessage(versionNum), MAX_SUPPORTED_VERSION);
         }
 

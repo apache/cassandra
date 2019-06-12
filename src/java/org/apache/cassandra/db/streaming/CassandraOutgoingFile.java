@@ -20,7 +20,6 @@ package org.apache.cassandra.db.streaming;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
@@ -41,7 +40,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.net.async.ByteBufDataOutputStreamPlus;
+import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamOperation;
@@ -164,10 +163,10 @@ public class CassandraOutgoingFile implements OutgoingStream
         CassandraStreamHeader.serializer.serialize(header, out, version);
         out.flush();
 
-        if (shouldStreamEntireSSTable() && out instanceof ByteBufDataOutputStreamPlus)
+        if (shouldStreamEntireSSTable() && out instanceof AsyncStreamingOutputPlus)
         {
             CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, manifest);
-            writer.write((ByteBufDataOutputStreamPlus) out);
+            writer.write((AsyncStreamingOutputPlus) out);
         }
         else
         {

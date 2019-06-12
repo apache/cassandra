@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageProxy;
@@ -41,9 +41,11 @@ import org.apache.cassandra.service.StorageService;
  */
 public final class HintVerbHandler implements IVerbHandler<HintMessage>
 {
+    public static final HintVerbHandler instance = new HintVerbHandler();
+
     private static final Logger logger = LoggerFactory.getLogger(HintVerbHandler.class);
 
-    public void doVerb(MessageIn<HintMessage> message, int id)
+    public void doVerb(Message<HintMessage> message)
     {
         UUID hostId = message.payload.hostId;
         Hint hint = message.payload.hint;
@@ -59,7 +61,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
                          address,
                          hostId,
                          message.payload.unknownTableID);
-            reply(id, message.from);
+            respond(message);
             return;
         }
 
@@ -71,7 +73,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         catch (MarshalException e)
         {
             logger.warn("Failed to validate a hint for {}: {} - skipped", address, hostId);
-            reply(id, message.from);
+            respond(message);
             return;
         }
 
@@ -80,24 +82,24 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
             // the node is not the final destination of the hint (must have gotten it from a decommissioning node),
             // so just store it locally, to be delivered later.
             HintsService.instance.write(hostId, hint);
-            reply(id, message.from);
+            respond(message);
         }
         else if (!StorageProxy.instance.appliesLocally(hint.mutation))
         {
             // the topology has changed, and we are no longer a replica of the mutation - since we don't know which node(s)
             // it has been handed over to, re-address the hint to all replicas; see CASSANDRA-5902.
             HintsService.instance.writeForAllReplicas(hint);
-            reply(id, message.from);
+            respond(message);
         }
         else
         {
             // the common path - the node is both the destination and a valid replica for the hint.
-            hint.applyFuture().thenAccept(o -> reply(id, message.from)).exceptionally(e -> {logger.debug("Failed to apply hint", e); return null;});
+            hint.applyFuture().thenAccept(o -> respond(message)).exceptionally(e -> {logger.debug("Failed to apply hint", e); return null;});
         }
     }
 
-    private static void reply(int id, InetAddressAndPort to)
+    private static void respond(Message<HintMessage> respondTo)
     {
-        MessagingService.instance().sendReply(HintResponse.message, id, to);
+        MessagingService.instance().send(respondTo.emptyResponse(), respondTo.from());
     }
 }

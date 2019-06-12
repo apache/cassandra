@@ -18,16 +18,17 @@
 package org.apache.cassandra.repair;
 
 import java.util.concurrent.RunnableFuture;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.AbstractFuture;
 
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.IAsyncCallbackWithFailure;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.SnapshotMessage;
+
+import static org.apache.cassandra.net.Verb.REPAIR_REQ;
 
 /**
  * SnapshotTask is a task that sends snapshot request.
@@ -37,7 +38,7 @@ public class SnapshotTask extends AbstractFuture<InetAddressAndPort> implements 
     private final RepairJobDesc desc;
     private final InetAddressAndPort endpoint;
 
-    public SnapshotTask(RepairJobDesc desc, InetAddressAndPort endpoint)
+    SnapshotTask(RepairJobDesc desc, InetAddressAndPort endpoint)
     {
         this.desc = desc;
         this.endpoint = endpoint;
@@ -45,15 +46,15 @@ public class SnapshotTask extends AbstractFuture<InetAddressAndPort> implements 
 
     public void run()
     {
-        MessagingService.instance().sendRR(new SnapshotMessage(desc).createMessage(),
-                endpoint,
-                new SnapshotCallback(this), TimeUnit.HOURS.toMillis(1), true);
+        MessagingService.instance().sendWithCallback(Message.out(REPAIR_REQ, new SnapshotMessage(desc)),
+                                                     endpoint,
+                                                     new SnapshotCallback(this));
     }
 
     /**
      * Callback for snapshot request. Run on INTERNAL_RESPONSE stage.
      */
-    static class SnapshotCallback implements IAsyncCallbackWithFailure
+    static class SnapshotCallback implements RequestCallback
     {
         final SnapshotTask task;
 
@@ -67,13 +68,19 @@ public class SnapshotTask extends AbstractFuture<InetAddressAndPort> implements 
          *
          * @param msg response received.
          */
-        public void response(MessageIn msg)
+        @Override
+        public void onResponse(Message msg)
         {
             task.set(task.endpoint);
         }
 
-        public boolean isLatencyForSnitch() { return false; }
+        @Override
+        public boolean invokeOnFailure()
+        {
+            return true;
+        }
 
+        @Override
         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
         {
             //listener.failedSnapshot();

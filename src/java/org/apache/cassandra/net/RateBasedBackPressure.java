@@ -39,6 +39,8 @@ import org.apache.cassandra.utils.SystemTimeSource;
 import org.apache.cassandra.utils.TimeSource;
 import org.apache.cassandra.utils.concurrent.IntervalLock;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
 /**
  * Back-pressure algorithm based on rate limiting according to the ratio between incoming and outgoing rates, computed
  * over a sliding time window with size equal to write RPC timeout.
@@ -84,7 +86,7 @@ public class RateBasedBackPressure implements BackPressureStrategy<RateBasedBack
 
     public RateBasedBackPressure(Map<String, Object> args)
     {
-        this(args, new SystemTimeSource(), DatabaseDescriptor.getWriteRpcTimeout());
+        this(args, new SystemTimeSource(), DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS));
     }
 
     @VisibleForTesting

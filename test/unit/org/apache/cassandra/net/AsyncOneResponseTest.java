@@ -19,45 +19,35 @@
 package org.apache.cassandra.net;
 
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
 
 public class AsyncOneResponseTest
 {
-    @Test(expected = TimeoutException.class)
-    public void getThrowsExceptionAfterTimeout() throws InterruptedException, TimeoutException
+    @Test
+    public void getThrowsExceptionAfterTimeout() throws InterruptedException
     {
         AsyncOneResponse<Object> response = new AsyncOneResponse<>();
         Thread.sleep(2000);
-        response.get(1, TimeUnit.SECONDS);
+        Assert.assertFalse(response.await(1, TimeUnit.SECONDS));
     }
 
     @Test
-    public void getThrowsExceptionAfterCorrectTimeout()
+    public void getThrowsExceptionAfterCorrectTimeout() throws InterruptedException
     {
         AsyncOneResponse<Object> response = new AsyncOneResponse<>();
 
         final long expectedTimeoutMillis = 1000; // Should time out after roughly this time
         final long schedulingError = 10; // Scheduling is imperfect
-        boolean hitException = false; // Ensure we actually hit the TimeoutException
 
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
+        boolean timeout = !response.await(expectedTimeoutMillis, TimeUnit.MILLISECONDS);
+        long endTime = System.nanoTime();
 
-        try
-        {
-            response.get(expectedTimeoutMillis, TimeUnit.MILLISECONDS);
-        }
-        catch(TimeoutException e)
-        {
-            hitException = true;
-        }
-
-        long endTime = System.currentTimeMillis();
-
-        assertTrue(hitException);
-        assertTrue(endTime - startTime > (expectedTimeoutMillis - schedulingError));
+        assertTrue(timeout);
+        assertTrue(TimeUnit.NANOSECONDS.toMillis(endTime - startTime) > (expectedTimeoutMillis - schedulingError));
     }
 }

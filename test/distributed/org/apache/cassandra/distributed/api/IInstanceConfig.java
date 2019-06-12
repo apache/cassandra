@@ -38,4 +38,5 @@ public interface IInstanceConfig
     Object get(String fieldName);
     String getString(String fieldName);
     int getInt(String fieldName);
+    boolean has(long featureFlag);
 }

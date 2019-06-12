@@ -28,7 +28,7 @@ import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.RebufferingInputStream;
-import org.apache.cassandra.net.async.RebufferingByteBufDataInputPlus;
+import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.streaming.async.StreamCompressionSerializer;
 
 public class StreamCompressionInputStream extends RebufferingInputStream implements AutoCloseable
@@ -56,8 +56,8 @@ public class StreamCompressionInputStream extends RebufferingInputStream impleme
         this.protocolVersion = protocolVersion;
         this.decompressor = LZ4Factory.fastestInstance().fastDecompressor();
 
-        ByteBufAllocator allocator = dataInputPlus instanceof RebufferingByteBufDataInputPlus
-                                     ? ((RebufferingByteBufDataInputPlus)dataInputPlus).getAllocator()
+        ByteBufAllocator allocator = dataInputPlus instanceof AsyncStreamingInputPlus
+                                     ? ((AsyncStreamingInputPlus)dataInputPlus).getAllocator()
                                      : PooledByteBufAllocator.DEFAULT;
         deserializer = new StreamCompressionSerializer(allocator);
     }

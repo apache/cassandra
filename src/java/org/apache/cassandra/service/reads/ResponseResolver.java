@@ -24,7 +24,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 
 public abstract class ResponseResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
@@ -35,7 +35,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
     protected final ReplicaPlan.Shared<E, P> replicaPlan;
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
-    protected final Accumulator<MessageIn<ReadResponse>> responses;
+    protected final Accumulator<Message<ReadResponse>> responses;
     protected final long queryStartNanoTime;
 
     public ResponseResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
@@ -53,9 +53,9 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
 
     public abstract boolean isDataPresent();
 
-    public void preprocess(MessageIn<ReadResponse> message)
+    public void preprocess(Message<ReadResponse> message)
     {
-        if (replicaPlan().getReplicaFor(message.from).isTransient() &&
+        if (replicaPlan().getReplicaFor(message.from()).isTransient() &&
             message.payload.isDigestResponse())
             throw new IllegalArgumentException("Digest response received from transient replica");
 
@@ -71,7 +71,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
         }
     }
 
-    public Accumulator<MessageIn<ReadResponse>> getMessages()
+    public Accumulator<Message<ReadResponse>> getMessages()
     {
         return responses;
     }

@@ -371,15 +371,4 @@ public abstract class UnbufferedDataOutputStreamPlus extends DataOutputStreamPlu
         }
     }
 
-    public void write(Memory memory, long offset, long length) throws IOException
-    {
-        for (ByteBuffer buffer : memory.asByteBuffers(offset, length))
-            write(buffer);
-    }
-
-    @Override
-    public <R> R applyToChannel(CheckedFunction<WritableByteChannel, R, IOException> f) throws IOException
-    {
-        return f.apply(channel);
-    }
 }

@@ -189,7 +189,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         {
             if (source.isTransient())
                 cmd = cmd.copyAsTransientQuery(source);
-            MessagingService.instance().sendRRWithFailure(cmd.createMessage(), source.endpoint(), handler);
+            MessagingService.instance().sendWithCallback(cmd.createMessage(false), source.endpoint(), handler);
         }
 
         // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.

@@ -360,7 +360,7 @@ public class CompositeType extends AbstractCompositeType
         {
             ByteBufferUtil.writeShortLength(out, bb.remaining());
             int toCopy = bb.remaining();
-            ByteBufferUtil.arrayCopy(bb, bb.position(), out, out.position(), toCopy);
+            ByteBufferUtil.copyBytes(bb, bb.position(), out, out.position(), toCopy);
             out.position(out.position() + toCopy);
             out.put((byte) 0);
         }

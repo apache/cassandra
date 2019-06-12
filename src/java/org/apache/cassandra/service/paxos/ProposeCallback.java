@@ -27,7 +27,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 
 /**
  * ProposeCallback has two modes of operation, controlled by the failFast parameter.
@@ -35,7 +35,7 @@ import org.apache.cassandra.net.MessageIn;
  * In failFast mode, we will return a failure as soon as a majority of nodes reject
  * the proposal. This is used when replaying a proposal from an earlier leader.
  *
- * Otherwise, we wait for either all replicas to reply or until we achieve
+ * Otherwise, we wait for either all replicas to respond or until we achieve
  * the desired quorum. We continue to wait for all replicas even after we know we cannot succeed
  * because we need to know if no node at all have accepted or if at least one has.
  * In the former case, a proposer is guaranteed no-one will
@@ -57,9 +57,9 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
         this.failFast = failFast;
     }
 
-    public void response(MessageIn<Boolean> msg)
+    public void onResponse(Message<Boolean> msg)
     {
-        logger.trace("Propose response {} from {}", msg.payload, msg.from);
+        logger.trace("Propose response {} from {}", msg.payload, msg.from());
 
         if (msg.payload)
             accepts.incrementAndGet();

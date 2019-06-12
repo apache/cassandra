@@ -17,54 +17,31 @@
  */
 package org.apache.cassandra.net;
 
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.AbstractFuture;
+
+import io.netty.util.concurrent.ImmediateEventExecutor;
 
 /**
  * A callback specialized for returning a value from a single target; that is, this is for messages
  * that we only send to one recipient.
  */
-public class AsyncOneResponse<T> extends AbstractFuture<T> implements IAsyncCallback<T>
+public class AsyncOneResponse<T> extends AsyncPromise<T> implements RequestCallback<T>
 {
-    private final long start = System.nanoTime();
-
-    public void response(MessageIn<T> response)
+    public AsyncOneResponse()
     {
-        set(response.payload);
+        super(ImmediateEventExecutor.INSTANCE);
     }
 
-    public boolean isLatencyForSnitch()
+    public void onResponse(Message<T> response)
     {
-        return false;
-    }
-
-    @Override
-    public T get(long timeout, TimeUnit unit) throws TimeoutException
-    {
-        long adjustedTimeout = unit.toNanos(timeout) - (System.nanoTime() - start);
-        if (adjustedTimeout <= 0)
-        {
-            throw new TimeoutException("Operation timed out.");
-        }
-        try
-        {
-            return super.get(adjustedTimeout, TimeUnit.NANOSECONDS);
-        }
-        catch (InterruptedException | ExecutionException e)
-        {
-            throw new AssertionError(e);
-        }
+        setSuccess(response.payload);
     }
 
     @VisibleForTesting
     public static <T> AsyncOneResponse<T> immediate(T value)
     {
         AsyncOneResponse<T> response = new AsyncOneResponse<>();
-        response.set(value);
+        response.setSuccess(value);
         return response;
     }
 }
