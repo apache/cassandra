@@ -143,10 +143,13 @@ public class IncomingTcpConnection extends FastThreadLocalThread implements Clos
         // to connect with, the other node will disconnect
         out.writeInt(MessagingService.current_version);
         out.flush();
+
+        // outbound side will reconnect if necessary to upgrade version
+        if (version > MessagingService.current_version)
+            throw new IOException("Peer-used messaging version " + version + " is larger than max supported " + MessagingService.current_version);
+
         DataInputPlus in = new DataInputStreamPlus(socket.getInputStream());
         int maxVersion = in.readInt();
-        // outbound side will reconnect if necessary to upgrade version
-        assert version <= MessagingService.current_version;
         from = CompactEndpointSerializationHelper.deserialize(in);
         // record the (true) version of the endpoint
         MessagingService.instance().setVersion(from, maxVersion);
