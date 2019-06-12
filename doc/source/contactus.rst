@@ -17,7 +17,7 @@
 Contact us
 ==========
 
-You can get in touch with the Cassandra community either via the mailing lists or the freenode IRC channels.
+You can get in touch with the Cassandra community either via the mailing lists or slack_ rooms.
 
 .. _mailing-lists:
 
