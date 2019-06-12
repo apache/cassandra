@@ -38,7 +38,7 @@ As a general rule of thumb:
 Before You Start Coding
 =======================
 
-Although contributions are highly appreciated, we do not guarantee that each contribution will become a part of Cassandra. Therefor it's generally a good idea to first get some feedback on the things you plan to work on, especially about any new features or major changes to the code base. You can reach out to other developers on the mailing list or IRC channel listed on our `community page <http://cassandra.apache.org/community/>`_.
+Although contributions are highly appreciated, we do not guarantee that each contribution will become a part of Cassandra. Therefore it's generally a good idea to first get some feedback on the things you plan to work on, especially about any new features or major changes to the code base. You can reach out to other developers on the mailing list or :ref:`Slack <slack>`.
 
 You should also
  * Avoid redundant work by searching for already reported issues in `JIRA <https://issues.apache.org/jira/browse/CASSANDRA>`_
