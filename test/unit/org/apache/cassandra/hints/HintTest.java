@@ -41,13 +41,12 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
@@ -58,6 +57,7 @@ import static junit.framework.Assert.*;
 import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.hints.HintsTestUtil.assertHintsEqual;
 import static org.apache.cassandra.hints.HintsTestUtil.assertPartitionsEqual;
+import static org.apache.cassandra.net.Verb.HINT_REQ;
 
 public class HintTest
 {
@@ -246,9 +246,7 @@ public class HintTest
         long totalHintCount = StorageProxy.instance.getTotalHints();
         // Process hint message.
         HintMessage message = new HintMessage(localId, hint);
-        MessagingService.instance().getVerbHandler(MessagingService.Verb.HINT).doVerb(
-                MessageIn.create(local, message, Collections.emptyMap(), MessagingService.Verb.HINT, MessagingService.current_version),
-                -1);
+        HINT_REQ.handler().doVerb(Message.out(HINT_REQ, message));
 
         // hint should not be applied as we no longer are a replica
         assertNoPartitions(key, TABLE0);
@@ -291,9 +289,8 @@ public class HintTest
             long totalHintCount = StorageMetrics.totalHints.getCount();
             // Process hint message.
             HintMessage message = new HintMessage(localId, hint);
-            MessagingService.instance().getVerbHandler(MessagingService.Verb.HINT).doVerb(
-                    MessageIn.create(local, message, Collections.emptyMap(), MessagingService.Verb.HINT, MessagingService.current_version),
-                    -1);
+            HINT_REQ.<HintMessage>handler().doVerb(
+                    Message.builder(HINT_REQ, message).from(local).build());
 
             // hint should not be applied as we no longer are a replica
             assertNoPartitions(key, TABLE0);

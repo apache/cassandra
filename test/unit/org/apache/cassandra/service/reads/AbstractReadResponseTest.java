@@ -65,13 +65,15 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.net.Verb.READ_REQ;
 
 /**
  * Base class for testing various components which deal with read responses
@@ -216,7 +218,7 @@ public abstract class AbstractReadResponseTest
     }
 
 
-    static MessageIn<ReadResponse> response(ReadCommand command,
+    static Message<ReadResponse> response(ReadCommand command,
                                             InetAddressAndPort from,
                                             UnfilteredPartitionIterator data,
                                             boolean isDigestResponse,
@@ -227,10 +229,12 @@ public abstract class AbstractReadResponseTest
         ReadResponse response = isDigestResponse
                                 ? ReadResponse.createDigestResponse(data, command)
                                 : ReadResponse.createRemoteDataResponse(data, repairedDataDigest, hasPendingRepair, command, fromVersion);
-        return MessageIn.create(from, response, Collections.emptyMap(), MessagingService.Verb.READ, fromVersion);
+        return Message.builder(READ_REQ, response)
+                      .from(from)
+                      .build();
     }
 
-    static MessageIn<ReadResponse> response(InetAddressAndPort from,
+    static Message<ReadResponse> response(InetAddressAndPort from,
                                             UnfilteredPartitionIterator partitionIterator,
                                             ByteBuffer repairedDigest,
                                             boolean hasPendingRepair,
@@ -239,12 +243,12 @@ public abstract class AbstractReadResponseTest
         return response(cmd, from, partitionIterator, false, MessagingService.current_version, repairedDigest, hasPendingRepair);
     }
 
-    static MessageIn<ReadResponse> response(ReadCommand command, InetAddressAndPort from, UnfilteredPartitionIterator data, boolean isDigestResponse)
+    static Message<ReadResponse> response(ReadCommand command, InetAddressAndPort from, UnfilteredPartitionIterator data, boolean isDigestResponse)
     {
         return response(command, from, data, false, MessagingService.current_version, ByteBufferUtil.EMPTY_BYTE_BUFFER, isDigestResponse);
     }
 
-    static MessageIn<ReadResponse> response(ReadCommand command, InetAddressAndPort from, UnfilteredPartitionIterator data)
+    static Message<ReadResponse> response(ReadCommand command, InetAddressAndPort from, UnfilteredPartitionIterator data)
     {
         return response(command, from, data, false, MessagingService.current_version, ByteBufferUtil.EMPTY_BYTE_BUFFER, false);
     }

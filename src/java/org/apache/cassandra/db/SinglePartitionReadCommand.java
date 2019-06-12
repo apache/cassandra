@@ -20,10 +20,9 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cache.IRowCacheEntry;
@@ -43,12 +42,11 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.metrics.TableMetrics;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ParameterType;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -364,9 +362,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         return clusteringIndexFilter;
     }
 
-    public long getTimeout()
+    public long getTimeout(TimeUnit unit)
     {
-        return DatabaseDescriptor.getReadRpcTimeout();
+        return DatabaseDescriptor.getReadRpcTimeout(unit);
     }
 
     @Override
@@ -1040,9 +1038,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                              nowInSec());
     }
 
-    public MessageOut<ReadCommand> createMessage()
+    @Override
+    public Verb verb()
     {
-        return new MessageOut<>(MessagingService.Verb.READ, this, serializer);
+        return Verb.READ_REQ;
     }
 
     protected void appendCQLWhereClause(StringBuilder sb)
@@ -1076,6 +1075,11 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     public boolean isLimitedToOnePartition()
     {
         return true;
+    }
+
+    public boolean isRangeRequest()
+    {
+        return false;
     }
 
     /**

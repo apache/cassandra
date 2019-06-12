@@ -51,8 +51,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.async.ByteBufDataOutputStreamPlus;
-import org.apache.cassandra.net.async.RebufferingByteBufDataInputPlus;
+import org.apache.cassandra.net.AsyncStreamingInputPlus;
+import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.streaming.DefaultConnectionFactory;
@@ -122,7 +122,7 @@ public class ZeroCopyStreamingBenchmark
             blockStreamWriter = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
 
             CapturingNettyChannel blockStreamCaptureChannel = new CapturingNettyChannel(STREAM_SIZE);
-            ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(session, blockStreamCaptureChannel, 1024 * 1024);
+            AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(blockStreamCaptureChannel);
             blockStreamWriter.write(out);
             serializedBlockStream = blockStreamCaptureChannel.getSerializedStream();
             out.close();
@@ -152,7 +152,7 @@ public class ZeroCopyStreamingBenchmark
             partialStreamWriter = new CassandraStreamWriter(sstable, sstable.getPositionsForRanges(requestedRanges), session);
 
             CapturingNettyChannel partialStreamChannel = new CapturingNettyChannel(STREAM_SIZE);
-            partialStreamWriter.write(ByteBufDataOutputStreamPlus.create(session, partialStreamChannel, 1024 * 1024));
+            partialStreamWriter.write(new AsyncStreamingOutputPlus(partialStreamChannel));
             serializedPartialStream = partialStreamChannel.getSerializedStream();
 
             CassandraStreamHeader partialSSTableStreamHeader =
@@ -230,7 +230,7 @@ public class ZeroCopyStreamingBenchmark
     public void blockStreamWriter(BenchmarkState state) throws Exception
     {
         EmbeddedChannel channel = createMockNettyChannel();
-        ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(state.session, channel, 1024 * 1024);
+        AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
         state.blockStreamWriter.write(out);
         out.close();
         channel.finishAndReleaseAll();
@@ -241,7 +241,7 @@ public class ZeroCopyStreamingBenchmark
     public void blockStreamReader(BenchmarkState state) throws Exception
     {
         EmbeddedChannel channel = createMockNettyChannel();
-        RebufferingByteBufDataInputPlus in = new RebufferingByteBufDataInputPlus(STREAM_SIZE, STREAM_SIZE, channel.config());
+        AsyncStreamingInputPlus in = new AsyncStreamingInputPlus(channel);
         in.append(state.serializedBlockStream.retainedDuplicate());
         SSTableMultiWriter sstableWriter = state.blockStreamReader.read(in);
         Collection<SSTableReader> newSstables = sstableWriter.finished();
@@ -254,7 +254,7 @@ public class ZeroCopyStreamingBenchmark
     public void partialStreamWriter(BenchmarkState state) throws Exception
     {
         EmbeddedChannel channel = createMockNettyChannel();
-        ByteBufDataOutputStreamPlus out = ByteBufDataOutputStreamPlus.create(state.session, channel, 1024 * 1024);
+        AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
         state.partialStreamWriter.write(out);
         out.close();
         channel.finishAndReleaseAll();
@@ -265,7 +265,7 @@ public class ZeroCopyStreamingBenchmark
     public void partialStreamReader(BenchmarkState state) throws Exception
     {
         EmbeddedChannel channel = createMockNettyChannel();
-        RebufferingByteBufDataInputPlus in = new RebufferingByteBufDataInputPlus(STREAM_SIZE, STREAM_SIZE, channel.config());
+        AsyncStreamingInputPlus in = new AsyncStreamingInputPlus(channel);
         in.append(state.serializedPartialStream.retainedDuplicate());
         SSTableMultiWriter sstableWriter = state.partialStreamReader.read(in);
         Collection<SSTableReader> newSstables = sstableWriter.finished();

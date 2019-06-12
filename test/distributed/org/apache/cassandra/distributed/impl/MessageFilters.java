@@ -21,44 +21,27 @@ package org.apache.cassandra.distributed.impl;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.function.BiConsumer;
 
 import org.apache.cassandra.distributed.api.IInstance;
-import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.distributed.api.ICluster;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 
 public class MessageFilters implements IMessageFilters
 {
-    private final ICluster cluster;
     private final Set<Filter> filters = new CopyOnWriteArraySet<>();
 
-    public MessageFilters(AbstractCluster cluster)
+    public boolean permit(IInstance from, IInstance to, int verb)
     {
-        this.cluster = cluster;
-    }
+        if (from == null || to == null)
+            return false; // cannot deliver
+        int fromNum = from.config().num();
+        int toNum = to.config().num();
 
-    public BiConsumer<InetAddressAndPort, IMessage> filter(BiConsumer<InetAddressAndPort, IMessage> applyIfNotFiltered)
-    {
-        return (toAddress, message) ->
-        {
-            IInstance from = cluster.get(message.from());
-            IInstance to = cluster.get(toAddress);
-            if (from == null || to == null)
-                return; // cannot deliver
-            int fromNum = from.config().num();
-            int toNum = to.config().num();
-            int verb = message.verb();
-            for (Filter filter : filters)
-            {
-                if (filter.matches(fromNum, toNum, verb))
-                    return;
-            }
+        for (Filter filter : filters)
+            if (filter.matches(fromNum, toNum, verb))
+                return false;
 
-            applyIfNotFiltered.accept(toAddress, message);
-        };
+        return true;
     }
 
     public class Filter implements IMessageFilters.Filter
@@ -162,12 +145,11 @@ public class MessageFilters implements IMessageFilters
         }
     }
 
-    @Override
-    public Builder verbs(MessagingService.Verb... verbs)
+    public Builder verbs(Verb... verbs)
     {
         int[] ids = new int[verbs.length];
         for (int i = 0 ; i < verbs.length ; ++i)
-            ids[i] = verbs[i].getId();
+            ids[i] = verbs[i].id;
         return new Builder(ids);
     }
 

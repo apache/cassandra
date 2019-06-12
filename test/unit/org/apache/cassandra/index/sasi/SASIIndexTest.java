@@ -88,6 +88,8 @@ import org.junit.Assert;
 
 import org.junit.*;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
 public class SASIIndexTest
 {
     private static final IPartitioner PARTITIONER;
@@ -1416,7 +1418,7 @@ public class SASIIndexTest
 
         try (ReadExecutionController controller = command.executionController())
         {
-            Set<String> rows = getKeys(new QueryPlan(store, command, DatabaseDescriptor.getRangeRpcTimeout()).execute(controller));
+            Set<String> rows = getKeys(new QueryPlan(store, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).execute(controller));
             Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
         }
     }

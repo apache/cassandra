@@ -28,6 +28,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.hash.Hasher;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
+import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -454,7 +455,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                     // deserialization. The column will be ignore later on anyway.
                     column = metadata.getDroppedColumn(name);
                     if (column == null)
-                        throw new RuntimeException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                        throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
                 }
                 builder.add(column);
             }

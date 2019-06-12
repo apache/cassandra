@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sasi;
 
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
 import com.googlecode.concurrenttrees.common.Iterables;
@@ -59,6 +60,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class SASIIndex implements Index, INotificationConsumer
 {
@@ -295,7 +298,7 @@ public class SASIIndex implements Index, INotificationConsumer
     {
         TableMetadata config = command.metadata();
         ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(config.id);
-        return controller -> new QueryPlan(cfs, command, DatabaseDescriptor.getRangeRpcTimeout()).execute(controller);
+        return controller -> new QueryPlan(cfs, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).execute(controller);
     }
 
     public SSTableFlushObserver getFlushObserver(Descriptor descriptor, OperationType opType)

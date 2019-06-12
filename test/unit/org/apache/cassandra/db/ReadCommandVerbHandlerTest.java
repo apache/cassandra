@@ -19,17 +19,14 @@
 package org.apache.cassandra.db;
 
 import java.net.UnknownHostException;
-import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
-import com.google.common.collect.ImmutableMap;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -37,18 +34,17 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.IMessageSink;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ParameterType;
+import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.Util.token;
+import static org.apache.cassandra.net.Verb.*;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -84,19 +80,10 @@ public class ReadCommandVerbHandlerTest
     @Before
     public void setup()
     {
-        MessagingService.instance().clearMessageSinks();
-        MessagingService.instance().addMessageSink(new IMessageSink()
-        {
-            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddressAndPort to)
-            {
-                return false;
-            }
-
-            public boolean allowIncomingMessage(MessageIn message, int id)
-            {
-                return false;
-            }
-        });
+        MessagingService.instance().inboundSink.clear();
+        MessagingService.instance().outboundSink.clear();
+        MessagingService.instance().outboundSink.add((message, to) -> false);
+        MessagingService.instance().inboundSink.add((message) -> false);
 
         handler = new ReadCommandVerbHandler();
     }
@@ -104,59 +91,50 @@ public class ReadCommandVerbHandlerTest
     @Test
     public void setRepairedDataTrackingFlagIfHeaderPresent()
     {
-        SinglePartitionReadCommand command = command(metadata);
+        ReadCommand command = command(metadata);
         assertFalse(command.isTrackingRepairedStatus());
-        Map<ParameterType, Object> params = ImmutableMap.of(ParameterType.TRACK_REPAIRED_DATA,
-                                                            MessagingService.ONE_BYTE);
-        handler.doVerb(MessageIn.create(peer(),
-                                        command,
-                                        params,
-                                        MessagingService.Verb.READ,
-                                        MessagingService.current_version),
-                       messageId());
+
+        handler.doVerb(Message.builder(READ_REQ, command)
+                              .from(peer())
+                              .withFlag(MessageFlag.TRACK_REPAIRED_DATA)
+                              .withId(messageId())
+                              .build());
         assertTrue(command.isTrackingRepairedStatus());
     }
 
     @Test
     public void dontSetRepairedDataTrackingFlagUnlessHeaderPresent()
     {
-        SinglePartitionReadCommand command = command(metadata);
+        ReadCommand command = command(metadata);
         assertFalse(command.isTrackingRepairedStatus());
-        Map<ParameterType, Object> params = ImmutableMap.of(ParameterType.TRACE_SESSION,
-                                                            UUID.randomUUID());
-        handler.doVerb(MessageIn.create(peer(),
-                                        command,
-                                        params,
-                                        MessagingService.Verb.READ,
-                                        MessagingService.current_version),
-                       messageId());
+        handler.doVerb(Message.builder(READ_REQ, command)
+                              .from(peer())
+                              .withId(messageId())
+                              .withParam(ParamType.TRACE_SESSION, UUID.randomUUID())
+                              .build());
         assertFalse(command.isTrackingRepairedStatus());
     }
 
     @Test
     public void dontSetRepairedDataTrackingFlagIfHeadersEmpty()
     {
-        SinglePartitionReadCommand command = command(metadata);
+        ReadCommand command = command(metadata);
         assertFalse(command.isTrackingRepairedStatus());
-        handler.doVerb(MessageIn.create(peer(),
-                                        command,
-                                        ImmutableMap.of(),
-                                        MessagingService.Verb.READ,
-                                        MessagingService.current_version),
-                       messageId());
+        handler.doVerb(Message.builder(READ_REQ, command)
+                              .withId(messageId())
+                              .from(peer())
+                              .build());
         assertFalse(command.isTrackingRepairedStatus());
     }
 
     @Test (expected = InvalidRequestException.class)
     public void rejectsRequestWithNonMatchingTransientness()
     {
-        SinglePartitionReadCommand command = command(metadata_with_transient);
-        handler.doVerb(MessageIn.create(peer(),
-                                        command,
-                                        ImmutableMap.of(),
-                                        MessagingService.Verb.READ,
-                                        MessagingService.current_version),
-                       messageId());
+        ReadCommand command = command(metadata_with_transient);
+        handler.doVerb(Message.builder(READ_REQ, command)
+                              .from(peer())
+                              .withId(messageId())
+                              .build());
     }
 
     private static int messageId()

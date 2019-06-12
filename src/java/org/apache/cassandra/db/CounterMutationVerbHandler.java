@@ -22,16 +22,17 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
 {
+    public static final CounterMutationVerbHandler instance = new CounterMutationVerbHandler();
+
     private static final Logger logger = LoggerFactory.getLogger(CounterMutationVerbHandler.class);
 
-    public void doVerb(final MessageIn<CounterMutation> message, final int id)
+    public void doVerb(final Message<CounterMutation> message)
     {
         long queryStartNanoTime = System.nanoTime();
         final CounterMutation cm = message.payload;
@@ -45,12 +46,9 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
         // will not be called if the request timeout, but this is ok
         // because the coordinator of the counter mutation will timeout on
         // it's own in that case.
-        StorageProxy.applyCounterMutationOnLeader(cm, localDataCenter, new Runnable()
-        {
-            public void run()
-            {
-                MessagingService.instance().sendReply(WriteResponse.createMessage(), id, message.from);
-            }
-        }, queryStartNanoTime);
+        StorageProxy.applyCounterMutationOnLeader(cm,
+                                                  localDataCenter,
+                                                  () -> MessagingService.instance().send(message.emptyResponse(), message.from()),
+                                                  queryStartNanoTime);
     }
 }

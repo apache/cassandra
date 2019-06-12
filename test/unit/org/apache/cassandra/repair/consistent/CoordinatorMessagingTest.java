@@ -42,10 +42,11 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MockMessagingService;
 import org.apache.cassandra.net.MockMessagingSpy;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.repair.RepairSessionResult;
 import org.apache.cassandra.repair.messages.FailSession;
@@ -256,7 +257,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
             // expected
         }
         // we won't send out any fail session message in case of timeouts
-        spyPrepare.expectMockedMessageIn(2).get(100, TimeUnit.MILLISECONDS);
+        spyPrepare.expectMockedMessage(2).get(100, TimeUnit.MILLISECONDS);
         sendFailSessionUnexpectedSpy.interceptNoMsg(100, TimeUnit.MILLISECONDS);
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertFalse(hasFailures.get());
@@ -275,16 +276,12 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
                                               Function<PrepareConsistentRequest, UUID> sessionIdFunc)
     {
         return MockMessagingService.when(
-        all(verb(MessagingService.Verb.REPAIR_MESSAGE),
+        all(verb(Verb.REPAIR_REQ),
             payload((p) -> p instanceof PrepareConsistentRequest))
         ).respond((msgOut, to) ->
                   {
                       if(timeout.contains(to)) return null;
-                      else return MessageIn.create(to,
-                                                   new PrepareConsistentResponse(sessionIdFunc.apply((PrepareConsistentRequest) msgOut.payload), to, !failed.contains(to)),
-                                                   Collections.emptyMap(),
-                                                   MessagingService.Verb.REPAIR_MESSAGE,
-                                                   MessagingService.current_version);
+                      else return Message.out(Verb.REPAIR_REQ, new PrepareConsistentResponse(sessionIdFunc.apply((PrepareConsistentRequest) msgOut.payload), to, !failed.contains(to)));
                   });
     }
 
@@ -292,23 +289,20 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
                                                Collection<InetAddressAndPort> timeout)
     {
         return MockMessagingService.when(
-        all(verb(MessagingService.Verb.REPAIR_MESSAGE),
+        all(verb(Verb.REPAIR_REQ),
             payload((p) -> p instanceof FinalizePropose))
         ).respond((msgOut, to) ->
                   {
                       if(timeout.contains(to)) return null;
-                      else return MessageIn.create(to,
-                                                   new FinalizePromise(((FinalizePropose) msgOut.payload).sessionID, to, !failed.contains(to)),
-                                                   Collections.emptyMap(),
-                                                   MessagingService.Verb.REPAIR_MESSAGE,
-                                                   MessagingService.current_version);
+                      else return Message.out(Verb.REPAIR_REQ,
+                                                  new FinalizePromise(((FinalizePropose) msgOut.payload).sessionID, to, !failed.contains(to)));
                   });
     }
 
     private MockMessagingSpy createCommitSpy()
     {
         return MockMessagingService.when(
-            all(verb(MessagingService.Verb.REPAIR_MESSAGE),
+            all(verb(Verb.REPAIR_REQ),
                 payload((p) -> p instanceof FinalizeCommit))
         ).dontReply();
     }
@@ -316,7 +310,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     private MockMessagingSpy createFailSessionSpy(Collection<InetAddressAndPort> participants)
     {
         return MockMessagingService.when(
-            all(verb(MessagingService.Verb.REPAIR_MESSAGE),
+            all(verb(Verb.REPAIR_REQ),
                 payload((p) -> p instanceof FailSession),
                 to(participants::contains))
         ).dontReply();

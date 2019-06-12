@@ -48,10 +48,15 @@ public class SimpleCondition implements Condition
 
     public boolean await(long time, TimeUnit unit) throws InterruptedException
     {
-        if (isSignaled())
-            return true;
         long start = System.nanoTime();
         long until = start + unit.toNanos(time);
+        return awaitUntil(until);
+    }
+
+    public boolean awaitUntil(long deadlineNanos) throws InterruptedException
+    {
+        if (isSignaled())
+            return true;
         if (waiting == null)
             waitingUpdater.compareAndSet(this, null, new WaitQueue());
         WaitQueue.Signal s = waiting.register();
@@ -60,7 +65,7 @@ public class SimpleCondition implements Condition
             s.cancel();
             return true;
         }
-        return s.awaitUntil(until) || isSignaled();
+        return s.awaitUntil(deadlineNanos) || isSignaled();
     }
 
     public void signal()

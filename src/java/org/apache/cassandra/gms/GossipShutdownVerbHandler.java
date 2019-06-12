@@ -18,23 +18,25 @@
 package org.apache.cassandra.gms;
 
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class GossipShutdownVerbHandler implements IVerbHandler
 {
+    public static final GossipShutdownVerbHandler instance = new GossipShutdownVerbHandler();
+
     private static final Logger logger = LoggerFactory.getLogger(GossipShutdownVerbHandler.class);
 
-    public void doVerb(MessageIn message, int id)
+    public void doVerb(Message message)
     {
         if (!Gossiper.instance.isEnabled())
         {
-            logger.debug("Ignoring shutdown message from {} because gossip is disabled", message.from);
+            logger.debug("Ignoring shutdown message from {} because gossip is disabled", message.from());
             return;
         }
-        Gossiper.instance.markAsShutdown(message.from);
+        Gossiper.instance.markAsShutdown(message.from());
     }
 
 }

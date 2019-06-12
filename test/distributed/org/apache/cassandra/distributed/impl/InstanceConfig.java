@@ -36,6 +36,9 @@ import java.util.UUID;
 
 public class InstanceConfig implements IInstanceConfig
 {
+    public static long NETWORK = 1;
+    public static long GOSSIP  = 1 << 1;
+
     private static final Object NULL = new Object();
 
     public final int num;
@@ -44,6 +47,8 @@ public class InstanceConfig implements IInstanceConfig
     public final UUID hostId;
     public UUID hostId() { return hostId; }
     private final Map<String, Object> params = new TreeMap<>();
+
+    private long featureFlags;
 
     private volatile InetAddressAndPort broadcastAddressAndPort;
 
@@ -97,10 +102,10 @@ public class InstanceConfig implements IInstanceConfig
                 .set("concurrent_compactors", 1)
                 .set("memtable_heap_space_in_mb", 10)
                 .set("commitlog_sync", "batch")
-                .set("storage_port", 7010)
+                .set("storage_port", 7012)
                 .set("endpoint_snitch", SimpleSnitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                        Collections.singletonMap("seeds", "127.0.0.1:7010")))
+                        Collections.singletonMap("seeds", "127.0.0.1:7012")))
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
                 // legacy parameters
@@ -113,6 +118,17 @@ public class InstanceConfig implements IInstanceConfig
         this.num = copy.num;
         this.params.putAll(copy.params);
         this.hostId = copy.hostId;
+    }
+
+    public InstanceConfig with(long featureFlag)
+    {
+        featureFlags |= featureFlag;
+        return this;
+    }
+
+    public boolean has(long featureFlag)
+    {
+        return 0 != (featureFlags & featureFlag);
     }
 
     public InstanceConfig set(String fieldName, Object value)
@@ -203,13 +219,14 @@ public class InstanceConfig implements IInstanceConfig
         return (String)params.get(name);
     }
 
-    public static InstanceConfig generate(int nodeNum, File root, String token)
+    public static InstanceConfig generate(int nodeNum, int subnet, File root, String token)
     {
+        String ipPrefix = "127.0." + subnet + ".";
         return new InstanceConfig(nodeNum,
-                                  "127.0.0." + nodeNum,
-                                  "127.0.0." + nodeNum,
-                                  "127.0.0." + nodeNum,
-                                  "127.0.0." + nodeNum,
+                                  ipPrefix + nodeNum,
+                                  ipPrefix + nodeNum,
+                                  ipPrefix + nodeNum,
+                                  ipPrefix + nodeNum,
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
                                   new String[] { String.format("%s/node%d/data", root, nodeNum) },
                                   String.format("%s/node%d/commitlog", root, nodeNum),

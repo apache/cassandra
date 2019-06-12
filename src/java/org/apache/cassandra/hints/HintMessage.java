@@ -19,6 +19,7 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -28,11 +29,9 @@ import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.UnknownTableException;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -49,9 +48,9 @@ import org.apache.cassandra.utils.UUIDSerializer;
  * Scenario (2) means that we got a hint from a node that's going through decommissioning and is streaming its hints
  * elsewhere first.
  */
-public final class HintMessage
+public final class HintMessage implements SerializableHintMessage
 {
-    public static final IVersionedSerializer<HintMessage> serializer = new Serializer();
+    public static final IVersionedAsymmetricSerializer<SerializableHintMessage, HintMessage> serializer = new Serializer();
 
     final UUID hostId;
 
@@ -75,37 +74,72 @@ public final class HintMessage
         this.unknownTableID = unknownTableID;
     }
 
-    public MessageOut<HintMessage> createMessageOut()
+    public static class Serializer implements IVersionedAsymmetricSerializer<SerializableHintMessage, HintMessage>
     {
-        return new MessageOut<>(MessagingService.Verb.HINT, this, serializer);
-    }
-
-    public static class Serializer implements IVersionedSerializer<HintMessage>
-    {
-        public long serializedSize(HintMessage message, int version)
+        public long serializedSize(SerializableHintMessage obj, int version)
         {
-            long size = UUIDSerializer.serializer.serializedSize(message.hostId, version);
+            if (obj instanceof HintMessage)
+            {
+                HintMessage message = (HintMessage) obj;
+                long size = UUIDSerializer.serializer.serializedSize(message.hostId, version);
 
-            long hintSize = Hint.serializer.serializedSize(message.hint, version);
-            size += TypeSizes.sizeofUnsignedVInt(hintSize);
-            size += hintSize;
+                long hintSize = Hint.serializer.serializedSize(message.hint, version);
+                size += TypeSizes.sizeofUnsignedVInt(hintSize);
+                size += hintSize;
 
-            return size;
+                return size;
+            }
+            else if (obj instanceof Encoded)
+            {
+                Encoded message = (Encoded) obj;
+
+                if (version != message.version)
+                    throw new IllegalArgumentException("serializedSize() called with non-matching version " + version);
+
+                long size = UUIDSerializer.serializer.serializedSize(message.hostId, version);
+                size += TypeSizes.sizeofUnsignedVInt(message.hint.remaining());
+                size += message.hint.remaining();
+                return size;
+            }
+            else
+            {
+                throw new IllegalStateException("Unexpected type: " + obj);
+            }
         }
 
-        public void serialize(HintMessage message, DataOutputPlus out, int version) throws IOException
+        public void serialize(SerializableHintMessage obj, DataOutputPlus out, int version) throws IOException
         {
-            Objects.requireNonNull(message.hint); // we should never *send* a HintMessage with null hint
+            if (obj instanceof HintMessage)
+            {
+                HintMessage message = (HintMessage) obj;
 
-            UUIDSerializer.serializer.serialize(message.hostId, out, version);
+                Objects.requireNonNull(message.hint); // we should never *send* a HintMessage with null hint
 
-            /*
-             * We are serializing the hint size so that the receiver of the message could gracefully handle
-             * deserialize failure when a table had been dropped, by simply skipping the unread bytes.
-             */
-            out.writeUnsignedVInt(Hint.serializer.serializedSize(message.hint, version));
+                UUIDSerializer.serializer.serialize(message.hostId, out, version);
 
-            Hint.serializer.serialize(message.hint, out, version);
+                /*
+                 * We are serializing the hint size so that the receiver of the message could gracefully handle
+                 * deserialize failure when a table had been dropped, by simply skipping the unread bytes.
+                 */
+                out.writeUnsignedVInt(Hint.serializer.serializedSize(message.hint, version));
+
+                Hint.serializer.serialize(message.hint, out, version);
+            }
+            else if (obj instanceof Encoded)
+            {
+                Encoded message = (Encoded) obj;
+
+                if (version != message.version)
+                    throw new IllegalArgumentException("serialize() called with non-matching version " + version);
+
+                UUIDSerializer.serializer.serialize(message.hostId, out, version);
+                out.writeUnsignedVInt(message.hint.remaining());
+                out.write(message.hint);
+            }
+            else
+            {
+                throw new IllegalStateException("Unexpected type: " + obj);
+            }
         }
 
         /*
@@ -128,6 +162,34 @@ public final class HintMessage
                 in.skipBytes(Ints.checkedCast(hintSize - countingIn.getBytesRead()));
                 return new HintMessage(hostId, e.id);
             }
+        }
+    }
+
+    /**
+     * A specialized version of {@link HintMessage} that takes an already encoded in a bytebuffer hint and sends it verbatim.
+     *
+     * An optimization for when dispatching a hint file of the current messaging version to a node of the same messaging version,
+     * which is the most common case. Saves on extra ByteBuffer allocations one redundant hint deserialization-serialization cycle.
+     *
+     * Never deserialized as an HintMessage.Encoded - the receiving side will always deserialize the message as vanilla
+     * {@link HintMessage}.
+     */
+    static final class Encoded implements SerializableHintMessage
+    {
+        private final UUID hostId;
+        private final ByteBuffer hint;
+        private final int version;
+
+        Encoded(UUID hostId, ByteBuffer hint, int version)
+        {
+            this.hostId = hostId;
+            this.hint = hint;
+            this.version = version;
+        }
+
+        public long getHintCreationTime()
+        {
+            return Hint.serializer.getHintCreationTime(hint, version);
         }
     }
 }

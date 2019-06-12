@@ -15,16 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.locator;
 
+import java.io.IOException;
 import java.io.Serializable;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 
 import com.google.common.base.Preconditions;
 import com.google.common.net.HostAndPort;
 
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FastByteOperations;
 
@@ -41,6 +49,7 @@ import org.apache.cassandra.utils.FastByteOperations;
  * need to sometimes return a port and sometimes not.
  *
  */
+@SuppressWarnings("UnstableApiUsage")
 public final class InetAddressAndPort implements Comparable<InetAddressAndPort>, Serializable
 {
     private static final long serialVersionUID = 0;
@@ -63,6 +72,11 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         this.address = address;
         this.port = port;
         this.addressBytes = addressBytes;
+    }
+
+    public InetAddressAndPort withPort(int port)
+    {
+        return new InetAddressAndPort(address, addressBytes, port);
     }
 
     private static void validatePortRange(int port)
@@ -127,12 +141,17 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     {
         if (withPort)
         {
-            return HostAndPort.fromParts(address.getHostAddress(), port).toString();
+            return toString(address, port);
         }
         else
         {
             return address.toString();
         }
+    }
+
+    public static String toString(InetAddress address, int port)
+    {
+        return HostAndPort.fromParts(address.getHostAddress(), port).toString();
     }
 
     public static InetAddressAndPort getByName(String name) throws UnknownHostException
@@ -144,8 +163,6 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
      *
      * @param name Hostname + optional ports string
      * @param port Port to connect on, overridden by values in hostname string, defaults to DatabaseDescriptor default if not specified anywhere.
-     * @return
-     * @throws UnknownHostException
      */
     public static InetAddressAndPort getByNameOverrideDefaults(String name, Integer port) throws UnknownHostException
     {
@@ -200,5 +217,115 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     public static void initializeDefaultPort(int port)
     {
         defaultPort = port;
+    }
+
+    static int getDefaultPort()
+    {
+        return defaultPort;
+    }
+
+    /*
+     * As of version 4.0 the endpoint description includes a port number as an unsigned short
+     */
+    public static final class Serializer implements IVersionedSerializer<InetAddressAndPort>
+    {
+        public static final int MAXIMUM_SIZE = 19;
+
+        // We put the static instance here, to avoid complexity with dtests.
+        // InetAddressAndPort is one of the only classes we share between instances, which is possible cleanly
+        // because it has no type-dependencies in its public API, however Serializer requires DataOutputPlus, which requires...
+        // and the chain becomes quite unwieldy
+        public static final Serializer inetAddressAndPortSerializer = new Serializer();
+
+        private Serializer() {}
+
+        public void serialize(InetAddressAndPort endpoint, DataOutputPlus out, int version) throws IOException
+        {
+            byte[] buf = endpoint.addressBytes;
+
+            if (version >= MessagingService.VERSION_40)
+            {
+                out.writeByte(buf.length + 2);
+                out.write(buf);
+                out.writeShort(endpoint.port);
+            }
+            else
+            {
+                out.writeByte(buf.length);
+                out.write(buf);
+            }
+        }
+
+        public InetAddressAndPort deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int size = in.readByte() & 0xFF;
+            switch(size)
+            {
+                //The original pre-4.0 serialiation of just an address
+                case 4:
+                case 16:
+                {
+                    byte[] bytes = new byte[size];
+                    in.readFully(bytes, 0, bytes.length);
+                    return getByAddress(bytes);
+                }
+                //Address and one port
+                case 6:
+                case 18:
+                {
+                    byte[] bytes = new byte[size - 2];
+                    in.readFully(bytes);
+
+                    int port = in.readShort() & 0xFFFF;
+                    return getByAddressOverrideDefaults(InetAddress.getByAddress(bytes), bytes, port);
+                }
+                default:
+                    throw new AssertionError("Unexpected size " + size);
+
+            }
+        }
+
+        /**
+         * Extract {@link InetAddressAndPort} from the provided {@link ByteBuffer} without altering its state.
+         */
+        public InetAddressAndPort extract(ByteBuffer buf, int position) throws IOException
+        {
+            int size = buf.get(position++) & 0xFF;
+            if (size == 4 || size == 16)
+            {
+                byte[] bytes = new byte[size];
+                ByteBufferUtil.copyBytes(buf, position, bytes, 0, size);
+                return getByAddress(bytes);
+            }
+            else if (size == 6 || size == 18)
+            {
+                byte[] bytes = new byte[size - 2];
+                ByteBufferUtil.copyBytes(buf, position, bytes, 0, size - 2);
+                position += (size - 2);
+                int port = buf.getShort(position) & 0xFFFF;
+                return getByAddressOverrideDefaults(InetAddress.getByAddress(bytes), bytes, port);
+            }
+
+            throw new AssertionError("Unexpected pre-4.0 InetAddressAndPort size " + size);
+        }
+
+        public long serializedSize(InetAddressAndPort from, int version)
+        {
+            //4.0 includes a port number
+            if (version >= MessagingService.VERSION_40)
+            {
+                if (from.address instanceof Inet4Address)
+                    return 1 + 4 + 2;
+                assert from.address instanceof Inet6Address;
+                return 1 + 16 + 2;
+            }
+            else
+            {
+                if (from.address instanceof Inet4Address)
+                    return 1 + 4;
+                assert from.address instanceof Inet6Address;
+                return 1 + 16;
+            }
+        }
     }
 }

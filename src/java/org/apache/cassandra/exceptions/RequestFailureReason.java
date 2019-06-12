@@ -15,37 +15,101 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.exceptions;
+
+import java.io.IOException;
+
+import com.google.common.primitives.Ints;
+
+import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.vint.VIntCoding;
+
+import static java.lang.Math.max;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
 
 public enum RequestFailureReason
 {
-    /**
-     * The reason for the failure was none of the below reasons or was not recorded by the data node.
-     */
-    UNKNOWN                  (0x0000),
+    UNKNOWN                  (0),
+    READ_TOO_MANY_TOMBSTONES (1),
+    TIMEOUT                  (2),
+    INCOMPATIBLE_SCHEMA      (3);
 
-    /**
-     * The data node read too many tombstones when attempting to execute a read query (see tombstone_failure_threshold).
-     */
-    READ_TOO_MANY_TOMBSTONES (0x0001);
+    public static final Serializer serializer = new Serializer();
 
-    /** The code to be serialized as an unsigned 16 bit integer */
     public final int code;
-    public static final RequestFailureReason[] VALUES = values();
 
-    RequestFailureReason(final int code)
+    RequestFailureReason(int code)
     {
         this.code = code;
     }
 
-    public static RequestFailureReason fromCode(final int code)
+    private static final RequestFailureReason[] codeToReasonMap;
+
+    static
     {
-        for (RequestFailureReason reasonCode : VALUES)
+        RequestFailureReason[] reasons = values();
+
+        int max = -1;
+        for (RequestFailureReason r : reasons)
+            max = max(r.code, max);
+
+        RequestFailureReason[] codeMap = new RequestFailureReason[max + 1];
+
+        for (RequestFailureReason reason : reasons)
         {
-            if (reasonCode.code == code)
-                return reasonCode;
+            if (codeMap[reason.code] != null)
+                throw new RuntimeException("Two RequestFailureReason-s that map to the same code: " + reason.code);
+            codeMap[reason.code] = reason;
         }
-        throw new IllegalArgumentException("Unknown request failure reason error code: " + code);
+
+        codeToReasonMap = codeMap;
+    }
+
+    public static RequestFailureReason fromCode(int code)
+    {
+        if (code < 0)
+            throw new IllegalArgumentException("RequestFailureReason code must be non-negative (got " + code + ')');
+
+        // be forgiving and return UNKNOWN if we aren't aware of the code - for forward compatibility
+        return code < codeToReasonMap.length ? codeToReasonMap[code] : UNKNOWN;
+    }
+
+    public static RequestFailureReason forException(Throwable t)
+    {
+        if (t instanceof TombstoneOverwhelmingException)
+            return READ_TOO_MANY_TOMBSTONES;
+
+        if (t instanceof IncompatibleSchemaException)
+            return INCOMPATIBLE_SCHEMA;
+
+        return UNKNOWN;
+    }
+
+    public static final class Serializer implements IVersionedSerializer<RequestFailureReason>
+    {
+        private Serializer()
+        {
+        }
+
+        public void serialize(RequestFailureReason reason, DataOutputPlus out, int version) throws IOException
+        {
+            if (version < VERSION_40)
+                out.writeShort(reason.code);
+            else
+                out.writeUnsignedVInt(reason.code);
+        }
+
+        public RequestFailureReason deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return fromCode(version < VERSION_40 ? in.readUnsignedShort() : Ints.checkedCast(in.readUnsignedVInt()));
+        }
+
+        public long serializedSize(RequestFailureReason reason, int version)
+        {
+            return version < VERSION_40 ? 2 : VIntCoding.computeVIntSize(reason.code);
+        }
     }
 }

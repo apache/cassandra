@@ -20,11 +20,13 @@ package org.apache.cassandra.batchlog;
 import java.util.UUID;
 
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 
 public final class BatchRemoveVerbHandler implements IVerbHandler<UUID>
 {
-    public void doVerb(MessageIn<UUID> message, int id)
+    public static final BatchRemoveVerbHandler instance = new BatchRemoveVerbHandler();
+
+    public void doVerb(Message<UUID> message)
     {
         BatchlogManager.remove(message.payload);
     }

@@ -22,12 +22,15 @@ import java.net.UnknownHostException;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.*;
+import org.apache.cassandra.net.ConnectionCategory;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.OutboundConnectionSettings;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
 
 /**
  * Sidekick helper for snitches that want to reconnect from one IP addr for a node to another.
@@ -63,16 +66,15 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
     @VisibleForTesting
     static void reconnect(InetAddressAndPort publicAddress, InetAddressAndPort localAddress, IEndpointSnitch snitch, String localDc)
     {
-        if (!DatabaseDescriptor.getInternodeAuthenticator().authenticate(publicAddress.address, MessagingService.instance().portFor(publicAddress)))
+        if (!new OutboundConnectionSettings(publicAddress, localAddress).withDefaults(ConnectionCategory.MESSAGING).authenticate())
         {
             logger.debug("InternodeAuthenticator said don't reconnect to {} on {}", publicAddress, localAddress);
             return;
         }
 
-        if (snitch.getDatacenter(publicAddress).equals(localDc)
-                && !MessagingService.instance().getCurrentEndpoint(publicAddress).equals(localAddress))
+        if (snitch.getDatacenter(publicAddress).equals(localDc))
         {
-            MessagingService.instance().reconnectWithNewIp(publicAddress, localAddress);
+            MessagingService.instance().maybeReconnectWithNewIp(publicAddress, localAddress);
             logger.debug("Initiated reconnect to an Internal IP {} for the {}", localAddress, publicAddress);
         }
     }

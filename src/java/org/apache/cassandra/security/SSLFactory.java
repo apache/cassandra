@@ -290,8 +290,8 @@ public final class SSLFactory
 
         // only set the cipher suites if the opertor has explicity configured values for it; else, use the default
         // for each ssl implemention (jdk or openssl)
-        if (options.cipher_suites != null && options.cipher_suites.length > 0)
-            builder.ciphers(Arrays.asList(options.cipher_suites), SupportedCipherSuiteFilter.INSTANCE);
+        if (options.cipher_suites != null && !options.cipher_suites.isEmpty())
+            builder.ciphers(options.cipher_suites, SupportedCipherSuiteFilter.INSTANCE);
 
         if (buildTruststore)
             builder.trustManager(buildTrustManagerFactory(options));

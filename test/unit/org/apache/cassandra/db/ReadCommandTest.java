@@ -55,8 +55,9 @@ import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaUtils;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -396,9 +397,9 @@ public class ReadCommandTest
         int messagingVersion = MessagingService.current_version;
         FakeOutputStream out = new FakeOutputStream();
         Tracing.instance.newSession(Tracing.TraceType.QUERY);
-        MessageOut<ReadCommand> messageOut = new MessageOut(MessagingService.Verb.READ, readCommand, ReadCommand.serializer);
+        Message<ReadCommand> messageOut = Message.out(Verb.READ_REQ, readCommand);
         long size = messageOut.serializedSize(messagingVersion);
-        messageOut.serialize(new WrappedDataOutputStreamPlus(out), messagingVersion);
+        Message.serializer.serialize(messageOut, new WrappedDataOutputStreamPlus(out), messagingVersion);
         Assert.assertEquals(size, out.count);
     }
 

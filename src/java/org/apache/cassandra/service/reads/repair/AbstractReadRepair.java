@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
@@ -40,14 +39,16 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ParameterType;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.tracing.Tracing;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
         implements ReadRepair<E, P>
@@ -113,12 +114,9 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
             else type = to.isFull() ? "full" : "transient";
             Tracing.trace("Enqueuing {} data read to {}", type, to);
         }
-        MessageOut<ReadCommand> message = command.createMessage();
         // if enabled, request additional info about repaired data from any full replicas
-        if (command.isTrackingRepairedStatus() && to.isFull())
-            message = message.withParameter(ParameterType.TRACK_REPAIRED_DATA, MessagingService.ONE_BYTE);
-
-        MessagingService.instance().sendRRWithFailure(message, to.endpoint(), readCallback);
+        Message<ReadCommand> message = command.createMessage(command.isTrackingRepairedStatus() && to.isFull());
+        MessagingService.instance().sendWithCallback(message, to.endpoint(), readCallback);
     }
 
     abstract Meter getRepairMeter();
@@ -160,7 +158,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         ConsistencyLevel speculativeCL = consistency.isDatacenterLocal() ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
         return  consistency != ConsistencyLevel.EACH_QUORUM
                 && consistency.satisfies(speculativeCL, cfs.keyspace)
-                && cfs.sampleReadLatencyNanos <= TimeUnit.MILLISECONDS.toNanos(command.getTimeout());
+                && cfs.sampleReadLatencyNanos <= command.getTimeout(NANOSECONDS);
     }
 
     public void maybeSendAdditionalReads()
@@ -171,7 +169,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         if (repair == null)
             return;
 
-        if (shouldSpeculate() && !repair.readCallback.await(cfs.sampleReadLatencyNanos, TimeUnit.NANOSECONDS))
+        if (shouldSpeculate() && !repair.readCallback.await(cfs.sampleReadLatencyNanos, NANOSECONDS))
         {
             Replica uncontacted = replicaPlan().firstUncontactedCandidate(Predicates.alwaysTrue());
             if (uncontacted == null)

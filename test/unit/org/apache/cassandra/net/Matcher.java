@@ -28,5 +28,5 @@ public interface Matcher<T>
      * @param obj intercepted outgoing message
      * @param to  destination address
      */
-    public boolean matches(MessageOut<T> obj, InetAddressAndPort to);
+    public boolean matches(Message<T> obj, InetAddressAndPort to);
 }

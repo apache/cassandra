@@ -99,8 +99,9 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
                     // when compressed, report total bytes of compressed chunks read since remoteFile.size is the sum of chunks transferred
                     session.progress(filename, ProgressInfo.Direction.IN, cis.getTotalCompressedBytesRead(), totalSize);
                 }
+                assert in.getBytesRead() == sectionLength;
             }
-            logger.debug("[Stream #{}] Finished receiving file #{} from {} readBytes = {}, totalSize = {}", session.planId(), fileSeqNum,
+            logger.trace("[Stream #{}] Finished receiving file #{} from {} readBytes = {}, totalSize = {}", session.planId(), fileSeqNum,
                          session.peer, FBUtilities.prettyPrintMemory(cis.getTotalCompressedBytesRead()), FBUtilities.prettyPrintMemory(totalSize));
             return writer;
         }

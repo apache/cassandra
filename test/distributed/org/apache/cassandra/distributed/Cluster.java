@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
@@ -40,18 +41,24 @@ public class Cluster extends AbstractCluster<IInvokableInstance> implements IClu
         super(root, version, configs, sharedClassLoader);
     }
 
-    protected IInvokableInstance newInstanceWrapper(Versions.Version version, InstanceConfig config)
+    protected IInvokableInstance newInstanceWrapper(int generation, Versions.Version version, InstanceConfig config)
     {
-        return new Wrapper(version, config);
+        return new Wrapper(generation, version, config);
+    }
+
+    public static Builder<IInvokableInstance, Cluster> build(int nodeCount)
+    {
+        return new Builder<>(nodeCount, Cluster::new);
+    }
+
+    public static Cluster create(int nodeCount, Consumer<InstanceConfig> configUpdater) throws IOException
+    {
+        return build(nodeCount).withConfig(configUpdater).start();
     }
 
     public static Cluster create(int nodeCount) throws Throwable
     {
-        return create(nodeCount, Cluster::new);
-    }
-    public static Cluster create(int nodeCount, File root)
-    {
-        return create(nodeCount, Versions.CURRENT, root, Cluster::new);
+        return build(nodeCount).start();
     }
 }
 

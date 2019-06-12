@@ -28,7 +28,6 @@ import org.junit.Test;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogService.SyncRunnable;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FreeRunningClock;
 
 import static org.apache.cassandra.db.commitlog.AbstractCommitLogService.DEFAULT_MARKER_INTERVAL_MILLIS;

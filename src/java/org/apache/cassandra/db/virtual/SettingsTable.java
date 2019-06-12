@@ -163,7 +163,7 @@ final class SettingsTable extends AbstractVirtualTable
         result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.enabled));
         result.row(f.getName() + "_algorithm").column(VALUE, value.algorithm);
         result.row(f.getName() + "_protocol").column(VALUE, value.protocol);
-        result.row(f.getName() + "_cipher_suites").column(VALUE, Arrays.toString(value.cipher_suites));
+        result.row(f.getName() + "_cipher_suites").column(VALUE, value.cipher_suites.toString());
         result.row(f.getName() + "_client_auth").column(VALUE, Boolean.toString(value.require_client_auth));
         result.row(f.getName() + "_endpoint_verification").column(VALUE, Boolean.toString(value.require_endpoint_verification));
         result.row(f.getName() + "_optional").column(VALUE, Boolean.toString(value.optional));

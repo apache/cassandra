@@ -31,17 +31,18 @@ import org.junit.Test;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.streaming.messages.StreamMessage;
+import org.apache.cassandra.net.MessagingService;
 
 public class StreamCompressionSerializerTest
 {
-    private static final int VERSION = StreamMessage.CURRENT_VERSION;
+    private static final int VERSION = MessagingService.current_version;
     private static final Random random = new Random(2347623847623L);
 
     private final ByteBufAllocator allocator = PooledByteBufAllocator.DEFAULT;
@@ -50,7 +51,7 @@ public class StreamCompressionSerializerTest
     private final LZ4FastDecompressor decompressor = LZ4Factory.fastestInstance().fastDecompressor();
 
     private ByteBuffer input;
-    private ByteBuf compressed;
+    private ByteBuffer compressed;
     private ByteBuf output;
 
     @BeforeClass
@@ -64,8 +65,8 @@ public class StreamCompressionSerializerTest
     {
         if (input != null)
             FileUtils.clean(input);
-        if (compressed != null && compressed.refCnt() > 0)
-            compressed.release(compressed.refCnt());
+        if (compressed != null)
+            FileUtils.clean(compressed);
         if (output != null && output.refCnt() > 0)
             output.release(output.refCnt());
     }
@@ -74,10 +75,9 @@ public class StreamCompressionSerializerTest
     public void roundTrip_HappyPath_NotReadabaleByteBuffer() throws IOException
     {
         populateInput();
-        compressed = serializer.serialize(compressor, input, VERSION);
+        StreamCompressionSerializer.serialize(compressor, input, VERSION).write(size -> compressed = ByteBuffer.allocateDirect(size));
         input.flip();
-        ByteBuffer compressedNioBuffer = compressed.nioBuffer(0, compressed.writerIndex());
-        output = serializer.deserialize(decompressor, new DataInputBuffer(compressedNioBuffer, false), VERSION);
+        output = serializer.deserialize(decompressor, new DataInputBuffer(compressed, false), VERSION);
         validateResults();
     }
 
@@ -101,9 +101,14 @@ public class StreamCompressionSerializerTest
     public void roundTrip_HappyPath_ReadabaleByteBuffer() throws IOException
     {
         populateInput();
-        compressed = serializer.serialize(compressor, input, VERSION);
+        StreamCompressionSerializer.serialize(compressor, input, VERSION)
+                                   .write(size -> {
+                                       if (compressed != null)
+                                           FileUtils.clean(compressed);
+                                       return compressed = ByteBuffer.allocateDirect(size);
+                                   });
         input.flip();
-        output = serializer.deserialize(decompressor, new ByteBufRCH(compressed), VERSION);
+        output = serializer.deserialize(decompressor, new ByteBufRCH(Unpooled.wrappedBuffer(compressed)), VERSION);
         validateResults();
     }
 

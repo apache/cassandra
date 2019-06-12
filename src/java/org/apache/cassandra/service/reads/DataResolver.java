@@ -43,14 +43,13 @@ import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 
 import static com.google.common.collect.Iterables.*;
-import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener;
 
 public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> extends ResponseResolver<E, P>
 {
@@ -80,10 +79,10 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     {
         // We could get more responses while this method runs, which is ok (we're happy to ignore any response not here
         // at the beginning of this method), so grab the response count once and use that through the method.
-        Collection<MessageIn<ReadResponse>> messages = responses.snapshot();
+        Collection<Message<ReadResponse>> messages = responses.snapshot();
         assert !any(messages, msg -> msg.payload.isDigestResponse());
 
-        E replicas = replicaPlan().candidates().select(transform(messages, msg -> msg.from), false);
+        E replicas = replicaPlan().candidates().select(transform(messages, msg -> msg.from()), false);
         List<UnfilteredPartitionIterator> iters = new ArrayList<>(
         Collections2.transform(messages, msg -> msg.payload.makeIterator(command)));
         assert replicas.size() == iters.size();
@@ -95,9 +94,9 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (repairedDataTracker != null)
         {
             messages.forEach(msg -> {
-                if (msg.payload.mayIncludeRepairedDigest() && replicas.byEndpoint().get(msg.from).isFull())
+                if (msg.payload.mayIncludeRepairedDigest() && replicas.byEndpoint().get(msg.from()).isFull())
                 {
-                    repairedDataTracker.recordDigest(msg.from,
+                    repairedDataTracker.recordDigest(msg.from(),
                                                      msg.payload.repairedDataDigest(),
                                                      msg.payload.isRepairedDigestConclusive());
                 }
@@ -157,7 +156,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     private String makeResponsesDebugString(DecoratedKey partitionKey)
     {
-        return Joiner.on(",\n").join(transform(getMessages().snapshot(), m -> m.from + " => " + m.payload.toDebugString(command, partitionKey)));
+        return Joiner.on(",\n").join(transform(getMessages().snapshot(), m -> m.from() + " => " + m.payload.toDebugString(command, partitionKey)));
     }
 
     private UnfilteredPartitionIterators.MergeListener wrapMergeListener(UnfilteredPartitionIterators.MergeListener partitionListener,

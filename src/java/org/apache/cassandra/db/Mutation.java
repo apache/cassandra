@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.ImmutableCollection;
@@ -32,12 +33,12 @@ import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 public class Mutation implements IMutation
 {
@@ -52,7 +53,7 @@ public class Mutation implements IMutation
     private final ImmutableMap<TableId, PartitionUpdate> modifications;
 
     // Time at which this mutation or the builder that built it was instantiated
-    final long createdAt;
+    final long approxCreatedAtNanos;
     // keep track of when mutation has started waiting for a MV partition lock
     final AtomicLong viewLockAcquireStart = new AtomicLong(0);
 
@@ -60,10 +61,10 @@ public class Mutation implements IMutation
 
     public Mutation(PartitionUpdate update)
     {
-        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), System.currentTimeMillis());
+        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now());
     }
 
-    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long createdAt)
+    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos)
     {
         this.keyspaceName = keyspaceName;
         this.key = key;
@@ -73,7 +74,7 @@ public class Mutation implements IMutation
         for (PartitionUpdate pu : modifications.values())
             cdc |= pu.metadata().params.cdc;
         this.cdcEnabled = cdc;
-        this.createdAt = createdAt;
+        this.approxCreatedAtNanos = approxCreatedAtNanos;
     }
 
     public Mutation without(Set<TableId> tableIds)
@@ -90,7 +91,7 @@ public class Mutation implements IMutation
             }
         }
 
-        return new Mutation(keyspaceName, key, builder.build(), createdAt);
+        return new Mutation(keyspaceName, key, builder.build(), approxCreatedAtNanos);
     }
 
     public Mutation without(TableId tableId)
@@ -177,7 +178,7 @@ public class Mutation implements IMutation
             modifications.put(table, updates.size() == 1 ? updates.get(0) : PartitionUpdate.merge(updates));
             updates.clear();
         }
-        return new Mutation(ks, key, modifications.build(), System.currentTimeMillis());
+        return new Mutation(ks, key, modifications.build(), approxTime.now());
     }
 
     public CompletableFuture<?> applyFuture()
@@ -210,19 +211,9 @@ public class Mutation implements IMutation
         apply(false);
     }
 
-    public MessageOut<Mutation> createMessage()
+    public long getTimeout(TimeUnit unit)
     {
-        return createMessage(MessagingService.Verb.MUTATION);
-    }
-
-    public MessageOut<Mutation> createMessage(MessagingService.Verb verb)
-    {
-        return new MessageOut<>(verb, this, serializer);
-    }
-
-    public long getTimeout()
-    {
-        return DatabaseDescriptor.getWriteRpcTimeout();
+        return DatabaseDescriptor.getWriteRpcTimeout(unit);
     }
 
     public int smallestGCGS()
@@ -363,7 +354,7 @@ public class Mutation implements IMutation
                 update = PartitionUpdate.serializer.deserialize(in, version, flag);
                 modifications.put(update.metadata().id, update);
             }
-            return new Mutation(update.metadata().keyspace, dk, modifications.build(), System.currentTimeMillis());
+            return new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now());
         }
 
         public Mutation deserialize(DataInputPlus in, int version) throws IOException
@@ -389,7 +380,7 @@ public class Mutation implements IMutation
         private final ImmutableMap.Builder<TableId, PartitionUpdate> modifications = new ImmutableMap.Builder<>();
         private final String keyspaceName;
         private final DecoratedKey key;
-        private final long createdAt = System.currentTimeMillis();
+        private final long approxCreatedAtNanos = approxTime.now();
         private boolean empty = true;
 
         public PartitionUpdateCollector(String keyspaceName, DecoratedKey key)
@@ -425,7 +416,7 @@ public class Mutation implements IMutation
 
         public Mutation build()
         {
-            return new Mutation(keyspaceName, key, modifications.build(), createdAt);
+            return new Mutation(keyspaceName, key, modifications.build(), approxCreatedAtNanos);
         }
     }
 }

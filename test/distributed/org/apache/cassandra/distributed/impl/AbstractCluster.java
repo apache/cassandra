@@ -30,11 +30,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,7 +55,7 @@ import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
@@ -91,6 +89,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
     // to ensure we have instantiated the main classloader's LoggerFactory (and any LogbackStatusListener)
     // before we instantiate any for a new instance
     private static final Logger logger = LoggerFactory.getLogger(AbstractCluster.class);
+    private static final AtomicInteger generation = new AtomicInteger();
 
     private final File root;
     private final ClassLoader sharedClassLoader;
@@ -104,6 +103,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     protected class Wrapper extends DelegatingInvokableInstance implements IUpgradeableInstance
     {
+        private final int generation;
         private final InstanceConfig config;
         private volatile IInvokableInstance delegate;
         private volatile Versions.Version version;
@@ -112,21 +112,22 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         protected IInvokableInstance delegate()
         {
             if (delegate == null)
-                delegate = newInstance();
+                delegate = newInstance(generation);
             return delegate;
         }
 
-        public Wrapper(Versions.Version version, InstanceConfig config)
+        public Wrapper(int generation, Versions.Version version, InstanceConfig config)
         {
+            this.generation = generation;
             this.config = config;
             this.version = version;
             // we ensure there is always a non-null delegate, so that the executor may be used while the node is offline
-            this.delegate = newInstance();
+            this.delegate = newInstance(generation);
         }
 
-        private IInvokableInstance newInstance()
+        private IInvokableInstance newInstance(int generation)
         {
-            ClassLoader classLoader = new InstanceClassLoader(config.num(), version.classpath, sharedClassLoader);
+            ClassLoader classLoader = new InstanceClassLoader(generation, version.classpath, sharedClassLoader);
             return Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>)Instance::new, classLoader)
                                         .apply(config.forVersion(version.major), classLoader);
         }
@@ -187,19 +188,20 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         this.sharedClassLoader = sharedClassLoader;
         this.instances = new ArrayList<>();
         this.instanceMap = new HashMap<>();
+        int generation = AbstractCluster.generation.incrementAndGet();
         for (InstanceConfig config : configs)
         {
-            I instance = newInstanceWrapper(version, config);
+            I instance = newInstanceWrapper(generation, version, config);
             instances.add(instance);
             // we use the config().broadcastAddressAndPort() here because we have not initialised the Instance
             I prev = instanceMap.put(instance.broadcastAddressAndPort(), instance);
             if (null != prev)
                 throw new IllegalStateException("Cluster cannot have multiple nodes with same InetAddressAndPort: " + instance.broadcastAddressAndPort() + " vs " + prev.broadcastAddressAndPort());
         }
-        this.filters = new MessageFilters(this);
+        this.filters = new MessageFilters();
     }
 
-    protected abstract I newInstanceWrapper(Versions.Version version, InstanceConfig config);
+    protected abstract I newInstanceWrapper(int generation, Versions.Version version, InstanceConfig config);
 
     /**
      * WARNING: we index from 1 here, for consistency with inet address!
@@ -231,7 +233,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
 
     public IMessageFilters filters() { return filters; }
-    public MessageFilters.Builder verbs(MessagingService.Verb ... verbs) { return filters.verbs(verbs); }
+    public MessageFilters.Builder verbs(Verb... verbs) { return filters.verbs(verbs); }
 
     public void disableAutoCompaction(String keyspace)
     {
@@ -335,44 +337,74 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         C newCluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader);
     }
 
-    protected static <I extends IInstance, C extends AbstractCluster<I>> C
-    create(int nodeCount, Factory<I, C> factory) throws Throwable
+    public static class Builder<I extends IInstance, C extends AbstractCluster<I>>
     {
-        return create(nodeCount, Files.createTempDirectory("dtests").toFile(), factory);
-    }
-
-    protected static <I extends IInstance, C extends AbstractCluster<I>> C
-    create(int nodeCount, File root, Factory<I, C> factory)
-    {
-        return create(nodeCount, Versions.CURRENT, root, factory);
-    }
-
-    protected static <I extends IInstance, C extends AbstractCluster<I>> C
-    create(int nodeCount, Versions.Version version, Factory<I, C> factory) throws IOException
-    {
-        return create(nodeCount, version, Files.createTempDirectory("dtests").toFile(), factory);
-    }
-
-    protected static <I extends IInstance, C extends AbstractCluster<I>> C
-    create(int nodeCount, Versions.Version version, File root, Factory<I, C> factory)
-    {
-        root.mkdirs();
-        setupLogging(root);
-
-        ClassLoader sharedClassLoader = Thread.currentThread().getContextClassLoader();
-
-        List<InstanceConfig> configs = new ArrayList<>();
-        long token = Long.MIN_VALUE + 1, increment = 2 * (Long.MAX_VALUE / nodeCount);
-        for (int i = 0 ; i < nodeCount ; ++i)
+        private final int nodeCount;
+        private final Factory<I, C> factory;
+        private int subnet;
+        private File root;
+        private Versions.Version version;
+        private Consumer<InstanceConfig> configUpdater;
+        public Builder(int nodeCount, Factory<I, C> factory)
         {
-            InstanceConfig config = InstanceConfig.generate(i + 1, root, String.valueOf(token));
-            configs.add(config);
-            token += increment;
+            this.nodeCount = nodeCount;
+            this.factory = factory;
         }
 
-        C cluster = factory.newCluster(root, version, configs, sharedClassLoader);
-        cluster.startup();
-        return cluster;
+        public Builder<I, C> withSubnet(int subnet)
+        {
+            this.subnet = subnet;
+            return this;
+        }
+
+        public Builder<I, C> withRoot(File root)
+        {
+            this.root = root;
+            return this;
+        }
+
+        public Builder<I, C> withVersion(Versions.Version version)
+        {
+            this.version = version;
+            return this;
+        }
+
+        public Builder<I, C> withConfig(Consumer<InstanceConfig> updater)
+        {
+            this.configUpdater = updater;
+            return this;
+        }
+
+        public C start() throws IOException
+        {
+            File root = this.root;
+            Versions.Version version = this.version;
+
+            if (root == null)
+                root = Files.createTempDirectory("dtests").toFile();
+            if (version == null)
+                version = Versions.CURRENT;
+
+            root.mkdirs();
+            setupLogging(root);
+
+            ClassLoader sharedClassLoader = Thread.currentThread().getContextClassLoader();
+
+            List<InstanceConfig> configs = new ArrayList<>();
+            long token = Long.MIN_VALUE + 1, increment = 2 * (Long.MAX_VALUE / nodeCount);
+            for (int i = 0 ; i < nodeCount ; ++i)
+            {
+                InstanceConfig config = InstanceConfig.generate(i + 1, subnet, root, String.valueOf(token));
+                if (configUpdater != null)
+                    configUpdater.accept(config);
+                configs.add(config);
+                token += increment;
+            }
+
+            C cluster = factory.newCluster(root, version, configs, sharedClassLoader);
+            cluster.startup();
+            return cluster;
+        }
     }
 
     private static void setupLogging(File root)

@@ -65,8 +65,8 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
@@ -77,8 +77,10 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static com.google.common.collect.Iterables.transform;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternalWithPaging;
+import static org.apache.cassandra.net.Verb.MUTATION_REQ;
 
 public class BatchlogManager implements BatchlogManagerMBean
 {
@@ -88,7 +90,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     private static final Logger logger = LoggerFactory.getLogger(BatchlogManager.class);
     public static final BatchlogManager instance = new BatchlogManager();
-    public static final long BATCHLOG_REPLAY_TIMEOUT = Long.getLong("cassandra.batchlog.replay_timeout_in_ms", DatabaseDescriptor.getWriteRpcTimeout() * 2);
+    public static final long BATCHLOG_REPLAY_TIMEOUT = Long.getLong("cassandra.batchlog.replay_timeout_in_ms", DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS) * 2);
 
     private volatile long totalBatchesReplayed = 0; // no concurrency protection necessary as only written by replay thread.
     private volatile UUID lastReplayedUuid = UUIDGen.minTimeUUID(0);
@@ -112,7 +114,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         batchlogTasks.scheduleWithFixedDelay(this::replayFailedBatches,
                                              StorageService.RING_DELAY,
                                              REPLAY_INTERVAL,
-                                             TimeUnit.MILLISECONDS);
+                                             MILLISECONDS);
     }
 
     public void shutdown() throws InterruptedException
@@ -356,7 +358,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                 return 0;
 
             int gcgs = gcgs(mutations);
-            if (TimeUnit.MILLISECONDS.toSeconds(writtenAt) + gcgs <= FBUtilities.nowInSeconds())
+            if (MILLISECONDS.toSeconds(writtenAt) + gcgs <= FBUtilities.nowInSeconds())
                 return 0;
 
             replayHandlers = sendReplays(mutations, writtenAt, hintedNodes);
@@ -419,7 +421,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             int gcgs = gcgs(mutations);
 
             // expired
-            if (TimeUnit.MILLISECONDS.toSeconds(writtenAt) + gcgs <= FBUtilities.nowInSeconds())
+            if (MILLISECONDS.toSeconds(writtenAt) + gcgs <= FBUtilities.nowInSeconds())
                 return;
 
             for (int i = startFrom; i < replayHandlers.size(); i++)
@@ -490,9 +492,9 @@ public class BatchlogManager implements BatchlogManagerMBean
             ReplicaPlan.ForTokenWrite replicaPlan = new ReplicaPlan.ForTokenWrite(keyspace, ConsistencyLevel.ONE,
                     liveRemoteOnly.pending(), liveRemoteOnly.all(), liveRemoteOnly.all(), liveRemoteOnly.all());
             ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, System.nanoTime());
-            MessageOut<Mutation> message = mutation.createMessage();
+            Message<Mutation> message = Message.outWithFlag(MUTATION_REQ, mutation, MessageFlag.CALL_BACK_ON_FAILURE);
             for (Replica replica : liveRemoteOnly.all())
-                MessagingService.instance().sendWriteRR(message, replica, handler, false);
+                MessagingService.instance().sendWriteWithCallback(message, replica, handler, false);
             return handler;
         }
 
@@ -506,7 +508,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         /**
          * A wrapper of WriteResponseHandler that stores the addresses of the endpoints from
-         * which we did not receive a successful reply.
+         * which we did not receive a successful response.
          */
         private static class ReplayWriteResponseHandler<T> extends WriteResponseHandler<T>
         {
@@ -525,11 +527,11 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
 
             @Override
-            public void response(MessageIn<T> m)
+            public void onResponse(Message<T> m)
             {
-                boolean removed = undelivered.remove(m == null ? FBUtilities.getBroadcastAddressAndPort() : m.from);
+                boolean removed = undelivered.remove(m == null ? FBUtilities.getBroadcastAddressAndPort() : m.from());
                 assert removed;
-                super.response(m);
+                super.onResponse(m);
             }
         }
     }

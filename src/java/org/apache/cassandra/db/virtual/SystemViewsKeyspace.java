@@ -31,6 +31,8 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                                      new ClientsTable(NAME),
                                      new SettingsTable(NAME),
                                      new SSTableTasksTable(NAME),
-                                     new ThreadPoolsTable(NAME)));
+                                     new ThreadPoolsTable(NAME),
+                                     new InternodeOutboundTable(NAME),
+                                     new InternodeInboundTable(NAME)));
     }
 }

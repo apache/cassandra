@@ -136,40 +136,40 @@ public class SettingsTableTest extends CQLTester
         String all = "SELECT * FROM vts.settings WHERE " +
                      "name > 'server_encryption' AND name < 'server_encryptionz' ALLOW FILTERING";
 
-        config.server_encryption_options.enabled = true;
+        config.server_encryption_options = config.server_encryption_options.withEnabled(true);
         Assert.assertEquals(9, executeNet(all).all().size());
         check(pre + "enabled", "true");
 
         check(pre + "algorithm", null);
-        config.server_encryption_options.algorithm = "SUPERSSL";
+        config.server_encryption_options = config.server_encryption_options.withAlgorithm("SUPERSSL");
         check(pre + "algorithm", "SUPERSSL");
 
         check(pre + "cipher_suites", "[]");
-        config.server_encryption_options.cipher_suites = new String[]{"c1", "c2"};
+        config.server_encryption_options = config.server_encryption_options.withCipherSuites("c1", "c2");
         check(pre + "cipher_suites", "[c1, c2]");
 
         check(pre + "protocol", config.server_encryption_options.protocol);
-        config.server_encryption_options.protocol = "TLSv5";
+        config.server_encryption_options = config.server_encryption_options.withProtocol("TLSv5");
         check(pre + "protocol", "TLSv5");
 
         check(pre + "optional", "false");
-        config.server_encryption_options.optional = true;
+        config.server_encryption_options = config.server_encryption_options.withOptional(true);
         check(pre + "optional", "true");
 
         check(pre + "client_auth", "false");
-        config.server_encryption_options.require_client_auth = true;
+        config.server_encryption_options = config.server_encryption_options.withRequireClientAuth(true);
         check(pre + "client_auth", "true");
 
         check(pre + "endpoint_verification", "false");
-        config.server_encryption_options.require_endpoint_verification = true;
+        config.server_encryption_options = config.server_encryption_options.withRequireEndpointVerification(true);
         check(pre + "endpoint_verification", "true");
 
         check(pre + "internode_encryption", "none");
-        config.server_encryption_options.internode_encryption = InternodeEncryption.all;
+        config.server_encryption_options = config.server_encryption_options.withInternodeEncryption(InternodeEncryption.all);
         check(pre + "internode_encryption", "all");
 
         check(pre + "legacy_ssl_storage_port", "false");
-        config.server_encryption_options.enable_legacy_ssl_storage_port = true;
+        config.server_encryption_options = config.server_encryption_options.withLegacySslStoragePort(true);
         check(pre + "legacy_ssl_storage_port", "true");
     }
 

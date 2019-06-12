@@ -27,6 +27,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataComponentSerializer;
@@ -292,7 +293,7 @@ public class SerializationHeader
             return MetadataType.HEADER;
         }
 
-        public SerializationHeader toHeader(TableMetadata metadata)
+        public SerializationHeader toHeader(TableMetadata metadata) throws UnknownColumnException
         {
             Map<ByteBuffer, AbstractType<?>> typeMap = new HashMap<>(staticColumns.size() + regularColumns.size());
 
@@ -320,7 +321,7 @@ public class SerializationHeader
                         // deserialization. The column will be ignore later on anyway.
                         column = metadata.getDroppedColumn(name, isStatic);
                         if (column == null)
-                            throw new RuntimeException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                            throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
                     }
                     builder.add(column);
                 }

@@ -25,19 +25,25 @@ import java.util.Collection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.DataIntegrityMetadata.ChecksumValidator;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.streaming.compress.ByteBufCompressionDataOutputStreamPlus;
+import org.apache.cassandra.streaming.async.StreamCompressionSerializer;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.memory.BufferPool;
+
+import static org.apache.cassandra.net.MessagingService.current_version;
 
 /**
  * CassandraStreamWriter writes given section of the SSTable to given channel.
@@ -49,6 +55,7 @@ public class CassandraStreamWriter
     private static final Logger logger = LoggerFactory.getLogger(CassandraStreamWriter.class);
 
     protected final SSTableReader sstable;
+    private final LZ4Compressor compressor = LZ4Factory.fastestInstance().fastCompressor();
     protected final Collection<SSTableReader.PartitionPositionBounds> sections;
     protected final StreamRateLimiter limiter;
     protected final StreamSession session;
@@ -75,6 +82,7 @@ public class CassandraStreamWriter
         logger.debug("[Stream #{}] Start streaming file {} to {}, repairedAt = {}, totalSize = {}", session.planId(),
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
 
+        AsyncStreamingOutputPlus out = (AsyncStreamingOutputPlus) output;
         try(ChannelProxy proxy = sstable.getDataChannel().sharedCopy();
             ChecksumValidator validator = new File(sstable.descriptor.filenameFor(Component.CRC)).exists()
                                           ? DataIntegrityMetadata.checksumValidator(sstable.descriptor)
@@ -85,38 +93,35 @@ public class CassandraStreamWriter
             // setting up data compression stream
             long progress = 0L;
 
-            try (DataOutputStreamPlus compressedOutput = new ByteBufCompressionDataOutputStreamPlus(output, limiter))
+            // stream each of the required sections of the file
+            for (SSTableReader.PartitionPositionBounds section : sections)
             {
-                // stream each of the required sections of the file
-                for (SSTableReader.PartitionPositionBounds section : sections)
+                long start = validator == null ? section.lowerPosition : validator.chunkStart(section.lowerPosition);
+                // if the transfer does not start on the valididator's chunk boundary, this is the number of bytes to offset by
+                int transferOffset = (int) (section.lowerPosition - start);
+                if (validator != null)
+                    validator.seek(start);
+
+                // length of the section to read
+                long length = section.upperPosition - start;
+                // tracks write progress
+                long bytesRead = 0;
+                while (bytesRead < length)
                 {
-                    long start = validator == null ? section.lowerPosition : validator.chunkStart(section.lowerPosition);
-                    // if the transfer does not start on the valididator's chunk boundary, this is the number of bytes to offset by
-                    int transferOffset = (int) (section.lowerPosition - start);
-                    if (validator != null)
-                        validator.seek(start);
-
-                    // length of the section to read
-                    long length = section.upperPosition - start;
-                    // tracks write progress
-                    long bytesRead = 0;
-                    while (bytesRead < length)
-                    {
-                        int toTransfer = (int) Math.min(bufferSize, length - bytesRead);
-                        long lastBytesRead = write(proxy, validator, compressedOutput, start, transferOffset, toTransfer, bufferSize);
-                        start += lastBytesRead;
-                        bytesRead += lastBytesRead;
-                        progress += (lastBytesRead - transferOffset);
-                        session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, totalSize);
-                        transferOffset = 0;
-                    }
-
-                    // make sure that current section is sent
-                    output.flush();
+                    int toTransfer = (int) Math.min(bufferSize, length - bytesRead);
+                    long lastBytesRead = write(proxy, validator, out, start, transferOffset, toTransfer, bufferSize);
+                    start += lastBytesRead;
+                    bytesRead += lastBytesRead;
+                    progress += (lastBytesRead - transferOffset);
+                    session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, totalSize);
+                    transferOffset = 0;
                 }
-                logger.debug("[Stream #{}] Finished streaming file {} to {}, bytesTransferred = {}, totalSize = {}",
-                             session.planId(), sstable.getFilename(), session.peer, FBUtilities.prettyPrintMemory(progress), FBUtilities.prettyPrintMemory(totalSize));
+
+                // make sure that current section is sent
+                out.flush();
             }
+            logger.debug("[Stream #{}] Finished streaming file {} to {}, bytesTransferred = {}, totalSize = {}",
+                         session.planId(), sstable.getFilename(), session.peer, FBUtilities.prettyPrintMemory(progress), FBUtilities.prettyPrintMemory(totalSize));
         }
     }
 
@@ -141,14 +146,14 @@ public class CassandraStreamWriter
      *
      * @throws java.io.IOException on any I/O error
      */
-    protected long write(ChannelProxy proxy, ChecksumValidator validator, DataOutputStreamPlus output, long start, int transferOffset, int toTransfer, int bufferSize) throws IOException
+    protected long write(ChannelProxy proxy, ChecksumValidator validator, AsyncStreamingOutputPlus output, long start, int transferOffset, int toTransfer, int bufferSize) throws IOException
     {
         // the count of bytes to read off disk
         int minReadable = (int) Math.min(bufferSize, proxy.size() - start);
 
         // this buffer will hold the data from disk. as it will be compressed on the fly by
-        // ByteBufCompressionDataOutputStreamPlus.write(ByteBuffer), we can release this buffer as soon as we can.
-        ByteBuffer buffer = ByteBuffer.allocateDirect(minReadable);
+        // AsyncChannelCompressedStreamWriter.write(ByteBuffer), we can release this buffer as soon as we can.
+        ByteBuffer buffer = BufferPool.get(minReadable, BufferType.OFF_HEAP);
         try
         {
             int readCount = proxy.read(buffer, start);
@@ -163,11 +168,11 @@ public class CassandraStreamWriter
 
             buffer.position(transferOffset);
             buffer.limit(transferOffset + (toTransfer - transferOffset));
-            output.write(buffer);
+            output.writeToChannel(StreamCompressionSerializer.serialize(compressor, buffer, current_version), limiter);
         }
         finally
         {
-            FileUtils.clean(buffer);
+            BufferPool.put(buffer);
         }
 
         return toTransfer;

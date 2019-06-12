@@ -53,7 +53,12 @@ public final class JVMStabilityInspector
      * @param t
      *      The Throwable to check for server-stop conditions
      */
-    public static void inspectThrowable(Throwable t)
+    public static void inspectThrowable(Throwable t) throws OutOfMemoryError
+    {
+        inspectThrowable(t, true);
+    }
+
+    public static void inspectThrowable(Throwable t, boolean propagateOutOfMemory) throws OutOfMemoryError
     {
         boolean isUnstable = false;
         if (t instanceof OutOfMemoryError)
@@ -76,6 +81,9 @@ public final class JVMStabilityInspector
             StorageService.instance.removeShutdownHook();
             // We let the JVM handle the error. The startup checks should have warned the user if it did not configure
             // the JVM behavior in case of OOM (CASSANDRA-13006).
+            if (!propagateOutOfMemory)
+                return;
+
             throw (OutOfMemoryError) t;
         }
 

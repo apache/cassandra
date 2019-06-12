@@ -47,6 +47,11 @@ public class DistributedTestBase
         System.setProperty("org.apache.cassandra.disable_mbean_registration", "true");
     }
 
+    static String withKeyspace(String replaceIn)
+    {
+        return String.format(replaceIn, KEYSPACE);
+    }
+
     protected static <C extends AbstractCluster<?>> C init(C cluster)
     {
         cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + cluster.size() + "};");
@@ -62,7 +67,7 @@ public class DistributedTestBase
         {
             Object[] expectedRow = expected[i];
             Object[] actualRow = actual[i];
-            Assert.assertTrue(rowsNotEqualErrorMessage(actual, expected),
+            Assert.assertTrue(rowsNotEqualErrorMessage(expected, actual),
                               Arrays.equals(expectedRow, actualRow));
         }
     }

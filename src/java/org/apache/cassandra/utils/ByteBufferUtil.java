@@ -255,14 +255,14 @@ public class ByteBufferUtil
         return clone;
     }
 
-    public static void arrayCopy(ByteBuffer src, int srcPos, byte[] dst, int dstPos, int length)
+    public static void copyBytes(ByteBuffer src, int srcPos, byte[] dst, int dstPos, int length)
     {
         FastByteOperations.copy(src, srcPos, dst, dstPos, length);
     }
 
     /**
      * Transfer bytes from one ByteBuffer to another.
-     * This function acts as System.arrayCopy() but for ByteBuffers.
+     * This function acts as System.arrayCopy() but for ByteBuffers, and operates safely on direct memory.
      *
      * @param src the source ByteBuffer
      * @param srcPos starting position in the source ByteBuffer
@@ -270,7 +270,7 @@ public class ByteBufferUtil
      * @param dstPos starting position in the destination ByteBuffer
      * @param length the number of bytes to copy
      */
-    public static void arrayCopy(ByteBuffer src, int srcPos, ByteBuffer dst, int dstPos, int length)
+    public static void copyBytes(ByteBuffer src, int srcPos, ByteBuffer dst, int dstPos, int length)
     {
         FastByteOperations.copy(src, srcPos, dst, dstPos, length);
     }
@@ -278,7 +278,7 @@ public class ByteBufferUtil
     public static int put(ByteBuffer src, ByteBuffer trg)
     {
         int length = Math.min(src.remaining(), trg.remaining());
-        arrayCopy(src, src.position(), trg, trg.position(), length);
+        copyBytes(src, src.position(), trg, trg.position(), length);
         trg.position(trg.position() + length);
         src.position(src.position() + length);
         return length;

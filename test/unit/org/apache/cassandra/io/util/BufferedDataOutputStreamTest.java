@@ -610,48 +610,4 @@ public class BufferedDataOutputStreamTest
         }
     }
 
-    @Test
-    public void testWriteExcessSlow() throws Exception
-    {
-        try (DataOutputBuffer dob = new DataOutputBuffer(4))
-        {
-            dob.strictFlushing = true;
-            ByteBuffer buf = ByteBuffer.allocateDirect(8);
-            buf.putLong(0, 42);
-            dob.write(buf);
-            assertEquals(42, ByteBuffer.wrap(dob.toByteArray()).getLong());
-        }
-    }
-
-    @Test
-    public void testApplyToChannel() throws Exception
-    {
-        setUp();
-        Object obj = new Object();
-        Object retval = ndosp.applyToChannel( channel -> {
-            ByteBuffer buf = ByteBuffer.allocate(8);
-            buf.putLong(0, 42);
-            try
-            {
-                channel.write(buf);
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-            return obj;
-        });
-        assertEquals(obj, retval);
-        assertEquals(42, ByteBuffer.wrap(generated.toByteArray()).getLong());
-    }
-
-    @Test(expected = UnsupportedOperationException.class)
-    public void testApplyToChannelThrowsForMisaligned() throws Exception
-    {
-        setUp();
-        ndosp.strictFlushing = true;
-        ndosp.applyToChannel( channel -> {
-            return null;
-        });
-    }
 }

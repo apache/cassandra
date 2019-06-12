@@ -56,8 +56,6 @@ import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthSchemaChangeListener;
-import org.apache.cassandra.batchlog.BatchRemoveVerbHandler;
-import org.apache.cassandra.batchlog.BatchStoreVerbHandler;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
@@ -78,7 +76,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.gms.*;
-import org.apache.cassandra.hints.HintVerbHandler;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -93,16 +90,9 @@ import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.SchemaPullVerbHandler;
-import org.apache.cassandra.schema.SchemaPushVerbHandler;
-import org.apache.cassandra.schema.SchemaVersionVerbHandler;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
-import org.apache.cassandra.repair.RepairMessageVerbHandler;
-import org.apache.cassandra.service.paxos.CommitVerbHandler;
-import org.apache.cassandra.service.paxos.PrepareVerbHandler;
-import org.apache.cassandra.service.paxos.ProposeVerbHandler;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -110,15 +100,20 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
+import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.tryFind;
 import static java.util.Arrays.asList;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
+import static org.apache.cassandra.net.NoPayload.noPayload;
+import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -283,44 +278,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         jmxObjectName = "org.apache.cassandra.db:type=StorageService";
         MBeanWrapper.instance.registerMBean(this, jmxObjectName);
         MBeanWrapper.instance.registerMBean(StreamManager.instance, StreamManager.OBJECT_NAME);
-
-        ReadCommandVerbHandler readHandler = new ReadCommandVerbHandler();
-
-        /* register the verb handlers */
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.MUTATION, new MutationVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ_REPAIR, new ReadRepairVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ, readHandler);
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.RANGE_SLICE, readHandler);
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAGED_RANGE, readHandler);
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.COUNTER_MUTATION, new CounterMutationVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.TRUNCATE, new TruncateVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAXOS_PREPARE, new PrepareVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAXOS_PROPOSE, new ProposeVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAXOS_COMMIT, new CommitVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.HINT, new HintVerbHandler());
-
-        // see BootStrapper for a summary of how the bootstrap verbs interact
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.REPLICATION_FINISHED, new ReplicationFinishedVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.REQUEST_RESPONSE, new ResponseVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.INTERNAL_RESPONSE, new ResponseVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.REPAIR_MESSAGE, new RepairMessageVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.GOSSIP_SHUTDOWN, new GossipShutdownVerbHandler());
-
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.GOSSIP_DIGEST_SYN, new GossipDigestSynVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.GOSSIP_DIGEST_ACK, new GossipDigestAckVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.GOSSIP_DIGEST_ACK2, new GossipDigestAck2VerbHandler());
-
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.DEFINITIONS_UPDATE, new SchemaPushVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.SCHEMA_CHECK, new SchemaVersionVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.MIGRATION_REQUEST, new SchemaPullVerbHandler());
-
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.SNAPSHOT, new SnapshotVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.ECHO, new EchoVerbHandler());
-
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.BATCH_STORE, new BatchStoreVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.BATCH_REMOVE, new BatchRemoveVerbHandler());
-
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PING, new PingVerbHandler());
     }
 
     public void registerDaemon(CassandraDaemon daemon)
@@ -625,8 +582,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.register(this);
         Gossiper.instance.start((int) (System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
-        if (!MessagingService.instance().isListening())
-            MessagingService.instance().listen();
+        MessagingService.instance().listen();
     }
 
     public void populateTokenMetadata()
@@ -808,8 +764,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (DatabaseDescriptor.getReplaceTokens().size() > 0 || DatabaseDescriptor.getReplaceNode() != null)
                 throw new RuntimeException("Replace method removed; use cassandra.replace_address instead");
 
-            if (!MessagingService.instance().isListening())
-                MessagingService.instance().listen();
+            MessagingService.instance().listen();
 
             UUID localHostId = SystemKeyspace.getLocalHostId();
 
@@ -1356,7 +1311,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getRpcTimeout()
     {
-        return DatabaseDescriptor.getRpcTimeout();
+        return DatabaseDescriptor.getRpcTimeout(MILLISECONDS);
     }
 
     public void setReadRpcTimeout(long value)
@@ -1367,7 +1322,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getReadRpcTimeout()
     {
-        return DatabaseDescriptor.getReadRpcTimeout();
+        return DatabaseDescriptor.getReadRpcTimeout(MILLISECONDS);
     }
 
     public void setRangeRpcTimeout(long value)
@@ -1378,7 +1333,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getRangeRpcTimeout()
     {
-        return DatabaseDescriptor.getRangeRpcTimeout();
+        return DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS);
     }
 
     public void setWriteRpcTimeout(long value)
@@ -1389,7 +1344,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getWriteRpcTimeout()
     {
-        return DatabaseDescriptor.getWriteRpcTimeout();
+        return DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS);
     }
 
     public void setInternodeTcpConnectTimeoutInMS(int value)
@@ -1422,7 +1377,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getCounterWriteRpcTimeout()
     {
-        return DatabaseDescriptor.getCounterWriteRpcTimeout();
+        return DatabaseDescriptor.getCounterWriteRpcTimeout(MILLISECONDS);
     }
 
     public void setCasContentionTimeout(long value)
@@ -1433,7 +1388,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getCasContentionTimeout()
     {
-        return DatabaseDescriptor.getCasContentionTimeout();
+        return DatabaseDescriptor.getCasContentionTimeout(MILLISECONDS);
     }
 
     public void setTruncateRpcTimeout(long value)
@@ -1444,7 +1399,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getTruncateRpcTimeout()
     {
-        return DatabaseDescriptor.getTruncateRpcTimeout();
+        return DatabaseDescriptor.getTruncateRpcTimeout(MILLISECONDS);
     }
 
     public void setStreamThroughputMbPerSec(int value)
@@ -1581,7 +1536,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                             valueFactory.bootstrapping(tokens)));
             Gossiper.instance.addLocalApplicationStates(states);
             setMode(Mode.JOINING, "sleeping " + RING_DELAY + " ms for pending range setup", true);
-            Uninterruptibles.sleepUninterruptibly(RING_DELAY, TimeUnit.MILLISECONDS);
+            Uninterruptibles.sleepUninterruptibly(RING_DELAY, MILLISECONDS);
         }
         else
         {
@@ -2212,7 +2167,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         try
         {
-            MessagingService.instance().setVersion(endpoint, Integer.parseInt(value.value));
+            MessagingService.instance().versions.set(endpoint, Integer.parseInt(value.value));
         }
         catch (NumberFormatException e)
         {
@@ -2754,8 +2709,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             // enough time for writes to expire and MessagingService timeout reporter callback to fire, which is where
             // hints are mostly written from - using getMinRpcTimeout() / 2 for the interval.
-            long delay = DatabaseDescriptor.getMinRpcTimeout() + DatabaseDescriptor.getWriteRpcTimeout();
-            ScheduledExecutors.optionalTasks.schedule(() -> HintsService.instance.excise(hostId), delay, TimeUnit.MILLISECONDS);
+            long delay = DatabaseDescriptor.getMinRpcTimeout(MILLISECONDS) + DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS);
+            ScheduledExecutors.optionalTasks.schedule(() -> HintsService.instance.excise(hostId), delay, MILLISECONDS);
         }
 
         removeEndpoint(endpoint);
@@ -2859,22 +2814,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void sendReplicationNotification(InetAddressAndPort remote)
     {
         // notify the remote token
-        MessageOut msg = new MessageOut(MessagingService.Verb.REPLICATION_FINISHED);
+        Message msg = Message.out(REPLICATION_DONE_REQ, noPayload);
         IFailureDetector failureDetector = FailureDetector.instance;
         if (logger.isDebugEnabled())
             logger.debug("Notifying {} of replication completion\n", remote);
         while (failureDetector.isAlive(remote))
         {
-            AsyncOneResponse iar = MessagingService.instance().sendRR(msg, remote);
-            try
-            {
-                iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-                return; // done
-            }
-            catch(TimeoutException e)
-            {
-                // try again
-            }
+            AsyncOneResponse ior = new AsyncOneResponse();
+            MessagingService.instance().sendWithCallback(msg, remote, ior);
+
+            if (!ior.awaitUninterruptibly(DatabaseDescriptor.getRpcTimeout(NANOSECONDS), NANOSECONDS))
+                continue; // try again if we timeout
+
+            if (!ior.isSuccess())
+                throw new AssertionError(ior.cause());
+
+            return;
         }
     }
 
@@ -3098,7 +3053,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void onDead(InetAddressAndPort endpoint, EndpointState state)
     {
-        MessagingService.instance().convict(endpoint);
+        // interrupt any outbound connection; if the node is failing and we cannot reconnect,
+        // this will rapidly lower the number of bytes we are willing to queue to the node
+        MessagingService.instance().interruptOutbound(endpoint);
         notifyDown(endpoint);
     }
 
@@ -3782,6 +3739,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int repairAsync(String keyspace, Map<String, String> repairSpec)
     {
+        return repair(keyspace, repairSpec, Collections.emptyList()).left;
+    }
+
+    public Pair<Integer, Future<?>> repair(String keyspace, Map<String, String> repairSpec, List<ProgressListener> listeners)
+    {
         RepairOption option = RepairOption.parse(repairSpec, tokenMetadata.partitioner);
         // if ranges are not specified
         if (option.getRanges().isEmpty())
@@ -3803,11 +3765,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
         if (option.getRanges().isEmpty() || Keyspace.open(keyspace).getReplicationStrategy().getReplicationFactor().allReplicas < 2)
-            return 0;
+            return Pair.create(0, Futures.immediateFuture(null));
 
         int cmd = nextRepairCommand.incrementAndGet();
-        ActiveRepairService.repairCommandExecutor.execute(createRepairTask(cmd, keyspace, option));
-        return cmd;
+        return Pair.create(cmd, ActiveRepairService.repairCommandExecutor.submit(createRepairTask(cmd, keyspace, option, listeners)));
     }
 
     /**
@@ -3853,7 +3814,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return tokenMetadata.partitioner.getTokenFactory();
     }
 
-    private FutureTask<Object> createRepairTask(final int cmd, final String keyspace, final RepairOption options)
+    private FutureTask<Object> createRepairTask(final int cmd, final String keyspace, final RepairOption options, List<ProgressListener> listeners)
     {
         if (!options.getDataCenters().isEmpty() && !options.getDataCenters().contains(DatabaseDescriptor.getLocalDataCenter()))
         {
@@ -3862,6 +3823,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         RepairRunnable task = new RepairRunnable(this, cmd, options, keyspace);
         task.addProgressListener(progressSupport);
+        for (ProgressListener listener : listeners)
+            task.addProgressListener(listener);
+
         if (options.isTraced())
         {
             Runnable r = () ->
@@ -4249,7 +4213,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.left(getLocalTokens(),Gossiper.computeExpireTime()));
         int delay = Math.max(RING_DELAY, Gossiper.intervalInMillis * 2);
         logger.info("Announcing that I have left the ring for {}ms", delay);
-        Uninterruptibles.sleepUninterruptibly(delay, TimeUnit.MILLISECONDS);
+        Uninterruptibles.sleepUninterruptibly(delay, MILLISECONDS);
     }
 
     private void unbootstrap(Runnable onFinish) throws ExecutionException, InterruptedException
@@ -4378,7 +4342,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setMode(Mode.MOVING, String.format("Moving %s from %s to %s.", localAddress, getLocalTokens().iterator().next(), newToken), true);
 
         setMode(Mode.MOVING, String.format("Sleeping %s ms before start streaming/fetching ranges", RING_DELAY), true);
-        Uninterruptibles.sleepUninterruptibly(RING_DELAY, TimeUnit.MILLISECONDS);
+        Uninterruptibles.sleepUninterruptibly(RING_DELAY, MILLISECONDS);
 
         RangeRelocator relocator = new RangeRelocator(Collections.singleton(newToken), keyspacesToProcess, tokenMetadata);
         relocator.calculateToFromStreams();
@@ -4534,10 +4498,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // kick off streaming commands
         restoreReplicaCount(endpoint, myAddress);
 
-        // wait for ReplicationFinishedVerbHandler to signal we're done
+        // wait for ReplicationDoneVerbHandler to signal we're done
         while (!replicatingNodes.isEmpty())
         {
-            Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+            Uninterruptibles.sleepUninterruptibly(100, MILLISECONDS);
         }
 
         excise(tokens, endpoint);
@@ -5266,7 +5230,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 table.beginLocalSampling(sampler, capacity, durationMillis);
             }
         }
-        Uninterruptibles.sleepUninterruptibly(durationMillis, TimeUnit.MILLISECONDS);
+        Uninterruptibles.sleepUninterruptibly(durationMillis, MILLISECONDS);
 
         for (String sampler : samplers)
         {

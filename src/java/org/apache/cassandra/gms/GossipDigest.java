@@ -24,7 +24,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.CompactEndpointSerializationHelper;
+
+import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 
 /**
  * Contains information about a specified list of Endpoints and the largest version
@@ -83,14 +84,14 @@ class GossipDigestSerializer implements IVersionedSerializer<GossipDigest>
 {
     public void serialize(GossipDigest gDigest, DataOutputPlus out, int version) throws IOException
     {
-        CompactEndpointSerializationHelper.instance.serialize(gDigest.endpoint, out, version);
+        inetAddressAndPortSerializer.serialize(gDigest.endpoint, out, version);
         out.writeInt(gDigest.generation);
         out.writeInt(gDigest.maxVersion);
     }
 
     public GossipDigest deserialize(DataInputPlus in, int version) throws IOException
     {
-        InetAddressAndPort endpoint = CompactEndpointSerializationHelper.instance.deserialize(in, version);
+        InetAddressAndPort endpoint = inetAddressAndPortSerializer.deserialize(in, version);
         int generation = in.readInt();
         int maxVersion = in.readInt();
         return new GossipDigest(endpoint, generation, maxVersion);
@@ -98,7 +99,7 @@ class GossipDigestSerializer implements IVersionedSerializer<GossipDigest>
 
     public long serializedSize(GossipDigest gDigest, int version)
     {
-        long size = CompactEndpointSerializationHelper.instance.serializedSize(gDigest.endpoint, version);
+        long size = inetAddressAndPortSerializer.serializedSize(gDigest.endpoint, version);
         size += TypeSizes.sizeof(gDigest.generation);
         size += TypeSizes.sizeof(gDigest.maxVersion);
         return size;

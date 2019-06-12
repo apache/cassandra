@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.service.reads;
 
-import java.util.concurrent.TimeUnit;
-
 import com.google.common.base.Preconditions;
 
 import com.google.common.base.Predicates;
@@ -43,7 +41,7 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
@@ -51,6 +49,7 @@ import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 
 import static com.google.common.collect.Iterables.all;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
  * Sends a read request to the replicas needed to satisfy a given ConsistencyLevel.
@@ -95,7 +94,7 @@ public abstract class AbstractReadExecutor
         // we stop being compatible with pre-3.0 nodes.
         int digestVersion = MessagingService.current_version;
         for (Replica replica : replicaPlan.contacts())
-            digestVersion = Math.min(digestVersion, MessagingService.instance().getVersion(replica.endpoint()));
+            digestVersion = Math.min(digestVersion, MessagingService.instance().versions.get(replica.endpoint()));
         command.setDigestVersion(digestVersion);
     }
 
@@ -132,6 +131,7 @@ public abstract class AbstractReadExecutor
     private void makeRequests(ReadCommand readCommand, Iterable<Replica> replicas)
     {
         boolean hasLocalEndpoint = false;
+        Message<ReadCommand> message = null;
 
         for (Replica replica: replicas)
         {
@@ -146,8 +146,11 @@ public abstract class AbstractReadExecutor
 
             if (traceState != null)
                 traceState.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
-            MessageOut<ReadCommand> message = readCommand.createMessage();
-            MessagingService.instance().sendRRWithFailure(message, endpoint, handler);
+
+            if (null == message)
+                message = readCommand.createMessage(false);
+
+            MessagingService.instance().sendWithCallback(message, endpoint, handler);
         }
 
         // We delay the local (potentially blocking) read till the end to avoid stalling remote requests.
@@ -213,10 +216,10 @@ public abstract class AbstractReadExecutor
     boolean shouldSpeculateAndMaybeWait()
     {
         // no latency information, or we're overloaded
-        if (cfs.sampleReadLatencyNanos > TimeUnit.MILLISECONDS.toNanos(command.getTimeout()))
+        if (cfs.sampleReadLatencyNanos > command.getTimeout(NANOSECONDS))
             return false;
 
-        return !handler.await(cfs.sampleReadLatencyNanos, TimeUnit.NANOSECONDS);
+        return !handler.await(cfs.sampleReadLatencyNanos, NANOSECONDS);
     }
 
     ReplicaPlan.ForTokenRead replicaPlan()
@@ -261,7 +264,7 @@ public abstract class AbstractReadExecutor
         {
             // We're hitting additional targets for read repair (??).  Since our "extra" replica is the least-
             // preferred by the snitch, we do an extra data read to start with against a replica more
-            // likely to reply; better to let RR fail than the entire query.
+            // likely to respond; better to let RR fail than the entire query.
             super(cfs, command, replicaPlan, replicaPlan.blockFor() < replicaPlan.contacts().size() ? 2 : 1, queryStartNanoTime);
         }
 
@@ -308,7 +311,7 @@ public abstract class AbstractReadExecutor
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);
                 logger.trace("speculating read retry on {}", extraReplica);
-                MessagingService.instance().sendRRWithFailure(retryCommand.createMessage(), extraReplica.endpoint(), handler);
+                MessagingService.instance().sendWithCallback(retryCommand.createMessage(false), extraReplica.endpoint(), handler);
             }
         }
 

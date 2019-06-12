@@ -153,11 +153,11 @@ public class ByteBufferUtilTest
     {
 
         byte[] bytes = new byte[s.length()];
-        ByteBufferUtil.arrayCopy(bb, bb.position(), bytes, 0, s.length());
+        ByteBufferUtil.copyBytes(bb, bb.position(), bytes, 0, s.length());
         assertArrayEquals(s.getBytes(), bytes);
 
         bytes = new byte[5];
-        ByteBufferUtil.arrayCopy(bb, bb.position() + 3, bytes, 1, 4);
+        ByteBufferUtil.copyBytes(bb, bb.position() + 3, bytes, 1, 4);
         assertArrayEquals(Arrays.copyOfRange(s.getBytes(), 3, 7), Arrays.copyOfRange(bytes, 1, 5));
     }
 

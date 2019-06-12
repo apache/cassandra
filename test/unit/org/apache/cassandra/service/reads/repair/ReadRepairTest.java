@@ -51,7 +51,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaUtils;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.MigrationManager;
@@ -82,7 +82,7 @@ public class ReadRepairTest
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();
 
-        protected void sendRR(MessageOut<Mutation> message, InetAddressAndPort endpoint)
+        protected void sendRR(Message<Mutation> message, InetAddressAndPort endpoint)
         {
             mutationsSent.put(endpoint, message.payload);
         }

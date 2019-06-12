@@ -21,8 +21,10 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+
+import static org.apache.cassandra.utils.MonotonicClock.preciseTime;
 
 public class ReadExecutionController implements AutoCloseable
 {
@@ -36,7 +38,7 @@ public class ReadExecutionController implements AutoCloseable
     private final ReadExecutionController indexController;
     private final WriteContext writeContext;
     private final ReadCommand command;
-    static Clock clock = Clock.instance; 
+    static MonotonicClock clock = preciseTime;
 
     private final long createdAtNanos; // Only used while sampling
 
@@ -93,7 +95,7 @@ public class ReadExecutionController implements AutoCloseable
         ColumnFamilyStore baseCfs = Keyspace.openAndGetStore(command.metadata());
         ColumnFamilyStore indexCfs = maybeGetIndexCfs(baseCfs, command);
 
-        long createdAtNanos = baseCfs.metric.topLocalReadQueryTime.isEnabled() ? clock.nanoTime() : NO_SAMPLING;
+        long createdAtNanos = baseCfs.metric.topLocalReadQueryTime.isEnabled() ? clock.now() : NO_SAMPLING;
 
         if (indexCfs == null)
             return new ReadExecutionController(command, baseCfs.readOrdering.start(), baseCfs.metadata(), null, null, createdAtNanos);
@@ -172,7 +174,7 @@ public class ReadExecutionController implements AutoCloseable
     private void addSample()
     {
         String cql = command.toCQLString();
-        int timeMicros = (int) Math.min(TimeUnit.NANOSECONDS.toMicros(clock.nanoTime() - createdAtNanos), Integer.MAX_VALUE);
+        int timeMicros = (int) Math.min(TimeUnit.NANOSECONDS.toMicros(clock.now() - createdAtNanos), Integer.MAX_VALUE);
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(baseMetadata.id);
         if (cfs != null)
             cfs.metric.topLocalReadQueryTime.addSample(cql, timeMicros);

@@ -688,16 +688,17 @@ public final class SystemKeyspace
         executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, tokensAsSet(tokens));
     }
 
-    public static synchronized void updatePreferredIP(InetAddressAndPort ep, InetAddressAndPort preferred_ip)
+    public static synchronized boolean updatePreferredIP(InetAddressAndPort ep, InetAddressAndPort preferred_ip)
     {
-        if (getPreferredIP(ep) == preferred_ip)
-            return;
+        if (preferred_ip.equals(getPreferredIP(ep)))
+            return false;
 
         String req = "INSERT INTO system.%s (peer, preferred_ip) VALUES (?, ?)";
         executeInternal(String.format(req, LEGACY_PEERS), ep.address, preferred_ip.address);
         req = "INSERT INTO system.%s (peer, peer_port, preferred_ip, preferred_port) VALUES (?, ?, ?, ?)";
         executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, preferred_ip.address, preferred_ip.port);
         forceBlockingFlush(LEGACY_PEERS, PEERS_V2);
+        return true;
     }
 
     public static synchronized void updatePeerInfo(InetAddressAndPort ep, String columnName, Object value)

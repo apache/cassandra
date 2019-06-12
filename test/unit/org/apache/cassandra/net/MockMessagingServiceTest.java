@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.net;
 
-import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
 import org.junit.Before;
@@ -26,14 +25,15 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.EchoMessage;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.apache.cassandra.net.MockMessagingService.all;
 import static org.apache.cassandra.net.MockMessagingService.to;
 import static org.apache.cassandra.net.MockMessagingService.verb;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class MockMessagingServiceTest
@@ -54,40 +54,28 @@ public class MockMessagingServiceTest
     @Test
     public void testRequestResponse() throws InterruptedException, ExecutionException
     {
-        // echo message that we like to mock as incoming reply for outgoing echo message
-        MessageIn<EchoMessage> echoMessageIn = MessageIn.create(FBUtilities.getBroadcastAddressAndPort(),
-                EchoMessage.instance,
-                Collections.emptyMap(),
-                MessagingService.Verb.ECHO,
-                MessagingService.current_version);
+        // echo message that we like to mock as incoming response for outgoing echo message
+        Message<NoPayload> echoMessage = Message.out(ECHO_REQ, NoPayload.noPayload);
         MockMessagingSpy spy = MockMessagingService
                 .when(
                         all(
                                 to(FBUtilities.getBroadcastAddressAndPort()),
-                                verb(MessagingService.Verb.ECHO)
+                                verb(ECHO_REQ)
                         )
                 )
-                .respond(echoMessageIn);
+                .respond(echoMessage);
 
-        MessageOut<EchoMessage> echoMessageOut = new MessageOut<>(MessagingService.Verb.ECHO, EchoMessage.instance, EchoMessage.serializer);
-        MessagingService.instance().sendRR(echoMessageOut, FBUtilities.getBroadcastAddressAndPort(), new IAsyncCallback()
+        Message<NoPayload> echoMessageOut = Message.out(ECHO_REQ, NoPayload.noPayload);
+        MessagingService.instance().sendWithCallback(echoMessageOut, FBUtilities.getBroadcastAddressAndPort(), msg ->
         {
-            public void response(MessageIn msg)
-            {
-                assertEquals(MessagingService.Verb.ECHO, msg.verb);
-                assertEquals(echoMessageIn.payload, msg.payload);
-            }
-
-            public boolean isLatencyForSnitch()
-            {
-                return false;
-            }
+            assertEquals(ECHO_REQ, msg.verb());
+            assertEquals(echoMessage.payload, msg.payload);
         });
 
         // we must have intercepted the outgoing message at this point
-        MessageOut<?> msg = spy.captureMessageOut().get();
+        Message<?> msg = spy.captureMessageOut().get();
         assertEquals(1, spy.messagesIntercepted);
-        assertTrue(msg == echoMessageOut);
+        assertSame(echoMessage.payload, msg.payload);
 
         // and return a mocked response
         assertEquals(1, spy.mockedMessageResponses);

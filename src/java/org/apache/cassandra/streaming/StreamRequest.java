@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -32,8 +33,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.net.CompactEndpointSerializationHelper;
-import org.apache.cassandra.net.MessagingService;
+
+import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 
 public class StreamRequest
 {
@@ -67,7 +68,7 @@ public class StreamRequest
             out.writeUTF(request.keyspace);
             out.writeInt(request.columnFamilies.size());
 
-            CompactEndpointSerializationHelper.streamingInstance.serialize(request.full.endpoint(), out, version);
+            inetAddressAndPortSerializer.serialize(request.full.endpoint(), out, version);
             serializeReplicas(request.full, out, version);
             serializeReplicas(request.transientReplicas, out, version);
             for (String cf : request.columnFamilies)
@@ -80,7 +81,7 @@ public class StreamRequest
 
             for (Replica replica : replicas)
             {
-                MessagingService.validatePartitioner(replica.range());
+                IPartitioner.validate(replica.range());
                 Token.serializer.serialize(replica.range().left, out, version);
                 Token.serializer.serialize(replica.range().right, out, version);
             }
@@ -90,7 +91,7 @@ public class StreamRequest
         {
             String keyspace = in.readUTF();
             int cfCount = in.readInt();
-            InetAddressAndPort endpoint = CompactEndpointSerializationHelper.streamingInstance.deserialize(in, version);
+            InetAddressAndPort endpoint = inetAddressAndPortSerializer.deserialize(in, version);
 
             RangesAtEndpoint full = deserializeReplicas(in, version, endpoint, true);
             RangesAtEndpoint transientReplicas = deserializeReplicas(in, version, endpoint, false);
@@ -110,8 +111,8 @@ public class StreamRequest
                 //TODO, super need to review the usage of streaming vs not streaming endpoint serialization helper
                 //to make sure I'm not using the wrong one some of the time, like do repair messages use the
                 //streaming version?
-                Token left = Token.serializer.deserialize(in, MessagingService.globalPartitioner(), version);
-                Token right = Token.serializer.deserialize(in, MessagingService.globalPartitioner(), version);
+                Token left = Token.serializer.deserialize(in, IPartitioner.global(), version);
+                Token right = Token.serializer.deserialize(in, IPartitioner.global(), version);
                 replicas.add(new Replica(endpoint, new Range<>(left, right), isFull));
             }
             return replicas.build();
@@ -121,7 +122,7 @@ public class StreamRequest
         {
             int size = TypeSizes.sizeof(request.keyspace);
             size += TypeSizes.sizeof(request.columnFamilies.size());
-            size += CompactEndpointSerializationHelper.streamingInstance.serializedSize(request.full.endpoint(), version);
+            size += inetAddressAndPortSerializer.serializedSize(request.full.endpoint(), version);
             size += replicasSerializedSize(request.transientReplicas, version);
             size += replicasSerializedSize(request.full, version);
             for (String cf : request.columnFamilies)

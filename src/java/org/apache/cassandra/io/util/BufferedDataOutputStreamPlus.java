@@ -28,8 +28,8 @@ import com.google.common.base.Preconditions;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.memory.MemoryUtil;
-import org.apache.cassandra.utils.vint.VIntCoding;
 
 /**
  * An implementation of the DataOutputStreamPlus interface using a ByteBuffer to stage writes
@@ -42,15 +42,6 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     private static final int DEFAULT_BUFFER_SIZE = Integer.getInteger(Config.PROPERTY_PREFIX + "nio_data_output_stream_plus_buffer_size", 1024 * 32);
 
     protected ByteBuffer buffer;
-
-    //Allow derived classes to specify writing to the channel
-    //directly shouldn't happen because they intercept via doFlush for things
-    //like compression or checksumming
-    //Another hack for this value is that it also indicates that flushing early
-    //should not occur, flushes aligned with buffer size are desired
-    //Unless... it's the last flush. Compression and checksum formats
-    //expect block (same as buffer size) alignment for everything except the last block
-    protected boolean strictFlushing = false;
 
     public BufferedDataOutputStreamPlus(RandomAccessFile ras)
     {
@@ -132,9 +123,6 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
         }
     }
 
-    // ByteBuffer to use for defensive copies
-    private final ByteBuffer hollowBuffer = MemoryUtil.getHollowDirectByteBuffer();
-
     /*
      * Makes a defensive copy of the incoming ByteBuffer and don't modify the position or limit
      * even temporarily so it is thread-safe WRT to the incoming buffer
@@ -142,48 +130,20 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
      * @see org.apache.cassandra.io.util.DataOutputPlus#write(java.nio.ByteBuffer)
      */
     @Override
-    public void write(ByteBuffer toWrite) throws IOException
+    public void write(ByteBuffer src) throws IOException
     {
-        if (toWrite.hasArray())
+        int srcPos = src.position();
+        int srcCount;
+        int trgAvailable;
+        while ((srcCount = src.limit() - srcPos) > (trgAvailable = buffer.remaining()))
         {
-            write(toWrite.array(), toWrite.arrayOffset() + toWrite.position(), toWrite.remaining());
+            FastByteOperations.copy(src, srcPos, buffer, buffer.position(), trgAvailable);
+            buffer.position(buffer.position() + trgAvailable);
+            srcPos += trgAvailable;
+            doFlush(src.limit() - srcPos);
         }
-        else
-        {
-            assert toWrite.isDirect();
-            MemoryUtil.duplicateDirectByteBuffer(toWrite, hollowBuffer);
-            int toWriteRemaining = toWrite.remaining();
-
-            if (toWriteRemaining > buffer.remaining())
-            {
-                if (strictFlushing)
-                {
-                    writeExcessSlow();
-                }
-                else
-                {
-                    doFlush(toWriteRemaining - buffer.remaining());
-                    while (hollowBuffer.remaining() > buffer.capacity())
-                        channel.write(hollowBuffer);
-                }
-            }
-
-            buffer.put(hollowBuffer);
-        }
-    }
-
-    // writes anything we can't fit into the buffer
-    @DontInline
-    private void writeExcessSlow() throws IOException
-    {
-        int originalLimit = hollowBuffer.limit();
-        while (originalLimit - hollowBuffer.position() > buffer.remaining())
-        {
-            hollowBuffer.limit(hollowBuffer.position() + buffer.remaining());
-            buffer.put(hollowBuffer);
-            doFlush(originalLimit - hollowBuffer.position());
-        }
-        hollowBuffer.limit(originalLimit);
+        FastByteOperations.copy(src, srcPos, buffer, buffer.position(), srcCount);
+        buffer.position(buffer.position() + srcCount);
     }
 
     @Override
@@ -242,25 +202,6 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     }
 
     @Override
-    public void writeVInt(long value) throws IOException
-    {
-        writeUnsignedVInt(VIntCoding.encodeZigZag64(value));
-    }
-
-    @Override
-    public void writeUnsignedVInt(long value) throws IOException
-    {
-        int size = VIntCoding.computeUnsignedVIntSize(value);
-        if (size == 1)
-        {
-            write((int) value);
-            return;
-        }
-
-        write(VIntCoding.encodeVInt(value, size), 0, size);
-    }
-
-    @Override
     public void writeFloat(float v) throws IOException
     {
         writeInt(Float.floatToRawIntBits(v));
@@ -302,13 +243,6 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
         UnbufferedDataOutputStreamPlus.writeUTF(s, this);
     }
 
-    @Override
-    public void write(Memory memory, long offset, long length) throws IOException
-    {
-        for (ByteBuffer buffer : memory.asByteBuffers(offset, length))
-            write(buffer);
-    }
-
     /*
      * Count is the number of bytes remaining to write ignoring already remaining capacity
      */
@@ -336,16 +270,6 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
         channel.close();
         FileUtils.clean(buffer);
         buffer = null;
-    }
-
-    @Override
-    public <R> R applyToChannel(CheckedFunction<WritableByteChannel, R, IOException> f) throws IOException
-    {
-        if (strictFlushing)
-            throw new UnsupportedOperationException();
-        //Don't allow writes to the underlying channel while data is buffered
-        flush();
-        return f.apply(channel);
     }
 
     public BufferedDataOutputStreamPlus order(ByteOrder order)

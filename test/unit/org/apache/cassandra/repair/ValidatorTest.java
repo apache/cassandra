@@ -40,6 +40,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -48,9 +49,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.net.IMessageSink;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationComplete;
@@ -92,7 +91,7 @@ public class ValidatorTest
     @After
     public void tearDown()
     {
-        MessagingService.instance().clearMessageSinks();
+        MessagingService.instance().outboundSink.clear();
         DatabaseDescriptor.setRepairSessionSpaceInMegabytes(testSizeMegabytes);
     }
 
@@ -108,7 +107,7 @@ public class ValidatorTest
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
         final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), keyspace, columnFamily, Arrays.asList(range));
 
-        final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
+        final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
 
         InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
 
@@ -131,8 +130,8 @@ public class ValidatorTest
         Token min = tree.partitioner().getMinimumToken();
         assertNotNull(tree.hash(new Range<>(min, min)));
 
-        MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
-        assertEquals(MessagingService.Verb.REPAIR_MESSAGE, message.verb);
+        Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        assertEquals(Verb.REPAIR_REQ, message.verb());
         RepairMessage m = (RepairMessage) message.payload;
         assertEquals(RepairMessage.Type.VALIDATION_COMPLETE, m.messageType);
         assertEquals(desc, m.desc);
@@ -147,15 +146,15 @@ public class ValidatorTest
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
         final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), keyspace, columnFamily, Arrays.asList(range));
 
-        final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
+        final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
 
         InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
 
         Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
         validator.fail();
 
-        MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
-        assertEquals(MessagingService.Verb.REPAIR_MESSAGE, message.verb);
+        Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        assertEquals(Verb.REPAIR_REQ, message.verb());
         RepairMessage m = (RepairMessage) message.payload;
         assertEquals(RepairMessage.Type.VALIDATION_COMPLETE, m.messageType);
         assertEquals(desc, m.desc);
@@ -208,12 +207,12 @@ public class ValidatorTest
                                                                  Collections.singletonList(cfs), desc.ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                  false, PreviewKind.NONE);
 
-        final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
+        final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
         Validator validator = new Validator(desc, FBUtilities.getBroadcastAddressAndPort(), 0, true, false, PreviewKind.NONE);
         ValidationManager.instance.submitValidation(cfs, validator);
 
-        MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
-        assertEquals(MessagingService.Verb.REPAIR_MESSAGE, message.verb);
+        Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        assertEquals(Verb.REPAIR_REQ, message.verb());
         RepairMessage m = (RepairMessage) message.payload;
         assertEquals(RepairMessage.Type.VALIDATION_COMPLETE, m.messageType);
         assertEquals(desc, m.desc);
@@ -265,11 +264,11 @@ public class ValidatorTest
                                                                  Collections.singletonList(cfs), desc.ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                  false, PreviewKind.NONE);
 
-        final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
+        final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
         Validator validator = new Validator(desc, FBUtilities.getBroadcastAddressAndPort(), 0, true, false, PreviewKind.NONE);
         ValidationManager.instance.submitValidation(cfs, validator);
 
-        MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
         MerkleTrees trees = ((ValidationComplete) message.payload).trees;
 
         Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();
@@ -325,11 +324,11 @@ public class ValidatorTest
                                                                  Collections.singletonList(cfs), desc.ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                  false, PreviewKind.NONE);
 
-        final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
+        final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
         Validator validator = new Validator(desc, FBUtilities.getBroadcastAddressAndPort(), 0, true, false, PreviewKind.NONE);
         ValidationManager.instance.submitValidation(cfs, validator);
 
-        MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
         MerkleTrees trees = ((ValidationComplete) message.payload).trees;
 
         // Should have 4 trees each with a depth of on average 10 (since each range should have gotten 0.25 megabytes)
@@ -410,22 +409,10 @@ public class ValidatorTest
         assertEquals(len, ((Validator.CountingHasher)hashers[0]).getCount());
     }
 
-    private CompletableFuture<MessageOut> registerOutgoingMessageSink()
+    private CompletableFuture<Message> registerOutgoingMessageSink()
     {
-        final CompletableFuture<MessageOut> future = new CompletableFuture<>();
-        MessagingService.instance().addMessageSink(new IMessageSink()
-        {
-            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddressAndPort to)
-            {
-                future.complete(message);
-                return false;
-            }
-
-            public boolean allowIncomingMessage(MessageIn message, int id)
-            {
-                return false;
-            }
-        });
+        final CompletableFuture<Message> future = new CompletableFuture<>();
+        MessagingService.instance().outboundSink.add((message, to) -> future.complete(message));
         return future;
     }
 }
