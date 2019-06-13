@@ -33,7 +33,7 @@ As a general rule of thumb:
 
 .. hint::
 
-   Not sure what to work? Just pick an issue tagged with the `low hanging fruit label <https://issues.apache.org/jira/secure/IssueNavigator.jspa?reset=true&jqlQuery=project+=+12310865+AND+labels+=+lhf+AND+status+!=+resolved>`_ in JIRA, which we use to flag issues that could turn out to be good starter tasks for beginners.
+   Not sure what to work? Just pick an issue marked as `Low Hanging Fruit <https://issues.apache.org/jira/issues/?jql=project%20%3D%20CASSANDRA%20AND%20Complexity%20%3D%20%22Low%20Hanging%20Fruit%22%20and%20status%20!%3D%20resolved>`_ Complexity in JIRA, which we use to flag issues that could turn out to be good starter tasks for beginners.
 
 Before You Start Coding
 =======================
