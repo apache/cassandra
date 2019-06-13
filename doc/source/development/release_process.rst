@@ -244,7 +244,7 @@ Fill out the following email template and send to both user and dev mailing list
 Update Slack Cassandra topic
 ---------------------------
 
-Update Cassandra topic in Slack::
+Update topic in ``cassandra`` :ref:`Slack room <slack>`
     /topic cassandra.apache.org | Latest releases: 3.11.4, 3.0.18, 2.2.14, 2.1.21 | ask, don't ask to ask
 
 Tweet from @Cassandra

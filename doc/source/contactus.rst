@@ -17,7 +17,7 @@
 Contact us
 ==========
 
-You can get in touch with the Cassandra community either via the mailing lists or slack_ rooms.
+You can get in touch with the Cassandra community either via the mailing lists or :ref:`Slack rooms <slack>`.
 
 .. _mailing-lists:
 
@@ -40,9 +40,11 @@ email to confirm your subscription. Make sure to keep the welcome email as it co
 unsubscribe.
 
 .. _slack:
+
 Slack
-_____
+-----
 To chat with developers or users in real-time, join our rooms on `ASF Slack <https://s.apache.org/slack-invite>`__:
-- ``#cassandra`` - for user questions and general discussions.
-- ``#cassandra-dev`` - strictly for questions or discussions related to Cassandra development.
+
+- ``cassandra`` - for user questions and general discussions.
+- ``cassandra-dev`` - strictly for questions or discussions related to Cassandra development.
 
