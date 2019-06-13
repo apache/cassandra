@@ -31,7 +31,6 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.IllegalLegacyColumnException;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -266,11 +265,13 @@ public class ThriftValidation
                                                                                                             i, metadata.comparator.size() + 1, metadata.cfName));
                     }
 
+
+
                     // On top of that, if we have a collection component, the (CQL3) column must be a collection
                     if (cname.column != null && cname.collectionElement != null && !cname.column.type.isCollection())
                         throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Invalid collection component, %s is not a collection", cname.column.name));
                 }
-                catch (IllegalArgumentException | UnknownColumnException | IllegalLegacyColumnException e )
+                catch (IllegalArgumentException | UnknownColumnException e)
                 {
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Error validating cell name for CQL3 table %s: %s", metadata.cfName, e.getMessage()));
                 }
@@ -464,10 +465,13 @@ public class ThriftValidation
         try
         {
             LegacyLayout.LegacyCellName cn = LegacyLayout.decodeCellName(metadata, scName, column.name);
+            if (cn.column.isPrimaryKeyColumn())
+                throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Cannot add primary key column %s to partition update", cn.column.name));
+
             cn.column.validateCellValue(column.value);
 
         }
-        catch (UnknownColumnException | IllegalLegacyColumnException e)
+        catch (UnknownColumnException e)
         {
             throw new org.apache.cassandra.exceptions.InvalidRequestException(e.getMessage());
         }

@@ -55,7 +55,7 @@ public class LegacyCellNameTest
         assertTrue(cellName.column.isRegular());
     }
 
-    @Test(expected=IllegalLegacyColumnException.class)
+    @Test
     public void testColumnSameNameAsPartitionKeyCql3() throws Exception
     {
         CFMetaData cfm = CFMetaData.compile("CREATE TABLE cs (" +
@@ -65,18 +65,26 @@ public class LegacyCellNameTest
             = LegacyLayout.decodeCellName(cfm, 
                                           LegacyLayout.makeLegacyComparator(cfm)
                                                       .fromString("k"));
+
+        // When being grouped into Rows by LegacyLayout.CellGrouper,
+        // primary key columns are filtered out
+        assertTrue(cellName.column.isPrimaryKeyColumn());
     }
 
-    @Test(expected=IllegalLegacyColumnException.class)
+    @Test
     public void testCompositeWithColumnNameSameAsClusteringKeyCql3() throws Exception
     {
         CFMetaData cfm = CFMetaData.compile("CREATE TABLE cs (" +
                                             "k int, c text, v int, PRIMARY KEY(k, c))", "ks");
 
         LegacyLayout.LegacyCellName cellName
-        = LegacyLayout.decodeCellName(cfm,
-                                      LegacyLayout.makeLegacyComparator(cfm)
-                                                  .fromString("c_value:c"));
+            = LegacyLayout.decodeCellName(cfm,
+                                          LegacyLayout.makeLegacyComparator(cfm)
+                                                      .fromString("c_value:c"));
+
+        // When being grouped into Rows by LegacyLayout.CellGrouper,
+        // primary key columns are filtered out
+        assertTrue(cellName.column.isPrimaryKeyColumn());
     }
 
     // This throws IllegalArgumentException not because the cellname's value matches

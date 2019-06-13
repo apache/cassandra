@@ -20,8 +20,8 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.config.CFMetaData;
-
-import static org.apache.cassandra.db.LegacyLayout.stringify;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Exception thrown when we read a column internally that is unknown. Note that
@@ -35,5 +35,17 @@ public class UnknownColumnException extends Exception
     {
         super(String.format("Unknown column %s in table %s.%s", stringify(columnName), metadata.ksName, metadata.cfName));
         this.columnName = columnName;
+    }
+
+    private static String stringify(ByteBuffer name)
+    {
+        try
+        {
+            return UTF8Type.instance.getString(name);
+        }
+        catch (Exception e)
+        {
+            return ByteBufferUtil.bytesToHex(name);
+        }
     }
 }

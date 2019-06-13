@@ -1340,7 +1340,7 @@ public abstract class ReadCommand implements ReadQuery
                 {
                     cellName = LegacyLayout.decodeCellName(metadata, buffer);
                 }
-                catch (UnknownColumnException | IllegalLegacyColumnException exc)
+                catch (UnknownColumnException exc)
                 {
                     // TODO this probably needs a new exception class that shares a parent with UnknownColumnFamilyException
                     throw new UnknownColumnFamilyException(
