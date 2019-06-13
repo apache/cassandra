@@ -302,13 +302,6 @@ public abstract class UnfilteredDeserializer
                     // we should *not* count the byte of that discarded cell as part of the bytes for the atom
                     // we will eventually return, as doing so could throw the logic bytesReadForNextAtom participates in.
                 }
-                catch (IllegalLegacyColumnException e)
-                {
-                    // This can occur if the table is non-compact and an sstable contains cells whose column name components
-                    // refer to a primary key column. This is not possible through CQL, but is through thrift or side loading
-                    // sstables. We treat this as we wold an unknown column and skip without counting the read bytes as
-                    // part of the following atom
-                }
                 catch (IOException e)
                 {
                     throw new IOError(e);
