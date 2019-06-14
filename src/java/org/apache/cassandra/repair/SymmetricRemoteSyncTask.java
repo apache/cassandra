@@ -36,7 +36,7 @@ import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.net.Verb.REPAIR_REQ;
+import static org.apache.cassandra.net.Verb.SYNC_REQ;
 
 /**
  * SymmetricRemoteSyncTask sends {@link SyncRequest} to remote(non-coordinator) node
@@ -53,9 +53,9 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
         super(desc, r1, r2, differences, previewKind);
     }
 
-    void sendRequest(RepairMessage request, InetAddressAndPort to)
+    void sendRequest(SyncRequest request, InetAddressAndPort to)
     {
-        MessagingService.instance().send(Message.out(REPAIR_REQ, request), to);
+        MessagingService.instance().send(Message.out(SYNC_REQ, request), to);
     }
 
     @Override

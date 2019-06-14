@@ -44,6 +44,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
@@ -123,13 +124,14 @@ public class LocalSessionTest extends AbstractRepairTest
     static class InstrumentedLocalSessions extends LocalSessions
     {
         Map<InetAddressAndPort, List<RepairMessage>> sentMessages = new HashMap<>();
-        protected void sendMessage(InetAddressAndPort destination, RepairMessage message)
+
+        protected void sendMessage(InetAddressAndPort destination, Message<? extends RepairMessage> message)
         {
             if (!sentMessages.containsKey(destination))
             {
                 sentMessages.put(destination, new ArrayList<>());
             }
-            sentMessages.get(destination).add(message);
+            sentMessages.get(destination).add(message.payload);
         }
 
         SettableFuture<Object> prepareSessionFuture = null;

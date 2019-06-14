@@ -28,7 +28,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.SnapshotMessage;
 
-import static org.apache.cassandra.net.Verb.REPAIR_REQ;
+import static org.apache.cassandra.net.Verb.SNAPSHOT_MSG;
 
 /**
  * SnapshotTask is a task that sends snapshot request.
@@ -46,7 +46,7 @@ public class SnapshotTask extends AbstractFuture<InetAddressAndPort> implements 
 
     public void run()
     {
-        MessagingService.instance().sendWithCallback(Message.out(REPAIR_REQ, new SnapshotMessage(desc)),
+        MessagingService.instance().sendWithCallback(Message.out(SNAPSHOT_MSG, new SnapshotMessage(desc)),
                                                      endpoint,
                                                      new SnapshotCallback(this));
     }

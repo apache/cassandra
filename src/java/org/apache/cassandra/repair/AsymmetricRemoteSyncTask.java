@@ -32,7 +32,7 @@ import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.net.Verb.REPAIR_REQ;
+import static org.apache.cassandra.net.Verb.ASYMMETRIC_SYNC_REQ;
 
 /**
  * AsymmetricRemoteSyncTask sends {@link AsymmetricSyncRequest} to target node to repair(stream)
@@ -53,7 +53,7 @@ public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRem
         AsymmetricSyncRequest request = new AsymmetricSyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind);
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.fetchingNode, request.fetchFrom);
         Tracing.traceRepair(message);
-        MessagingService.instance().send(Message.out(REPAIR_REQ, request), request.fetchingNode);
+        MessagingService.instance().send(Message.out(ASYMMETRIC_SYNC_REQ, request), request.fetchingNode);
     }
 
     public void syncComplete(boolean success, List<SessionSummary> summaries)

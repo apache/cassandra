@@ -21,6 +21,7 @@ package org.apache.cassandra.repair.messages;
 import java.io.IOException;
 import java.util.UUID;
 
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -31,7 +32,7 @@ public class FinalizeCommit extends RepairMessage
 
     public FinalizeCommit(UUID sessionID)
     {
-        super(Type.FINALIZE_COMMIT, null);
+        super(null);
         assert sessionID != null;
         this.sessionID = sessionID;
     }
@@ -58,7 +59,7 @@ public class FinalizeCommit extends RepairMessage
                '}';
     }
 
-    public static MessageSerializer serializer = new MessageSerializer<FinalizeCommit>()
+    public static final IVersionedSerializer<FinalizeCommit> serializer = new IVersionedSerializer<FinalizeCommit>()
     {
         public void serialize(FinalizeCommit msg, DataOutputPlus out, int version) throws IOException
         {

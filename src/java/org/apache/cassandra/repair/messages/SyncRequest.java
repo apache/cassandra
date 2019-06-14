@@ -28,6 +28,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -44,8 +45,6 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
  */
 public class SyncRequest extends RepairMessage
 {
-    public static MessageSerializer serializer = new SyncRequestSerializer();
-
     public final InetAddressAndPort initiator;
     public final InetAddressAndPort src;
     public final InetAddressAndPort dst;
@@ -54,7 +53,7 @@ public class SyncRequest extends RepairMessage
 
    public SyncRequest(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, Collection<Range<Token>> ranges, PreviewKind previewKind)
    {
-        super(Type.SYNC_REQUEST, desc);
+        super(desc);
         this.initiator = initiator;
         this.src = src;
         this.dst = dst;
@@ -68,8 +67,7 @@ public class SyncRequest extends RepairMessage
         if (!(o instanceof SyncRequest))
             return false;
         SyncRequest req = (SyncRequest)o;
-        return messageType == req.messageType &&
-               desc.equals(req.desc) &&
+        return desc.equals(req.desc) &&
                initiator.equals(req.initiator) &&
                src.equals(req.src) &&
                dst.equals(req.dst) &&
@@ -80,10 +78,10 @@ public class SyncRequest extends RepairMessage
     @Override
     public int hashCode()
     {
-        return Objects.hash(messageType, desc, initiator, src, dst, ranges, previewKind);
+        return Objects.hash(desc, initiator, src, dst, ranges, previewKind);
     }
 
-    public static class SyncRequestSerializer implements MessageSerializer<SyncRequest>
+    public static final IVersionedSerializer<SyncRequest> serializer = new IVersionedSerializer<SyncRequest>()
     {
         public void serialize(SyncRequest message, DataOutputPlus out, int version) throws IOException
         {
@@ -124,7 +122,7 @@ public class SyncRequest extends RepairMessage
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
             return size;
         }
-    }
+    };
 
     @Override
     public String toString()

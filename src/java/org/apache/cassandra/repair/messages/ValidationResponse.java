@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.RepairJobDesc;
@@ -31,22 +32,20 @@ import org.apache.cassandra.utils.MerkleTrees;
  *
  * @since 2.0
  */
-public class ValidationComplete extends RepairMessage
+public class ValidationResponse extends RepairMessage
 {
-    public static MessageSerializer serializer = new ValidationCompleteSerializer();
-
     /** Merkle hash tree response. Null if validation failed. */
     public final MerkleTrees trees;
 
-    public ValidationComplete(RepairJobDesc desc)
+    public ValidationResponse(RepairJobDesc desc)
     {
-        super(Type.VALIDATION_COMPLETE, desc);
+        super(desc);
         trees = null;
     }
 
-    public ValidationComplete(RepairJobDesc desc, MerkleTrees trees)
+    public ValidationResponse(RepairJobDesc desc, MerkleTrees trees)
     {
-        super(Type.VALIDATION_COMPLETE, desc);
+        super(desc);
         assert trees != null;
         this.trees = trees;
     }
@@ -57,34 +56,33 @@ public class ValidationComplete extends RepairMessage
     }
 
     /**
-     * @return a new {@link ValidationComplete} instance with all trees moved off heap, or {@code this}
+     * @return a new {@link ValidationResponse} instance with all trees moved off heap, or {@code this}
      * if it's a failure response.
      */
-    public ValidationComplete tryMoveOffHeap() throws IOException
+    public ValidationResponse tryMoveOffHeap() throws IOException
     {
-        return trees == null ? this : new ValidationComplete(desc, trees.tryMoveOffHeap());
+        return trees == null ? this : new ValidationResponse(desc, trees.tryMoveOffHeap());
     }
 
     @Override
     public boolean equals(Object o)
     {
-        if (!(o instanceof ValidationComplete))
+        if (!(o instanceof ValidationResponse))
             return false;
 
-        ValidationComplete other = (ValidationComplete)o;
-        return messageType == other.messageType &&
-               desc.equals(other.desc);
+        ValidationResponse other = (ValidationResponse)o;
+        return desc.equals(other.desc);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(messageType, desc);
+        return Objects.hash(desc);
     }
 
-    private static class ValidationCompleteSerializer implements MessageSerializer<ValidationComplete>
+    public static final IVersionedSerializer<ValidationResponse> serializer = new IVersionedSerializer<ValidationResponse>()
     {
-        public void serialize(ValidationComplete message, DataOutputPlus out, int version) throws IOException
+        public void serialize(ValidationResponse message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
             out.writeBoolean(message.success());
@@ -92,7 +90,7 @@ public class ValidationComplete extends RepairMessage
                 MerkleTrees.serializer.serialize(message.trees, out, version);
         }
 
-        public ValidationComplete deserialize(DataInputPlus in, int version) throws IOException
+        public ValidationResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
             boolean success = in.readBoolean();
@@ -100,13 +98,13 @@ public class ValidationComplete extends RepairMessage
             if (success)
             {
                 MerkleTrees trees = MerkleTrees.serializer.deserialize(in, version);
-                return new ValidationComplete(desc, trees);
+                return new ValidationResponse(desc, trees);
             }
 
-            return new ValidationComplete(desc);
+            return new ValidationResponse(desc);
         }
 
-        public long serializedSize(ValidationComplete message, int version)
+        public long serializedSize(ValidationResponse message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
             size += TypeSizes.sizeof(message.success());
@@ -114,5 +112,5 @@ public class ValidationComplete extends RepairMessage
                 size += MerkleTrees.serializer.serializedSize(message.trees, version);
             return size;
         }
-    }
+    };
 }

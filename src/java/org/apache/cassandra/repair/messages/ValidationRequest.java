@@ -20,6 +20,7 @@ package org.apache.cassandra.repair.messages;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.RepairJobDesc;
@@ -31,13 +32,11 @@ import org.apache.cassandra.repair.RepairJobDesc;
  */
 public class ValidationRequest extends RepairMessage
 {
-    public static MessageSerializer serializer = new ValidationRequestSerializer();
-
     public final int nowInSec;
 
     public ValidationRequest(RepairJobDesc desc, int nowInSec)
     {
-        super(Type.VALIDATION_REQUEST, desc);
+        super(desc);
         this.nowInSec = nowInSec;
     }
 
@@ -65,7 +64,7 @@ public class ValidationRequest extends RepairMessage
         return nowInSec;
     }
 
-    public static class ValidationRequestSerializer implements MessageSerializer<ValidationRequest>
+    public static final IVersionedSerializer<ValidationRequest> serializer = new IVersionedSerializer<ValidationRequest>()
     {
         public void serialize(ValidationRequest message, DataOutputPlus out, int version) throws IOException
         {
@@ -85,5 +84,5 @@ public class ValidationRequest extends RepairMessage
             size += TypeSizes.sizeof(message.nowInSec);
             return size;
         }
-    }
+    };
 }

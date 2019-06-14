@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -32,12 +33,11 @@ import org.apache.cassandra.utils.UUIDSerializer;
  */
 public class CleanupMessage extends RepairMessage
 {
-    public static MessageSerializer serializer = new CleanupMessageSerializer();
     public final UUID parentRepairSession;
 
     public CleanupMessage(UUID parentRepairSession)
     {
-        super(Type.CLEANUP, null);
+        super(null);
         this.parentRepairSession = parentRepairSession;
     }
 
@@ -47,17 +47,16 @@ public class CleanupMessage extends RepairMessage
         if (!(o instanceof CleanupMessage))
             return false;
         CleanupMessage other = (CleanupMessage) o;
-        return messageType == other.messageType &&
-               parentRepairSession.equals(other.parentRepairSession);
+        return parentRepairSession.equals(other.parentRepairSession);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(messageType, parentRepairSession);
+        return Objects.hash(parentRepairSession);
     }
 
-    public static class CleanupMessageSerializer implements MessageSerializer<CleanupMessage>
+    public static final IVersionedSerializer<CleanupMessage> serializer = new IVersionedSerializer<CleanupMessage>()
     {
         public void serialize(CleanupMessage message, DataOutputPlus out, int version) throws IOException
         {
@@ -74,5 +73,5 @@ public class CleanupMessage extends RepairMessage
         {
             return UUIDSerializer.serializer.serializedSize(message.parentRepairSession, version);
         }
-    }
+    };
 }

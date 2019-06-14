@@ -51,8 +51,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.messages.RepairMessage;
-import org.apache.cassandra.repair.messages.ValidationComplete;
+import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -131,12 +130,11 @@ public class ValidatorTest
         assertNotNull(tree.hash(new Range<>(min, min)));
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
-        assertEquals(Verb.REPAIR_REQ, message.verb());
-        RepairMessage m = (RepairMessage) message.payload;
-        assertEquals(RepairMessage.Type.VALIDATION_COMPLETE, m.messageType);
+        assertEquals(Verb.VALIDATION_RSP, message.verb());
+        ValidationResponse m = (ValidationResponse) message.payload;
         assertEquals(desc, m.desc);
-        assertTrue(((ValidationComplete) m).success());
-        assertNotNull(((ValidationComplete) m).trees);
+        assertTrue(m.success());
+        assertNotNull(m.trees);
     }
 
 
@@ -154,12 +152,11 @@ public class ValidatorTest
         validator.fail();
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
-        assertEquals(Verb.REPAIR_REQ, message.verb());
-        RepairMessage m = (RepairMessage) message.payload;
-        assertEquals(RepairMessage.Type.VALIDATION_COMPLETE, m.messageType);
+        assertEquals(Verb.VALIDATION_RSP, message.verb());
+        ValidationResponse m = (ValidationResponse) message.payload;
         assertEquals(desc, m.desc);
-        assertFalse(((ValidationComplete) m).success());
-        assertNull(((ValidationComplete) m).trees);
+        assertFalse(m.success());
+        assertNull(m.trees);
     }
 
     @Test
@@ -214,19 +211,17 @@ public class ValidatorTest
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
-        assertEquals(Verb.REPAIR_REQ, message.verb());
-        RepairMessage m = (RepairMessage) message.payload;
-        assertEquals(RepairMessage.Type.VALIDATION_COMPLETE, m.messageType);
+        assertEquals(Verb.VALIDATION_RSP, message.verb());
+        ValidationResponse m = (ValidationResponse) message.payload;
         assertEquals(desc, m.desc);
-        assertTrue(((ValidationComplete) m).success());
-        MerkleTrees trees = ((ValidationComplete) m).trees;
+        assertTrue(m.success());
 
-        Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();
+        Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = m.trees.iterator();
         while (iterator.hasNext())
         {
             assertEquals(Math.pow(2, Math.ceil(Math.log(n) / Math.log(2))), iterator.next().getValue().size(), 0.0);
         }
-        assertEquals(trees.rowCount(), n);
+        assertEquals(m.trees.rowCount(), n);
     }
 
     /*
@@ -273,7 +268,7 @@ public class ValidatorTest
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
-        MerkleTrees trees = ((ValidationComplete) message.payload).trees;
+        MerkleTrees trees = ((ValidationResponse) message.payload).trees;
 
         Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();
         int numTrees = 0;
@@ -335,7 +330,7 @@ public class ValidatorTest
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
-        MerkleTrees trees = ((ValidationComplete) message.payload).trees;
+        MerkleTrees trees = ((ValidationResponse) message.payload).trees;
 
         // Should have 4 trees each with a depth of on average 10 (since each range should have gotten 0.25 megabytes)
         Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();

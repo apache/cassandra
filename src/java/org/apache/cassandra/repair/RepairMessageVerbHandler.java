@@ -32,7 +32,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 
-import static org.apache.cassandra.net.Verb.REPAIR_REQ;
+import static org.apache.cassandra.net.Verb.VALIDATION_RSP;
 
 /**
  * Handles all repair related message.
@@ -62,9 +62,9 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         RepairJobDesc desc = message.payload.desc;
         try
         {
-            switch (message.payload.messageType)
+            switch (message.verb())
             {
-                case PREPARE_MESSAGE:
+                case PREPARE_MSG:
                     PrepareMessage prepareMessage = (PrepareMessage) message.payload;
                     logger.debug("Preparing, {}", prepareMessage);
                     List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>(prepareMessage.tableIds.size());
@@ -90,7 +90,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     MessagingService.instance().send(message.emptyResponse(), message.from());
                     break;
 
-                case SNAPSHOT:
+                case SNAPSHOT_MSG:
                     logger.debug("Snapshotting {}", desc);
                     final ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(desc.keyspace, desc.columnFamily);
                     if (cfs == null)
@@ -114,7 +114,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     MessagingService.instance().send(message.emptyResponse(), message.from());
                     break;
 
-                case VALIDATION_REQUEST:
+                case VALIDATION_REQ:
                     ValidationRequest validationRequest = (ValidationRequest) message.payload;
                     logger.debug("Validating {}", validationRequest);
                     // trigger read-only compaction
@@ -122,7 +122,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     if (store == null)
                     {
                         logger.error("Table {}.{} was dropped during snapshot phase of repair", desc.keyspace, desc.columnFamily);
-                        MessagingService.instance().send(Message.out(REPAIR_REQ, new ValidationComplete(desc)), message.from());
+                        MessagingService.instance().send(Message.out(VALIDATION_RSP, new ValidationResponse(desc)), message.from());
                         return;
                     }
 
@@ -132,7 +132,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     ValidationManager.instance.submitValidation(store, validator);
                     break;
 
-                case SYNC_REQUEST:
+                case SYNC_REQ:
                     // forwarded sync request
                     SyncRequest request = (SyncRequest) message.payload;
                     logger.debug("Syncing {}", request);
@@ -147,7 +147,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     task.run();
                     break;
 
-                case ASYMMETRIC_SYNC_REQUEST:
+                case ASYMMETRIC_SYNC_REQ:
                     // forwarded sync request
                     AsymmetricSyncRequest asymmetricSyncRequest = (AsymmetricSyncRequest) message.payload;
                     logger.debug("Syncing {}", asymmetricSyncRequest);
@@ -162,49 +162,49 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     asymmetricTask.run();
                     break;
 
-                case CLEANUP:
+                case CLEANUP_MSG:
                     logger.debug("cleaning up repair");
                     CleanupMessage cleanup = (CleanupMessage) message.payload;
                     ActiveRepairService.instance.removeParentRepairSession(cleanup.parentRepairSession);
                     MessagingService.instance().send(message.emptyResponse(), message.from());
                     break;
 
-                case CONSISTENT_REQUEST:
+                case PREPARE_CONSISTENT_REQ:
                     ActiveRepairService.instance.consistent.local.handlePrepareMessage(message.from(), (PrepareConsistentRequest) message.payload);
                     break;
 
-                case CONSISTENT_RESPONSE:
+                case PREPARE_CONSISTENT_RSP:
                     ActiveRepairService.instance.consistent.coordinated.handlePrepareResponse((PrepareConsistentResponse) message.payload);
                     break;
 
-                case FINALIZE_PROPOSE:
+                case FINALIZE_PROPOSE_MSG:
                     ActiveRepairService.instance.consistent.local.handleFinalizeProposeMessage(message.from(), (FinalizePropose) message.payload);
                     break;
 
-                case FINALIZE_PROMISE:
+                case FINALIZE_PROMISE_MSG:
                     ActiveRepairService.instance.consistent.coordinated.handleFinalizePromiseMessage((FinalizePromise) message.payload);
                     break;
 
-                case FINALIZE_COMMIT:
+                case FINALIZE_COMMIT_MSG:
                     ActiveRepairService.instance.consistent.local.handleFinalizeCommitMessage(message.from(), (FinalizeCommit) message.payload);
                     break;
 
-                case FAILED_SESSION:
+                case FAILED_SESSION_MSG:
                     FailSession failure = (FailSession) message.payload;
                     ActiveRepairService.instance.consistent.coordinated.handleFailSessionMessage(failure);
                     ActiveRepairService.instance.consistent.local.handleFailSessionMessage(message.from(), failure);
                     break;
 
-                case STATUS_REQUEST:
+                case STATUS_REQ:
                     ActiveRepairService.instance.consistent.local.handleStatusRequest(message.from(), (StatusRequest) message.payload);
                     break;
 
-                case STATUS_RESPONSE:
+                case STATUS_RSP:
                     ActiveRepairService.instance.consistent.local.handleStatusResponse(message.from(), (StatusResponse) message.payload);
                     break;
 
                 default:
-                    ActiveRepairService.instance.handleMessage(message.from(), message.payload);
+                    ActiveRepairService.instance.handleMessage(message);
                     break;
             }
         }
