@@ -54,6 +54,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -181,14 +182,14 @@ public class RepairJobTest
         assertEquals(0, result.stats.size());
 
         // RepairJob should send out SNAPSHOTS -> VALIDATIONS -> done
-        List<RepairMessage.Type> expectedTypes = new ArrayList<>();
+        List<Verb> expectedTypes = new ArrayList<>();
         for (int i = 0; i < 3; i++)
-            expectedTypes.add(RepairMessage.Type.SNAPSHOT);
+            expectedTypes.add(Verb.SNAPSHOT_MSG);
         for (int i = 0; i < 3; i++)
-            expectedTypes.add(RepairMessage.Type.VALIDATION_REQUEST);
+            expectedTypes.add(Verb.VALIDATION_REQ);
 
         assertEquals(expectedTypes, observedMessages.stream()
-                                                    .map(k -> ((RepairMessage) k.payload).messageType)
+                                                    .map(Message::verb)
                                                     .collect(Collectors.toList()));
     }
 
@@ -251,7 +252,7 @@ public class RepairJobTest
         assertTrue(results.stream().allMatch(s -> s.numberOfDifferences == 1));
 
         assertEquals(2, messages.size());
-        assertTrue(messages.stream().allMatch(m -> ((RepairMessage) m.payload).messageType == RepairMessage.Type.SYNC_REQUEST));
+        assertTrue(messages.stream().allMatch(m -> m.verb() == Verb.SYNC_REQ));
     }
 
     @Test
@@ -800,17 +801,16 @@ public class RepairJobTest
                 messageCapture.add(message);
             }
 
-            RepairMessage rm = (RepairMessage) message.payload;
-            switch (rm.messageType)
+            switch (message.verb())
             {
-                case SNAPSHOT:
+                case SNAPSHOT_MSG:
                     MessagingService.instance().callbacks.removeAndRespond(message.id(), to, message.emptyResponse());
                     break;
-                case VALIDATION_REQUEST:
+                case VALIDATION_REQ:
                     session.validationComplete(sessionJobDesc, to, mockTrees.get(to));
                     break;
-                case SYNC_REQUEST:
-                    SyncRequest syncRequest = (SyncRequest) rm;
+                case SYNC_REQ:
+                    SyncRequest syncRequest = (SyncRequest) message.payload;
                     session.syncComplete(sessionJobDesc, new SyncNodePair(syncRequest.src, syncRequest.dst),
                                          true, Collections.emptyList());
                     break;

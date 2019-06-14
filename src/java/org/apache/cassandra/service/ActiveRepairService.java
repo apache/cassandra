@@ -78,7 +78,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.transform;
-import static org.apache.cassandra.net.Verb.REPAIR_REQ;
+import static org.apache.cassandra.net.Verb.PREPARE_MSG;
 
 /**
  * ActiveRepairService is the starting point for manual "active" repairs.
@@ -111,8 +111,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public final ConsistentSessions consistent = new ConsistentSessions();
 
     private boolean registeredForEndpointChanges = false;
-
-    public static CassandraVersion SUPPORTS_GLOBAL_PREPARE_FLAG_VERSION = new CassandraVersion("2.2.1");
 
     private static final Logger logger = LoggerFactory.getLogger(ActiveRepairService.class);
     // singleton enforcement
@@ -437,7 +435,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             if (FailureDetector.instance.isAlive(neighbour))
             {
                 PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
-                Message<RepairMessage> msg = Message.out(REPAIR_REQ, message);
+                Message<RepairMessage> msg = Message.out(PREPARE_MSG, message);
                 MessagingService.instance().sendWithCallback(msg, neighbour, callback);
             }
             else
@@ -527,21 +525,21 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return parentRepairSessions.remove(parentSessionId);
     }
 
-    public void handleMessage(InetAddressAndPort endpoint, RepairMessage message)
+    public void handleMessage(Message<? extends RepairMessage> message)
     {
-        RepairJobDesc desc = message.desc;
+        RepairJobDesc desc = message.payload.desc;
         RepairSession session = sessions.get(desc.sessionId);
         if (session == null)
             return;
-        switch (message.messageType)
+        switch (message.verb())
         {
-            case VALIDATION_COMPLETE:
-                ValidationComplete validation = (ValidationComplete) message;
-                session.validationComplete(desc, endpoint, validation.trees);
+            case VALIDATION_RSP:
+                ValidationResponse validation = (ValidationResponse) message.payload;
+                session.validationComplete(desc, message.from(), validation.trees);
                 break;
-            case SYNC_COMPLETE:
+            case SYNC_RSP:
                 // one of replica is synced.
-                SyncComplete sync = (SyncComplete) message;
+                SyncResponse sync = (SyncResponse) message.payload;
                 session.syncComplete(desc, sync.nodes, sync.success, sync.summaries);
                 break;
             default:
