@@ -118,7 +118,7 @@ public class FramingTest
         testSomeFrames(FrameEncoderCrc.instance, FrameDecoderCrc.create(GlobalBufferPoolAllocator.instance));
     }
 
-    public void testSomeFrames(FrameEncoder encoder, FrameDecoder decoder)
+    private void testSomeFrames(FrameEncoder encoder, FrameDecoder decoder)
     {
         long seed = new SecureRandom().nextLong();
         logger.info("seed: {}, decoder: {}", seed, decoder.getClass().getSimpleName());
@@ -156,7 +156,7 @@ public class FramingTest
         for (FrameDecoder.Frame frame : out)
             frame.release();
         frames.release();
-        Assert.assertEquals(null, decoder.stash);
+        Assert.assertNull(decoder.stash);
         Assert.assertTrue(decoder.frames.isEmpty());
     }
 
@@ -213,7 +213,7 @@ public class FramingTest
         burnRandomLegacy(1000);
     }
 
-    public void burnRandomLegacy(int count)
+    private void burnRandomLegacy(int count)
     {
         SecureRandom seed = new SecureRandom();
         Random random = new Random();
@@ -234,7 +234,7 @@ public class FramingTest
         testRandomLegacy(250);
     }
 
-    public void testRandomLegacy(int count)
+    private void testRandomLegacy(int count)
     {
         SecureRandom seeds = new SecureRandom();
         for (int messagingVersion : new int[] { VERSION_30, VERSION_3014, current_version})
@@ -247,7 +247,7 @@ public class FramingTest
         }
     }
 
-    public void testSomeMessages(long seed, int count, float largeRatio, int messagingVersion, FrameDecoder decoder)
+    private void testSomeMessages(long seed, int count, float largeRatio, int messagingVersion, FrameDecoder decoder)
     {
         logger.info("seed: {}, iterations: {}, largeRatio: {}, messagingVersion: {}, decoder: {}", seed, count, largeRatio, messagingVersion, decoder.getClass().getSimpleName());
         Random random = new Random(seed);
@@ -291,7 +291,7 @@ public class FramingTest
                     // we should have an initial frame containing only some prefix of the message (probably 64 bytes)
                     // that was stashed only to decide how big the message was
                     FrameDecoder.IntactFrame frame = (FrameDecoder.IntactFrame) out.get(outIndex++);
-                    Assert.assertEquals(false, frame.isSelfContained);
+                    Assert.assertFalse(frame.isSelfContained);
                     start = frame.contents.remaining();
                     verify(message, 0, frame.contents.remaining(), frame.contents);
                 }
@@ -328,7 +328,6 @@ public class FramingTest
             }
 
             // message is fresh
-            int beginFrame = messageStart;
             int beginFrameIndex = messageIndex;
             while (messageStart + message.length <= limit)
             {
@@ -344,7 +343,9 @@ public class FramingTest
                 while (beginFrameIndex < messageIndex)
                 {
                     byte[] m = messages.get(beginFrameIndex);
-                    verify(m, frame.contents.sliceAndConsume(m.length));
+                    ShareableBytes bytesToVerify = frame.contents.sliceAndConsume(m.length);
+                    verify(m, bytesToVerify);
+                    bytesToVerify.release();
                     ++beginFrameIndex;
                 }
                 Assert.assertFalse(frame.contents.hasRemaining());
@@ -367,7 +368,8 @@ public class FramingTest
             i = limit;
         }
         stream.release();
-        Assert.assertEquals(null, decoder.stash);
+        Assert.assertTrue(stream.isReleased());
+        Assert.assertNull(decoder.stash);
         Assert.assertTrue(decoder.frames.isEmpty());
     }
 
