@@ -1,4 +1,5 @@
 4.0
+ * Native Transport - Apply noSpamLogger to ConnectionLimitHandler (CASSANDRA-15167)
  * Reduce heap pressure during compactions (CASSANDRA-14654)
  * Support building Cassandra with JDK 11 (CASSANDRA-15108)
  * Use quilt to patch cassandra.in.sh in Debian packaging (CASSANDRA-14710)
