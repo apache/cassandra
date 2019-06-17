@@ -40,14 +40,14 @@ class ShareableBytes
     private static final AtomicIntegerFieldUpdater<ShareableBytes> countUpdater =
         AtomicIntegerFieldUpdater.newUpdater(ShareableBytes.class, "count");
 
-    ShareableBytes(ByteBuffer bytes)
+    private ShareableBytes(ByteBuffer bytes)
     {
         this.count = UNSHARED;
         this.owner = this;
         this.bytes = bytes;
     }
 
-    ShareableBytes(ShareableBytes owner, ByteBuffer bytes)
+    private ShareableBytes(ShareableBytes owner, ByteBuffer bytes)
     {
         this.owner = owner;
         this.bytes = bytes;
