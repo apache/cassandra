@@ -16,7 +16,7 @@ cdc_enabled: false
 hints_directory: build/test/cassandra/hints
 partitioner: org.apache.cassandra.dht.ByteOrderedPartitioner
 listen_address: 127.0.0.1
-storage_port: 7010
+storage_port: 7012
 ssl_storage_port: 7011
 start_native_transport: true
 native_transport_port: 9042
@@ -28,7 +28,7 @@ disk_access_mode: mmap
 seed_provider:
     - class_name: org.apache.cassandra.locator.SimpleSeedProvider
       parameters:
-          - seeds: "127.0.0.1:7010"
+          - seeds: "127.0.0.1:7012"
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 dynamic_snitch: true
 server_encryption_options:

@@ -17,7 +17,7 @@
 Contact us
 ==========
 
-You can get in touch with the Cassandra community either via the mailing lists or the freenode IRC channels.
+You can get in touch with the Cassandra community either via the mailing lists or :ref:`Slack rooms <slack>`.
 
 .. _mailing-lists:
 
@@ -39,15 +39,12 @@ Subscribe by sending an email to the email address in the Subscribe links above.
 email to confirm your subscription. Make sure to keep the welcome email as it contains instructions on how to
 unsubscribe.
 
-.. _irc-channels:
+.. _slack:
 
-IRC
----
+Slack
+-----
+To chat with developers or users in real-time, join our rooms on `ASF Slack <https://s.apache.org/slack-invite>`__:
 
-To chat with developers or users in real-time, join our channels on `IRC freenode <http://webchat.freenode.net/>`__. The
-following channels are available:
-
-- ``#cassandra`` - for user questions and general discussions.
-- ``#cassandra-dev`` - strictly for questions or discussions related to Cassandra development.
-- ``#cassandra-builds`` - results of automated test builds.
+- ``cassandra`` - for user questions and general discussions.
+- ``cassandra-dev`` - strictly for questions or discussions related to Cassandra development.
 

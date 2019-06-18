@@ -32,10 +32,10 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.netty.channel.ChannelPromise;
-import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.async.TestScheduledFuture;
+import org.apache.cassandra.net.TestChannel;
+import org.apache.cassandra.net.TestScheduledFuture;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
@@ -46,7 +46,7 @@ public class NettyStreamingMessageSenderTest
 {
     private static final InetAddressAndPort REMOTE_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.2"), 0);
 
-    private EmbeddedChannel channel;
+    private TestChannel channel;
     private StreamSession session;
     private NettyStreamingMessageSender sender;
     private NettyStreamingMessageSender.FileStreamTask fileStreamTask;
@@ -60,10 +60,10 @@ public class NettyStreamingMessageSenderTest
     @Before
     public void setUp()
     {
-        channel = new EmbeddedChannel();
+        channel = new TestChannel(Integer.MAX_VALUE);
         channel.attr(NettyStreamingMessageSender.TRANSFERRING_FILE_ATTR).set(Boolean.FALSE);
         UUID pendingRepair = UUID.randomUUID();
-        session = new StreamSession(StreamOperation.BOOTSTRAP, REMOTE_ADDR, (connectionId, protocolVersion) -> null, 0, pendingRepair, PreviewKind.ALL);
+        session = new StreamSession(StreamOperation.BOOTSTRAP, REMOTE_ADDR, (template, messagingVersion) -> null, 0, pendingRepair, PreviewKind.ALL);
         StreamResultFuture future = StreamResultFuture.initReceivingSide(0, UUID.randomUUID(), StreamOperation.REPAIR, REMOTE_ADDR, channel, pendingRepair, session.getPreviewKind());
         session.init(future);
         sender = session.getMessageSender();

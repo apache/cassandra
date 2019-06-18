@@ -228,7 +228,6 @@ public class SeedManager
 
         private class LookbackReadGenerator extends Generator
         {
-
             final Distribution lookback;
 
             public LookbackReadGenerator(Distribution lookback)

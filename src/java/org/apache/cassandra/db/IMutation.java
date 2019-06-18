@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.TableId;
@@ -28,7 +29,7 @@ public interface IMutation
     public String getKeyspaceName();
     public Collection<TableId> getTableIds();
     public DecoratedKey key();
-    public long getTimeout();
+    public long getTimeout(TimeUnit unit);
     public String toString(boolean shallow);
     public Collection<PartitionUpdate> getPartitionUpdates();
 

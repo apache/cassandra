@@ -40,8 +40,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.RepairSessionResult;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
@@ -141,8 +142,8 @@ public class CoordinatorSession extends ConsistentSession
     protected void sendMessage(InetAddressAndPort destination, RepairMessage message)
     {
         logger.trace("Sending {} to {}", message, destination);
-        MessageOut<RepairMessage> messageOut = new MessageOut<RepairMessage>(MessagingService.Verb.REPAIR_MESSAGE, message, RepairMessage.serializer);
-        MessagingService.instance().sendOneWay(messageOut, destination);
+        Message<RepairMessage> messageOut = Message.out(Verb.REPAIR_REQ, message);
+        MessagingService.instance().send(messageOut, destination);
     }
 
     public ListenableFuture<Boolean> prepare()

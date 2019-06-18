@@ -54,7 +54,7 @@ public class BlockingReadRepairs
         Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
         TableMetadata metadata = update.metadata();
 
-        int messagingVersion = MessagingService.instance().getVersion(destination);
+        int messagingVersion = MessagingService.instance().versions.get(destination);
 
         int    mutationSize = (int) Mutation.serializer.serializedSize(mutation, messagingVersion);
         int maxMutationSize = DatabaseDescriptor.getMaxMutationSize();

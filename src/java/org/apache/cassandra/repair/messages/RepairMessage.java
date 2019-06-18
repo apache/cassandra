@@ -24,7 +24,6 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
 
@@ -66,7 +65,7 @@ public abstract class RepairMessage
         private final byte type;
         private final MessageSerializer<RepairMessage> serializer;
 
-        private Type(int type, MessageSerializer<RepairMessage> serializer)
+        Type(int type, MessageSerializer<RepairMessage> serializer)
         {
             this.type = (byte) type;
             this.serializer = serializer;
@@ -91,12 +90,6 @@ public abstract class RepairMessage
         this.messageType = messageType;
         this.desc = desc;
     }
-
-    public MessageOut<RepairMessage> createMessage()
-    {
-        return new MessageOut<>(MessagingService.Verb.REPAIR_MESSAGE, this, RepairMessage.serializer);
-    }
-
 
     public static class RepairMessageSerializer implements MessageSerializer<RepairMessage>
     {

@@ -15,17 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.net;
 
-public class PingVerbHandler implements IVerbHandler<PingMessage>
+class PingVerbHandler implements IVerbHandler<PingRequest>
 {
+    static final PingVerbHandler instance = new PingVerbHandler();
+
     @Override
-    public void doVerb(MessageIn<PingMessage> message, int id)
+    public void doVerb(Message<PingRequest> message)
     {
-        MessageOut<PongMessage> msg = new MessageOut<>(MessagingService.Verb.REQUEST_RESPONSE, PongMessage.instance,
-                                                       PongMessage.serializer,
-                                                       message.payload.connectionType);
-        MessagingService.instance().sendReply(msg, id, message.from);
+        MessagingService.instance().send(message.emptyResponse(), message.from(), message.payload.connectionType);
     }
 }

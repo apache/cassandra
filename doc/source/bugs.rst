@@ -18,7 +18,7 @@ Reporting Bugs
 ==============
 
 If you encounter a problem with Cassandra, the first places to ask for help are the :ref:`user mailing list
-<mailing-lists>` and the ``#cassandra`` :ref:`IRC channel <irc-channels>`.
+<mailing-lists>` and the ``cassandra`` :ref:`Slack room <slack>`.
 
 If, after having asked for help, you suspect that you have found a bug in Cassandra, you should report it by opening a
 ticket through the `Apache Cassandra JIRA <https://issues.apache.org/jira/browse/CASSANDRA>`__. Please provide as much

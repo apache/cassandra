@@ -33,12 +33,12 @@ As a general rule of thumb:
 
 .. hint::
 
-   Not sure what to work? Just pick an issue tagged with the `low hanging fruit label <https://issues.apache.org/jira/secure/IssueNavigator.jspa?reset=true&jqlQuery=project+=+12310865+AND+labels+=+lhf+AND+status+!=+resolved>`_ in JIRA, which we use to flag issues that could turn out to be good starter tasks for beginners.
+   Not sure what to work? Just pick an issue marked as `Low Hanging Fruit <https://issues.apache.org/jira/issues/?jql=project%20%3D%20CASSANDRA%20AND%20Complexity%20%3D%20%22Low%20Hanging%20Fruit%22%20and%20status%20!%3D%20resolved>`_ Complexity in JIRA, which we use to flag issues that could turn out to be good starter tasks for beginners.
 
 Before You Start Coding
 =======================
 
-Although contributions are highly appreciated, we do not guarantee that each contribution will become a part of Cassandra. Therefor it's generally a good idea to first get some feedback on the things you plan to work on, especially about any new features or major changes to the code base. You can reach out to other developers on the mailing list or IRC channel listed on our `community page <http://cassandra.apache.org/community/>`_.
+Although contributions are highly appreciated, we do not guarantee that each contribution will become a part of Cassandra. Therefore it's generally a good idea to first get some feedback on the things you plan to work on, especially about any new features or major changes to the code base. You can reach out to other developers on the mailing list or :ref:`Slack <slack>`.
 
 You should also
  * Avoid redundant work by searching for already reported issues in `JIRA <https://issues.apache.org/jira/browse/CASSANDRA>`_

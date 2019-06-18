@@ -202,7 +202,7 @@ public class TableMetrics
     /** Time spent waiting for free memtable space, either on- or off-heap */
     public final Histogram waitingOnFreeMemtableSpace;
 
-    /** Dropped Mutations Count */
+    @Deprecated
     public final Counter droppedMutations;
 
     private final MetricNameFactory factory;

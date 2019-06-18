@@ -449,12 +449,6 @@ public class FBUtilities
         }
     }
 
-    public static void waitOnFutures(List<AsyncOneResponse> results, long ms) throws TimeoutException
-    {
-        for (AsyncOneResponse result : results)
-            result.get(ms, TimeUnit.MILLISECONDS);
-    }
-
     public static <T> Future<? extends T> waitOnFirstFuture(Iterable<? extends Future<? extends T>> futures)
     {
         return waitOnFirstFuture(futures, 100);

@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.net.async.ByteBufDataOutputStreamPlus;
+import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamSession;
@@ -58,11 +58,11 @@ public class CassandraEntireSSTableStreamWriter
     /**
      * Stream the entire file to given channel.
      * <p>
-     *
+     * TODO: this currently requires a companion thread, but could be performed entirely asynchronously
      * @param out where this writes data to
      * @throws IOException on any I/O error
      */
-    public void write(ByteBufDataOutputStreamPlus out) throws IOException
+    public void write(AsyncStreamingOutputPlus out) throws IOException
     {
         long totalSize = manifest.totalSize();
         logger.debug("[Stream #{}] Start streaming sstable {} to {}, repairedAt = {}, totalSize = {}",
@@ -76,7 +76,7 @@ public class CassandraEntireSSTableStreamWriter
 
         for (Component component : manifest.components())
         {
-            @SuppressWarnings("resource") // this is closed after the file is transferred by ByteBufDataOutputStreamPlus
+            @SuppressWarnings("resource") // this is closed after the file is transferred by AsyncChannelOutputPlus
             FileChannel in = new RandomAccessFile(sstable.descriptor.filenameFor(component), "r").getChannel();
 
             // Total Length to transmit for this file
@@ -90,7 +90,7 @@ public class CassandraEntireSSTableStreamWriter
                          component,
                          prettyPrintMemory(length));
 
-            long bytesWritten = out.writeToChannel(in, limiter);
+            long bytesWritten = out.writeFileToChannel(in, limiter);
             progress += bytesWritten;
 
             session.progress(sstable.descriptor.filenameFor(component), ProgressInfo.Direction.OUT, bytesWritten, length);

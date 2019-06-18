@@ -23,7 +23,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import com.google.common.collect.Iterables;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -33,10 +32,6 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.IMessageSink;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
@@ -65,18 +60,8 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
         LocalSessionAccessor.startup();
 
         // cutoff messaging service
-        MessagingService.instance().addMessageSink(new IMessageSink()
-        {
-            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddressAndPort to)
-            {
-                return false;
-            }
-
-            public boolean allowIncomingMessage(MessageIn message, int id)
-            {
-                return false;
-            }
-        });
+        MessagingService.instance().outboundSink.add((message, to) -> false);
+        MessagingService.instance().inboundSink.add((message) -> false);
     }
 
     @Before

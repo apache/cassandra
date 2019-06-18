@@ -19,24 +19,22 @@ package org.apache.cassandra.service.paxos;
  * under the License.
  * 
  */
-
-
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.BooleanSerializer;
 
 public class ProposeVerbHandler implements IVerbHandler<Commit>
 {
+    public static final ProposeVerbHandler instance = new ProposeVerbHandler();
+
     public static Boolean doPropose(Commit proposal)
     {
         return PaxosState.propose(proposal);
     }
 
-    public void doVerb(MessageIn<Commit> message, int id)
+    public void doVerb(Message<Commit> message)
     {
-        MessageOut<Boolean> reply = new MessageOut<Boolean>(MessagingService.Verb.REQUEST_RESPONSE, doPropose(message.payload), BooleanSerializer.serializer);
-        MessagingService.instance().sendReply(reply, id, message.from);
+        Message<Boolean> reply = message.responseWith(doPropose(message.payload));
+        MessagingService.instance().send(reply, message.from());
     }
 }
