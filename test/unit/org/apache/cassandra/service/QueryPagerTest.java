@@ -242,9 +242,10 @@ public class QueryPagerTest
     public void sliceQueryTest() throws Exception
     {
         sliceQueryTest(false, Server.VERSION_3);
-        sliceQueryTest(true, Server.VERSION_4);
-        sliceQueryTest(false, Server.VERSION_3);
-        sliceQueryTest(true, Server.VERSION_4);
+        sliceQueryTest(true,  Server.VERSION_3);
+
+        sliceQueryTest(false, Server.VERSION_4);
+        sliceQueryTest(true,  Server.VERSION_4);
     }
 
     public void sliceQueryTest(boolean testPagingState, int protocolVersion) throws Exception
@@ -275,9 +276,10 @@ public class QueryPagerTest
     public void reversedSliceQueryTest() throws Exception
     {
         reversedSliceQueryTest(false, Server.VERSION_3);
-        reversedSliceQueryTest(true, Server.VERSION_4);
-        reversedSliceQueryTest(false, Server.VERSION_3);
-        reversedSliceQueryTest(true, Server.VERSION_4);
+        reversedSliceQueryTest(true,  Server.VERSION_3);
+
+        reversedSliceQueryTest(false, Server.VERSION_4);
+        reversedSliceQueryTest(true,  Server.VERSION_4);
     }
 
     public void reversedSliceQueryTest(boolean testPagingState, int protocolVersion) throws Exception
@@ -308,9 +310,10 @@ public class QueryPagerTest
     public void multiQueryTest() throws Exception
     {
         multiQueryTest(false, Server.VERSION_3);
-        multiQueryTest(true, Server.VERSION_4);
-        multiQueryTest(false, Server.VERSION_3);
-        multiQueryTest(true, Server.VERSION_4);
+        multiQueryTest(true,  Server.VERSION_3);
+
+        multiQueryTest(false, Server.VERSION_4);
+        multiQueryTest(true,  Server.VERSION_4);
     }
 
     public void multiQueryTest(boolean testPagingState, int protocolVersion) throws Exception
@@ -346,9 +349,10 @@ public class QueryPagerTest
     public void rangeNamesQueryTest() throws Exception
     {
         rangeNamesQueryTest(false, Server.VERSION_3);
-        rangeNamesQueryTest(true, Server.VERSION_4);
-        rangeNamesQueryTest(false, Server.VERSION_3);
-        rangeNamesQueryTest(true, Server.VERSION_4);
+        rangeNamesQueryTest(true,  Server.VERSION_3);
+
+        rangeNamesQueryTest(false, Server.VERSION_4);
+        rangeNamesQueryTest(true,  Server.VERSION_4);
     }
 
     public void rangeNamesQueryTest(boolean testPagingState, int protocolVersion) throws Exception
@@ -375,9 +379,10 @@ public class QueryPagerTest
     public void rangeSliceQueryTest() throws Exception
     {
         rangeSliceQueryTest(false, Server.VERSION_3);
-        rangeSliceQueryTest(true, Server.VERSION_4);
-        rangeSliceQueryTest(false, Server.VERSION_3);
-        rangeSliceQueryTest(true, Server.VERSION_4);
+        rangeSliceQueryTest(true,  Server.VERSION_3);
+
+        rangeSliceQueryTest(false, Server.VERSION_4);
+        rangeSliceQueryTest(true,  Server.VERSION_4);
     }
 
     public void rangeSliceQueryTest(boolean testPagingState, int protocolVersion) throws Exception
