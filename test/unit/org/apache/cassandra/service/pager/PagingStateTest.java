@@ -1,4 +1,3 @@
-
 /*
 * Licensed to the Apache Software Foundation (ASF) under one
 * or more contributor license agreements.  See the NOTICE file
@@ -19,6 +18,7 @@
 */
 package org.apache.cassandra.service.pager;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.junit.Test;
@@ -29,15 +29,21 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.transport.Server.VERSION_3;
+import static org.apache.cassandra.transport.Server.VERSION_4;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class PagingStateTest
 {
     private PagingState makeSomePagingState(int protocolVersion)
+    {
+        return makeSomePagingState(protocolVersion, 0);
+    }
+
+    private PagingState makeSomePagingState(int protocolVersion, int remainingInPartition)
     {
         CFMetaData metadata = CFMetaData.Builder.create("ks", "tbl")
                                                 .addPartitionKey("k", AsciiType.instance)
@@ -52,7 +58,7 @@ public class PagingStateTest
         Clustering c = new Clustering(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes(42));
         Row row = BTreeRow.singleCellRow(c, BufferCell.live(metadata, def, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         PagingState.RowMark mark = PagingState.RowMark.create(metadata, row, protocolVersion);
-        return new PagingState(pk, mark, 10, 0);
+        return new PagingState(pk, mark, 10, remainingInPartition);
     }
 
     @Test
@@ -70,9 +76,9 @@ public class PagingStateTest
          *     PagingState state = new PagingState(pk, cn.toByteBuffer(), 10);
          *     System.out.println("PagingState = " + ByteBufferUtil.bytesToHex(state.serialize()));
          */
-        PagingState state = makeSomePagingState(Server.VERSION_3);
+        PagingState state = makeSomePagingState(VERSION_3);
 
-        String serializedState = ByteBufferUtil.bytesToHex(state.serialize(Server.VERSION_3));
+        String serializedState = ByteBufferUtil.bytesToHex(state.serialize(VERSION_3));
         // Note that we don't assert exact equality because we know 3.0 nodes include the "remainingInPartition" number
         // that is not present on 2.1/2.2 nodes. We know this is ok however because we know that 2.1/2.2 nodes will ignore
         // anything remaining once they have properly deserialized a paging state.
@@ -80,20 +86,56 @@ public class PagingStateTest
     }
 
     @Test
-    public void testSerializeDeserializeV3()
+    public void testSerializeV3DeserializeV3()
     {
-        PagingState state = makeSomePagingState(Server.VERSION_3);
-        ByteBuffer serialized = state.serialize(Server.VERSION_3);
-        assertEquals(serialized.remaining(), state.serializedSize(Server.VERSION_3));
-        assertEquals(state, PagingState.deserialize(serialized, Server.VERSION_3));
+        PagingState state = makeSomePagingState(VERSION_3);
+        ByteBuffer serialized = state.serialize(VERSION_3);
+        assertEquals(serialized.remaining(), state.serializedSize(VERSION_3));
+        assertEquals(state, PagingState.deserialize(serialized, VERSION_3));
     }
 
     @Test
-    public void testSerializeDeserializeV4()
+    public void testSerializeV4DeserializeV4()
     {
-        PagingState state = makeSomePagingState(Server.VERSION_4);
-        ByteBuffer serialized = state.serialize(Server.VERSION_4);
-        assertEquals(serialized.remaining(), state.serializedSize(Server.VERSION_4));
-        assertEquals(state, PagingState.deserialize(serialized, Server.VERSION_4));
+        PagingState state = makeSomePagingState(VERSION_4);
+        ByteBuffer serialized = state.serialize(VERSION_4);
+        assertEquals(serialized.remaining(), state.serializedSize(VERSION_4));
+        assertEquals(state, PagingState.deserialize(serialized, VERSION_4));
+    }
+
+    @Test
+    public void testSerializeV3DeserializeV4()
+    {
+        PagingState state = makeSomePagingState(VERSION_3);
+        ByteBuffer serialized = state.serialize(VERSION_3);
+        assertEquals(serialized.remaining(), state.serializedSize(VERSION_3));
+        assertEquals(state, PagingState.deserialize(serialized, VERSION_4));
+    }
+
+    @Test
+    public void testSerializeV4DeserializeV3()
+    {
+        PagingState state = makeSomePagingState(VERSION_4);
+        ByteBuffer serialized = state.serialize(VERSION_4);
+        assertEquals(serialized.remaining(), state.serializedSize(VERSION_4));
+        assertEquals(state, PagingState.deserialize(serialized, VERSION_3));
+    }
+
+    @Test
+    public void testSerializeV3WithoutRemainingInPartitionDeserializeV3() throws IOException
+    {
+        PagingState state = makeSomePagingState(VERSION_3, Integer.MAX_VALUE);
+        ByteBuffer serialized = state.legacySerialize(false);
+        assertEquals(serialized.remaining(), state.legacySerializedSize(false));
+        assertEquals(state, PagingState.deserialize(serialized, VERSION_3));
+    }
+
+    @Test
+    public void testSerializeV3WithoutRemainingInPartitionDeserializeV4() throws IOException
+    {
+        PagingState state = makeSomePagingState(VERSION_3, Integer.MAX_VALUE);
+        ByteBuffer serialized = state.legacySerialize(false);
+        assertEquals(serialized.remaining(), state.legacySerializedSize(false));
+        assertEquals(state, PagingState.deserialize(serialized, VERSION_4));
     }
 }
