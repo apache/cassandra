@@ -313,7 +313,7 @@ public class MerkleTree implements Serializable
         }
         else if (!lreso)
         {
-            logger.debug("({}) Left sub-range fully inconsistent {}", active.depth, right);
+            logger.debug("({}) Left sub-range fully inconsistent {}", active.depth, left);
             ldiff = FULLY_INCONSISTENT;
         }
 
