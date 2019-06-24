@@ -461,6 +461,11 @@ public class Config
     public volatile boolean report_unconfirmed_repaired_data_mismatches = false;
 
     /**
+     * Enables direct_io for data file reads.
+     */
+    public boolean enable_direct_io_for_read_path = false;
+
+    /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
     @Deprecated

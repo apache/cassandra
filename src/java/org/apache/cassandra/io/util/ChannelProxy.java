@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
+import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 
 import org.apache.cassandra.io.FSReadError;
@@ -43,22 +44,50 @@ public final class ChannelProxy extends SharedCloseableImpl
 {
     private final String filePath;
     private final FileChannel channel;
+    private boolean useDirectIO;
 
-    public static FileChannel openChannel(File file)
+    public static FileChannel openChannel(File file, boolean useDirectIO)
     {
         try
         {
-            return FileChannel.open(file.toPath(), StandardOpenOption.READ);
+            return !useDirectIO ?
+                   FileChannel.open(file.toPath(), StandardOpenOption.READ) :
+                   FileChannel.open(file.toPath(), StandardOpenOption.READ, 
+                      (OpenOption) Enum.valueOf((Class<? extends Enum>) 
+                        Class.forName("com.sun.nio.file.ExtendedOpenOption"), "DIRECT"));
+
         }
-        catch (IOException e)
+        catch (Exception e)
         {
             throw new RuntimeException(e);
         }
     }
 
-    public ChannelProxy(String path)
+    public static FileChannel openChannel(File file)
     {
-        this (new File(path));
+        return openChannel(file, false);
+    }
+
+    public ChannelProxy(String filePath, FileChannel channel, boolean useDirectIO)
+    {
+        super(new Cleanup(filePath, channel));
+
+        this.filePath = filePath;
+        this.channel = channel;
+        this.useDirectIO = useDirectIO;
+    }
+
+    public ChannelProxy(String path, FileChannel channel) {
+        this(path, channel, false);
+    }
+
+    public ChannelProxy(File file, FileChannel channel)
+    {
+        this(file.getPath(), channel, false);
+    }
+
+    public ChannelProxy(File file, boolean useDirectIO) {
+        this(file.getPath(), openChannel(file, useDirectIO), useDirectIO);
     }
 
     public ChannelProxy(File file)
@@ -66,20 +95,23 @@ public final class ChannelProxy extends SharedCloseableImpl
         this(file.getPath(), openChannel(file));
     }
 
-    public ChannelProxy(String filePath, FileChannel channel)
+    public ChannelProxy(String path, boolean useDirectIO)
     {
-        super(new Cleanup(filePath, channel));
-
-        this.filePath = filePath;
-        this.channel = channel;
+        this (new File(path), useDirectIO);
     }
 
+    public ChannelProxy(String path)
+    {
+        this (new File(path));
+    }
+    
     public ChannelProxy(ChannelProxy copy)
     {
         super(copy);
 
         this.filePath = copy.filePath;
         this.channel = copy.channel;
+        this.useDirectIO = copy.useDirectIO;
     }
 
     private final static class Cleanup implements RefCounted.Tidy
@@ -126,7 +158,7 @@ public final class ChannelProxy extends SharedCloseableImpl
         try
         {
             // FIXME: consider wrapping in a while loop
-            return channel.read(buffer, position);
+            return useDirectIO ? DirectIOUtils.read(channel, buffer, position) : channel.read(buffer, position);
         }
         catch (IOException e)
         {

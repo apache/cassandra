@@ -94,8 +94,8 @@ public class BigTableWriter extends SSTableWriter
                     new File(descriptor.filenameFor(Component.DIGEST)),
                     writerOption);
         }
-        dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).compressed(compression)
-                                              .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap);
+        dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA), DatabaseDescriptor.useDirectIO()).compressed(compression)
+                                                                                 .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap);
         chunkCache.ifPresent(dbuilder::withChunkCache);
         iwriter = new IndexWriter(keyCount);
 

@@ -63,7 +63,7 @@ public final class JavaUtils
      * @return the java version number
      * @throws NumberFormatException if the version cannot be retrieved
      */
-    private static int parseJavaVersion(String jreVersion)
+    public static int parseJavaVersion(String jreVersion)
     {
         String version;
         if (jreVersion.startsWith("1."))

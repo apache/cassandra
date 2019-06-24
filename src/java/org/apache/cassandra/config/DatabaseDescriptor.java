@@ -75,6 +75,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
+import org.apache.cassandra.utils.JavaUtils;
 
 public class DatabaseDescriptor
 {
@@ -294,6 +295,13 @@ public class DatabaseDescriptor
         {
             hasLoggedConfig = true;
             Config.log(config);
+        }
+
+        if (config.enable_direct_io_for_read_path)
+        {
+            logger.info("Initializing support for O_DIRECT");
+            if (JavaUtils.parseJavaVersion(System.getProperty("java.version")) < 11)
+                throw new RuntimeException("Java 11 required, but found " + System.getProperty("java.version"));
         }
 
         return config;
@@ -2866,5 +2874,10 @@ public class DatabaseDescriptor
     public static boolean strictRuntimeChecks()
     {
         return strictRuntimeChecks;
+    }
+
+    public static boolean useDirectIO()
+    {
+        return conf.enable_direct_io_for_read_path;
     }
 }

@@ -242,16 +242,35 @@ public class FileHandle extends SharedCloseableImpl
 
         private boolean mmapped = false;
         private boolean compressed = false;
+        private boolean useDirectIO = false;
 
         public Builder(String path)
         {
+            this(path, false);
+        }
+
+        public Builder(String path, boolean useDirectIO)
+        {
             this.path = path;
+            if (useDirectIO) {
+                this.bufferType = BufferType.OFF_HEAP;
+                this.useDirectIO = useDirectIO;
+            }
         }
 
         public Builder(ChannelProxy channel)
         {
+            this(channel, false);
+        }
+
+        public Builder(ChannelProxy channel, boolean useDirectIO)
+        {
             this.channel = channel;
             this.path = channel.filePath();
+            if (useDirectIO) {
+                this.bufferType = BufferType.OFF_HEAP;
+                this.useDirectIO = useDirectIO;
+            }
         }
 
         public Builder compressed(boolean compressed)
@@ -286,14 +305,14 @@ public class FileHandle extends SharedCloseableImpl
         }
 
         /**
-         * Set whether to use mmap for reading
+         * Set whether to use mmap for reading. For Direct_IO, we will force a non-memory-mapped read.
          *
          * @param mmapped true if using mmap
          * @return this instance
          */
         public Builder mmapped(boolean mmapped)
         {
-            this.mmapped = mmapped;
+            this.mmapped = useDirectIO ? false : mmapped;
             return this;
         }
 
@@ -343,7 +362,7 @@ public class FileHandle extends SharedCloseableImpl
         {
             if (channel == null)
             {
-                channel = new ChannelProxy(path);
+                channel = new ChannelProxy(path, useDirectIO);
             }
 
             ChannelProxy channelCopy = channel.sharedCopy();
@@ -374,12 +393,12 @@ public class FileHandle extends SharedCloseableImpl
                     regions = null;
                     if (compressed)
                     {
-                        rebuffererFactory = maybeCached(new CompressedChunkReader.Standard(channelCopy, compressionMetadata));
+                        rebuffererFactory = maybeCached(new CompressedChunkReader.Standard(channelCopy, compressionMetadata, useDirectIO));
                     }
                     else
                     {
                         int chunkSize = DiskOptimizationStrategy.roundForCaching(bufferSize, ChunkCache.roundUp);
-                        rebuffererFactory = maybeCached(new SimpleChunkReader(channelCopy, length, bufferType, chunkSize));
+                        rebuffererFactory = maybeCached(new SimpleChunkReader(channelCopy, length, bufferType, chunkSize, useDirectIO));
                     }
                 }
                 Cleanup cleanup = new Cleanup(channelCopy, rebuffererFactory, compressionMetadata, chunkCache);
