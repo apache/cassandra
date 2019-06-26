@@ -1,14 +1,14 @@
 --- a/bin/cassandra
 +++ b/bin/cassandra
-@@ -171,7 +171,7 @@
-     props="$3"
-     class="$4"
-     cassandra_parms="-Dlogback.configurationFile=logback.xml"
--    cassandra_parms="$cassandra_parms -Dcassandra.logdir=$CASSANDRA_HOME/logs"
-+    cassandra_parms="$cassandra_parms -Dcassandra.logdir=/var/log/cassandra"
-     cassandra_parms="$cassandra_parms -Dcassandra.storagedir=$cassandra_storagedir"
+@@ -109,7 +109,7 @@
+ fi
  
-     if [ "x$pidpath" != "x" ]; then
+ if [ -z "$CASSANDRA_LOG_DIR" ]; then
+-  CASSANDRA_LOG_DIR=$CASSANDRA_HOME/logs
++  CASSANDRA_LOG_DIR=/var/log/cassandra
+ fi
+ 
+ # Special-case path variables.
 --- a/conf/cassandra-env.sh
 +++ b/conf/cassandra-env.sh
 @@ -93,16 +93,16 @@
