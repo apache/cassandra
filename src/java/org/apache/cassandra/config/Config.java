@@ -87,6 +87,8 @@ public class Config
     /** Triggers automatic allocation of tokens if set, using the replication strategy of the referenced keyspace */
     public String allocate_tokens_for_keyspace = null;
 
+    public long native_transport_idle_timeout_in_ms = 0L;
+
     public volatile long request_timeout_in_ms = 10000L;
 
     public volatile long read_request_timeout_in_ms = 5000L;
