@@ -49,6 +49,7 @@ package org.apache.cassandra.utils.vint;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
@@ -73,6 +74,46 @@ public class VIntCoding
         for (int ii = 0; ii < size; ii++)
         {
             byte b = input.readByte();
+            retval <<= 8;
+            retval |= b & 0xff;
+        }
+
+        return retval;
+    }
+
+    /**
+     * Note this method is the same as {@link #readUnsignedVInt(DataInput)},
+     * except that we do *not* block if there are not enough bytes in the buffer
+     * to reconstruct the value.
+     *
+     * WARNING: this method is only safe for vints we know to be representable by a positive long value.
+     *
+     * @return -1 if there are not enough bytes in the input to read the value; else, the vint unsigned value.
+     */
+    public static long getUnsignedVInt(ByteBuffer input, int readerIndex)
+    {
+        return getUnsignedVInt(input, readerIndex, input.limit());
+    }
+
+    public static long getUnsignedVInt(ByteBuffer input, int readerIndex, int readerLimit)
+    {
+        if (readerIndex >= readerLimit)
+            return -1;
+
+        int firstByte = input.get(readerIndex++);
+
+        //Bail out early if this is one byte, necessary or it fails later
+        if (firstByte >= 0)
+            return firstByte;
+
+        int size = numberOfExtraBytesToRead(firstByte);
+        if (readerIndex + size > readerLimit)
+            return -1;
+
+        long retval = firstByte & firstByteValueMask(size);
+        for (int ii = 0; ii < size; ii++)
+        {
+            byte b = input.get(readerIndex++);
             retval <<= 8;
             retval |= b & 0xff;
         }

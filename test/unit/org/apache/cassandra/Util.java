@@ -692,6 +692,11 @@ public class Util
 
     public static PagingState makeSomePagingState(ProtocolVersion protocolVersion)
     {
+        return makeSomePagingState(protocolVersion, Integer.MAX_VALUE);
+    }
+
+    public static PagingState makeSomePagingState(ProtocolVersion protocolVersion, int remainingInPartition)
+    {
         CFMetaData metadata = CFMetaData.Builder.create("ks", "tbl")
                                                 .addPartitionKey("k", AsciiType.instance)
                                                 .addClusteringColumn("c1", AsciiType.instance)
@@ -705,7 +710,6 @@ public class Util
         Clustering c = Clustering.make(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes(42));
         Row row = BTreeRow.singleCellRow(c, BufferCell.live(def, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         PagingState.RowMark mark = PagingState.RowMark.create(metadata, row, protocolVersion);
-        return new PagingState(pk, mark, 10, 0);
+        return new PagingState(pk, mark, 10, remainingInPartition);
     }
-
 }
