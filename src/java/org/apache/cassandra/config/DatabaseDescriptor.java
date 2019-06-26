@@ -1473,6 +1473,16 @@ public class DatabaseDescriptor
         return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "ssl_storage_port", Integer.toString(conf.ssl_storage_port)));
     }
 
+    public static long nativeTransportIdleTimeout()
+    {
+        return conf.native_transport_idle_timeout_in_ms;
+    }
+
+    public static void setNativeTransportIdleTimeout(long nativeTransportTimeout)
+    {
+        conf.native_transport_idle_timeout_in_ms = nativeTransportTimeout;
+    }
+
     public static long getRpcTimeout(TimeUnit unit)
     {
         return unit.convert(conf.request_timeout_in_ms, MILLISECONDS);

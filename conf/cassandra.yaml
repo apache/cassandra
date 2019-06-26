@@ -683,6 +683,16 @@ native_transport_port: 9042
 # The default is true, which means all supported protocols will be honored.
 native_transport_allow_older_protocols: true
 
+# Controls when idle client connections are closed. Idle connections are ones that had neither reads
+# nor writes for a time period.
+#
+# Clients may implement heartbeats by sending OPTIONS native protocol message after a timeout, which
+# will reset idle timeout timer on the server side. To close idle client connections, corresponding
+# values for heartbeat intervals have to be set on the client side.
+#
+# Idle connection timeouts are disabled by default.
+# native_transport_idle_timeout_in_ms: 60000
+
 # The address or interface to bind the native transport server to.
 #
 # Set rpc_address OR rpc_interface, not both.

@@ -23,6 +23,7 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -41,6 +42,9 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.Version;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.GlobalEventExecutor;
@@ -366,6 +370,20 @@ public class Server implements CassandraDaemon.Server
             {
                 // Add as first to the pipeline so the limit is enforced as first action.
                 pipeline.addFirst("connectionLimitHandler", connectionLimitHandler);
+            }
+
+            long idleTimeout = DatabaseDescriptor.nativeTransportIdleTimeout();
+            if (idleTimeout > 0)
+            {
+                pipeline.addLast("idleStateHandler", new IdleStateHandler(false, 0, 0, idleTimeout, TimeUnit.MILLISECONDS)
+                {
+                    @Override
+                    protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt)
+                    {
+                        logger.info("Closing client connection {} after timeout of {}ms", channel.remoteAddress(), idleTimeout);
+                        ctx.close();
+                    }
+                });
             }
 
             //pipeline.addLast("debug", new LoggingHandler());
