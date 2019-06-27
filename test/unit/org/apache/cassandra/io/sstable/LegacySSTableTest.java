@@ -63,9 +63,12 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.CQLTester.assertRows;
 import static org.apache.cassandra.cql3.CQLTester.row;
+import static org.junit.Assert.assertEquals;
+
 /**
  * Tests backwards compatibility for SSTables
  */
@@ -193,7 +196,7 @@ public class LegacySSTableTest
                                                              "FROM legacy_tables.legacy_ka_indexed " +
                                                              "WHERE p=1 " +
                                                              "ORDER BY c DESC");
-        Assert.assertEquals(5000, rs.size());
+        assertEquals(5000, rs.size());
     }
 
     @Test
@@ -214,7 +217,7 @@ public class LegacySSTableTest
         UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * " +
                                                              "FROM legacy_tables.legacy_ka_indexed_static " +
                                                              "WHERE p=1 ");
-        Assert.assertEquals(5000, rs.size());
+        assertEquals(5000, rs.size());
     }
 
     @Test
@@ -235,11 +238,11 @@ public class LegacySSTableTest
 
         // read all rows in ASC order, expect all 4 to be returned
         rs = QueryProcessor.executeInternal("SELECT * FROM legacy_tables.legacy_ka_14766 WHERE pk = 0 ORDER BY ck ASC;");
-        Assert.assertEquals(4, rs.size());
+        assertEquals(4, rs.size());
 
         // read all rows in DESC order, expect all 4 to be returned
         rs = QueryProcessor.executeInternal("SELECT * FROM legacy_tables.legacy_ka_14766 WHERE pk = 0 ORDER BY ck DESC;");
-        Assert.assertEquals(4, rs.size());
+        assertEquals(4, rs.size());
     }
 
     @Test
@@ -259,7 +262,7 @@ public class LegacySSTableTest
 
         logger.info("{} - {}", forward.size(), reverse.size());
         Assert.assertFalse(forward.isEmpty());
-        Assert.assertEquals(forward.size(), reverse.size());
+        assertEquals(forward.size(), reverse.size());
     }
 
     @Test
@@ -296,8 +299,8 @@ public class LegacySSTableTest
             QueryProcessor.executeOnceInternal(
                 String.format("SELECT * FROM legacy_tables.legacy_ka_14873 WHERE pkc = 0 AND cc > 0 ORDER BY cc ASC;"));
 
-        Assert.assertEquals(5, forward.size());
-        Assert.assertEquals(5, reverse.size());
+        assertEquals(5, forward.size());
+        assertEquals(5, reverse.size());
     }
 
     @Test
@@ -322,7 +325,7 @@ public class LegacySSTableTest
             UntypedResultSet reverse = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM legacy_tables.%s WHERE k=100 ORDER BY c1 DESC, c2 DESC", table));
 
             Assert.assertFalse(forward.isEmpty());
-            Assert.assertEquals(table, forward.size(), reverse.size());
+            assertEquals(table, forward.size(), reverse.size());
         }
     }
 
@@ -340,7 +343,7 @@ public class LegacySSTableTest
 
         String query = "SELECT * FROM legacy_tables.legacy_mc_inaccurate_min_max WHERE k=100 AND c1=1 AND c2=1";
         List<Unfiltered> unfiltereds = SinglePartitionSliceCommandTest.getUnfilteredsFromSinglePartition(query);
-        Assert.assertEquals(2, unfiltereds.size());
+        assertEquals(2, unfiltereds.size());
         Assert.assertTrue(unfiltereds.get(0).isRangeTombstoneMarker());
         Assert.assertTrue(((RangeTombstoneMarker) unfiltereds.get(0)).isOpen(false));
         Assert.assertTrue(unfiltereds.get(1).isRangeTombstoneMarker());
@@ -462,6 +465,66 @@ public class LegacySSTableTest
         assertRows(results, row(1, "a", "aa", "aaa"), row(2, "b", "bb", "bbb"));
     }
 
+    @Test
+    public void testReadingIndexedLegacyTablesWithIllegalCellNames() throws Exception {
+        /**
+         * The sstable can be generated externally with SSTableSimpleUnsortedWriter:
+         * column_index_size_in_kb: 1
+         * [
+         *   {"key": "key",
+         *    "cells": [
+         *               ["00000:000000:a","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0],
+         *               ["00000:000000:b","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0]
+         *               ["00000:000000:c","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0]
+         *               ["00000:000000:z","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0]
+         *               ["00001:000001:a","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0],
+         *               ["00001:000001:b","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0]
+         *               ["00001:000001:c","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0]
+         *               ["00001:000001:z","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0]
+         *               .
+         *               .
+         *               .
+         *               ["00010:000010:a","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0],
+         *               ["00010:000010:b","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0]
+         *               ["00010:000010:c","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0]
+         *               ["00010:000010:z","00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",0]
+         *           ]
+         *   }
+         * ]
+         * Each row in the partition contains only 1 valid cell. The ones with the column name components 'a', 'b' & 'z' are illegal as they refer to PRIMARY KEY
+         * columns, but SSTables such as this can be generated with offline tools and loaded via SSTableLoader or nodetool refresh (see CASSANDRA-15086) (see
+         * CASSANDRA-15086) Only 'c' is a valid REGULAR column in the table schema.
+         * In the initial fix for CASSANDRA-15086, the bytes read by OldFormatDeserializer for these invalid cells are not correctly accounted for, causing
+         * ReverseIndexedReader to assert that the end of a block has been reached earlier than it actually has, which in turn causes rows to be incorrectly
+         * ommitted from the results.
+         *
+         * This sstable has been crafted to hit a further potential error condition. Rows 00001:00001 and 00008:00008 interact with the index block boundaries
+         * in a very specific way; for both of these rows, the (illegal) cells 'a' & 'b', along with the valid 'c' cell are at the end of an index block, but
+         * the 'z' cell is over the boundary, in the following block. We need to ensure that the bytes consumed for the 'z' cell are properly accounted for and
+         * not counted toward those for the next row on disk.
+         */
+        QueryProcessor.executeInternal("CREATE TABLE legacy_tables.legacy_ka_with_illegal_cell_names_indexed (" +
+                                       " a text," +
+                                       " b text," +
+                                       " z text," +
+                                       " c text," +
+                                       " PRIMARY KEY(a, b, z))");
+        loadLegacyTable("legacy_%s_with_illegal_cell_names_indexed%s", "ka", "");
+        String queryForward = "SELECT * FROM legacy_tables.legacy_ka_with_illegal_cell_names_indexed WHERE a = 'key'";
+        String queryReverse = queryForward + " ORDER BY b DESC, z DESC";
+
+        List<String> forward = new ArrayList<>();
+        QueryProcessor.executeOnceInternal(queryForward).forEach(r -> forward.add(r.getString("b") + ":" +  r.getString("z")));
+
+        List<String> reverse = new ArrayList<>();
+        QueryProcessor.executeOnceInternal(queryReverse).forEach(r -> reverse.add(r.getString("b") + ":" +  r.getString("z")));
+
+        assertEquals(11, reverse.size());
+        assertEquals(11, forward.size());
+        for (int i=0; i < 11; i++)
+            assertEquals(forward.get(i), reverse.get(10 - i));
+    }
+
     private void assertExpectedRowsWithDroppedCollection(boolean droppedCheckSuccessful)
     {
         for (int i=0; i<=1; i++)
@@ -469,7 +532,7 @@ public class LegacySSTableTest
             UntypedResultSet rows =
                 QueryProcessor.executeOnceInternal(
                     String.format("SELECT * FROM legacy_tables.legacy_ka_14912 WHERE k = %s;", i));
-            Assert.assertEquals(1, rows.size());
+            assertEquals(1, rows.size());
             UntypedResultSet.Row row = rows.one();
 
             // If the best-effort attempt to filter dropped columns was successful, then the row
@@ -482,9 +545,9 @@ public class LegacySSTableTest
             if (droppedCheckSuccessful || i == 0)
                 Assert.assertFalse(row.has("v1"));
             else
-                Assert.assertEquals("", row.getString("v1"));
+                assertEquals("", row.getString("v1"));
 
-            Assert.assertEquals("abc", row.getString("v2"));
+            assertEquals("abc", row.getString("v2"));
         }
     }
 
@@ -561,12 +624,12 @@ public class LegacySSTableTest
         Assert.assertTrue(endCount > startCount);
         CacheService.instance.keyCache.submitWrite(Integer.MAX_VALUE).get();
         CacheService.instance.invalidateKeyCache();
-        Assert.assertEquals(startCount, CacheService.instance.keyCache.size());
+        assertEquals(startCount, CacheService.instance.keyCache.size());
         CacheService.instance.keyCache.loadSaved();
         if (BigFormat.instance.getVersion(legacyVersion).storeRows())
-            Assert.assertEquals(endCount, CacheService.instance.keyCache.size());
+            assertEquals(endCount, CacheService.instance.keyCache.size());
         else
-            Assert.assertEquals(startCount, CacheService.instance.keyCache.size());
+            assertEquals(startCount, CacheService.instance.keyCache.size());
     }
 
     private static void verifyReads(String legacyVersion)
@@ -601,8 +664,8 @@ public class LegacySSTableTest
         UntypedResultSet rs;
         rs = QueryProcessor.executeInternal(String.format("SELECT val FROM legacy_tables.legacy_%s_clust_counter%s WHERE pk=? AND ck=?", legacyVersion, compactSuffix), pkValue, ckValue);
         Assert.assertNotNull(rs);
-        Assert.assertEquals(1, rs.size());
-        Assert.assertEquals(1L, rs.one().getLong("val"));
+        assertEquals(1, rs.size());
+        assertEquals(1L, rs.one().getLong("val"));
     }
 
     private static void readClusteringTable(String legacyVersion, String compactSuffix, int ck, String ckValue, String pkValue)
@@ -624,8 +687,8 @@ public class LegacySSTableTest
         UntypedResultSet rs;
         rs = QueryProcessor.executeInternal(String.format("SELECT val FROM legacy_tables.legacy_%s_simple_counter%s WHERE pk=?", legacyVersion, compactSuffix), pkValue);
         Assert.assertNotNull(rs);
-        Assert.assertEquals(1, rs.size());
-        Assert.assertEquals(1L, rs.one().getLong("val"));
+        assertEquals(1, rs.size());
+        assertEquals(1L, rs.one().getLong("val"));
     }
 
     private static void readSimpleTable(String legacyVersion, String compactSuffix, String pkValue)
@@ -634,8 +697,8 @@ public class LegacySSTableTest
         UntypedResultSet rs;
         rs = QueryProcessor.executeInternal(String.format("SELECT val FROM legacy_tables.legacy_%s_simple%s WHERE pk=?", legacyVersion, compactSuffix), pkValue);
         Assert.assertNotNull(rs);
-        Assert.assertEquals(1, rs.size());
-        Assert.assertEquals("foo bar baz", rs.one().getString("val"));
+        assertEquals(1, rs.size());
+        assertEquals("foo bar baz", rs.one().getString("val"));
     }
 
     private static void createKeyspace()
@@ -677,12 +740,12 @@ public class LegacySSTableTest
     private static void assertLegacyClustRows(int count, UntypedResultSet rs)
     {
         Assert.assertNotNull(rs);
-        Assert.assertEquals(count, rs.size());
+        assertEquals(count, rs.size());
         for (int i = 0; i < count; i++)
         {
             for (UntypedResultSet.Row r : rs)
             {
-                Assert.assertEquals(128, r.getString("val").length());
+                assertEquals(128, r.getString("val").length());
             }
         }
     }
