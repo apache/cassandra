@@ -6,21 +6,21 @@
 
 @DPATCH@
 diff -urNad '--exclude=CVS' '--exclude=.svn' '--exclude=.git' '--exclude=.arch' '--exclude=.hg' '--exclude=_darcs' '--exclude=.bzr' cassandra~/bin/cassandra cassandra/bin/cassandra
---- cassandra~/bin/cassandra	2015-10-27 14:35:22.000000000 -0500
-+++ cassandra/bin/cassandra	2015-10-27 14:41:38.000000000 -0500
-@@ -139,7 +139,7 @@
-     props="$3"
-     class="$4"
-     cassandra_parms="-Dlogback.configurationFile=logback.xml"
--    cassandra_parms="$cassandra_parms -Dcassandra.logdir=$CASSANDRA_HOME/logs"
-+    cassandra_parms="$cassandra_parms -Dcassandra.logdir=/var/log/cassandra"
-     cassandra_parms="$cassandra_parms -Dcassandra.storagedir=$cassandra_storagedir"
+--- cassandra~/bin/cassandra	2019-06-27 09:35:32.000000000 -0500
++++ cassandra/bin/cassandra	2019-06-27 09:43:28.756343141 -0500
+@@ -127,7 +127,7 @@
+ fi
  
-     if [ "x$pidpath" != "x" ]; then
+ if [ -z "$CASSANDRA_LOG_DIR" ]; then
+-  CASSANDRA_LOG_DIR=$CASSANDRA_HOME/logs
++  CASSANDRA_LOG_DIR=/var/log/cassandra
+ fi
+ 
+ # Special-case path variables.
 diff -urNad '--exclude=CVS' '--exclude=.svn' '--exclude=.git' '--exclude=.arch' '--exclude=.hg' '--exclude=_darcs' '--exclude=.bzr' cassandra~/conf/cassandra-env.sh cassandra/conf/cassandra-env.sh
---- cassandra~/conf/cassandra-env.sh	2015-10-27 14:40:39.000000000 -0500
-+++ cassandra/conf/cassandra-env.sh	2015-10-27 14:42:40.647449856 -0500
-@@ -204,7 +204,7 @@
+--- cassandra~/conf/cassandra-env.sh	2019-06-27 09:35:32.000000000 -0500
++++ cassandra/conf/cassandra-env.sh	2019-06-27 09:42:25.747715490 -0500
+@@ -122,7 +122,7 @@
  esac
  
  #GC log path has to be defined here because it needs to access CASSANDRA_HOME
