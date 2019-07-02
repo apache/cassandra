@@ -240,10 +240,12 @@ public final class SSLFactory
      * Get a netty {@link SslContext} instance.
      */
     @VisibleForTesting
-    static SslContext getOrCreateSslContext(EncryptionOptions options, boolean buildTruststore,
-                                            SocketType socketType, boolean useOpenSsl) throws IOException
+    static SslContext getOrCreateSslContext(EncryptionOptions options,
+                                            boolean buildTruststore,
+                                            SocketType socketType,
+                                            boolean useOpenSsl) throws IOException
     {
-        CacheKey key = new CacheKey(options, socketType);
+        CacheKey key = new CacheKey(options, socketType, useOpenSsl);
         SslContext sslContext;
 
         sslContext = cachedSslContexts.get(key);
@@ -413,11 +415,13 @@ public final class SSLFactory
     {
         private final EncryptionOptions encryptionOptions;
         private final SocketType socketType;
+        private final boolean useOpenSSL;
 
-        public CacheKey(EncryptionOptions encryptionOptions, SocketType socketType)
+        public CacheKey(EncryptionOptions encryptionOptions, SocketType socketType, boolean useOpenSSL)
         {
             this.encryptionOptions = encryptionOptions;
             this.socketType = socketType;
+            this.useOpenSSL = useOpenSSL;
         }
 
         public boolean equals(Object o)
@@ -426,6 +430,7 @@ public final class SSLFactory
             if (o == null || getClass() != o.getClass()) return false;
             CacheKey cacheKey = (CacheKey) o;
             return (socketType == cacheKey.socketType &&
+                    useOpenSSL == cacheKey.useOpenSSL &&
                     Objects.equals(encryptionOptions, cacheKey.encryptionOptions));
         }
 
@@ -434,6 +439,7 @@ public final class SSLFactory
             int result = 0;
             result += 31 * socketType.hashCode();
             result += 31 * encryptionOptions.hashCode();
+            result += 31 * Boolean.hashCode(useOpenSSL);
             return result;
         }
     }
