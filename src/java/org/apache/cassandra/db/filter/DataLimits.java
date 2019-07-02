@@ -69,6 +69,12 @@ public abstract class DataLimits
         {
             return iter;
         }
+
+        @Override
+        public PartitionIterator filter(PartitionIterator iter, int nowInSec, boolean countPartitionsWithOnlyStaticData, boolean enforceStrictLiveness)
+        {
+            return iter;
+        }
     };
 
     // We currently deal with distinct queries by querying full partitions but limiting the result at 1 row per
