@@ -90,7 +90,7 @@ implements BasePartitionIterator<R>
                 Transformation[] fs = stack;
                 int len = length;
 
-                while (!stop.isSignalled && input.hasNext())
+                while (!stop.isSignalled && !stopChild.isSignalled && input.hasNext())
                 {
                     next = input.next();
                     for (int i = 0 ; next != null & i < len ; i++)
@@ -103,7 +103,7 @@ implements BasePartitionIterator<R>
                     }
                 }
 
-                if (stop.isSignalled || stopChild.isSignalled || !hasMoreContents())
+                if (stop.isSignalled || !hasMoreContents())
                     return false;
             }
             return true;
