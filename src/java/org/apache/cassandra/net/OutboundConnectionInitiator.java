@@ -171,13 +171,15 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
      */
     private Bootstrap createBootstrap(EventLoop eventLoop)
     {
-        Bootstrap bootstrap = newBootstrap(eventLoop, settings.tcpUserTimeoutInMS)
-                                           .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, settings.tcpConnectTimeoutInMS)
-                                           .option(ChannelOption.SO_KEEPALIVE, true)
-                                           .option(ChannelOption.SO_REUSEADDR, true)
-                                           .option(ChannelOption.TCP_NODELAY, settings.tcpNoDelay)
-                                           .option(ChannelOption.MESSAGE_SIZE_ESTIMATOR, NoSizeEstimator.instance)
-                                           .handler(new Initializer());
+        Bootstrap bootstrap = settings.socketFactory
+                                      .newClientBootstrap(eventLoop, settings.tcpUserTimeoutInMS)
+                                      .option(ChannelOption.ALLOCATOR, GlobalBufferPoolAllocator.instance)
+                                      .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, settings.tcpConnectTimeoutInMS)
+                                      .option(ChannelOption.SO_KEEPALIVE, true)
+                                      .option(ChannelOption.SO_REUSEADDR, true)
+                                      .option(ChannelOption.TCP_NODELAY, settings.tcpNoDelay)
+                                      .option(ChannelOption.MESSAGE_SIZE_ESTIMATOR, NoSizeEstimator.instance)
+                                      .handler(new Initializer());
 
         if (settings.socketSendBufferSizeInBytes > 0)
             bootstrap.option(ChannelOption.SO_SNDBUF, settings.socketSendBufferSizeInBytes);
