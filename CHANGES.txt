@@ -1,4 +1,5 @@
 4.0
+ * Preventing RuntimeException when the username or password is empty (CASSANDRA-15198)
  * Update Netty dependencies to latest, clean up SocketFactory (CASSANDRA-15195)
  * Native Transport - Apply noSpamLogger to ConnectionLimitHandler (CASSANDRA-15167)
  * Reduce heap pressure during compactions (CASSANDRA-14654)
