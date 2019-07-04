@@ -38,6 +38,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.serializers.Int32Serializer;
 import org.apache.cassandra.serializers.UTF8Serializer;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -57,6 +58,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Hex;
 
 import static org.junit.Assert.*;
 
@@ -289,6 +291,58 @@ public class LegacyLayoutTest
             }
 
         }
+    }
+
+    @Test
+    public void testDecodeLegacyPagedRangeCommandSerializer() throws IOException
+    {
+        /*
+         Run on 2.1
+         public static void main(String[] args) throws IOException, ConfigurationException
+         {
+             Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
+             Keyspace.setInitialized();
+             CFMetaData cfMetaData = CFMetaData.sparseCFMetaData("ks", "cf", UTF8Type.instance)
+             .addColumnDefinition(new ColumnDefinition("ks", "cf", new ColumnIdentifier("v", true), SetType.getInstance(Int32Type.instance, false), null, null, null, null, ColumnDefinition.Kind.REGULAR));
+             KSMetaData ksMetaData = KSMetaData.testMetadata("ks", SimpleStrategy.class, KSMetaData.optsWithRF(3), cfMetaData);
+             MigrationManager.announceNewKeyspace(ksMetaData);
+             RowPosition position = RowPosition.ForKey.get(ByteBufferUtil.EMPTY_BYTE_BUFFER, new Murmur3Partitioner());
+             SliceQueryFilter filter = new IdentityQueryFilter();
+             Composite cellName = CellNames.compositeSparseWithCollection(new ByteBuffer[0], Int32Type.instance.decompose(1), new ColumnIdentifier("v", true), false);
+             try (DataOutputBuffer buffer = new DataOutputBuffer(1024))
+             {
+                 PagedRangeCommand command = new PagedRangeCommand("ks", "cf", 1, AbstractBounds.bounds(position, true, position, true), filter, cellName, filter.finish(), Collections.emptyList(), 1, true);
+                 PagedRangeCommand.serializer.serialize(command, buffer, MessagingService.current_version);
+                 System.out.println(Hex.bytesToHex(buffer.toByteArray()));
+             }
+         }
+         */
+
+        DatabaseDescriptor.setDaemonInitialized();
+        Keyspace.setInitialized();
+        CFMetaData table = CFMetaData.Builder.create("ks", "cf")
+                                             .addPartitionKey("k", Int32Type.instance)
+                                             .addRegularColumn("v", SetType.getInstance(Int32Type.instance, true))
+                                             .build();
+        SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1));
+        MigrationManager.announceNewColumnFamily(table);
+
+        byte[] bytes = Hex.hexToBytes("00026b73000263660000000000000001fffffffe01000000088000000000000000010000000880000000000000000000000100000000007fffffffffffffff000b00017600000400000001000000000000000000000101");
+        ReadCommand.legacyPagedRangeCommandSerializer.deserialize(new DataInputBuffer(bytes), MessagingService.VERSION_21);
+    }
+
+    @Test
+    public void testDecodeCollectionPageBoundary()
+    {
+        CFMetaData table = CFMetaData.Builder.create("ks", "cf")
+                                             .addPartitionKey("k", Int32Type.instance)
+                                             .addRegularColumn("v", SetType.getInstance(Int32Type.instance, true))
+                                             .build();
+
+        ColumnDefinition v = table.getColumnDefinition(new ColumnIdentifier("v", false));
+        ByteBuffer bound = LegacyLayout.encodeCellName(table, Clustering.EMPTY, v.name.bytes, Int32Type.instance.decompose(1));
+
+        LegacyLayout.decodeSliceBound(table, bound, true);
     }
 
 }
