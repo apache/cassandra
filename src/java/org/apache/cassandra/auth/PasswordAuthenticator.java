@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -100,23 +101,30 @@ public class PasswordAuthenticator implements IAuthenticator
 
     private String queryHashedPassword(String username)
     {
-        ResultMessage.Rows rows =
-        authenticateStatement.execute(QueryState.forInternalCalls(),
-                                        QueryOptions.forInternalCalls(consistencyForRole(username),
-                                                                      Lists.newArrayList(ByteBufferUtil.bytes(username))),
-                                        System.nanoTime());
+        try
+        {
+            ResultMessage.Rows rows =
+            authenticateStatement.execute(QueryState.forInternalCalls(),
+                                            QueryOptions.forInternalCalls(consistencyForRole(username),
+                                                                          Lists.newArrayList(ByteBufferUtil.bytes(username))),
+                                            System.nanoTime());
 
-        // If either a non-existent role name was supplied, or no credentials
-        // were found for that role we don't want to cache the result so we throw
-        // a specific, but unchecked, exception to keep LoadingCache happy.
-        if (rows.result.isEmpty())
-            throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
+            // If either a non-existent role name was supplied, or no credentials
+            // were found for that role we don't want to cache the result so we throw
+            // an exception.
+            if (rows.result.isEmpty())
+                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
-        UntypedResultSet result = UntypedResultSet.create(rows.result);
-        if (!result.one().has(SALTED_HASH))
-            throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
+            UntypedResultSet result = UntypedResultSet.create(rows.result);
+            if (!result.one().has(SALTED_HASH))
+                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
-        return result.one().getString(SALTED_HASH);
+            return result.one().getString(SALTED_HASH);
+        }
+        catch (RequestExecutionException e)
+        {
+            throw new AuthenticationException("Unable to perform authentication: " + e.getMessage(), e);
+        }
     }
 
     public Set<DataResource> protectedResources()
