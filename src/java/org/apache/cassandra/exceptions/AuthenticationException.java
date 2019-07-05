@@ -23,4 +23,9 @@ public class AuthenticationException extends RequestValidationException
     {
         super(ExceptionCode.BAD_CREDENTIALS, msg);
     }
+
+    public AuthenticationException(String msg, Throwable e)
+    {
+        super(ExceptionCode.BAD_CREDENTIALS, msg, e);
+    }
 }

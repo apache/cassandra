@@ -37,6 +37,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.thrift.ThriftValidation;
@@ -277,10 +278,20 @@ public class ClientState
         // Login privilege is not inherited via granted roles, so just
         // verify that the role with the credentials that were actually
         // supplied has it
-        if (user.isAnonymous() || DatabaseDescriptor.getRoleManager().canLogin(user.getPrimaryRole()))
+        if (user.isAnonymous() || canLogin(user))
             this.user = user;
         else
             throw new AuthenticationException(String.format("%s is not permitted to log in", user.getName()));
+    }
+
+    private boolean canLogin(AuthenticatedUser user)
+    {
+        try
+        {
+            return DatabaseDescriptor.getRoleManager().canLogin(user.getPrimaryRole());
+        } catch (RequestExecutionException e) {
+            throw new AuthenticationException("Unable to perform authentication: " + e.getMessage(), e);
+        }
     }
 
     public void hasAllKeyspacesAccess(Permission perm) throws UnauthorizedException

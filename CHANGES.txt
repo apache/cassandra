@@ -17,6 +17,7 @@
  * Add missing commands to nodetool-completion (CASSANDRA-14916)
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
  Merged from 2.2:
+ * Handle exceptions during authentication/authorization (CASSANDRA-15041)
  * Support cross version messaging in in-jvm upgrade dtests (CASSANDRA-15078)
  * Fix index summary redistribution cancellation (CASSANDRA-15045)
  * Refactor Circle CI configuration (CASSANDRA-14806)
