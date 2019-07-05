@@ -78,26 +78,23 @@ public class CassandraAuthorizer implements IAuthorizer
     // or indirectly via roles granted to the user.
     public Set<Permission> authorize(AuthenticatedUser user, IResource resource)
     {
-        if (user.isSuper())
-            return resource.applicablePermissions();
-
-        Set<Permission> permissions = EnumSet.noneOf(Permission.class);
         try
         {
+            if (user.isSuper())
+                return resource.applicablePermissions();
+
+            Set<Permission> permissions = EnumSet.noneOf(Permission.class);
+
             for (RoleResource role: user.getRoles())
                 addPermissionsForRole(permissions, resource, role);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new AssertionError(e); // not supposed to happen
-        }
-        catch (RequestExecutionException e)
-        {
-            logger.warn("CassandraAuthorizer failed to authorize {} for {}", user, resource);
-            throw new RuntimeException(e);
-        }
 
-        return permissions;
+            return permissions;
+        }
+        catch (RequestExecutionException | RequestValidationException e)
+        {
+            logger.debug("Failed to authorize {} for {}", user, resource);
+            throw new UnauthorizedException("Unable to perform authorization of permissions: " + e.getMessage(), e);
+        }
     }
 
     public void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource grantee)
