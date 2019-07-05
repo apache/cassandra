@@ -18,7 +18,6 @@
 package org.apache.cassandra.auth;
 
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
@@ -39,13 +38,6 @@ public class RolesCache extends AuthCache<RoleResource, Set<RoleResource>> imple
 
     public Set<RoleResource> getRoles(RoleResource role)
     {
-        try
-        {
-            return get(role);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return get(role);
     }
 }

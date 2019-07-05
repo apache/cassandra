@@ -18,7 +18,6 @@
 package org.apache.cassandra.auth;
 
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.Pair;
@@ -40,13 +39,6 @@ public class PermissionsCache extends AuthCache<Pair<AuthenticatedUser, IResourc
 
     public Set<Permission> getPermissions(AuthenticatedUser user, IResource resource)
     {
-        try
-        {
-            return get(Pair.create(user, resource));
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return get(Pair.create(user, resource));
     }
 }
