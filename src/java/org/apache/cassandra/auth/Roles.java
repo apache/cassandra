@@ -25,10 +25,17 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 
 public class Roles
 {
+    private static final Logger logger = LoggerFactory.getLogger(Roles.class);
+
     private static final Role NO_ROLE = new Role("", false, false, Collections.emptyMap(), Collections.emptySet());
 
     private static RolesCache cache;
@@ -91,11 +98,19 @@ public class Roles
      */
     public static boolean hasSuperuserStatus(RoleResource role)
     {
-        for (Role r : getRoleDetails(role))
-            if (r.isSuper)
-                return true;
+        try
+        {
+            for (Role r : getRoleDetails(role))
+                if (r.isSuper)
+                    return true;
 
-        return false;
+            return false;
+        }
+        catch (RequestExecutionException e)
+        {
+            logger.debug("Failed to authorize {} for super-user permission", role.getRoleName());
+            throw new UnauthorizedException("Unable to perform authorization of super-user permission: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -106,11 +121,19 @@ public class Roles
      */
     public static boolean canLogin(final RoleResource role)
     {
-        for (Role r : getRoleDetails(role))
-            if (r.resource.equals(role))
-                return r.canLogin;
+        try
+        {
+            for (Role r : getRoleDetails(role))
+                if (r.resource.equals(role))
+                    return r.canLogin;
 
-        return false;
+            return false;
+        }
+        catch (RequestExecutionException e)
+        {
+            logger.debug("Failed to authorize {} for login permission", role.getRoleName());
+            throw new UnauthorizedException("Unable to perform authorization of login permission: " + e.getMessage(), e);
+        }
     }
 
     /**

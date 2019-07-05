@@ -53,7 +53,7 @@ public class CassandraAuthorizer implements IAuthorizer
     private static final String RESOURCE = "resource";
     private static final String PERMISSIONS = "permissions";
 
-    SelectStatement authorizeRoleStatement;
+    private SelectStatement authorizeRoleStatement;
 
     public CassandraAuthorizer()
     {
@@ -63,16 +63,24 @@ public class CassandraAuthorizer implements IAuthorizer
     // or indirectly via roles granted to the user.
     public Set<Permission> authorize(AuthenticatedUser user, IResource resource)
     {
-        if (user.isSuper())
-            return resource.applicablePermissions();
+        try
+        {
+            if (user.isSuper())
+                return resource.applicablePermissions();
 
-        Set<Permission> permissions = EnumSet.noneOf(Permission.class);
+            Set<Permission> permissions = EnumSet.noneOf(Permission.class);
 
-        // Even though we only care about the RoleResource here, we use getRoleDetails as
-        // it saves a Set creation in RolesCache
-        for (Role role: user.getRoleDetails())
-            addPermissionsForRole(permissions, resource, role.resource);
-        return permissions;
+            // Even though we only care about the RoleResource here, we use getRoleDetails as
+            // it saves a Set creation in RolesCache
+            for (Role role: user.getRoleDetails())
+                addPermissionsForRole(permissions, resource, role.resource);
+            return permissions;
+        }
+        catch (RequestExecutionException | RequestValidationException e)
+        {
+            logger.debug("Failed to authorize {} for {}", user, resource);
+            throw new UnauthorizedException("Unable to perform authorization of permissions: " + e.getMessage(), e);
+        }
     }
 
     public void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource grantee)
