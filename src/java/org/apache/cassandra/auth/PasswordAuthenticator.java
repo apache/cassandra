@@ -65,7 +65,7 @@ public class PasswordAuthenticator implements IAuthenticator
     public static final String USERNAME_KEY = "username";
     public static final String PASSWORD_KEY = "password";
 
-    private static final byte NUL = 0;
+    static final byte NUL = 0;
     private SelectStatement authenticateStatement;
 
     private CredentialsCache cache;
@@ -214,7 +214,7 @@ public class PasswordAuthenticator implements IAuthenticator
             byte[] user = null;
             byte[] pass = null;
             int end = bytes.length;
-            for (int i = bytes.length - 1 ; i >= 0; i--)
+            for (int i = bytes.length - 1; i >= 0; i--)
             {
                 if (bytes[i] == NUL)
                 {
@@ -222,13 +222,16 @@ public class PasswordAuthenticator implements IAuthenticator
                         pass = Arrays.copyOfRange(bytes, i + 1, end);
                     else if (user == null)
                         user = Arrays.copyOfRange(bytes, i + 1, end);
+                    else
+                        throw new AuthenticationException("Credential format error: username or password is empty or contains NUL(\\0) character");
+
                     end = i;
                 }
             }
 
-            if (pass == null)
+            if (pass == null || pass.length == 0)
                 throw new AuthenticationException("Password must not be null");
-            if (user == null)
+            if (user == null || user.length == 0)
                 throw new AuthenticationException("Authentication ID must not be null");
 
             username = new String(user, StandardCharsets.UTF_8);
