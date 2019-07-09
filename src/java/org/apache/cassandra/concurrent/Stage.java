@@ -17,6 +17,12 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toMap;
+
 public enum Stage
 {
     READ,
@@ -63,5 +69,52 @@ public enum Stage
             name += word.substring(0, 1) + word.substring(1).toLowerCase();
         }
         return name + "Stage";
+    }
+
+    private static String normalizeName(String stageName)
+    {
+        // Handle discrepancy between JMX names and actual pool names
+        String upperStageName = stageName.toUpperCase();
+        if (upperStageName.endsWith("STAGE"))
+        {
+            upperStageName = upperStageName.substring(0, stageName.length() - 5);
+        }
+        return upperStageName;
+    }
+
+    private static Map<String,Stage> nameMap = Arrays.stream(values())
+                                                     .collect(toMap(s -> Stage.normalizeName(s.getJmxName()),
+                                                                    s -> s));
+
+    public static Stage fromPoolName(String stageName)
+    {
+        String upperStageName = normalizeName(stageName);
+
+        Stage result = nameMap.get(upperStageName);
+        if (result != null)
+            return result;
+
+        try
+        {
+            return valueOf(upperStageName);
+        }
+        catch (IllegalArgumentException e)
+        {
+            switch(upperStageName) // Handle discrepancy between configuration file and stage names
+            {
+                case "CONCURRENT_READS":
+                    return READ;
+                case "CONCURRENT_WRITERS":
+                    return MUTATION;
+                case "CONCURRENT_COUNTER_WRITES":
+                    return COUNTER_MUTATION;
+                case "CONCURRENT_MATERIALIZED_VIEW_WRITES":
+                    return VIEW_MUTATION;
+                default:
+                    throw new IllegalStateException("Must be one of " + Arrays.stream(values())
+                                                                              .map(Enum::toString)
+                                                                              .collect(Collectors.joining(",")));
+            }
+        }
     }
 }

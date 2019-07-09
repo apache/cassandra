@@ -133,9 +133,6 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
         return super.shutdownNow();
     }
 
-
-
-
     public int getTotalBlockedTasks()
     {
         return (int) metrics.totalBlocked.getCount();
@@ -146,24 +143,36 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
         return (int) metrics.currentBlocked.getCount();
     }
 
+    @Deprecated
     public int getCoreThreads()
     {
         return getCorePoolSize();
     }
 
+    @Deprecated
     public void setCoreThreads(int number)
     {
         setCorePoolSize(number);
     }
 
+    @Deprecated
     public int getMaximumThreads()
     {
         return getMaximumPoolSize();
     }
 
+    @Deprecated
     public void setMaximumThreads(int number)
     {
         setMaximumPoolSize(number);
+    }
+
+    @Override
+    public void setMaximumPoolSize(int newMaximumPoolSize)
+    {
+        if (newMaximumPoolSize < getCorePoolSize())
+            throw new IllegalArgumentException("maximum pool size cannot be less than core pool size");
+        super.setMaximumPoolSize(newMaximumPoolSize);
     }
 
     @Override

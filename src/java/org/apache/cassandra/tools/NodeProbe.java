@@ -96,6 +96,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * JMX client operations for Cassandra.
@@ -1715,6 +1716,16 @@ public class NodeProbe implements AutoCloseable
                 out.println("Exception occurred during clean-up. " + e);
             }
         }
+    }
+
+    public Map<String, List<Integer>> getMaximumPoolSizes(List<String> filter)
+    {
+        return ssProxy.getConcurrency(filter);
+    }
+
+    public void setConcurrency(String stageName, int coreThreads, int maxConcurrency)
+    {
+        ssProxy.setConcurrency(stageName, coreThreads, maxConcurrency);
     }
 
     public void replayBatchlog() throws IOException

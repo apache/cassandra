@@ -21,11 +21,13 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -50,19 +52,24 @@ public class StageManager
 
     static
     {
-        stages.put(Stage.MUTATION, multiThreadedLowSignalStage(Stage.MUTATION, getConcurrentWriters()));
-        stages.put(Stage.COUNTER_MUTATION, multiThreadedLowSignalStage(Stage.COUNTER_MUTATION, getConcurrentCounterWriters()));
-        stages.put(Stage.VIEW_MUTATION, multiThreadedLowSignalStage(Stage.VIEW_MUTATION, getConcurrentViewWriters()));
-        stages.put(Stage.READ, multiThreadedLowSignalStage(Stage.READ, getConcurrentReaders()));
-        stages.put(Stage.REQUEST_RESPONSE, multiThreadedLowSignalStage(Stage.REQUEST_RESPONSE, FBUtilities.getAvailableProcessors()));
-        stages.put(Stage.INTERNAL_RESPONSE, multiThreadedStage(Stage.INTERNAL_RESPONSE, FBUtilities.getAvailableProcessors()));
+        stages.put(Stage.MUTATION, multiThreadedLowSignalStage(Stage.MUTATION, getConcurrentWriters(), DatabaseDescriptor::setConcurrentWriters));
+        stages.put(Stage.COUNTER_MUTATION, multiThreadedLowSignalStage(Stage.COUNTER_MUTATION, getConcurrentCounterWriters(), DatabaseDescriptor::setConcurrentWriters));
+        stages.put(Stage.VIEW_MUTATION, multiThreadedLowSignalStage(Stage.VIEW_MUTATION, getConcurrentViewWriters(), DatabaseDescriptor::setConcurrentViewWriters));
+        stages.put(Stage.READ, multiThreadedLowSignalStage(Stage.READ, getConcurrentReaders(), DatabaseDescriptor::setConcurrentReaders));
+        stages.put(Stage.REQUEST_RESPONSE, multiThreadedLowSignalStage(Stage.REQUEST_RESPONSE, FBUtilities.getAvailableProcessors(), setAvailableProcessorSize("request response stage")));
+        stages.put(Stage.INTERNAL_RESPONSE, multiThreadedStage(Stage.INTERNAL_RESPONSE, FBUtilities.getAvailableProcessors(), setAvailableProcessorSize("internal response stage")));
         // the rest are all single-threaded
-        stages.put(Stage.GOSSIP, new JMXEnabledThreadPoolExecutor(Stage.GOSSIP));
-        stages.put(Stage.ANTI_ENTROPY, new JMXEnabledThreadPoolExecutor(Stage.ANTI_ENTROPY));
-        stages.put(Stage.MIGRATION, new JMXEnabledThreadPoolExecutor(Stage.MIGRATION));
-        stages.put(Stage.MISC, new JMXEnabledThreadPoolExecutor(Stage.MISC));
+        stages.put(Stage.GOSSIP, singleThreadedStage(Stage.GOSSIP));
+        stages.put(Stage.ANTI_ENTROPY, singleThreadedStage(Stage.ANTI_ENTROPY));
+        stages.put(Stage.MIGRATION, singleThreadedStage(Stage.MIGRATION));
+        stages.put(Stage.MISC, singleThreadedStage(Stage.MISC));
         stages.put(Stage.TRACING, tracingExecutor());
         stages.put(Stage.IMMEDIATE, ImmediateExecutor.INSTANCE);
+    }
+
+    private static LocalAwareExecutorService singleThreadedStage(Stage stage)
+    {
+        return new JMXEnabledSingleThreadExecutor(stage.getJmxName(), stage.getJmxType());
     }
 
     private static LocalAwareExecutorService tracingExecutor()
@@ -77,7 +84,17 @@ public class StageManager
                                    reh);
     }
 
-    private static JMXEnabledThreadPoolExecutor multiThreadedStage(Stage stage, int numThreads)
+    static Consumer<Integer> setAvailableProcessorSize(String niceName)
+    {
+        return newSize -> {
+            if (newSize < 0 || newSize > FBUtilities.getAvailableProcessors())
+            {
+                throw new IllegalArgumentException(niceName + " must be between 0 and " + FBUtilities.getAvailableProcessors());
+            }
+        };
+    }
+
+    private static JMXEnabledThreadPoolExecutor multiThreadedStage(Stage stage, int numThreads, Consumer<Integer> setNumThreads)
     {
         return new JMXEnabledThreadPoolExecutor(numThreads,
                                                 KEEPALIVE,
@@ -87,9 +104,9 @@ public class StageManager
                                                 stage.getJmxType());
     }
 
-    private static LocalAwareExecutorService multiThreadedLowSignalStage(Stage stage, int numThreads)
+    private static LocalAwareExecutorService multiThreadedLowSignalStage(Stage stage, int numThreads, Consumer<Integer> setNumThreads)
     {
-        return SharedExecutorPool.SHARED.newExecutor(numThreads, Integer.MAX_VALUE, stage.getJmxType(), stage.getJmxName());
+        return SharedExecutorPool.SHARED.newExecutor(numThreads, setNumThreads, Integer.MAX_VALUE, stage.getJmxType(), stage.getJmxName());
     }
 
     /**

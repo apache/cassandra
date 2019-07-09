@@ -18,6 +18,7 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -33,6 +34,7 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.Pair;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -707,6 +709,23 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public boolean resumeBootstrap();
 
+    /** Gets the concurrency settings for processing stages*/
+    static class StageConcurrency implements Serializable
+    {
+        public final int corePoolSize;
+        public final int maximumPoolSize;
+
+        public StageConcurrency(int corePoolSize, int maximumPoolSize)
+        {
+            this.corePoolSize = corePoolSize;
+            this.maximumPoolSize = maximumPoolSize;
+        }
+
+    }
+    public Map<String, List<Integer>> getConcurrency(List<String> filter);
+
+    /** Sets the concurrency setting for processing stages */
+    public void setConcurrency(String threadPoolName, int newCorePoolSize, int newMaximumPoolSize);
 
     /** Clears the history of clients that have connected in the past **/
     void clearConnectionHistory();

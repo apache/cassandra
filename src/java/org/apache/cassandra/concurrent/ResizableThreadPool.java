@@ -15,11 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.concurrent;
 
-public interface JMXConfigurableThreadPoolExecutorMBean extends JMXEnabledThreadPoolExecutorMBean
+public interface ResizableThreadPool
 {
-    void setCorePoolSize(int n);
-
+    /**
+     * Returns the number of core threads
+     *
+     * @return the number of core threads
+     */
     int getCorePoolSize();
+
+    /**
+     * Sets the number of core threads.
+     */
+    void setCorePoolSize(int newCorePoolSize);
+
+    /**
+     * Returns the maximum allowed number of threads.
+     *
+     * @return the maximum allowed number of threads
+     */
+    int getMaximumPoolSize();
+
+    /**
+     * Sets the maximum allowed number of threads.
+     */
+    void setMaximumPoolSize(int newMaximumPoolSize);
 }

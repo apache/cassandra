@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nullable;
@@ -45,6 +46,7 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 
+import org.apache.cassandra.concurrent.LocalAwareExecutorService;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.commons.lang3.StringUtils;
@@ -107,10 +109,12 @@ import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.tryFind;
 import static java.util.Arrays.asList;
+import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -1693,6 +1697,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Resuming bootstrap is requested, but the node is already bootstrapped.");
             return false;
         }
+    }
+
+    public Map<String,List<Integer>> getConcurrency(List<String> filter)
+    {
+        Stream<Stage> stageStream = filter.isEmpty() ? stream(Stage.values()) : filter.stream().map(Stage::fromPoolName);
+        return stageStream.collect(toMap(s -> s.getJmxName(),
+                                         s -> {
+                                             LocalAwareExecutorService executor = StageManager.getStage(s);
+                                             return Arrays.asList(executor.getCorePoolSize(), executor.getMaximumPoolSize());
+                                         }));
+    }
+
+    public void setConcurrency(String threadPoolName, int newCorePoolSize, int newMaximumPoolSize)
+    {
+        Stage stage = Stage.fromPoolName(threadPoolName);
+        LocalAwareExecutorService executor = StageManager.getStage(stage);
+        if (newCorePoolSize >= 0)
+            executor.setCorePoolSize(newCorePoolSize);
+        executor.setMaximumPoolSize(newMaximumPoolSize);
     }
 
     public boolean isBootstrapMode()
