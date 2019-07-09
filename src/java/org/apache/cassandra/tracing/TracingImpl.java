@@ -105,7 +105,7 @@ class TracingImpl extends Tracing
     {
         final String threadName = Thread.currentThread().getName();
 
-        Stage.TRACING.executor.execute(new WrappedRunnable()
+        Stage.TRACING.execute(new WrappedRunnable()
         {
             public void runMayThrow()
             {

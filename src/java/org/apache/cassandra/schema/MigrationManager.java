@@ -144,7 +144,7 @@ public class MigrationManager
          * Do not de-ref the future because that causes distributed deadlock (CASSANDRA-3832) because we are
          * running in the gossip stage.
          */
-        return MIGRATION.executor.submit(new MigrationTask(endpoint));
+        return MIGRATION.submit(new MigrationTask(endpoint));
     }
 
     static boolean shouldPullSchemaFrom(InetAddressAndPort endpoint)
@@ -319,7 +319,7 @@ public class MigrationManager
     // Returns a future on the local application of the schema
     private static void announce(Collection<Mutation> schema)
     {
-        Future<?> f = MIGRATION.executor.submit(() -> Schema.instance.mergeAndAnnounceVersion(schema));
+        Future<?> f = MIGRATION.submit(() -> Schema.instance.mergeAndAnnounceVersion(schema));
 
         Set<InetAddressAndPort> schemaDestinationEndpoints = new HashSet<>();
         Set<InetAddressAndPort> schemaEndpointsIgnored = new HashSet<>();
@@ -346,7 +346,7 @@ public class MigrationManager
         long now = FBUtilities.timestampMicros();
 
         Future<Schema.TransformationResult> future =
-            MIGRATION.executor.submit(() -> Schema.instance.transform(transformation, locally, now));
+            MIGRATION.submit(() -> Schema.instance.transform(transformation, locally, now));
 
         Schema.TransformationResult result = Futures.getUnchecked(future);
         if (!result.success)

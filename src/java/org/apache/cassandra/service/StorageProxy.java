@@ -151,8 +151,8 @@ public class StorageProxy implements StorageProxyMBean
         {
             EndpointsForToken selected = targets.contacts().withoutSelf();
             Replicas.temporaryAssertFull(selected); // TODO CASSANDRA-14548
-            Stage.COUNTER_MUTATION.executor
-                        .execute(counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter));
+            Stage.COUNTER_MUTATION.executor()
+                                  .execute(counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter));
         };
 
         for(ConsistencyLevel level : ConsistencyLevel.values())
@@ -445,7 +445,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             if (replica.isSelf())
             {
-                PAXOS_PREPARE_REQ.stage.executor.execute(() -> {
+                PAXOS_PREPARE_REQ.stage.execute(() -> {
                     try
                     {
                         callback.onResponse(message.responseWith(doPrepare(toPrepare)));
@@ -474,7 +474,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             if (replica.isSelf())
             {
-                PAXOS_PROPOSE_REQ.stage.executor.execute(() -> {
+                PAXOS_PROPOSE_REQ.stage.execute(() -> {
                     try
                     {
                         Message<Boolean> response = message.responseWith(doPropose(proposal));
@@ -563,7 +563,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static void commitPaxosLocal(Replica localReplica, final Message<Commit> message, final AbstractWriteResponseHandler<?> responseHandler)
     {
-        PAXOS_COMMIT_REQ.stage.executor.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
+        PAXOS_COMMIT_REQ.stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
             public void runMayThrow()
             {
@@ -1313,7 +1313,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable)
     {
-        stage.executor.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
+        stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
             public void runMayThrow()
             {
@@ -1337,7 +1337,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable, final RequestCallback<?> handler)
     {
-        stage.executor.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
+        stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
             public void runMayThrow()
             {
@@ -2056,7 +2056,7 @@ public class StorageProxy implements StorageProxyMBean
 
             if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
             {
-                Stage.READ.executor.execute(new LocalReadRunnable(rangeCommand, handler));
+                Stage.READ.execute(new LocalReadRunnable(rangeCommand, handler));
             }
             else
             {
@@ -2618,7 +2618,7 @@ public class StorageProxy implements StorageProxyMBean
         StorageMetrics.totalHintsInProgress.inc(runnable.targets.size());
         for (Replica target : runnable.targets)
             getHintsInProgressFor(target.endpoint()).incrementAndGet();
-        return (Future<Void>) Stage.MUTATION.executor.submit(runnable);
+        return (Future<Void>) Stage.MUTATION.submit(runnable);
     }
 
     public Long getRpcTimeout() { return DatabaseDescriptor.getRpcTimeout(MILLISECONDS); }
