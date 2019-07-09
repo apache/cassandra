@@ -62,12 +62,30 @@ public interface LocalAwareExecutorService extends ExecutorService
      */
     int getPendingTaskCount();
 
+
+    /**
+     * Returns the number of core threads
+     *
+     * @return the number of core threads
+     */
+    int getCorePoolSize();
+
+    /**
+     * Sets the number of core threads.
+     */
+    void setCorePoolSize(int newCorePoolSize);
+
     /**
      * Returns the maximum allowed number of threads.
      *
      * @return the maximum allowed number of threads
      */
     int getMaximumPoolSize();
+
+    /**
+     * Sets the maximum allowed number of threads.
+     */
+    void setMaximumPoolSize(int newMaximumPoolSize);
 
     default int getMaxTasksQueued()
     {

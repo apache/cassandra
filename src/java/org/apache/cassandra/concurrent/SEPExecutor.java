@@ -21,26 +21,35 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
+import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
 
-public class SEPExecutor extends AbstractLocalAwareExecutorService
+public class SEPExecutor extends AbstractLocalAwareExecutorService implements SEPExecutorMBean
 {
+    private static final Logger logger = LoggerFactory.getLogger(SEPExecutor.class);
     private final SharedExecutorPool pool;
 
-    public final int maxWorkers;
+    public final AtomicInteger maxWorkers;
+    Consumer<Integer> updatedMaxWorkers;
     public final String name;
+    private final String mbeanName;
     public final int maxTasksQueued;
     private final ThreadPoolMetrics metrics;
 
     // stores both a set of work permits and task permits:
     //  bottom 32 bits are number of queued tasks, in the range [0..maxTasksQueued]   (initially 0)
-    //  top 32 bits are number of work permits available in the range [0..maxWorkers]   (initially maxWorkers)
+    //  top 32 bits are number of work permits available in the range [-resizeDelta..maxWorkers]   (initially maxWorkers)
     private final AtomicLong permits = new AtomicLong();
 
     // producers wait on this when there is no room on the queue
@@ -55,12 +64,20 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
 
     SEPExecutor(SharedExecutorPool pool, int maxWorkers, int maxTasksQueued, String jmxPath, String name)
     {
+        this(pool, maxWorkers, i -> {}, maxTasksQueued, jmxPath, name);
+    }
+
+    SEPExecutor(SharedExecutorPool pool, int maxWorkers, Consumer<Integer> updatedMaxWorkers, int maxTasksQueued, String jmxPath, String name)
+    {
         this.pool = pool;
         this.name = name;
-        this.maxWorkers = maxWorkers;
+        this.mbeanName = "org.apache.cassandra." + jmxPath + ":type=" + name;
+        this.maxWorkers = new AtomicInteger(maxWorkers);
+        this.updatedMaxWorkers = updatedMaxWorkers;
         this.maxTasksQueued = maxTasksQueued;
         this.permits.set(combine(0, maxWorkers));
         this.metrics = new ThreadPoolMetrics(this, jmxPath, name).register();
+        MBeanWrapper.instance.registerMBean(this, mbeanName);
     }
 
     protected void onCompletion()
@@ -143,7 +160,10 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
         {
             long current = permits.get();
             int taskPermits = taskPermits(current);
+            int workPermits = workPermits(current);
             if (taskPermits == 0)
+                return false;
+            if (workPermits < 0)
                 return false;
             if (permits.compareAndSet(current, updateTaskPermits(current, taskPermits - 1)))
             {
@@ -163,7 +183,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
             long current = permits.get();
             int workPermits = workPermits(current);
             int taskPermits = taskPermits(current);
-            if (workPermits == 0 || taskPermits == 0)
+            if (workPermits <= 0 || taskPermits == 0)
                 return false;
             if (permits.compareAndSet(current, combine(taskPermits - taskDelta, workPermits - 1)))
             {
@@ -219,6 +239,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
 
         // release metrics
         metrics.release();
+        MBeanWrapper.instance.unregisterMBean(mbeanName);
     }
 
     public synchronized List<Runnable> shutdownNow()
@@ -260,13 +281,53 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
 
     public int getActiveTaskCount()
     {
-        return maxWorkers - workPermits(permits.get());
+        return maxWorkers.get() - workPermits(permits.get());
+    }
+
+    public int getCorePoolSize()
+    {
+        return 0;
+    }
+
+    public void setCorePoolSize(int newCorePoolSize)
+    {
+        throw new IllegalArgumentException("Cannot resize core pool size of SEPExecutor");
     }
 
     @Override
     public int getMaximumPoolSize()
     {
-        return maxWorkers;
+        return maxWorkers.get();
+    }
+
+    @Override
+    public void setMaximumPoolSize(int newMaximumPoolSize)
+    {
+        final int oldMaxWorkers = maxWorkers.get();
+        long current;
+        int workPermits;
+
+        if (newMaximumPoolSize < 0)
+        {
+            throw new IllegalArgumentException("Maximum number of workers must not be negative");
+        }
+
+        int deltaWorkPermits = newMaximumPoolSize - oldMaxWorkers;
+        if (!maxWorkers.compareAndSet(oldMaxWorkers, newMaximumPoolSize))
+        {
+            throw new IllegalStateException("Maximum pool size has been changed while resizing");
+        }
+        if (deltaWorkPermits == 0)
+            return;
+
+        do
+        {
+            current = permits.get();
+            workPermits = workPermits(current);
+        }
+        while (!permits.compareAndSet(current, updateWorkPermits(current, workPermits + deltaWorkPermits)));
+        logger.info("Resized {} maximum pool size from {} to {}", name, oldMaxWorkers, newMaximumPoolSize);
+        updatedMaxWorkers.accept(newMaximumPoolSize);
     }
 
     private static int taskPermits(long both)
@@ -274,9 +335,9 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
         return (int) both;
     }
 
-    private static int workPermits(long both)
+    private static int workPermits(long both) // may be negative if resizing
     {
-        return (int) (both >>> 32);
+        return (int) (both >> 32); // sign extending right shift
     }
 
     private static long updateTaskPermits(long prev, int taskPermits)

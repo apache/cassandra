@@ -47,7 +47,24 @@ public class ImmediateExecutor extends AbstractExecutorService implements LocalA
     public int getActiveTaskCount() { return 0; }
     public long getCompletedTaskCount() { return 0; }
     public int getPendingTaskCount() { return 0; }
+
+    public int getCorePoolSize()
+    {
+        return 0;
+    }
+
+    public void setCorePoolSize(int newCorePoolSize)
+    {
+        throw new IllegalArgumentException("Cannot resize ImmediateExecutor");
+    }
+
     public int getMaximumPoolSize() { return 0; }
+
+    public void setMaximumPoolSize(int newMaximumPoolSize)
+    {
+        throw new IllegalArgumentException("Cannot resize ImmediateExecutor");
+    }
+
     public void shutdown() { }
     public List<Runnable> shutdownNow() { return Collections.emptyList(); }
     public boolean isShutdown() { return false; }

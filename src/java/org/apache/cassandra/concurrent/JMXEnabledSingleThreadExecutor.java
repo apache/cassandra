@@ -41,6 +41,12 @@ public class JMXEnabledSingleThreadExecutor extends JMXEnabledThreadPoolExecutor
         throw new UnsupportedOperationException("Cannot change max threads for single threaded executor.");
     }
 
+    @Override
+    public void setMaximumPoolSize(int number)
+    {
+        setMaximumThreads(number);
+    }
+
     public boolean isExecutingOnExecutor(Thread otherThread)
     {
         return ((SingleThreadFactory) getThreadFactory()).isSameThread(otherThread);

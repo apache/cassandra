@@ -162,6 +162,14 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
     }
 
     @Override
+    public void setMaximumPoolSize(int newMaximumPoolSize)
+    {
+        if (newMaximumPoolSize < getCorePoolSize())
+            throw new IllegalArgumentException("maximum pool size cannot be less than core pool size");
+        super.setMaximumPoolSize(newMaximumPoolSize);
+    }
+
+    @Override
     protected void onInitialRejection(Runnable task)
     {
         metrics.totalBlocked.inc();
