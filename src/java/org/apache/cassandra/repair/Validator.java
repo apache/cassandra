@@ -379,7 +379,7 @@ public class Validator implements Runnable
             trees.logRowSizePerLeaf(logger);
         }
 
-        Stage.ANTI_ENTROPY.executor.execute(this);
+        Stage.ANTI_ENTROPY.execute(this);
     }
 
     /**
@@ -431,7 +431,7 @@ public class Validator implements Runnable
          * directly, since this method will only be called from {@code Stage.ENTI_ENTROPY}, but we do instead
          * execute a {@code Runnable} on the stage - in case that assumption ever changes by accident.
          */
-        Stage.ANTI_ENTROPY.executor.execute(() ->
+        Stage.ANTI_ENTROPY.execute(() ->
         {
             ValidationResponse movedResponse = response;
             try
