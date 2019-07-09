@@ -212,7 +212,7 @@ public class MatcherResponse
         if (!MessagingService.instance().inboundSink.allow(message))
             return;
 
-        message.verb().stage.executor.execute(() -> {
+        message.verb().stage.execute(() -> {
             try
             {
                 message.verb().handler().doVerb((Message<Object>)message);

@@ -85,8 +85,8 @@ public class ViewTest extends CQLTester
     private void updateView(String query, Object... params) throws Throwable
     {
         executeNet(protocolVersion, query, params);
-        while (!(((SEPExecutor) Stage.VIEW_MUTATION.executor).getPendingTaskCount() == 0
-                && ((SEPExecutor) Stage.VIEW_MUTATION.executor).getActiveTaskCount() == 0))
+        while (!(((SEPExecutor) Stage.VIEW_MUTATION.executor()).getPendingTaskCount() == 0
+                && ((SEPExecutor) Stage.VIEW_MUTATION.executor()).getActiveTaskCount() == 0))
         {
             Thread.sleep(1);
         }

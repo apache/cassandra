@@ -17,26 +17,33 @@
  */
 package org.apache.cassandra.concurrent;
 
-
-public interface JMXEnabledThreadPoolExecutorMBean
+public interface JMXEnabledThreadPoolExecutorMBean extends ResizableThreadPool
 {
     /**
      * Returns core pool size of thread pool.
+     * Deprecated, use getCorePoolSize instead.
      */
+    @Deprecated
     public int getCoreThreads();
 
     /**
      * Allows user to resize core pool size of the thread pool.
+     * Deprecated, use setCorePoolSize instead.
      */
+    @Deprecated
     public void setCoreThreads(int number);
 
     /**
      * Returns maximum pool size of thread pool.
+     * Deprecated, use getMaximumThreads instead.
      */
+    @Deprecated
     public int getMaximumThreads();
 
     /**
      * Allows user to resize maximum size of the thread pool.
+     * Deprecated, use setMaximumThreads instead.
      */
+    @Deprecated
     public void setMaximumThreads(int number);
 }

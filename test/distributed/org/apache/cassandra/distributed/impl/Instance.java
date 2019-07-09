@@ -251,7 +251,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 Message.Header header = messageIn.header;
                 TraceState state = Tracing.instance.initializeFromMessage(header);
                 if (state != null) state.trace("{} message received from {}", header.verb, header.from);
-                header.verb.stage.executor.execute(
+                header.verb.stage.execute(
                     ThrowingRunnable.toRunnable(() -> messageIn.verb().handler().doVerb((Message<Object>) messageIn)),
                     ExecutorLocals.create(state));
             }

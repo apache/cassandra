@@ -171,7 +171,7 @@ public class RequestCallbacks implements OutboundMessageCallbacks
             messagingService.updateBackPressureOnReceive(info.peer, info.callback, true);
 
         if (info.invokeOnFailure())
-            INTERNAL_RESPONSE.executor.submit(() -> info.callback.onFailure(info.peer, RequestFailureReason.TIMEOUT));
+            INTERNAL_RESPONSE.submit(() -> info.callback.onFailure(info.peer, RequestFailureReason.TIMEOUT));
 
         // FIXME: this has never belonged here, should be part of onFailure() in AbstractWriteResponseHandler
         if (info.shouldHint())

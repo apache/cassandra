@@ -570,8 +570,8 @@ public class Keyspace
                             // This view update can't happen right now. so rather than keep this thread busy
                             // we will re-apply ourself to the queue and try again later
                             final CompletableFuture<?> mark = future;
-                            Stage.MUTATION.executor.execute(() ->
-                                                                          applyInternal(mutation, makeDurable, true, isDroppable, true, mark)
+                            Stage.MUTATION.execute(() ->
+                                                   applyInternal(mutation, makeDurable, true, isDroppable, true, mark)
                             );
                             return future;
                         }

@@ -359,7 +359,7 @@ public class CacheService implements CacheServiceMBean
             if (!cfs.metadata().isCounter() || !cfs.isCounterCacheEnabled())
                 return null;
 
-            return Stage.READ.executor.submit(new Callable<Pair<CounterCacheKey, ClockAndCount>>()
+            return Stage.READ.submit(new Callable<Pair<CounterCacheKey, ClockAndCount>>()
             {
                 public Pair<CounterCacheKey, ClockAndCount> call() throws Exception
                 {
@@ -393,7 +393,7 @@ public class CacheService implements CacheServiceMBean
             final int rowsToCache = cfs.metadata().params.caching.rowsPerPartitionToCache();
             assert(!cfs.isIndex());//Shouldn't have row cache entries for indexes
 
-            return Stage.READ.executor.submit(new Callable<Pair<RowCacheKey, IRowCacheEntry>>()
+            return Stage.READ.submit(new Callable<Pair<RowCacheKey, IRowCacheEntry>>()
             {
                 public Pair<RowCacheKey, IRowCacheEntry> call() throws Exception
                 {

@@ -28,6 +28,9 @@ import org.slf4j.LoggerFactory;
 import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.RETURNED_WORK_PERMIT;
+import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.TOOK_PERMIT;
+
 final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(SEPWorker.class);
@@ -104,6 +107,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 // (which is also a state that will never be interrupted externally)
                 set(Work.WORKING);
                 boolean shutdown;
+                SEPExecutor.TakeTaskPermitResult status = null; // make sure set if shutdown check short circuits
                 while (true)
                 {
                     // before we process any task, we maybe schedule a new worker _to our executor only_; this
@@ -115,14 +119,19 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                     task.run();
                     task = null;
 
-                    // if we're shutting down, or we fail to take a permit, we don't perform any more work
-                    if ((shutdown = assigned.shuttingDown) || !assigned.takeTaskPermit())
+                    if (shutdown = assigned.shuttingDown)
                         break;
+
+                    if (TOOK_PERMIT != (status = assigned.takeTaskPermit(true)))
+                        break;
+
                     task = assigned.tasks.poll();
                 }
 
                 // return our work permit, and maybe signal shutdown
-                assigned.returnWorkPermit();
+                if (status != RETURNED_WORK_PERMIT)
+                    assigned.returnWorkPermit();
+
                 if (shutdown)
                 {
                     if (assigned.getActiveTaskCount() == 0)
@@ -130,6 +139,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                     return;
                 }
                 assigned = null;
+
 
                 // try to immediately reassign ourselves some work; if we fail, start spinning
                 if (!selfAssign())

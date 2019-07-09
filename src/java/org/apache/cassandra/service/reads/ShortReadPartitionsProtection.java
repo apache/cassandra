@@ -182,7 +182,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
         if (source.isSelf())
         {
-            Stage.READ.executor.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
+            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
         }
         else
         {

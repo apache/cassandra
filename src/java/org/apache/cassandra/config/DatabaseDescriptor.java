@@ -1620,9 +1620,27 @@ public class DatabaseDescriptor
         return conf.concurrent_reads;
     }
 
+    public static void setConcurrentReaders(int concurrent_reads)
+    {
+        if (concurrent_reads < 0)
+        {
+            throw new IllegalArgumentException("Concurrent reads must be non-negative");
+        }
+        conf.concurrent_reads = concurrent_reads;
+    }
+
     public static int getConcurrentWriters()
     {
         return conf.concurrent_writes;
+    }
+
+    public static void setConcurrentWriters(int concurrent_writers)
+    {
+        if (concurrent_writers < 0)
+        {
+            throw new IllegalArgumentException("Concurrent reads must be non-negative");
+        }
+        conf.concurrent_writes = concurrent_writers;
     }
 
     public static int getConcurrentCounterWriters()
@@ -1630,9 +1648,27 @@ public class DatabaseDescriptor
         return conf.concurrent_counter_writes;
     }
 
+    public static void setConcurrentCounterWriters(int concurrent_counter_writes)
+    {
+        if (concurrent_counter_writes < 0)
+        {
+            throw new IllegalArgumentException("Concurrent reads must be non-negative");
+        }
+        conf.concurrent_counter_writes = concurrent_counter_writes;
+    }
+
     public static int getConcurrentViewWriters()
     {
         return conf.concurrent_materialized_view_writes;
+    }
+
+    public static void setConcurrentViewWriters(int concurrent_materialized_view_writes)
+    {
+        if (concurrent_materialized_view_writes < 0)
+        {
+            throw new IllegalArgumentException("Concurrent reads must be non-negative");
+        }
+        conf.concurrent_materialized_view_writes = concurrent_materialized_view_writes;
     }
 
     public static int getFlushWriters()
@@ -1997,6 +2033,11 @@ public class DatabaseDescriptor
     public static int getNativeTransportMaxThreads()
     {
         return conf.native_transport_max_threads;
+    }
+
+    public static void setNativeTransportMaxThreads(int max_threads)
+    {
+        conf.native_transport_max_threads = max_threads;
     }
 
     public static int getNativeTransportMaxFrameSize()

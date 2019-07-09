@@ -277,7 +277,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                     }
                 }
             };
-            return Stage.MUTATION.executor.submit(runnable, serializedSize);
+            return Stage.MUTATION.submit(runnable, serializedSize);
         }
     }
 

@@ -93,7 +93,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 
         if (to.isSelf())
         {
-            Stage.READ.executor.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(command, readCallback));
+            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(command, readCallback));
             return;
         }
 
