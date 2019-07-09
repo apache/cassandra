@@ -145,10 +145,12 @@ public class Frame
         private int tooLongStreamId;
 
         private final Connection.Factory factory;
+        private final ProtocolVersionLimit versionCap;
 
-        public Decoder(Connection.Factory factory)
+        public Decoder(Connection.Factory factory, ProtocolVersionLimit versionCap)
         {
             this.factory = factory;
+            this.versionCap = versionCap;
         }
 
         @Override
@@ -175,10 +177,10 @@ public class Frame
             int firstByte = buffer.getByte(idx++);
             Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
             int version = firstByte & PROTOCOL_VERSION_MASK;
-            if (version < Server.MIN_SUPPORTED_VERSION || version > Server.CURRENT_VERSION)
+            if (version < Server.MIN_SUPPORTED_VERSION || version > versionCap.getMaxVersion())
                 throw new ProtocolException(String.format("Invalid or unsupported protocol version (%d); the lowest supported version is %d and the greatest is %d",
-                                                          version, Server.MIN_SUPPORTED_VERSION, Server.CURRENT_VERSION),
-                                            version);
+                                                          version, Server.MIN_SUPPORTED_VERSION, versionCap.getMaxVersion()),
+                                            version < Server.MIN_SUPPORTED_VERSION ? version : null);
 
             // Wait until we have the complete header
             if (readableBytes < Header.LENGTH)

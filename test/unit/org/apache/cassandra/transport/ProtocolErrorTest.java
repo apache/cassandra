@@ -43,7 +43,7 @@ public class ProtocolErrorTest {
 
     public void testInvalidProtocolVersion(int version) throws Exception
     {
-        Frame.Decoder dec = new Frame.Decoder(null);
+        Frame.Decoder dec = new Frame.Decoder(null, ProtocolVersionLimit.SERVER_DEFAULT);
 
         List<Object> results = new ArrayList<>();
         byte[] frame = new byte[] {
@@ -71,7 +71,7 @@ public class ProtocolErrorTest {
     public void testInvalidProtocolVersionShortFrame() throws Exception
     {
         // test for CASSANDRA-11464
-        Frame.Decoder dec = new Frame.Decoder(null);
+        Frame.Decoder dec = new Frame.Decoder(null, ProtocolVersionLimit.SERVER_DEFAULT);
 
         List<Object> results = new ArrayList<>();
         byte[] frame = new byte[] {
@@ -93,7 +93,7 @@ public class ProtocolErrorTest {
     @Test
     public void testInvalidDirection() throws Exception
     {
-        Frame.Decoder dec = new Frame.Decoder(null);
+        Frame.Decoder dec = new Frame.Decoder(null, ProtocolVersionLimit.SERVER_DEFAULT);
 
         List<Object> results = new ArrayList<>();
         // should generate a protocol exception for using a response frame with
@@ -124,7 +124,7 @@ public class ProtocolErrorTest {
     @Test
     public void testBodyLengthOverLimit() throws Exception
     {
-        Frame.Decoder dec = new Frame.Decoder(null);
+        Frame.Decoder dec = new Frame.Decoder(null, ProtocolVersionLimit.SERVER_DEFAULT);
 
         List<Object> results = new ArrayList<>();
         byte[] frame = new byte[] {

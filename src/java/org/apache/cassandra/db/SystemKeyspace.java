@@ -716,6 +716,18 @@ public final class SystemKeyspace
         return executorService.submit((Runnable) () -> executeInternal(String.format(req, PEERS, columnName), ep, value));
     }
 
+    public static void updatePeerReleaseVersion(final InetAddress ep, final Object value, Runnable postUpdateTask, ExecutorService executorService)
+    {
+        if (ep.equals(FBUtilities.getBroadcastAddress()))
+            return;
+
+        String req = "INSERT INTO system.%s (peer, %s) VALUES (?, ?)";
+        executorService.execute(() -> {
+            executeInternal(String.format(req, PEERS, "release_version"), ep, value);
+            postUpdateTask.run();
+        });
+    }
+
     public static synchronized void updateHintsDropped(InetAddress ep, UUID timePeriod, int value)
     {
         // with 30 day TTL
@@ -809,6 +821,37 @@ public final class SystemKeyspace
             }
         }
         return hostIdMap;
+    }
+
+    /**
+     * Return a map of IP address to C* version. If an invalid version string, or no version
+     * at all is stored for a given peer IP, then NULL_VERSION will be reported for that peer
+     */
+    public static Map<InetAddress, CassandraVersion> loadPeerVersions()
+    {
+        Map<InetAddress, CassandraVersion> releaseVersionMap = new HashMap<>();
+        for (UntypedResultSet.Row row : executeInternal("SELECT peer, release_version FROM system." + PEERS))
+        {
+            InetAddress peer = row.getInetAddress("peer");
+            if (row.has("release_version"))
+            {
+                try
+                {
+                    releaseVersionMap.put(peer, new CassandraVersion(row.getString("release_version")));
+                }
+                catch (IllegalArgumentException e)
+                {
+                    logger.info("Invalid version string found for {}", peer);
+                    releaseVersionMap.put(peer, NULL_VERSION);
+                }
+            }
+            else
+            {
+                logger.info("No version string found for {}", peer);
+                releaseVersionMap.put(peer, NULL_VERSION);
+            }
+        }
+        return releaseVersionMap;
     }
 
     /**
