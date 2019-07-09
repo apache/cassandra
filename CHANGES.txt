@@ -1,4 +1,5 @@
 3.0.19
+ * Add ability to cap max negotiable protocol version (CASSANDRA-15193)
  * Gossip tokens on startup if available (CASSANDRA-15335)
  * Fix resource leak in CompressedSequentialWriter (CASSANDRA-15340)
  * Fix merge which reverted CASSANDRA-14993 (CASSANDRA-15289)

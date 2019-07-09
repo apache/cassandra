@@ -619,4 +619,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return true if the node successfully starts resuming. (this does not mean bootstrap streaming was success.)
      */
     public boolean resumeBootstrap();
+
+    /** Returns the max version that this node will negotiate for native protocol connections */
+    public int getMaxNativeProtocolVersion();
 }

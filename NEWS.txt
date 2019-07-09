@@ -49,6 +49,11 @@ Upgrading
 ---------
 	- repair_session_max_tree_depth setting has been added to cassandra.yaml to allow operators to reduce
 	  merkle tree size if repair is creating too much heap pressure. See CASSANDRA-14096 for details.
+    - native_transport_max_negotiable_protocol_version has been added to cassandra.yaml to allow operators to
+      enforce an upper limit on the version of the native protocol that servers will negotiate with clients.
+      This can be used during upgrades from 2.1 to 3.0 to prevent errors due to incompatible paging state formats
+      between the two versions. See CASSANDRA-15193 for details.
+
 
 3.0.18
 ======

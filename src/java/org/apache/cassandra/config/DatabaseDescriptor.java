@@ -52,6 +52,7 @@ import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.thrift.ThriftServer;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.*;
 
@@ -762,6 +763,20 @@ public class DatabaseDescriptor
             && !conf.client_encryption_options.enabled)
         {
             throw new ConfigurationException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl", false);
+        }
+
+        // If max protocol version has been set, just validate it's within an acceptable range
+        if (conf.native_transport_max_negotiable_protocol_version != Integer.MIN_VALUE)
+        {
+            if (conf.native_transport_max_negotiable_protocol_version < Server.MIN_SUPPORTED_VERSION
+                || conf.native_transport_max_negotiable_protocol_version > Server.CURRENT_VERSION)
+            {
+                throw new ConfigurationException(String.format("Invalid setting for native_transport_max_negotiable_version (%d); " +
+                                                               "Values between %s and %s are supported",
+                                                               conf.native_transport_max_negotiable_protocol_version,
+                                                               Server.MIN_SUPPORTED_VERSION,
+                                                               Server.CURRENT_VERSION));
+            }
         }
 
         if (conf.max_value_size_in_mb == null || conf.max_value_size_in_mb <= 0)
@@ -1523,6 +1538,11 @@ public class DatabaseDescriptor
     public static boolean useNativeTransportLegacyFlusher()
     {
         return conf.native_transport_flush_in_batches_legacy;
+    }
+
+    public static int getNativeProtocolMaxVersionOverride()
+    {
+        return conf.native_transport_max_negotiable_protocol_version;
     }
 
     public static double getCommitLogSyncBatchWindow()

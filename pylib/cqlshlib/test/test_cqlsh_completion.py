@@ -42,7 +42,7 @@ completion_separation_re = re.compile(r'\s+')
 class CqlshCompletionCase(BaseTestCase):
 
     def setUp(self):
-        self.cqlsh_runner = testrun_cqlsh(cqlver=cqlsh.DEFAULT_CQLVER, env={'COLUMNS': '100000'})
+        self.cqlsh_runner = testrun_cqlsh(cqlver=None, env={'COLUMNS': '100000'})
         self.cqlsh = self.cqlsh_runner.__enter__()
 
     def tearDown(self):

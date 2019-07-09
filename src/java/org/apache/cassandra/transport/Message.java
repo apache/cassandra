@@ -322,11 +322,18 @@ public abstract class Message
     @ChannelHandler.Sharable
     public static class ProtocolEncoder extends MessageToMessageEncoder<Message>
     {
+        private final ProtocolVersionLimit versionCap;
+
+        ProtocolEncoder(ProtocolVersionLimit versionCap)
+        {
+            this.versionCap = versionCap;
+        }
+
         public void encode(ChannelHandlerContext ctx, Message message, List results)
         {
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
             // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
-            int version = connection == null ? Server.CURRENT_VERSION : connection.getVersion();
+            int version = connection == null ? versionCap.getMaxVersion() : connection.getVersion();
 
             EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);
 
