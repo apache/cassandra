@@ -250,18 +250,67 @@ public class AlterTest extends CQLTester
                    row(1, null, null, "111"));
     }
 
-    /**
-     * Test for 7744,
-     * migrated from cql_tests.py:TestCQL.downgrade_to_compact_bug_test()
-     */
-    @Test
-    public void testDowngradeToCompact() throws Throwable
+    @Test(expected = InvalidRequestException.class)
+    public void testDropComplexAddSimpleColumn() throws Throwable
     {
         createTable("create table %s (k int primary key, v set<text>)");
-        execute("insert into %s (k, v) VALUES (0, {'f'})");
-        flush();
         execute("alter table %s drop v");
-        execute("alter table %s add v int");
+        execute("alter table %s add v text");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testDropSimpleAddComplexColumn() throws Throwable
+    {
+        createTable("create table %s (k int primary key, v text)");
+        execute("alter table %s drop v");
+        execute("alter table %s add v set<text>");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testDropMultiCellAddFrozenColumn() throws Throwable
+    {
+        createTable("create table %s (k int primary key, v set<text>)");
+        execute("alter table %s drop v");
+        execute("alter table %s add v frozen<set<text>>");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testDropFrozenAddMultiCellColumn() throws Throwable
+    {
+        createTable("create table %s (k int primary key, v frozen<set<text>>)");
+        execute("alter table %s drop v");
+        execute("alter table %s add v set<text>");
+    }
+
+    @Test
+    public void testDropTimeUUIDAddUUIDColumn() throws Throwable
+    {
+        createTable("create table %s (k int primary key, v timeuuid)");
+        execute("alter table %s drop v");
+        execute("alter table %s add v uuid");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testDropUUIDAddTimeUUIDColumn() throws Throwable
+    {
+        createTable("create table %s (k int primary key, v uuid)");
+        execute("alter table %s drop v");
+        execute("alter table %s add v timeuuid");
+    }
+
+    @Test
+    public void testDropAddSameType() throws Throwable
+    {
+        createTable("create table %s (k int primary key, v1 timeuuid, v2 set<uuid>, v3 frozen<list<text>>)");
+
+        execute("alter table %s drop v1");
+        execute("alter table %s add v1 timeuuid");
+
+        execute("alter table %s drop v2");
+        execute("alter table %s add v2 set<uuid>");
+
+        execute("alter table %s drop v3");
+        execute("alter table %s add v3 frozen<list<text>>");
     }
 
     @Test(expected = SyntaxException.class)
