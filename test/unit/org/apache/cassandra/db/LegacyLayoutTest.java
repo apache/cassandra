@@ -330,7 +330,7 @@ public class LegacyLayoutTest
          }
          */
 
-        DatabaseDescriptor.setDaemonInitialized();
+        DatabaseDescriptor.daemonInitialization();
         Keyspace.setInitialized();
         CFMetaData table = CFMetaData.Builder.create("ks", "cf")
                                              .addPartitionKey("k", Int32Type.instance)
