@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.SuperColumnCompatibility;
@@ -236,36 +237,45 @@ public abstract class LegacyLayout
         assert !isStatic ||
                 (components.size() >= clusteringSize
                         && all(components.subList(0, clusteringSize), ByteBufferUtil.EMPTY_BYTE_BUFFER::equals));
+
         ColumnDefinition collectionName = null;
         if (components.size() > clusteringSize)
         {
             // For a deletion, there can be more components than the clustering size only in the case this is the
             // bound of a collection range tombstone. In such a case, there is exactly one more component, and that
-            // component is the name of the collection being selected/deleted.
-            // If the bound is not part of a deletion, it is from slice query filter. In this scnario, the column name
-            // may be a valid, non-collection column or it may be an empty buffer, representing a row marker. In either
-            // case, this needn't be included in the returned bound, so we pop the last element from the components
-            // list but ensure that the collection name remains null.
+            // component is the name of the collection being deleted, since we do not support collection range deletions.
+            // If the bound is not part of a deletion, it is from slice query filter. The column name may be:
+            //   - a valid, non-collection column; in this case we expect a single extra component
+            //   - an empty buffer, representing a row marker; in this case we also expect a single extra empty component
+            //   - a valid collection column and the first part of a cell path; in this case we expect exactly two extra components
+            // In any of these slice cases, these items are unnecessary for the bound we construct,
+            // so we can simply remove them, after corroborating we have encountered one of these scenario.
+            assert !metadata.isCompactTable() : toDebugHex(components);
 
-            assert clusteringSize + 1 == components.size() && !metadata.isCompactTable();
-            // pop the final element from the back of the list of clusterings
-            ByteBuffer columnNameBytes = components.remove(clusteringSize);
-            if (isDeletion)
+            // In all cases, the element straight after the clusterings should contain the name of a column.
+            if (components.size() > clusteringSize + 1)
             {
-                collectionName = metadata.getColumnDefinition(columnNameBytes);
-                if (collectionName == null || !collectionName.isComplex())
-                {
-                    collectionName = metadata.getDroppedColumnDefinition(columnNameBytes, isStatic);
-                    // if no record of the column having ever existed is found, something is badly wrong
-                    if (collectionName == null)
-                        throw new RuntimeException("Unknown collection column " + UTF8Type.instance.getString(columnNameBytes) + " during deserialization");
+                // we accept bounds from paging state that occur inside a complex column - in this case, we expect
+                // two excess components, the first of which is a column name, the second a key into the collection
+                if (isDeletion)
+                    throw new IllegalArgumentException("Invalid bound " + toDebugHex(components) + ": deletion can have at most one extra component");
 
-                    // if we do have a record of dropping this column but it wasn't previously complex, use a fake
-                    // column definition for safety (see the comment on the constant declaration for details)
-                    if (!collectionName.isComplex())
-                        collectionName = INVALID_DROPPED_COMPLEX_SUBSTITUTE_COLUMN;
-                }
+                if (clusteringSize + 2 != components.size())
+                    throw new IllegalArgumentException("Invalid bound " + toDebugHex(components) + ": complex slices require exactly two extra components");
+
+                // decode simply to verify that we have (or may have had) a complex column; we assume the collection key is valid
+                decodeBoundLookupComplexColumn(metadata, components, clusteringSize, isStatic);
+                components.remove(clusteringSize + 1);
             }
+            else if (isDeletion)
+            {
+                collectionName = decodeBoundLookupComplexColumn(metadata, components, clusteringSize, isStatic);
+            }
+            else if (components.get(clusteringSize).hasRemaining())
+            {
+                decodeBoundVerifySimpleColumn(metadata, components, clusteringSize, isStatic);
+            }
+            components.remove(clusteringSize);
         }
 
         boolean isInclusive;
@@ -291,6 +301,48 @@ public abstract class LegacyLayout
         ClusteringPrefix.Kind boundKind = ClusteringBound.boundKind(isStart, isInclusive);
         ClusteringBound cb = ClusteringBound.create(boundKind, components.toArray(new ByteBuffer[components.size()]));
         return new LegacyBound(cb, isStatic, collectionName);
+    }
+
+    // finds the simple column definition associated with components.get(clusteringSize)
+    // if no such columns exists, or ever existed, we throw an exception; if we do not know, we return a dummy column definition
+    private static ColumnDefinition decodeBoundLookupComplexColumn(CFMetaData metadata, List<ByteBuffer> components, int clusteringSize, boolean isStatic)
+    {
+        ByteBuffer columnNameBytes = components.get(clusteringSize);
+        ColumnDefinition columnName = metadata.getColumnDefinition(columnNameBytes);
+        if (columnName == null || !columnName.isComplex())
+        {
+            columnName = metadata.getDroppedColumnDefinition(columnNameBytes, isStatic);
+            // if no record of the column having ever existed is found, something is badly wrong
+            if (columnName == null)
+                throw new IllegalArgumentException("Invalid bound " + toDebugHex(components) + ": expected complex column at position " + clusteringSize);
+
+            // if we do have a record of dropping this column but it wasn't previously complex, use a fake
+            // column definition for safety (see the comment on the constant declaration for details)
+            if (!columnName.isComplex())
+                columnName = INVALID_DROPPED_COMPLEX_SUBSTITUTE_COLUMN;
+        }
+
+        return columnName;
+    }
+
+    // finds the simple column definition associated with components.get(clusteringSize)
+    // if no such columns exists, and definitely never existed, we throw an exception
+    private static void decodeBoundVerifySimpleColumn(CFMetaData metadata, List<ByteBuffer> components, int clusteringSize, boolean isStatic)
+    {
+        ByteBuffer columnNameBytes = components.get(clusteringSize);
+        ColumnDefinition columnName = metadata.getColumnDefinition(columnNameBytes);
+        if (columnName == null || !columnName.isSimple())
+        {
+            columnName = metadata.getDroppedColumnDefinition(columnNameBytes, isStatic);
+            // if no record of the column having ever existed is found, something is badly wrong
+            if (columnName == null)
+                throw new IllegalArgumentException("Invalid bound " + toDebugHex(components) + ": expected simple column at position " + clusteringSize);
+        }
+    }
+
+    private static String toDebugHex(Collection<ByteBuffer> buffers)
+    {
+        return buffers.stream().map(ByteBufferUtil::bytesToHex).collect(Collectors.joining());
     }
 
     public static ByteBuffer encodeBound(CFMetaData metadata, ClusteringBound bound, boolean isStart)
