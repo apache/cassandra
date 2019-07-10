@@ -1,9 +1,9 @@
-<<<<<<< HEAD
 3.11.5
  * Fix cassandra-env.sh to use $CASSANDRA_CONF to find cassandra-jaas.config (CASSANDRA-14305)
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Toughen up column drop/recreate type validations (CASSANDRA-15204)
  * LegacyLayout should handle paging states that cross a collection column (CASSANDRA-15201)
  * Prevent RuntimeException when username or password is empty/null (CASSANDRA-15198)
  * Multiget thrift query returns null records after digest mismatch (CASSANDRA-14812)

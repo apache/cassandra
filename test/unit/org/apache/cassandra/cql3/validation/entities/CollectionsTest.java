@@ -622,13 +622,13 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testDropAndReaddDroppedCollection() throws Throwable
+    public void testDropAndReaddFrozenCollection() throws Throwable
     {
         createTable("create table %s (k int primary key, v frozen<set<text>>, x int)");
         execute("insert into %s (k, v) VALUES (0, {'fffffffff'})");
         flush();
         execute("alter table %s drop v");
-        execute("alter table %s add v set<int>");
+        assertInvalid("alter table %s add v frozen<set<int>>");
     }
 
     @Test
