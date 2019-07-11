@@ -46,7 +46,6 @@ class SimpleChunkReader extends AbstractReaderFileProxy implements ChunkReader
     {
         buffer.clear();
         channel.read(buffer, position);
-
         // direct io reads must not reset position, refer to DirectIOUtils.read
         // for details.
         if (!useDirectIO)

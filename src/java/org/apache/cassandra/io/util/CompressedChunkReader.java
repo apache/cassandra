@@ -124,7 +124,6 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
             return !useDirectIO ?
                    metadata.compressor().preferredBufferType().allocate(size) :
                    BufferType.OFF_HEAP.allocate(size + DirectIOUtils.BLOCK_SIZE, true);
-
         }
 
         @Override

@@ -55,7 +55,6 @@ public final class ChannelProxy extends SharedCloseableImpl
                    FileChannel.open(file.toPath(), StandardOpenOption.READ, 
                       (OpenOption) Enum.valueOf((Class<? extends Enum>) 
                         Class.forName("com.sun.nio.file.ExtendedOpenOption"), "DIRECT"));
-
         }
         catch (Exception e)
         {
@@ -71,7 +70,6 @@ public final class ChannelProxy extends SharedCloseableImpl
     public ChannelProxy(String filePath, FileChannel channel, boolean useDirectIO)
     {
         super(new Cleanup(filePath, channel));
-
         this.filePath = filePath;
         this.channel = channel;
         this.useDirectIO = useDirectIO;
@@ -108,7 +106,6 @@ public final class ChannelProxy extends SharedCloseableImpl
     public ChannelProxy(ChannelProxy copy)
     {
         super(copy);
-
         this.filePath = copy.filePath;
         this.channel = copy.channel;
         this.useDirectIO = copy.useDirectIO;

@@ -24,13 +24,11 @@ public enum BufferType
 {
     ON_HEAP
     {
-        @Override
         public ByteBuffer allocate(int size)
         {
             return ByteBuffer.allocate(size);
         }
 
-        @Override
         public ByteBuffer allocate(int size, boolean aligned)
         {
             return this.allocate(size);
@@ -38,14 +36,11 @@ public enum BufferType
     },
     OFF_HEAP
     {
-
-        @Override
         public ByteBuffer allocate(int size)
         {
             return ByteBuffer.allocateDirect(size);
         }
 
-        @Override
         public ByteBuffer allocate(int size, boolean aligned) {
             return DirectIOUtils.allocate(size);
         }
