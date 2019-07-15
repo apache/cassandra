@@ -42,6 +42,11 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.LocalAwareExecutorService;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.metrics.ClientMetrics;
+import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
@@ -49,6 +54,8 @@ import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
 
 /**
  * A message from the CQL binary protocol.
@@ -452,19 +459,42 @@ public abstract class Message
         }
     }
 
-    @ChannelHandler.Sharable
     public static class Dispatcher extends SimpleChannelInboundHandler<Request>
     {
+        private static final LocalAwareExecutorService requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
+                                                                                            Integer.MAX_VALUE,
+                                                                                            "transport",
+                                                                                            "Native-Transport-Requests");
+
+        /**
+         * Current count of *request* bytes that are live on the channel.
+         *
+         * Note: should only be accessed while on the netty event loop.
+         */
+        private long channelPayloadBytesInFlight;
+
+        private final Server.EndpointPayloadTracker endpointPayloadTracker;
+
+        private boolean paused;
+
         private static class FlushItem
         {
             final ChannelHandlerContext ctx;
             final Object response;
             final Frame sourceFrame;
-            private FlushItem(ChannelHandlerContext ctx, Object response, Frame sourceFrame)
+            final Dispatcher dispatcher;
+
+            private FlushItem(ChannelHandlerContext ctx, Object response, Frame sourceFrame, Dispatcher dispatcher)
             {
                 this.ctx = ctx;
                 this.sourceFrame = sourceFrame;
                 this.response = response;
+                this.dispatcher = dispatcher;
+            }
+
+            public void release()
+            {
+                dispatcher.releaseItem(this);
             }
         }
 
@@ -520,7 +550,7 @@ public abstract class Message
                     for (ChannelHandlerContext channel : channels)
                         channel.flush();
                     for (FlushItem item : flushed)
-                        item.sourceFrame.release();
+                        item.release();
 
                     channels.clear();
                     flushed.clear();
@@ -572,7 +602,7 @@ public abstract class Message
                     for (ChannelHandlerContext channel : channels)
                         channel.flush();
                     for (FlushItem item : flushed)
-                        item.sourceFrame.release();
+                        item.release();
 
                     channels.clear();
                     flushed.clear();
@@ -584,16 +614,98 @@ public abstract class Message
 
         private final boolean useLegacyFlusher;
 
-        public Dispatcher(boolean useLegacyFlusher)
+        public Dispatcher(boolean useLegacyFlusher, Server.EndpointPayloadTracker endpointPayloadTracker)
         {
             super(false);
             this.useLegacyFlusher = useLegacyFlusher;
+            this.endpointPayloadTracker = endpointPayloadTracker;
         }
 
         @Override
         public void channelRead0(ChannelHandlerContext ctx, Request request)
         {
+            // if we decide to handle this message, process it outside of the netty event loop
+            if (shouldHandleRequest(ctx, request))
+                requestExecutor.submit(() -> processRequest(ctx, request));
+        }
 
+        /** This check for inflight payload to potentially discard the request should have been ideally in one of the
+         * first handlers in the pipeline (Frame::decode()). However, incase of any exception thrown between that
+         * handler (where inflight payload is incremented) and this handler (Dispatcher::channelRead0) (where inflight
+         * payload in decremented), inflight payload becomes erroneous. ExceptionHandler is not sufficient for this
+         * purpose since it does not have the frame associated with the exception.
+         *
+         * Note: this method should execute on the netty event loop.
+         */
+        private boolean shouldHandleRequest(ChannelHandlerContext ctx, Request request)
+        {
+            long frameSize = request.getSourceFrame().header.bodySizeInBytes;
+
+            ResourceLimits.EndpointAndGlobal endpointAndGlobalPayloadsInFlight = endpointPayloadTracker.endpointAndGlobalPayloadsInFlight;
+
+            // check for overloaded state by trying to allocate framesize to inflight payload trackers
+            if (endpointAndGlobalPayloadsInFlight.tryAllocate(frameSize) != ResourceLimits.Outcome.SUCCESS)
+            {
+                if (request.connection.isThrowOnOverload())
+                {
+                    // discard the request and throw an exception
+                    ClientMetrics.instance.markRequestDiscarded();
+                    logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, InflightEndpointRequestPayload: {}, InflightOverallRequestPayload: {}, Request: {}",
+                                 frameSize,
+                                 channelPayloadBytesInFlight,
+                                 endpointAndGlobalPayloadsInFlight.endpoint().using(),
+                                 endpointAndGlobalPayloadsInFlight.global().using(),
+                                 request);
+                    throw ErrorMessage.wrap(new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
+                                            request.getSourceFrame().header.streamId);
+                }
+                else
+                {
+                    // set backpressure on the channel, and handle the request
+                    endpointAndGlobalPayloadsInFlight.allocate(frameSize);
+                    ctx.channel().config().setAutoRead(false);
+                    ClientMetrics.instance.pauseConnection();
+                    paused = true;
+                }
+            }
+
+            channelPayloadBytesInFlight += frameSize;
+            return true;
+        }
+
+        /**
+         * Note: this method will be used in the {@link Flusher#run()}, which executes on the netty event loop
+         * ({@link Dispatcher#flusherLookup}). Thus, we assume the semantics and visibility of variables
+         * of being on the event loop.
+         */
+        private void releaseItem(FlushItem item)
+        {
+            long itemSize = item.sourceFrame.header.bodySizeInBytes;
+            item.sourceFrame.release();
+
+            // since the request has been processed, decrement inflight payload at channel, endpoint and global levels
+            channelPayloadBytesInFlight -= itemSize;
+            ResourceLimits.Outcome endpointGlobalReleaseOutcome = endpointPayloadTracker.endpointAndGlobalPayloadsInFlight.release(itemSize);
+
+            // now check to see if we need to reenable the channel's autoRead.
+            // If the current payload side is zero, we must reenable autoread as
+            // 1) we allow no other thread/channel to do it, and
+            // 2) there's no other events following this one (becuase we're at zero bytes in flight),
+            // so no successive to trigger the other clause in this if-block
+            ChannelConfig config = item.ctx.channel().config();
+            if (paused && (channelPayloadBytesInFlight == 0 || endpointGlobalReleaseOutcome == ResourceLimits.Outcome.BELOW_LIMIT))
+            {
+                paused = false;
+                ClientMetrics.instance.unpauseConnection();
+                config.setAutoRead(true);
+            }
+        }
+
+        /**
+         * Note: this method is not expected to execute on the netty event loop.
+         */
+        void processRequest(ChannelHandlerContext ctx, Request request)
+        {
             final Response response;
             final ServerConnection connection;
             long queryStartNanoTime = System.nanoTime();
@@ -619,7 +731,7 @@ public abstract class Message
             {
                 JVMStabilityInspector.inspectThrowable(t);
                 UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), true);
-                flush(new FlushItem(ctx, ErrorMessage.fromException(t, handler).setStreamId(request.getStreamId()), request.getSourceFrame()));
+                flush(new FlushItem(ctx, ErrorMessage.fromException(t, handler).setStreamId(request.getStreamId()), request.getSourceFrame(), this));
                 return;
             }
             finally
@@ -628,7 +740,19 @@ public abstract class Message
             }
 
             logger.trace("Responding: {}, v={}", response, connection.getVersion());
-            flush(new FlushItem(ctx, response, request.getSourceFrame()));
+            flush(new FlushItem(ctx, response, request.getSourceFrame(), this));
+        }
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx)
+        {
+            endpointPayloadTracker.release();
+            if (paused)
+            {
+                paused = false;
+                ClientMetrics.instance.unpauseConnection();
+            }
+            ctx.fireChannelInactive();
         }
 
         private void flush(FlushItem item)
@@ -645,6 +769,14 @@ public abstract class Message
 
             flusher.queued.add(item);
             flusher.start();
+        }
+
+        public static void shutdown()
+        {
+            if (requestExecutor != null)
+            {
+                requestExecutor.shutdown();
+            }
         }
     }
 

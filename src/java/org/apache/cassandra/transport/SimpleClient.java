@@ -124,10 +124,18 @@ public class SimpleClient implements Closeable
 
     public SimpleClient connect(boolean useCompression, boolean useChecksums) throws IOException
     {
+        return connect(useCompression, useChecksums, false);
+    }
+
+    public SimpleClient connect(boolean useCompression, boolean useChecksums, boolean throwOnOverload) throws IOException
+    {
         establishConnection();
 
         Map<String, String> options = new HashMap<>();
         options.put(StartupMessage.CQL_VERSION, "3.0.0");
+        if (throwOnOverload)
+            options.put(StartupMessage.THROW_ON_OVERLOAD, "1");
+        connection.setThrowOnOverload(throwOnOverload);
 
         if (useChecksums)
         {

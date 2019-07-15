@@ -30,6 +30,7 @@ public class Connection
     private final Tracker tracker;
 
     private volatile FrameBodyTransformer transformer;
+    private boolean throwOnOverload;
 
     public Connection(Channel channel, ProtocolVersion version, Tracker tracker)
     {
@@ -48,6 +49,16 @@ public class Connection
     public FrameBodyTransformer getTransformer()
     {
         return transformer;
+    }
+
+    public void setThrowOnOverload(boolean throwOnOverload)
+    {
+        this.throwOnOverload = throwOnOverload;
+    }
+
+    public boolean isThrowOnOverload()
+    {
+        return throwOnOverload;
     }
 
     public Tracker getTracker()
