@@ -24,8 +24,8 @@ public class AuthMetrics
     private AuthMetrics()
     {
 
-        success = ClientMetrics.instance.addMeter("AuthSuccess");
-        failure = ClientMetrics.instance.addMeter("AuthFailure");
+        success = ClientMetrics.instance.registerMeter("AuthSuccess");
+        failure = ClientMetrics.instance.registerMeter("AuthFailure");
     }
 
     public void markSuccess()

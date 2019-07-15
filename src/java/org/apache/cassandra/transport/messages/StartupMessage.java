@@ -37,6 +37,7 @@ public class StartupMessage extends Message.Request
     public static final String COMPRESSION = "COMPRESSION";
     public static final String PROTOCOL_VERSIONS = "PROTOCOL_VERSIONS";
     public static final String NO_COMPACT = "NO_COMPACT";
+    public static final String THROW_ON_OVERLOAD = "THROW_ON_OVERLOAD";
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
@@ -101,6 +102,8 @@ public class StartupMessage extends Message.Request
 
         if (options.containsKey(NO_COMPACT) && Boolean.parseBoolean(options.get(NO_COMPACT)))
             state.getClientState().setNoCompactMode();
+
+        connection.setThrowOnOverload("1".equals(options.get(THROW_ON_OVERLOAD)));
 
         if (DatabaseDescriptor.getAuthenticator().requireAuthentication())
             return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
