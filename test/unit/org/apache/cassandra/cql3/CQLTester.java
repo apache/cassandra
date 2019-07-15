@@ -44,6 +44,7 @@ import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.SchemaConstants;
@@ -357,6 +358,7 @@ public abstract class CQLTester
         SchemaLoader.startGossiper();
 
         server = new Server.Builder().withHost(nativeAddr).withPort(nativePort).build();
+        ClientMetrics.instance.init(Collections.singleton(server));
         server.start();
 
         for (ProtocolVersion version : PROTOCOL_VERSIONS)

@@ -3,6 +3,7 @@
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Prevent client requests from blocking on executor task queue (CASSANDRA-15013)
  * Toughen up column drop/recreate type validations (CASSANDRA-15204)
  * LegacyLayout should handle paging states that cross a collection column (CASSANDRA-15201)
  * Prevent RuntimeException when username or password is empty/null (CASSANDRA-15198)
