@@ -229,8 +229,10 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     private static CFMetaData.DroppedColumn createDroppedColumnFromRow(Row row, String keyspace)
     {
         String name = row.getString("column_name");
+        ColumnDefinition.Kind kind =
+            row.isNull("kind") ? null : ColumnDefinition.Kind.valueOf(row.getString("kind").toUpperCase());
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), Types.none());
         long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getTimestamp("dropped_time").getTime());
-        return new CFMetaData.DroppedColumn(name, type, droppedTime);
+        return new CFMetaData.DroppedColumn(name, kind, type, droppedTime);
     }
 }

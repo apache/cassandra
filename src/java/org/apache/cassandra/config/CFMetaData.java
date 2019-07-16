@@ -27,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
@@ -1111,7 +1113,13 @@ public final class CFMetaData
      */
     public void recordColumnDrop(ColumnDefinition def, long timeMicros)
     {
-        droppedColumns.put(def.name.bytes, new DroppedColumn(def.name.toString(), def.type, timeMicros));
+        recordColumnDrop(def, timeMicros, true);
+    }
+
+    @VisibleForTesting
+    public void recordColumnDrop(ColumnDefinition def, long timeMicros, boolean preserveKind)
+    {
+        droppedColumns.put(def.name.bytes, new DroppedColumn(def.name.toString(), preserveKind ? def.kind : null, def.type, timeMicros));
     }
 
     public void renameColumn(ColumnIdentifier from, ColumnIdentifier to) throws InvalidRequestException
@@ -1535,9 +1543,13 @@ public final class CFMetaData
         // drop timestamp, in microseconds, yet with millisecond granularity
         public final long droppedTime;
 
-        public DroppedColumn(String name, AbstractType<?> type, long droppedTime)
+        @Nullable
+        public final ColumnDefinition.Kind kind;
+
+        public DroppedColumn(String name, ColumnDefinition.Kind kind, AbstractType<?> type, long droppedTime)
         {
             this.name = name;
+            this.kind = kind;
             this.type = type;
             this.droppedTime = droppedTime;
         }
@@ -1553,13 +1565,16 @@ public final class CFMetaData
 
             DroppedColumn dc = (DroppedColumn) o;
 
-            return name.equals(dc.name) && type.equals(dc.type) && droppedTime == dc.droppedTime;
+            return name.equals(dc.name)
+                && kind == dc.kind
+                && type.equals(dc.type)
+                && droppedTime == dc.droppedTime;
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hashCode(name, type, droppedTime);
+            return Objects.hashCode(name, kind, type, droppedTime);
         }
 
         @Override
@@ -1567,6 +1582,7 @@ public final class CFMetaData
         {
             return MoreObjects.toStringHelper(this)
                               .add("name", name)
+                              .add("kind", kind)
                               .add("type", type)
                               .add("droppedTime", droppedTime)
                               .toString();
