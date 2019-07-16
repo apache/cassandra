@@ -146,9 +146,23 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         throw new InvalidRequestException("Cannot use non-frozen collections with super column families");
                 }
 
+                ColumnDefinition toAdd = isStatic
+                                       ? ColumnDefinition.staticDef(cfm, columnName.bytes, type)
+                                       : ColumnDefinition.regularDef(cfm, columnName.bytes, type);
+
                 CFMetaData.DroppedColumn droppedColumn = meta.getDroppedColumns().get(columnName.bytes);
                 if (null != droppedColumn)
                 {
+                    if (droppedColumn.kind != toAdd.kind)
+                    {
+                        String message =
+                            String.format("Cannot re-add previously dropped column '%s' of kind %s, incompatible with previous kind %s",
+                                          columnName,
+                                          toAdd.kind,
+                                          droppedColumn.kind == null ? "UNKNOWN" : droppedColumn.kind);
+                        throw new InvalidRequestException(message);
+                    }
+
                     // After #8099, not safe to re-add columns of incompatible types - until *maybe* deser logic with dropped
                     // columns is pushed deeper down the line. The latter would still be problematic in cases of schema races.
                     if (!type.isValueCompatibleWith(droppedColumn.type))
@@ -166,12 +180,9 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         throw new InvalidRequestException(String.format("Cannot re-add previously dropped counter column %s", columnName));
                 }
 
-                cfm.addColumnDefinition(isStatic
-                                        ? ColumnDefinition.staticDef(cfm, columnName.bytes, type)
-                                        : ColumnDefinition.regularDef(cfm, columnName.bytes, type));
+                cfm.addColumnDefinition(toAdd);
 
-                // Adding a column to a table which has an include all view requires the column to be added to the view
-                // as well
+                // Adding a column to a table which has an include all view requires the column to be added to the view as well
                 if (!isStatic)
                 {
                     for (ViewDefinition view : views)
