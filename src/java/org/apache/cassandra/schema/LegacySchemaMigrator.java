@@ -673,7 +673,7 @@ public final class LegacySchemaMigrator
                                  ? collections.get(nameBytes)
                                  : BytesType.instance;
 
-            cfm.getDroppedColumns().put(nameBytes, new CFMetaData.DroppedColumn(name, type, time));
+            cfm.getDroppedColumns().put(nameBytes, new CFMetaData.DroppedColumn(name, null, type, time));
         }
     }
 

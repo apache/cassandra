@@ -300,7 +300,7 @@ public class LegacySchemaMigratorTest
         for (String name : collectionColumnNames)
         {
             ColumnDefinition column = table.getColumnDefinition(bytes(name));
-            table.recordColumnDrop(column, FBUtilities.timestampMicros());
+            table.recordColumnDrop(column, FBUtilities.timestampMicros(), false);
             table.removeColumnDefinition(column);
         }
 

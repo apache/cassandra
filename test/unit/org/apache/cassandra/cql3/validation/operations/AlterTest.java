@@ -313,6 +313,22 @@ public class AlterTest extends CQLTester
         execute("alter table %s add v3 frozen<list<text>>");
     }
 
+    @Test(expected = InvalidRequestException.class)
+    public void testDropRegularAddStatic() throws Throwable
+    {
+        createTable("create table %s (k int, c int, v uuid, PRIMARY KEY (k, c))");
+        execute("alter table %s drop v");
+        execute("alter table %s add v uuid static");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testDropStaticAddRegular() throws Throwable
+    {
+        createTable("create table %s (k int, c int, v uuid static, PRIMARY KEY (k, c))");
+        execute("alter table %s drop v");
+        execute("alter table %s add v uuid");
+    }
+
     @Test(expected = SyntaxException.class)
     public void renameToEmptyTest() throws Throwable
     {
