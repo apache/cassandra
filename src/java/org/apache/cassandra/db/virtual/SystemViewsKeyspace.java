@@ -27,12 +27,15 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
 
     private SystemViewsKeyspace()
     {
-        super(NAME, ImmutableList.of(new CachesTable(NAME),
-                                     new ClientsTable(NAME),
-                                     new SettingsTable(NAME),
-                                     new SSTableTasksTable(NAME),
-                                     new ThreadPoolsTable(NAME),
-                                     new InternodeOutboundTable(NAME),
-                                     new InternodeInboundTable(NAME)));
+        super(NAME, new ImmutableList.Builder<VirtualTable>()
+                    .add(new CachesTable(NAME))
+                    .add(new ClientsTable(NAME))
+                    .add(new SettingsTable(NAME))
+                    .add(new SSTableTasksTable(NAME))
+                    .add(new ThreadPoolsTable(NAME))
+                    .add(new InternodeOutboundTable(NAME))
+                    .add(new InternodeInboundTable(NAME))
+                    .addAll(TableMetricTables.getAll(NAME))
+                    .build());
     }
 }

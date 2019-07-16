@@ -87,6 +87,8 @@ public class Config
     /** Triggers automatic allocation of tokens if set, using the replication strategy of the referenced keyspace */
     public String allocate_tokens_for_keyspace = null;
 
+    public long native_transport_idle_timeout_in_ms = 0L;
+
     public volatile long request_timeout_in_ms = 10000L;
 
     public volatile long read_request_timeout_in_ms = 5000L;
@@ -183,6 +185,8 @@ public class Config
     public boolean native_transport_flush_in_batches_legacy = false;
     public volatile boolean native_transport_allow_older_protocols = true;
     public int native_transport_frame_block_size_in_kb = 32;
+    public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
+    public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
 
 
     /**

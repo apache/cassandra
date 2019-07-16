@@ -23,4 +23,9 @@ public class UnauthorizedException extends RequestValidationException
     {
         super(ExceptionCode.UNAUTHORIZED, msg);
     }
+
+    public UnauthorizedException(String msg, Throwable e)
+    {
+        super(ExceptionCode.UNAUTHORIZED, msg, e);
+    }
 }

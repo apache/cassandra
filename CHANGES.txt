@@ -1,4 +1,9 @@
 4.0
+ * CassandraNetworkAuthorizer uses cached roles info (CASSANDRA-15089)
+ * Introduce optional timeouts for idle client sessions (CASSANDRA-11097)
+ * Fix AlterTableStatement dropped type validation order (CASSANDRA-15203)
+ * Update Netty dependencies to latest, clean up SocketFactory (CASSANDRA-15195)
+ * Native Transport - Apply noSpamLogger to ConnectionLimitHandler (CASSANDRA-15167)
  * Reduce heap pressure during compactions (CASSANDRA-14654)
  * Support building Cassandra with JDK 11 (CASSANDRA-15108)
  * Use quilt to patch cassandra.in.sh in Debian packaging (CASSANDRA-14710)
@@ -365,6 +370,15 @@
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Prevent recreation of previously dropped columns with a different kind (CASSANDRA-14948)
+ * Prevent client requests from blocking on executor task queue (CASSANDRA-15013)
+ * Toughen up column drop/recreate type validations (CASSANDRA-15204)
+ * LegacyLayout should handle paging states that cross a collection column (CASSANDRA-15201)
+ * Prevent RuntimeException when username or password is empty/null (CASSANDRA-15198)
+ * Multiget thrift query returns null records after digest mismatch (CASSANDRA-14812)
+ * Handle paging states serialized with a different version than the session's (CASSANDRA-15176)
+ * Throw IOE instead of asserting on unsupporter peer versions (CASSANDRA-15066)
+ * Update token metadata when handling MOVING/REMOVING_TOKEN events (CASSANDRA-15120)
  * Add ability to customize cassandra log directory using $CASSANDRA_LOG_DIR (CASSANDRA-15090)
  * Fix assorted gossip races and add related runtime checks (CASSANDRA-15059)
  * cassandra-stress works with frozen collections: list and set (CASSANDRA-14907)
@@ -375,6 +389,7 @@ Merged from 3.0:
  * Add missing commands to nodetool_completion (CASSANDRA-14916)
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
 Merged from 2.2:
+ * Handle exceptions during authentication/authorization (CASSANDRA-15041)
  * Support cross version messaging in in-jvm upgrade dtests (CASSANDRA-15078)
  * Fix index summary redistribution cancellation (CASSANDRA-15045)
  * Refactor Circle CI configuration (CASSANDRA-14806)
