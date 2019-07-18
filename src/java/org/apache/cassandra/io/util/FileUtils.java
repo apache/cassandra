@@ -235,7 +235,7 @@ public final class FileUtils
 
     public static void close(Iterable<? extends Closeable> cs) throws IOException
     {
-        IOException e = null;
+        Throwable e = null;
         for (Closeable c : cs)
         {
             try
@@ -243,14 +243,14 @@ public final class FileUtils
                 if (c != null)
                     c.close();
             }
-            catch (IOException ex)
+            catch (Throwable ex)
             {
-                e = ex;
+                if (e == null) e = ex;
+                else e.addSuppressed(ex);
                 logger.warn("Failed closing stream {}", c, ex);
             }
         }
-        if (e != null)
-            throw e;
+        maybeFail(e, IOException.class);
     }
 
     public static String getCanonicalPath(String filename)
