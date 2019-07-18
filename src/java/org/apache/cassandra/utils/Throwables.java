@@ -35,8 +35,31 @@ public class Throwables
 
     public static void maybeFail(Throwable fail)
     {
-        if (fail != null)
-            com.google.common.base.Throwables.propagate(fail);
+        if (failIfCanCast(fail, null))
+            throw new RuntimeException(fail);
+    }
+
+    public static <T extends Throwable> void maybeFail(Throwable fail, Class<T> checked) throws T
+    {
+        if (failIfCanCast(fail, checked))
+            throw new RuntimeException(fail);
+    }
+
+    public static <T extends Throwable> boolean failIfCanCast(Throwable fail, Class<T> checked) throws T
+    {
+        if (fail == null)
+            return false;
+
+        if (fail instanceof Error)
+            throw (Error) fail;
+
+        if (fail instanceof RuntimeException)
+            throw (RuntimeException) fail;
+
+        if (checked != null && checked.isInstance(fail))
+            throw checked.cast(fail);
+
+        return true;
     }
 
     public static Throwable close(Throwable accumulate, Iterable<? extends AutoCloseable> closeables)
