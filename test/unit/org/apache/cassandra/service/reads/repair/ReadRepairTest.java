@@ -49,8 +49,6 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaLayout;
-import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -72,12 +70,11 @@ public class ReadRepairTest
     static EndpointsForRange targets;
 
     private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
-            extends BlockingPartitionRepair<E, P>
+            extends BlockingPartitionRepair
     {
-        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
+        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
         {
-            super(Util.dk("not a valid key"), repairs, maxBlockFor, replicaPlan,
-                    e -> replicaPlan.consistencyLevel().isDatacenterLocal() && targets.endpoints().contains(e));
+            super(Util.dk("not a valid key"), repairs, writePlan, e -> targets.endpoints().contains(e));
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();
@@ -161,10 +158,11 @@ public class ReadRepairTest
         return new Mutation(PartitionUpdate.singleRowUpdate(cfm, key, builder.build()));
     }
 
-    private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, EndpointsForRange all, EndpointsForRange targets)
+    private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, EndpointsForRange all, EndpointsForRange targets)
     {
-        ReplicaPlan.ForRangeRead replicaPlan = AbstractReadRepairTest.replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, all, targets);
-        return new InstrumentedReadRepairHandler<>(repairs, maxBlockFor, replicaPlan);
+        ReplicaPlan.ForRangeRead readPlan = AbstractReadRepairTest.replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, all, targets);
+        ReplicaPlan.ForTokenWrite writePlan = AbstractReadRepairTest.repairPlan(readPlan);
+        return new InstrumentedReadRepairHandler(repairs, writePlan);
     }
 
     @Test
@@ -198,8 +196,7 @@ public class ReadRepairTest
         repairs.put(target1, repair1);
         repairs.put(target2, repair2);
 
-        InstrumentedReadRepairHandler<?, ?> handler = createRepairHandler(repairs, 2,
-                                                                    targets, EndpointsForRange.of(target1, target2));
+        InstrumentedReadRepairHandler<?, ?> handler = createRepairHandler(repairs, targets, EndpointsForRange.of(target1, target2));
 
         Assert.assertTrue(handler.mutationsSent.isEmpty());
 
@@ -234,7 +231,7 @@ public class ReadRepairTest
         repairs.put(target2, mutation(cell1));
 
         EndpointsForRange replicas = EndpointsForRange.of(target1, target2);
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2, replicas, targets);
+        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, replicas, targets);
         handler.sendInitialRepairs();
         handler.ack(target1.endpoint());
         handler.ack(target2.endpoint());
@@ -255,7 +252,7 @@ public class ReadRepairTest
         repairs.put(target1, mutation(cell2));
         repairs.put(target2, mutation(cell1));
 
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2, EndpointsForRange.of(target1, target2),
+        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, EndpointsForRange.of(target1, target2),
                                                                     EndpointsForRange.of(target1, target2));
         handler.sendInitialRepairs();
 
@@ -278,7 +275,7 @@ public class ReadRepairTest
         repairs.put(target1, repair1);
 
         // check that the correct initial mutations are sent out
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2, targets, EndpointsForRange.of(target1, target2));
+        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, targets, EndpointsForRange.of(target1, target2));
         handler.sendInitialRepairs();
         Assert.assertEquals(1, handler.mutationsSent.size());
         Assert.assertTrue(handler.mutationsSent.containsKey(target1.endpoint()));
@@ -301,7 +298,7 @@ public class ReadRepairTest
         Assert.assertEquals(3, repairs.size());
 
         EndpointsForRange replicas = EndpointsForRange.of(target1, target2, target3);
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2, replicas, replicas);
+        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, replicas, replicas);
         handler.sendInitialRepairs();
 
         Assert.assertFalse(getCurrentRepairStatus(handler));
@@ -311,7 +308,6 @@ public class ReadRepairTest
         // here we should stop blocking, even though we've sent 3 repairs
         handler.ack(target2.endpoint());
         Assert.assertTrue(getCurrentRepairStatus(handler));
-
     }
 
     /**
@@ -330,7 +326,7 @@ public class ReadRepairTest
         EndpointsForRange participants = EndpointsForRange.of(target1, target2, remote1, remote2);
         EndpointsForRange targets = EndpointsForRange.of(target1, target2);
 
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2, participants, targets);
+        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, participants, targets);
         handler.sendInitialRepairs();
         Assert.assertEquals(2, handler.mutationsSent.size());
         Assert.assertTrue(handler.mutationsSent.containsKey(target1.endpoint()));

@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.util.concurrent.TimeUnit;
-
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -38,7 +36,7 @@ import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
 
-public class DistributedReadWritePathTest extends DistributedTestBase
+public class SimpleReadWriteTest extends DistributedTestBase
 {
     @BeforeClass
     public static void before()

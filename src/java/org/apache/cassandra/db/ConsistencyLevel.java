@@ -101,7 +101,7 @@ public enum ConsistencyLevel
     public static ObjectIntOpenHashMap<String> eachQuorumForRead(Keyspace keyspace)
     {
         NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
-        ObjectIntOpenHashMap<String> perDc = new ObjectIntOpenHashMap<>(strategy.getDatacenters().size());
+        ObjectIntOpenHashMap<String> perDc = new ObjectIntOpenHashMap<>(((strategy.getDatacenters().size() + 1) * 4) / 3);
         for (String dc : strategy.getDatacenters())
             perDc.put(dc, ConsistencyLevel.localQuorumFor(keyspace, dc));
         return perDc;
