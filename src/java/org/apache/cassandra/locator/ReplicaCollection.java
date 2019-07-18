@@ -125,6 +125,11 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
         public C build();
 
         /**
+         * @return an Immutable clone that assumes this Builder will be modified again
+         */
+        public C snapshot();
+
+        /**
          * Passed to add() and addAll() as ignoreConflicts parameter. The meaning of conflict varies by collection type
          * (for Endpoints, it is a duplicate InetAddressAndPort; for RangesAtEndpoint it is a duplicate Range).
          */

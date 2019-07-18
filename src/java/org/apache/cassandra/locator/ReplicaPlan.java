@@ -52,6 +52,8 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
     public abstract int blockFor();
 
     public E contacts() { return contacts; }
+
+    // TODO: should this semantically return true if we contain the endpoint, not the exact replica?
     public boolean contacts(Replica replica) { return contacts.contains(replica); }
     public Keyspace keyspace() { return keyspace; }
     public ConsistencyLevel consistencyLevel() { return consistencyLevel; }
@@ -72,17 +74,12 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
 
         public E candidates() { return candidates; }
 
-        public E uncontactedCandidates()
-        {
-            return candidates().filter(r -> !contacts(r));
-        }
-
         public Replica firstUncontactedCandidate(Predicate<Replica> extraPredicate)
         {
             return Iterables.tryFind(candidates(), r -> extraPredicate.test(r) && !contacts(r)).orNull();
         }
 
-        public Replica getReplicaFor(InetAddressAndPort endpoint)
+        public Replica lookup(InetAddressAndPort endpoint)
         {
             return candidates().byEndpoint().get(endpoint);
         }
@@ -151,6 +148,10 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         public E liveUncontacted() { return live().filter(r -> !contacts(r)); }
         /** Test liveness, consistent with the upfront analysis done for this operation (i.e. test membership of live()) */
         public boolean isAlive(Replica replica) { return live.endpoints().contains(replica.endpoint()); }
+        public Replica lookup(InetAddressAndPort endpoint)
+        {
+            return liveAndDown().byEndpoint().get(endpoint);
+        }
 
         public String toString()
         {

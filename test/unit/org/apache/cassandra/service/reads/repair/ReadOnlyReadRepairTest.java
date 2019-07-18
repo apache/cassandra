@@ -92,8 +92,9 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     @Test(expected = UnsupportedOperationException.class)
     public void repairPartitionFailure()
     {
-        ReplicaPlan.SharedForRangeRead replicaPlan = ReplicaPlan.shared(replicaPlan(replicas, replicas));
-        InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaPlan);
-        repair.repairPartition(null, Collections.emptyMap(), replicaPlan.get());
+        ReplicaPlan.SharedForRangeRead readPlan = ReplicaPlan.shared(replicaPlan(replicas, replicas));
+        ReplicaPlan.ForTokenWrite writePlan = repairPlan(replicas, replicas);
+        InstrumentedReadRepair repair = createInstrumentedReadRepair(readPlan);
+        repair.repairPartition(null, Collections.emptyMap(), writePlan);
     }
 }
