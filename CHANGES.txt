@@ -3,6 +3,7 @@
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Avoid updating unchanged gossip states (CASSANDRA-15097)
  * Prevent recreation of previously dropped columns with a different kind (CASSANDRA-14948)
  * Prevent client requests from blocking on executor task queue (CASSANDRA-15013)
  * Toughen up column drop/recreate type validations (CASSANDRA-15204)
