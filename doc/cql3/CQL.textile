@@ -175,7 +175,6 @@ The supported @<properties>@ for @CREATE KEYSPACE@ are:
 The @replication@ @<property>@ is mandatory. It must at least contains the @'class'@ sub-option which defines the replication strategy class to use. The rest of the sub-options depends on that replication strategy class. By default, Cassandra support the following @'class'@:
 * @'SimpleStrategy'@: A simple strategy that defines a simple replication factor for the whole cluster. The only sub-options supported is @'replication_factor'@ to define that replication factor and is mandatory.
 * @'NetworkTopologyStrategy'@: A replication strategy that allows to set the replication factor independently for each data-center. The rest of the sub-options are key-value pairs where each time the key is the name of a datacenter and the value the replication factor for that data-center.
-* @'OldNetworkTopologyStrategy'@: A legacy replication strategy. You should avoid this strategy for new keyspaces and prefer @'NetworkTopologyStrategy'@.
 
 Attempting to create an already existing keyspace will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the keyspace already exists.
 

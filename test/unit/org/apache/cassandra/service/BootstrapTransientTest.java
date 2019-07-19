@@ -190,7 +190,7 @@ public class BootstrapTransientTest
                                                                                                true,
                                                                                                tmds.left,
                                                                                                tmds.right,
-                                                                                               "OldNetworkTopologyStrategyTest",
+                                                                                               "TestKeyspace",
                                                                                                sourceFilters);
         result.asMap().forEach((replica, list) -> System.out.printf("Replica %s, sources %s%n", replica, list));
         assertMultimapEqualsIgnoreOrder(expectedResult, result);

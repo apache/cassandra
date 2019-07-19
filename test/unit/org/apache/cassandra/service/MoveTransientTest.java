@@ -589,7 +589,7 @@ public class MoveTransientTest
                                                                                                true,
                                                                                                tmds.left,
                                                                                                tmds.right,
-                                                                                               "OldNetworkTopologyStrategyTest",
+                                                                                               "TestKeyspace",
                                                                                                sourceFilters);
         logger.info("Ranges to fetch with preferred endpoints");
         logger.info(result.toString());

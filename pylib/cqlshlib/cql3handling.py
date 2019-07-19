@@ -450,7 +450,7 @@ def ks_prop_val_mapkey_completer(ctxt, cass):
             break
     else:
         return ["'class'"]
-    if repclass in CqlRuleSet.replication_factor_strategies:
+    if repclass == 'SimpleStrategy':
         opts = set(('replication_factor',))
     elif repclass == 'NetworkTopologyStrategy':
         return [Hint('<dc_name>')]
@@ -479,7 +479,7 @@ def ks_prop_val_mapender_completer(ctxt, cass):
             break
     else:
         return [',']
-    if repclass in CqlRuleSet.replication_factor_strategies:
+    if repclass == 'SimpleStrategy':
         if 'replication_factor' not in keysseen:
             return [',']
     if repclass == 'NetworkTopologyStrategy' and len(keysseen) == 1:
