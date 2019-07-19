@@ -27,6 +27,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
@@ -1377,25 +1378,41 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
         Set<Entry<ApplicationState, VersionedValue>> remoteStates = remoteState.states();
         assert remoteState.getHeartBeatState().getGeneration() == localState.getHeartBeatState().getGeneration();
-        localState.addApplicationStates(remoteStates);
 
-        //Filter out pre-4.0 versions of data for more complete 4.0 versions
-        Set<Entry<ApplicationState, VersionedValue>> filtered = remoteStates.stream().filter(entry -> {
-           switch (entry.getKey())
-           {
-               case INTERNAL_IP:
-                    return remoteState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT) == null;
-               case STATUS:
-                   return remoteState.getApplicationState(ApplicationState.STATUS_WITH_PORT) == null;
-               case RPC_ADDRESS:
-                   return remoteState.getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT) == null;
-               default:
-                   return true;
-           }
+
+        Set<Entry<ApplicationState, VersionedValue>> updatedStates = remoteStates.stream().filter(entry -> {
+            // Filter out pre-4.0 versions of data for more complete 4.0 versions
+            switch (entry.getKey())
+            {
+                case INTERNAL_IP:
+                    if (remoteState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT) != null) return false;
+                    break;
+                case STATUS:
+                    if (remoteState.getApplicationState(ApplicationState.STATUS_WITH_PORT) != null) return false;
+                    break;
+                case RPC_ADDRESS:
+                    if (remoteState.getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT) != null) return false;
+                    break;
+                default:
+                    break;
+            }
+
+            // filter out the states that are already up to date (has the same or higher version)
+            VersionedValue local = localState.getApplicationState(entry.getKey());
+            return (local == null || local.version < entry.getValue().version);
         }).collect(Collectors.toSet());
 
-        for (Entry<ApplicationState, VersionedValue> remoteEntry : filtered)
-            doOnChangeNotifications(addr, remoteEntry.getKey(), remoteEntry.getValue());
+        if (logger.isTraceEnabled() && updatedStates.size() > 0)
+        {
+            for (Entry<ApplicationState, VersionedValue> entry : updatedStates)
+            {
+                logger.trace("Updating {} state version to {} for {}", entry.getKey().toString(), entry.getValue().version, addr);
+            }
+        }
+        localState.addApplicationStates(updatedStates);
+
+        for (Entry<ApplicationState, VersionedValue> updatedEntry : updatedStates)
+            doOnChangeNotifications(addr, updatedEntry.getKey(), updatedEntry.getValue());
     }
 
     // notify that a local application state is going to change (doesn't get triggered for remote changes)
