@@ -1,4 +1,5 @@
 4.0-alpha3
+ * Removed obsolete OldNetworkTopologyStrategy (CASSANDRA-13990)
  * Align record header of FQL and audit binary log (CASSANDRA-15076)
  * Shuffle forwarding replica for messages to non-local DC (CASSANDRA-15318)
  * Optimise native protocol ASCII string encoding (CASSANDRA-15410)
