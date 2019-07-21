@@ -47,6 +47,8 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     long prevStopCheck = 0;
     long soleSpinnerSpinTime = 0;
 
+    AbstractLocalAwareExecutorService.FutureTask task = null;
+
     SEPWorker(Long workerId, Work initialState, SharedExecutorPool pool)
     {
         this.pool = pool;
@@ -55,6 +57,12 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         thread.setDaemon(true);
         set(initialState);
         thread.start();
+    }
+
+    public DebuggableTask debuggableTask()
+    {
+        AbstractLocalAwareExecutorService.FutureTask task = this.task;
+        return task == null? null : task.debuggableTask();
     }
 
     public void run()
@@ -72,7 +80,6 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
          */
 
         SEPExecutor assigned = null;
-        Runnable task = null;
         try
         {
             while (true)
@@ -165,6 +172,10 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 logger.error("Failed to execute task, unexpected exception killed worker", t);
             else
                 logger.error("Unexpected exception killed worker", t);
+        }
+        finally
+        {
+            pool.workerEnded(this);
         }
     }
 
@@ -412,5 +423,10 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         {
             return assigned != null;
         }
+    }
+
+    public String toString()
+    {
+        return thread.getName();
     }
 }

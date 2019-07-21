@@ -42,6 +42,7 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.LocalAwareExecutorService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
@@ -272,6 +273,11 @@ public abstract class Message
         boolean isTracingRequested()
         {
             return tracingRequested;
+        }
+
+        public String toString()
+        {
+            return type.toString();
         }
     }
 
@@ -627,7 +633,7 @@ public abstract class Message
         {
             // if we decide to handle this message, process it outside of the netty event loop
             if (shouldHandleRequest(ctx, request))
-                requestExecutor.submit(() -> processRequest(ctx, request));
+                requestExecutor.submit(new RequestProcessor(ctx, request, this));
         }
 
         /** This check for inflight payload to potentially discard the request should have been ideally in one of the
@@ -703,45 +709,67 @@ public abstract class Message
         }
 
         /**
-         * Note: this method is not expected to execute on the netty event loop.
+         * Note: this is not expected to execute on the netty event loop.
          */
-        void processRequest(ChannelHandlerContext ctx, Request request)
+        public class RequestProcessor implements Runnable, DebuggableTask
         {
-            final Response response;
-            final ServerConnection connection;
+            private final ChannelHandlerContext ctx;
+            private final Request request;
+            private final Dispatcher dispatcher;
             long queryStartNanoTime = System.nanoTime();
 
-            try
+            public RequestProcessor(ChannelHandlerContext ctx, Request request, Dispatcher dispatcher)
             {
-                assert request.connection() instanceof ServerConnection;
-                connection = (ServerConnection)request.connection();
-                if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
-                    ClientWarn.instance.captureWarnings();
-
-                QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
-
-                logger.trace("Received: {}, v={}", request, connection.getVersion());
-                connection.requests.inc();
-                response = request.execute(qstate, queryStartNanoTime);
-                response.setStreamId(request.getStreamId());
-                response.setWarnings(ClientWarn.instance.getWarnings());
-                response.attach(connection);
-                connection.applyStateTransition(request.type, response.type);
+                this.ctx = ctx;
+                this.request = request;
+                this.dispatcher = dispatcher;
             }
-            catch (Throwable t)
+            public void run()
             {
-                JVMStabilityInspector.inspectThrowable(t);
-                UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), true);
-                flush(new FlushItem(ctx, ErrorMessage.fromException(t, handler).setStreamId(request.getStreamId()), request.getSourceFrame(), this));
-                return;
-            }
-            finally
-            {
-                ClientWarn.instance.resetWarnings();
+                final Response response;
+                final ServerConnection connection;
+                try
+                {
+                    assert request.connection() instanceof ServerConnection;
+                    connection = (ServerConnection)request.connection();
+                    if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
+                        ClientWarn.instance.captureWarnings();
+
+                    QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
+
+                    logger.trace("Received: {}, v={}", request, connection.getVersion());
+                    connection.requests.inc();
+                    response = request.execute(qstate, queryStartNanoTime);
+                    response.setStreamId(request.getStreamId());
+                    response.setWarnings(ClientWarn.instance.getWarnings());
+                    response.attach(connection);
+                    connection.applyStateTransition(request.type, response.type);
+                }
+                catch (Throwable t)
+                {
+                    JVMStabilityInspector.inspectThrowable(t);
+                    UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), true);
+                    flush(new FlushItem(ctx, ErrorMessage.fromException(t, handler).setStreamId(request.getStreamId()), request.getSourceFrame(), dispatcher));
+                    return;
+                }
+                finally
+                {
+                    ClientWarn.instance.resetWarnings();
+                }
+
+                logger.trace("Responding: {}, v={}", response, connection.getVersion());
+                flush(new FlushItem(ctx, response, request.getSourceFrame(), dispatcher));
             }
 
-            logger.trace("Responding: {}, v={}", response, connection.getVersion());
-            flush(new FlushItem(ctx, response, request.getSourceFrame(), this));
+            public long startTimeNanos()
+            {
+                return queryStartNanoTime;
+            }
+
+            public String debug()
+            {
+                return request.toString();
+            }
         }
 
         @Override

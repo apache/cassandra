@@ -26,6 +26,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import javax.annotation.Nullable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -145,14 +147,29 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
         private boolean failure;
         private Object result = this;
         private final Callable<T> callable;
+        private DebuggableTask debuggable = null;
 
         public FutureTask(Callable<T> callable)
         {
             this.callable = callable;
+            if (callable instanceof DebuggableTask)
+            {
+                debuggable = (DebuggableTask) callable;
+            }
         }
         public FutureTask(Runnable runnable, T result)
         {
             this(Executors.callable(runnable, result));
+            if (runnable instanceof DebuggableTask)
+            {
+                debuggable = (DebuggableTask) runnable;
+            }
+        }
+
+        @Nullable
+        public DebuggableTask debuggableTask()
+        {
+            return debuggable;
         }
 
         public void run()

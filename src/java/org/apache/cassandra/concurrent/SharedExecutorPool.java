@@ -17,8 +17,12 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +30,12 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableCollection;
+
+import sun.security.ssl.Debug;
 
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
 
@@ -77,6 +87,8 @@ public class SharedExecutorPool
     // the collection of threads that have been asked to stop/deschedule - new workers are scheduled from here last
     final ConcurrentSkipListMap<Long, SEPWorker> descheduled = new ConcurrentSkipListMap<>();
 
+    final ConcurrentHashMap<Long, SEPWorker> allWorkers = new ConcurrentHashMap<>();
+
     volatile boolean shuttingDown = false;
 
     public SharedExecutorPool(String poolName)
@@ -96,7 +108,23 @@ public class SharedExecutorPool
                 return;
 
         if (!work.isStop())
-            new SEPWorker(workerId.incrementAndGet(), work, this);
+        {
+            long id = workerId.incrementAndGet();
+            allWorkers.put(id, new SEPWorker(id, work, this));
+        }
+    }
+
+    void workerEnded(SEPWorker worker)
+    {
+        allWorkers.remove(worker.workerId);
+    }
+
+    public List<DebuggableTask.ThreadedDebuggableTask> runningTasks()
+    {
+        return allWorkers.values().stream()
+                         .map(e -> new DebuggableTask.ThreadedDebuggableTask(e.toString(), e.debuggableTask()))
+                         .filter(DebuggableTask.ThreadedDebuggableTask::hasTask)
+                         .collect(Collectors.toList());
     }
 
     void maybeStartSpinningWorker()
