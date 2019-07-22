@@ -1,4 +1,5 @@
 4.0
+ * Align load column in nodetool status output (CASSANDRA-14787)
  * CassandraNetworkAuthorizer uses cached roles info (CASSANDRA-15089)
  * Introduce optional timeouts for idle client sessions (CASSANDRA-11097)
  * Fix AlterTableStatement dropped type validation order (CASSANDRA-15203)
