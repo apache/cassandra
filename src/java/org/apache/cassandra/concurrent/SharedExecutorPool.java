@@ -30,10 +30,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import com.google.common.collect.ImmutableCollection;
 
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
 
