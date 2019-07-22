@@ -35,8 +35,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableCollection;
 
-import sun.security.ssl.Debug;
-
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
 
 /**
