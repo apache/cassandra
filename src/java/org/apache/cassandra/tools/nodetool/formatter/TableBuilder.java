@@ -41,8 +41,8 @@ import javax.annotation.Nonnull;
  */
 public class TableBuilder
 {
-    // column delimiter char
-    private final char columnDelimiter;
+    // column delimiter
+    private final String columnDelimiter;
 
     private int[] maximumColumnWidth;
     private final List<String[]> rows = new ArrayList<>();
@@ -53,6 +53,11 @@ public class TableBuilder
     }
 
     public TableBuilder(char columnDelimiter)
+    {
+        this(String.valueOf(columnDelimiter));
+    }
+
+    public TableBuilder(String columnDelimiter)
     {
         this.columnDelimiter = columnDelimiter;
     }
