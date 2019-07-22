@@ -1,0 +1,16 @@
+17,18c17,18
+<     CCM_MAX_HEAP_SIZE: 1024M
+<     CCM_HEAP_NEWSIZE: 256M
+---
+>     CCM_MAX_HEAP_SIZE: 2048M
+>     CCM_HEAP_NEWSIZE: 512M
+23,24c23,24
+<     #exec_resource_class: xlarge
+<   parallelism: 4
+---
+>     exec_resource_class: xlarge
+>   parallelism: 100
+29c29
+<     #exec_resource_class: xlarge
+---
+>     exec_resource_class: xlarge
