@@ -17,11 +17,23 @@
  */
 package org.apache.cassandra.concurrent;
 
+/**
+ * Interface to include on a Runnable or Callable submitted to the SharedExecutorPool to provide more
+ * detailed diagnostics.
+ */
 public interface DebuggableTask
 {
     public long startTimeNanos();
+
+    /**
+     * String describing the task, this can be general thing or something very specific like the query string
+     */
     public String debug();
 
+    /**
+     * ThreadedDebuggableTask is created by the SharedExecutorPool to include the thread name of any DebuggableTask
+     * running on a SEPWorker
+     */
     public static class ThreadedDebuggableTask implements DebuggableTask
     {
         final DebuggableTask task;
@@ -50,7 +62,7 @@ public interface DebuggableTask
 
         public String debug()
         {
-            return task == null ? "" : task.debug();
+            return task == null ? "[debug unavailable]" : task.debug();
         }
     }
 }

@@ -28,24 +28,45 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.MonotonicClock;
 
+/**
+ * Virtual table to list out the current running queries on the NTR (coordinator), Read and Mutation (local) stages
+ *
+ * Example:
+ * <pre>
+ *     cqlsh> select * from system_views.queries;
+ *
+ *  thread_id                    | duration_micros | task
+ * ------------------------------+-----------------+---------------------------------------------------------------------------------
+ *  Native-Transport-Requests-17 |            6325 |                      QUERY select * from system_views.queries; [pageSize = 100]
+ *   Native-Transport-Requests-4 |           14681 | EXECUTE f4115f91190d4acf09e452637f1f2444 with 0 values at consistency LOCAL_ONE
+ *   Native-Transport-Requests-6 |           14678 | EXECUTE f4115f91190d4acf09e452637f1f2444 with 0 values at consistency LOCAL_ONE
+ *                  ReadStage-10 |           16535 |                                         SELECT * FROM keyspace.table LIMIT 5000
+ * </pre>
+ */
 public class QueriesTable extends AbstractVirtualTable
 {
 
+    private static final String TABLE_NAME = "queries";
     private static final String ID = "thread_id";
     private static final String DURATION = "duration_micros";
     private static final String DESC = "task";
 
     QueriesTable(String keyspace)
     {
-        super(TableMetadata.builder(keyspace, "queries")
+        super(TableMetadata.builder(keyspace, TABLE_NAME)
                            .kind(TableMetadata.Kind.VIRTUAL)
                            .partitioner(new LocalPartitioner(UTF8Type.instance))
-                           .addPartitionKeyColumn(ID, UTF8Type.instance) // strictly for uniqueness
+                           // The thread name is unique since the id given to each SEPWorker is unique
+                           .addPartitionKeyColumn(ID, UTF8Type.instance)
                            .addRegularColumn(DURATION, LongType.instance)
                            .addRegularColumn(DESC, UTF8Type.instance)
                            .build());
     }
 
+    /**
+     * Walks the SharedExecutorPool.SHARED SEPWorkers for any DebuggableTasks's and returns them
+     * @see DebuggableTask
+     */
     @Override
     public AbstractVirtualTable.DataSet data()
     {
@@ -56,6 +77,8 @@ public class QueriesTable extends AbstractVirtualTable
             if(!task.hasTask()) continue;
             long micros = TimeUnit.NANOSECONDS.toMicros(task.startTimeNanos());
             result.row(task.threadId())
+                  // Since MonotonicClock is used for some but not all, we want to cap to make sure any drift between
+                  // different clocks dont cause this to go negative which would just look silly
                   .column(DURATION, Math.max(1, now - micros))
                   .column(DESC, task.debug());
         }

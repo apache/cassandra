@@ -81,8 +81,8 @@ public class SharedExecutorPool
     final ConcurrentSkipListMap<Long, SEPWorker> spinning = new ConcurrentSkipListMap<>();
     // the collection of threads that have been asked to stop/deschedule - new workers are scheduled from here last
     final ConcurrentSkipListMap<Long, SEPWorker> descheduled = new ConcurrentSkipListMap<>();
-
-    final ConcurrentHashMap<Long, SEPWorker> allWorkers = new ConcurrentHashMap<>();
+    // All SEPWorkers that are currently running
+    private final ConcurrentHashMap<Long, SEPWorker> allWorkers = new ConcurrentHashMap<>();
 
     volatile boolean shuttingDown = false;
 
@@ -114,6 +114,10 @@ public class SharedExecutorPool
         allWorkers.remove(worker.workerId);
     }
 
+    /**
+     * Return all DebuggableTasks that have been submitted to the SharedExecutorPool, this will also attach the
+     * thread name of the SEPWorker that is running it as a ThreadedDebuggableTask
+     */
     public List<DebuggableTask.ThreadedDebuggableTask> runningTasks()
     {
         return allWorkers.values().stream()

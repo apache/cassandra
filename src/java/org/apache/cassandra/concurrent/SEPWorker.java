@@ -59,8 +59,12 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         thread.start();
     }
 
+    /**
+     * If the FutureTask being run has a DebuggableTask Runnable or Callable it will return it here.
+     */
     public DebuggableTask debuggableTask()
     {
+        // this.task can change after null check so go off local reference
         AbstractLocalAwareExecutorService.FutureTask task = this.task;
         return task == null? null : task.debuggableTask();
     }
