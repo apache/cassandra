@@ -26,12 +26,19 @@ class SimpleChunkReader extends AbstractReaderFileProxy implements ChunkReader
 {
     private final int bufferSize;
     private final BufferType bufferType;
+    private boolean useDirectIO;
 
-    SimpleChunkReader(ChannelProxy channel, long fileLength, BufferType bufferType, int bufferSize)
+    SimpleChunkReader(ChannelProxy channel, long fileLength, BufferType bufferType, int bufferSize, boolean useDirectIO)
     {
         super(channel, fileLength);
         this.bufferSize = bufferSize;
         this.bufferType = bufferType;
+        this.useDirectIO = useDirectIO;
+    }
+
+    SimpleChunkReader(ChannelProxy channel, long fileLength, BufferType bufferType, int bufferSize)
+    {
+        this(channel, fileLength, bufferType, bufferSize, false);
     }
 
     @Override
@@ -39,7 +46,12 @@ class SimpleChunkReader extends AbstractReaderFileProxy implements ChunkReader
     {
         buffer.clear();
         channel.read(buffer, position);
-        buffer.flip();
+        // direct io reads must not reset position, refer to DirectIOUtils.read
+        // for details.
+        if (!useDirectIO)
+        {
+            buffer.flip();
+        }
     }
 
     @Override
@@ -69,4 +81,11 @@ class SimpleChunkReader extends AbstractReaderFileProxy implements ChunkReader
                              bufferSize,
                              fileLength());
     }
+
+    @Override
+    public boolean useDirectIO()
+    {
+        return useDirectIO;
+    }
+
 }

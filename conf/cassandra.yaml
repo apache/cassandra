@@ -1342,3 +1342,6 @@ enable_sasi_indexes: false
 # Enables creation of transiently replicated keyspaces on this node.
 # Transient replication is experimental and is not recommended for production use.
 enable_transient_replication: false
+
+# enables direct_io for read path of data files.
+enable_direct_io_for_read_path: false
