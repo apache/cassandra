@@ -4002,16 +4002,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return Replicas.stringify(replicas, true);
     }
 
-    public List<String> getReplicas(String keyspaceName, String cf, String key)
-    {
-        List<String> res = new ArrayList<>();
-        for (Replica replica : getNaturalReplicasForToken(keyspaceName, cf, key))
-        {
-            res.add(replica.toString());
-        }
-        return res;
-    }
-
     public EndpointsForToken getNaturalReplicasForToken(String keyspaceName, String cf, String key)
     {
         KeyspaceMetadata ksMetaData = Schema.instance.getKeyspaceMetadata(keyspaceName);
