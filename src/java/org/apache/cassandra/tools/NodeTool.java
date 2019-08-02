@@ -186,11 +186,8 @@ public class NodeTool
                 RefreshSizeEstimates.class,
                 RelocateSSTables.class,
                 ViewBuildStatus.class,
-                HandoffWindow.class,
                 ReloadSslCertificates.class,
                 EnableAuditLog.class,
-                DisableAuditLog.class,
-                GetReplicas.class,
                 DisableAuditLog.class,
                 EnableOldProtocolVersions.class,
                 DisableOldProtocolVersions.class
