@@ -19,14 +19,17 @@ package org.apache.cassandra.cql3.functions;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.utils.UUIDGen;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
+
 import org.junit.Test;
 
 public class CastFctsTest extends CQLTester
@@ -217,25 +220,23 @@ public class CastFctsTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a timeuuid primary key, b timestamp, c date, d time)");
 
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss")
-                .withZone(DateTimeZone.UTC)
-                .parseDateTime("2015-05-21 11:03:02");
+        final String yearMonthDay = "2015-05-21";
+        final LocalDate localDate = LocalDate.of(2015, 5, 21);
+        ZonedDateTime date = localDate.atStartOfDay(ZoneOffset.UTC);
 
-        DateTime date = DateTimeFormat.forPattern("yyyy-MM-dd")
-                .withZone(DateTimeZone.UTC)
-                .parseDateTime("2015-05-21");
+        ZonedDateTime dateTime = ZonedDateTime.of(localDate, LocalTime.of(11,3,2), ZoneOffset.UTC);
 
-        long timeInMillis = dateTime.getMillis();
+        long timeInMillis = dateTime.toInstant().toEpochMilli();
 
-        execute("INSERT INTO %s (a, b, c, d) VALUES (?, '2015-05-21 11:03:02+00', '2015-05-21', '11:03:02')",
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, '" + yearMonthDay + " 11:03:02+00', '2015-05-21', '11:03:02')",
                 UUIDGen.getTimeUUID(timeInMillis));
 
         assertRows(execute("SELECT CAST(a AS timestamp), " +
                            "CAST(b AS timestamp), " +
                            "CAST(c AS timestamp) FROM %s"),
-                   row(new Date(dateTime.getMillis()), new Date(dateTime.getMillis()), new Date(date.getMillis())));
+                   row(Date.from(dateTime.toInstant()), Date.from(dateTime.toInstant()), Date.from(date.toInstant())));
 
-        int timeInMillisToDay = SimpleDateSerializer.timeInMillisToDay(date.getMillis());
+        int timeInMillisToDay = SimpleDateSerializer.timeInMillisToDay(date.toInstant().toEpochMilli());
         assertRows(execute("SELECT CAST(a AS date), " +
                            "CAST(b AS date), " +
                            "CAST(c AS date) FROM %s"),
@@ -244,7 +245,7 @@ public class CastFctsTest extends CQLTester
         assertRows(execute("SELECT CAST(b AS text), " +
                            "CAST(c AS text), " +
                            "CAST(d AS text) FROM %s"),
-                   row("2015-05-21T11:03:02.000Z", "2015-05-21", "11:03:02.000000000"));
+                   row(yearMonthDay + "T11:03:02.000Z", yearMonthDay, "11:03:02.000000000"));
     }
 
     @Test

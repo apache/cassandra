@@ -1,4 +1,5 @@
 4.0-alpha3
+ * Remove joda time dependency (CASSANDRA-15257)
  * Exclude purgeable tombstones from repaired data tracking (CASSANDRA-15462)
  * Exclude legacy counter shards from repaired data tracking (CASSANDRA-15461)
  * Make it easier to add trace headers to messages (CASSANDRA-15499)
