@@ -23,6 +23,7 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.WritableByteChannel;
+import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
@@ -96,8 +97,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     @Override
     public void write(byte[] b, int off, int len) throws IOException
     {
-        if (b == null)
-            throw new NullPointerException();
+        Objects.requireNonNull(b);
 
         // avoid int overflow
         if (off < 0 || off > b.length || len < 0
@@ -113,13 +113,11 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
             if (buffer.hasRemaining())
             {
                 int toCopy = Math.min(len - copied, buffer.remaining());
-                buffer.put(b, off + copied, toCopy);
+                FastByteOperations.copy(b, off + copied, buffer, buffer.position(), toCopy);
+                buffer.position(buffer.position() + toCopy);
                 copied += toCopy;
             }
-            else
-            {
-                doFlush(len - copied);
-            }
+            doFlush(len - copied);
         }
     }
 

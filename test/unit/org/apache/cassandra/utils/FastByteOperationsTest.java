@@ -35,7 +35,7 @@ public class FastByteOperationsTest
     private static final ByteBuffer hbuf2 = ByteBuffer.allocate(150);
 
     @Test
-    public void testFastByteCopy()
+    public void testFastByteCopyByteBuffers()
     {
         byte[] bytes1 = new byte[128];
         byte[] empty = new byte[128];
@@ -56,6 +56,42 @@ public class FastByteOperationsTest
         ops.copy(src, src.position(), trg, trg.position(), src.remaining());
         ops.copy(trg, trg.position(), result, 0, trg.remaining());
         assert firstdiff(canon, result) < 0;
+    }
+
+    @Test
+    public void testFastByteCopyByteArrays()
+    {
+        byte[] first = new byte[128];
+        byte[] second = new byte[128];
+        rand.nextBytes(first);
+        for (FastByteOperations.ByteOperations ops: Arrays.asList(PJO, UO))
+        {
+            byte[] result = new byte[128];
+            ops.copy(first, 0, second, 0, first.length);
+            ops.copy(second, 0, result, 0, second.length);
+            assert firstdiff(first, result) < 0;
+        }
+    }
+
+    @Test
+    public void testFastByteCopyByteArrayToByteBuffer() {
+        byte[] first = new byte[128];
+        byte[] second = new byte[128];
+        rand.nextBytes(first);
+        testFastByteCopyByteArrayToByteBuffer(first, wrap2(second, false), PJO);
+        testFastByteCopyByteArrayToByteBuffer(first, wrap2(second, false), UO);
+        testFastByteCopyByteArrayToByteBuffer(first, wrap2(second, true), PJO);
+        testFastByteCopyByteArrayToByteBuffer(first, wrap2(second, true), UO);
+    }
+
+    private void testFastByteCopyByteArrayToByteBuffer(byte[] first,
+                                                       ByteBuffer target,
+                                                       FastByteOperations.ByteOperations ops)
+    {
+        byte[] result = new byte[128];
+        ops.copy(first, 0, target, target.position(), first.length);
+        ops.copy(target, target.position(), result, 0, target.remaining());
+        assert firstdiff(first, result) < 0;
     }
 
     private static int firstdiff(byte[] canon, byte[] test)

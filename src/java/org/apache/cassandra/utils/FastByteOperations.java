@@ -70,18 +70,32 @@ public class FastByteOperations
         BestHolder.BEST.copy(src, srcPosition, trg, trgPosition, length);
     }
 
+    public static void copy(byte[] src, int srcPosition, byte[] trg, int trgPosition, int length)
+    {
+        BestHolder.BEST.copy(src, srcPosition, trg, trgPosition, length);
+    }
+
+    public static void copy(byte[] src, int srcPosition, ByteBuffer trg, int trgPosition, int length)
+    {
+        BestHolder.BEST.copy(src, srcPosition, trg, trgPosition, length);
+    }
+
     public interface ByteOperations
     {
-        abstract public int compare(byte[] buffer1, int offset1, int length1,
+        int compare(byte[] buffer1, int offset1, int length1,
                                     byte[] buffer2, int offset2, int length2);
 
-        abstract public int compare(ByteBuffer buffer1, byte[] buffer2, int offset2, int length2);
+        int compare(ByteBuffer buffer1, byte[] buffer2, int offset2, int length2);
 
-        abstract public int compare(ByteBuffer buffer1, ByteBuffer buffer2);
+        int compare(ByteBuffer buffer1, ByteBuffer buffer2);
 
-        abstract public void copy(ByteBuffer src, int srcPosition, byte[] trg, int trgPosition, int length);
+        void copy(ByteBuffer src, int srcPosition, byte[] trg, int trgPosition, int length);
 
-        abstract public void copy(ByteBuffer src, int srcPosition, ByteBuffer trg, int trgPosition, int length);
+        void copy(ByteBuffer src, int srcPosition, ByteBuffer trg, int trgPosition, int length);
+
+        void copy(byte[] src, int srcPosition, byte[] trg, int trgPosition, int length);
+
+        void copy(byte[] src, int srcPosition, ByteBuffer trg, int trgPosition, int length);
     }
 
     /**
@@ -237,6 +251,16 @@ public class FastByteOperations
                 srcOffset = theUnsafe.getLong(srcBuf, DIRECT_BUFFER_ADDRESS_OFFSET);
             }
             copy(src, srcOffset + srcPosition, trgBuf, trgPosition, length);
+        }
+
+        public void copy(byte[] src, int srcPosition, byte[] trg, int trgPosition, int length)
+        {
+            System.arraycopy(src, srcPosition, trg, trgPosition, length);
+        }
+
+        public void copy(byte[] src, int srcPosition, ByteBuffer trg, int trgPosition, int length)
+        {
+            copy(src, BYTE_ARRAY_BASE_OFFSET + srcPosition, trg, trgPosition, length);
         }
 
         public static void copy(Object src, long srcOffset, ByteBuffer trgBuf, int trgPosition, int length)
@@ -425,7 +449,7 @@ public class FastByteOperations
         {
             if (src.hasArray())
             {
-                System.arraycopy(src.array(), src.arrayOffset() + srcPosition, trg, trgPosition, length);
+                copy(src.array(), src.arrayOffset() + srcPosition, trg, trgPosition, length);
                 return;
             }
             src = src.duplicate();
@@ -437,7 +461,8 @@ public class FastByteOperations
         {
             if (src.hasArray() && trg.hasArray())
             {
-                System.arraycopy(src.array(), src.arrayOffset() + srcPosition, trg.array(), trg.arrayOffset() + trgPosition, length);
+                System.arraycopy(src.array(), src.arrayOffset() + srcPosition, trg.array(),
+                        trg.arrayOffset() + trgPosition, length);
                 return;
             }
             src = src.duplicate();
@@ -445,6 +470,23 @@ public class FastByteOperations
             trg = trg.duplicate();
             trg.position(trgPosition);
             trg.put(src);
+        }
+
+        public void copy(byte[] src, int srcPosition, byte[] trg, int trgPosition, int length)
+        {
+            System.arraycopy(src, srcPosition, trg, trgPosition, length);
+        }
+
+        public void copy(byte[] src, int srcPosition, ByteBuffer trg, int trgPosition, int length)
+        {
+            if (trg.hasArray())
+            {
+                System.arraycopy(src, srcPosition, trg.array(), trg.arrayOffset() + trgPosition, length);
+                return;
+            }
+            trg = trg.duplicate();
+            trg.position(trgPosition);
+            trg.put(src, srcPosition, length);
         }
     }
 }
