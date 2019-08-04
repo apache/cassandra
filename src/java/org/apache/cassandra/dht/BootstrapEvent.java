@@ -42,16 +42,19 @@ final class BootstrapEvent extends DiagnosticEvent
     private final InetAddressAndPort address;
     @Nullable
     private final String allocationKeyspace;
+    @Nullable
+    private final Integer rf;
     private final Integer numTokens;
     private final Collection<Token> tokens;
 
     BootstrapEvent(BootstrapEventType type, InetAddressAndPort address, @Nullable TokenMetadata tokenMetadata,
-                   @Nullable String allocationKeyspace, int numTokens, ImmutableCollection<Token> tokens)
+                   @Nullable String allocationKeyspace, @Nullable Integer rf, int numTokens, ImmutableCollection<Token> tokens)
     {
         this.type = type;
         this.address = address;
         this.tokenMetadata = tokenMetadata;
         this.allocationKeyspace = allocationKeyspace;
+        this.rf = rf;
         this.numTokens = numTokens;
         this.tokens = tokens;
     }
@@ -75,6 +78,7 @@ final class BootstrapEvent extends DiagnosticEvent
         HashMap<String, Serializable> ret = new HashMap<>();
         ret.put("tokenMetadata", String.valueOf(tokenMetadata));
         ret.put("allocationKeyspace", allocationKeyspace);
+        ret.put("rf", rf);
         ret.put("numTokens", numTokens);
         ret.put("tokens", String.valueOf(tokens));
         return ret;

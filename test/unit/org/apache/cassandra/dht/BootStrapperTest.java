@@ -174,6 +174,17 @@ public class BootStrapperTest
         allocateTokensForNode(vn, ks, tm, addr);
     }
 
+    @Test
+    public void testAllocateTokensLocalRf() throws UnknownHostException
+    {
+        int vn = 16;
+        int allocateTokensForLocalRf = 3;
+        TokenMetadata tm = new TokenMetadata();
+        generateFakeEndpoints(tm, 10, vn);
+        InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
+        allocateTokensForNode(vn, allocateTokensForLocalRf, tm, addr);
+    }
+
     public void testAllocateTokensNetworkStrategy(int rackCount, int replicas) throws UnknownHostException
     {
         IEndpointSnitch oldSnitch = DatabaseDescriptor.getEndpointSnitch();
@@ -241,6 +252,14 @@ public class BootStrapperTest
         tm.updateNormalTokens(tokens, addr);
         SummaryStatistics ns = TokenAllocation.replicatedOwnershipStats(tm.cloneOnlyTokenMap(), Keyspace.open(ks).getReplicationStrategy(), addr);
         verifyImprovement(os, ns);
+    }
+
+    private void allocateTokensForNode(int vn, int rf, TokenMetadata tm, InetAddressAndPort addr)
+    {
+        Collection<Token> tokens = BootStrapper.allocateTokens(tm, addr, rf, vn, 0);
+        assertEquals(vn, tokens.size());
+        tm.updateNormalTokens(tokens, addr);
+        // SummaryStatistics is not implemented for `allocate_tokens_for_local_replication_factor` so can't be verified
     }
 
     private void verifyImprovement(SummaryStatistics os, SummaryStatistics ns)

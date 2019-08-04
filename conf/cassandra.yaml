@@ -26,14 +26,20 @@ num_tokens: 256
 
 # Triggers automatic allocation of num_tokens tokens for this node. The allocation
 # algorithm attempts to choose tokens in a way that optimizes replicated load over
-# the nodes in the datacenter for the replication strategy used by the specified
-# keyspace.
+# the nodes in the datacenter for the replica factor.
 #
 # The load assigned to each node will be close to proportional to its number of
 # vnodes.
 #
 # Only supported with the Murmur3Partitioner.
+
+# Replica factor is determined via the replication strategy used by the specified
+# keyspace.
 # allocate_tokens_for_keyspace: KEYSPACE
+
+# Replica factor is explicitly set, regardless of keyspace or datacenter.
+# This is the replica factor within the datacenter, like NTS.
+# allocate_tokens_for_local_replication_factor: 3
 
 # initial_token allows you to specify tokens manually.  While you can use it with
 # vnodes (num_tokens > 1, above) -- in which case you should provide a 
