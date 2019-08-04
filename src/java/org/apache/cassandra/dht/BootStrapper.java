@@ -24,6 +24,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
@@ -32,6 +33,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.*;
@@ -153,6 +155,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
     public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, InetAddressAndPort address, int schemaWaitDelay) throws ConfigurationException
     {
         String allocationKeyspace = DatabaseDescriptor.getAllocateTokensForKeyspace();
+        Integer allocationLocalRf = DatabaseDescriptor.getAllocateTokensForLocalRf();
         Collection<String> initialTokens = DatabaseDescriptor.getInitialTokens();
         if (initialTokens.size() > 0 && allocationKeyspace != null)
             logger.warn("manually specified tokens override automatic allocation");
@@ -171,6 +174,9 @@ public class BootStrapper extends ProgressEventNotifierSupport
 
         if (allocationKeyspace != null)
             return allocateTokens(metadata, address, allocationKeyspace, numTokens, schemaWaitDelay);
+
+        if (allocationLocalRf != null)
+            return allocateTokens(metadata, address, allocationLocalRf, numTokens, schemaWaitDelay);
 
         if (numTokens == 1)
             logger.warn("Picking random token for a single vnode.  You should probably add more vnodes and/or use the automatic token allocation mechanism.");
@@ -212,6 +218,22 @@ public class BootStrapper extends ProgressEventNotifierSupport
 
         Collection<Token> tokens = TokenAllocation.allocateTokens(metadata, rs, address, numTokens);
         BootstrapDiagnostics.tokensAllocated(address, metadata, allocationKeyspace, numTokens, tokens);
+        return tokens;
+    }
+
+
+    static Collection<Token> allocateTokens(final TokenMetadata metadata,
+                                            InetAddressAndPort address,
+                                            int rf,
+                                            int numTokens,
+                                            int schemaWaitDelay)
+    {
+        StorageService.instance.waitForSchema(schemaWaitDelay);
+        if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
+            Gossiper.waitToSettle();
+
+        Collection<Token> tokens = TokenAllocation.allocateTokens(metadata, rf, address, numTokens);
+        BootstrapDiagnostics.tokensAllocated(address, metadata, rf, numTokens, tokens);
         return tokens;
     }
 
