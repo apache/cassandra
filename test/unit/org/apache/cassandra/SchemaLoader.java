@@ -425,6 +425,39 @@ public class SchemaLoader
 
         return cfm.compression(getCompressionParameters());
     }
+
+    public static CFMetaData compositeMultipleIndexCFMD(String ksName, String cfName) throws ConfigurationException
+    {
+        CFMetaData cfm = CFMetaData.Builder.create(ksName, cfName)
+                                           .addPartitionKey("key", AsciiType.instance)
+                                           .addClusteringColumn("c1", AsciiType.instance)
+                                           .addRegularColumn("birthdate", LongType.instance)
+                                           .addRegularColumn("notbirthdate", LongType.instance)
+                                           .build();
+
+        cfm.indexes(
+            cfm.getIndexes()
+               .with(IndexMetadata.fromIndexTargets(cfm,
+                                                    Collections.singletonList(
+                                                    new IndexTarget(new ColumnIdentifier("birthdate", true),
+                                                                    IndexTarget.Type.VALUES)),
+                                                    "birthdate_key_index",
+                                                    IndexMetadata.Kind.COMPOSITES,
+                                                    Collections.EMPTY_MAP))
+               .with(IndexMetadata.fromIndexTargets(cfm,
+                                                    Collections.singletonList(
+                                                    new IndexTarget(new ColumnIdentifier("notbirthdate", true),
+                                                                    IndexTarget.Type.VALUES)),
+                                                    "notbirthdate_key_index",
+                                                    IndexMetadata.Kind.COMPOSITES,
+                                                    Collections.EMPTY_MAP))
+        );
+
+
+        return cfm.compression(getCompressionParameters());
+    }
+
+
     public static CFMetaData keysIndexCFMD(String ksName, String cfName, boolean withIndex) throws ConfigurationException
     {
         CFMetaData cfm = CFMetaData.Builder.createDense(ksName, cfName, false, false)
