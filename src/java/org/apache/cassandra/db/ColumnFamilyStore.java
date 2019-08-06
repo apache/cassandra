@@ -2410,6 +2410,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return count > 0 ? sum * 1.0 / count : 0;
     }
 
+    public int getMeanRowCount()
+    {
+        long totalRows = 0;
+        long totalPartitions = 0;
+        for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
+        {
+            totalPartitions += sstable.getEstimatedPartitionSize().count();
+            totalRows += sstable.getTotalRows();
+        }
+
+        return totalPartitions > 0 ? (int) (totalRows / totalPartitions) : 0;
+    }
+
     public long estimateKeys()
     {
         long n = 0;
