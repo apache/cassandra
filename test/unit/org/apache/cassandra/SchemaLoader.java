@@ -473,6 +473,35 @@ public class SchemaLoader
         return builder.indexes(indexes.build());
     }
 
+    public static TableMetadata.Builder compositeMultipleIndexCFMD(String ksName, String cfName) throws ConfigurationException
+    {
+        TableMetadata.Builder builder = TableMetadata.builder(ksName, cfName)
+                                                     .addPartitionKeyColumn("key", AsciiType.instance)
+                                                     .addClusteringColumn("c1", AsciiType.instance)
+                                                     .addRegularColumn("birthdate", LongType.instance)
+                                                     .addRegularColumn("notbirthdate", LongType.instance)
+                                                     .compression(getCompressionParameters());
+
+
+        Indexes.Builder indexes = Indexes.builder();
+
+        indexes.add(IndexMetadata.fromIndexTargets(Collections.singletonList(
+                                                   new IndexTarget(new ColumnIdentifier("birthdate", true),
+                                                                   IndexTarget.Type.VALUES)),
+                                                   "birthdate_key_index",
+                                                   IndexMetadata.Kind.COMPOSITES,
+                                                   Collections.EMPTY_MAP));
+        indexes.add(IndexMetadata.fromIndexTargets(Collections.singletonList(
+                                                   new IndexTarget(new ColumnIdentifier("notbirthdate", true),
+                                                                   IndexTarget.Type.VALUES)),
+                                                   "notbirthdate_key_index",
+                                                   IndexMetadata.Kind.COMPOSITES,
+                                                   Collections.EMPTY_MAP));
+
+
+        return builder.indexes(indexes.build());
+    }
+
     public static TableMetadata.Builder keysIndexCFMD(String ksName, String cfName, boolean withIndex)
     {
         TableMetadata.Builder builder =
