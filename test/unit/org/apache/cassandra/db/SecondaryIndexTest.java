@@ -54,6 +54,7 @@ public class SecondaryIndexTest
 {
     public static final String KEYSPACE1 = "SecondaryIndexTest1";
     public static final String WITH_COMPOSITE_INDEX = "WithCompositeIndex";
+    public static final String WITH_MULTIPLE_COMPOSITE_INDEX = "WithMultipleCompositeIndex";
     public static final String WITH_KEYS_INDEX = "WithKeysIndex";
     public static final String COMPOSITE_INDEX_TO_BE_ADDED = "CompositeIndexToBeAdded";
 
@@ -65,6 +66,7 @@ public class SecondaryIndexTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, WITH_COMPOSITE_INDEX, true, true).gcGraceSeconds(0),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, COMPOSITE_INDEX_TO_BE_ADDED, false).gcGraceSeconds(0),
+                                    SchemaLoader.compositeMultipleIndexCFMD(KEYSPACE1, WITH_MULTIPLE_COMPOSITE_INDEX).gcGraceSeconds(0),
                                     SchemaLoader.keysIndexCFMD(KEYSPACE1, WITH_KEYS_INDEX, true).gcGraceSeconds(0));
     }
 
@@ -73,6 +75,7 @@ public class SecondaryIndexTest
     {
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(WITH_COMPOSITE_INDEX).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(COMPOSITE_INDEX_TO_BE_ADDED).truncateBlocking();
+        Keyspace.open(KEYSPACE1).getColumnFamilyStore(WITH_MULTIPLE_COMPOSITE_INDEX).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(WITH_KEYS_INDEX).truncateBlocking();
     }
 
@@ -508,6 +511,29 @@ public class SecondaryIndexTest
         assertIndexedCount(cfs, ByteBufferUtil.bytes("birthdate"), 1l, 10);
         cfs.forceBlockingFlush();
         assertIndexedCount(cfs, ByteBufferUtil.bytes("birthdate"), 1l, 10);
+    }
+
+    @Test
+    public void testSelectivityWithMultipleIndexes()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(WITH_MULTIPLE_COMPOSITE_INDEX);
+
+        // creates rows such that birthday_index has 1 partition (key = 1L) with 4 rows -- mean row count = 4, and notbirthdate_index has 2 partitions with 2 rows each -- mean row count = 2
+        new RowUpdateBuilder(cfs.metadata, 0, "k1").clustering("c").add("birthdate", 1L).add("notbirthdate", 2L).build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata, 0, "k2").clustering("c").add("birthdate", 1L).add("notbirthdate", 2L).build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata, 0, "k3").clustering("c").add("birthdate", 1L).add("notbirthdate", 3L).build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata, 0, "k4").clustering("c").add("birthdate", 1L).add("notbirthdate", 3L).build().applyUnsafe();
+
+        cfs.forceBlockingFlush();
+        ReadCommand rc = Util.cmd(cfs)
+                             .fromKeyIncl("k1")
+                             .toKeyIncl("k3")
+                             .columns("birthdate")
+                             .filterOn("birthdate", Operator.EQ, 1L)
+                             .filterOn("notbirthdate", Operator.EQ, 0L)
+                             .build();
+
+        assertEquals("notbirthdate_key_index", rc.indexMetadata().name);
     }
 
     private void assertIndexedNone(ColumnFamilyStore cfs, ByteBuffer col, Object val)
