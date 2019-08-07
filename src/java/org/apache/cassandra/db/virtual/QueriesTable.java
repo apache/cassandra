@@ -72,10 +72,10 @@ public class QueriesTable extends AbstractVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         long now = TimeUnit.NANOSECONDS.toMicros(MonotonicClock.approxTime.now());
-        for (DebuggableTask.ThreadedDebuggableTask task : SharedExecutorPool.SHARED.runningTasks())
+        for (DebuggableTask.RunningDebuggableTask task : SharedExecutorPool.SHARED.runningTasks())
         {
             if(!task.hasTask()) continue;
-            long micros = TimeUnit.NANOSECONDS.toMicros(task.startTimeNanos());
+            long micros = TimeUnit.NANOSECONDS.toMicros(task.approxStartNanos());
             result.row(task.threadId())
                   // Since MonotonicClock is used for some but not all, we want to cap to make sure any drift between
                   // different clocks dont cause this to go negative which would just look silly

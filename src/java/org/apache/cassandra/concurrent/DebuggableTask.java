@@ -23,7 +23,7 @@ package org.apache.cassandra.concurrent;
  */
 public interface DebuggableTask
 {
-    public long startTimeNanos();
+    public long approxStartNanos();
 
     /**
      * String describing the task, this can be general thing or something very specific like the query string
@@ -34,12 +34,12 @@ public interface DebuggableTask
      * ThreadedDebuggableTask is created by the SharedExecutorPool to include the thread name of any DebuggableTask
      * running on a SEPWorker
      */
-    public static class ThreadedDebuggableTask implements DebuggableTask
+    public static class RunningDebuggableTask implements DebuggableTask
     {
         final DebuggableTask task;
         final String threadId;
 
-        public ThreadedDebuggableTask(String threadId, DebuggableTask task)
+        public RunningDebuggableTask(String threadId, DebuggableTask task)
         {
             this.task = task;
             this.threadId = threadId;
@@ -55,14 +55,16 @@ public interface DebuggableTask
             return task != null;
         }
 
-        public long startTimeNanos()
+        public long approxStartNanos()
         {
-            return task == null ? System.nanoTime() : task.startTimeNanos();
+            assert hasTask();
+            return task.approxStartNanos();
         }
 
         public String debug()
         {
-            return task == null ? "[debug unavailable]" : task.debug();
+            assert hasTask();
+            return task.debug();
         }
     }
 }

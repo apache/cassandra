@@ -19,6 +19,7 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
@@ -47,7 +48,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     long prevStopCheck = 0;
     long soleSpinnerSpinTime = 0;
 
-    AbstractLocalAwareExecutorService.FutureTask task = null;
+    AtomicReference<AbstractLocalAwareExecutorService.FutureTask> currentTask = new AtomicReference<>();
 
     SEPWorker(Long workerId, Work initialState, SharedExecutorPool pool)
     {
@@ -65,8 +66,8 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     public DebuggableTask debuggableTask()
     {
         // this.task can change after null check so go off local reference
-        AbstractLocalAwareExecutorService.FutureTask task = this.task;
-        return task == null? null : task.debuggableTask();
+        AbstractLocalAwareExecutorService.FutureTask task = currentTask.get();
+        return task == null ? null : task.debuggableTask();
     }
 
     public void run()
@@ -83,6 +84,8 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
          *      task will be processed immediately if work permits are available
          */
 
+
+        AbstractLocalAwareExecutorService.FutureTask task = null;
         SEPExecutor assigned = null;
         try
         {
@@ -137,11 +140,14 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                         break;
 
                     task = assigned.tasks.poll();
+                    currentTask.lazySet(task);
                 }
 
                 // return our work permit, and maybe signal shutdown
                 if (status != RETURNED_WORK_PERMIT)
                     assigned.returnWorkPermit();
+
+                currentTask.lazySet(null);
 
                 if (shutdown)
                 {
@@ -179,6 +185,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         }
         finally
         {
+            currentTask.lazySet(null);
             pool.workerEnded(this);
         }
     }
@@ -432,5 +439,15 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     public String toString()
     {
         return thread.getName();
+    }
+
+    public int hashCode()
+    {
+        return workerId.intValue();
+    }
+
+    public boolean equals(Object obj)
+    {
+        return obj == this;
     }
 }

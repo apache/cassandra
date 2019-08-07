@@ -147,27 +147,26 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
         private boolean failure;
         private Object result = this;
         private final Callable<T> callable;
-        private DebuggableTask debuggable = null;
+        private final DebuggableTask debuggable;
 
-        public FutureTask(Callable<T> callable)
+        private FutureTask(Callable<T> callable, DebuggableTask debuggable)
         {
             this.callable = callable;
-            if (callable instanceof DebuggableTask)
-            {
-                debuggable = (DebuggableTask) callable;
-            }
+            this.debuggable = debuggable;
         }
-        public FutureTask(Runnable runnable, T result)
+
+        FutureTask(Callable<T> callable)
         {
-            this(Executors.callable(runnable, result));
-            if (runnable instanceof DebuggableTask)
-            {
-                debuggable = (DebuggableTask) runnable;
-            }
+            this(callable, callable instanceof DebuggableTask ? (DebuggableTask) callable : null);
+        }
+
+        FutureTask(Runnable runnable, T result)
+        {
+            this(Executors.callable(runnable, result), runnable instanceof DebuggableTask ? (DebuggableTask) runnable : null);
         }
 
         @Nullable
-        public DebuggableTask debuggableTask()
+        DebuggableTask debuggableTask()
         {
             return debuggable;
         }
