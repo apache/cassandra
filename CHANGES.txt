@@ -25,6 +25,7 @@
  * Add missing commands to nodetool-completion (CASSANDRA-14916)
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
  Merged from 2.2:
+ * Catch non-IOException in FileUtils.close to make sure that all resources are closed (CASSANDRA-15225)
  * Handle exceptions during authentication/authorization (CASSANDRA-15041)
  * Support cross version messaging in in-jvm upgrade dtests (CASSANDRA-15078)
  * Fix index summary redistribution cancellation (CASSANDRA-15045)
