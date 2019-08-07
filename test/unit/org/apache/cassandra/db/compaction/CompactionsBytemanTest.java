@@ -19,18 +19,28 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.concurrent.TimeUnit;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @RunWith(BMUnitRunner.class)
 public class CompactionsBytemanTest extends CQLTester
@@ -140,5 +150,77 @@ public class CompactionsBytemanTest extends CQLTester
 
     private void createLowGCGraceTable(){
         createTable("CREATE TABLE %s (id int PRIMARY KEY, val text) with compaction = {'class':'SizeTieredCompactionStrategy', 'enabled': 'false'} AND gc_grace_seconds=0");
+    }
+
+    @Test
+    @BMRule(name = "Stop all compactions",
+    targetClass = "CompactionTask",
+    targetMethod = "runMayThrow",
+    targetLocation = "AT INVOKE getCompactionAwareWriter",
+    action = "$ci.stop()")
+    public void testStopUserDefinedCompactionRepaired() throws Throwable
+    {
+        testStopCompactionRepaired((cfs) -> {
+            Collection<Descriptor> files = cfs.getLiveSSTables().stream().map(s -> s.descriptor).collect(Collectors.toList());
+            FBUtilities.waitOnFuture(CompactionManager.instance.submitUserDefined(cfs, files, CompactionManager.NO_GC));
+        });
+    }
+
+    @Test
+    @BMRule(name = "Stop all compactions",
+    targetClass = "CompactionTask",
+    targetMethod = "runMayThrow",
+    targetLocation = "AT INVOKE getCompactionAwareWriter",
+    action = "$ci.stop()")
+    public void testStopSubRangeCompactionRepaired() throws Throwable
+    {
+        testStopCompactionRepaired((cfs) -> {
+            Collection<Range<Token>> ranges = Collections.singleton(new Range<>(cfs.getPartitioner().getMinimumToken(),
+                                                                                cfs.getPartitioner().getMaximumToken()));
+            CompactionManager.instance.forceCompactionForTokenRange(cfs, ranges);
+        });
+    }
+
+    public void testStopCompactionRepaired(Consumer<ColumnFamilyStore> compactionRunner) throws Throwable
+    {
+        String table = createTable("CREATE TABLE %s (k INT, c INT, v INT, PRIMARY KEY (k, c))");
+        ColumnFamilyStore cfs = Keyspace.open(CQLTester.KEYSPACE).getColumnFamilyStore(table);
+        cfs.disableAutoCompaction();
+        for (int i = 0; i < 5; i++)
+        {
+            for (int j = 0; j < 10; j++)
+            {
+                execute("insert into %s (k, c, v) values (?, ?, ?)", i, j, i*j);
+            }
+            cfs.forceBlockingFlush();
+        }
+        cfs.getCompactionStrategyManager().mutateRepaired(cfs.getLiveSSTables(), System.currentTimeMillis(), null, false);
+        for (int i = 0; i < 5; i++)
+        {
+            for (int j = 0; j < 10; j++)
+            {
+                execute("insert into %s (k, c, v) values (?, ?, ?)", i, j, i*j);
+            }
+            cfs.forceBlockingFlush();
+        }
+
+        assertTrue(cfs.getTracker().getCompacting().isEmpty());
+        assertTrue(CompactionManager.instance.active.getCompactions().stream().noneMatch(h -> h.getCompactionInfo().getTableMetadata().equals(cfs.metadata)));
+
+        try
+        {
+            compactionRunner.accept(cfs);
+            fail("compaction should fail");
+        }
+        catch (RuntimeException t)
+        {
+            if (!(t.getCause().getCause() instanceof CompactionInterruptedException))
+                throw t;
+            //expected
+        }
+
+        assertTrue(cfs.getTracker().getCompacting().isEmpty());
+        assertTrue(CompactionManager.instance.active.getCompactions().stream().noneMatch(h -> h.getCompactionInfo().getTableMetadata().equals(cfs.metadata)));
+
     }
 }
