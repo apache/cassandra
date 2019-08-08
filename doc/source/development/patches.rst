@@ -108,7 +108,14 @@ So you've finished coding and the great moment arrives: it's time to submit your
    a. Attach a patch to JIRA with a single squashed commit in it (per branch), or
    b. Squash the commits in-place in your branches into one
 
- 6. Include a CHANGES.txt entry (put it at the top of the list), and format the commit message appropriately in your patch ending with the following statement on the last line: ``patch by X; reviewed by Y for CASSANDRA-ZZZZZ``
+ 6. Include a CHANGES.txt entry (put it at the top of the list), and format the commit message appropriately in your patch as below.
+ 
+    ::
+
+      <One sentence description, usually Jira title and CHANGES.txt summary>
+      <Optional lengthier description>
+      patch by <Authors>; reviewed by <Reviewers> for CASSANDRA-#####
+ 
  7. When you're happy with the result, create a patch:
 
    ::
