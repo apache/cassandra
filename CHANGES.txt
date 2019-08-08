@@ -1,6 +1,7 @@
 4.0
  * Improve readability of Table metrics Virtual tables units (CASSANDRA-15194)
  * Fix error with non-existent table for nodetool tablehistograms (CASSANDRA-14410)
+ * Avoid result truncation in decimal operations (CASSANDRA-15232)
  * Catch non-IOException in FileUtils.close to make sure that all resources are closed (CASSANDRA-15225)
  * Align load column in nodetool status output (CASSANDRA-14787)
  * CassandraNetworkAuthorizer uses cached roles info (CASSANDRA-15089)
