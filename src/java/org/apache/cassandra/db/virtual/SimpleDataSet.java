@@ -73,6 +73,8 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
     {
         if (null == currentRow)
             throw new IllegalStateException();
+        if (null == value || columnName == null)
+            throw new IllegalStateException(String.format("Invalid column: %s=%s for %s", columnName, value, currentRow));
         currentRow.add(columnName, value);
         return this;
     }
@@ -180,6 +182,11 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
             });
 
             return builder.build();
+        }
+
+        public String toString()
+        {
+            return "Row[...:" + clustering.toString(metadata)+']';
         }
     }
 
