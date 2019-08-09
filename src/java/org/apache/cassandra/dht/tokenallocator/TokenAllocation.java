@@ -226,7 +226,11 @@ public class TokenAllocation
         }
 
         Topology topology = tokenMetadata.getTopology();
-        int racks = topology.getDatacenterRacks().get(dc).asMap().size();
+
+        // if topology hasn't been setup yet for this endpoint+rack then treat it as a separate unit
+        int racks = topology.getDatacenterRacks().get(dc) != null && topology.getDatacenterRacks().get(dc).containsKey(snitch.getRack(endpoint))
+                ? topology.getDatacenterRacks().get(dc).asMap().size()
+                : 1;
 
         if (racks >= replicas)
         {
