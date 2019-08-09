@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -38,11 +39,13 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.impl.ExecUtil.rethrow;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-@Ignore
+
 public class RepairTest extends DistributedTestBase
 {
     private static final String insert = withKeyspace("INSERT INTO %s.test (k, c1, c2) VALUES (?, 'value1', 'value2');");
     private static final String query = withKeyspace("SELECT k, c1, c2 FROM %s.test WHERE k = ?;");
+    private static Cluster cluster;
+
     private static void insert(Cluster cluster, int start, int end, int ... nodes)
     {
         for (int i = start ; i < end ; ++i)
@@ -71,36 +74,17 @@ public class RepairTest extends DistributedTestBase
             cluster.get(node).runOnInstance(rethrow(() -> StorageService.instance.forceKeyspaceFlush(KEYSPACE)));
     }
 
-    private Cluster create(Consumer<InstanceConfig> configModifier) throws IOException
+    private static Cluster create(Consumer<InstanceConfig> configModifier) throws IOException
     {
         configModifier = configModifier.andThen(
-            config -> config.set("hinted_handoff_enabled", false)
-                            .set("commitlog_sync_batch_window_in_ms", 5)
-                            .with(NETWORK)
-                            .with(GOSSIP)
+        config -> config.set("hinted_handoff_enabled", false)
+                        .set("commitlog_sync_batch_window_in_ms", 5)
+                        .with(NETWORK)
+                        .with(GOSSIP)
         );
 
         Cluster cluster = init(Cluster.build(3).withConfig(configModifier).start());
-        try
-        {
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.test (k text, c1 text, c2 text, PRIMARY KEY (k));"));
-
-            insert(cluster,    0, 1000, 1, 2, 3);
-            flush(cluster, 1);
-            insert(cluster, 1000, 1001, 1, 2);
-            insert(cluster, 1001, 2001, 1, 2, 3);
-            flush(cluster, 1, 2, 3);
-
-            verify(cluster,    0, 1000, 1, 2, 3);
-            verify(cluster, 1000, 1001, 1, 2);
-            verify(cluster, 1001, 2001, 1, 2, 3);
-            return cluster;
-        }
-        catch (Throwable t)
-        {
-            cluster.close();
-            throw t;
-        }
+        return cluster;
     }
 
     private void repair(Cluster cluster, Map<String, String> options)
@@ -115,21 +99,54 @@ public class RepairTest extends DistributedTestBase
         }));
     }
 
-    void simpleRepair(boolean orderPreservingPartitioner, boolean sequential) throws IOException
+    void populate(Cluster cluster, boolean compression)
     {
-        Cluster cluster = create(config -> {
-            if (orderPreservingPartitioner)
-                config.set("partitioner", "org.apache.cassandra.dht.ByteOrderedPartitioner");
-        });
+        try
+        {
+            cluster.schemaChange(withKeyspace("DROP TABLE IF EXISTS %s.test;"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.test (k text, c1 text, c2 text, PRIMARY KEY (k))") +
+                                 (compression == false ? " WITH compression = {'enabled' : false};" : ";"));
+
+            insert(cluster,    0, 1000, 1, 2, 3);
+            flush(cluster, 1);
+            insert(cluster, 1000, 1001, 1, 2);
+            insert(cluster, 1001, 2001, 1, 2, 3);
+            flush(cluster, 1, 2, 3);
+
+            verify(cluster,    0, 1000, 1, 2, 3);
+            verify(cluster, 1000, 1001, 1, 2);
+            verify(cluster, 1001, 2001, 1, 2, 3);
+        }
+        catch (Throwable t)
+        {
+            cluster.close();
+            throw t;
+        }
+
+    }
+
+    void simpleRepair(Cluster cluster, boolean sequential, boolean compression) throws IOException
+    {
+        populate(cluster, compression);
         repair(cluster, ImmutableMap.of("parallelism", sequential ? "sequential" : "parallel"));
         verify(cluster, 0, 2001, 1, 2, 3);
     }
 
-    @Test
-    public void testSimpleSequentialRepair() throws IOException
+    @BeforeClass
+    public static void setupCluster() throws IOException
     {
-        simpleRepair(false, true);
+        cluster = create(config -> {});
     }
 
+    @Ignore("Test requires CASSANDRA-13938 to be merged")
+    public void testSimpleSequentialRepairDefaultCompression() throws IOException
+    {
+        simpleRepair(cluster, true, true);
+    }
 
+    @Test
+    public void testSimpleSequentialRepairCompressionOff() throws IOException
+    {
+        simpleRepair(cluster, true, false);
+    }
 }

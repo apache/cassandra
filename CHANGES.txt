@@ -1,4 +1,5 @@
 4.0
+ * Enhance & reenable RepairTest with compression=off and compression=on (CASSANDRA-15272)
  * Improve readability of Table metrics Virtual tables units (CASSANDRA-15194)
  * Fix error with non-existent table for nodetool tablehistograms (CASSANDRA-14410)
  * Avoid result truncation in decimal operations (CASSANDRA-15232)
