@@ -2598,11 +2598,10 @@ public abstract class LegacyLayout
 
                 CompositeType.Builder startBuilder = type.builder();
                 CompositeType.Builder endBuilder = type.builder();
-                for (int j = 0; j < start.bound.clustering().size(); j++)
-                {
+                for (int j = 0; j < start.bound.size(); j++)
                     startBuilder.add(start.bound.get(j));
+                for (int j = 0; j < end.bound.size(); j++)
                     endBuilder.add(end.bound.get(j));
-                }
 
                 if (start.collectionName != null)
                     startBuilder.add(start.collectionName.name.bytes);
