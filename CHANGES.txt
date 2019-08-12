@@ -375,7 +375,7 @@
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
- * Fix NPE when using allocate_tokens_for_keyspace on new DC/rack (CASSANDRA-14592)
+ * Fix NPE when using allocate_tokens_for_keyspace on new DC/rack (CASSANDRA-14952)
  * Filter sstables earlier when running cleanup (CASSANDRA-15100)
  * Use mean row count instead of mean column count for index selectivity calculation (CASSANDRA-15259)
  * Avoid updating unchanged gossip states (CASSANDRA-15097)
