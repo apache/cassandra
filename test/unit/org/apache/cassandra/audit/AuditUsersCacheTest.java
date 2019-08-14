@@ -74,19 +74,18 @@ public class AuditUsersCacheTest
         embedded = new EmbeddedCassandraService();
         embedded.start();
 
+        Thread.sleep(5000);
+        AuditUsersCacheService.instance.setup();
+
         executeWithCredentials(
                 Arrays.asList(getCreateRoleCql(TEST_USER, true, false, TEST_PW),
                         getCreateRoleCql(TEST_SERVICE, true, false, TEST_PW),
                         "CREATE KEYSPACE testks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",
                         "CREATE TABLE testks.table1 (key text PRIMARY KEY, col1 int, col2 int)"),
                 "cassandra", "cassandra", null);
-
-
-        Thread.sleep(5000);
         /**
          * Insert into system_distributed/audit_users table
          */
-        AuditUsersCacheService.instance.setup();
         executeWithCredentials(
                 Arrays.asList(getInsertAuditRoleCql(TEST_USER, "Developer", 100.0),
                         getInsertAuditRoleCql(TEST_SERVICE, "Service", 0.0),

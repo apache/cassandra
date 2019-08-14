@@ -78,12 +78,25 @@ public class AuditLoggerAuthTest
         System.setProperty("cassandra.superuser_setup_delay_ms", "0");
         embedded = ServerTestUtils.startEmbeddedCassandraService();
 
+        AuditUsersCacheService.instance.setup();
         executeWithCredentials(
         Arrays.asList(getCreateRoleCql(TEST_USER, true, false, false),
                       getCreateRoleCql("testuser_nologin", false, false, false),
                       "CREATE KEYSPACE testks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",
                       "CREATE TABLE testks.table1 (key text PRIMARY KEY, col1 int, col2 int)"),
         "cassandra", "cassandra", null);
+
+        executeWithCredentials(
+        Arrays.asList(String.format("INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('%s', 'SERVICE', 100.0)", CASS_USER)),
+                CASS_USER, CASS_PW, null);
+
+        executeWithCredentials(
+        Arrays.asList(String.format("INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('%s', 'PERSONNEL', 100.0)", TEST_USER)),
+                TEST_USER, TEST_PW, null);
+
+        AuditUsersCacheService.instance.insert(CASS_USER, "SERVICE", 100.0);
+        AuditUsersCacheService.instance.insert(TEST_USER, "PERSONNEL", 100.0);
+        AuditUsersCacheService.instance.refresh();
     }
 
     @AfterClass

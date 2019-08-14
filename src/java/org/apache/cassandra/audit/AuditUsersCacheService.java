@@ -194,7 +194,7 @@ public class AuditUsersCacheService
      * returns: true if query should be logged else false
      *
      * function checks of role/user is present in cache.
-     * If role is absent then return true
+     * If role is absent then return false
      * If role is present then check filterPercent_percentage and decide whether to
      * log or not based on probability.
      */
@@ -202,7 +202,7 @@ public class AuditUsersCacheService
     {
         if (role == null || !cacheWarmedUp || !auditUserCache.containsKey(role))
         {
-            return true;
+            return false;
         }
 
         double filter_percent = Double.valueOf(auditUserCache.get(role).filterPercent);
@@ -243,5 +243,4 @@ public class AuditUsersCacheService
         AuditUsersCacheService.UserProp value = new AuditUsersCacheService.UserProp(type, percent);
         auditUserCache.putIfAbsent(role, value);
     }
-
 }

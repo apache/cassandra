@@ -42,6 +42,7 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.audit.AuditEvent;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.audit.AuditUsersCacheService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -74,6 +75,7 @@ public class CQLUserAuditTest
 
         embedded = ServerTestUtils.startEmbeddedCassandraService();
 
+        DatabaseDescriptor.setAuditUserCacheEnabled(false);
         executeAs(Arrays.asList("CREATE ROLE testuser WITH LOGIN = true AND SUPERUSER = false AND PASSWORD = 'foo'",
                                 "CREATE ROLE testuser_nologin WITH LOGIN = false AND SUPERUSER = false AND PASSWORD = 'foo'",
                                 "CREATE KEYSPACE testks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",

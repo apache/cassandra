@@ -56,6 +56,7 @@ public class BinAuditLoggerTest extends CQLTester
         options.audit_logs_dir = tempDir.toString();
         DatabaseDescriptor.setAuditLoggingOptions(options);
         AuditLogManager.instance.enable(DatabaseDescriptor.getAuditLoggingOptions());
+        DatabaseDescriptor.setAuditUserCacheEnabled(false);  // disable audit user cache so audit log for every action
         requireNetwork();
     }
 

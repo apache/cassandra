@@ -65,6 +65,7 @@ public class AuditLoggerTest extends CQLTester
         options.enabled = true;
         options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
         DatabaseDescriptor.setAuditLoggingOptions(options);
+        DatabaseDescriptor.setAuditUserCacheEnabled(false);  // disable audit user cache so audit log for every action
         requireNetwork();
     }
 
