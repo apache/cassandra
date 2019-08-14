@@ -56,6 +56,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.collect.ImmutableMap.of;
 import static java.util.Arrays.asList;
+import static org.apache.cassandra.db.compaction.AntiCompactionTest.assertOnDiskState;
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.apache.cassandra.io.sstable.IndexSummaryRedistribution.DOWNSAMPLE_THESHOLD;
 import static org.apache.cassandra.io.sstable.IndexSummaryRedistribution.UPSAMPLE_THRESHOLD;
@@ -63,6 +64,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 
 @RunWith(OrderedJUnit4ClassRunner.class)
@@ -676,7 +678,45 @@ public class IndexSummaryManagerTest
                                  Joiner.on(",").join(disjoint)),
                    disjoint.isEmpty());
 
+        assertOnDiskState(cfs, numSSTables);
         validateData(cfs, numRows);
+    }
+
+    @Test
+    public void testPauseIndexSummaryManager() throws Exception
+    {
+        String ksname = KEYSPACE1;
+        String cfname = CF_STANDARDLOWiINTERVAL; // index interval of 8, no key caching
+        Keyspace keyspace = Keyspace.open(ksname);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+        int numSSTables = 4;
+        int numRows = 256;
+        createSSTables(ksname, cfname, numSSTables, numRows);
+
+        List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
+        for (SSTableReader sstable : sstables)
+            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
+
+        long singleSummaryOffHeapSpace = sstables.get(0).getIndexSummaryOffHeapSize();
+
+        // everything should get cut in half
+        assert sstables.size() == numSSTables;
+        try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
+        {
+            try (AutoCloseable toresume = CompactionManager.instance.pauseGlobalCompaction())
+            {
+                sstables = redistributeSummaries(Collections.emptyList(), of(cfs.metadata.cfId, txn), (singleSummaryOffHeapSpace * (numSSTables / 2)));
+                fail("The redistribution should fail - we got paused before adding to active compactions, but after marking compacting");
+            }
+        }
+        catch (CompactionInterruptedException e)
+        {
+            // expected
+        }
+        for (SSTableReader sstable : sstables)
+            assertEquals(BASE_SAMPLING_LEVEL, sstable.getIndexSummarySamplingLevel());
+        validateData(cfs, numRows);
+        assertOnDiskState(cfs, numSSTables);
     }
 
     private static List<SSTableReader> redistributeSummaries(List<SSTableReader> compacting,

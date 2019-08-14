@@ -65,8 +65,6 @@ public class ViewBuilder extends CompactionInfo.Holder
 
     private static final Logger logger = LoggerFactory.getLogger(ViewBuilder.class);
 
-    private volatile boolean isStopped = false;
-
     public ViewBuilder(ColumnFamilyStore baseCfs, View view)
     {
         this.baseCfs = baseCfs;
@@ -143,7 +141,7 @@ public class ViewBuilder extends CompactionInfo.Holder
         try (Refs<SSTableReader> sstables = baseCfs.selectAndReference(function).refs;
              ReducingKeyIterator iter = new ReducingKeyIterator(sstables))
         {
-            while (!isStopped && iter.hasNext())
+            while (!isStopRequested() && iter.hasNext())
             {
                 DecoratedKey key = iter.next();
                 Token token = key.getToken();
@@ -168,7 +166,7 @@ public class ViewBuilder extends CompactionInfo.Holder
                 }
             }
 
-            if (!isStopped)
+            if (!isStopRequested())
             {
                 logger.debug("Marking view({}.{}) as built covered {} keys ", ksname, viewName, keysBuilt);
                 SystemKeyspace.finishViewBuildStatus(ksname, viewName);
@@ -207,8 +205,8 @@ public class ViewBuilder extends CompactionInfo.Holder
          return new CompactionInfo(baseCfs.metadata, OperationType.VIEW_BUILD, rangesCompleted, rangesTotal, Unit.RANGES, compactionId);
     }
 
-    public void stop()
+    public boolean isGlobal()
     {
-        isStopped = true;
+        return false;
     }
 }
