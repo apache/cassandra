@@ -114,7 +114,7 @@ public class SharedExecutorPool
         return executor;
     }
 
-    public void shutdown() throws InterruptedException
+    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException
     {
         shuttingDown = true;
         for (SEPExecutor executor : executors)
@@ -122,7 +122,7 @@ public class SharedExecutorPool
 
         terminateWorkers();
 
-        long until = System.nanoTime() + TimeUnit.MINUTES.toNanos(1L);
+        long until = System.nanoTime() + unit.toNanos(timeout);
         for (SEPExecutor executor : executors)
             executor.shutdown.await(until - System.nanoTime(), TimeUnit.NANOSECONDS);
     }

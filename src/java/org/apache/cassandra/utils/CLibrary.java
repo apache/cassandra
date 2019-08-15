@@ -60,7 +60,14 @@ public final class CLibrary
     {
         try
         {
-            Native.register("c");
+            if (Boolean.getBoolean("cassandra.disable_clibrary"))
+            {
+                jnaAvailable = false;
+            }
+            else
+            {
+                Native.register("c");
+            }
         }
         catch (NoClassDefFoundError e)
         {
