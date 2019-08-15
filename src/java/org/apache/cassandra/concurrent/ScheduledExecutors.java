@@ -27,6 +27,8 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.utils.ExecutorUtils;
 
+import org.apache.cassandra.utils.ExecutorUtils;
+
 /**
  * Centralized location for shared executors
  */
@@ -55,8 +57,6 @@ public class ScheduledExecutors
     @VisibleForTesting
     public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        List<ExecutorService> executors = ImmutableList.of(scheduledFastTasks, scheduledTasks, nonPeriodicTasks, optionalTasks);
-        ExecutorUtils.shutdownNow(executors);
-        ExecutorUtils.awaitTermination(timeout, unit, executors);
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, scheduledFastTasks, scheduledTasks, nonPeriodicTasks, optionalTasks);
     }
 }

@@ -45,11 +45,11 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemory;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
-import static com.google.common.collect.ImmutableList.*;
 import static java.util.Collections.emptyList;
 
 import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
@@ -710,7 +710,6 @@ public final class Ref<T> implements RefCounted<T>
     @VisibleForTesting
     public static void shutdownReferenceReaper(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        shutdownNow(Arrays.asList(EXEC, STRONG_LEAK_DETECTOR));
-        awaitTermination(timeout, unit, Arrays.asList(EXEC, STRONG_LEAK_DETECTOR));
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, EXEC, STRONG_LEAK_DETECTOR);
     }
 }
