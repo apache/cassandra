@@ -39,6 +39,8 @@ public class NanoTimeToCurrentTimeMillis
     @VisibleForTesting
     public static final Object TIMESTAMP_UPDATE = new Object();
 
+    private static final Thread updater;
+
     /*
      * System.currentTimeMillis() is 25 nanoseconds. This is 2 nanoseconds (maybe) according to JMH.
      * Faster than calling both currentTimeMillis() and nanoTime().
@@ -57,7 +59,7 @@ public class NanoTimeToCurrentTimeMillis
     static
     {
         //Pick up updates from NTP periodically
-        Thread t = new Thread("NanoTimeToCurrentTimeMillis updater")
+        updater = new Thread("NanoTimeToCurrentTimeMillis updater")
         {
             @Override
             public void run()
@@ -82,7 +84,13 @@ public class NanoTimeToCurrentTimeMillis
                 }
             }
         };
-        t.setDaemon(true);
-        t.start();
+        updater.setDaemon(true);
+        updater.start();
+    }
+
+    public static void shutdown(long millis) throws InterruptedException
+    {
+        updater.interrupt();
+        updater.join(millis);
     }
 }

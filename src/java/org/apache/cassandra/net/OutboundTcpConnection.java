@@ -429,7 +429,7 @@ public class OutboundTcpConnection extends Thread
 
         long start = System.nanoTime();
         long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getRpcTimeout());
-        while (System.nanoTime() - start < timeout)
+        while (System.nanoTime() - start < timeout && !isStopped)
         {
             targetVersion = MessagingService.instance().getVersion(poolReference.endPoint());
             try
