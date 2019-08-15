@@ -19,10 +19,10 @@
 package org.apache.cassandra.distributed;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
-import java.util.Set;
+import java.util.function.Consumer;
 
-import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.IInvokableInstance;
@@ -35,31 +35,29 @@ import org.apache.cassandra.distributed.impl.Versions;
  */
 public class Cluster extends AbstractCluster<IInvokableInstance> implements ICluster, AutoCloseable
 {
-    private Cluster(File root, Versions.Version version, List<InstanceConfig> configs, Set<Feature> features, ClassLoader sharedClassLoader)
+    private Cluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader)
     {
-        super(root, version, configs, features, sharedClassLoader);
+        super(root, version, configs, sharedClassLoader);
     }
 
-    protected IInvokableInstance newInstanceWrapper(Versions.Version version, InstanceConfig config)
+    protected IInvokableInstance newInstanceWrapper(int generation, Versions.Version version, InstanceConfig config)
     {
-        return new Wrapper(version, config);
+        return new Wrapper(generation, version, config);
+    }
+
+    public static Builder<IInvokableInstance, Cluster> build(int nodeCount)
+    {
+        return new Builder<>(nodeCount, Cluster::new);
+    }
+
+    public static Cluster create(int nodeCount, Consumer<InstanceConfig> configUpdater) throws IOException
+    {
+        return build(nodeCount).withConfig(configUpdater).start();
     }
 
     public static Cluster create(int nodeCount) throws Throwable
     {
-        return create(nodeCount, Cluster::new);
-    }
-    public static Cluster create(int nodeCount, Set<Feature> with) throws Throwable
-    {
-        return create(nodeCount, with, Cluster::new);
-    }
-    public static Cluster create(int nodeCount, File root)
-    {
-        return create(nodeCount, root, Cluster::new);
-    }
-    public static Cluster create(int nodeCount, File root, Set<Feature> with)
-    {
-        return create(nodeCount, Versions.CURRENT, root, with, Cluster::new);
+        return build(nodeCount).start();
     }
 }
 

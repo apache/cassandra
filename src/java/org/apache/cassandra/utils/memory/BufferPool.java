@@ -21,6 +21,7 @@ package org.apache.cassandra.utils.memory;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Queue;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -39,6 +40,9 @@ import org.apache.cassandra.metrics.BufferPoolMetrics;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Ref;
+
+import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdownNow;
 
 /**
  * A pool of ByteBuffers that can be recycled.
@@ -856,9 +860,9 @@ public class BufferPool
     }
 
     @VisibleForTesting
-    public static void shutdownLocalCleaner() throws InterruptedException
+    public static void shutdownLocalCleaner(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        EXEC.shutdown();
-        EXEC.awaitTermination(60, TimeUnit.SECONDS);
+        shutdownNow(Arrays.asList(EXEC));
+        awaitTermination(timeout, unit, Arrays.asList(EXEC));
     }
 }

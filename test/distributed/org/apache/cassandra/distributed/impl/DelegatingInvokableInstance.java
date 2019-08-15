@@ -27,7 +27,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -112,9 +111,9 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     }
 
     @Override
-    public void startup(ICluster cluster, Set<Feature> with)
+    public void startup(ICluster cluster)
     {
-        delegate().startup(cluster, with);
+        delegate().startup(cluster);
     }
 
     @Override

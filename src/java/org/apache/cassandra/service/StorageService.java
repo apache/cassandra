@@ -18,7 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.io.*;
-import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -98,6 +97,7 @@ import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 import org.apache.cassandra.utils.progress.jmx.LegacyJMXProgressSupport;
 
 import static java.util.Arrays.asList;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
@@ -4560,7 +4560,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             setMode(Mode.DRAINING, "starting drain process", !isFinalShutdown);
 
-            BatchlogManager.instance.shutdown();
+            try
+            {
+                /* not clear this is reasonable time, but propagated from prior embedded behaviour */
+                BatchlogManager.instance.shutdownAndWait(1L, MINUTES);
+            }
+            catch (TimeoutException t)
+            {
+                logger.error("Batchlog manager timed out shutting down", t);
+            }
+
             HintsService.instance.pauseDispatch();
 
             if (daemon != null)
@@ -4653,7 +4662,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
             ScheduledExecutors.nonPeriodicTasks.shutdown();
-            if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, TimeUnit.MINUTES))
+            if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, MINUTES))
                 logger.warn("Failed to wait for non periodic tasks to shutdown");
 
             ColumnFamilyStore.shutdownPostFlushExecutor();
@@ -5285,5 +5294,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setHintedHandoffThrottleInKB(throttleInKB);
         logger.info("Updated hinted_handoff_throttle_in_kb to {}", throttleInKB);
+    }
+
+    @VisibleForTesting
+    public void shutdownServer()
+    {
+        if (drainOnShutdown != null)
+        {
+            Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
+        }
     }
 }
