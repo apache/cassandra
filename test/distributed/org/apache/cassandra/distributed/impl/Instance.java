@@ -34,9 +34,6 @@ import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
@@ -56,9 +53,9 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
@@ -67,6 +64,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -81,11 +79,17 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamCoordinator;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
+
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
@@ -99,10 +103,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         this.config = config;
         InstanceIDDefiner.setInstanceId(config.num());
         FBUtilities.setBroadcastInetAddress(config.broadcastAddressAndPort().address);
-        acceptsOnInstance((IInstanceConfig override) -> {
-            Config.setOverrideLoadConfig(() -> loadConfig(override));
-            DatabaseDescriptor.setDaemonInitialized();
-        }).accept(config);
+        // Set the config at instance creation, possibly before startup() has run on all other instances.
+        // setMessagingVersions below will call runOnInstance which will instantiate
+        // the MessagingService and dependencies preventing later changes to network parameters.
+        Config.setOverrideLoadConfig(() -> loadConfig(config));
     }
 
     public IInstanceConfig config()
@@ -181,7 +185,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private void registerMockMessaging(ICluster cluster)
     {
         BiConsumer<InetAddressAndPort, IMessage> deliverToInstance = (to, message) -> cluster.get(to).receiveMessage(message);
-        BiConsumer<InetAddressAndPort, IMessage> deliverToInstanceIfNotFiltered = cluster.filters().filter(deliverToInstance);
+        BiConsumer<InetAddressAndPort, IMessage> deliverToInstanceIfNotFiltered = (to, message) -> {
+            if (cluster.filters().permit(this, cluster.get(to), message.verb()))
+                deliverToInstance.accept(to, message);
+        };
 
         Map<InetAddress, InetAddressAndPort> addressAndPortMap = new HashMap<>();
         cluster.stream().forEach(instance -> {
@@ -195,6 +202,26 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         MessagingService.instance().addMessageSink(
                 new MessageDeliverySink(deliverToInstanceIfNotFiltered, addressAndPortMap::get));
+    }
+
+    // unnecessary if registerMockMessaging used
+    private void registerFilter(ICluster cluster)
+    {
+        IInstance instance = this;
+        MessagingService.instance().addMessageSink(new IMessageSink()
+        {
+            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress toAddress)
+            {
+                // Port is not passed in, so take a best guess at the destination port from this instance
+                IInstance to = cluster.get(InetAddressAndPort.getByAddressOverrideDefaults(toAddress, instance.config().broadcastAddressAndPort().port));
+                return cluster.filters().permit(instance, to, message.verb.ordinal());
+            }
+
+            public boolean allowIncomingMessage(MessageIn message, int id)
+            {
+                return true;
+            }
+        });
     }
 
     private class MessageDeliverySink implements IMessageSink
@@ -215,6 +242,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 assert from.equals(lookupAddressAndPort.apply(messageOut.from));
                 InetAddressAndPort toFull = lookupAddressAndPort.apply(to);
                 int version = MessagingService.instance().getVersion(to);
+
+                out.writeInt(MessagingService.PROTOCOL_MAGIC);
+                out.writeInt(id);
+                long timestamp = System.currentTimeMillis();
+                out.writeInt((int) timestamp);
                 messageOut.serialize(out, version);
                 deliver.accept(toFull, new Message(messageOut.verb.ordinal(), out.toByteArray(), id, version, from));
             }
@@ -232,14 +264,43 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
-    public void receiveMessage(IMessage message)
+    public void receiveMessage(IMessage imessage)
     {
         sync(() -> {
-            try (DataInputBuffer in = new DataInputBuffer(message.bytes()))
+            // Based on org.apache.cassandra.net.IncomingTcpConnection.receiveMessage
+            try (DataInputBuffer input = new DataInputBuffer(imessage.bytes()))
             {
-                MessageIn<?> messageIn = MessageIn.read(in, message.version(), message.id());
-                Runnable deliver = new MessageDeliveryTask(messageIn, message.id(), System.currentTimeMillis(), false);
-                deliver.run();
+                int version = imessage.version();
+
+                MessagingService.validateMagic(input.readInt());
+                int id;
+                if (version < MessagingService.VERSION_20)
+                    id = Integer.parseInt(input.readUTF());
+                else
+                    id = input.readInt();
+
+                long timestamp = System.currentTimeMillis();
+                boolean isCrossNodeTimestamp = false;
+                // make sure to readInt, even if cross_node_to is not enabled
+                int partial = input.readInt();
+                if (DatabaseDescriptor.hasCrossNodeTimeout())
+                {
+                    long crossNodeTimestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
+                    isCrossNodeTimestamp = (timestamp != crossNodeTimestamp);
+                    timestamp = crossNodeTimestamp;
+                }
+
+                MessageIn message = MessageIn.read(input, version, id);
+                if (message == null)
+                {
+                    // callback expired; nothing to do
+                    return;
+                }
+                if (version <= MessagingService.current_version)
+                {
+                    MessagingService.instance().receive(message, id, timestamp, isCrossNodeTimestamp);
+                }
+                // else ignore message
             }
             catch (Throwable t)
             {
@@ -259,12 +320,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     }
 
     @Override
-    public void startup(ICluster cluster, Set<Feature> with)
+    public void startup(ICluster cluster)
     {
         sync(() -> {
             try
             {
                 mkdirs();
+
+                DatabaseDescriptor.setDaemonInitialized();
                 DatabaseDescriptor.createAllDirectories();
 
                 // We need to  persist this as soon as possible after startup checks.
@@ -293,17 +356,27 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     throw new RuntimeException(e);
                 }
-
-                // TODO: support each separately
-                if (with.contains(Feature.GOSSIP) || with.contains(Feature.NETWORK))
+                if (config.has(NETWORK))
                 {
-                    StorageService.instance.prepareToJoin();
-                    StorageService.instance.joinTokenRing(1000);
+                    registerFilter(cluster);
+                    MessagingService.instance().listen();
+                }
+                else
+                {
+                    // Even though we don't use MessagingService, access the static SocketFactory
+                    // instance here so that we start the static event loop state
+//                    -- not sure what that means?  SocketFactory.instance.getClass();
+                    registerMockMessaging(cluster);
+                }
+
+                // TODO: this is more than just gossip
+                if (config.has(GOSSIP))
+                {
+                    StorageService.instance.initServer();
                 }
                 else
                 {
                     initializeRing(cluster);
-                    registerMockMessaging(cluster);
                 }
 
                 SystemKeyspace.finishStartup();
@@ -402,36 +475,44 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
+
+            if (config.has(GOSSIP) || config.has(NETWORK))
+            {
+                StorageService.instance.shutdownServer();
+
+                error = parallelRun(error, executor,
+                                    () -> NanoTimeToCurrentTimeMillis.shutdown(MINUTES.toMillis(1L))
+                );
+            }
+
             error = parallelRun(error, executor,
-                    Gossiper.instance::stop,
-                    CompactionManager.instance::forceShutdown,
-                    BatchlogManager.instance::shutdown,
-                    HintsService.instance::shutdownBlocking,
-                    SecondaryIndexManager::shutdownExecutors,
-                    ColumnFamilyStore::shutdownFlushExecutor,
-                    ColumnFamilyStore::shutdownPostFlushExecutor,
-                    ColumnFamilyStore::shutdownReclaimExecutor,
-                    PendingRangeCalculatorService.instance::shutdownExecutor,
-                    BufferPool::shutdownLocalCleaner,
-                    StorageService.instance::shutdownBGMonitor,
-                    Ref::shutdownReferenceReaper,
-                    Memtable.MEMORY_POOL::shutdown,
-                    ScheduledExecutors::shutdownAndWait,
-                    SSTableReader::shutdownBlocking
+                                () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
+                                CompactionManager.instance::forceShutdown,
+                                () -> BatchlogManager.instance.shutdownAndWait(1L, MINUTES),
+                                HintsService.instance::shutdownBlocking,
+                                () -> StreamCoordinator.shutdownAndWait(1L, MINUTES),
+                                () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
+                                () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
+                                () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
+                                () -> PendingRangeCalculatorService.instance.shutdownExecutor(1L, MINUTES),
+                                () -> BufferPool.shutdownLocalCleaner(1L, MINUTES),
+                                () -> StorageService.instance.shutdownBGMonitorAndWait(1L, MINUTES),
+                                () -> Ref.shutdownReferenceReaper(1L, MINUTES),
+                                () -> Memtable.MEMORY_POOL.shutdownAndWait(1L, MINUTES),
+                                () -> SSTableReader.shutdownBlocking(1L, MINUTES)
             );
             error = parallelRun(error, executor,
+                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
                                 MessagingService.instance()::shutdown
             );
             error = parallelRun(error, executor,
-                                StageManager::shutdownAndWait,
-                                SharedExecutorPool.SHARED::shutdownAndWait
+                                () -> StageManager.shutdownAndWait(1L, MINUTES),
+                                () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
             error = parallelRun(error, executor,
                                 CommitLog.instance::shutdownBlocking
             );
 
-            LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-            loggerContext.stop();
             Throwables.maybeFail(error);
         }).apply(isolatedExecutor);
 

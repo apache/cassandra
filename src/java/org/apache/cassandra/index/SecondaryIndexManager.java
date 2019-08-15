@@ -65,6 +65,10 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdownNow;
+
 /**
  * Handles the core maintenance functionality associated with indexes: adding/removing them to or from
  * a table, (re)building during bootstrap or other streaming operations, flushing, reloading metadata
@@ -1145,12 +1149,10 @@ public class SecondaryIndexManager implements IndexRegistry
     }
 
     @VisibleForTesting
-    public static void shutdownExecutors() throws InterruptedException
+    public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         ExecutorService[] executors = new ExecutorService[]{ asyncExecutor, blockingExecutor };
-        for (ExecutorService executor : executors)
-            executor.shutdown();
-        for (ExecutorService executor : executors)
-            executor.awaitTermination(60, TimeUnit.SECONDS);
+        shutdown(executors);
+        awaitTermination(timeout, unit, executors);
     }
 }

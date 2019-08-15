@@ -1166,6 +1166,8 @@ public final class MessagingService implements MessagingServiceMBean
             {
                 case "Unknown error: 316":
                 case "No such file or directory":
+                case "Bad file descriptor":
+                case "Thread signal failed":
                     return;
             }
         }

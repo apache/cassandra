@@ -45,12 +45,16 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemory;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import static java.util.Collections.emptyList;
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor.InterruptibleRunnable;
 
+import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdownNow;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -703,14 +707,8 @@ public final class Ref<T> implements RefCounted<T>
     }
 
     @VisibleForTesting
-    public static void shutdownReferenceReaper() throws InterruptedException
+    public static void shutdownReferenceReaper(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        EXEC.shutdown();
-        EXEC.awaitTermination(60, TimeUnit.SECONDS);
-        if (STRONG_LEAK_DETECTOR != null)
-        {
-            STRONG_LEAK_DETECTOR.shutdownNow();
-            STRONG_LEAK_DETECTOR.awaitTermination(60, TimeUnit.SECONDS);
-        }
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, EXEC, STRONG_LEAK_DETECTOR);
     }
 }

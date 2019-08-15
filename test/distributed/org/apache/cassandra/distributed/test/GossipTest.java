@@ -20,8 +20,6 @@ package org.apache.cassandra.distributed.test;
 
 import java.net.InetAddress;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
@@ -30,16 +28,16 @@ import com.google.common.collect.Iterables;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class GossipTest extends DistributedTestBase
 {
@@ -48,8 +46,12 @@ public class GossipTest extends DistributedTestBase
     public void nodeDownDuringMove() throws Throwable
     {
         int liveCount = 1;
+        System.setProperty("cassandra.ring_delay_ms", "5000"); // down from 30s default
         System.setProperty("cassandra.consistent.rangemovement", "false");
-        try (Cluster cluster = Cluster.create(2 + liveCount, EnumSet.of(Feature.GOSSIP)))
+        System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
+        try (Cluster cluster = Cluster.build(2 + liveCount)
+                                      .withConfig(config -> config.with(NETWORK).with(GOSSIP))
+                                      .createWithoutStarting())
         {
             int fail = liveCount + 1;
             int late = fail + 1;
