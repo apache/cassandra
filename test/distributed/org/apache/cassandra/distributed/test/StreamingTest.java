@@ -27,7 +27,7 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.service.StorageService;
 
-import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class StreamingTest extends DistributedTestBase
 {

@@ -20,12 +20,18 @@ package org.apache.cassandra.streaming.async;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,7 +67,8 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingInboundHandler.class);
     private static final Function<SessionIdentifier, StreamSession> DEFAULT_SESSION_PROVIDER = sid -> StreamManager.instance.findSession(sid.from, sid.planId, sid.sessionIndex);
-
+    private static volatile boolean trackInboundHandlers = false;
+    private static Collection<StreamingInboundHandler> inboundHandlers;
     private final InetAddressAndPort remoteAddress;
     private final int protocolVersion;
 
@@ -84,6 +91,8 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
         this.remoteAddress = remoteAddress;
         this.protocolVersion = protocolVersion;
         this.session = session;
+        if (trackInboundHandlers)
+            inboundHandlers.add(this);
     }
 
     @Override
@@ -115,6 +124,8 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     {
         closed = true;
         buffers.requestClosure();
+        if (trackInboundHandlers)
+            inboundHandlers.remove(this);
     }
 
     @Override
@@ -218,7 +229,13 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
                 closed = true;
 
                 if (buffers != null)
+                {
+                    // request closure again as the original request could have raced with receiving a
+                    // message and been consumed in the message receive loop above.  Otherweise
+                    // buffers could hang indefinitely on the queue.poll.
+                    buffers.requestClosure();
                     buffers.close();
+                }
             }
         }
 
@@ -265,5 +282,25 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             this.planId = planId;
             this.sessionIndex = sessionIndex;
         }
+    }
+
+    /** Shutdown for in-JVM tests. For any other usage, tracking of active inbound streaming handlers
+     *  should be revisted first and in-JVM shutdown refactored with it.
+     *  This does not prevent new inbound handlers being added after shutdown, nor is not thread-safe
+     *  around new inbound handlers being opened during shutdown.
+      */
+    @VisibleForTesting
+    public static void shutdown()
+    {
+        assert trackInboundHandlers == true : "in-JVM tests required tracking of inbound streaming handlers";
+
+        inboundHandlers.forEach(StreamingInboundHandler::close);
+        inboundHandlers.clear();
+    }
+
+    public static void trackInboundHandlers()
+    {
+        inboundHandlers = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        trackInboundHandlers = true;
     }
 }

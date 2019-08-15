@@ -19,6 +19,7 @@ package org.apache.cassandra.net;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -108,8 +109,9 @@ class InboundSockets
          * Close this socket and any connections created on it. Once closed, this socket may not be re-opened.
          *
          * This may not execute synchronously, so a Future is returned encapsulating its result.
+         * @param shutdownExecutors
          */
-        private Future<Void> close()
+        private Future<Void> close(Consumer<? super ExecutorService> shutdownExecutors)
         {
             AsyncPromise<Void> done = AsyncPromise.uncancellable(GlobalEventExecutor.INSTANCE);
 
@@ -119,7 +121,10 @@ class InboundSockets
                     closing.add(listen.close());
                 closing.add(connections.close());
                 new FutureCombiner(closing)
-                       .addListener(future -> executor.shutdownGracefully())
+                       .addListener(future -> {
+                           executor.shutdownGracefully();
+                           shutdownExecutors.accept(executor);
+                       })
                        .addListener(new PromiseNotifier<>(done));
             };
 
@@ -213,12 +218,16 @@ class InboundSockets
         return false;
     }
 
-    public Future<Void> close()
+    public Future<Void> close(Consumer<? super ExecutorService> shutdownExecutors)
     {
         List<Future<Void>> closing = new ArrayList<>();
         for (InboundSocket address : sockets)
-            closing.add(address.close());
+            closing.add(address.close(shutdownExecutors));
         return new FutureCombiner(closing);
+    }
+    public Future<Void> close()
+    {
+        return close(e -> {});
     }
 
     private static boolean shouldListenOnBroadcastAddress()

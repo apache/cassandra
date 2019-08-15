@@ -48,6 +48,7 @@ public class InstanceClassLoader extends URLClassLoader
                name.startsWith("org.apache.cassandra.distributed.api.")
             || name.startsWith("sun.")
             || name.startsWith("oracle.")
+            || name.startsWith("com.intellij.")
             || name.startsWith("com.sun.")
             || name.startsWith("com.oracle.")
             || name.startsWith("java.")
