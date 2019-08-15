@@ -22,6 +22,7 @@ package org.apache.cassandra.utils.concurrent;
 
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
@@ -35,7 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor.InterruptibleRunnable;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.utils.ExecutorUtils;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
@@ -343,9 +344,8 @@ public final class Ref<T> implements RefCounted<T>
     }
 
     @VisibleForTesting
-    public static void shutdownReferenceReaper() throws InterruptedException
+    public static void shutdownReferenceReaper(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        EXEC.shutdown();
-        EXEC.awaitTermination(60, TimeUnit.SECONDS);
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, EXEC);
     }
 }

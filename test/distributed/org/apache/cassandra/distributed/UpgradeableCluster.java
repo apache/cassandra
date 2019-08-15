@@ -43,28 +43,24 @@ public class UpgradeableCluster extends AbstractCluster<IUpgradeableInstance> im
         super(root, version, configs, sharedClassLoader);
     }
 
-    protected IUpgradeableInstance newInstanceWrapper(Versions.Version version, InstanceConfig config)
+    protected IUpgradeableInstance newInstanceWrapper(int generation, Versions.Version version, InstanceConfig config)
     {
-        return new Wrapper(version, config);
+        return new Wrapper(generation, version, config);
+    }
+
+    public static Builder<IUpgradeableInstance, UpgradeableCluster> build(int nodeCount)
+    {
+        return new Builder<>(nodeCount, UpgradeableCluster::new);
     }
 
     public static UpgradeableCluster create(int nodeCount) throws Throwable
     {
-        return create(nodeCount, UpgradeableCluster::new);
-    }
-    public static UpgradeableCluster create(int nodeCount, File root)
-    {
-        return create(nodeCount, Versions.CURRENT, root, UpgradeableCluster::new);
+        return build(nodeCount).start();
     }
 
-    public static UpgradeableCluster create(int nodeCount, Versions.Version version) throws IOException
+    public static UpgradeableCluster create(int nodeCount, Versions.Version version) throws Throwable
     {
-        return create(nodeCount, version, Files.createTempDirectory("dtests").toFile(), UpgradeableCluster::new);
+        return build(nodeCount).withVersion(version).start();
     }
-    public static UpgradeableCluster create(int nodeCount, Versions.Version version, File root)
-    {
-        return create(nodeCount, version, root, UpgradeableCluster::new);
-    }
-
 }
 

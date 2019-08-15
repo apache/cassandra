@@ -32,33 +32,20 @@ import org.apache.cassandra.net.MessagingService;
 
 public class MessageFilters implements IMessageFilters
 {
-    private final ICluster cluster;
     private final Set<Filter> filters = new CopyOnWriteArraySet<>();
 
-    public MessageFilters(AbstractCluster cluster)
+    public boolean permit(IInstance from, IInstance to, int verb)
     {
-        this.cluster = cluster;
-    }
+        if (from == null || to == null)
+            return false; // cannot deliver
+        int fromNum = from.config().num();
+        int toNum = to.config().num();
 
-    public BiConsumer<InetAddressAndPort, IMessage> filter(BiConsumer<InetAddressAndPort, IMessage> applyIfNotFiltered)
-    {
-        return (toAddress, message) ->
-        {
-            IInstance from = cluster.get(message.from());
-            IInstance to = cluster.get(toAddress);
-            if (from == null || to == null)
-                return; // cannot deliver
-            int fromNum = from.config().num();
-            int toNum = to.config().num();
-            int verb = message.verb();
-            for (Filter filter : filters)
-            {
-                if (filter.matches(fromNum, toNum, verb))
-                    return;
-            }
+        for (Filter filter : filters)
+            if (filter.matches(fromNum, toNum, verb))
+                return false;
 
-            applyIfNotFiltered.accept(toAddress, message);
-        };
+        return true;
     }
 
     public class Filter implements IMessageFilters.Filter

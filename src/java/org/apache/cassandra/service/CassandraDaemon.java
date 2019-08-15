@@ -601,7 +601,8 @@ public class CassandraDaemon
         }
     }
 
-    private void waitForGossipToSettle()
+    @VisibleForTesting
+    public static void waitForGossipToSettle()
     {
         int forceAfter = Integer.getInteger("cassandra.skip_wait_for_gossip_to_settle", -1);
         if (forceAfter == 0)

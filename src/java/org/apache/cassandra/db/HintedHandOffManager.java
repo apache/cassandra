@@ -68,6 +68,9 @@ import java.util.List;
 
 import org.apache.cassandra.utils.MBeanWrapper;
 
+import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
+
 /**
  * The hint schema looks like this:
  *
@@ -619,4 +622,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         }
     }
 
+    @VisibleForTesting
+    public void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    {
+        shutdown(executor, hintDeliveryExecutor);
+        awaitTermination(timeout, units, executor, hintDeliveryExecutor);
+    }
 }
