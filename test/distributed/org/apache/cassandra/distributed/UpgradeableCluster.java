@@ -19,12 +19,8 @@
 package org.apache.cassandra.distributed;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.List;
-import java.util.Set;
 
-import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.IUpgradeableInstance;
@@ -40,35 +36,29 @@ import org.apache.cassandra.distributed.impl.Versions;
  */
 public class UpgradeableCluster extends AbstractCluster<IUpgradeableInstance> implements ICluster, AutoCloseable
 {
-    private UpgradeableCluster(File root, Versions.Version version, List<InstanceConfig> configs, Set<Feature> features, ClassLoader sharedClassLoader)
+    private UpgradeableCluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader)
     {
-        super(root, version, configs, features, sharedClassLoader);
+        super(root, version, configs, sharedClassLoader);
     }
 
-    protected IUpgradeableInstance newInstanceWrapper(Versions.Version version, InstanceConfig config)
+    protected IUpgradeableInstance newInstanceWrapper(int generation, Versions.Version version, InstanceConfig config)
     {
-        return new Wrapper(version, config);
+        return new Wrapper(generation, version, config);
+    }
+
+    public static Builder<IUpgradeableInstance, UpgradeableCluster> build(int nodeCount)
+    {
+        return new Builder<>(nodeCount, UpgradeableCluster::new);
     }
 
     public static UpgradeableCluster create(int nodeCount) throws Throwable
     {
-        return create(nodeCount, UpgradeableCluster::new);
+        return build(nodeCount).start();
     }
 
-    public static UpgradeableCluster create(int nodeCount, File root)
+    public static UpgradeableCluster create(int nodeCount, Versions.Version version) throws Throwable
     {
-        return create(nodeCount, root, UpgradeableCluster::new);
+        return build(nodeCount).withVersion(version).start();
     }
-
-    public static UpgradeableCluster create(int nodeCount, Versions.Version version) throws IOException
-    {
-        return create(nodeCount, version, UpgradeableCluster::new);
-    }
-
-    public static UpgradeableCluster create(int nodeCount, Versions.Version version, File root)
-    {
-        return create(nodeCount, version, root, UpgradeableCluster::new);
-    }
-
 }
 

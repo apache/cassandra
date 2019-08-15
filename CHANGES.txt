@@ -37,6 +37,7 @@ Merged from 2.2:
  * Refactor Circle CI configuration (CASSANDRA-14806)
  * Fixing invalid CQL in security documentation (CASSANDRA-15020)
  * Multi-version in-JVM dtests (CASSANDRA-14937)
+ * Allow instance class loaders to be garbage collected for inJVM dtest (CASSANDRA-15170)
 
 
 3.11.4
