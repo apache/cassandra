@@ -34,7 +34,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -380,7 +379,7 @@ public class Validator implements Runnable
             trees.logRowSizePerLeaf(logger);
         }
 
-        StageManager.getStage(Stage.ANTI_ENTROPY).execute(this);
+        Stage.ANTI_ENTROPY.executor.execute(this);
     }
 
     /**
@@ -432,7 +431,7 @@ public class Validator implements Runnable
          * directly, since this method will only be called from {@code Stage.ENTI_ENTROPY}, but we do instead
          * execute a {@code Runnable} on the stage - in case that assumption ever changes by accident.
          */
-        StageManager.getStage(Stage.ANTI_ENTROPY).execute(() ->
+        Stage.ANTI_ENTROPY.executor.execute(() ->
         {
             ValidationResponse movedResponse = response;
             try

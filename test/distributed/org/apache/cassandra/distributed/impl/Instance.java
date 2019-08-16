@@ -37,7 +37,7 @@ import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
-import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -243,7 +243,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 Message.Header header = messageIn.header;
                 TraceState state = Tracing.instance.initializeFromMessage(header);
                 if (state != null) state.trace("{} message received from {}", header.verb, header.from);
-                StageManager.getStage(header.verb.stage).execute(
+                header.verb.stage.executor.execute(
                     ThrowingRunnable.toRunnable(() -> messageIn.verb().handler().doVerb((Message<Object>) messageIn)),
                     ExecutorLocals.create(state));
             }
@@ -484,7 +484,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             );
             error = parallelRun(error, executor,
                                 () -> GlobalEventExecutor.INSTANCE.awaitInactivity(1l, MINUTES),
-                                () -> StageManager.shutdownAndWait(1L, MINUTES),
+                                () -> Stage.shutdownAndWait(1L, MINUTES),
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
 
