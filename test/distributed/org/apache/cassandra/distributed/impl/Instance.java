@@ -37,7 +37,7 @@ import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
-import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -418,7 +418,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> MessagingService.instance().shutdown(1L, MINUTES, false, true)
             );
             error = parallelRun(error, executor,
-                                () -> StageManager.shutdownAndWait(1L, MINUTES),
+                                () -> Stage.shutdownAllAndWait(1L, MINUTES),
                                 () -> SharedExecutorPool.SHARED.shutdown(1L, MINUTES)
             );
 

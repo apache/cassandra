@@ -28,8 +28,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -43,6 +41,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.concurrent.Stage.MIGRATION;
 import static org.apache.cassandra.net.Verb.SCHEMA_PUSH_REQ;
 
 public class MigrationManager
@@ -145,7 +144,7 @@ public class MigrationManager
          * Do not de-ref the future because that causes distributed deadlock (CASSANDRA-3832) because we are
          * running in the gossip stage.
          */
-        return StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(endpoint));
+        return MIGRATION.executor.submit(new MigrationTask(endpoint));
     }
 
     static boolean shouldPullSchemaFrom(InetAddressAndPort endpoint)
@@ -320,7 +319,7 @@ public class MigrationManager
     // Returns a future on the local application of the schema
     private static void announce(Collection<Mutation> schema)
     {
-        Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(() -> Schema.instance.mergeAndAnnounceVersion(schema));
+        Future<?> f = MIGRATION.executor.submit(() -> Schema.instance.mergeAndAnnounceVersion(schema));
 
         Set<InetAddressAndPort> schemaDestinationEndpoints = new HashSet<>();
         Set<InetAddressAndPort> schemaEndpointsIgnored = new HashSet<>();
@@ -347,7 +346,7 @@ public class MigrationManager
         long now = FBUtilities.timestampMicros();
 
         Future<Schema.TransformationResult> future =
-            StageManager.getStage(Stage.MIGRATION).submit(() -> Schema.instance.transform(transformation, locally, now));
+            MIGRATION.executor.submit(() -> Schema.instance.transform(transformation, locally, now));
 
         Schema.TransformationResult result = Futures.getUnchecked(future);
         if (!result.success)

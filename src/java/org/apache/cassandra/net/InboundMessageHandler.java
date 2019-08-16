@@ -39,7 +39,6 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.EventLoop;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.exceptions.IncompatibleSchemaException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -851,7 +850,7 @@ public class InboundMessageHandler extends ChannelInboundHandlerAdapter implemen
         if (state != null) state.trace("{} message received from {}", header.verb, header.from);
 
         callbacks.onDispatched(task.size(), header);
-        StageManager.getStage(header.verb.stage).execute(task, ExecutorLocals.create(state));
+        header.verb.stage.executor.execute(task, ExecutorLocals.create(state));
     }
 
     private abstract class ProcessMessage implements Runnable
