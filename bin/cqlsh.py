@@ -143,7 +143,7 @@ for lib in third_parties:
 warnings.filterwarnings("ignore", r".*blist.*")
 try:
     import cassandra
-except ImportError, e:
+except ImportError as e:
     sys.exit("\nPython Cassandra driver not installed, or not on PYTHONPATH.\n"
              'You might try "pip install cassandra-driver".\n\n'
              'Python: %s\n'
@@ -583,7 +583,7 @@ class Shell(cmd.Cmd):
             return format_value(val, cqltype=cqltype, encoding=self.output_codec.name,
                                 addcolor=self.color, date_time_format=dtformats,
                                 float_precision=precision, **kwargs)
-        except Exception, e:
+        except Exception as e:
             err = FormatError(val, e)
             self.decoding_errors.append(err)
             return format_value(err, cqltype=cqltype, encoding=self.output_codec.name, addcolor=self.color)
@@ -962,7 +962,7 @@ class Shell(cmd.Cmd):
                         self.reset_statement()
                 except EOFError:
                     self.handle_eof()
-                except CQL_ERRORS, cqlerr:
+                except CQL_ERRORS as cqlerr:
                     self.printerr(cqlerr.message.decode(encoding='utf-8'))
                 except KeyboardInterrupt:
                     self.reset_statement()
@@ -976,7 +976,7 @@ class Shell(cmd.Cmd):
 
         try:
             statements, endtoken_escaped = cqlruleset.cql_split_statements(statementtext)
-        except pylexotron.LexingError, e:
+        except pylexotron.LexingError as e:
             if self.show_line_nums:
                 self.printerr('Invalid syntax at char %d' % (e.charnum,))
             else:
@@ -997,7 +997,7 @@ class Shell(cmd.Cmd):
         for st in statements:
             try:
                 self.handle_statement(st, statementtext)
-            except Exception, e:
+            except Exception as e:
                 if self.debug:
                     traceback.print_exc()
                 else:
@@ -1085,7 +1085,7 @@ class Shell(cmd.Cmd):
                     self.writeresult(msg, color=RED)
                     for trace_id in future.get_query_trace_ids():
                         self.show_session(trace_id, partial_session=True)
-                except Exception, err:
+                except Exception as err:
                     self.printerr("Unable to fetch query trace: %s" % (str(err),))
 
         return success
@@ -1122,7 +1122,7 @@ class Shell(cmd.Cmd):
         result = None
         try:
             result = future.result()
-        except CQL_ERRORS, err:
+        except CQL_ERRORS as err:
             self.printerr(unicode(err.__class__.__name__) + u": " + err.message.decode(encoding='utf-8'))
         except Exception:
             import traceback
@@ -1827,7 +1827,7 @@ class Shell(cmd.Cmd):
             encoding, bom_size = get_file_encoding_bomsize(fname)
             f = codecs.open(fname, 'r', encoding)
             f.seek(bom_size)
-        except IOError, e:
+        except IOError as e:
             self.printerr('Could not open %r: %s' % (fname, e))
             return
         username = self.auth_provider.username if self.auth_provider else None
@@ -1904,7 +1904,7 @@ class Shell(cmd.Cmd):
         fname = os.path.expanduser(self.cql_unprotect_value(fname))
         try:
             f = open(fname, 'a')
-        except IOError, e:
+        except IOError as e:
             self.printerr('Could not open %r for append: %s' % (fname, e))
             return
         self.shunted_query_out = self.query_out
@@ -2431,7 +2431,7 @@ def main(options, hostname, port):
             encoding, bom_size = get_file_encoding_bomsize(options.file)
             stdin = codecs.open(options.file, 'r', encoding)
             stdin.seek(bom_size)
-        except IOError, e:
+        except IOError as e:
             sys.exit("Can't open %r: %s" % (options.file, e))
 
     if options.debug:
@@ -2498,9 +2498,9 @@ def main(options, hostname, port):
                       allow_server_port_discovery=options.allow_server_port_discovery)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
-    except CQL_ERRORS, e:
+    except CQL_ERRORS as e:
         sys.exit('Connection error: %s' % (e,))
-    except VersionNotSupported, e:
+    except VersionNotSupported as e:
         sys.exit('Unsupported CQL version: %s' % (e,))
     if options.debug:
         shell.debug = True

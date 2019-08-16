@@ -103,7 +103,7 @@ def timing_out_alarm(seconds):
 if is_win():
     try:
         import eventlet
-    except ImportError, e:
+    except ImportError as e:
         sys.exit("evenlet library required to run cqlshlib tests on Windows")
 
     def timing_out(seconds):

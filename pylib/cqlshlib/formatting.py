@@ -453,14 +453,14 @@ def decode_unsigned_vint(buf):
     For example, if we need to read 3 more bytes the first byte will start with 1110.
     """
 
-    first_byte = buf.next()
+    first_byte = next(buf)
     if (first_byte >> 7) == 0:
         return first_byte
 
     size = number_of_extra_bytes_to_read(first_byte)
     retval = first_byte & (0xff >> size)
     for i in range(size):
-        b = buf.next()
+        b = next(buf)
         retval <<= 8
         retval |= b & 0xff
 

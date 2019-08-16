@@ -1,3 +1,4 @@
+from __future__ import print_function
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -161,6 +162,6 @@ def profile_off(pr, file_name):
     ret = s.getvalue()
     if file_name:
         with open(file_name, 'w') as f:
-            print "Writing to %s\n" % (f.name, )
+            print("Writing to %s\n" % (f.name, ))
             f.write(ret)
     return ret

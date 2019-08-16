@@ -138,7 +138,7 @@ class SendingChannel(object):
                 try:
                     msg = self.pending_messages.get()
                     self.pipe.send(msg)
-                except Exception, e:
+                except Exception as e:
                     printmsg('%s: %s' % (e.__class__.__name__, e.message))
 
         feeding_thread = threading.Thread(target=feed)
@@ -580,7 +580,7 @@ class ExportWriter(object):
                 ret = CsvDest(output=open(source_name, 'wb'), close=True)
                 self.num_files += 1
                 return ret
-            except IOError, e:
+            except IOError as e:
                 self.shell.printerr("Can't open %r for writing: %s" % (source_name, e))
                 return None
 
@@ -730,8 +730,7 @@ class ExportTask(CopyTask):
             ranges[(begin_token, end_token)] = make_range_data()
             return ranges
 
-        ring = shell.get_ring(self.ks).items()
-        ring.sort()
+        ring = sorted(shell.get_ring(self.ks).items())
 
         if not ring:
             #  If the ring is empty we get the entire ring from the host we are currently connected to
@@ -882,7 +881,7 @@ class FilesReader(object):
         def make_source(fname):
             try:
                 return open(fname, 'rb')
-            except IOError, e:
+            except IOError as e:
                 raise IOError("Can't open %r for reading: %s" % (fname, e))
 
         for path in paths.split(','):
@@ -913,14 +912,14 @@ class FilesReader(object):
         self.close_current_source()
         while self.current_source is None:
             try:
-                self.current_source = self.sources.next()
+                self.current_source = next(self.sources)
                 if self.current_source:
                     self.num_sources += 1
             except StopIteration:
                 return False
 
         if self.header:
-            self.current_source.next()
+            next(self.current_source)
 
         return True
 
@@ -941,7 +940,7 @@ class FilesReader(object):
         rows = []
         for i in xrange(min(max_rows, self.chunk_size)):
             try:
-                row = self.current_source.next()
+                row = next(self.current_source)
                 self.num_read += 1
 
                 if 0 <= self.max_rows < self.num_read:
@@ -1172,7 +1171,7 @@ class ImportTask(CopyTask):
             if pr:
                 profile_off(pr, file_name='parent_profile_%d.txt' % (os.getpid(),))
 
-        except Exception, exc:
+        except Exception as exc:
             shell.printerr(unicode(exc))
             if shell.debug:
                 traceback.print_exc()
@@ -1329,7 +1328,7 @@ class FeedingProcess(mp.Process):
         reader = self.reader
         try:
             reader.start()
-        except IOError, exc:
+        except IOError as exc:
             self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message))
 
         channels = self.worker_channels
@@ -1358,7 +1357,7 @@ class FeedingProcess(mp.Process):
                     rows = reader.read_rows(max_rows)
                     if rows:
                         sent += self.send_chunk(ch, rows)
-                except Exception, exc:
+                except Exception as exc:
                     self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message))
 
                 if reader.exhausted:
@@ -1626,7 +1625,7 @@ class ExportProcess(ChildProcess):
         for host in hosts:
             try:
                 ret = self.connect(host)
-            except Exception, e:
+            except Exception as e:
                 errors.append(self.get_error_message(e))
 
             if ret:
@@ -1697,7 +1696,7 @@ class ExportProcess(ChildProcess):
             self.send((token_range, data))
             output.close()
 
-        except Exception, e:
+        except Exception as e:
             self.report_error(e, token_range)
 
     def format_value(self, val, cqltype):
@@ -2102,7 +2101,7 @@ class ImportConversion(object):
         def convert(c, v):
             try:
                 return c(v) if v != self.nullval else self.get_null_val()
-            except Exception, e:
+            except Exception as e:
                 # if we could not convert an empty string, then self.nullval has been set to a marker
                 # because the user needs to import empty strings, except that the converters for some types
                 # will fail to convert an empty string, in this case the null value should be inserted
@@ -2321,7 +2320,7 @@ class ImportProcess(ChildProcess):
             if pr:
                 profile_off(pr, file_name='worker_profile_%d.txt' % (os.getpid(),))
 
-        except Exception, exc:
+        except Exception as exc:
             self.report_error(exc)
 
         finally:
@@ -2399,14 +2398,14 @@ class ImportProcess(ChildProcess):
                     # causes the statement to be None, then we should not report the error so that we can test
                     # the parent process handling missing batches from child processes
 
-            except Exception, exc:
+            except Exception as exc:
                 self.report_error(exc, chunk, chunk['rows'])
 
     def wrap_make_statement(self, inner_make_statement):
         def make_statement(query, conv, chunk, batch, replicas):
             try:
                 return inner_make_statement(query, conv, batch, replicas)
-            except Exception, exc:
+            except Exception as exc:
                 print "Failed to make batch statement: {}".format(exc)
                 self.report_error(exc, chunk, batch['rows'])
                 return None
@@ -2477,7 +2476,7 @@ class ImportProcess(ChildProcess):
         def convert_row(r):
             try:
                 return conv.convert_row(r)
-            except Exception, err:
+            except Exception as err:
                 errors[err.message].append(r)
                 return None
 
@@ -2549,7 +2548,7 @@ class ImportProcess(ChildProcess):
             try:
                 pk = get_row_partition_key_values(row)
                 rows_by_ring_pos[get_ring_pos(ring, pk_to_token_value(pk))].append(row)
-            except Exception, e:
+            except Exception as e:
                 errors[e.message].append(row)
 
         if errors:

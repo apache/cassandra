@@ -1,3 +1,4 @@
+from __future__ import print_function
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -74,7 +75,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                 if cass is None:
                     return ()
                 return f(ctxt, cass)
-            completerwrapper.func_name = 'completerwrapper_on_' + f.func_name
+            completerwrapper.__name__ = 'completerwrapper_on_' + f.__name__
             self.register_completer(completerwrapper, rulename, symname)
             return completerwrapper
         return registrator
@@ -257,7 +258,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         init_bindings = {'cassandra_conn': cassandra_conn}
         if debug:
             init_bindings['*DEBUG*'] = True
-            print "cql_complete(%r, partial=%r)" % (text, partial)
+            print("cql_complete(%r, partial=%r)" % (text, partial))
 
         completions, hints = self.cql_complete_single(text, partial, init_bindings,
                                                       startsymbol=startsymbol)
@@ -269,12 +270,12 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         if len(completions) == 1 and len(hints) == 0:
             c = completions[0]
             if debug:
-                print "** Got one completion: %r. Checking for further matches...\n" % (c,)
+                print("** Got one completion: %r. Checking for further matches...\n" % (c,))
             if not c.isspace():
                 new_c = self.cql_complete_multiple(text, c, init_bindings, startsymbol=startsymbol)
                 completions = [new_c]
             if debug:
-                print "** New list of completions: %r" % (completions,)
+                print("** New list of completions: %r" % (completions,))
 
         return hints + completions
 
@@ -285,18 +286,18 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                                                           startsymbol=startsymbol)
         except Exception:
             if debug:
-                print "** completion expansion had a problem:"
+                print("** completion expansion had a problem:")
                 traceback.print_exc()
             return first
         if hints:
             if not first[-1].isspace():
                 first += ' '
             if debug:
-                print "** completion expansion found hints: %r" % (hints,)
+                print("** completion expansion found hints: %r" % (hints,))
             return first
         if len(completions) == 1 and completions[0] != '':
             if debug:
-                print "** Got another completion: %r." % (completions[0],)
+                print("** Got another completion: %r." % (completions[0],))
             if completions[0][0] in (',', ')', ':') and first[-1] == ' ':
                 first = first[:-1]
             first += completions[0]
@@ -307,10 +308,10 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
             if common_prefix[0] in (',', ')', ':') and first[-1] == ' ':
                 first = first[:-1]
             if debug:
-                print "** Got a partial completion: %r." % (common_prefix,)
+                print("** Got a partial completion: %r." % (common_prefix,))
             return first + common_prefix
         if debug:
-            print "** New total completion: %r. Checking for further matches...\n" % (first,)
+            print("** New total completion: %r. Checking for further matches...\n" % (first,))
         return self.cql_complete_multiple(text, first, init_bindings, startsymbol=startsymbol)
 
     @staticmethod

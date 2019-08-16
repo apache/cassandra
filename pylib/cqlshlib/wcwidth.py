@@ -1,3 +1,4 @@
+from __future__ import print_function
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -375,4 +376,4 @@ if __name__ == "__main__":
 
     assert wcswidth(u'foobar\u200b\a') < 0
 
-    print 'tests pass.'
+    print('tests pass.')
