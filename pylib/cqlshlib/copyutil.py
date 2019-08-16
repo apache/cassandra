@@ -1,3 +1,4 @@
+from __future__ import print_function
 # cython: profile=True
 
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -55,6 +56,15 @@ from cql3handling import CqlRuleSet
 from displaying import NO_COLOR_MAP
 from formatting import format_value_default, CqlType, DateTimeFormat, EMPTY, get_formatter
 from sslhandling import ssl_settings
+
+try:
+    long
+    unicode
+    xrange
+except NameError:
+    long = int
+    unicode = str
+    xrange = range
 
 PROFILE_ON = False
 STRACE_ON = False
@@ -1194,7 +1204,7 @@ class ImportTask(CopyTask):
 
         self.outmsg.channels[-1].send(None)
         if shell.tty:
-            print
+            print()
 
     def import_records(self):
         """
@@ -2406,7 +2416,7 @@ class ImportProcess(ChildProcess):
             try:
                 return inner_make_statement(query, conv, batch, replicas)
             except Exception as exc:
-                print "Failed to make batch statement: {}".format(exc)
+                print("Failed to make batch statement: {}".format(exc))
                 self.report_error(exc, chunk, batch['rows'])
                 return None
 

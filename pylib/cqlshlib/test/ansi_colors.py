@@ -16,6 +16,11 @@
 
 import re
 
+try:
+    basestring
+except NameError:
+    basestring = str
+
 LIGHT = 0o10
 
 ansi_CSI = '\033['

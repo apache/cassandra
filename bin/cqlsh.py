@@ -30,6 +30,7 @@ exit 1
 ":"""
 
 from __future__ import with_statement
+from __future__ import print_function
 
 import cmd
 import codecs
@@ -47,6 +48,13 @@ from StringIO import StringIO
 from contextlib import contextmanager
 from glob import glob
 from uuid import UUID
+
+try:
+    raw_input
+    unicode
+except NameError:
+    raw_input = input
+    unicode = str
 
 if sys.version_info[0] != 2 or sys.version_info[1] != 7:
     sys.exit("\nCQL Shell supports only Python 2.7\n")
@@ -243,7 +251,7 @@ HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
 if hasattr(options, 'cqlshrc'):
     CONFIG_FILE = options.cqlshrc
     if not os.path.exists(CONFIG_FILE):
-        print '\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, HISTORY_DIR)
+        print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, HISTORY_DIR))
         CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
 else:
     CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
@@ -253,16 +261,16 @@ if not os.path.exists(HISTORY_DIR):
     try:
         os.mkdir(HISTORY_DIR)
     except OSError:
-        print '\nWarning: Cannot create directory at `%s`. Command history will not be saved.\n' % HISTORY_DIR
+        print('\nWarning: Cannot create directory at `%s`. Command history will not be saved.\n' % HISTORY_DIR)
 
 OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
 if os.path.exists(OLD_CONFIG_FILE):
     if os.path.exists(CONFIG_FILE):
-        print '\nWarning: cqlshrc config files were found at both the old location (%s) and \
+        print('\nWarning: cqlshrc config files were found at both the old location (%s) and \
                 the new location (%s), the old config file will not be migrated to the new \
                 location, and the new location will be used for now.  You should manually \
                 consolidate the config files at the new location and remove the old file.' \
-                % (OLD_CONFIG_FILE, CONFIG_FILE)
+                % (OLD_CONFIG_FILE, CONFIG_FILE))
     else:
         os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
 OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
@@ -424,7 +432,7 @@ class FrozenType(cassandra.cqltypes._ParameterizedType):
 
 class Shell(cmd.Cmd):
     custom_prompt = os.getenv('CQLSH_PROMPT', '')
-    if custom_prompt is not '':
+    if custom_prompt != '':
         custom_prompt += "\n"
     default_prompt = custom_prompt + "cqlsh> "
     continue_prompt = "   ... "
@@ -538,7 +546,7 @@ class Shell(cmd.Cmd):
         if tty:
             self.reset_prompt()
             self.report_connection()
-            print 'Use HELP for help.'
+            print('Use HELP for help.')
         else:
             self.show_line_nums = True
         self.stdin = stdin
@@ -605,10 +613,10 @@ class Shell(cmd.Cmd):
         self.show_version()
 
     def show_host(self):
-        print "Connected to %s at %s:%d." % \
+        print("Connected to %s at %s:%d." % \
             (self.applycolor(self.get_cluster_name(), BLUE),
               self.hostname,
-              self.port)
+              self.port))
 
     def show_version(self):
         vers = self.connection_versions.copy()
@@ -616,7 +624,7 @@ class Shell(cmd.Cmd):
         # system.Versions['cql'] apparently does not reflect changes with
         # set_cql_version.
         vers['cql'] = self.cql_version
-        print "[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Native protocol v%(protocol)s]" % vers
+        print("[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Native protocol v%(protocol)s]" % vers)
 
     def show_session(self, sessionid, partial_session=False):
         print_trace_session(self, self.session, sessionid, partial_session)
@@ -898,7 +906,7 @@ class Shell(cmd.Cmd):
                 import readline
             except ImportError:
                 if is_win:
-                    print "WARNING: pyreadline dependency missing.  Install to enable tab completion."
+                    print("WARNING: pyreadline dependency missing.  Install to enable tab completion.")
                 pass
             else:
                 old_completer = readline.get_completer()
@@ -966,7 +974,7 @@ class Shell(cmd.Cmd):
                     self.printerr(cqlerr.message.decode(encoding='utf-8'))
                 except KeyboardInterrupt:
                     self.reset_statement()
-                    print
+                    print()
 
     def onecmd(self, statementtext):
         """
@@ -1006,7 +1014,7 @@ class Shell(cmd.Cmd):
 
     def handle_eof(self):
         if self.tty:
-            print
+            print()
         statement = self.statement.getvalue()
         if statement.strip():
             if not self.onecmd(statement):
@@ -1348,63 +1356,63 @@ class Shell(cmd.Cmd):
         out.write("\n")
 
     def describe_keyspaces(self):
-        print
+        print()
         cmd.Cmd.columnize(self, protect_names(self.get_keyspace_names()))
-        print
+        print()
 
     def describe_keyspace(self, ksname):
-        print
+        print()
         self.print_recreate_keyspace(self.get_keyspace_meta(ksname), sys.stdout)
-        print
+        print()
 
     def describe_columnfamily(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print()
         self.print_recreate_columnfamily(ksname, cfname, sys.stdout)
-        print
+        print()
 
     def describe_index(self, ksname, idxname):
-        print
+        print()
         self.print_recreate_index(ksname, idxname, sys.stdout)
-        print
+        print()
 
     def describe_materialized_view(self, ksname, viewname):
         if ksname is None:
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print()
         self.print_recreate_materialized_view(ksname, viewname, sys.stdout)
-        print
+        print()
 
     def describe_object(self, ks, name):
-        print
+        print()
         self.print_recreate_object(ks, name, sys.stdout)
-        print
+        print()
 
     def describe_columnfamilies(self, ksname):
-        print
+        print()
         if ksname is None:
             for k in self.get_keyspaces():
                 name = protect_name(k.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
                 cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(k.name)))
-                print
+                print()
         else:
             cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(ksname)))
-            print
+            print()
 
     def describe_functions(self, ksname):
-        print
+        print()
         if ksname is None:
             for ksmeta in self.get_keyspaces():
                 name = protect_name(ksmeta.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
                 self._columnize_unicode(ksmeta.functions.keys())
         else:
             ksmeta = self.get_keyspace_meta(ksname)
@@ -1415,21 +1423,21 @@ class Shell(cmd.Cmd):
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print()
         ksmeta = self.get_keyspace_meta(ksname)
         functions = filter(lambda f: f.name == functionname, ksmeta.functions.values())
         if len(functions) == 0:
             raise FunctionNotFound("User defined function %r not found" % functionname)
-        print "\n\n".join(func.export_as_string() for func in functions)
-        print
+        print("\n\n".join(func.export_as_string() for func in functions))
+        print()
 
     def describe_aggregates(self, ksname):
-        print
+        print()
         if ksname is None:
             for ksmeta in self.get_keyspaces():
                 name = protect_name(ksmeta.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
                 self._columnize_unicode(ksmeta.aggregates.keys())
         else:
             ksmeta = self.get_keyspace_meta(ksname)
@@ -1440,21 +1448,21 @@ class Shell(cmd.Cmd):
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print()
         ksmeta = self.get_keyspace_meta(ksname)
         aggregates = filter(lambda f: f.name == aggregatename, ksmeta.aggregates.values())
         if len(aggregates) == 0:
             raise FunctionNotFound("User defined aggregate %r not found" % aggregatename)
-        print "\n\n".join(aggr.export_as_string() for aggr in aggregates)
-        print
+        print("\n\n".join(aggr.export_as_string() for aggr in aggregates))
+        print()
 
     def describe_usertypes(self, ksname):
-        print
+        print()
         if ksname is None:
             for ksmeta in self.get_keyspaces():
                 name = protect_name(ksmeta.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
                 self._columnize_unicode(ksmeta.user_types.keys(), quote=True)
         else:
             ksmeta = self.get_keyspace_meta(ksname)
@@ -1465,13 +1473,13 @@ class Shell(cmd.Cmd):
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print()
         ksmeta = self.get_keyspace_meta(ksname)
         try:
             usertype = ksmeta.user_types[typename]
         except KeyError:
             raise UserTypeNotFound("User type %r not found" % typename)
-        print usertype.export_as_string()
+        print(usertype.export_as_string())
 
     def _columnize_unicode(self, name_list, quote=False):
         """
@@ -1481,28 +1489,28 @@ class Shell(cmd.Cmd):
         if quote:
             names = protect_names(names)
         cmd.Cmd.columnize(self, names)
-        print
+        print()
 
     def describe_cluster(self):
-        print '\nCluster: %s' % self.get_cluster_name()
+        print('\nCluster: %s' % self.get_cluster_name())
         p = trim_if_present(self.get_partitioner(), 'org.apache.cassandra.dht.')
-        print 'Partitioner: %s\n' % p
+        print('Partitioner: %s\n' % p)
         # TODO: snitch?
         # snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
         # print 'Snitch: %s\n' % snitch
         if self.current_keyspace is not None and self.current_keyspace != 'system':
-            print "Range ownership:"
+            print("Range ownership:")
             ring = self.get_ring(self.current_keyspace)
             for entry in ring.items():
-                print ' %39s  [%s]' % (str(entry[0].value), ', '.join([host.address for host in entry[1]]))
-            print
+                print(' %39s  [%s]' % (str(entry[0].value), ', '.join([host.address for host in entry[1]])))
+            print()
 
     def describe_schema(self, include_system=False):
-        print
+        print()
         for k in self.get_keyspaces():
             if include_system or k.name not in cql3handling.SYSTEM_KEYSPACES:
                 self.print_recreate_keyspace(k, sys.stdout)
-                print
+                print()
 
     def do_describe(self, parsed):
         """
@@ -1880,9 +1888,9 @@ class Shell(cmd.Cmd):
         fname = parsed.get_binding('fname')
         if fname is None:
             if self.shunted_query_out is not None:
-                print "Currently capturing query output to %r." % (self.query_out.name,)
+                print("Currently capturing query output to %r." % (self.query_out.name,))
             else:
-                print "Currently not capturing query output."
+                print("Currently not capturing query output.")
             return
 
         if fname.upper() == 'OFF':
@@ -1911,7 +1919,7 @@ class Shell(cmd.Cmd):
         self.shunted_color = self.color
         self.query_out = f
         self.color = False
-        print 'Now capturing query output to %r.' % (fname,)
+        print('Now capturing query output to %r.' % (fname,))
 
     def do_tracing(self, parsed):
         """
@@ -1975,11 +1983,11 @@ class Shell(cmd.Cmd):
         """
         level = parsed.get_binding('level')
         if level is None:
-            print 'Current consistency level is %s.' % (cassandra.ConsistencyLevel.value_to_name[self.consistency_level])
+            print('Current consistency level is %s.' % (cassandra.ConsistencyLevel.value_to_name[self.consistency_level]))
             return
 
         self.consistency_level = cassandra.ConsistencyLevel.name_to_value[level.upper()]
-        print 'Consistency level set to %s.' % (level.upper(),)
+        print('Consistency level set to %s.' % (level.upper(),))
 
     def do_serial(self, parsed):
         """
@@ -2001,11 +2009,11 @@ class Shell(cmd.Cmd):
         """
         level = parsed.get_binding('level')
         if level is None:
-            print 'Current serial consistency level is %s.' % (cassandra.ConsistencyLevel.value_to_name[self.serial_consistency_level])
+            print('Current serial consistency level is %s.' % (cassandra.ConsistencyLevel.value_to_name[self.serial_consistency_level]))
             return
 
         self.serial_consistency_level = cassandra.ConsistencyLevel.name_to_value[level.upper()]
-        print 'Serial consistency level set to %s.' % (level.upper(),)
+        print('Serial consistency level set to %s.' % (level.upper(),))
 
     def do_login(self, parsed):
         """
@@ -2205,11 +2213,11 @@ class SwitchCommand(object):
         switch = parsed.get_binding('switch')
         if switch is None:
             if state:
-                print "%s is currently enabled. Use %s OFF to disable" \
-                      % (self.description, self.command)
+                print("%s is currently enabled. Use %s OFF to disable" \
+                      % (self.description, self.command))
             else:
-                print "%s is currently disabled. Use %s ON to enable." \
-                      % (self.description, self.command)
+                print("%s is currently disabled. Use %s ON to enable." \
+                      % (self.description, self.command))
             return state
 
         if switch.upper() == 'ON':
@@ -2217,14 +2225,14 @@ class SwitchCommand(object):
                 printerr('%s is already enabled. Use %s OFF to disable.'
                          % (self.description, self.command))
                 return state
-            print 'Now %s is enabled' % (self.description,)
+            print('Now %s is enabled' % (self.description,))
             return True
 
         if switch.upper() == 'OFF':
             if not state:
                 printerr('%s is not enabled.' % (self.description,))
                 return state
-            print 'Disabled %s.' % (self.description,)
+            print('Disabled %s.' % (self.description,))
             return False
 
 

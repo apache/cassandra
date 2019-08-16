@@ -22,6 +22,7 @@ Usage:
 
     convert_yaml_to_rest.py conf/cassandra.yaml docs/source/conf.rst
 """
+from __future__ import print_function
 
 import sys
 import re
@@ -137,7 +138,7 @@ def write_complex_option(lines, outfile):
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
-        print >> sys.stderr, "Usage: %s <yaml source file> <rst dest file>" % (sys.argv[0],)
+        print("Usage: %s <yaml source file> <rst dest file>" % (sys.argv[0],), file=sys.stderr)
         sys.exit(1)
 
     yaml_file = sys.argv[1]
