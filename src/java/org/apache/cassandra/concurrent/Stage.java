@@ -17,51 +17,153 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.utils.ExecutorUtils;
+
+import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentCounterWriters;
+import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentReaders;
+import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentViewWriters;
+import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentWriters;
+import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
+
 public enum Stage
 {
-    READ,
-    MUTATION,
-    COUNTER_MUTATION,
-    VIEW_MUTATION,
-    GOSSIP,
-    REQUEST_RESPONSE,
-    ANTI_ENTROPY,
-    MIGRATION,
-    MISC,
-    TRACING,
-    INTERNAL_RESPONSE,
-    IMMEDIATE;
 
-    public String getJmxType()
+    READ              ("ReadStage",             "request",  getConcurrentReaders(),        Stage::multiThreadedLowSignalStage),
+    MUTATION          ("MutationStage",         "request",  getConcurrentWriters(),        Stage::multiThreadedLowSignalStage),
+    COUNTER_MUTATION  ("CounterMutationStage",  "request",  getConcurrentCounterWriters(), Stage::multiThreadedLowSignalStage),
+    VIEW_MUTATION     ("ViewMutationStage",     "request",  getConcurrentViewWriters(),    Stage::multiThreadedLowSignalStage),
+    GOSSIP            ("GossipStage",           "internal", 1,                             Stage::singleThreadedStage),
+    REQUEST_RESPONSE  ("RequestResponseStage",  "request",  getAvailableProcessors(),      Stage::multiThreadedLowSignalStage),
+    ANTI_ENTROPY      ("AntiEntropyStage",      "internal", 1,                             Stage::multiThreadedStage),
+    MIGRATION         ("MigrationStage",        "internal", 1,                             Stage::multiThreadedStage),
+    MISC              ("MiscStage",             "internal", 1,                             Stage::multiThreadedStage), //TODO: ANTI_ENTROPY, MIGRATION & MISC can use Stage::singleThreadedStage
+    TRACING           ("TracingStage",          "internal", 1,                             Stage::tracingExecutor),
+    INTERNAL_RESPONSE ("InternalResponseStage", "internal", getAvailableProcessors(),      Stage::multiThreadedStage),
+    IMMEDIATE         ("ImmediateStage",        "internal", 0,                             Stage::immediateExecutor);
+
+    public static final long KEEP_ALIVE_SECONDS = 60; // seconds to keep "extra" threads alive for when idle
+    public final LocalAwareExecutorService executor;
+
+
+    Stage(String jmxName, String jmxType, int numThreads, ExecutorServiceInitialiser initialiser)
     {
-        switch (this)
-        {
-            case ANTI_ENTROPY:
-            case GOSSIP:
-            case MIGRATION:
-            case MISC:
-            case TRACING:
-            case INTERNAL_RESPONSE:
-            case IMMEDIATE:
-                return "internal";
-            case MUTATION:
-            case COUNTER_MUTATION:
-            case VIEW_MUTATION:
-            case READ:
-            case REQUEST_RESPONSE:
-                return "request";
-            default:
-                throw new AssertionError("Unknown stage " + this);
-        }
+        this.executor = initialiser.init(jmxName, jmxType, numThreads);
     }
 
-    public String getJmxName()
+    private static List<ExecutorService> executors()
     {
-        String name = "";
-        for (String word : toString().split("_"))
+        return Stream.of(Stage.values())
+                     .map(stage -> stage.executor)
+                     .collect(Collectors.toList());
+    }
+
+    /**
+     * This method shuts down all registered stages.
+     */
+    public static void shutdownNow()
+    {
+        ExecutorUtils.shutdownNow(executors());
+    }
+
+    @VisibleForTesting
+    public static void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    {
+        List<ExecutorService> executors = executors();
+        ExecutorUtils.shutdownNow(executors);
+        ExecutorUtils.awaitTermination(timeout, units, executors);
+    }
+
+    static LocalAwareExecutorService tracingExecutor(String jmxName, String jmxType, int numThreads)
+    {
+        RejectedExecutionHandler reh = (r, executor) -> MessagingService.instance().metrics.recordSelfDroppedMessage(Verb._TRACE);
+        return new TracingExecutor(1,
+                                   1,
+                                   KEEP_ALIVE_SECONDS,
+                                   TimeUnit.SECONDS,
+                                   new ArrayBlockingQueue<>(1000),
+                                   new NamedThreadFactory(jmxName),
+                                   reh);
+    }
+
+    static LocalAwareExecutorService multiThreadedStage(String jmxName, String jmxType, int numThreads)
+    {
+        return new JMXEnabledThreadPoolExecutor(numThreads,
+                                                KEEP_ALIVE_SECONDS,
+                                                TimeUnit.SECONDS,
+                                                new LinkedBlockingQueue<>(),
+                                                new NamedThreadFactory(jmxName),
+                                                jmxType);
+    }
+
+    static LocalAwareExecutorService multiThreadedLowSignalStage(String jmxName, String jmxType, int numThreads)
+    {
+        return SharedExecutorPool.SHARED.newExecutor(numThreads, Integer.MAX_VALUE, jmxType, jmxName);
+    }
+
+    static LocalAwareExecutorService singleThreadedStage(String jmxName, String jmxType, int numThreads)
+    {
+        return new JMXEnabledSingleThreadExecutor(jmxName, jmxType);
+    }
+
+    static LocalAwareExecutorService immediateExecutor(String jmxName, String jmxType, int numThreads)
+    {
+        return ImmediateExecutor.INSTANCE;
+    }
+
+    @FunctionalInterface
+    public interface ExecutorServiceInitialiser
+    {
+        public LocalAwareExecutorService init(String jmxName, String jmxType, int numThreads);
+    }
+
+    /**
+     * The executor used for tracing.
+     */
+    private static class TracingExecutor extends ThreadPoolExecutor implements LocalAwareExecutorService
+    {
+        TracingExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, RejectedExecutionHandler handler)
         {
-            name += word.substring(0, 1) + word.substring(1).toLowerCase();
+            super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         }
-        return name + "Stage";
+
+        public void execute(Runnable command, ExecutorLocals locals)
+        {
+            assert locals == null;
+            super.execute(command);
+        }
+
+        public void maybeExecuteImmediately(Runnable command)
+        {
+            execute(command);
+        }
+
+        @Override
+        public int getActiveTaskCount()
+        {
+            return getActiveCount();
+        }
+
+        @Override
+        public int getPendingTaskCount()
+        {
+            return getQueue().size();
+        }
     }
 }

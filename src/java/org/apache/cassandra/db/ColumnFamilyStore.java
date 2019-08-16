@@ -105,7 +105,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     have that many flushes going at the same time.
     */
     private static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
-                                                                                          StageManager.KEEPALIVE,
+                                                                                          Stage.KEEP_ALIVE_SECONDS,
                                                                                           TimeUnit.SECONDS,
                                                                                           new LinkedBlockingQueue<Runnable>(),
                                                                                           new NamedThreadFactory("MemtableFlushWriter"),
@@ -118,7 +118,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (int i = 0; i < DatabaseDescriptor.getAllDataFileLocations().length; i++)
         {
             perDiskflushExecutors[i] = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
-                                                                        StageManager.KEEPALIVE,
+                                                                        Stage.KEEP_ALIVE_SECONDS,
                                                                         TimeUnit.SECONDS,
                                                                         new LinkedBlockingQueue<Runnable>(),
                                                                         new NamedThreadFactory("PerDiskMemtableFlushWriter_"+i),
@@ -128,14 +128,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     // post-flush executor is single threaded to provide guarantee that any flush Future on a CF will never return until prior flushes have completed
     private static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor(1,
-                                                                                              StageManager.KEEPALIVE,
+                                                                                              Stage.KEEP_ALIVE_SECONDS,
                                                                                               TimeUnit.SECONDS,
                                                                                               new LinkedBlockingQueue<Runnable>(),
                                                                                               new NamedThreadFactory("MemtablePostFlush"),
                                                                                               "internal");
 
     private static final ExecutorService reclaimExecutor = new JMXEnabledThreadPoolExecutor(1,
-                                                                                            StageManager.KEEPALIVE,
+                                                                                            Stage.KEEP_ALIVE_SECONDS,
                                                                                             TimeUnit.SECONDS,
                                                                                             new LinkedBlockingQueue<Runnable>(),
                                                                                             new NamedThreadFactory("MemtableReclaimMemory"),
