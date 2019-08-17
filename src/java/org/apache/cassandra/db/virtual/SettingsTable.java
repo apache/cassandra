@@ -160,7 +160,7 @@ final class SettingsTable extends AbstractVirtualTable
         Preconditions.checkArgument(EncryptionOptions.class.isAssignableFrom(f.getType()));
 
         EncryptionOptions value = (EncryptionOptions) getValue(f);
-        result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.enabled));
+        result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.isEnabled()));
         result.row(f.getName() + "_algorithm").column(VALUE, value.algorithm);
         result.row(f.getName() + "_protocol").column(VALUE, value.protocol);
         result.row(f.getName() + "_cipher_suites").column(VALUE, value.cipher_suites.toString());

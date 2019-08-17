@@ -97,20 +97,18 @@ public class InboundConnectionInitiator
             pipelineInjector.accept(pipeline);
 
             // order of handlers: ssl -> logger -> handshakeHandler
-            if (settings.encryption.enabled)
+            // For either unencrypted or transitional modes, allow Ssl optionally.
+            if (settings.encryption.optional)
             {
-                if (settings.encryption.optional)
-                {
-                    pipeline.addFirst("ssl", new OptionalSslHandler(settings.encryption));
-                }
-                else
-                {
-                    SslContext sslContext = SSLFactory.getOrCreateSslContext(settings.encryption, true, SSLFactory.SocketType.SERVER);
-                    InetSocketAddress peer = settings.encryption.require_endpoint_verification ? channel.remoteAddress() : null;
-                    SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
-                    logger.trace("creating inbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
-                    pipeline.addFirst("ssl", sslHandler);
-                }
+                pipeline.addFirst("ssl", new OptionalSslHandler(settings.encryption));
+            }
+            else
+            {
+                SslContext sslContext = SSLFactory.getOrCreateSslContext(settings.encryption, true, SSLFactory.SocketType.SERVER);
+                InetSocketAddress peer = settings.encryption.require_endpoint_verification ? channel.remoteAddress() : null;
+                SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
+                logger.trace("creating inbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+                pipeline.addFirst("ssl", sslHandler);
             }
 
             if (WIRETRACE)

@@ -79,7 +79,7 @@ public class NativeTransportService
                                                                 .withEventLoopGroup(workerGroup)
                                                                 .withHost(nativeAddr);
 
-        if (!DatabaseDescriptor.getNativeProtocolEncryptionOptions().enabled)
+        if (!DatabaseDescriptor.getNativeProtocolEncryptionOptions().isEnabled())
         {
             servers = Collections.singleton(builder.withSSL(false).withPort(nativePort).build());
         }

@@ -45,7 +45,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.metrics.MessagingMetrics;
-import org.apache.cassandra.utils.ApproximateTime;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
@@ -449,7 +448,7 @@ public class MessagingServiceTest
     public void listenPlainConnection() throws InterruptedException
     {
         ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withEnabled(false);
+                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none);
         listen(serverEncryptionOptions, false);
     }
 
@@ -457,7 +456,7 @@ public class MessagingServiceTest
     public void listenPlainConnectionWithBroadcastAddr() throws InterruptedException
     {
         ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withEnabled(false);
+                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none);
         listen(serverEncryptionOptions, true);
     }
 
@@ -465,8 +464,8 @@ public class MessagingServiceTest
     public void listenRequiredSecureConnection() throws InterruptedException
     {
         ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withEnabled(true)
                                                           .withOptional(false)
+                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
                                                           .withLegacySslStoragePort(false);
         listen(serverEncryptionOptions, false);
     }
@@ -475,8 +474,8 @@ public class MessagingServiceTest
     public void listenRequiredSecureConnectionWithBroadcastAddr() throws InterruptedException
     {
         ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withEnabled(true)
                                                           .withOptional(false)
+                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
                                                           .withLegacySslStoragePort(false);
         listen(serverEncryptionOptions, true);
     }
@@ -485,7 +484,7 @@ public class MessagingServiceTest
     public void listenRequiredSecureConnectionWithLegacyPort() throws InterruptedException
     {
         ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withEnabled(true)
+                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
                                                           .withOptional(false)
                                                           .withLegacySslStoragePort(true);
         listen(serverEncryptionOptions, false);
@@ -495,7 +494,7 @@ public class MessagingServiceTest
     public void listenRequiredSecureConnectionWithBroadcastAddrAndLegacyPort() throws InterruptedException
     {
         ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withEnabled(true)
+                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
                                                           .withOptional(false)
                                                           .withLegacySslStoragePort(true);
         listen(serverEncryptionOptions, true);
@@ -505,7 +504,6 @@ public class MessagingServiceTest
     public void listenOptionalSecureConnection() throws InterruptedException
     {
         ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withEnabled(true)
                                                           .withOptional(true);
         listen(serverEncryptionOptions, false);
     }
@@ -514,7 +512,6 @@ public class MessagingServiceTest
     public void listenOptionalSecureConnectionWithBroadcastAddr() throws InterruptedException
     {
         ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withEnabled(true)
                                                           .withOptional(true);
         listen(serverEncryptionOptions, true);
     }
@@ -554,9 +551,9 @@ public class MessagingServiceTest
             final int legacySslPort = DatabaseDescriptor.getSSLStoragePort();
             for (InboundSockets.InboundSocket socket : connections.sockets())
             {
-                Assert.assertEquals(serverEncryptionOptions.enabled, socket.settings.encryption.enabled);
+                Assert.assertEquals(serverEncryptionOptions.isEnabled(), socket.settings.encryption.isEnabled());
                 Assert.assertEquals(serverEncryptionOptions.optional, socket.settings.encryption.optional);
-                if (!serverEncryptionOptions.enabled)
+                if (!serverEncryptionOptions.isEnabled())
                     Assert.assertFalse(legacySslPort == socket.settings.bindAddress.port);
                 if (legacySslPort == socket.settings.bindAddress.port)
                     Assert.assertFalse(socket.settings.encryption.optional);

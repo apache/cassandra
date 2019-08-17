@@ -464,7 +464,7 @@ public class LoaderOptions
                 }
                 else
                 {
-                    if (config.native_transport_port_ssl != null && (config.client_encryption_options.enabled || clientEncOptions.enabled))
+                    if (config.native_transport_port_ssl != null && (config.client_encryption_options.isEnabled() || clientEncOptions.isEnabled()))
                         nativePort = config.native_transport_port_ssl;
                     else
                         nativePort = config.native_transport_port;
