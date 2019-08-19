@@ -21,8 +21,6 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.base.Predicate;
-import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
@@ -412,8 +410,8 @@ public abstract class AbstractCompactionStrategy
                 ranges.add(new Range<>(overlap.first.getToken(), overlap.last.getToken()));
             long remainingKeys = keys - sstable.estimatedKeysForRanges(ranges);
             // next, calculate what percentage of columns we have within those keys
-            long columns = sstable.getEstimatedColumnCount().mean() * remainingKeys;
-            double remainingColumnsRatio = ((double) columns) / (sstable.getEstimatedColumnCount().count() * sstable.getEstimatedColumnCount().mean());
+            long columns = sstable.getEstimatedCellPerPartitionCount().mean() * remainingKeys;
+            double remainingColumnsRatio = ((double) columns) / (sstable.getEstimatedCellPerPartitionCount().count() * sstable.getEstimatedCellPerPartitionCount().mean());
 
             // return if we still expect to have droppable tombstones in rest of columns
             return remainingColumnsRatio * droppableRatio > tombstoneThreshold;
