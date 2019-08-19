@@ -446,7 +446,7 @@ public abstract class DataLimits
         {
             // TODO: we should start storing stats on the number of rows (instead of the number of cells, which
             // is what getMeanColumns returns)
-            float rowsPerPartition = ((float) cfs.getMeanColumns()) / cfs.metadata().regularColumns().size();
+            float rowsPerPartition = ((float) cfs.getMeanEstimatedCellPerPartitionCount()) / cfs.metadata().regularColumns().size();
             return rowsPerPartition * (cfs.estimateKeys());
         }
 

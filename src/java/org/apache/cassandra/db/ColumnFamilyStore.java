@@ -2380,14 +2380,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     // End JMX get/set.
 
-    public int getMeanColumns()
+    public int getMeanEstimatedCellPerPartitionCount()
     {
         long sum = 0;
         long count = 0;
         for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
         {
-            long n = sstable.getEstimatedColumnCount().count();
-            sum += sstable.getEstimatedColumnCount().mean() * n;
+            long n = sstable.getEstimatedCellPerPartitionCount().count();
+            sum += sstable.getEstimatedCellPerPartitionCount().mean() * n;
             count += n;
         }
         return count > 0 ? (int) (sum / count) : 0;
@@ -2559,7 +2559,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (SSTableReader sstable : getSSTables(SSTableSet.LIVE))
         {
             allDroppable += sstable.getDroppableTombstonesBefore(localTime - metadata().params.gcGraceSeconds);
-            allColumns += sstable.getEstimatedColumnCount().mean() * sstable.getEstimatedColumnCount().count();
+            allColumns += sstable.getEstimatedCellPerPartitionCount().mean() * sstable.getEstimatedCellPerPartitionCount().count();
         }
         return allColumns > 0 ? allDroppable / allColumns : 0;
     }

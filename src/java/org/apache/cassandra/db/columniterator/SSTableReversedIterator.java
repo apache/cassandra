@@ -108,7 +108,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                     // FIXME: so far we only keep stats on cells, so to get a rough estimate on the number of rows,
                     // we divide by the number of regular columns the table has. We should fix once we collect the
                     // stats on rows
-                    int estimatedRowsPerPartition = (int)(sstable.getEstimatedColumnCount().percentile(0.75) / columnCount);
+                    int estimatedRowsPerPartition = (int)(sstable.getEstimatedCellPerPartitionCount().percentile(0.75) / columnCount);
                     estimatedRowCount = Math.max(estimatedRowsPerPartition / blocksCount, 1);
                 }
                 catch (IllegalStateException e)
