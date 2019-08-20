@@ -57,7 +57,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private static final long UNFILTERED_TO_UPDATE_PROGRESS = 100;
 
     private final OperationType type;
-    private final CompactionController controller;
+    private final AbstractCompactionController controller;
     private final List<ISSTableScanner> scanners;
     private final ImmutableSet<SSTableReader> sstables;
     private final int nowInSec;
@@ -77,13 +77,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final UnfilteredPartitionIterator compacted;
     private final ActiveCompactionsTracker activeCompactions;
 
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID compactionId)
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, UUID compactionId)
     {
         this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP);
     }
 
     @SuppressWarnings("resource") // We make sure to close mergedIterator in close() and CompactionIterator is itself an AutoCloseable
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID compactionId, ActiveCompactionsTracker activeCompactions)
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, UUID compactionId, ActiveCompactionsTracker activeCompactions)
     {
         this.controller = controller;
         this.type = type;
@@ -259,14 +259,14 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     private class Purger extends PurgeFunction
     {
-        private final CompactionController controller;
+        private final AbstractCompactionController controller;
 
         private DecoratedKey currentKey;
         private LongPredicate purgeEvaluator;
 
         private long compactedUnfiltered;
 
-        private Purger(CompactionController controller, int nowInSec)
+        private Purger(AbstractCompactionController controller, int nowInSec)
         {
             super(nowInSec, controller.gcBefore, controller.compactingRepaired() ? Integer.MAX_VALUE : Integer.MIN_VALUE,
                   controller.cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones(),
@@ -510,10 +510,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
      */
     private static class GarbageSkipper extends Transformation<UnfilteredRowIterator>
     {
-        final CompactionController controller;
+        final AbstractCompactionController controller;
         final boolean cellLevelGC;
 
-        private GarbageSkipper(CompactionController controller)
+        private GarbageSkipper(AbstractCompactionController controller)
         {
             this.controller = controller;
             cellLevelGC = controller.tombstoneOption == TombstoneOption.CELL;
