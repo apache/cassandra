@@ -1,4 +1,5 @@
 4.0-alpha2
+ * Extract an AbstractCompactionController to allow for custom implementations (CASSANDRA-15286)
  * Move chronicle-core version from snapshot to stable, and include carrotsearch in generated pom.xml (CASSANDRA-15321)
  * Untangle RepairMessage sub-hierarchy of messages, use new messaging (more) correctly (CASSANDRA-15163)
  * Add `allocate_tokens_for_local_replication_factor` option for token allocation (CASSANDRA-15260)
