@@ -49,9 +49,9 @@ public final class OperationExecutionException extends RequestExecutionException
      * Creates an <code>OperationExecutionException</code> with the specified message.
      * @param msg the error message
      */
-    public OperationExecutionException(String msg)
+    private OperationExecutionException(String msg)
     {
-        super(ExceptionCode.FUNCTION_FAILURE, msg);
+        super(ExceptionCode.OPERATION_FAILURE, msg);
     }
 
 }
