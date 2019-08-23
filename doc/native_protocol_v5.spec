@@ -1231,6 +1231,7 @@ Table of Contents
                               lock for key within timeout
                             - "CDC": the failure occured when cdc_total_space_in_mb is
                               exceeded when doing a write to data tracked by cdc.
+    0x1700    Operation_falure: Exception during arithmetic operation.
 
     0x2000    Syntax_error: The submitted query has a syntax error.
     0x2100    Unauthorized: The logged user doesn't have the right to perform
