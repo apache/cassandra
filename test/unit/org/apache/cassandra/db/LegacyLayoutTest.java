@@ -374,8 +374,8 @@ public class LegacyLayoutTest
         ByteBuffer one = Int32Type.instance.decompose(1);
         ByteBuffer two = Int32Type.instance.decompose(2);
         PartitionUpdate p = new PartitionUpdate(table, table.decorateKey(one), table.partitionColumns(), 0);
-        p.add(new RangeTombstone(Slice.make(new Slice.Bound(ClusteringPrefix.Kind.EXCL_START_BOUND, new ByteBuffer[] { one, one }),
-                                            new Slice.Bound(ClusteringPrefix.Kind.INCL_END_BOUND, new ByteBuffer[] { two })),
+        p.add(new RangeTombstone(Slice.make(new ClusteringBound(ClusteringPrefix.Kind.EXCL_START_BOUND, new ByteBuffer[] { one, one }),
+                                            new ClusteringBound(ClusteringPrefix.Kind.INCL_END_BOUND, new ByteBuffer[] { two })),
                                  new DeletionTime(1, 1)
         ));
 
