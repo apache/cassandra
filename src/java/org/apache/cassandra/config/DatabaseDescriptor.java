@@ -2026,6 +2026,11 @@ public class DatabaseDescriptor
         return conf.native_transport_max_threads;
     }
 
+    public static void setNativeTransportMaxThreads(int max_threads)
+    {
+        conf.native_transport_max_threads = max_threads;
+    }
+
     public static int getNativeTransportMaxFrameSize()
     {
         return conf.native_transport_max_frame_size_in_mb * 1024 * 1024;
