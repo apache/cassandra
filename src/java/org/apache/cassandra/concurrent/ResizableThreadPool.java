@@ -15,8 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.concurrent;
 
-public interface SEPExecutorMBean extends ResizableThreadPool
+public interface ResizableThreadPool
 {
+    /**
+     * Returns maximum pool size of thread pool.
+     */
+    public int getCorePoolSize();
+
+    /**
+     * Allows user to resize maximum size of the thread pool.
+     */
+    public void setCorePoolSize(int number);
+
+    /**
+     * Returns maximum pool size of thread pool.
+     */
+    public int getMaximumPoolSize();
+
+    /**
+     * Allows user to resize maximum size of the thread pool.
+     */
+    public void setMaximumPoolSize(int number);
 }
