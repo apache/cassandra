@@ -372,6 +372,15 @@ public class PartitionUpdate extends AbstractBTreePartition
     public int dataSize()
     {
         int size = 0;
+
+        if (holder.staticRow != null)
+        {
+            for (ColumnData cd : holder.staticRow.columnData())
+            {
+                size += cd.dataSize();
+            }
+        }
+
         for (Row row : this)
         {
             size += row.clustering().dataSize();

@@ -52,6 +52,27 @@ public class PartitionUpdateTest extends CQLTester
     }
 
     @Test
+    public void testMutationSize()
+    {
+        createTable("CREATE TABLE %s (key text, clustering int, a int, s int static, PRIMARY KEY(key, clustering))");
+        CFMetaData cfm = currentTableMetadata();
+
+        PartitionUpdate update = new RowUpdateBuilder(cfm, FBUtilities.timestampMicros(), "key0").add("s", 1).buildUpdate();
+        int size1 = update.dataSize();
+        Assert.assertEquals(20, size1);
+
+        update = new RowUpdateBuilder(cfm, FBUtilities.timestampMicros(), "key0").clustering(1).add("a", 2).buildUpdate();
+        int size2 = update.dataSize();
+        Assert.assertTrue(size1 != size2);
+
+        update = new RowUpdateBuilder(cfm, FBUtilities.timestampMicros(), "key0").buildUpdate();
+        int size3 = update.dataSize();
+        Assert.assertTrue(size1 != size3);
+        Assert.assertTrue(size2 != size3);
+
+    }
+
+    @Test
     public void testOperationCountWithCompactTable()
     {
         createTable("CREATE TABLE %s (key text PRIMARY KEY, a int) WITH COMPACT STORAGE");
