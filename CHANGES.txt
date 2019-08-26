@@ -9,6 +9,7 @@
  * Make tools/bin/token-generator py2/3 compatible (CASSANDRA-15012)
  * Multi-version in-JVM dtests (CASSANDRA-14937)
  * Allow instance class loaders to be garbage collected for inJVM dtest (CASSANDRA-15170)
+ * Add support for network topology and query tracing for inJVM dtest (CASSANDRA-15319)
 
 
 2.2.14

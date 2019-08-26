@@ -80,7 +80,7 @@ public class DistributedReadWritePathTest extends DistributedTestBase
             assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
 
             assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
-                                                     ConsistencyLevel.QUORUM),
+                                                     ConsistencyLevel.ALL), // ensure node3 in preflist
                        row(1, 1, 1));
 
             // Verify that data got repaired to the third node
