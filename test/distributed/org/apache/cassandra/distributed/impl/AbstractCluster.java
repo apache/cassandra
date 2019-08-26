@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
@@ -57,6 +58,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 /**
@@ -193,13 +195,15 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
     }
 
-    protected AbstractCluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader)
+    protected AbstractCluster(File root, Versions.Version version, List<InstanceConfig> configs,
+                              ClassLoader sharedClassLoader)
     {
         this.root = root;
         this.sharedClassLoader = sharedClassLoader;
         this.instances = new ArrayList<>();
         this.instanceMap = new HashMap<>();
         int generation = AbstractCluster.generation.incrementAndGet();
+
         for (InstanceConfig config : configs)
         {
             I instance = newInstanceWrapper(generation, version, config);
@@ -231,7 +235,20 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
     {
         return instances.size();
     }
+
     public Stream<I> stream() { return instances.stream(); }
+
+    public Stream<I> stream(String dcName)
+    {
+        return instances.stream().filter(i -> i.config().localDatacenter().equals(dcName));
+    }
+
+    public Stream<I> stream(String dcName, String rackName)
+    {
+        return instances.stream().filter(i -> i.config().localDatacenter().equals(dcName) &&
+                                              i.config().localRack().equals(rackName));
+    }
+
     public void forEach(IIsolatedExecutor.SerializableRunnable runnable) { forEach(i -> i.sync(runnable)); }
     public void forEach(Consumer<? super I> consumer) { instances.forEach(consumer); }
     public void parallelForEach(IIsolatedExecutor.SerializableConsumer<? super I> consumer, long timeout, TimeUnit units)
@@ -353,21 +370,113 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     public static class Builder<I extends IInstance, C extends AbstractCluster<I>>
     {
-        private final int nodeCount;
         private final Factory<I, C> factory;
+        private int nodeCount;
         private int subnet;
+        private Map<Integer, Pair<String,String>> nodeIdTopology;
         private File root;
         private Versions.Version version;
         private Consumer<InstanceConfig> configUpdater;
-        public Builder(int nodeCount, Factory<I, C> factory)
+
+        public Builder(Factory<I, C> factory)
         {
-            this.nodeCount = nodeCount;
             this.factory = factory;
         }
 
         public Builder<I, C> withSubnet(int subnet)
         {
             this.subnet = subnet;
+            return this;
+        }
+
+        public Builder<I, C> withNodes(int nodeCount) {
+            this.nodeCount = nodeCount;
+            return this;
+        }
+
+        public Builder<I, C> withDCs(int dcCount)
+        {
+            return withRacks(dcCount, 1);
+        }
+
+        public Builder<I, C> withRacks(int dcCount, int racksPerDC)
+        {
+            if (nodeCount == 0)
+                throw new IllegalStateException("Node count will be calculated. Do not supply total node count in the builder");
+
+            int totalRacks = dcCount * racksPerDC;
+            int nodesPerRack = (nodeCount + totalRacks - 1) / totalRacks; // round up to next integer
+            return withRacks(dcCount, racksPerDC, nodesPerRack);
+        }
+
+        public Builder<I, C> withRacks(int dcCount, int racksPerDC, int nodesPerRack)
+        {
+            if (nodeIdTopology != null)
+                throw new IllegalStateException("Network topology already created. Call withDCs/withRacks once or before withDC/withRack calls");
+
+            nodeIdTopology = new HashMap<>();
+            int nodeId = 1;
+            for (int dc = 1; dc <= dcCount; dc++)
+            {
+                for (int rack = 1; rack <= racksPerDC; rack++)
+                {
+                    for (int rackNodeIdx = 0; rackNodeIdx < nodesPerRack; rackNodeIdx++)
+                        nodeIdTopology.put(nodeId++, Pair.create(dcName(dc), rackName(rack)));
+                }
+            }
+            // adjust the node count to match the allocatation
+            final int adjustedNodeCount = dcCount * racksPerDC * nodesPerRack;
+            if (adjustedNodeCount != nodeCount)
+            {
+                assert adjustedNodeCount > nodeCount : "withRacks should only ever increase the node count";
+                logger.info("Network topology of {} DCs with {} racks per DC and {} nodes per rack required increasing total nodes to {}",
+                            dcCount, racksPerDC, nodesPerRack, adjustedNodeCount);
+                nodeCount = adjustedNodeCount;
+            }
+            return this;
+        }
+
+        public Builder<I, C> withDC(String dcName, int nodeCount)
+        {
+            return withRack(dcName, rackName(1), nodeCount);
+        }
+
+        public Builder<I, C> withRack(String dcName, String rackName, int nodesInRack)
+        {
+            if (nodeIdTopology == null)
+            {
+                if (nodeCount > 0)
+                    throw new IllegalStateException("Node count must not be explicitly set, or allocated using withDCs/withRacks");
+
+                nodeIdTopology = new HashMap<>();
+            }
+            for (int nodeId = nodeCount + 1; nodeId <= nodeCount + nodesInRack; nodeId++)
+                nodeIdTopology.put(nodeId, Pair.create(dcName, rackName));
+
+            nodeCount += nodesInRack;
+            return this;
+        }
+
+        // Map of node ids to dc and rack - must be contiguous with an entry nodeId 1 to nodeCount
+        public Builder<I, C> withNodeIdTopology(Map<Integer,Pair<String,String>> nodeIdTopology)
+        {
+            if (nodeIdTopology.isEmpty())
+                throw new IllegalStateException("Topology is empty. It must have an entry for every nodeId.");
+
+            IntStream.rangeClosed(1, nodeIdTopology.size()).forEach(nodeId -> {
+                if (nodeIdTopology.get(nodeId) == null)
+                    throw new IllegalStateException("Topology is missing entry for nodeId " + nodeId);
+            });
+
+            if (nodeCount != nodeIdTopology.size())
+            {
+                nodeCount = nodeIdTopology.size();
+                logger.info("Adjusting node count to {} for supplied network topology", nodeCount);
+
+            }
+
+            this.nodeIdTopology = new HashMap<>(nodeIdTopology);
+
             return this;
         }
 
@@ -396,8 +505,17 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
             if (root == null)
                 root = Files.createTempDirectory("dtests").toFile();
+
             if (version == null)
                 version = Versions.CURRENT;
+
+            if (nodeCount <= 0)
+                throw new IllegalStateException("Cluster must have at least one node");
+
+            if (nodeIdTopology == null)
+                nodeIdTopology = IntStream.rangeClosed(1, nodeCount).boxed()
+                                          .collect(Collectors.toMap(nodeId -> nodeId,
+                                                                    nodeId -> Pair.create(dcName(0), rackName(0))));
 
             root.mkdirs();
             setupLogging(root);
@@ -406,17 +524,23 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
             List<InstanceConfig> configs = new ArrayList<>();
             long token = Long.MIN_VALUE + 1, increment = 2 * (Long.MAX_VALUE / nodeCount);
-            for (int i = 0; i < nodeCount; ++i)
+
+            String ipPrefix = "127.0." + subnet + ".";
+
+            NetworkTopology networkTopology = NetworkTopology.build(ipPrefix, 7012, nodeIdTopology);
+
+            for (int i = 0 ; i < nodeCount ; ++i)
             {
-                InstanceConfig config = InstanceConfig.generate(i + 1, subnet, root, String.valueOf(token));
+                int nodeNum = i + 1;
+                String ipAddress = ipPrefix + nodeNum;
+                InstanceConfig config = InstanceConfig.generate(i + 1, ipAddress, networkTopology, root, String.valueOf(token));
                 if (configUpdater != null)
                     configUpdater.accept(config);
                 configs.add(config);
                 token += increment;
             }
 
-            C cluster = factory.newCluster(root, version, configs, sharedClassLoader);
-            return cluster;
+            return factory.newCluster(root, version, configs, sharedClassLoader);
         }
 
         public C start() throws IOException
@@ -427,6 +551,15 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
     }
 
+    static String dcName(int index)
+    {
+        return "datacenter" + index;
+    }
+
+    static String rackName(int index)
+    {
+        return "rack" + index;
+    }
 
     private static void setupLogging(File root)
     {
@@ -434,11 +567,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         {
             String testConfPath = "test/conf/logback-dtest.xml";
             Path logConfPath = Paths.get(root.getPath(), "/logback-dtest.xml");
+
             if (!logConfPath.toFile().exists())
             {
                 Files.copy(new File(testConfPath).toPath(),
                            logConfPath);
             }
+
             System.setProperty("logback.configurationFile", "file://" + logConfPath);
         }
         catch (IOException e)

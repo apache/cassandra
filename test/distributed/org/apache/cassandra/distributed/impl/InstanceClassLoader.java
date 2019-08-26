@@ -39,7 +39,8 @@ public class InstanceClassLoader extends URLClassLoader
                     InetAddressAndPort.class,
                     ParameterizedClass.class,
                     SigarLibrary.class,
-                    IInvokableInstance.class
+                    IInvokableInstance.class,
+                    NetworkTopology.class
             })
             .map(Class::getName)
             .collect(Collectors.toSet());

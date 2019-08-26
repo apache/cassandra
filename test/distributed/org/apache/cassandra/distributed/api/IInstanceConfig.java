@@ -18,15 +18,27 @@
 
 package org.apache.cassandra.distributed.api;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
-
 import java.util.UUID;
+
+import org.apache.cassandra.distributed.impl.NetworkTopology;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public interface IInstanceConfig
 {
     int num();
     UUID hostId();
     InetAddressAndPort broadcastAddressAndPort();
+    NetworkTopology networkTopology();
+
+    default public String localRack()
+    {
+        return networkTopology().localRack(broadcastAddressAndPort());
+    }
+
+    default public String localDatacenter()
+    {
+        return networkTopology().localDC(broadcastAddressAndPort());
+    }
 
     /**
      * write the specified parameters to the Config object; we do not specify Config as the type to support a Config
