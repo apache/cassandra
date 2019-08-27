@@ -78,6 +78,10 @@ public class AuditUsersCacheTest
         AuditUsersCacheService.instance.setup();
 
         executeWithCredentials(
+        Arrays.asList(String.format("INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('%s', 'SERVICE', 100.0)", CASS_USER)),
+        CASS_USER, CASS_PW, null);
+
+        executeWithCredentials(
                 Arrays.asList(getCreateRoleCql(TEST_USER, true, false, TEST_PW),
                         getCreateRoleCql(TEST_SERVICE, true, false, TEST_PW),
                         "CREATE KEYSPACE testks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",

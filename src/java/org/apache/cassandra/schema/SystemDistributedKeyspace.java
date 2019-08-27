@@ -165,12 +165,10 @@ public final class SystemDistributedKeyspace
         parse(AUDIT_USER,
               "Audit user",
               "CREATE TABLE %s ("
-              + "role text,"
+              + "role text PRIMARY KEY,"
               + "account_type text,"
-              + "filter_percent double,"
-              + "PRIMARY KEY (role, filter_percent))")
+              + "filter_percent double)")
         .compaction(CompactionParams.lcs(emptyMap()))
-        .defaultTimeToLive(864000)
         .comment("List of audit users").build();
 
     private static TableMetadata.Builder parse(String table, String description, String cql)

@@ -83,15 +83,23 @@ public class AuditUsersCacheService
             , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
     private final static String INSERT_CASSANDRA_ROLE_QUERY = String.format(
             "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES " +
-                    "('cassandra', 'developer', 100.0)"
+                    "('cassandra', 'SERVICE', 0.01)"
             , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
     private final static String INSERT_PINGLESS_ROLE_QUERY = String.format(
             "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES " +
-                    "('pingless', 'service', 0.01)"
+                    "('pingless', 'SERVICE', 0.01)"
             , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
     private final static String INSERT_ODIN_WORKER_ROLE_QUERY = String.format(
             "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES " +
-                    "('odin_worker', 'service', 0.01)"
+                    "('odin_worker', 'SERVICE', 0.01)"
+            , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
+    private final static String INSERT_UQL_ROLE_QUERY = String.format(
+            "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES " +
+                    "('uql', 'SERVICE', 100.0)"
+            , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
+    private final static String INSERT_DOSA_ROLE_QUERY = String.format(
+            "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES " +
+                    "('dosa', 'SERVICE', 0.01)"
             , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
 
     private static ConsistencyLevel cl = ConsistencyLevel.ONE;
@@ -99,6 +107,8 @@ public class AuditUsersCacheService
     private static ModificationStatement insertCassandraRoleStatement;
     private static ModificationStatement insertPinglessRoleStatement;
     private static ModificationStatement insertOdinWorkerRoleStatement;
+    private static ModificationStatement insertDosaRoleStatement;
+    private static ModificationStatement insertUqlRoleStatement;
     private static ConcurrentHashMap<String, UserProp> auditUserCache = new ConcurrentHashMap<String, UserProp>();
     /*
      * When node restarts, there will be time when cache is not warmed up, this indicates
@@ -120,10 +130,16 @@ public class AuditUsersCacheService
                 ClientState.forInternalCalls());
         insertOdinWorkerRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_ODIN_WORKER_ROLE_QUERY,
                 ClientState.forInternalCalls());
+        insertUqlRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_UQL_ROLE_QUERY,
+                ClientState.forInternalCalls());
+        insertDosaRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_DOSA_ROLE_QUERY,
+                ClientState.forInternalCalls());
 
         insertCassandraRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), System.nanoTime());
         insertPinglessRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), System.nanoTime());
         insertOdinWorkerRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), System.nanoTime());
+        insertUqlRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), System.nanoTime());
+        insertDosaRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), System.nanoTime());
 
         Keyspace ks = Schema.instance.getKeyspaceInstance(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
         if (ks.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class)
