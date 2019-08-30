@@ -82,7 +82,8 @@ public abstract class AbstractCommitLogSegmentManager
      */
     private final AtomicLong size = new AtomicLong();
 
-    private Thread managerThread;
+    @VisibleForTesting
+    protected Thread managerThread;
     protected final CommitLog commitLog;
     private volatile boolean shutdown;
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit()) || shutdown;
@@ -133,7 +134,7 @@ public abstract class AbstractCommitLogSegmentManager
                     catch (Throwable t)
                     {
                         JVMStabilityInspector.inspectThrowable(t);
-                        if (!CommitLog.handleCommitError("Failed managing commit log segments", t))
+                        if (!CommitLogErrorHandler.handle("Failed managing commit log segments", t))
                             return;
                         // sleep some arbitrary period to avoid spamming CL
                         Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);

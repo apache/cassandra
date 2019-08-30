@@ -199,7 +199,7 @@ public abstract class AbstractCommitLogService
             }
             catch (Throwable t)
             {
-                if (!CommitLog.handleCommitError("Failed to persist commits to disk", t))
+                if (!CommitLogErrorHandler.handle("Failed to persist commits to disk", t))
                     return false;
 
                 // sleep for full poll-interval after an error, so we don't spam the log file

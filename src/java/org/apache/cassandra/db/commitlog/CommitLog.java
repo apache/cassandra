@@ -108,9 +108,7 @@ public class CommitLog implements CommitLogMBean
                 throw new IllegalArgumentException("Unknown commitlog service type: " + DatabaseDescriptor.getCommitLogSync());
         }
 
-        segmentManager = DatabaseDescriptor.isCDCEnabled()
-                         ? new CommitLogSegmentManagerCDC(this, DatabaseDescriptor.getCommitLogLocation())
-                         : new CommitLogSegmentManagerStandard(this, DatabaseDescriptor.getCommitLogLocation());
+        segmentManager = DatabaseDescriptor.getCommitLogSegmentMgrFactory().create(this);
 
         // register metrics
         metrics.attach(executor, segmentManager);
@@ -459,28 +457,6 @@ public class CommitLog implements CommitLogMBean
     public int restartUnsafe() throws IOException
     {
         return start().recoverSegmentsOnDisk();
-    }
-
-    @VisibleForTesting
-    public static boolean handleCommitError(String message, Throwable t)
-    {
-        JVMStabilityInspector.inspectCommitLogThrowable(t);
-        switch (DatabaseDescriptor.getCommitFailurePolicy())
-        {
-            // Needed here for unit tests to not fail on default assertion
-            case die:
-            case stop:
-                StorageService.instance.stopTransports();
-                //$FALL-THROUGH$
-            case stop_commit:
-                logger.error(String.format("%s. Commit disk failure policy is %s; terminating thread", message, DatabaseDescriptor.getCommitFailurePolicy()), t);
-                return false;
-            case ignore:
-                logger.error(message, t);
-                return true;
-            default:
-                throw new AssertionError(DatabaseDescriptor.getCommitFailurePolicy());
-        }
     }
 
     public static final class Configuration

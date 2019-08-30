@@ -51,6 +51,7 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.commitlog.ICommitLogSegmentMgrFactory;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
@@ -138,6 +139,8 @@ public class DatabaseDescriptor
     private static boolean clientInitialized;
     private static boolean toolInitialized;
     private static boolean daemonInitialized;
+
+    private static ICommitLogSegmentMgrFactory commitLogSegmentMgrFactory;
 
     private static final int searchConcurrencyFactor = Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "search_concurrency_factor", "1"));
 
@@ -2917,5 +2920,15 @@ public class DatabaseDescriptor
     {
         logger.info("Setting use_offheap_merkle_trees to {}", value);
         conf.use_offheap_merkle_trees = value;
+    }
+
+    public static ICommitLogSegmentMgrFactory getCommitLogSegmentMgrFactory()
+    {
+        return commitLogSegmentMgrFactory;
+    }
+
+    public static void setCommitLogSegmentMgrFactory(ICommitLogSegmentMgrFactory commitLogSegmentMgrFactory)
+    {
+        DatabaseDescriptor.commitLogSegmentMgrFactory = commitLogSegmentMgrFactory;
     }
 }

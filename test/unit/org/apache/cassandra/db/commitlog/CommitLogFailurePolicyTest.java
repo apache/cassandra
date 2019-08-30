@@ -57,7 +57,7 @@ public class CommitLogFailurePolicyTest
         try
         {
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.stop);
-            CommitLog.handleCommitError("Test stop error", new Throwable());
+            CommitLogErrorHandler.handle("Test stop error", new Throwable());
             Assert.assertFalse(Gossiper.instance.isEnabled());
         }
         finally
@@ -79,7 +79,7 @@ public class CommitLogFailurePolicyTest
         try
         {
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.die);
-            CommitLog.handleCommitError("Testing die policy", new Throwable());
+            CommitLogErrorHandler.handle("Testing die policy", new Throwable());
             Assert.assertTrue(killerForTests.wasKilled());
             Assert.assertFalse(killerForTests.wasKilledQuietly()); //only killed quietly on startup failure
         }
@@ -103,7 +103,7 @@ public class CommitLogFailurePolicyTest
         try
         {
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
-            CommitLog.handleCommitError("Testing ignore policy", new Throwable());
+            CommitLogErrorHandler.handle("Testing ignore policy", new Throwable());
             //even though policy is ignore, JVM must die because Daemon has not finished initializing
             Assert.assertTrue(killerForTests.wasKilled());
             Assert.assertTrue(killerForTests.wasKilledQuietly()); //killed quietly due to startup failure
@@ -128,7 +128,7 @@ public class CommitLogFailurePolicyTest
         try
         {
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
-            CommitLog.handleCommitError("Testing ignore policy", new Throwable());
+            CommitLogErrorHandler.handle("Testing ignore policy", new Throwable());
             //error policy is set to IGNORE, so JVM must not be killed if error ocurs after startup
             Assert.assertFalse(killerForTests.wasKilled());
         }

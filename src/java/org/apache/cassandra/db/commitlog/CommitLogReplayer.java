@@ -442,7 +442,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
             logger.error("Ignoring commit log replay error likely due to incomplete flush to disk", exception);
         else if (Boolean.getBoolean(IGNORE_REPLAY_ERRORS_PROPERTY))
             logger.error("Ignoring commit log replay error", exception);
-        else if (!CommitLog.handleCommitError("Failed commit log replay", exception))
+        else if (!CommitLogErrorHandler.handle("Failed commit log replay", exception))
         {
             logger.error("Replay stopped. If you wish to override this error and continue starting the node ignoring " +
                          "commit log replay problems, specify -D" + IGNORE_REPLAY_ERRORS_PROPERTY + "=true " +
