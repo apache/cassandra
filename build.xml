@@ -1107,7 +1107,7 @@
       </jar>
     </target>
 
-    <target name="_artifacts-init" depends="jar,javadoc,gen-doc" unless="java.version.8">
+    <target name="_artifacts-init" depends="jar,javadoc,gen-doc">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
       <fixcrlf srcdir="bin" includes="**/*" excludes="**/*.bat, **/*.ps1" eol="lf" eof="remove" />
@@ -1169,7 +1169,6 @@
 
     <!-- creates release tarballs -->
     <target name="artifacts" depends="_artifacts-init"
-            unless="java.version.8"
             description="Create Cassandra release artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
