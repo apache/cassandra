@@ -1,5 +1,7 @@
 4.0-alpha2
  * Add `allocate_tokens_for_local_replication_factor` option for token allocation (CASSANDRA-15260)
+ * Add Alibaba Cloud Platform snitch (CASSANDRA-15092)
+
 
 4.0-alpha1
  * Inaccurate exception message with nodetool snapshot (CASSANDRA-15287)
