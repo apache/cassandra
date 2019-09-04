@@ -486,7 +486,7 @@ public class Server implements CassandraDaemon.Server
                     }
                     if (SslHandler.isEncrypted(byteBuf))
                     {
-                        // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use
+                        // Connection uses SSL/TLS, replace the detection handler with an SslHandler and so use
                         // encryption.
                         SslHandler sslHandler = createSslHandler(channel.alloc());
                         channelHandlerContext.pipeline().replace(this, "ssl", sslHandler);

@@ -479,7 +479,7 @@ public class InboundConnectionInitiator
 
             if (SslHandler.isEncrypted(in))
             {
-                // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use encryption.
+                // Connection uses SSL/TLS, replace the detection handler with an SslHandler and so use encryption.
                 SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, true, SSLFactory.SocketType.SERVER);
                 Channel channel = ctx.channel();
                 InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
