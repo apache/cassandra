@@ -1,4 +1,4 @@
-4.0
+4.0-alpha1
  * Inaccurate exception message with nodetool snapshot (CASSANDRA-15287)
  * Fix InternodeOutboundMetrics overloaded bytes/count mixup (CASSANDRA-15186)
  * Enhance & reenable RepairTest with compression=off and compression=on (CASSANDRA-15272)
