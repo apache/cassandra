@@ -8,7 +8,9 @@
 
 %global username cassandra
 
-%define relname apache-cassandra-%{version}
+# input of ~alphaN, ~betaN, ~rcN package versions need to retain upstream '-alphaN, etc' version for sources
+%define upstream_version %(echo %{version} | sed -r 's/~/-/g')
+%define relname apache-cassandra-%{upstream_version}
 
 Name:          cassandra
 Version:       %{version}
