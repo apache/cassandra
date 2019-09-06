@@ -172,6 +172,7 @@ public final class SingleColumnRelation extends Relation
 
         SingleColumnRelation scr = (SingleColumnRelation) o;
         return Objects.equals(entity, scr.entity)
+            && Objects.equals(relationType, scr.relationType)
             && Objects.equals(mapKey, scr.mapKey)
             && Objects.equals(value, scr.value)
             && Objects.equals(inValues, scr.inValues);
