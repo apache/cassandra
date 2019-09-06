@@ -22,7 +22,7 @@ import static org.apache.commons.lang3.StringUtils.join;
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
-
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -62,6 +62,10 @@ public class Snapshot extends NodeToolCmd
             Map<String, String> options = new HashMap<String,String>();
             options.put("skipFlush", Boolean.toString(skipFlush));
 
+            if (!snapshotName.isEmpty() && snapshotName.contains(File.separator)) 
+            {
+                throw new IOException("Snapshot name cannot contain " + File.separator );
+            } 
             // Create a separate path for kclist to avoid breaking of already existing scripts
             if (null != ktList && !ktList.isEmpty())
             {
