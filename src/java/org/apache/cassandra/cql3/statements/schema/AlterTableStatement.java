@@ -214,9 +214,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     private static class DropColumns extends AlterTableStatement
     {
         private final Collection<ColumnMetadata.Raw> removedColumns;
-        private final long timestamp;
+        private final Long timestamp;
 
-        private DropColumns(String keyspaceName, String tableName, Collection<ColumnMetadata.Raw> removedColumns, long timestamp)
+        private DropColumns(String keyspaceName, String tableName, Collection<ColumnMetadata.Raw> removedColumns, Long timestamp)
         {
             super(keyspaceName, tableName);
             this.removedColumns = removedColumns;
@@ -262,7 +262,15 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 throw ire("Cannot drop column %s on base table %s with materialized views", currentColumn, table.name);
 
             builder.removeRegularOrStaticColumn(name);
-            builder.recordColumnDrop(currentColumn, timestamp);
+            builder.recordColumnDrop(currentColumn, getTimestamp());
+        }
+
+        /**
+         * @return timestamp from query, otherwise return current time in micros
+         */
+        private long getTimestamp()
+        {
+            return timestamp == null ? FBUtilities.timestampMicros() : timestamp;
         }
     }
 
@@ -395,7 +403,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         // DROP
         private final List<ColumnMetadata.Raw> droppedColumns = new ArrayList<>();
-        private long timestamp = FBUtilities.timestampMicros();
+        private Long timestamp = null; // will use execution timestamp if not provided by query
 
         // RENAME
         private final Map<ColumnMetadata.Raw, ColumnMetadata.Raw> renamedColumns = new HashMap<>();

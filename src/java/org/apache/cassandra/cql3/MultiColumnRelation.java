@@ -259,6 +259,7 @@ public class MultiColumnRelation extends Relation
 
         MultiColumnRelation mcr = (MultiColumnRelation) o;
         return Objects.equals(entities, mcr.entities)
+            && Objects.equals(relationType, mcr.relationType)
             && Objects.equals(valuesOrMarker, mcr.valuesOrMarker)
             && Objects.equals(inValues, mcr.inValues)
             && Objects.equals(inMarker, mcr.inMarker);

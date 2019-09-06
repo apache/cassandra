@@ -160,7 +160,7 @@ public final class TokenRelation extends Relation
             return false;
 
         TokenRelation tr = (TokenRelation) o;
-        return entities.equals(tr.entities) && value.equals(tr.value);
+        return relationType.equals(tr.relationType) && entities.equals(tr.entities) && value.equals(tr.value);
     }
 
     /**
