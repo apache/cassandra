@@ -45,9 +45,14 @@ public class Cluster extends AbstractCluster<IInvokableInstance> implements IClu
         return new Wrapper(generation, version, config);
     }
 
+    public static Builder<IInvokableInstance, Cluster> build()
+    {
+        return new Builder<>(Cluster::new);
+    }
+
     public static Builder<IInvokableInstance, Cluster> build(int nodeCount)
     {
-        return new Builder<>(nodeCount, Cluster::new);
+        return build().withNodes(nodeCount);
     }
 
     public static Cluster create(int nodeCount, Consumer<InstanceConfig> configUpdater) throws IOException
