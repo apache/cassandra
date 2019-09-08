@@ -1353,7 +1353,7 @@
              algorithm to limit the metaspace size and clean up SoftReferences
              more aggressively rather than waiting. See CASSANDRA-14922 for more details.
         -->
-        <jvmarg value="-XX:MaxMetaspaceSize=256M" />
+        <jvmarg value="-XX:MaxMetaspaceSize=384M" />
         <jvmarg value="-XX:MetaspaceSize=128M" />
         <jvmarg value="-XX:MaxMetaspaceExpansion=64M" />
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
