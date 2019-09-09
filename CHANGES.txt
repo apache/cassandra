@@ -1,4 +1,5 @@
 4.0-alpha3
+ * Shuffle forwarding replica for messages to non-local DC (CASSANDRA-15318)
  * Optimise native protocol ASCII string encoding (CASSANDRA-15410)
  * Make sure all exceptions are propagated in DebuggableThreadPoolExecutor (CASSANDRA-15332)
  * Make it possible to resize concurrent read / write thread pools at runtime (CASSANDRA-15277)

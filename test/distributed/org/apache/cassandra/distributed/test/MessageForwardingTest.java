@@ -35,6 +35,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class MessageForwardingTest extends DistributedTestBase
@@ -44,6 +45,7 @@ public class MessageForwardingTest extends DistributedTestBase
     {
         String originalTraceTimeout = TracingUtil.setWaitForTracingEventTimeoutSecs("1");
         final int numInserts = 100;
+        Map<InetAddress,Integer> forwardFromCounts = new HashMap<>();
         Map<InetAddress,Integer> commitCounts = new HashMap<>();
 
         try (Cluster cluster = init(Cluster.build()
@@ -66,6 +68,7 @@ public class MessageForwardingTest extends DistributedTestBase
             //noinspection ResultOfMethodCallIgnored
             inserts.map(IsolatedExecutor::waitOn).count();
 
+            cluster.stream("dc1").forEach(instance -> forwardFromCounts.put(instance.broadcastAddressAndPort().address, 0));
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddressAndPort().address, 0));
             List<TracingUtil.TraceEntry> traces = TracingUtil.getTrace(cluster, sessionId, ConsistencyLevel.ALL);
             traces.forEach(traceEntry -> {
@@ -73,7 +76,15 @@ public class MessageForwardingTest extends DistributedTestBase
                 {
                     commitCounts.compute(traceEntry.source, (k, v) -> (v != null ? v : 0) + 1);
                 }
+                else if (traceEntry.activity.contains("Enqueuing forwarded write to "))
+                {
+                    forwardFromCounts.compute(traceEntry.source, (k, v) -> (v != null ? v : 0) + 1);
+                }
             });
+
+            // Check that each node in dc1 was the forwarder at least once.  There is a (1/3)^numInserts chance
+            // that the same node will be picked, but the odds of that are ~2e-48.
+            forwardFromCounts.forEach((source, count) -> Assert.assertTrue(source + " should have been randomized to forward messages", count > 0));
 
             // Check that each node received the forwarded messages once (and only once)
             commitCounts.forEach((source, count) ->
