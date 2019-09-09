@@ -467,15 +467,25 @@ public interface CQL3Type
         @Override
         public String toString()
         {
+            return toString(true);
+        }
+
+        public String toString(boolean withFrozen)
+        {
             StringBuilder sb = new StringBuilder();
-            sb.append("frozen<tuple<");
+            if (withFrozen)
+                sb.append("frozen<");
+            sb.append("tuple<");
             for (int i = 0; i < type.size(); i++)
             {
                 if (i > 0)
                     sb.append(", ");
                 sb.append(type.type(i).asCQL3Type());
             }
-            sb.append(">>");
+            sb.append('>');
+            if (withFrozen)
+                sb.append('>');
+
             return sb.toString();
         }
     }

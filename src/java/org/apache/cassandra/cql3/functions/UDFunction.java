@@ -45,16 +45,15 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.cql3.functions.types.DataType;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.schema.Difference;
-import org.apache.cassandra.schema.Functions;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -66,7 +65,7 @@ import static com.google.common.collect.Iterables.transform;
 /**
  * Base class for User Defined Functions.
  */
-public abstract class UDFunction extends AbstractFunction implements ScalarFunction
+public abstract class UDFunction extends AbstractFunction implements ScalarFunction, SchemaElement
 {
     protected static final Logger logger = LoggerFactory.getLogger(UDFunction.class);
 
@@ -301,6 +300,48 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                                                                  reason.getMessage()));
             }
         };
+    }
+
+    @Override
+    public SchemaElementType elementType()
+    {
+        return SchemaElementType.FUNCTION;
+    }
+
+    @Override
+    public String toCqlString(boolean withInternals)
+    {
+        CqlBuilder builder = new CqlBuilder();
+        builder.append("CREATE FUNCTION ")
+               .append(name())
+               .append("(");
+
+        for (int i = 0, m = argNames().size(); i < m; i++)
+        {
+            if (i > 0)
+                builder.append(", ");
+            builder.append(argNames().get(i))
+                   .append(' ')
+                   .append(toCqlString(argTypes().get(i)));
+        }
+
+        builder.append(')')
+               .newLine()
+               .increaseIndent()
+               .append(isCalledOnNullInput() ? "CALLED" : "RETURNS NULL")
+               .append(" ON NULL INPUT")
+               .newLine()
+               .append("RETURNS ")
+               .append(toCqlString(returnType()))
+               .newLine()
+               .append("LANGUAGE ")
+               .append(language())
+               .newLine()
+               .append("AS $$")
+               .append(body())
+               .append("$$;");
+
+        return builder.toString();
     }
 
     public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)

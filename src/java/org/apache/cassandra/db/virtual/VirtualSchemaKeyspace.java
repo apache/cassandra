@@ -25,20 +25,18 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_SCHEMA;
 import static org.apache.cassandra.schema.TableMetadata.builder;
 
 public final class VirtualSchemaKeyspace extends VirtualKeyspace
 {
-    private static final String NAME = "system_virtual_schema";
-
     public static final VirtualSchemaKeyspace instance = new VirtualSchemaKeyspace();
 
     private VirtualSchemaKeyspace()
     {
-        super(NAME, ImmutableList.of(new VirtualKeyspaces(NAME), new VirtualTables(NAME), new VirtualColumns(NAME)));
+        super(VIRTUAL_SCHEMA, ImmutableList.of(new VirtualKeyspaces(VIRTUAL_SCHEMA), new VirtualTables(VIRTUAL_SCHEMA), new VirtualColumns(VIRTUAL_SCHEMA)));
     }
 
     private static final class VirtualKeyspaces extends AbstractVirtualTable

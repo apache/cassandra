@@ -113,6 +113,7 @@ New features
     - Added Python 3 support so cqlsh and cqlshlib is now compatible with Python 2.7 and Python 3.6.
       Added --python option to cqlsh so users can specify the path to their chosen Python interpreter.
       See CASSANDRA-10190 for details.
+    - Support for server side DESCRIBE statements has been added. See CASSANDRA-14825
 
 Upgrading
 ---------

@@ -23,6 +23,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nullable;
 
@@ -75,6 +77,11 @@ public final class Tables implements Iterable<TableMetadata>
     public Iterator<TableMetadata> iterator()
     {
         return tables.values().iterator();
+    }
+
+    public Stream<TableMetadata> stream()
+    {
+        return StreamSupport.stream(spliterator(), false);
     }
 
     public Iterable<TableMetadata> referencingUserType(ByteBuffer name)

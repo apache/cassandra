@@ -22,6 +22,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nullable;
 
@@ -81,6 +83,16 @@ public final class Views implements Iterable<ViewMetadata>
     public Iterable<ViewMetadata> forTable(TableId tableId)
     {
         return Iterables.filter(this, v -> v.baseTableId.equals(tableId));
+    }
+
+    public Stream<ViewMetadata> stream()
+    {
+        return StreamSupport.stream(spliterator(), false);
+    }
+
+    public Stream<ViewMetadata> stream(TableId tableId)
+    {
+        return stream().filter(v -> v.baseTableId.equals(tableId));
     }
 
     /**

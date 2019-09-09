@@ -20,6 +20,8 @@ package org.apache.cassandra.schema;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nullable;
 
@@ -84,6 +86,22 @@ public final class Types implements Iterable<UserType>
     public Iterator<UserType> iterator()
     {
         return types.values().iterator();
+    }
+
+    public Stream<UserType> stream()
+    {
+        return StreamSupport.stream(spliterator(), false);
+    }
+
+    /**
+     * Returns a stream of user types sorted by dependencies
+     * @return a stream of user types sorted by dependencies
+     */
+    public Stream<UserType> sortedStream()
+    {
+        Set<ByteBuffer> sorted = new LinkedHashSet<>();
+        types.values().forEach(t -> addUserTypes(t, sorted));
+        return sorted.stream().map(n -> types.get(n));
     }
 
     public Iterable<UserType> referencingUserType(ByteBuffer name)
@@ -199,6 +217,36 @@ public final class Types implements Iterable<UserType>
     public String toString()
     {
         return types.values().toString();
+    }
+
+    /**
+     * Sorts the types by dependencies.
+     *
+     * @param types the types to sort
+     * @return the types sorted by dependencies and names
+     */
+    private static Set<ByteBuffer> sortByDependencies(Collection<UserType> types)
+    {
+        Set<ByteBuffer> sorted = new LinkedHashSet<>();
+        types.stream().forEach(t -> addUserTypes(t, sorted));
+        return sorted;
+    }
+
+    /**
+     * Find all user types used by the specified type and add them to the set.
+     *
+     * @param type the type to check for user types.
+     * @param types the set of UDT names to which to add new user types found in {@code type}. Note that the
+     * insertion ordering is important and ensures that if a user type A uses another user type B, then B will appear
+     * before A in iteration order.
+     */
+    private static void addUserTypes(AbstractType<?> type, Set<ByteBuffer> types)
+    {
+        // Reach into subtypes first, so that if the type is a UDT, it's dependencies are recreated first.
+        type.subTypes().forEach(t -> addUserTypes(t, types));
+
+        if (type.isUDT())
+            types.add(((UserType) type).name);
     }
 
     public static final class Builder

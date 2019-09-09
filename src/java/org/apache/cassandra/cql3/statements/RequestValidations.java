@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
@@ -139,6 +140,23 @@ public final class RequestValidations
     {
         checkTrue(object != null, messageTemplate, messageArgs);
         return object;
+    }
+
+    /**
+     * Checks that the specified collections is NOT <code>empty</code>.
+     * If it is an <code>InvalidRequestException</code> will be throws.
+     *
+     * @param collection the collection to test
+     * @param messageTemplate the template used to build the error message
+     * @param messageArgs the message arguments
+     * @return the collection
+     * @throws InvalidRequestException if the specified collection is <code>empty</code>.
+     */
+    public static <T extends Collection<E>, E> T checkNotEmpty(T collection, String messageTemplate, Object... messageArgs)
+            throws InvalidRequestException
+    {
+        checkTrue(!collection.isEmpty(), messageTemplate, messageArgs);
+        return collection;
     }
 
     /**

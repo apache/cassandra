@@ -103,11 +103,11 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         UserType apply(KeyspaceMetadata keyspace, UserType userType)
         {
             if (userType.fieldPosition(fieldName) >= 0)
-                throw ire("Cannot add field %s to type %s: a field with name %s already exists", fieldName, userType.toCQLString(), fieldName);
+                throw ire("Cannot add field %s to type %s: a field with name %s already exists", fieldName, userType.getCqlTypeName(), fieldName);
 
             AbstractType<?> fieldType = type.prepare(keyspaceName, keyspace.types).getType();
             if (fieldType.referencesUserType(userType.name))
-                throw ire("Cannot add new field %s of type %s to user type %s as it would create a circular reference", fieldName, type, userType.toCQLString());
+                throw ire("Cannot add new field %s of type %s to user type %s as it would create a circular reference", fieldName, type, userType.getCqlTypeName());
 
             List<FieldIdentifier> fieldNames = new ArrayList<>(userType.fieldNames()); fieldNames.add(fieldName);
             List<AbstractType<?>> fieldTypes = new ArrayList<>(userType.fieldTypes()); fieldTypes.add(fieldType);
@@ -138,7 +138,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
             if (!dependentAggregates.isEmpty())
             {
                 throw ire("Cannot alter user type %s as it is still used in INITCOND by aggregates %s",
-                          userType.toCQLString(),
+                          userType.getCqlTypeName(),
                           join(", ", dependentAggregates));
             }
 
@@ -148,14 +148,14 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
             {
                 int idx = userType.fieldPosition(oldName);
                 if (idx < 0)
-                    throw ire("Unkown field %s in user type %s", oldName, keyspaceName, userType.toCQLString());
+                    throw ire("Unkown field %s in user type %s", oldName, keyspaceName, userType.getCqlTypeName());
                 fieldNames.set(idx, newName);
             });
 
             fieldNames.forEach(name ->
             {
                 if (fieldNames.stream().filter(isEqual(name)).count() > 1)
-                    throw ire("Duplicate field name %s in type %s", name, keyspaceName, userType.toCQLString());
+                    throw ire("Duplicate field name %s in type %s", name, keyspaceName, userType.getCqlTypeName());
             });
 
             return new UserType(keyspaceName, userType.name, fieldNames, userType.fieldTypes(), true);

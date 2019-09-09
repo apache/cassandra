@@ -86,11 +86,14 @@ K_TRUNCATE:    T R U N C A T E;
 K_DELETE:      D E L E T E;
 K_IN:          I N;
 K_CREATE:      C R E A T E;
+K_SCHEMA:      S C H E M A;
 K_KEYSPACE:    ( K E Y S P A C E
-                 | S C H E M A );
+                 | K_SCHEMA );
 K_KEYSPACES:   K E Y S P A C E S;
 K_COLUMNFAMILY:( C O L U M N F A M I L Y
                  | T A B L E );
+K_TABLES:      ( C O L U M N F A M I L I E S
+                 | T A B L E S );
 K_MATERIALIZED:M A T E R I A L I Z E D;
 K_VIEW:        V I E W;
 K_INDEX:       I N D E X;
@@ -108,6 +111,7 @@ K_ALTER:       A L T E R;
 K_RENAME:      R E N A M E;
 K_ADD:         A D D;
 K_TYPE:        T Y P E;
+K_TYPES:       T Y P E S;
 K_COMPACT:     C O M P A C T;
 K_STORAGE:     S T O R A G E;
 K_ORDER:       O R D E R;
@@ -120,6 +124,9 @@ K_IF:          I F;
 K_IS:          I S;
 K_CONTAINS:    C O N T A I N S;
 K_GROUP:       G R O U P;
+K_CLUSTER:     C L U S T E R;
+K_INTERNALS:   I N T E R N A L S;
+K_ONLY:        O N L Y;
 
 K_GRANT:       G R A N T;
 K_ALL:         A L L;
@@ -191,6 +198,7 @@ K_FROZEN:      F R O Z E N;
 K_FUNCTION:    F U N C T I O N;
 K_FUNCTIONS:   F U N C T I O N S;
 K_AGGREGATE:   A G G R E G A T E;
+K_AGGREGATES:  A G G R E G A T E S;
 K_SFUNC:       S F U N C;
 K_STYPE:       S T Y P E;
 K_FINALFUNC:   F I N A L F U N C;

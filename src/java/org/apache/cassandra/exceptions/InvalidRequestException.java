@@ -23,4 +23,9 @@ public class InvalidRequestException extends RequestValidationException
     {
         super(ExceptionCode.INVALID, msg);
     }
+
+    public InvalidRequestException(String msg, Throwable t)
+    {
+        super(ExceptionCode.INVALID, msg, t);
+    }
 }

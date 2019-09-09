@@ -19,7 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.Objects;
+import java.util.Map.Entry;
 
 import javax.annotation.Nullable;
 
@@ -32,6 +32,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.IPartitioner;
@@ -40,16 +42,15 @@ import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.github.jamm.Unmetered;
 
+import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Iterables.transform;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
-
-import static com.google.common.collect.Iterables.any;
-import static com.google.common.collect.Iterables.transform;
 import static org.apache.cassandra.schema.IndexMetadata.isNameValid;
 
 @Unmetered
-public final class TableMetadata
+public final class TableMetadata implements SchemaElement
 {
     private static final Logger logger = LoggerFactory.getLogger(TableMetadata.class);
     private static final ImmutableSet<Flag> DEFAULT_CQL_FLAGS = ImmutableSet.of(Flag.COMPOUND);
@@ -295,6 +296,11 @@ public final class TableMetadata
         return clusteringColumns;
     }
 
+    public ImmutableList<ColumnMetadata> createStatementClusteringColumns()
+    {
+        return isStaticCompactTable() ? ImmutableList.of() : clusteringColumns;
+    }
+
     public RegularAndStaticColumns regularAndStaticColumns()
     {
         return regularAndStaticColumns;
@@ -317,27 +323,53 @@ public final class TableMetadata
      */
     public Iterator<ColumnMetadata> allColumnsInSelectOrder()
     {
-        final boolean isStaticCompactTable = isStaticCompactTable();
-        final boolean noNonPkColumns = isCompactTable() && CompactTables.hasEmptyCompactValue(this);
+        boolean isStaticCompactTable = isStaticCompactTable();
+        boolean noNonPkColumns = isCompactTable() && CompactTables.hasEmptyCompactValue(this);
 
+        Iterator<ColumnMetadata> partitionKeyIter = partitionKeyColumns.iterator();
+        Iterator<ColumnMetadata> clusteringIter =
+                isStaticCompactTable ? Collections.emptyIterator() : clusteringColumns.iterator();
+        Iterator<ColumnMetadata> otherColumns =
+                noNonPkColumns
+                      ? Collections.emptyIterator()
+                      : (isStaticCompactTable ? staticColumns().selectOrderIterator()
+                                              : regularAndStaticColumns.selectOrderIterator());
+
+        return columnsIterator(partitionKeyIter, clusteringIter, otherColumns);
+    }
+
+    /**
+     * Returns an iterator over all column definitions that respect the order of the CREATE statement.
+     */
+    public Iterator<ColumnMetadata> allColumnsInCreateOrder()
+    {
+        boolean isStaticCompactTable = isStaticCompactTable();
+        boolean noNonPkColumns = isCompactTable() && CompactTables.hasEmptyCompactValue(this);
+
+        Iterator<ColumnMetadata> partitionKeyIter = partitionKeyColumns.iterator();
+        Iterator<ColumnMetadata> clusteringIter = createStatementClusteringColumns().iterator();
+        Iterator<ColumnMetadata> otherColumns =
+                noNonPkColumns
+                      ? Collections.emptyIterator()
+                      : (isStaticCompactTable ? staticColumns().iterator()
+                                              : regularAndStaticColumns.iterator());
+
+        return columnsIterator(partitionKeyIter, clusteringIter, otherColumns);
+    }
+
+    private static Iterator<ColumnMetadata> columnsIterator(Iterator<ColumnMetadata> partitionKeys,
+                                                            Iterator<ColumnMetadata> clusteringColumns,
+                                                            Iterator<ColumnMetadata> otherColumns)
+    {
         return new AbstractIterator<ColumnMetadata>()
         {
-            private final Iterator<ColumnMetadata> partitionKeyIter = partitionKeyColumns.iterator();
-            private final Iterator<ColumnMetadata> clusteringIter =
-                isStaticCompactTable ? Collections.emptyIterator() : clusteringColumns.iterator();
-            private final Iterator<ColumnMetadata> otherColumns =
-                noNonPkColumns
-              ? Collections.emptyIterator()
-              : (isStaticCompactTable ? staticColumns().selectOrderIterator()
-                                      : regularAndStaticColumns.selectOrderIterator());
-
             protected ColumnMetadata computeNext()
             {
-                if (partitionKeyIter.hasNext())
-                    return partitionKeyIter.next();
+                if (partitionKeys.hasNext())
+                    return partitionKeys.next();
 
-                if (clusteringIter.hasNext())
-                    return clusteringIter.next();
+                if (clusteringColumns.hasNext())
+                    return clusteringColumns.next();
 
                 return otherColumns.hasNext() ? otherColumns.next() : endOfData();
             }
@@ -1089,5 +1121,269 @@ public final class TableMetadata
     public boolean enforceStrictLiveness()
     {
         return isView() && Keyspace.open(keyspace).viewManager.getByName(name).enforceStrictLiveness();
+    }
+
+    /**
+     * Returns the names of all the user types referenced by this table.
+     *
+     * @return the names of all the user types referenced by this table.
+     */
+    public Set<ByteBuffer> getReferencedUserTypes()
+    {
+        Set<ByteBuffer> types = new LinkedHashSet<>();
+        columns().forEach(c -> addUserTypes(c.type, types));
+        return types;
+    }
+
+    /**
+     * Find all user types used by the specified type and add them to the set.
+     *
+     * @param type the type to check for user types.
+     * @param types the set of UDT names to which to add new user types found in {@code type}. Note that the
+     * insertion ordering is important and ensures that if a user type A uses another user type B, then B will appear
+     * before A in iteration order.
+     */
+    private static void addUserTypes(AbstractType<?> type, Set<ByteBuffer> types)
+    {
+        // Reach into subtypes first, so that if the type is a UDT, it's dependencies are recreated first.
+        type.subTypes().forEach(t -> addUserTypes(t, types));
+
+        if (type.isUDT())
+            types.add(((UserType)type).name);
+    }
+
+    @Override
+    public SchemaElementType elementType()
+    {
+        return SchemaElementType.TABLE;
+    }
+
+    @Override
+    public String elementKeyspace()
+    {
+        return keyspace;
+    }
+
+    @Override
+    public String elementName()
+    {
+        return name;
+    }
+
+    @Override
+    public String toCqlString(boolean withInternals)
+    {
+        CqlBuilder builder = new CqlBuilder(2048);
+        appendCqlTo(builder, withInternals, withInternals, false);
+        return builder.toString();
+    }
+
+    public String toCqlString(boolean includeDroppedColumns,
+                              boolean internals,
+                              boolean ifNotExists)
+    {
+        CqlBuilder builder = new CqlBuilder(2048);
+        appendCqlTo(builder, includeDroppedColumns, internals, ifNotExists);
+        return builder.toString();
+    }
+
+    public void appendCqlTo(CqlBuilder builder,
+                            boolean includeDroppedColumns,
+                            boolean internals,
+                            boolean ifNotExists)
+    {
+        assert !isView();
+
+        String createKeyword = "CREATE";
+        if (!isCQLTable())
+        {
+            builder.append("/*")
+                   .newLine()
+                   .append("Warning: Table ")
+                   .append(toString())
+                   .append(" omitted because it has constructs not compatible with CQL (was created via legacy API).")
+                   .newLine()
+                   .append("Approximate structure, for reference:")
+                   .newLine()
+                   .append("(this should not be used to reproduce this schema)")
+                   .newLine()
+                   .newLine();
+        }
+        else if (isVirtual())
+        {
+            builder.append(String.format("/*\n" +
+                    "Warning: Table %s is a virtual table and cannot be recreated with CQL.\n" +
+                    "Structure, for reference:\n",
+                                         toString()));
+            createKeyword = "VIRTUAL";
+        }
+
+        builder.append(createKeyword)
+               .append(" TABLE ");
+
+        if (ifNotExists)
+            builder.append("IF NOT EXISTS ");
+
+        builder.append(toString())
+               .append(" (")
+               .newLine()
+               .increaseIndent();
+
+        boolean hasSingleColumnPrimaryKey = partitionKeyColumns.size() == 1 && clusteringColumns.isEmpty();
+
+        appendColumnDefinitions(builder, includeDroppedColumns, hasSingleColumnPrimaryKey);
+
+        if (!hasSingleColumnPrimaryKey)
+            appendPrimaryKey(builder);
+
+        builder.decreaseIndent()
+               .append(')');
+
+        appendTableOptions(builder, internals);
+
+        builder.decreaseIndent();
+
+        if (!isCQLTable() || isVirtual())
+        {
+            builder.newLine()
+                   .append("*/");
+        }
+
+        if (includeDroppedColumns)
+            appendDropColumns(builder);
+    }
+
+    private void appendColumnDefinitions(CqlBuilder builder,
+                                         boolean includeDroppedColumns,
+                                         boolean hasSingleColumnPrimaryKey)
+    {
+        Iterator<ColumnMetadata> iter = allColumnsInCreateOrder();
+        while (iter.hasNext())
+        {
+            ColumnMetadata column = iter.next();
+
+            // If the column has been re-added after a drop, we don't include it right away. Instead, we'll add the
+            // dropped one first below, then we'll issue the DROP and then the actual ADD for this column, thus
+            // simulating the proper sequence of events.
+            if (includeDroppedColumns && droppedColumns.containsKey(column.name.bytes))
+                continue;
+
+            column.appendCqlTo(builder, isStaticCompactTable());
+
+            if (hasSingleColumnPrimaryKey && column.isPartitionKey())
+                builder.append(" PRIMARY KEY");
+
+            if (!hasSingleColumnPrimaryKey || (includeDroppedColumns && !droppedColumns.isEmpty()) || iter.hasNext())
+                builder.append(',');
+
+            builder.newLine();
+        }
+
+        if (includeDroppedColumns)
+        {
+            Iterator<DroppedColumn> iterDropped = droppedColumns.values().iterator();
+            while (iterDropped.hasNext())
+            {
+                DroppedColumn dropped = iterDropped.next();
+                dropped.column.appendCqlTo(builder, isStaticCompactTable());
+
+                if (!hasSingleColumnPrimaryKey || iter.hasNext())
+                    builder.append(',');
+
+                builder.newLine();
+            }
+        }
+    }
+
+    void appendPrimaryKey(CqlBuilder builder)
+    {
+        List<ColumnMetadata> partitionKeyColumns = partitionKeyColumns();
+        List<ColumnMetadata> clusteringColumns = createStatementClusteringColumns();
+
+        builder.append("PRIMARY KEY (");
+        if (partitionKeyColumns.size() > 1)
+        {
+            builder.append('(')
+                   .appendWithSeparators(partitionKeyColumns, (b, c) -> b.append(c.name), ", ")
+                   .append(')');
+        }
+        else
+        {
+            builder.append(partitionKeyColumns.get(0).name);
+        }
+
+        if (!clusteringColumns.isEmpty())
+            builder.append(", ")
+                   .appendWithSeparators(clusteringColumns, (b, c) -> b.append(c.name), ", ");
+
+        builder.append(')')
+               .newLine();
+    }
+
+    void appendTableOptions(CqlBuilder builder, boolean internals)
+    {
+        builder.append(" WITH ")
+               .increaseIndent();
+
+        if (internals)
+            builder.append("ID = ")
+                   .append(id.toString())
+                   .newLine()
+                   .append("AND ");
+
+        if (isCompactTable())
+            builder.append("COMPACT STORAGE")
+                   .newLine()
+                   .append("AND ");
+
+        List<ColumnMetadata> clusteringColumns = createStatementClusteringColumns();
+        if (!clusteringColumns.isEmpty())
+        {
+            builder.append("CLUSTERING ORDER BY (")
+                   .appendWithSeparators(clusteringColumns, (b, c) -> c.appendNameAndOrderTo(b), ", ")
+                   .append(')')
+                   .newLine()
+                   .append("AND ");
+        }
+
+        if (isVirtual())
+        {
+            builder.append("comment = ").appendWithSingleQuotes(params.comment);
+        }
+        else
+        {
+            params.appendCqlTo(builder);
+        }
+        builder.append(";");
+    }
+
+    private void appendDropColumns(CqlBuilder builder)
+    {
+        for (Entry<ByteBuffer, DroppedColumn> entry : droppedColumns.entrySet())
+        {
+            DroppedColumn dropped = entry.getValue();
+
+            builder.newLine()
+                   .append("ALTER TABLE ")
+                   .append(toString())
+                   .append(" DROP ")
+                   .append(dropped.column.name)
+                   .append(" USING TIMESTAMP ")
+                   .append(dropped.droppedTime)
+                   .append(';');
+
+            ColumnMetadata column = getColumn(entry.getKey());
+            if (column != null)
+            {
+                builder.newLine()
+                       .append("ALTER TABLE ")
+                       .append(toString())
+                       .append(" ADD ");
+
+                column.appendCqlTo(builder, false);
+
+                builder.append(';');
+            }
+        }
     }
 }

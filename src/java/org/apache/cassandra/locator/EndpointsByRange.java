@@ -25,8 +25,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class EndpointsByRange extends ReplicaMultimap<Range<Token>, EndpointsForRange>
