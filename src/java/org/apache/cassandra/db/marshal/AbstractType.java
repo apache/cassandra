@@ -348,6 +348,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return this;
     }
 
+    public List<AbstractType<?>> subTypes()
+    {
+        return Collections.emptyList();
+    }
+
     /**
      * Returns an AbstractType instance that is equivalent to this one, but with all nested UDTs and collections
      * explicitly frozen.

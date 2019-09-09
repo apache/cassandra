@@ -969,7 +969,9 @@ class Shell(cmd.Cmd):
         if custom_handler:
             parsed = cqlruleset.cql_whole_parse_tokens(tokens, srcstr=srcstr,
                                                        startsymbol='cqlshCommand')
-            if parsed and not parsed.remainder:
+            if cmdword.lower() in ('describe', 'desc'):
+                return self.serverside_describe(cqlruleset.cql_extract_orig(tokens, srcstr))
+            elif parsed and not parsed.remainder:
                 # successful complete parse
                 return custom_handler(parsed)
             else:
@@ -1244,210 +1246,9 @@ class Shell(cmd.Cmd):
         if valstr is not None:
             return cqlruleset.dequote_value(valstr)
 
-    def print_recreate_keyspace(self, ksdef, out):
-        out.write(ksdef.export_as_string())
-        out.write("\n")
-
-    def print_recreate_columnfamily(self, ksname, cfname, out):
-        """
-        Output CQL commands which should be pasteable back into a CQL session
-        to recreate the given table.
-
-        Writes output to the given out stream.
-        """
-        out.write(self.get_table_meta(ksname, cfname).export_as_string())
-        out.write("\n")
-
-    def print_recreate_index(self, ksname, idxname, out):
-        """
-        Output CQL commands which should be pasteable back into a CQL session
-        to recreate the given index.
-
-        Writes output to the given out stream.
-        """
-        out.write(self.get_index_meta(ksname, idxname).export_as_string())
-        out.write("\n")
-
-    def print_recreate_materialized_view(self, ksname, viewname, out):
-        """
-        Output CQL commands which should be pasteable back into a CQL session
-        to recreate the given materialized view.
-
-        Writes output to the given out stream.
-        """
-        out.write(self.get_view_meta(ksname, viewname).export_as_string())
-        out.write("\n")
-
-    def print_recreate_object(self, ks, name, out):
-        """
-        Output CQL commands which should be pasteable back into a CQL session
-        to recreate the given object (ks, table or index).
-
-        Writes output to the given out stream.
-        """
-        out.write(self.get_object_meta(ks, name).export_as_string())
-        out.write("\n")
-
-    def describe_keyspaces(self):
-        print('')
-        cmd.Cmd.columnize(self, protect_names(self.get_keyspace_names()))
-        print('')
-
-    def describe_keyspace(self, ksname):
-        print('')
-        self.print_recreate_keyspace(self.get_keyspace_meta(ksname), sys.stdout)
-        print('')
-
-    def describe_columnfamily(self, ksname, cfname):
-        if ksname is None:
-            ksname = self.current_keyspace
-        if ksname is None:
-            raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print('')
-        self.print_recreate_columnfamily(ksname, cfname, sys.stdout)
-        print('')
-
-    def describe_index(self, ksname, idxname):
-        print('')
-        self.print_recreate_index(ksname, idxname, sys.stdout)
-        print('')
-
-    def describe_materialized_view(self, ksname, viewname):
-        if ksname is None:
-            ksname = self.current_keyspace
-        if ksname is None:
-            raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print('')
-        self.print_recreate_materialized_view(ksname, viewname, sys.stdout)
-        print('')
-
-    def describe_object(self, ks, name):
-        print('')
-        self.print_recreate_object(ks, name, sys.stdout)
-        print('')
-
-    def describe_columnfamilies(self, ksname):
-        print('')
-        if ksname is None:
-            for k in self.get_keyspaces():
-                name = protect_name(k.name)
-                print('Keyspace %s' % (name,))
-                print('---------%s' % ('-' * len(name)))
-                cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(k.name)))
-                print('')
-        else:
-            cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(ksname)))
-            print('')
-
-    def describe_functions(self, ksname):
-        print('')
-        if ksname is None:
-            for ksmeta in self.get_keyspaces():
-                name = protect_name(ksmeta.name)
-                print('Keyspace %s' % (name,))
-                print('---------%s' % ('-' * len(name)))
-                self._columnize_unicode(list(ksmeta.functions.keys()))
-        else:
-            ksmeta = self.get_keyspace_meta(ksname)
-            self._columnize_unicode(list(ksmeta.functions.keys()))
-
-    def describe_function(self, ksname, functionname):
-        if ksname is None:
-            ksname = self.current_keyspace
-        if ksname is None:
-            raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print('')
-        ksmeta = self.get_keyspace_meta(ksname)
-        functions = [f for f in list(ksmeta.functions.values()) if f.name == functionname]
-        if len(functions) == 0:
-            raise FunctionNotFound("User defined function {} not found".format(functionname))
-        print("\n\n".join(func.export_as_string() for func in functions))
-        print('')
-
-    def describe_aggregates(self, ksname):
-        print('')
-        if ksname is None:
-            for ksmeta in self.get_keyspaces():
-                name = protect_name(ksmeta.name)
-                print('Keyspace %s' % (name,))
-                print('---------%s' % ('-' * len(name)))
-                self._columnize_unicode(list(ksmeta.aggregates.keys()))
-        else:
-            ksmeta = self.get_keyspace_meta(ksname)
-            self._columnize_unicode(list(ksmeta.aggregates.keys()))
-
-    def describe_aggregate(self, ksname, aggregatename):
-        if ksname is None:
-            ksname = self.current_keyspace
-        if ksname is None:
-            raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print('')
-        ksmeta = self.get_keyspace_meta(ksname)
-        aggregates = [f for f in list(ksmeta.aggregates.values()) if f.name == aggregatename]
-        if len(aggregates) == 0:
-            raise FunctionNotFound("User defined aggregate {} not found".format(aggregatename))
-        print("\n\n".join(aggr.export_as_string() for aggr in aggregates))
-        print('')
-
-    def describe_usertypes(self, ksname):
-        print('')
-        if ksname is None:
-            for ksmeta in self.get_keyspaces():
-                name = protect_name(ksmeta.name)
-                print('Keyspace %s' % (name,))
-                print('---------%s' % ('-' * len(name)))
-                self._columnize_unicode(list(ksmeta.user_types.keys()), quote=True)
-        else:
-            ksmeta = self.get_keyspace_meta(ksname)
-            self._columnize_unicode(list(ksmeta.user_types.keys()), quote=True)
-
-    def describe_usertype(self, ksname, typename):
-        if ksname is None:
-            ksname = self.current_keyspace
-        if ksname is None:
-            raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print('')
-        ksmeta = self.get_keyspace_meta(ksname)
-        try:
-            usertype = ksmeta.user_types[typename]
-        except KeyError:
-            raise UserTypeNotFound("User type {} not found".format(typename))
-        print(usertype.export_as_string())
-
-    def _columnize_unicode(self, name_list, quote=False):
-        """
-        Used when columnizing identifiers that may contain unicode
-        """
-        names = [n for n in name_list]
-        if quote:
-            names = protect_names(names)
-        cmd.Cmd.columnize(self, names)
-        print('')
-
-    def describe_cluster(self):
-        print('\nCluster: %s' % self.get_cluster_name())
-        p = trim_if_present(self.get_partitioner(), 'org.apache.cassandra.dht.')
-        print('Partitioner: %s\n' % p)
-        # TODO: snitch?
-        # snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
-        # print 'Snitch: %s\n' % snitch
-        if self.current_keyspace is not None and self.current_keyspace != 'system':
-            print("Range ownership:")
-            ring = self.get_ring(self.current_keyspace)
-            for entry in list(ring.items()):
-                print(' %39s  [%s]' % (str(entry[0].value), ', '.join([host.address for host in entry[1]])))
-            print('')
-
-    def describe_schema(self, include_system=False):
-        print('')
-        for k in self.get_keyspaces():
-            if include_system or k.name not in cql3handling.SYSTEM_KEYSPACES:
-                self.print_recreate_keyspace(k, sys.stdout)
-                print('')
-
     def do_describe(self, parsed):
         """
-        DESCRIBE [cqlsh only]
+        DESCRIBE
 
         (DESC may be used as a shorthand.)
 
@@ -1458,7 +1259,7 @@ class Shell(cmd.Cmd):
 
           Output the names of all keyspaces.
 
-        DESCRIBE KEYSPACE [<keyspacename>]
+        DESCRIBE [ONLY] KEYSPACE [<keyspacename>] [WITH INTERNALS]
 
           Output CQL commands that could be used to recreate the given keyspace,
           and the objects in it (such as tables, types, functions, etc.).
@@ -1468,16 +1269,25 @@ class Shell(cmd.Cmd):
           The '<keyspacename>' argument may be omitted, in which case the current
           keyspace will be described.
 
-        DESCRIBE TABLES
+          If WITH INTERNALS is specified, the output contains the table IDs and is
+          adopted to represent the DDL necessary to "re-create" dropped columns.
+
+          If ONLY is specified, only the DDL to recreate the keyspace will be created.
+          All keyspace elements, like tables, types, functions, etc will be omitted.
+
+        DESCRIBE TABLES [WITH INTERNALS]
 
           Output the names of all tables in the current keyspace, or in all
           keyspaces if there is no current keyspace.
 
-        DESCRIBE TABLE [<keyspace>.]<tablename>
+        DESCRIBE TABLE [<keyspace>.]<tablename> [WITH INTERNALS]
 
           Output CQL commands that could be used to recreate the given table.
           In some cases, as above, there may be table metadata which is not
           representable and which will not be shown.
+
+          If WITH INTERNALS is specified, the output contains the table ID and is
+          adopted to represent the DDL necessary to "re-create" dropped columns.
 
         DESCRIBE INDEX <indexname>
 
@@ -1485,11 +1295,14 @@ class Shell(cmd.Cmd):
           In some cases, there may be index metadata which is not representable
           and which will not be shown.
 
-        DESCRIBE MATERIALIZED VIEW <viewname>
+        DESCRIBE MATERIALIZED VIEW <viewname> [WITH INTERNALS]
 
           Output the CQL command that could be used to recreate the given materialized view.
           In some cases, there may be materialized view metadata which is not representable
           and which will not be shown.
+
+          If WITH INTERNALS is specified, the output contains the table ID and is
+          adopted to represent the DDL necessary to "re-create" dropped columns.
 
         DESCRIBE CLUSTER
 
@@ -1498,11 +1311,14 @@ class Shell(cmd.Cmd):
           connected to a non-system keyspace, also shows endpoint-range
           ownership information for the Cassandra ring.
 
-        DESCRIBE [FULL] SCHEMA
+        DESCRIBE [FULL] SCHEMA [WITH INTERNALS]
 
           Output CQL commands that could be used to recreate the entire (non-system) schema.
           Works as though "DESCRIBE KEYSPACE k" was invoked for each non-system keyspace
           k. Use DESCRIBE FULL SCHEMA to include the system keyspaces.
+
+          If WITH INTERNALS is specified, the output contains the table IDs and is
+          adopted to represent the DDL necessary to "re-create" dropped columns.
 
         DESCRIBE TYPES
 
@@ -1531,69 +1347,40 @@ class Shell(cmd.Cmd):
 
           Output the CQL command that could be used to recreate the given user-defined-aggregate.
 
-        DESCRIBE <objname>
+        DESCRIBE <objname> [WITH INTERNALS]
 
           Output CQL commands that could be used to recreate the entire object schema,
           where object can be either a keyspace or a table or an index or a materialized
           view (in this order).
+
+          If WITH INTERNALS is specified and &lt;objname&gt; represents a keyspace, table
+          materialized view, the output contains the table IDs and is
+          adopted to represent the DDL necessary to "re-create" dropped columns.
+
+          <objname> (obviously) cannot be any of the "describe what" qualifiers like
+          "cluster", "table", etc.
   """
-        what = parsed.matched[1][1].lower()
-        if what == 'functions':
-            self.describe_functions(self.current_keyspace)
-        elif what == 'function':
-            ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
-            functionname = self.cql_unprotect_name(parsed.get_binding('udfname'))
-            self.describe_function(ksname, functionname)
-        elif what == 'aggregates':
-            self.describe_aggregates(self.current_keyspace)
-        elif what == 'aggregate':
-            ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
-            aggregatename = self.cql_unprotect_name(parsed.get_binding('udaname'))
-            self.describe_aggregate(ksname, aggregatename)
-        elif what == 'keyspaces':
-            self.describe_keyspaces()
-        elif what == 'keyspace':
-            ksname = self.cql_unprotect_name(parsed.get_binding('ksname', ''))
-            if not ksname:
-                ksname = self.current_keyspace
-                if ksname is None:
-                    self.printerr('Not in any keyspace.')
-                    return
-            self.describe_keyspace(ksname)
-        elif what in ('columnfamily', 'table'):
-            ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
-            cf = self.cql_unprotect_name(parsed.get_binding('cfname'))
-            self.describe_columnfamily(ks, cf)
-        elif what == 'index':
-            ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
-            idx = self.cql_unprotect_name(parsed.get_binding('idxname', None))
-            self.describe_index(ks, idx)
-        elif what == 'materialized' and parsed.matched[2][1].lower() == 'view':
-            ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
-            mv = self.cql_unprotect_name(parsed.get_binding('mvname'))
-            self.describe_materialized_view(ks, mv)
-        elif what in ('columnfamilies', 'tables'):
-            self.describe_columnfamilies(self.current_keyspace)
-        elif what == 'types':
-            self.describe_usertypes(self.current_keyspace)
-        elif what == 'type':
-            ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
-            ut = self.cql_unprotect_name(parsed.get_binding('utname'))
-            self.describe_usertype(ks, ut)
-        elif what == 'cluster':
-            self.describe_cluster()
-        elif what == 'schema':
-            self.describe_schema(False)
-        elif what == 'full' and parsed.matched[2][1].lower() == 'schema':
-            self.describe_schema(True)
-        elif what:
-            ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
-            name = self.cql_unprotect_name(parsed.get_binding('cfname'))
-            if not name:
-                name = self.cql_unprotect_name(parsed.get_binding('idxname', None))
-            if not name:
-                name = self.cql_unprotect_name(parsed.get_binding('mvname', None))
-            self.describe_object(ks, name)
+        pass
+
+    def serverside_describe(self, cqlsrc):
+        stmt = SimpleStatement(cqlsrc, consistency_level=cassandra.ConsistencyLevel.LOCAL_ONE, fetch_size=self.page_size if self.use_paging else None)
+        future = self.session.execute_async(stmt)
+
+        try:
+            result = future.result()
+            # result has a single column
+            for row in result:
+                self.query_out.write(row['schema_part'])
+        except CQL_ERRORS, err:
+            self.printerr(unicode(err.__class__.__name__) + u": " + err.message.decode(encoding='utf-8'))
+        except Exception:
+            import traceback
+            self.printerr(traceback.format_exc())
+
+        if future:
+            if future.warnings:
+                self.print_warnings(future.warnings)
+
     do_desc = do_describe
 
     def do_copy(self, parsed):
