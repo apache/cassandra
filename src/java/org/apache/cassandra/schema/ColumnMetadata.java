@@ -426,6 +426,16 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             ((UserType)type).nameComparator().validate(path.get(0));
     }
 
+    public void appendCqlTo(CqlBuilder builder, boolean ignoreStatic)
+    {
+        builder.append(name)
+               .append(' ')
+               .append(type);
+
+        if (isStatic() && !ignoreStatic)
+            builder.append(" static");
+    }
+
     public static String toCQLString(Iterable<ColumnMetadata> defs)
     {
         return toCQLString(defs.iterator());
@@ -441,6 +451,14 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         while (defs.hasNext())
             sb.append(", ").append(defs.next().name);
         return sb.toString();
+    }
+
+
+    public void appendNameAndOrderTo(CqlBuilder builder)
+    {
+        builder.append(name.toCQLString())
+               .append(' ')
+               .append(clusteringOrder().toString());
     }
 
     /**
@@ -648,7 +666,4 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             }
         }
     }
-
-
-
 }

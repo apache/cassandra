@@ -239,6 +239,11 @@ public final class Schema
         return keyspaceInstances.remove(keyspaceName);
     }
 
+    public Keyspaces snapshot()
+    {
+        return keyspaces;
+    }
+
     /**
      * Remove keyspace definition from system
      *

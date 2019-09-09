@@ -139,6 +139,12 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
+    public List<AbstractType<?>> subTypes()
+    {
+        return Collections.singletonList(elements);
+    }
+
+    @Override
     public boolean isMultiCell()
     {
         return isMultiCell;

@@ -29,9 +29,9 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.schema.Difference;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.UserTypeSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -43,7 +43,7 @@ import static com.google.common.collect.Iterables.transform;
  *
  * A user type is really just a tuple type on steroids.
  */
-public class UserType extends TupleType
+public class UserType extends TupleType implements SchemaElement
 {
     public final String keyspace;
     public final ByteBuffer name;
@@ -432,7 +432,7 @@ public class UserType extends TupleType
         return sb.toString();
     }
 
-    public String toCQLString()
+    public String getCqlTypeName()
     {
         return String.format("%s.%s", ColumnIdentifier.maybeQuote(keyspace), ColumnIdentifier.maybeQuote(getNameAsString()));
     }
@@ -441,5 +441,53 @@ public class UserType extends TupleType
     public TypeSerializer<ByteBuffer> getSerializer()
     {
         return serializer;
+    }
+
+    @Override
+    public SchemaElementType elementType()
+    {
+        return SchemaElementType.TYPE;
+    }
+
+    @Override
+    public String elementKeyspace()
+    {
+        return keyspace;
+    }
+
+    @Override
+    public String elementName()
+    {
+        return getNameAsString();
+    }
+
+    @Override
+    public String toCqlString(boolean withInternals)
+    {
+        CqlBuilder builder = new CqlBuilder();
+        builder.append("CREATE TYPE ")
+               .appendQuotingIfNeeded(keyspace)
+               .append('.')
+               .appendQuotingIfNeeded(getNameAsString())
+               .append(" (")
+               .newLine()
+               .increaseIndent();
+
+        for (int i = 0; i < size(); i++)
+        {
+            if (i > 0)
+                builder.append(",")
+                       .newLine();
+
+            builder.append(fieldNameAsString(i))
+                   .append(' ')
+                   .append(fieldType(i));
+        }
+
+        builder.newLine()
+               .decreaseIndent()
+               .append(");");
+
+        return builder.toString();
     }
 }

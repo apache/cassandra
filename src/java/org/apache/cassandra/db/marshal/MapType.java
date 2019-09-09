@@ -129,6 +129,12 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     }
 
     @Override
+    public List<AbstractType<?>> subTypes()
+    {
+        return Arrays.asList(keys, values);
+    }
+
+    @Override
     public AbstractType<?> freeze()
     {
         if (isMultiCell)
