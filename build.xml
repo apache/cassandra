@@ -772,6 +772,7 @@
         <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" />
         <dependency groupId="org.jctools" artifactId="jctools-core"/>
         <dependency groupId="org.ow2.asm" artifactId="asm" />
+        <dependency groupId="com.carrotsearch" artifactId="hppc" version="0.5.4" />
       </artifact:pom>
       <artifact:pom id="dist-pom"
                     artifactId="apache-cassandra"
