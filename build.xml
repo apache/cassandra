@@ -118,7 +118,7 @@
 
     <!-- https://mvnrepository.com/artifact/net.openhft/chronicle-bom/1.16.23 -->
     <property name="chronicle-queue.version" value="4.16.3" />
-    <property name="chronicle-core.version" value="1.16.3-SNAPSHOT" />
+    <property name="chronicle-core.version" value="1.16.4" />
     <property name="chronicle-bytes.version" value="1.16.3" />
     <property name="chronicle-wire.version" value="1.16.1" />
     <property name="chronicle-threads.version" value="1.16.0" />
