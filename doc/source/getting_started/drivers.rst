@@ -41,7 +41,7 @@ Cassandra         Achilles            Astyanax Casser DataStax Java Driver Kunde
 2.1.5             3.2.3                                                    3.13 
 2.1.4                                          1.2.0                       3.13  
 2.1                                                                        3.13  
-2.0.15            3.0.22                                                   3.13                                                                             
+2.0.15            3.0.22                                                   3.13                              
 ================= =================== ======== ====== ==================== ======= =======
 
 Python
@@ -170,18 +170,22 @@ Go
 - `Gocassa <https://github.com/hailocab/gocassa>`__
 - `GoCQL <https://github.com/gocql/gocql>`__
 
-
+========= ===== ======= ==========
+Cassandra CQLc  Gocassa GoCQL
+========= ===== ======= ==========
+2.x, 3.x        1.3.0   1.11, 1.12
+========= ===== ======= ==========
 
 Haskell
 ^^^^^^^
 
 - `Cassy <https://github.com/ozataman/cassy>`__
 
-========= =====
+========= ======
 Cassandra Cassy
-========= =====
-          0.7.1
-========= =====
+========= ======
+x.x       0.7.1
+========= ======
 
 Rust
 ^^^^
@@ -202,7 +206,7 @@ Perl
 ========= ================ =============
 Cassandra Cassandra Client DBD-Cassandra
 ========= ================ =============
-          0.16             0.57
+x.x       0.16             0.57
 ========= ================ =============
 
 Elixir
@@ -211,19 +215,19 @@ Elixir
 - `Xandra <https://github.com/lexhide/xandra>`__
 - `CQEx <https://github.com/matehat/cqex>`__
 
-========= ====== =====
-Cassandra Xandra CQEx
-========= ====== =====
-          0.12.0 0.2.0
-========= ====== =====
+========= ======= ======
+Cassandra Xandra  CQEx
+========= ======= ======
+x.x       0.12.0  0.2.0
+========= ======= ======
 
 Dart
 ^^^^
 
 - `dart_cassandra_cql <https://github.com/achilleasa/dart_cassandra_cql>`__
 
-========= =====
+========= ======
 Cassandra Dart
-========= =====
-          0.1.5
-========= =====
+========= ======
+x.x       0.1.5
+========= ======
