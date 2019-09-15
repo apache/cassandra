@@ -36,11 +36,11 @@ import org.apache.cassandra.utils.MonotonicClock;
  *     cqlsh> select * from system_views.queries;
  *
  *  thread_id                    | duration_micros | task
- * ------------------------------+-----------------+---------------------------------------------------------------------------------
- *  Native-Transport-Requests-17 |            6325 |                      QUERY select * from system_views.queries; [pageSize = 100]
- *   Native-Transport-Requests-4 |           14681 | EXECUTE f4115f91190d4acf09e452637f1f2444 with 0 values at consistency LOCAL_ONE
- *   Native-Transport-Requests-6 |           14678 | EXECUTE f4115f91190d4acf09e452637f1f2444 with 0 values at consistency LOCAL_ONE
- *                  ReadStage-10 |           16535 |                                         SELECT * FROM keyspace.table LIMIT 5000
+ * ------------------------------+-----------------+--------------------------------------------------------------------
+ *  Native-Transport-Requests-17 |            6325 |         QUERY select * from system_views.queries; [pageSize = 100]
+ *   Native-Transport-Requests-4 |           14681 | EXECUTE f4...e452637f1f2444 with 0 values at consistency LOCAL_ONE
+ *   Native-Transport-Requests-6 |           14678 | EXECUTE f4...e452637f1f2444 with 0 values at consistency LOCAL_ONE
+ *                  ReadStage-10 |           16535 |                            SELECT * FROM keyspace.table LIMIT 5000
  * </pre>
  */
 public class QueriesTable extends AbstractVirtualTable
