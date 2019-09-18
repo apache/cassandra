@@ -78,7 +78,7 @@ public class QueriesTable extends AbstractVirtualTable
             long micros = TimeUnit.NANOSECONDS.toMicros(task.approxStartNanos());
             result.row(task.threadId())
                   // Since MonotonicClock is used for some but not all, we want to cap to make sure any drift between
-                  // different clocks dont cause this to go negative which would just look silly
+                  // different clocks doesn't cause it to go negative which would just look impossible
                   .column(DURATION, Math.max(1, now - micros))
                   .column(DESC, task.debug());
         }

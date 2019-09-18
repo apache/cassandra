@@ -26,12 +26,13 @@ public interface DebuggableTask
     public long approxStartNanos();
 
     /**
-     * String describing the task, this can be general thing or something very specific like the query string
+     * String describing the task, this can be general thing or something very specific like the query string depending
+     * on what is available
      */
     public String debug();
 
     /**
-     * ThreadedDebuggableTask is created by the SharedExecutorPool to include the thread name of any DebuggableTask
+     * RunningDebuggableTask is created by the SharedExecutorPool to include the thread name of any DebuggableTask
      * running on a SEPWorker
      */
     public static class RunningDebuggableTask implements DebuggableTask

@@ -115,7 +115,7 @@ public class SharedExecutorPool
 
     /**
      * Return all DebuggableTasks that have been submitted to the SharedExecutorPool, this will also attach the
-     * thread name of the SEPWorker that is running it as a ThreadedDebuggableTask
+     * thread name of the SEPWorker that is running it as a RunningDebuggableTask
      */
     public List<DebuggableTask.RunningDebuggableTask> runningTasks()
     {
