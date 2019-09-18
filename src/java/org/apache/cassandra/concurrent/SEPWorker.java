@@ -84,7 +84,6 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
          *      task will be processed immediately if work permits are available
          */
 
-        AbstractLocalAwareExecutorService.FutureTask task = null;
         SEPExecutor assigned = null;
         try
         {
@@ -114,7 +113,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                     continue;
                 if (SET_THREAD_NAME)
                     Thread.currentThread().setName(assigned.name + "-" + workerId);
-                task = assigned.tasks.poll();
+                currentTask = assigned.tasks.poll();
 
                 // if we do have tasks assigned, nobody will change our state so we can simply set it to WORKING
                 // (which is also a state that will never be interrupted externally)
@@ -129,16 +128,15 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                     assigned.maybeSchedule();
 
                     // we know there is work waiting, as we have a work permit, so poll() will always succeed
-                    task.run();
-                    task = null;
+                    currentTask.run();
+                    currentTask = null;
 
                     if (shutdown = assigned.shuttingDown)
                         break;
 
                     if (TOOK_PERMIT != (status = assigned.takeTaskPermit(true)))
                         break;
-
-                    task = assigned.tasks.poll();
+                    currentTask = assigned.tasks.poll();
                 }
 
                 // return our work permit, and maybe signal shutdown
@@ -174,7 +172,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
             }
             if (assigned != null)
                 assigned.returnWorkPermit();
-            if (task != null)
+            if (currentTask != null)
                 logger.error("Failed to execute task, unexpected exception killed worker", t);
             else
                 logger.error("Unexpected exception killed worker", t);
