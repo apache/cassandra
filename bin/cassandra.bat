@@ -16,16 +16,16 @@
 
 @echo off
 if "%OS%" == "Windows_NT" setlocal
-
+REM ---- Usage:  cassandra.bat [LEGACY|PS] [INSTALL|UNINSTALL]
 set ARG=%1
-set INSTALL="INSTALL"
-set UNINSTALL="UNINSTALL"
+set ARG2=%2
 
 pushd %~dp0..
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%
 popd
 
 if /i "%ARG%" == "LEGACY" goto runLegacy
+if /i "%ARG%" == "PS" goto runPowerShell
 REM -----------------------------------------------------------------------------
 REM See if we have access to run unsigned powershell scripts
 for /F "delims=" %%i in ('powershell Get-ExecutionPolicy') do set PERMISSION=%%i
@@ -117,8 +117,8 @@ set CASSANDRA_PARAMS=-Dcassandra -Dcassandra-foreground=yes
 set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% -Dcassandra.logdir="%CASSANDRA_HOME%\logs"
 set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% -Dcassandra.storagedir="%CASSANDRA_HOME%\data"
 
-if /i "%ARG%" == "INSTALL" goto doInstallOperation
-if /i "%ARG%" == "UNINSTALL" goto doInstallOperation
+if /i "%ARG2%" == "INSTALL" goto doInstallOperation
+if /i "%ARG2%" == "UNINSTALL" goto doInstallOperation
 
 echo Starting Cassandra Server
 "%JAVA_HOME%\bin\java" %JAVA_OPTS% %CASSANDRA_PARAMS% -cp %CASSANDRA_CLASSPATH% "%CASSANDRA_MAIN%"
