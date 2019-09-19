@@ -21,7 +21,7 @@ package org.apache.cassandra.distributed.impl;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLClassLoader;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -40,7 +40,30 @@ import org.apache.cassandra.utils.FBUtilities;
 public class Versions
 {
     private static final Logger logger = LoggerFactory.getLogger(Versions.class);
-    public static Version CURRENT = new Version(FBUtilities.getReleaseVersionString(), ((URLClassLoader)Versions.class.getClassLoader()).getURLs());
+    public static Version CURRENT = new Version(FBUtilities.getReleaseVersionString(), getClassPath());
+
+    private static URL[] getClassPath()
+    {
+        // In Java 9 the default system ClassLoader got changed from URLClassLoader to AppClassLoader which
+        // does not extend URLClassLoader nor does it give access to the class path array.
+        // Java requires the system property 'java.class.path' to be setup with the classpath seperated by :
+        // so this logic parses that string into the URL[] needed to build later
+        String cp = System.getProperty("java.class.path");
+        assert cp != null && !cp.isEmpty();
+        String[] split = cp.split(File.pathSeparator);
+        assert split.length > 0;
+        URL[] urls = new URL[split.length];
+        try
+        {
+            for (int i = 0; i < split.length; i++)
+                urls[i] = Paths.get(split[i]).toUri().toURL();
+        }
+        catch (MalformedURLException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return urls;
+    }
 
     public enum Major
     {
