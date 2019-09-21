@@ -108,6 +108,15 @@ The next step is to copy and commit these binaries to staging svnpubsub::
     svn add cassandra-dist-dev/<version>
     svn ci cassandra-dist-dev/<version>
 
+After committing the binaries to staging, increment the version number in Cassandra on the `cassandra-<version-branch>`
+
+    cd ~/git/cassandra/
+    git checkout cassandra-<version-branch>
+    edit build.xml          # update `<property name="base.version" value="…"/> `
+    edit debian/changelog   # add entry for new version
+    edit CHANGES.txt        # add entry for new version
+    git commit -m "Update version to <next-version>" build.xml debian/changelog CHANGES.txt
+    git push
 
 Call for a Vote
 ===============
