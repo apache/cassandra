@@ -220,7 +220,8 @@ public class ExecuteMessage extends Message.Request
         QueryHandler handler = ClientState.getCQLQueryHandler();
         QueryHandler.Prepared prepared = handler.getPrepared(statementId);
         if (prepared == null)
-            throw new PreparedQueryNotFoundException(statementId);
+            return String.format("EXECUTE %s WITH %d VALUES AT CONSISTENCY %s", statementId, options.getValues().size(),
+                                 options.getConsistency());
 
         return String.format("EXECUTE %s WITH %s AT CONSISTENCY %s", prepared.rawCQLStatement,
                              values(prepared).values(), options.getConsistency());

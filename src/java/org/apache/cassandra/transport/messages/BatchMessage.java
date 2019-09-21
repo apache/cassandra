@@ -261,17 +261,20 @@ public class BatchMessage extends Message.Request
             {
                 QueryHandler.Prepared prepared = handler.getPrepared((MD5Digest) query);
                 if (null == prepared)
-                    throw new PreparedQueryNotFoundException((MD5Digest) query);
-                List<ByteBuffer> queryValues = this.values.get(q);
-                List<String> values = new ArrayList<>(prepared.statement.getBindVariables().size());
-                for (int i = 0; i < prepared.statement.getBindVariables().size(); i++)
+                    sb.append(query);
+                else
                 {
-                    ColumnSpecification cs = prepared.statement.getBindVariables().get(i);
-                    String boundValue = cs.type.asCQL3Type().toCQLLiteral(queryValues.get(i), options.getProtocolVersion());
-                    boundValue = truncateCqlLiteral(boundValue);
-                    values.add(boundValue);
+                    List<ByteBuffer> queryValues = this.values.get(q);
+                    List<String> values = new ArrayList<>(prepared.statement.getBindVariables().size());
+                    for (int i = 0; i < prepared.statement.getBindVariables().size(); i++)
+                    {
+                        ColumnSpecification cs = prepared.statement.getBindVariables().get(i);
+                        String boundValue = cs.type.asCQL3Type().toCQLLiteral(queryValues.get(i), options.getProtocolVersion());
+                        boundValue = truncateCqlLiteral(boundValue);
+                        values.add(boundValue);
+                    }
+                    sb.append(prepared.rawCQLStatement).append(" WITH ").append(values);
                 }
-                sb.append(prepared.rawCQLStatement).append(" WITH ").append(values);
             }
         }
         sb.append("] AT CONSISTENCY ").append(options.getConsistency());

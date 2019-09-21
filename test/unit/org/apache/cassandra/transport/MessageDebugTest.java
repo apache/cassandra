@@ -179,6 +179,30 @@ public class MessageDebugTest extends CQLTester
         });
     }
 
+    @Test
+    public void testBatchOnPreparedEviction()
+    {
+        // prepared statement id that is missing from cache
+        MD5Digest missing = MD5Digest.compute(new byte[] {1});
+        BatchMessage message = new BatchMessage(BatchStatement.Type.UNLOGGED,
+                                                Lists.newArrayList(missing, "SELECT2"),
+                                                Lists.newArrayList(),
+                                                QueryOptions.DEFAULT);
+        Assert.assertEquals("UNLOGGED BATCH of [55a54008ad1ba589aa210d2629c1df41, SELECT2] AT CONSISTENCY ONE", message.toString());
+    }
+
+    @Test
+    public void testExecuteOnPreparedEviction()
+    {
+        // prepared statement id that is missing from cache
+        MD5Digest missing = MD5Digest.compute(new byte[] {1});
+        QueryOptions opts = QueryOptions.create(ConsistencyLevel.ONE, Lists.newArrayList(), true, 1,
+                                                null, ConsistencyLevel.SERIAL, ProtocolVersion.V4,
+                                                "system");
+        ExecuteMessage message = new ExecuteMessage(missing, null, opts);
+        Assert.assertEquals("EXECUTE 55a54008ad1ba589aa210d2629c1df41 WITH 0 VALUES AT CONSISTENCY ONE", message.toString());
+    }
+
     private String toInsertString(List<ByteBuffer> values)
     {
         String verString = Int32Type.instance.getSerializer().toCQLLiteral(values.get(2));
