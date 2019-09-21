@@ -28,6 +28,7 @@ import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.BatchQueryOptions;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryEvents;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -246,14 +247,34 @@ public class BatchMessage extends Message.Request
     @Override
     public String toString()
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append("BATCH of [");
-        for (int i = 0; i < queryOrIdList.size(); i++)
+        QueryHandler handler = ClientState.getCQLQueryHandler();
+        StringBuilder sb = new StringBuilder(batchType.toString());
+        sb.append(" BATCH of [");
+        for (int q = 0; q < queryOrIdList.size(); q++)
         {
-            if (i > 0) sb.append(", ");
-            sb.append(queryOrIdList.get(i)).append(" with ").append(values.get(i).size()).append(" values");
+            if (q > 0) sb.append(", ");
+
+            Object query = queryOrIdList.get(q);
+            if (query instanceof String)
+                sb.append(query);
+            else
+            {
+                QueryHandler.Prepared prepared = handler.getPrepared((MD5Digest) query);
+                if (null == prepared)
+                    throw new PreparedQueryNotFoundException((MD5Digest) query);
+                List<ByteBuffer> queryValues = this.values.get(q);
+                List<String> values = new ArrayList<>(prepared.statement.getBindVariables().size());
+                for (int i = 0; i < prepared.statement.getBindVariables().size(); i++)
+                {
+                    ColumnSpecification cs = prepared.statement.getBindVariables().get(i);
+                    String boundValue = cs.type.asCQL3Type().toCQLLiteral(queryValues.get(i), options.getProtocolVersion());
+                    boundValue = truncateCqlLiteral(boundValue);
+                    values.add(boundValue);
+                }
+                sb.append(prepared.rawCQLStatement).append(" WITH ").append(values);
+            }
         }
-        sb.append("] at consistency ").append(options.getConsistency());
+        sb.append("] AT CONSISTENCY ").append(options.getConsistency());
         return sb.toString();
     }
 }

@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.util.Map;
+
 import com.google.common.collect.ImmutableMap;
 
 import io.netty.buffer.ByteBuf;
@@ -191,25 +193,36 @@ public class ExecuteMessage extends Message.Request
 
         builder.put("query", prepared.rawCQLStatement);
 
+        builder.putAll(values(prepared));
+
+        Tracing.instance.begin("Execute CQL3 prepared query", state.getClientAddress(), builder.build());
+    }
+
+    private Map<String, String> values(QueryHandler.Prepared prepared)
+    {
+        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         for (int i = 0; i < prepared.statement.getBindVariables().size(); i++)
         {
             ColumnSpecification cs = prepared.statement.getBindVariables().get(i);
             String boundName = cs.name.toString();
             String boundValue = cs.type.asCQL3Type().toCQLLiteral(options.getValues().get(i), options.getProtocolVersion());
-            if (boundValue.length() > 1000)
-                boundValue = boundValue.substring(0, 1000) + "...'";
-
+            boundValue = truncateCqlLiteral(boundValue);
             //Here we prefix boundName with the index to avoid possible collission in builder keys due to
             //having multiple boundValues for the same variable
             builder.put("bound_var_" + i + '_' + boundName, boundValue);
         }
-
-        Tracing.instance.begin("Execute CQL3 prepared query", state.getClientAddress(), builder.build());
+        return builder.build();
     }
 
     @Override
     public String toString()
     {
-        return String.format("EXECUTE %s with %d values at consistency %s", statementId, options.getValues().size(), options.getConsistency());
+        QueryHandler handler = ClientState.getCQLQueryHandler();
+        QueryHandler.Prepared prepared = handler.getPrepared(statementId);
+        if (prepared == null)
+            throw new PreparedQueryNotFoundException(statementId);
+
+        return String.format("EXECUTE %s WITH %s AT CONSISTENCY %s", prepared.rawCQLStatement,
+                             values(prepared).values(), options.getConsistency());
     }
 }
