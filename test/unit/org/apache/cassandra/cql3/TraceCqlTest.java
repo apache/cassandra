@@ -31,6 +31,7 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.TupleType;
 import com.datastax.driver.core.TupleValue;
 import org.apache.cassandra.tracing.TraceStateImpl;
+import org.apache.cassandra.transport.Message;
 
 import static org.junit.Assert.assertEquals;
 
@@ -139,7 +140,7 @@ public class TraceCqlTest extends CQLTester
 
             //when tracing is done, this boundValue will be surrounded by single quote, and first 1000 characters
             //will be filtered. Here we take into account single quotes by adding them to the expected output
-            assertEquals("'" + boundValue.substring(0, 999) + "...'", trace.getParameters().get("bound_var_0_value(v3)"));
+            assertEquals("'" + boundValue.substring(0, Message.MAX_VALUE_LEN - 1) + "...'", trace.getParameters().get("bound_var_0_value(v3)"));
         }
     }
 }
