@@ -17,6 +17,8 @@
 @echo off
 if "%OS%" == "Windows_NT" setlocal
 REM ---- Usage:  cassandra.bat [LEGACY|PS] [INSTALL|UNINSTALL]
+REM - Note1:  Does not work if any argument contains the ! or & char
+REM - Note2:  Any extra spaces in between arguments will NOT be removed
 set ARG=%1
 set ARG2=%2
 
@@ -36,7 +38,11 @@ REM ----------------------------------------------------------------------------
 :runPowerShell
 echo Detected powershell execution permissions.  Running with enhanced startup scripts.
 set errorlevel=
-powershell /file "%CASSANDRA_HOME%\bin\cassandra.ps1" %*
+setlocal ENABLEDELAYEDEXPANSION
+  set "_args=%*"
+  set "_args=!_args:*%1 =!"
+endlocal
+powershell /file "%CASSANDRA_HOME%\bin\cassandra.ps1" %_args%
 exit /b %errorlevel%
 
 REM -----------------------------------------------------------------------------
