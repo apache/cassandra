@@ -137,7 +137,7 @@ if "%PRUNSRV%" == "" set PRUNSRV=%PATH_PRUNSRV%prunsrv
 echo trying to delete service if it has been created already
 "%PRUNSRV%" //DS//%SERVICE_JVM%
 rem quit if we're just going to uninstall
-if /i "%ARG%" == "UNINSTALL" goto finally
+if /i "%ARG2%" == "UNINSTALL" goto finally
 
 echo Installing %SERVICE_JVM%. If you get registry warnings, re-run as an Administrator
 "%PRUNSRV%" //IS//%SERVICE_JVM%
