@@ -40,7 +40,7 @@ import org.apache.cassandra.utils.UUIDGen;
 public class MessageForwardingTest extends DistributedTestBase
 {
     @Test
-    public void mutationsFordwardedToAllReplicasTest()
+    public void mutationsForwardedToAllReplicasTest()
     {
         String originalTraceTimeout = TracingUtil.setWaitForTracingEventTimeoutSecs("1");
         final int numInserts = 100;
