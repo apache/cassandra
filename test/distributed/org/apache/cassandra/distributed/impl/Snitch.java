@@ -49,8 +49,8 @@ public class Snitch extends AbstractNetworkTopologySnitch
         return mapping.getOrDefault(endpoint, DEFAULT).left;
     }
 
-    public static void assign(Map<InetAddressAndPort, Pair<String,String>> newMapping)
+    public static void assign(NetworkTopology newMapping)
     {
-        mapping = newMapping;
+        mapping.putAll(newMapping);
     }
 }

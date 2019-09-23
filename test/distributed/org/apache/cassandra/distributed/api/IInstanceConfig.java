@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.api;
 
+import org.apache.cassandra.distributed.impl.NetworkTopology;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.Pair;
 
@@ -29,7 +30,7 @@ public interface IInstanceConfig
     int num();
     UUID hostId();
     InetAddressAndPort broadcastAddressAndPort();
-    Map<InetAddressAndPort,Pair<String,String>> networkTopology();
+    NetworkTopology networkTopology();
     default public String localRack()
     {
         return networkTopology().get(broadcastAddressAndPort()).right;
