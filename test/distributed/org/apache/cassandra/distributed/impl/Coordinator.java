@@ -54,36 +54,7 @@ public class Coordinator implements ICoordinator
     @Override
     public Object[][] execute(String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
     {
-        return instance.sync(() -> {
-            ClientState clientState = makeFakeClientState();
-            CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
-            List<ByteBuffer> boundBBValues = new ArrayList<>();
-            ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
-            for (Object boundValue : boundValues)
-            {
-                boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
-            }
-
-            ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
-                                                 QueryOptions.create(consistencyLevel,
-                                                                     boundBBValues,
-                                                                     false,
-                                                                     Integer.MAX_VALUE,
-                                                                     null,
-                                                                     null,
-                                                                     ProtocolVersion.V4,
-                                                                     null),
-                                                 System.nanoTime());
-
-            if (res != null && res.kind == ResultMessage.Kind.ROWS)
-            {
-                return RowUtil.toObjects((ResultMessage.Rows) res);
-            }
-            else
-            {
-                return new Object[][]{};
-            }
-        }).call();
+        return instance.sync(() -> executeInternal(query, consistencyLevelOrigin, boundValues)).call();
     }
 
     @Override
@@ -93,34 +64,7 @@ public class Coordinator implements ICoordinator
             try
             {
                 Tracing.instance.newSession(sessionId, Collections.emptyMap());
-                ClientState clientState = makeFakeClientState();
-                ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
-                CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
-                List<ByteBuffer> boundBBValues = new ArrayList<>();
-                for (Object boundValue : boundValues)
-                {
-                    boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
-                }
-
-                prepared.validate(QueryState.forInternalCalls().getClientState());
-                ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
-                                                     QueryOptions.create(consistencyLevel,
-                                                                         boundBBValues,
-                                                                         false,
-                                                                         Integer.MAX_VALUE,
-                                                                         null,
-                                                                         null,
-                                                                         ProtocolVersion.V4,
-                                                                         null),
-                                                     System.nanoTime());
-                if (res != null && res.kind == ResultMessage.Kind.ROWS)
-                {
-                    return RowUtil.toObjects((ResultMessage.Rows) res);
-                }
-                else
-                {
-                    return new Object[][]{};
-                }
+                return executeInternal(query, consistencyLevelOrigin, boundValues);
             }
             finally
             {
@@ -128,7 +72,34 @@ public class Coordinator implements ICoordinator
             }
         }).call();
     }
-    
+
+    private Object[][] executeInternal(String query, Enum<?> consistencyLevelOrigin, Object[] boundValues)
+    {
+        ClientState clientState = makeFakeClientState();
+        CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
+        List<ByteBuffer> boundBBValues = new ArrayList<>();
+        ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
+        for (Object boundValue : boundValues)
+            boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
+
+        prepared.validate(QueryState.forInternalCalls().getClientState());
+        ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
+                                             QueryOptions.create(consistencyLevel,
+                                                                 boundBBValues,
+                                                                 false,
+                                                                 Integer.MAX_VALUE,
+                                                                 null,
+                                                                 null,
+                                                                 ProtocolVersion.V4,
+                                                                 null),
+                                             System.nanoTime());
+
+        if (res != null && res.kind == ResultMessage.Kind.ROWS)
+            return RowUtil.toObjects((ResultMessage.Rows) res);
+        else
+            return new Object[][]{};
+    }
+
     @Override
     public Object[][] traceExecute(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
     {

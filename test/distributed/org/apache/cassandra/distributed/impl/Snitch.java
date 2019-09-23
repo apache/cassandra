@@ -35,6 +35,7 @@ public class Snitch extends AbstractNetworkTopologySnitch
     {
         return mapping.getOrDefault(InetAddressAndPort.getByAddress(endpoint), DEFAULT).right;
     }
+
     public String getRack(InetAddressAndPort endpoint)
     {
         return mapping.getOrDefault(endpoint, DEFAULT).right;
@@ -44,6 +45,7 @@ public class Snitch extends AbstractNetworkTopologySnitch
     {
         return mapping.getOrDefault(InetAddressAndPort.getByAddress(endpoint), DEFAULT).left;
     }
+
     public String getDatacenter(InetAddressAndPort endpoint)
     {
         return mapping.getOrDefault(endpoint, DEFAULT).left;
@@ -51,6 +53,6 @@ public class Snitch extends AbstractNetworkTopologySnitch
 
     public static void assign(NetworkTopology newMapping)
     {
-        mapping.putAll(newMapping);
+        mapping = newMapping.topology();
     }
 }

@@ -235,6 +235,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
     {
         return instances.size();
     }
+
     public Stream<I> stream() { return instances.stream(); }
 
     public Stream<I> stream(String dcName)
@@ -401,9 +402,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         public Builder<I, C> withRacks(int dcCount, int racksPerDC)
         {
             if (nodeCount == 0)
-            {
                 throw new IllegalStateException("Node count will be calculated. Do not supply total node count in the builder");
-            }
+
             int totalRacks = dcCount * racksPerDC;
             int nodesPerRack = (nodeCount + totalRacks - 1) / totalRacks; // round up to next integer
             return withRacks(dcCount, racksPerDC, nodesPerRack);
@@ -412,9 +412,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         public Builder<I, C> withRacks(int dcCount, int racksPerDC, int nodesPerRack)
         {
             if (nodeIdTopology != null)
-            {
                 throw new IllegalStateException("Network topology already created. Call withDCs/withRacks once or before withDC/withRack calls");
-            }
+
             nodeIdTopology = new HashMap<>();
             int nodeId = 1;
             for (int dc = 1; dc <= dcCount; dc++)
@@ -422,9 +421,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                 for (int rack = 1; rack <= racksPerDC; rack++)
                 {
                     for (int rackNodeIdx = 0; rackNodeIdx < nodesPerRack; rackNodeIdx++)
-                    {
                         nodeIdTopology.put(nodeId++, Pair.create(dcName(dc), rackName(rack)));
-                    }
                 }
             }
             // adjust the node count to match the allocatation
@@ -449,15 +446,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             if (nodeIdTopology == null)
             {
                 if (nodeCount > 0)
-                {
                     throw new IllegalStateException("Node count must not be explicitly set, or allocated using withDCs/withRacks");
-                }
+
                 nodeIdTopology = new HashMap<>();
             }
             for (int nodeId = nodeCount + 1; nodeId <= nodeCount + nodesInRack; nodeId++)
-            {
                 nodeIdTopology.put(nodeId, Pair.create(dcName, rackName));
-            }
+
             nodeCount += nodesInRack;
             return this;
         }
@@ -466,20 +461,20 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         public Builder<I, C> withNodeIdTopology(Map<Integer,Pair<String,String>> nodeIdTopology)
         {
             if (nodeIdTopology.isEmpty())
-            {
                 throw new IllegalStateException("Topology is empty. It must have an entry for every nodeId.");
-            }
+
             IntStream.rangeClosed(1, nodeIdTopology.size()).forEach(nodeId -> {
-                if (nodeIdTopology.get(nodeId) == null) {
+                if (nodeIdTopology.get(nodeId) == null)
                     throw new IllegalStateException("Topology is missing entry for nodeId " + nodeId);
-                }
             });
+
             if (nodeCount != nodeIdTopology.size())
             {
                 nodeCount = nodeIdTopology.size();
                 logger.info("Adjusting node count to {} for supplied network topology", nodeCount);
 
             }
+
             this.nodeIdTopology = new HashMap<>(nodeIdTopology);
 
             return this;
@@ -510,10 +505,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
             if (root == null)
                 root = Files.createTempDirectory("dtests").toFile();
+
             if (version == null)
                 version = Versions.CURRENT;
+
             if (nodeCount <= 0)
                 throw new IllegalStateException("Cluster must have at least one node");
+
             if (nodeIdTopology == null)
                 nodeIdTopology = IntStream.rangeClosed(1, nodeCount).boxed()
                                           .collect(Collectors.toMap(nodeId -> nodeId,
@@ -569,11 +567,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         {
             String testConfPath = "test/conf/logback-dtest.xml";
             Path logConfPath = Paths.get(root.getPath(), "/logback-dtest.xml");
+
             if (!logConfPath.toFile().exists())
             {
                 Files.copy(new File(testConfPath).toPath(),
                            logConfPath);
             }
+
             System.setProperty("logback.configurationFile", "file://" + logConfPath);
         }
         catch (IOException e)
