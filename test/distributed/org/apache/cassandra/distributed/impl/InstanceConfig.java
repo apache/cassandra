@@ -24,7 +24,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
-import org.apache.cassandra.utils.Pair;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -44,7 +43,7 @@ public class InstanceConfig implements IInstanceConfig
     public int num() { return num; }
 
     private final NetworkTopology networkTopology;
-    public Map<InetAddressAndPort, Pair<String,String>> networkTopology() { return networkTopology; }
+    public NetworkTopology networkTopology() { return networkTopology; }
 
     public final UUID hostId;
     public UUID hostId() { return hostId; }
