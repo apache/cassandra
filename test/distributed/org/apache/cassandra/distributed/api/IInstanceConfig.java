@@ -31,13 +31,15 @@ public interface IInstanceConfig
     UUID hostId();
     InetAddressAndPort broadcastAddressAndPort();
     NetworkTopology networkTopology();
+
     default public String localRack()
     {
-        return networkTopology().get(broadcastAddressAndPort()).right;
+        return networkTopology().localRack(broadcastAddressAndPort());
     }
+
     default public String localDatacenter()
     {
-        return networkTopology().get(broadcastAddressAndPort()).left;
+        return networkTopology().localDC(broadcastAddressAndPort());
     }
 
     /**

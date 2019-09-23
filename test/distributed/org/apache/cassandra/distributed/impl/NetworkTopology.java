@@ -20,32 +20,27 @@ package org.apache.cassandra.distributed.impl;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.Pair;
 
-public class NetworkTopology implements Map<InetAddressAndPort, Pair<String,String>>
+public class NetworkTopology
 {
-    private final Map<InetAddressAndPort, Pair<String,String>> map = new HashMap<>();
+    private final Map<InetAddressAndPort, Pair<String, String>> map = new HashMap<>();
 
-    private NetworkTopology()
-    {
-        super();
-    }
+    private NetworkTopology() {}
 
     NetworkTopology(NetworkTopology networkTopology)
     {
-        map.putAll(networkTopology);
+        map.putAll(networkTopology.topology());
     }
 
-    public static NetworkTopology build(String ipPrefix, int broadcastPort, Map<Integer,Pair<String,String>> nodeIdTopology)
+    public static NetworkTopology build(String ipPrefix, int broadcastPort, Map<Integer, Pair<String, String>> nodeIdTopology)
     {
-        NetworkTopology networkTopology = new NetworkTopology();
+        final NetworkTopology topology = new NetworkTopology();
 
         for (int nodeId = 1; nodeId <= nodeIdTopology.size(); nodeId++)
         {
@@ -55,45 +50,18 @@ public class NetworkTopology implements Map<InetAddressAndPort, Pair<String,Stri
             {
                 Pair<String,String> dcAndRack = nodeIdTopology.get(nodeId);
                 if (dcAndRack == null)
-                {
                     throw new IllegalStateException("nodeId " + nodeId + "not found in instanceMap");
-                }
 
                 InetAddressAndPort broadcastAddressAndPort = InetAddressAndPort.getByAddressOverrideDefaults(
                     InetAddress.getByName(broadcastAddress), broadcastPort);
-                networkTopology.put(broadcastAddressAndPort, dcAndRack);
+                topology.put(broadcastAddressAndPort, dcAndRack);
             }
             catch (UnknownHostException e)
             {
-                throw new ConfigurationException("Unknown broadcast_address '" + broadcastAddress + "'", false);
+                throw new ConfigurationException("Unknown broadcast_address '" + broadcastAddress + '\'', false);
             }
         }
-        return networkTopology;
-    }
-
-    public int size()
-    {
-        return map.size();
-    }
-
-    public boolean isEmpty()
-    {
-        return map.isEmpty();
-    }
-
-    public boolean containsKey(Object key)
-    {
-        return map.containsKey(key);
-    }
-
-    public boolean containsValue(Object value)
-    {
-        return map.containsValue(value);
-    }
-
-    public Pair<String, String> get(Object key)
-    {
-        return map.get(key);
+        return topology;
     }
 
     public Pair<String, String> put(InetAddressAndPort key, Pair<String, String> value)
@@ -101,33 +69,23 @@ public class NetworkTopology implements Map<InetAddressAndPort, Pair<String,Stri
         return map.put(key, value);
     }
 
-    public Pair<String, String> remove(Object key)
+    public String localRack(InetAddressAndPort key)
     {
-        return map.remove(key);
+        return map.get(key).left;
     }
 
-    public void putAll(Map<? extends InetAddressAndPort, ? extends Pair<String, String>> m)
+    public String localDC(InetAddressAndPort key)
     {
-        map.putAll(m);
+        return map.get(key).right;
     }
 
-    public void clear()
+    Map<InetAddressAndPort, Pair<String, String>> topology()
     {
-        map.clear();
+        return new HashMap<>(map);
     }
 
-    public Set<InetAddressAndPort> keySet()
+    public boolean contains(InetAddressAndPort key)
     {
-        return map.keySet();
-    }
-
-    public Collection<Pair<String, String>> values()
-    {
-        return map.values();
-    }
-
-    public Set<Entry<InetAddressAndPort, Pair<String, String>>> entrySet()
-    {
-        return map.entrySet();
+        return map.containsKey(key);
     }
 }
