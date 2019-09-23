@@ -20,15 +20,19 @@ package org.apache.cassandra.distributed.impl;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.Pair;
 
-public class NetworkTopology extends HashMap<InetAddressAndPort, Pair<String,String>>
+public class NetworkTopology implements Map<InetAddressAndPort, Pair<String,String>>
 {
+    private final Map<InetAddressAndPort, Pair<String,String>> map = new HashMap<>();
+
     private NetworkTopology()
     {
         super();
@@ -36,7 +40,7 @@ public class NetworkTopology extends HashMap<InetAddressAndPort, Pair<String,Str
 
     NetworkTopology(NetworkTopology networkTopology)
     {
-        super(networkTopology);
+        map.putAll(networkTopology);
     }
 
     public static NetworkTopology build(String ipPrefix, int broadcastPort, Map<Integer,Pair<String,String>> nodeIdTopology)
@@ -65,5 +69,65 @@ public class NetworkTopology extends HashMap<InetAddressAndPort, Pair<String,Str
             }
         }
         return networkTopology;
+    }
+
+    public int size()
+    {
+        return map.size();
+    }
+
+    public boolean isEmpty()
+    {
+        return map.isEmpty();
+    }
+
+    public boolean containsKey(Object key)
+    {
+        return map.containsKey(key);
+    }
+
+    public boolean containsValue(Object value)
+    {
+        return map.containsValue(value);
+    }
+
+    public Pair<String, String> get(Object key)
+    {
+        return map.get(key);
+    }
+
+    public Pair<String, String> put(InetAddressAndPort key, Pair<String, String> value)
+    {
+        return map.put(key, value);
+    }
+
+    public Pair<String, String> remove(Object key)
+    {
+        return map.remove(key);
+    }
+
+    public void putAll(Map<? extends InetAddressAndPort, ? extends Pair<String, String>> m)
+    {
+        map.putAll(m);
+    }
+
+    public void clear()
+    {
+        map.clear();
+    }
+
+    public Set<InetAddressAndPort> keySet()
+    {
+        return map.keySet();
+    }
+
+    public Collection<Pair<String, String>> values()
+    {
+        return map.values();
+    }
+
+    public Set<Entry<InetAddressAndPort, Pair<String, String>>> entrySet()
+    {
+        return map.entrySet();
     }
 }
