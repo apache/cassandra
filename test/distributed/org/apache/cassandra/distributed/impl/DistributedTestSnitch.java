@@ -26,7 +26,7 @@ import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.Pair;
 
-public class Snitch extends AbstractNetworkTopologySnitch
+public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
 {
     private static NetworkTopology mapping = null;
 
