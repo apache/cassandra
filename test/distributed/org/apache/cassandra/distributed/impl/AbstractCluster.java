@@ -326,7 +326,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
         private void signal()
         {
-            if (schemaHasChanged && 1 == instances.stream().map(IInstance::schemaVersion).distinct().count())
+            if (schemaHasChanged && 1 == instances.stream().filter(i -> !i.isShutdown()).map(IInstance::schemaVersion).distinct().count())
                 agreement.signalAll();
         }
 
