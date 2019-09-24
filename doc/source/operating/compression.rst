@@ -38,7 +38,9 @@ default, three options are relevant:
 - ``chunk_length_in_kb`` specifies the number of kilobytes of data per compression chunk. The default is 64KB.
 - ``crc_check_chance`` determines how likely Cassandra is to verify the checksum on each compression chunk during
   reads. The default is 1.0.
-- ``compression_level`` is only applicable for ``ZstdCompressor`` and accepts values between ``-131072`` and ``2``.
+- ``compression_level`` is only applicable for ``ZstdCompressor`` and accepts values between ``-131072`` and ``22``.
+    The lower the level, the faster the speed (at the cost of compression). Values from 20 to 22 are called
+    "ultra levels" and should be used with caution, as they require more memory. The default is 3.
 
 Users can set compression using the following syntax:
 
