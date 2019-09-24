@@ -79,7 +79,8 @@ public class NetworkTopology
         return map.get(key).right;
     }
 
-    Map<InetAddressAndPort, Pair<String, String>> topology()
+    @SuppressWarnings("WeakerAccess")
+    public Map<InetAddressAndPort, Pair<String, String>> topology()
     {
         return new HashMap<>(map);
     }
