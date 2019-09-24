@@ -56,8 +56,7 @@ public class Coordinator implements ICoordinator
         return instance.sync(() -> executeInternal(query, consistencyLevelOrigin, boundValues)).call();
     }
 
-    @Override
-    public Future<Object[][]> asyncTraceExecute(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    public Future<Object[][]> asyncExecuteWithTracing(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
     {
         return instance.async(() -> {
             try
@@ -98,10 +97,9 @@ public class Coordinator implements ICoordinator
             return new Object[][]{};
     }
 
-    @Override
-    public Object[][] traceExecute(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    public Object[][] executeWithTracing(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
     {
-        return IsolatedExecutor.waitOn(asyncTraceExecute(sessionId, query, consistencyLevelOrigin, boundValues));
+        return IsolatedExecutor.waitOn(asyncExecuteWithTracing(sessionId, query, consistencyLevelOrigin, boundValues));
     }
 
     @Override
