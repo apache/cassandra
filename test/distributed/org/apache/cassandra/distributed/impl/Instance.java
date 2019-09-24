@@ -473,9 +473,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                         ApplicationState.STATUS,
                         new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(tokens.get(i))));
                 Gossiper.instance.realMarkAlive(ep.address, Gossiper.instance.getEndpointStateForEndpoint(ep.address));
-
-                int version = Math.min(MessagingService.current_version, cluster.get(ep).getMessagingVersion());
-                MessagingService.instance().setVersion(ep.address, version);
+                MessagingService.instance().setVersion(ep.address, MessagingService.current_version);
             }
 
             // check that all nodes are in token metadata
