@@ -31,6 +31,6 @@ public interface ICoordinator
 
     Iterator<Object[]> executeWithPaging(String query, Enum<?> consistencyLevel, int pageSize, Object... boundValues);
 
-    Future<Object[][]> asyncTraceExecute(UUID sessionId, String query, Enum<?> consistencyLevel, Object... boundValues);
-    Object[][] traceExecute(UUID sessionId, String query, Enum<?> consistencyLevel, Object... boundValues);
+    Future<Object[][]> asyncExecuteWithTracing(UUID sessionId, String query, Enum<?> consistencyLevel, Object... boundValues);
+    Object[][] executeWithTracing(UUID sessionId, String query, Enum<?> consistencyLevel, Object... boundValues);
 }
