@@ -56,7 +56,7 @@ public class MessageForwardingTest extends DistributedTestBase
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddressAndPort().address, 0));
             final UUID sessionId = UUIDGen.getTimeUUID();
             Stream<Future<Object[][]>> inserts = IntStream.range(0, numInserts).mapToObj((idx) ->
-                cluster.coordinator(1).asyncTraceExecute(sessionId,
+                cluster.coordinator(1).asyncExecuteWithTracing(sessionId,
                                                          "INSERT INTO " + KEYSPACE + ".tbl(pk,ck,v) VALUES (1, 1, 'x')",
                                                          ConsistencyLevel.ALL)
             );
