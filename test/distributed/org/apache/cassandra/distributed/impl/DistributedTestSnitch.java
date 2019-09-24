@@ -19,12 +19,10 @@
 package org.apache.cassandra.distributed.impl;
 
 import java.net.InetAddress;
-import java.util.HashMap;
-import java.util.Map;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.utils.Pair;
 
 public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
 {
@@ -33,7 +31,8 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
     public String getRack(InetAddress endpoint)
     {
         assert mapping != null : "network topology must be assigned before using snitch";
-        return mapping.localRack(InetAddressAndPort.getByAddress(endpoint));
+        int storage_port = Config.getOverrideLoadConfig().get().storage_port;
+        return mapping.localRack(InetAddressAndPort.getByAddressOverrideDefaults(endpoint, storage_port));
     }
 
     public String getRack(InetAddressAndPort endpoint)
@@ -45,7 +44,8 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
     public String getDatacenter(InetAddress endpoint)
     {
         assert mapping != null : "network topology must be assigned before using snitch";
-        return mapping.localDC(InetAddressAndPort.getByAddress(endpoint));
+        int storage_port = Config.getOverrideLoadConfig().get().storage_port;
+        return mapping.localDC(InetAddressAndPort.getByAddressOverrideDefaults(endpoint, storage_port));
     }
 
     public String getDatacenter(InetAddressAndPort endpoint)
