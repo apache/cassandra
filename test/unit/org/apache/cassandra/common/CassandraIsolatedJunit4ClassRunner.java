@@ -48,22 +48,21 @@ public class CassandraIsolatedJunit4ClassRunner extends BlockJUnit4ClassRunner
      */
     public CassandraIsolatedJunit4ClassRunner(Class<?> clazz) throws InitializationError
     {
-        super(getFromCassandraClassLoader(clazz));
+        super(createClassLoader(clazz));
     }
 
-    private static Class<?> getFromCassandraClassLoader(Class<?> clazz) throws InitializationError {
+    private static Class<?> createClassLoader(Class<?> clazz) throws InitializationError {
         try {
-
-            ClassLoader testClassLoader = new CassandraClassLoader();
+            ClassLoader testClassLoader = new CassandraIsolatedClassLoader();
             return Class.forName(clazz.getName(), true, testClassLoader);
         } catch (ClassNotFoundException e) {
             throw new InitializationError(e);
         }
     }
 
-    public static class CassandraClassLoader extends URLClassLoader
+    public static class CassandraIsolatedClassLoader extends URLClassLoader
     {
-        public CassandraClassLoader()
+        public CassandraIsolatedClassLoader()
         {
             super(((URLClassLoader)getSystemClassLoader()).getURLs());
         }

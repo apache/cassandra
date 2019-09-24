@@ -46,7 +46,7 @@ public final class JVMStabilityInspector
     private static boolean printingHeapHistogram;
 
     // It is used for unit test
-    public static KillerHook killerHook;
+    public static OnKillHook killerHook;
 
 
     private JVMStabilityInspector() {}
@@ -174,7 +174,7 @@ public final class JVMStabilityInspector
                 logger.error("JVM state determined to be unstable.  Exiting forcefully due to:", t);
             }
 
-            boolean doExit = killerHook != null ? killerHook.onKill(t) : true;
+            boolean doExit = killerHook != null ? killerHook.execute(t) : true;
 
             if (doExit && killing.compareAndSet(false, true))
             {
@@ -188,12 +188,12 @@ public final class JVMStabilityInspector
     /**
      * This class is usually used to avoid JVM exit when running junit tests.
      */
-    public interface KillerHook
+    public interface OnKillHook
     {
         /**
          *
          * @return False will skip exit
          */
-        boolean onKill(Throwable t);
+        boolean execute(Throwable t);
     }
 }

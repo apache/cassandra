@@ -20,7 +20,7 @@ package org.apache.cassandra.db.commitlog;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-public class DefaultCommitLogSegmentMgrFactory implements ICommitLogSegmentMgrFactory
+public class DefaultCommitLogSegmentMgrFactory implements CommitLogSegmentManagerFactory
 {
 
     @Override

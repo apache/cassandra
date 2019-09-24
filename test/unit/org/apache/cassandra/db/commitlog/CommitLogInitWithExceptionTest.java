@@ -19,8 +19,6 @@
 package org.apache.cassandra.db.commitlog;
 
 
-import java.util.Arrays;
-
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -59,6 +57,7 @@ public class CommitLogInitWithExceptionTest
             }
             finally
             {
+                Assert.assertNotNull(initThread);
                 // We have to manually stop init thread because the JVM does not exit actually.
                 initThread.stop();
             }
@@ -68,7 +67,8 @@ public class CommitLogInitWithExceptionTest
     @Test(timeout = 30000)
     public void testCommitLogInitWithException() {
         initThread = new Thread(() -> {
-            CommitLog log = CommitLog.instance; // trigger initialization process
+            // This line will trigger initialization process because it's the first time to access CommitLog class.
+            CommitLog log = CommitLog.instance;
         });
 
         initThread.setName("initThread");
@@ -96,7 +96,8 @@ public class CommitLogInitWithExceptionTest
         Assert.assertEquals(Thread.State.TERMINATED, commitLogSegmentMgr.managerThread.getState()); // exit successfully
     }
 
-    private static class TestCommitLogSegmentMgrFactory implements ICommitLogSegmentMgrFactory {
+    private static class TestCommitLogSegmentMgrFactory implements CommitLogSegmentManagerFactory
+    {
 
         @Override
         public AbstractCommitLogSegmentManager create(CommitLog log)

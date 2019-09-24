@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.db.commitlog;
 
-public interface ICommitLogSegmentMgrFactory
+public interface CommitLogSegmentManagerFactory
 {
     AbstractCommitLogSegmentManager create(CommitLog log);
 }
