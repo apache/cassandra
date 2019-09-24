@@ -29,13 +29,16 @@ import org.apache.cassandra.utils.Pair;
 
 public class NetworkTopology
 {
-    private final Map<InetAddressAndPort, Pair<String, String>> map = new HashMap<>();
+    private final Map<InetAddressAndPort, Pair<String, String>> map;
 
-    private NetworkTopology() {}
+    private NetworkTopology() {
+        map = new HashMap<>();
+    }
 
-    NetworkTopology(NetworkTopology networkTopology)
+    @SuppressWarnings("WeakerAccess")
+    public NetworkTopology(NetworkTopology networkTopology)
     {
-        map.putAll(networkTopology.topology());
+        map = new HashMap<>(networkTopology.map);
     }
 
     public static NetworkTopology build(String ipPrefix, int broadcastPort, Map<Integer, Pair<String, String>> nodeIdTopology)
@@ -71,18 +74,12 @@ public class NetworkTopology
 
     public String localRack(InetAddressAndPort key)
     {
-        return map.get(key).left;
+        return map.get(key).right;
     }
 
     public String localDC(InetAddressAndPort key)
     {
-        return map.get(key).right;
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public Map<InetAddressAndPort, Pair<String, String>> topology()
-    {
-        return new HashMap<>(map);
+        return map.get(key).left;
     }
 
     public boolean contains(InetAddressAndPort key)
