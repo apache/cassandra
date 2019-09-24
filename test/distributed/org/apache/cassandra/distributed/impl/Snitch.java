@@ -28,31 +28,34 @@ import org.apache.cassandra.utils.Pair;
 
 public class Snitch extends AbstractNetworkTopologySnitch
 {
-    private final Pair<String,String> DEFAULT = Pair.create(AbstractCluster.dcName(1), AbstractCluster.rackName(1));
-    private static Map<InetAddressAndPort, Pair<String,String>> mapping = new HashMap<>();
+    private static NetworkTopology mapping = null;
 
     public String getRack(InetAddress endpoint)
     {
-        return mapping.getOrDefault(InetAddressAndPort.getByAddress(endpoint), DEFAULT).right;
+        assert mapping != null : "network topology must be assigned before using snitch";
+        return mapping.localRack(InetAddressAndPort.getByAddress(endpoint));
     }
 
     public String getRack(InetAddressAndPort endpoint)
     {
-        return mapping.getOrDefault(endpoint, DEFAULT).right;
+        assert mapping != null : "network topology must be assigned before using snitch";
+        return mapping.localRack(endpoint);
     }
 
     public String getDatacenter(InetAddress endpoint)
     {
-        return mapping.getOrDefault(InetAddressAndPort.getByAddress(endpoint), DEFAULT).left;
+        assert mapping != null : "network topology must be assigned before using snitch";
+        return mapping.localDC(InetAddressAndPort.getByAddress(endpoint));
     }
 
     public String getDatacenter(InetAddressAndPort endpoint)
     {
-        return mapping.getOrDefault(endpoint, DEFAULT).left;
+        assert mapping != null : "network topology must be assigned before using snitch";
+        return mapping.localDC(endpoint);
     }
 
-    public static void assign(NetworkTopology newMapping)
+    static void assign(NetworkTopology newMapping)
     {
-        mapping = newMapping.topology();
+        mapping = new NetworkTopology(newMapping);
     }
 }
