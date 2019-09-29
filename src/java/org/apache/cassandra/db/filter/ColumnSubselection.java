@@ -26,6 +26,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -196,7 +197,7 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
                 // deserialization. The column will be ignore later on anyway.
                 column = metadata.getDroppedColumn(name);
                 if (column == null)
-                    throw new RuntimeException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                    throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
             }
 
             Kind kind = Kind.values()[in.readUnsignedByte()];

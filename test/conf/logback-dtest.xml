@@ -23,7 +23,7 @@
   <!-- Shutdown hook ensures that async appender flushes -->
   <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
 
-  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+  <appender name="INSTANCEFILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
 
     <file>./build/test/logs/${cassandra.testtag}/TEST-${suitename}.log</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
@@ -42,14 +42,14 @@
     <immediateFlush>false</immediateFlush>
   </appender>
 
-  <appender name="ASYNCFILE" class="ch.qos.logback.classic.AsyncAppender">
+  <appender name="INSTANCEASYNCFILE" class="ch.qos.logback.classic.AsyncAppender">
     <discardingThreshold>0</discardingThreshold>
     <maxFlushTime>0</maxFlushTime>
     <queueSize>1024</queueSize>
-    <appender-ref ref="FILE"/>
+    <appender-ref ref="INSTANCEFILE"/>
   </appender>
 
-  <appender name="STDERR" target="System.err" class="ch.qos.logback.core.ConsoleAppender">
+  <appender name="INSTANCESTDERR" target="System.err" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
       <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
     </encoder>
@@ -58,16 +58,7 @@
     </filter>
   </appender>
 
-  <appender name="STDOUT" target="System.out" class="ch.qos.logback.core.ConsoleAppender">
-    <encoder>
-      <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
-    </encoder>
-    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-      <level>WARN</level>
-    </filter>
-  </appender>
-
-  <appender name="STDOUT" target="System.out" class="ch.qos.logback.core.ConsoleAppender">
+  <appender name="INSTANCESTDOUT" target="System.out" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
       <pattern>%-5level [%thread] ${instance_id} %date{ISO8601} %F:%L - %msg%n</pattern>
     </encoder>
@@ -79,8 +70,8 @@
   <logger name="org.apache.hadoop" level="WARN"/>
 
   <root level="DEBUG">
-    <appender-ref ref="ASYNCFILE" />
-    <appender-ref ref="STDERR" />
-    <appender-ref ref="STDOUT" />
+    <appender-ref ref="INSTANCEASYNCFILE" />
+    <appender-ref ref="INSTANCESTDERR" />
+    <appender-ref ref="INSTANCESTDOUT" />
   </root>
 </configuration>

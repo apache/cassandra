@@ -241,12 +241,11 @@ Fill out the following email template and send to both user and dev mailing list
     [2]: (NEWS.txt) https://git1-us-west.apache.org/repos/asf?p=cassandra.git;a=blob_plain;f=NEWS.txt;hb=<version>
     [3]: https://issues.apache.org/jira/browse/CASSANDRA
 
-Update IRC #cassandra topic
+Update Slack Cassandra topic
 ---------------------------
 
-Update #cassandra topic on irc::
-    /msg chanserv op #cassandra
-    /topic #cassandra "cassandra.apache.org | Latest: 3.11.2 (https://goo.gl/M34ZbG) | Stable: 3.0.16 (https://goo.gl/B4Zumg) | Oldstable: 2.2.12 (https://goo.gl/Uf3GVw) | ask, don't ask to ask"
+Update topic in ``cassandra`` :ref:`Slack room <slack>`
+    /topic cassandra.apache.org | Latest releases: 3.11.4, 3.0.18, 2.2.14, 2.1.21 | ask, don't ask to ask
 
 Tweet from @Cassandra
 ---------------------

@@ -101,6 +101,16 @@ public class ByteBufferUtil
         return FastByteOperations.compareUnsigned(o1, o2, 0, o2.length);
     }
 
+    public static int compare(ByteBuffer o1, int s1, int l1, byte[] o2)
+    {
+        return FastByteOperations.compareUnsigned(o1, s1, l1, o2, 0, o2.length);
+    }
+
+    public static int compare(byte[] o1, ByteBuffer o2, int s2, int l2)
+    {
+        return FastByteOperations.compareUnsigned(o1, 0, o1.length, o2, s2, l2);
+    }
+
     /**
      * Decode a String representation.
      * This method assumes that the encoding charset is UTF_8.
@@ -161,16 +171,25 @@ public class ByteBufferUtil
      */
     public static byte[] getArray(ByteBuffer buffer)
     {
-        int length = buffer.remaining();
+        return getArray(buffer, buffer.position(), buffer.remaining());
+    }
+
+    /**
+     * You should almost never use this.  Instead, use the write* methods to avoid copies.
+     */
+    public static byte[] getArray(ByteBuffer buffer, int position, int length)
+    {
         if (buffer.hasArray())
         {
-            int boff = buffer.arrayOffset() + buffer.position();
+            int boff = buffer.arrayOffset() + position;
             return Arrays.copyOfRange(buffer.array(), boff, boff + length);
         }
+
         // else, DirectByteBuffer.get() is the fastest route
         byte[] bytes = new byte[length];
-        buffer.duplicate().get(bytes);
-
+        ByteBuffer dup = buffer.duplicate();
+        dup.position(position).limit(position + length);
+        dup.get(bytes);
         return bytes;
     }
 
@@ -255,14 +274,14 @@ public class ByteBufferUtil
         return clone;
     }
 
-    public static void arrayCopy(ByteBuffer src, int srcPos, byte[] dst, int dstPos, int length)
+    public static void copyBytes(ByteBuffer src, int srcPos, byte[] dst, int dstPos, int length)
     {
         FastByteOperations.copy(src, srcPos, dst, dstPos, length);
     }
 
     /**
      * Transfer bytes from one ByteBuffer to another.
-     * This function acts as System.arrayCopy() but for ByteBuffers.
+     * This function acts as System.arrayCopy() but for ByteBuffers, and operates safely on direct memory.
      *
      * @param src the source ByteBuffer
      * @param srcPos starting position in the source ByteBuffer
@@ -270,7 +289,7 @@ public class ByteBufferUtil
      * @param dstPos starting position in the destination ByteBuffer
      * @param length the number of bytes to copy
      */
-    public static void arrayCopy(ByteBuffer src, int srcPos, ByteBuffer dst, int dstPos, int length)
+    public static void copyBytes(ByteBuffer src, int srcPos, ByteBuffer dst, int dstPos, int length)
     {
         FastByteOperations.copy(src, srcPos, dst, dstPos, length);
     }
@@ -278,7 +297,7 @@ public class ByteBufferUtil
     public static int put(ByteBuffer src, ByteBuffer trg)
     {
         int length = Math.min(src.remaining(), trg.remaining());
-        arrayCopy(src, src.position(), trg, trg.position(), length);
+        copyBytes(src, src.position(), trg, trg.position(), length);
         trg.position(trg.position() + length);
         src.position(src.position() + length);
         return length;
@@ -631,6 +650,7 @@ public class ByteBufferUtil
 
         assert bytes1.limit() >= offset1 + length : "The first byte array isn't long enough for the specified offset and length.";
         assert bytes2.limit() >= offset2 + length : "The second byte array isn't long enough for the specified offset and length.";
+
         for (int i = 0; i < length; i++)
         {
             byte byte1 = bytes1.get(offset1 + i);
@@ -669,7 +689,7 @@ public class ByteBufferUtil
         return buf.capacity() > buf.remaining() || !buf.hasArray() ? ByteBuffer.wrap(getArray(buf)) : buf;
     }
 
-    // Doesn't change bb position
+    // doesn't change bb position
     public static int getShortLength(ByteBuffer bb, int position)
     {
         int length = (bb.get(position) & 0xFF) << 8;

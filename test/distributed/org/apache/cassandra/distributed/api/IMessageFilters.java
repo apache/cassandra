@@ -18,10 +18,8 @@
 
 package org.apache.cassandra.distributed.api;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
-
-import java.util.function.BiConsumer;
+import org.apache.cassandra.net.Verb;
 
 public interface IMessageFilters
 {
@@ -39,10 +37,11 @@ public interface IMessageFilters
         Filter drop();
     }
 
-    Builder verbs(MessagingService.Verb... verbs);
+    Builder verbs(Verb ... verbs);
     Builder allVerbs();
     void reset();
 
     // internal
-    BiConsumer<InetAddressAndPort, IMessage> filter(BiConsumer<InetAddressAndPort, IMessage> applyIfNotFiltered);
+    boolean permit(IInstance from, IInstance to, int verb);
+
 }

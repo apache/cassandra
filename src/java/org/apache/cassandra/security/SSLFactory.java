@@ -56,6 +56,7 @@ import io.netty.handler.ssl.SslProvider;
 import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import io.netty.util.ReferenceCountUtil;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 
@@ -82,6 +83,26 @@ public final class SSLFactory
 
     @VisibleForTesting
     static volatile boolean checkedExpiry = false;
+
+    // Isolate calls to OpenSsl.isAvailable to allow in-jvm dtests to disable tcnative openssl
+    // support.  It creates a circular reference that prevents the instance class loader from being
+    // garbage collected.
+    static private final boolean openSslIsAvailable;
+    static
+    {
+        if (Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_tcactive_openssl"))
+        {
+            openSslIsAvailable = false;
+        }
+        else
+        {
+            openSslIsAvailable = OpenSsl.isAvailable();
+        }
+    }
+    public static boolean openSslIsAvailable()
+    {
+        return openSslIsAvailable;
+    }
 
     /**
      * Cached references of SSL Contexts
@@ -233,17 +254,19 @@ public final class SSLFactory
     public static SslContext getOrCreateSslContext(EncryptionOptions options, boolean buildTruststore,
                                                    SocketType socketType) throws IOException
     {
-        return getOrCreateSslContext(options, buildTruststore, socketType, OpenSsl.isAvailable());
+        return getOrCreateSslContext(options, buildTruststore, socketType, openSslIsAvailable());
     }
 
     /**
      * Get a netty {@link SslContext} instance.
      */
     @VisibleForTesting
-    static SslContext getOrCreateSslContext(EncryptionOptions options, boolean buildTruststore,
-                                            SocketType socketType, boolean useOpenSsl) throws IOException
+    static SslContext getOrCreateSslContext(EncryptionOptions options,
+                                            boolean buildTruststore,
+                                            SocketType socketType,
+                                            boolean useOpenSsl) throws IOException
     {
-        CacheKey key = new CacheKey(options, socketType);
+        CacheKey key = new CacheKey(options, socketType, useOpenSsl);
         SslContext sslContext;
 
         sslContext = cachedSslContexts.get(key);
@@ -290,8 +313,8 @@ public final class SSLFactory
 
         // only set the cipher suites if the opertor has explicity configured values for it; else, use the default
         // for each ssl implemention (jdk or openssl)
-        if (options.cipher_suites != null && options.cipher_suites.length > 0)
-            builder.ciphers(Arrays.asList(options.cipher_suites), SupportedCipherSuiteFilter.INSTANCE);
+        if (options.cipher_suites != null && !options.cipher_suites.isEmpty())
+            builder.ciphers(options.cipher_suites, SupportedCipherSuiteFilter.INSTANCE);
 
         if (buildTruststore)
             builder.trustManager(buildTrustManagerFactory(options));
@@ -385,8 +408,8 @@ public final class SSLFactory
             // Ensure we're able to create both server & client SslContexts
             if (serverOpts != null && serverOpts.enabled)
             {
-                createNettySslContext(serverOpts, true, SocketType.SERVER, OpenSsl.isAvailable());
-                createNettySslContext(serverOpts, true, SocketType.CLIENT, OpenSsl.isAvailable());
+                createNettySslContext(serverOpts, true, SocketType.SERVER, openSslIsAvailable());
+                createNettySslContext(serverOpts, true, SocketType.CLIENT, openSslIsAvailable());
             }
         }
         catch (Exception e)
@@ -399,8 +422,8 @@ public final class SSLFactory
             // Ensure we're able to create both server & client SslContexts
             if (clientOpts != null && clientOpts.enabled)
             {
-                createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.SERVER, OpenSsl.isAvailable());
-                createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.CLIENT, OpenSsl.isAvailable());
+                createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.SERVER, openSslIsAvailable());
+                createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.CLIENT, openSslIsAvailable());
             }
         }
         catch (Exception e)
@@ -413,11 +436,13 @@ public final class SSLFactory
     {
         private final EncryptionOptions encryptionOptions;
         private final SocketType socketType;
+        private final boolean useOpenSSL;
 
-        public CacheKey(EncryptionOptions encryptionOptions, SocketType socketType)
+        public CacheKey(EncryptionOptions encryptionOptions, SocketType socketType, boolean useOpenSSL)
         {
             this.encryptionOptions = encryptionOptions;
             this.socketType = socketType;
+            this.useOpenSSL = useOpenSSL;
         }
 
         public boolean equals(Object o)
@@ -426,6 +451,7 @@ public final class SSLFactory
             if (o == null || getClass() != o.getClass()) return false;
             CacheKey cacheKey = (CacheKey) o;
             return (socketType == cacheKey.socketType &&
+                    useOpenSSL == cacheKey.useOpenSSL &&
                     Objects.equals(encryptionOptions, cacheKey.encryptionOptions));
         }
 
@@ -434,6 +460,7 @@ public final class SSLFactory
             int result = 0;
             result += 31 * socketType.hashCode();
             result += 31 * encryptionOptions.hashCode();
+            result += 31 * Boolean.hashCode(useOpenSSL);
             return result;
         }
     }

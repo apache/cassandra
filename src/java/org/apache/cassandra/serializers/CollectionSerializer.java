@@ -166,7 +166,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         ByteBuffer output = ByteBuffer.allocate(sizeLen + bodyLen);
         writeCollectionSize(output, count, version);
         output.position(0);
-        ByteBufferUtil.arrayCopy(input, startPos, output, sizeLen, bodyLen);
+        ByteBufferUtil.copyBytes(input, startPos, output, sizeLen, bodyLen);
         return output;
     }
 }

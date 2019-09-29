@@ -17,10 +17,17 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
+import org.apache.cassandra.utils.ExecutorUtils;
+
+import org.apache.cassandra.utils.ExecutorUtils;
 
 /**
  * Centralized location for shared executors
@@ -48,12 +55,8 @@ public class ScheduledExecutors
     public static final DebuggableScheduledThreadPoolExecutor optionalTasks = new DebuggableScheduledThreadPoolExecutor("OptionalTasks");
 
     @VisibleForTesting
-    public static void shutdownAndWait() throws InterruptedException
+    public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        ExecutorService[] executors = new ExecutorService[] { scheduledFastTasks, scheduledTasks, nonPeriodicTasks, optionalTasks };
-        for (ExecutorService executor : executors)
-            executor.shutdownNow();
-        for (ExecutorService executor : executors)
-            executor.awaitTermination(60, TimeUnit.SECONDS);
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, scheduledFastTasks, scheduledTasks, nonPeriodicTasks, optionalTasks);
     }
 }

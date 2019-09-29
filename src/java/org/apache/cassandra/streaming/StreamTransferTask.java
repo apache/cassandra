@@ -34,6 +34,9 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 
+import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
+
 /**
  * StreamTransferTask sends streams for a given table
  */
@@ -177,5 +180,12 @@ public class StreamTransferTask extends StreamTask
         ScheduledFuture prev = timeoutTasks.put(sequenceNumber, future);
         assert prev == null;
         return future;
+    }
+
+    @VisibleForTesting
+    public static void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    {
+        shutdown(timeoutExecutor);
+        awaitTermination(timeout, units, timeoutExecutor);
     }
 }

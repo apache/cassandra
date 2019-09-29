@@ -19,18 +19,16 @@
 package org.apache.cassandra.tools;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 
 import io.netty.channel.Channel;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.net.async.OutboundConnectionIdentifier;
+import org.apache.cassandra.net.OutboundConnectionSettings;
 import org.apache.cassandra.streaming.DefaultConnectionFactory;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.StreamConnectionFactory;
 
 public class BulkLoadConnectionFactory extends DefaultConnectionFactory implements StreamConnectionFactory
 {
+    // TODO: what is this unused variable for?
     private final boolean outboundBindAny;
     private final int secureStoragePort;
     private final EncryptionOptions.ServerEncryptionOptions encryptionOptions;
@@ -38,21 +36,19 @@ public class BulkLoadConnectionFactory extends DefaultConnectionFactory implemen
     public BulkLoadConnectionFactory(int secureStoragePort, EncryptionOptions.ServerEncryptionOptions encryptionOptions, boolean outboundBindAny)
     {
         this.secureStoragePort = secureStoragePort;
-        this.encryptionOptions = encryptionOptions != null && encryptionOptions.internode_encryption == EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none
-                                 ? null
-                                 : encryptionOptions;
+        this.encryptionOptions = encryptionOptions;
         this.outboundBindAny = outboundBindAny;
     }
 
-    public Channel createConnection(OutboundConnectionIdentifier connectionId, int protocolVersion) throws IOException
+    public Channel createConnection(OutboundConnectionSettings template, int messagingVersion) throws IOException
     {
         // Connect to secure port for all peers if ServerEncryptionOptions is configured other than 'none'
         // When 'all', 'dc' and 'rack', server nodes always have SSL port open, and since thin client like sstableloader
         // does not know which node is in which dc/rack, connecting to SSL port is always the option.
-        int port = encryptionOptions != null && encryptionOptions.internode_encryption != EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none ?
-                   secureStoragePort : connectionId.remote().port;
 
-        connectionId = connectionId.withNewConnectionAddress(InetAddressAndPort.getByAddressOverrideDefaults(connectionId.remote().address, port));
-        return createConnection(connectionId, protocolVersion, encryptionOptions);
+        if (encryptionOptions != null && encryptionOptions.internode_encryption != EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none)
+            template = template.withConnectTo(template.to.withPort(secureStoragePort));
+
+        return super.createConnection(template, messagingVersion);
     }
 }

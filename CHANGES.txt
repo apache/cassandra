@@ -1,4 +1,20 @@
-4.0
+4.0-alpha2
+ * Add `allocate_tokens_for_local_replication_factor` option for token allocation (CASSANDRA-15260)
+
+4.0-alpha1
+ * Inaccurate exception message with nodetool snapshot (CASSANDRA-15287)
+ * Fix InternodeOutboundMetrics overloaded bytes/count mixup (CASSANDRA-15186)
+ * Enhance & reenable RepairTest with compression=off and compression=on (CASSANDRA-15272)
+ * Improve readability of Table metrics Virtual tables units (CASSANDRA-15194)
+ * Fix error with non-existent table for nodetool tablehistograms (CASSANDRA-14410)
+ * Avoid result truncation in decimal operations (CASSANDRA-15232)
+ * Catch non-IOException in FileUtils.close to make sure that all resources are closed (CASSANDRA-15225)
+ * Align load column in nodetool status output (CASSANDRA-14787)
+ * CassandraNetworkAuthorizer uses cached roles info (CASSANDRA-15089)
+ * Introduce optional timeouts for idle client sessions (CASSANDRA-11097)
+ * Fix AlterTableStatement dropped type validation order (CASSANDRA-15203)
+ * Update Netty dependencies to latest, clean up SocketFactory (CASSANDRA-15195)
+ * Native Transport - Apply noSpamLogger to ConnectionLimitHandler (CASSANDRA-15167)
  * Reduce heap pressure during compactions (CASSANDRA-14654)
  * Support building Cassandra with JDK 11 (CASSANDRA-15108)
  * Use quilt to patch cassandra.in.sh in Debian packaging (CASSANDRA-14710)
@@ -358,13 +374,30 @@
  * nodetool clearsnapshot requires --all to clear all snapshots (CASSANDRA-13391)
  * Correctly count range tombstones in traces and tombstone thresholds (CASSANDRA-8527)
  * cqlshrc.sample uses incorrect option for time formatting (CASSANDRA-14243)
+ * Multi-version in-JVM dtests (CASSANDRA-14937)
+ * Allow instance class loaders to be garbage collected for inJVM dtest (CASSANDRA-15170)
 
 
 3.11.5
+ * Make sure user defined compaction transactions are always closed (CASSANDRA-15123)
  * Fix cassandra-env.sh to use $CASSANDRA_CONF to find cassandra-jaas.config (CASSANDRA-14305)
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Fix LegacyLayout RangeTombstoneList IndexOutOfBoundsException when upgrading and RangeTombstone bounds are asymmetric (CASSANDRA-15172)
+ * Fix NPE when using allocate_tokens_for_keyspace on new DC/rack (CASSANDRA-14952)
+ * Filter sstables earlier when running cleanup (CASSANDRA-15100)
+ * Use mean row count instead of mean column count for index selectivity calculation (CASSANDRA-15259)
+ * Avoid updating unchanged gossip states (CASSANDRA-15097)
+ * Prevent recreation of previously dropped columns with a different kind (CASSANDRA-14948)
+ * Prevent client requests from blocking on executor task queue (CASSANDRA-15013)
+ * Toughen up column drop/recreate type validations (CASSANDRA-15204)
+ * LegacyLayout should handle paging states that cross a collection column (CASSANDRA-15201)
+ * Prevent RuntimeException when username or password is empty/null (CASSANDRA-15198)
+ * Multiget thrift query returns null records after digest mismatch (CASSANDRA-14812)
+ * Handle paging states serialized with a different version than the session's (CASSANDRA-15176)
+ * Throw IOE instead of asserting on unsupporter peer versions (CASSANDRA-15066)
+ * Update token metadata when handling MOVING/REMOVING_TOKEN events (CASSANDRA-15120)
  * Add ability to customize cassandra log directory using $CASSANDRA_LOG_DIR (CASSANDRA-15090)
  * Fix assorted gossip races and add related runtime checks (CASSANDRA-15059)
  * cassandra-stress works with frozen collections: list and set (CASSANDRA-14907)
@@ -375,6 +408,7 @@ Merged from 3.0:
  * Add missing commands to nodetool_completion (CASSANDRA-14916)
  * Anti-compaction temporarily corrupts sstable state for readers (CASSANDRA-15004)
 Merged from 2.2:
+ * Handle exceptions during authentication/authorization (CASSANDRA-15041)
  * Support cross version messaging in in-jvm upgrade dtests (CASSANDRA-15078)
  * Fix index summary redistribution cancellation (CASSANDRA-15045)
  * Refactor Circle CI configuration (CASSANDRA-14806)

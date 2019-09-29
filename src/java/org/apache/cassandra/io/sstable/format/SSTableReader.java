@@ -56,6 +56,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
@@ -431,13 +432,22 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         long fileLength = new File(descriptor.filenameFor(Component.DATA)).length();
         if (logger.isDebugEnabled())
             logger.debug("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
-        SSTableReader sstable = internalOpen(descriptor,
-                                             components,
-                                             metadata,
-                                             System.currentTimeMillis(),
-                                             statsMetadata,
-                                             OpenReason.NORMAL,
-                                             header.toHeader(metadata.get()));
+
+        final SSTableReader sstable;
+        try
+        {
+            sstable = internalOpen(descriptor,
+                                   components,
+                                   metadata,
+                                   System.currentTimeMillis(),
+                                   statsMetadata,
+                                   OpenReason.NORMAL,
+                                   header.toHeader(metadata.get()));
+        }
+        catch (UnknownColumnException e)
+        {
+            throw new IllegalStateException(e);
+        }
 
         try(FileHandle.Builder ibuilder = new FileHandle.Builder(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX))
                                                      .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
@@ -522,13 +532,22 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         long fileLength = new File(descriptor.filenameFor(Component.DATA)).length();
         if (logger.isDebugEnabled())
             logger.debug("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
-        SSTableReader sstable = internalOpen(descriptor,
-                                             components,
-                                             metadata,
-                                             System.currentTimeMillis(),
-                                             statsMetadata,
-                                             OpenReason.NORMAL,
-                                             header.toHeader(metadata.get()));
+
+        final SSTableReader sstable;
+        try
+        {
+            sstable = internalOpen(descriptor,
+                                   components,
+                                   metadata,
+                                   System.currentTimeMillis(),
+                                   statsMetadata,
+                                   OpenReason.NORMAL,
+                                   header.toHeader(metadata.get()));
+        }
+        catch (UnknownColumnException e)
+        {
+            throw new IllegalStateException(e);
+        }
 
         try
         {
@@ -1924,9 +1943,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.estimatedPartitionSize;
     }
 
-    public EstimatedHistogram getEstimatedColumnCount()
+    public EstimatedHistogram getEstimatedCellPerPartitionCount()
     {
-        return sstableMetadata.estimatedColumnCount;
+        return sstableMetadata.estimatedCellPerPartitionCount;
     }
 
     public double getEstimatedDroppableTombstoneRatio(int gcBefore)
@@ -2475,13 +2494,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return reader;
     }
 
-    public static void shutdownBlocking() throws InterruptedException
+    public static void shutdownBlocking(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        if (syncExecutor != null)
-        {
-            syncExecutor.shutdownNow();
-            syncExecutor.awaitTermination(0, TimeUnit.SECONDS);
-        }
+
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, syncExecutor);
         resetTidying();
     }
 }

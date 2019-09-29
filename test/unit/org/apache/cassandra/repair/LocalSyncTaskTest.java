@@ -137,14 +137,12 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
         DefaultConnectionFactory.MAX_CONNECT_ATTEMPTS = 1;
-        DefaultConnectionFactory.MAX_WAIT_TIME_NANOS = TimeUnit.SECONDS.toNanos(2);
         try
         {
             task.run();
         }
         finally
         {
-            DefaultConnectionFactory.MAX_WAIT_TIME_NANOS = TimeUnit.SECONDS.toNanos(30);
             DefaultConnectionFactory.MAX_CONNECT_ATTEMPTS = 3;
         }
 
@@ -240,10 +238,6 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         MerkleTrees tree = new MerkleTrees(partitioner);
         tree.addMerkleTrees((int) Math.pow(2, 15), desc.ranges);
         tree.init();
-        for (MerkleTree.TreeRange r : tree.invalids())
-        {
-            r.ensureHashInitialised();
-        }
         return tree;
     }
 

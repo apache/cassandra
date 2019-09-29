@@ -468,50 +468,49 @@ public class LoaderOptions
                 if (cmd.hasOption(SSL_TRUSTSTORE) || cmd.hasOption(SSL_TRUSTSTORE_PW) ||
                             cmd.hasOption(SSL_KEYSTORE) || cmd.hasOption(SSL_KEYSTORE_PW))
                 {
-                    clientEncOptions.enabled = true;
+                    clientEncOptions = clientEncOptions.withEnabled(true);
                 }
 
                 if (cmd.hasOption(SSL_TRUSTSTORE))
                 {
-                    clientEncOptions.truststore = cmd.getOptionValue(SSL_TRUSTSTORE);
+                    clientEncOptions = clientEncOptions.withTrustStore(cmd.getOptionValue(SSL_TRUSTSTORE));
                 }
 
                 if (cmd.hasOption(SSL_TRUSTSTORE_PW))
                 {
-                    clientEncOptions.truststore_password = cmd.getOptionValue(SSL_TRUSTSTORE_PW);
+                    clientEncOptions = clientEncOptions.withTrustStorePassword(cmd.getOptionValue(SSL_TRUSTSTORE_PW));
                 }
 
                 if (cmd.hasOption(SSL_KEYSTORE))
                 {
-                    clientEncOptions.keystore = cmd.getOptionValue(SSL_KEYSTORE);
                     // if a keystore was provided, lets assume we'll need to use
-                    // it
-                    clientEncOptions.require_client_auth = true;
+                    clientEncOptions = clientEncOptions.withKeyStore(cmd.getOptionValue(SSL_KEYSTORE))
+                                                       .withRequireClientAuth(true);
                 }
 
                 if (cmd.hasOption(SSL_KEYSTORE_PW))
                 {
-                    clientEncOptions.keystore_password = cmd.getOptionValue(SSL_KEYSTORE_PW);
+                    clientEncOptions = clientEncOptions.withKeyStorePassword(cmd.getOptionValue(SSL_KEYSTORE_PW));
                 }
 
                 if (cmd.hasOption(SSL_PROTOCOL))
                 {
-                    clientEncOptions.protocol = cmd.getOptionValue(SSL_PROTOCOL);
+                    clientEncOptions = clientEncOptions.withProtocol(cmd.getOptionValue(SSL_PROTOCOL));
                 }
 
                 if (cmd.hasOption(SSL_ALGORITHM))
                 {
-                    clientEncOptions.algorithm = cmd.getOptionValue(SSL_ALGORITHM);
+                    clientEncOptions = clientEncOptions.withAlgorithm(cmd.getOptionValue(SSL_ALGORITHM));
                 }
 
                 if (cmd.hasOption(SSL_STORE_TYPE))
                 {
-                    clientEncOptions.store_type = cmd.getOptionValue(SSL_STORE_TYPE);
+                    clientEncOptions = clientEncOptions.withStoreType(cmd.getOptionValue(SSL_STORE_TYPE));
                 }
 
                 if (cmd.hasOption(SSL_CIPHER_SUITES))
                 {
-                    clientEncOptions.cipher_suites = cmd.getOptionValue(SSL_CIPHER_SUITES).split(",");
+                    clientEncOptions = clientEncOptions.withCipherSuites(cmd.getOptionValue(SSL_CIPHER_SUITES).split(","));
                 }
 
                 if (cmd.hasOption(TARGET_KEYSPACE))

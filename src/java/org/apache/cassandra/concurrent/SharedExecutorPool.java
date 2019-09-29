@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
@@ -107,14 +108,14 @@ public class SharedExecutorPool
             schedule(Work.SPINNING);
     }
 
-    public LocalAwareExecutorService newExecutor(int maxConcurrency, int maxQueuedTasks, String jmxPath, String name)
+    public synchronized LocalAwareExecutorService newExecutor(int maxConcurrency, int maxQueuedTasks, String jmxPath, String name)
     {
         SEPExecutor executor = new SEPExecutor(this, maxConcurrency, maxQueuedTasks, jmxPath, name);
         executors.add(executor);
         return executor;
     }
 
-    public void shutdown() throws InterruptedException
+    public synchronized void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         shuttingDown = true;
         for (SEPExecutor executor : executors)
@@ -122,9 +123,13 @@ public class SharedExecutorPool
 
         terminateWorkers();
 
-        long until = System.nanoTime() + TimeUnit.MINUTES.toNanos(1L);
+        long until = System.nanoTime() + unit.toNanos(timeout);
         for (SEPExecutor executor : executors)
+        {
             executor.shutdown.await(until - System.nanoTime(), TimeUnit.NANOSECONDS);
+            if (!executor.isTerminated())
+                throw new TimeoutException(executor.name + " not terminated");
+        }
     }
 
     void terminateWorkers()

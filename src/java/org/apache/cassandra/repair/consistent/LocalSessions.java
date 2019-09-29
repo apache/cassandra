@@ -72,7 +72,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
@@ -88,6 +88,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.net.Verb.REPAIR_REQ;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
 
 /**
@@ -449,7 +450,7 @@ public class LocalSessions
     private synchronized void putSession(LocalSession session)
     {
         Preconditions.checkArgument(!sessions.containsKey(session.sessionID),
-                                    "LocalSession {} already exists", session.sessionID);
+                                    "LocalSession %s already exists", session.sessionID);
         Preconditions.checkArgument(started, "sessions cannot be added before LocalSessions is started");
         sessions = ImmutableMap.<UUID, LocalSession>builder()
                                .putAll(sessions)
@@ -493,8 +494,8 @@ public class LocalSessions
     protected void sendMessage(InetAddressAndPort destination, RepairMessage message)
     {
         logger.trace("sending {} to {}", message, destination);
-        MessageOut<RepairMessage> messageOut = new MessageOut<RepairMessage>(MessagingService.Verb.REPAIR_MESSAGE, message, RepairMessage.serializer);
-        MessagingService.instance().sendOneWay(messageOut, destination);
+        Message<RepairMessage> messageOut = Message.out(REPAIR_REQ, message);
+        MessagingService.instance().send(messageOut, destination);
     }
 
     private void setStateAndSave(LocalSession session, ConsistentSession.State state)

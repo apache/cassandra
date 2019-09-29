@@ -8,7 +8,9 @@
 
 %global username cassandra
 
-%define relname apache-cassandra-%{version}
+# input of ~alphaN, ~betaN, ~rcN package versions need to retain upstream '-alphaN, etc' version for sources
+%define upstream_version %(echo %{version} | sed -r 's/~/-/g')
+%define relname apache-cassandra-%{upstream_version}
 
 Name:          cassandra
 Version:       %{version}
@@ -74,14 +76,14 @@ patch -p1 < debian/patches/cassandra_logdir_fix.diff
 sed -i 's/^# hints_directory:/hints_directory:/' conf/cassandra.yaml
 
 # remove batch, powershell, and other files not being installed
-rm conf/*.ps1
-rm bin/*.bat
-rm bin/*.orig
-rm bin/*.ps1
-rm bin/cassandra.in.sh
-rm lib/sigar-bin/*winnt*  # strip segfaults on dll..
-rm tools/bin/*.bat
-rm tools/bin/cassandra.in.sh
+rm -f conf/*.ps1
+rm -f bin/*.bat
+rm -f bin/*.orig
+rm -f bin/*.ps1
+rm -f bin/cassandra.in.sh
+rm -f lib/sigar-bin/*winnt*  # strip segfaults on dll..
+rm -f tools/bin/*.bat
+rm -f tools/bin/cassandra.in.sh
 
 # copy default configs
 cp -pr conf/* %{buildroot}/%{_sysconfdir}/%{username}/default.conf/
@@ -118,10 +120,12 @@ exit 0
 %files
 %defattr(0644,root,root,0755)
 %doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt
+%attr(755,root,root) %{_bindir}/auditlogviewer
 %attr(755,root,root) %{_bindir}/cassandra-stress
 %attr(755,root,root) %{_bindir}/cqlsh
 %attr(755,root,root) %{_bindir}/cqlsh.py
 %attr(755,root,root) %{_bindir}/debug-cql
+%attr(755,root,root) %{_bindir}/fqltool
 %attr(755,root,root) %{_bindir}/nodetool
 %attr(755,root,root) %{_bindir}/sstableloader
 %attr(755,root,root) %{_bindir}/sstablescrub

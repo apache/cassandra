@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.util.Iterator;
-
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.*;
@@ -26,10 +24,12 @@ import org.apache.cassandra.tracing.Tracing;
 
 public class MutationVerbHandler implements IVerbHandler<Mutation>
 {
-    private void reply(int id, InetAddressAndPort replyTo)
+    public static final MutationVerbHandler instance = new MutationVerbHandler();
+
+    private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress)
     {
-        Tracing.trace("Enqueuing response to {}", replyTo);
-        MessagingService.instance().sendReply(WriteResponse.createMessage(), id, replyTo);
+        Tracing.trace("Enqueuing response to {}", respondToAddress);
+        MessagingService.instance().send(respondTo.emptyResponse(), respondToAddress);
     }
 
     private void failed()
@@ -37,27 +37,25 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
         Tracing.trace("Payload application resulted in WriteTimeout, not replying");
     }
 
-    public void doVerb(MessageIn<Mutation> message, int id)
+    public void doVerb(Message<Mutation> message)
     {
         // Check if there were any forwarding headers in this message
-        InetAddressAndPort from = (InetAddressAndPort)message.parameters.get(ParameterType.FORWARD_FROM);
-        InetAddressAndPort replyTo;
+        InetAddressAndPort from = message.respondTo();
+        InetAddressAndPort respondToAddress;
         if (from == null)
         {
-            replyTo = message.from;
-            ForwardToContainer forwardTo = (ForwardToContainer)message.parameters.get(ParameterType.FORWARD_TO);
-            if (forwardTo != null)
-                forwardToLocalNodes(message.payload, message.verb, forwardTo, message.from);
+            respondToAddress = message.from();
+            ForwardingInfo forwardTo = message.forwardTo();
+            if (forwardTo != null) forwardToLocalNodes(message, forwardTo);
         }
         else
         {
-
-            replyTo = from;
+            respondToAddress = from;
         }
 
         try
         {
-            message.payload.applyFuture().thenAccept(o -> reply(id, replyTo)).exceptionally(wto -> {
+            message.payload.applyFuture().thenAccept(o -> respond(message, respondToAddress)).exceptionally(wto -> {
                 failed();
                 return null;
             });
@@ -68,17 +66,21 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
         }
     }
 
-    private static void forwardToLocalNodes(Mutation mutation, MessagingService.Verb verb, ForwardToContainer forwardTo, InetAddressAndPort from)
+    private static void forwardToLocalNodes(Message<Mutation> originalMessage, ForwardingInfo forwardTo)
     {
-        // tell the recipients who to send their ack to
-        MessageOut<Mutation> message = new MessageOut<>(verb, mutation, Mutation.serializer).withParameter(ParameterType.FORWARD_FROM, from);
-        Iterator<InetAddressAndPort> iterator = forwardTo.targets.iterator();
-        // Send a message to each of the addresses on our Forward List
-        for (int i = 0; i < forwardTo.targets.size(); i++)
+        Message.Builder<Mutation> builder =
+            Message.builder(originalMessage)
+                   .withParam(ParamType.RESPOND_TO, originalMessage.from())
+                   .withoutParam(ParamType.FORWARD_TO);
+
+        boolean useSameMessageID = forwardTo.useSameMessageID();
+        // reuse the same Message if all ids are identical (as they will be for 4.0+ node originated messages)
+        Message<Mutation> message = useSameMessageID ? builder.build() : null;
+
+        forwardTo.forEach((id, target) ->
         {
-            InetAddressAndPort address = iterator.next();
-            Tracing.trace("Enqueuing forwarded write to {}", address);
-            MessagingService.instance().sendOneWay(message, forwardTo.messageIds[i], address);
-        }
+            Tracing.trace("Enqueuing forwarded write to {}", target);
+            MessagingService.instance().send(useSameMessageID ? message : builder.withId(id).build(), target);
+        });
     }
 }

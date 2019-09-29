@@ -51,9 +51,11 @@ public class DifferenceHolder
                 TreeResponse r2 = trees.get(j);
                 hd.add(r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees));
             }
+            r1.trees.release();
             // and add them to the diff map
             diffBuilder.put(r1.endpoint, hd);
         }
+        trees.get(trees.size() - 1).trees.release();
         differences = diffBuilder.build();
     }
 

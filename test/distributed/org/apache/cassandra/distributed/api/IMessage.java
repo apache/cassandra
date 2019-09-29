@@ -27,6 +27,7 @@ public interface IMessage
 {
     int verb();
     byte[] bytes();
+    // TODO: need to make this a long
     int id();
     int version();
     InetAddressAndPort from();

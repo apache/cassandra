@@ -23,16 +23,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ParameterType;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
+
+import static org.apache.cassandra.net.Verb.REPAIR_REQ;
 
 /**
  * Handles all repair related message.
@@ -41,6 +41,8 @@ import org.apache.cassandra.streaming.PreviewKind;
  */
 public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 {
+    public static RepairMessageVerbHandler instance = new RepairMessageVerbHandler();
+
     private static final Logger logger = LoggerFactory.getLogger(RepairMessageVerbHandler.class);
 
     private boolean isIncremental(UUID sessionID)
@@ -54,7 +56,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         return prs != null ? prs.previewKind : PreviewKind.NONE;
     }
 
-    public void doVerb(final MessageIn<RepairMessage> message, final int id)
+    public void doVerb(final Message<RepairMessage> message)
     {
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;
@@ -72,20 +74,20 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         if (columnFamilyStore == null)
                         {
                             logErrorAndSendFailureResponse(String.format("Table with id %s was dropped during prepare phase of repair",
-                                                                         tableId), message.from, id);
+                                                                         tableId), message);
                             return;
                         }
                         columnFamilyStores.add(columnFamilyStore);
                     }
                     ActiveRepairService.instance.registerParentRepairSession(prepareMessage.parentRepairSession,
-                                                                             message.from,
+                                                                             message.from(),
                                                                              columnFamilyStores,
                                                                              prepareMessage.ranges,
                                                                              prepareMessage.isIncremental,
                                                                              prepareMessage.timestamp,
                                                                              prepareMessage.isGlobal,
                                                                              prepareMessage.previewKind);
-                    MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
+                    MessagingService.instance().send(message.emptyResponse(), message.from());
                     break;
 
                 case SNAPSHOT:
@@ -94,7 +96,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     if (cfs == null)
                     {
                         logErrorAndSendFailureResponse(String.format("Table %s.%s was dropped during snapshot phase of repair",
-                                                                     desc.keyspace, desc.columnFamily), message.from, id);
+                                                                     desc.keyspace, desc.columnFamily), message);
                         return;
                     }
 
@@ -108,8 +110,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     {
                         repairManager.snapshot(desc.parentSessionId.toString(), desc.ranges, true);
                     }
-                    logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from);
-                    MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
+                    logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from());
+                    MessagingService.instance().send(message.emptyResponse(), message.from());
                     break;
 
                 case VALIDATION_REQUEST:
@@ -120,12 +122,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     if (store == null)
                     {
                         logger.error("Table {}.{} was dropped during snapshot phase of repair", desc.keyspace, desc.columnFamily);
-                        MessagingService.instance().sendOneWay(new ValidationComplete(desc).createMessage(), message.from);
+                        MessagingService.instance().send(Message.out(REPAIR_REQ, new ValidationComplete(desc)), message.from());
                         return;
                     }
 
                     ActiveRepairService.instance.consistent.local.maybeSetRepairing(desc.parentSessionId);
-                    Validator validator = new Validator(desc, message.from, validationRequest.nowInSec,
+                    Validator validator = new Validator(desc, message.from(), validationRequest.nowInSec,
                                                         isIncremental(desc.parentSessionId), previewKind(desc.parentSessionId));
                     ValidationManager.instance.submitValidation(store, validator);
                     break;
@@ -164,11 +166,11 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     logger.debug("cleaning up repair");
                     CleanupMessage cleanup = (CleanupMessage) message.payload;
                     ActiveRepairService.instance.removeParentRepairSession(cleanup.parentRepairSession);
-                    MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
+                    MessagingService.instance().send(message.emptyResponse(), message.from());
                     break;
 
                 case CONSISTENT_REQUEST:
-                    ActiveRepairService.instance.consistent.local.handlePrepareMessage(message.from, (PrepareConsistentRequest) message.payload);
+                    ActiveRepairService.instance.consistent.local.handlePrepareMessage(message.from(), (PrepareConsistentRequest) message.payload);
                     break;
 
                 case CONSISTENT_RESPONSE:
@@ -176,7 +178,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case FINALIZE_PROPOSE:
-                    ActiveRepairService.instance.consistent.local.handleFinalizeProposeMessage(message.from, (FinalizePropose) message.payload);
+                    ActiveRepairService.instance.consistent.local.handleFinalizeProposeMessage(message.from(), (FinalizePropose) message.payload);
                     break;
 
                 case FINALIZE_PROMISE:
@@ -184,25 +186,25 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case FINALIZE_COMMIT:
-                    ActiveRepairService.instance.consistent.local.handleFinalizeCommitMessage(message.from, (FinalizeCommit) message.payload);
+                    ActiveRepairService.instance.consistent.local.handleFinalizeCommitMessage(message.from(), (FinalizeCommit) message.payload);
                     break;
 
                 case FAILED_SESSION:
                     FailSession failure = (FailSession) message.payload;
                     ActiveRepairService.instance.consistent.coordinated.handleFailSessionMessage(failure);
-                    ActiveRepairService.instance.consistent.local.handleFailSessionMessage(message.from, failure);
+                    ActiveRepairService.instance.consistent.local.handleFailSessionMessage(message.from(), failure);
                     break;
 
                 case STATUS_REQUEST:
-                    ActiveRepairService.instance.consistent.local.handleStatusRequest(message.from, (StatusRequest) message.payload);
+                    ActiveRepairService.instance.consistent.local.handleStatusRequest(message.from(), (StatusRequest) message.payload);
                     break;
 
                 case STATUS_RESPONSE:
-                    ActiveRepairService.instance.consistent.local.handleStatusResponse(message.from, (StatusResponse) message.payload);
+                    ActiveRepairService.instance.consistent.local.handleStatusResponse(message.from(), (StatusResponse) message.payload);
                     break;
 
                 default:
-                    ActiveRepairService.instance.handleMessage(message.from, message.payload);
+                    ActiveRepairService.instance.handleMessage(message.from(), message.payload);
                     break;
             }
         }
@@ -215,11 +217,10 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         }
     }
 
-    private void logErrorAndSendFailureResponse(String errorMessage, InetAddressAndPort to, int id)
+    private void logErrorAndSendFailureResponse(String errorMessage, Message<?> respondTo)
     {
         logger.error(errorMessage);
-        MessageOut reply = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
-                               .withParameter(ParameterType.FAILURE_RESPONSE, MessagingService.ONE_BYTE);
-        MessagingService.instance().sendReply(reply, id, to);
+        Message reply = respondTo.failureResponse(RequestFailureReason.UNKNOWN);
+        MessagingService.instance().send(reply, respondTo.from());
     }
 }

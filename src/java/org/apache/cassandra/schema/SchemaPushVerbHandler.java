@@ -26,7 +26,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 
 /**
  * Called when node receives updated schema state from the schema migration coordinator node.
@@ -36,13 +36,15 @@ import org.apache.cassandra.net.MessageIn;
  */
 public final class SchemaPushVerbHandler implements IVerbHandler<Collection<Mutation>>
 {
+    public static final SchemaPushVerbHandler instance = new SchemaPushVerbHandler();
+
     private static final Logger logger = LoggerFactory.getLogger(SchemaPushVerbHandler.class);
 
-    public void doVerb(final MessageIn<Collection<Mutation>> message, int id)
+    public void doVerb(final Message<Collection<Mutation>> message)
     {
-        logger.trace("Received schema push request from {}", message.from);
+        logger.trace("Received schema push request from {}", message.from());
 
-        SchemaAnnouncementDiagnostics.schemataMutationsReceived(message.from);
+        SchemaAnnouncementDiagnostics.schemataMutationsReceived(message.from());
         StageManager.getStage(Stage.MIGRATION).submit(() -> Schema.instance.mergeAndAnnounceVersion(message.payload));
     }
 }

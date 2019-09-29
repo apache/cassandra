@@ -27,12 +27,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 
-import org.slf4j.LoggerFactory;
+import io.netty.util.concurrent.GlobalEventExecutor;
 
-import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
@@ -62,17 +62,13 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.IMessageSink;
-import org.apache.cassandra.net.MessageDeliveryTask;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.async.MessageInHandler;
-import org.apache.cassandra.net.async.NettyFactory;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -80,11 +76,19 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.async.StreamingInboundHandler;
+import org.apache.cassandra.streaming.StreamReceiveTask;
+import org.apache.cassandra.streaming.StreamTransferTask;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
+
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
@@ -98,6 +102,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         this.config = config;
         InstanceIDDefiner.setInstanceId(config.num());
         FBUtilities.setBroadcastInetAddressAndPort(config.broadcastAddressAndPort());
+        // Set the config at instance creation, possibly before startup() has run on all other instances.
+        // setMessagingVersions below will call runOnInstance which will instantiate
+        // the MessagingService and dependencies preventing later changes to network parameters.
+        Config.setOverrideLoadConfig(() -> loadConfig(config));
+
+        // Enable streaming inbound handler tracking so they can be closed properly without leaking
+        // the blocking IO thread.
+        StreamingInboundHandler.trackInboundHandlers();
     }
 
     @Override
@@ -148,6 +160,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         throw new UnsupportedOperationException();
     }
 
+    public boolean isShutdown()
+    {
+        throw new UnsupportedOperationException();
+    }
+
     @Override
     public void schemaChangeInternal(String query)
     {
@@ -173,12 +190,21 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private void registerMockMessaging(ICluster cluster)
     {
         BiConsumer<InetAddressAndPort, IMessage> deliverToInstance = (to, message) -> cluster.get(to).receiveMessage(message);
-        BiConsumer<InetAddressAndPort, IMessage> deliverToInstanceIfNotFiltered = cluster.filters().filter(deliverToInstance);
+        BiConsumer<InetAddressAndPort, IMessage> deliverToInstanceIfNotFiltered = (to, message) -> {
+            if (cluster.filters().permit(this, cluster.get(to), message.verb()))
+                deliverToInstance.accept(to, message);
+        };
 
-        MessagingService.instance().addMessageSink(new MessageDeliverySink(deliverToInstanceIfNotFiltered));
+        MessagingService.instance().outboundSink.add(new MessageDeliverySink(deliverToInstanceIfNotFiltered));
     }
 
-    private class MessageDeliverySink implements IMessageSink
+    // unnecessary if registerMockMessaging used
+    private void registerFilter(ICluster cluster)
+    {
+        MessagingService.instance().outboundSink.add((message, to) -> cluster.filters().permit(this, cluster.get(to), message.verb().id));
+    }
+
+    private class MessageDeliverySink implements BiPredicate<Message<?>, InetAddressAndPort>
     {
         private final BiConsumer<InetAddressAndPort, IMessage> deliver;
         MessageDeliverySink(BiConsumer<InetAddressAndPort, IMessage> deliver)
@@ -187,27 +213,19 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
 
         @Override
-        public boolean allowOutgoingMessage(MessageOut messageOut, int id, InetAddressAndPort to)
+        public boolean test(Message<?> messageOut, InetAddressAndPort to)
         {
             try (DataOutputBuffer out = new DataOutputBuffer(1024))
             {
                 InetAddressAndPort from = broadcastAddressAndPort();
-                int version = MessagingService.instance().getVersion(to);
-                messageOut.serialize(out, version);
-                deliver.accept(to, new Message(messageOut.verb.getId(), out.toByteArray(), id, version, from));
+                Message.serializer.serialize(messageOut, out, MessagingService.current_version);
+                deliver.accept(to, new MessageImpl(messageOut.verb().id, out.toByteArray(), messageOut.id(), MessagingService.current_version, from));
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
             }
             return false;
-        }
-
-        @Override
-        public boolean allowIncomingMessage(MessageIn message, int id)
-        {
-            // we can filter to our heart's content on the outgoing message; no need to worry about incoming
-            return true;
         }
     }
 
@@ -217,9 +235,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(() -> {
             try (DataInputBuffer in = new DataInputBuffer(message.bytes()))
             {
-                MessageIn<?> messageIn = MessageInHandler.deserialize(in, message.id(), message.version(), message.from());
-                Runnable deliver = new MessageDeliveryTask(messageIn, message.id());
-                deliver.run();
+                Message<?> messageIn = Message.serializer.deserialize(in, message.from(), message.version());
+                messageIn.verb().handler().doVerb((Message<Object>) messageIn);
             }
             catch (Throwable t)
             {
@@ -235,7 +252,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public void setMessagingVersion(InetAddressAndPort endpoint, int version)
     {
-        runOnInstance(() -> MessagingService.instance().setVersion(endpoint, version));
+        MessagingService.instance().versions.set(endpoint, version);
     }
 
     @Override
@@ -244,10 +261,17 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(() -> {
             try
             {
-                mkdirs();
-                Config.setOverrideLoadConfig(() -> loadConfig(config));
-                DatabaseDescriptor.daemonInitialization();
+                if (config.has(GOSSIP))
+                {
+                    // TODO: hacky
+                    System.setProperty("cassandra.ring_delay_ms", "5000");
+                    System.setProperty("cassandra.consistent.rangemovement", "false");
+                    System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
+                }
 
+                mkdirs();
+
+                DatabaseDescriptor.daemonInitialization();
                 DatabaseDescriptor.createAllDirectories();
 
                 // We need to persist this as soon as possible after startup checks.
@@ -277,13 +301,28 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     throw new RuntimeException(e);
                 }
 
-                // Even though we don't use MessagingService, access the static NettyFactory
-                // instance here so that we start the static event loop state
-                // (e.g. acceptGroup, inboundGroup, outboundGroup, etc ...). We can remove this
-                // once we actually use the MessagingService to communicate between nodes
-                NettyFactory.instance.getClass();
-                initializeRing(cluster);
-                registerMockMessaging(cluster);
+                if (config.has(NETWORK))
+                {
+                    registerFilter(cluster);
+                    MessagingService.instance().listen();
+                }
+                else
+                {
+                    // Even though we don't use MessagingService, access the static SocketFactory
+                    // instance here so that we start the static event loop state
+//                    -- not sure what that means?  SocketFactory.instance.getClass();
+                    registerMockMessaging(cluster);
+                }
+
+                // TODO: this is more than just gossip
+                if (config.has(GOSSIP))
+                {
+                    StorageService.instance.initServer();
+                }
+                else
+                {
+                    initializeRing(cluster);
+                }
 
                 SystemKeyspace.finishStartup();
 
@@ -356,8 +395,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                             new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token)));
                     Gossiper.instance.realMarkAlive(ep, Gossiper.instance.getEndpointStateForEndpoint(ep));
                 });
-                int version = Math.min(MessagingService.current_version, cluster.get(ep).getMessagingVersion());
-                MessagingService.instance().setVersion(ep, version);
+                MessagingService.instance().versions.set(ep, MessagingService.current_version);
             }
 
             // check that all nodes are in token metadata
@@ -370,40 +408,53 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
-    @Override
     public Future<Void> shutdown()
+    {
+        return shutdown(true);
+    }
+
+    @Override
+    public Future<Void> shutdown(boolean graceful)
     {
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
+
+            if (config.has(GOSSIP))
+            {
+                StorageService.instance.shutdownServer();
+            }
+
             error = parallelRun(error, executor,
-                    Gossiper.instance::stop,
-                    CompactionManager.instance::forceShutdown,
-                    BatchlogManager.instance::shutdown,
-                    HintsService.instance::shutdownBlocking,
-                    CommitLog.instance::shutdownBlocking,
-                    SecondaryIndexManager::shutdownExecutors,
-                    ColumnFamilyStore::shutdownFlushExecutor,
-                    ColumnFamilyStore::shutdownPostFlushExecutor,
-                    ColumnFamilyStore::shutdownReclaimExecutor,
-                    ColumnFamilyStore::shutdownPerDiskFlushExecutors,
-                    PendingRangeCalculatorService.instance::shutdownExecutor,
-                    BufferPool::shutdownLocalCleaner,
-                    Ref::shutdownReferenceReaper,
-                    Memtable.MEMORY_POOL::shutdown,
-                    ScheduledExecutors::shutdownAndWait,
-                    SSTableReader::shutdownBlocking,
-                    () -> shutdownAndWait(ActiveRepairService.repairCommandExecutor)
-            );
-            error = parallelRun(error, executor,
-                                MessagingService.instance()::shutdown
-            );
-            error = parallelRun(error, executor,
-                                StageManager::shutdownAndWait,
-                                SharedExecutorPool.SHARED::shutdown
+                                () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
+                                CompactionManager.instance::forceShutdown,
+                                () -> BatchlogManager.instance.shutdownAndWait(1L, MINUTES),
+                                HintsService.instance::shutdownBlocking,
+                                StreamingInboundHandler::shutdown,
+                                () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
+                                () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
+                                () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
+                                () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
+                                () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
+                                () -> PendingRangeCalculatorService.instance.shutdownAndWait(1L, MINUTES),
+                                () -> BufferPool.shutdownLocalCleaner(1L, MINUTES),
+                                () -> Ref.shutdownReferenceReaper(1L, MINUTES),
+                                () -> Memtable.MEMORY_POOL.shutdownAndWait(1L, MINUTES),
+                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
+                                () -> SSTableReader.shutdownBlocking(1L, MINUTES),
+                                () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor)),
+                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES)
             );
 
-            LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-            loggerContext.stop();
+            error = parallelRun(error, executor,
+                                CommitLog.instance::shutdownBlocking,
+                                () -> MessagingService.instance().shutdown(1L, MINUTES, false, true)
+            );
+            error = parallelRun(error, executor,
+                                () -> GlobalEventExecutor.INSTANCE.awaitInactivity(1l, MINUTES),
+                                () -> StageManager.shutdownAndWait(1L, MINUTES),
+                                () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
+            );
+
             Throwables.maybeFail(error);
         }).apply(isolatedExecutor);
 
@@ -411,18 +462,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 .thenRun(super::shutdown);
     }
 
-    private static void shutdownAndWait(ExecutorService executor)
+    private static void shutdownAndWait(List<ExecutorService> executors) throws TimeoutException, InterruptedException
     {
-        try
-        {
-            executor.shutdownNow();
-            executor.awaitTermination(20, TimeUnit.SECONDS);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        assert executor.isTerminated() && executor.isShutdown() : executor;
+        ExecutorUtils.shutdownNow(executors);
+        ExecutorUtils.awaitTermination(1L, MINUTES, executors);
     }
 
     private static Throwable parallelRun(Throwable accumulate, ExecutorService runOn, ThrowingRunnable ... runnables)
