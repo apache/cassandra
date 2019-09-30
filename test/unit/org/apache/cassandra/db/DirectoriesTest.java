@@ -20,6 +20,9 @@ package org.apache.cassandra.db;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
@@ -465,6 +468,46 @@ public class DirectoriesTest
             if (i >= 10000000)
                 fail();
         }
+    }
+
+    @Test
+    public void testGetLocationForDisk()
+    {
+        DataDirectory [] paths = new DataDirectory[3];
+        paths[0] = new DataDirectory(new File("/tmp/aaa"));
+        paths[1] = new DataDirectory(new File("/tmp/aa"));
+        paths[2] = new DataDirectory(new File("/tmp/a"));
+
+        for (CFMetaData cfm : CFM)
+        {
+            Directories dirs = new Directories(cfm, paths);
+            for (DataDirectory dir : paths)
+            {
+                String p = dirs.getLocationForDisk(dir).getAbsolutePath() + File.separator;
+                assertTrue(p.startsWith(dir.location.getAbsolutePath() + File.separator));
+            }
+        }
+    }
+
+    @Test
+    public void testGetLocationWithSymlinks() throws IOException
+    {
+        Path p = Files.createTempDirectory("something");
+        Path symlinktarget = Files.createDirectories(p.resolve("symlinktarget"));
+        Path ddir = Files.createDirectories(p.resolve("datadir1"));
+
+        Path p1 = Files.createDirectories(ddir.resolve("p1").resolve("ks")).getParent(); // the data dir does not include the keyspace dir
+        Path p2 = Files.createDirectories(ddir.resolve("p2"));
+        Path l1 = Files.createSymbolicLink(p2.resolve("ks"), symlinktarget);
+
+        DataDirectory path1 = new DataDirectory(p1.toFile());
+        DataDirectory path2 = new DataDirectory(p2.toFile());
+        Directories dirs = new Directories(CFM.iterator().next(), new DataDirectory[] {path1, path2});
+        dirs.getLocationForDisk(new DataDirectory(p1.toFile()));
+        dirs.getLocationForDisk(new DataDirectory(p2.toFile()));
+
+        assertTrue(dirs.getLocationForDisk(path2).toPath().startsWith(l1));
+        assertTrue(dirs.getLocationForDisk(path1).toPath().startsWith(p1));
     }
 
     private List<Directories.DataDirectoryCandidate> getWriteableDirectories(DataDirectory[] dataDirectories, long writeSize)
