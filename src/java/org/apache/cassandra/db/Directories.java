@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
@@ -287,8 +288,13 @@ public class Directories
     {
         if (dataDirectory != null)
             for (File dir : dataPaths)
-                if (dir.getAbsolutePath().startsWith(dataDirectory.location.getAbsolutePath()))
+            {
+                // Note that we must compare absolute paths (not canonical) here since keyspace directories might be symlinks
+                Path dirPath = Paths.get(dir.getAbsolutePath());
+                Path locationPath = Paths.get(dataDirectory.location.getAbsolutePath());
+                if (dirPath.startsWith(locationPath))
                     return dir;
+            }
         return null;
     }
 

@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class FileUtilsTest
@@ -52,4 +53,13 @@ public class FileUtilsTest
         assertEquals(0, b.length);
     }
 
+    @Test
+    public void testIsContained()
+    {
+        assertTrue(FileUtils.isContained(new File("/tmp/abc"), new File("/tmp/abc")));
+        assertFalse(FileUtils.isContained(new File("/tmp/abc"), new File("/tmp/abcd")));
+        assertTrue(FileUtils.isContained(new File("/tmp/abc"), new File("/tmp/abc/d")));
+        assertTrue(FileUtils.isContained(new File("/tmp/abc/../abc"), new File("/tmp/abc/d")));
+        assertFalse(FileUtils.isContained(new File("/tmp/abc/../abc"), new File("/tmp/abcc")));
+    }
 }
