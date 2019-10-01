@@ -54,7 +54,7 @@ public class TracingUtil
             this.thread = thread;
         }
 
-        static TraceEntry fromObjects(Object[] objects)
+        static TraceEntry fromRowResultObjects(Object[] objects)
         {
             return new TraceEntry((UUID) objects[0],
                                   (UUID) objects[1],
@@ -79,7 +79,7 @@ public class TracingUtil
         List<TraceEntry> traces = new LinkedList<>();
         for (Object[] r : result)
         {
-            traces.add(TraceEntry.fromObjects(r));
+            traces.add(TraceEntry.fromRowResultObjects(r));
         }
         return traces;
     }
@@ -98,7 +98,7 @@ public class TracingUtil
         List<TraceEntry> traces = new ArrayList<>();
         for (Object[] r : result)
         {
-            traces.add(TraceEntry.fromObjects(r));
+            traces.add(TraceEntry.fromRowResultObjects(r));
         }
         return traces;
     }
