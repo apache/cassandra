@@ -628,11 +628,11 @@ are supported.
 
 ``seed_provider``
 -----------------
-# Addresses of hosts that are deemed contact points. 
-# Cassandra nodes use this list of hosts to find each other and learn
-# the topology of the ring.  You must change this if you are running
-# multiple nodes! Any class that implements the SeedProvider interface and has a
-# constructor that takes a Map<String, String> of parameters will do.
+Addresses of hosts that are deemed contact points. 
+Cassandra nodes use this list of hosts to find each other and learn
+the topology of the ring.  You must change this if you are running
+multiple nodes! Any class that implements the SeedProvider interface and has a
+constructor that takes a Map<String, String> of parameters will do.
 
 *Default Value (complex option)*::
         - class_name: org.apache.cassandra.locator.SimpleSeedProvider
