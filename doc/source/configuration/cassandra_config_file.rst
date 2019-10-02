@@ -85,7 +85,7 @@ perform hinted handoff
 
 ``max_hint_window_in_ms``
 -------------------------
-this defines the maximum amount of time a dead host will have hints
+This defines the maximum amount of time a dead host will have hints
 generated.  After it has been dead this long, new hints for it will not be
 created until it has been seen alive and gone down again.
 
@@ -319,7 +319,7 @@ If not set, the default directory is $CASSANDRA_HOME/data/data.
 ``commitlog_directory``
 -----------------------
 *This option is commented out by default.*
-commit log.  when running on magnetic HDD, this should be a
+Commitlog directory. when running on magnetic HDD, this should be a
 separate spindle than the data directories.
 If not set, the default directory is $CASSANDRA_HOME/data/commitlog.
 
@@ -550,7 +550,7 @@ Disabled by default, meaning all keys are going to be saved
 --------------------------
 *This option is commented out by default.*
 
-saved caches
+Saved caches directoy.
 If not set, the default directory is $CASSANDRA_HOME/data/saved_caches.
 
 *Example Value:*  /var/lib/cassandra/saved_caches
@@ -558,23 +558,23 @@ If not set, the default directory is $CASSANDRA_HOME/data/saved_caches.
 ``commitlog_sync``
 ------------------
 
-# commitlog_sync may be either "periodic", "group", or "batch." 
-# When in batch mode, Cassandra won't ack writes until the commit log
-# has been flushed to disk.  Each incoming write will trigger the flush task.
-# commitlog_sync_batch_window_in_ms is a deprecated value. Previously it had
-# almost no value, and is being removed.
-#
-# commitlog_sync_batch_window_in_ms: 2
-#
-# Group mode is similar to batch mode, where Cassandra will not ack writes
-# until the commit log has been flushed to disk. The difference is group
-# mode will wait up to commitlog_sync_group_window_in_ms between flushes.
-#
-# commitlog_sync_group_window_in_ms: 1000
-#
-# The default option is "periodic" where writes may be acked immediately
-# and the CommitLog is simply synced every commitlog_sync_period_in_ms
-# milliseconds.
+commitlog_sync may be either "periodic", "group", or "batch." 
+When in batch mode, Cassandra won't ack writes until the commit log
+has been flushed to disk.  Each incoming write will trigger the flush task.
+commitlog_sync_batch_window_in_ms is a deprecated value. Previously it had
+almost no value, and is being removed.
+
+commitlog_sync_batch_window_in_ms: 2
+
+Group mode is similar to batch mode, where Cassandra will not ack writes
+until the commit log has been flushed to disk. The difference is group
+mode will wait up to commitlog_sync_group_window_in_ms between flushes.
+
+commitlog_sync_group_window_in_ms: 1000
+
+The default option is "periodic" where writes may be acked immediately
+and the CommitLog is simply synced every commitlog_sync_period_in_ms
+milliseconds.
 
 *Default Value:* periodic 
 
@@ -587,8 +587,8 @@ If not set, the default directory is $CASSANDRA_HOME/data/saved_caches.
 -------------------------------------------
 *This option is commented out by default.*
 
-# When in periodic commitlog mode, the number of milliseconds to block writes
-# while waiting for a slow disk flush to complete.
+When in periodic commitlog mode, the number of milliseconds to block writes
+while waiting for a slow disk flush to complete.
 
 ``commitlog_segment_size_in_mb``
 --------------------------------
@@ -768,14 +768,14 @@ offheap_objects
 ------------------------------
 *This option is commented out by default.*
 
-# Limit memory usage for Merkle tree calculations during repairs. The default
-# is 1/16th of the available heap. The main tradeoff is that smaller trees
-# have less resolution, which can lead to over-streaming data. If you see heap
-# pressure during repairs, consider lowering this, but you cannot go below
-# one megabyte. If you see lots of over-streaming, consider raising
-# this or using subrange repair.
-#
-# For more details see https://issues.apache.org/jira/browse/CASSANDRA-14096.
+Limit memory usage for Merkle tree calculations during repairs. The default
+is 1/16th of the available heap. The main tradeoff is that smaller trees
+have less resolution, which can lead to over-streaming data. If you see heap
+pressure during repairs, consider lowering this, but you cannot go below
+one megabyte. If you see lots of over-streaming, consider raising
+this or using subrange repair.
+
+For more details see https://issues.apache.org/jira/browse/CASSANDRA-14096.
 
 ``commitlog_total_space_in_mb``
 -------------------------------
@@ -986,7 +986,7 @@ same as the rpc_address. The port however is different and specified below.
 
 ``native_transport_port``
 -------------------------
-port for the CQL native transport to listen for clients on
+Port for the CQL native transport to listen for clients on
 For security reasons, you should not expose this port to the internet.  Firewall it if needed.
 
 *Default Value:* 9042
@@ -994,6 +994,7 @@ For security reasons, you should not expose this port to the internet.  Firewall
 ``native_transport_port_ssl``
 -----------------------------
 *This option is commented out by default.*
+
 Enabling native transport encryption in client_encryption_options allows you to either use
 encryption for the standard port or to use a dedicated, additional port along with the unencrypted
 standard native_transport_port.
@@ -1534,8 +1535,8 @@ of the snitch, which will be assumed to be on your classpath.
 ``dynamic_snitch_update_interval_in_ms``
 ----------------------------------------
 
-controls how often to perform the more expensive part of host score
-calculation
+Controls how often to perform the more expensive part of host score
+calculation.
 
 *Default Value:* 100 
 
@@ -1548,7 +1549,7 @@ possibly recover
 
 ``dynamic_snitch_badness_threshold``
 ------------------------------------
-if set greater than zero and read_repair_chance is < 1.0, this will allow
+If set greater than zero and read_repair_chance is < 1.0, this will allow
 'pinning' of replicas to hosts in order to increase cache capacity.
 The badness threshold will control how much worse the pinned host has to be
 before the dynamic snitch will prefer other replicas over it.  This is
