@@ -214,7 +214,10 @@ public class CompressedSequentialWriter extends SequentialWriter
         // compressed chunk size (- 4 bytes reserved for checksum)
         int chunkSize = (int) (metadataWriter.chunkOffsetBy(realMark.nextChunkIndex) - chunkOffset - 4);
         if (compressed.capacity() < chunkSize)
+        {
+            FileUtils.clean(compressed);
             compressed = compressor.preferredBufferType().allocate(chunkSize);
+        }
 
         try
         {

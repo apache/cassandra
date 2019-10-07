@@ -4,6 +4,7 @@
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Fix resource leak in CompressedSequentialWriter (CASSANDRA-15340)
  * Fix bad merge that reverted CASSANDRA-14993 (CASSANDRA-15289)
  * Fix LegacyLayout RangeTombstoneList IndexOutOfBoundsException when upgrading and RangeTombstone bounds are asymmetric (CASSANDRA-15172)
  * Fix NPE when using allocate_tokens_for_keyspace on new DC/rack (CASSANDRA-14952)
