@@ -46,9 +46,14 @@ public class UpgradeableCluster extends AbstractCluster<IUpgradeableInstance> im
         return new Wrapper(generation, version, config);
     }
 
+    public static Builder<IUpgradeableInstance, UpgradeableCluster> build()
+    {
+        return new Builder<>(UpgradeableCluster::new);
+    }
+
     public static Builder<IUpgradeableInstance, UpgradeableCluster> build(int nodeCount)
     {
-        return new Builder<>(nodeCount, UpgradeableCluster::new);
+        return build().withNodes(nodeCount);
     }
 
     public static UpgradeableCluster create(int nodeCount) throws Throwable

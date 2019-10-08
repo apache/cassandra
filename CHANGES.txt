@@ -43,6 +43,7 @@ Merged from 2.2:
  * Fixing invalid CQL in security documentation (CASSANDRA-15020)
  * Multi-version in-JVM dtests (CASSANDRA-14937)
  * Allow instance class loaders to be garbage collected for inJVM dtest (CASSANDRA-15170)
+ * Add support for network topology and query tracing for inJVM dtest (CASSANDRA-15319)
 
 
 3.11.4
