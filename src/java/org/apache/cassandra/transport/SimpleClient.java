@@ -259,7 +259,7 @@ public class SimpleClient implements Closeable
 
     // Stateless handlers
     private static final Message.ProtocolDecoder messageDecoder = new Message.ProtocolDecoder();
-    private static final Message.ProtocolEncoder messageEncoder = new Message.ProtocolEncoder();
+    private static final Message.ProtocolEncoder messageEncoder = new Message.ProtocolEncoder(ProtocolVersionLimit.SERVER_DEFAULT);
     private static final Frame.Decompressor frameDecompressor = new Frame.Decompressor();
     private static final Frame.Compressor frameCompressor = new Frame.Compressor();
     private static final Frame.Encoder frameEncoder = new Frame.Encoder();
@@ -282,7 +282,7 @@ public class SimpleClient implements Closeable
             channel.attr(Connection.attributeKey).set(connection);
 
             ChannelPipeline pipeline = channel.pipeline();
-            pipeline.addLast("frameDecoder", new Frame.Decoder(connectionFactory));
+            pipeline.addLast("frameDecoder", new Frame.Decoder(connectionFactory, ProtocolVersionLimit.SERVER_DEFAULT));
             pipeline.addLast("frameEncoder", frameEncoder);
 
             pipeline.addLast("frameDecompressor", frameDecompressor);

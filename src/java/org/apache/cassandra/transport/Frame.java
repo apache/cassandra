@@ -142,10 +142,12 @@ public class Frame
         private int tooLongStreamId;
 
         private final Connection.Factory factory;
+        private final ProtocolVersionLimit versionCap;
 
-        public Decoder(Connection.Factory factory)
+        public Decoder(Connection.Factory factory, ProtocolVersionLimit versionCap)
         {
             this.factory = factory;
+            this.versionCap = versionCap;
         }
 
         @Override
@@ -172,7 +174,7 @@ public class Frame
             int firstByte = buffer.getByte(idx++);
             Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
             int versionNum = firstByte & PROTOCOL_VERSION_MASK;
-            ProtocolVersion version = ProtocolVersion.decode(versionNum);
+            ProtocolVersion version = ProtocolVersion.decode(versionNum, versionCap);
 
             // Wait until we have the complete header
             if (readableBytes < Header.LENGTH)

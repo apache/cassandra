@@ -84,9 +84,9 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
         return ret;
     }
 
-    public static ProtocolVersion decode(int versionNum)
+    public static ProtocolVersion decode(int versionNum, ProtocolVersionLimit ceiling)
     {
-        ProtocolVersion ret = versionNum >= MIN_SUPPORTED_VERSION.num && versionNum <= MAX_SUPPORTED_VERSION.num
+        ProtocolVersion ret = versionNum >= MIN_SUPPORTED_VERSION.num && versionNum <= ceiling.getMaxVersion().num
                               ? SUPPORTED_VERSIONS[versionNum - MIN_SUPPORTED_VERSION.num]
                               : null;
 
@@ -102,7 +102,7 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
             }
 
             // If the version is invalid reply with the highest version that we support
-            throw new ProtocolException(invalidVersionMessage(versionNum), MAX_SUPPORTED_VERSION);
+            throw new ProtocolException(invalidVersionMessage(versionNum), ceiling.getMaxVersion());
         }
 
         return ret;

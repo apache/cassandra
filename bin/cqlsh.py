@@ -622,9 +622,9 @@ class Shell(cmd.Cmd):
         result, = self.session.execute("select * from system.local where key = 'local'")
         vers = {
             'build': result['release_version'],
-            'protocol': result['native_protocol_version'],
             'cql': result['cql_version'],
         }
+        vers['protocol'] = self.conn.protocol_version
         self.connection_versions = vers
 
     def get_keyspace_names(self):

@@ -62,8 +62,10 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.transport.*;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.transport.ConfiguredLimit;
+import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -91,6 +93,7 @@ public abstract class CQLTester
     protected static final InetAddress nativeAddr;
     private static final Map<ProtocolVersion, Cluster> clusters = new HashMap<>();
     private static final Map<ProtocolVersion, Session> sessions = new HashMap<>();
+    protected static ConfiguredLimit protocolVersionLimit;
 
     private static boolean isServerPrepared = false;
 
@@ -353,11 +356,43 @@ public abstract class CQLTester
         if (server != null)
             return;
 
+        prepareNetwork();
+        initializeNetwork();
+    }
+
+    protected static void prepareNetwork()
+    {
         SystemKeyspace.finishStartup();
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
+    }
 
-        server = new Server.Builder().withHost(nativeAddr).withPort(nativePort).build();
+    protected static void reinitializeNetwork()
+    {
+        if (server != null && server.isRunning())
+        {
+            server.stop();
+            server = null;
+        }
+        List<CloseFuture> futures = new ArrayList<>();
+        for (Cluster cluster : clusters.values())
+            futures.add(cluster.closeAsync());
+        for (Session session : sessions.values())
+            futures.add(session.closeAsync());
+        FBUtilities.waitOnFutures(futures);
+        clusters.clear();
+        sessions.clear();
+
+        initializeNetwork();
+    }
+
+    private static void initializeNetwork()
+    {
+        protocolVersionLimit = ConfiguredLimit.newLimit();
+        server = new Server.Builder().withHost(nativeAddr)
+                                     .withPort(nativePort)
+                                     .withProtocolVersionLimit(protocolVersionLimit)
+                                     .build();
         ClientMetrics.instance.init(Collections.singleton(server));
         server.start();
 
@@ -366,9 +401,12 @@ public abstract class CQLTester
             if (clusters.containsKey(version))
                 continue;
 
+            if (version.isGreaterThan(protocolVersionLimit.getMaxVersion()))
+                continue;
+
             Cluster cluster = Cluster.builder()
                                      .addContactPoints(nativeAddr)
-                                     .withClusterName("Test Cluster")
+                                     .withClusterName("Test Cluster-" + version.name())
                                      .withPort(nativePort)
                                      .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt()))
                                      .build();
@@ -377,6 +415,14 @@ public abstract class CQLTester
 
             logger.info("Started Java Driver instance for protocol version {}", version);
         }
+    }
+
+    protected void updateMaxNegotiableProtocolVersion()
+    {
+        if (protocolVersionLimit == null)
+            throw new IllegalStateException("Native transport server has not been initialized");
+
+        protocolVersionLimit.updateMaxSupportedVersion();
     }
 
     protected void dropPerTestKeyspace() throws Throwable
