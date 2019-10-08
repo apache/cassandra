@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -136,6 +137,13 @@ public class RepairTest extends DistributedTestBase
     public static void setupCluster() throws IOException
     {
         cluster = create(config -> {});
+    }
+
+    @AfterClass
+    public static void closeCluster()
+    {
+        if (cluster != null)
+            cluster.close();
     }
 
     @Ignore("Test requires CASSANDRA-13938 to be merged")
