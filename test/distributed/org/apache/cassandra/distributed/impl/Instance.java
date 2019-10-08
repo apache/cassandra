@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.impl;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -72,7 +73,6 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IMessageSink;
-import org.apache.cassandra.net.MessageDeliveryTask;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -83,10 +83,13 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamCoordinator;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
 
@@ -246,6 +249,28 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 InetAddressAndPort toFull = lookupAddressAndPort.apply(to);
                 int version = MessagingService.instance().getVersion(to);
 
+                // Tracing logic - similar to org.apache.cassandra.net.OutboundTcpConnection.writeConnected
+                byte[] sessionBytes = (byte[]) messageOut.parameters.get(Tracing.TRACE_HEADER);
+                if (sessionBytes != null)
+                {
+                    UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
+                    TraceState state = Tracing.instance.get(sessionId);
+                    String message = String.format("Sending %s message to %s", messageOut.verb, toFull.address);
+                    // session may have already finished; see CASSANDRA-5668
+                    if (state == null)
+                    {
+                        byte[] traceTypeBytes = (byte[]) messageOut.parameters.get(Tracing.TRACE_TYPE);
+                        Tracing.TraceType traceType = traceTypeBytes == null ? Tracing.TraceType.QUERY : Tracing.TraceType.deserialize(traceTypeBytes[0]);
+                        Tracing.instance.trace(ByteBuffer.wrap(sessionBytes), message, traceType.getTTL());
+                    }
+                    else
+                    {
+                        state.trace(message);
+                        if (messageOut.verb == MessagingService.Verb.REQUEST_RESPONSE)
+                            Tracing.instance.doneWithNonLocalSession(state);
+                    }
+                }
+
                 out.writeInt(MessagingService.PROTOCOL_MAGIC);
                 out.writeInt(id);
                 long timestamp = System.currentTimeMillis();
@@ -319,6 +344,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 mkdirs();
 
+                assert config.networkTopology().contains(config.broadcastAddressAndPort());
+                DistributedTestSnitch.assign(config.networkTopology());
+
                 DatabaseDescriptor.daemonInitialization();
                 DatabaseDescriptor.createAllDirectories();
 
@@ -370,6 +398,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     initializeRing(cluster);
                 }
+
+                StorageService.instance.ensureTraceKeyspace();
 
                 SystemKeyspace.finishStartup();
 
