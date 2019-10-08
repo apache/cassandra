@@ -34,6 +34,7 @@ import java.util.function.BiPredicate;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
 import org.apache.cassandra.batchlog.BatchlogManager;
+import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.concurrent.StageManager;
@@ -79,6 +80,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.async.StreamingInboundHandler;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
+import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -218,6 +221,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try (DataOutputBuffer out = new DataOutputBuffer(1024))
             {
                 InetAddressAndPort from = broadcastAddressAndPort();
+                Tracing.instance.traceOutgoingMessage(messageOut, to);
                 Message.serializer.serialize(messageOut, out, MessagingService.current_version);
                 deliver.accept(to, new MessageImpl(messageOut.verb().id, out.toByteArray(), messageOut.id(), MessagingService.current_version, from));
             }
@@ -236,7 +240,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try (DataInputBuffer in = new DataInputBuffer(message.bytes()))
             {
                 Message<?> messageIn = Message.serializer.deserialize(in, message.from(), message.version());
-                messageIn.verb().handler().doVerb((Message<Object>) messageIn);
+                Message.Header header = messageIn.header;
+                TraceState state = Tracing.instance.initializeFromMessage(header);
+                if (state != null) state.trace("{} message received from {}", header.verb, header.from);
+                StageManager.getStage(header.verb.stage).execute(
+                    ThrowingRunnable.toRunnable(() -> messageIn.verb().handler().doVerb((Message<Object>) messageIn)),
+                    ExecutorLocals.create(state));
             }
             catch (Throwable t)
             {
@@ -270,6 +279,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
 
                 mkdirs();
+
+                assert config.networkTopology().contains(config.broadcastAddressAndPort());
+                DistributedTestSnitch.assign(config.networkTopology());
 
                 DatabaseDescriptor.daemonInitialization();
                 DatabaseDescriptor.createAllDirectories();
@@ -323,6 +335,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     initializeRing(cluster);
                 }
+
+                StorageService.instance.ensureTraceKeyspace();
 
                 SystemKeyspace.finishStartup();
 

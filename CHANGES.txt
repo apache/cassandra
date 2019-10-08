@@ -10,6 +10,7 @@ Merged from 3.0:
  * Gossip tokens on startup if available (CASSANDRA-15335)
  * Fix resource leak in CompressedSequentialWriter (CASSANDRA-15340)
  * Fix bad merge that reverted CASSANDRA-14993 (CASSANDRA-15289)
+ * Add support for network topology and query tracing for inJVM dtest (CASSANDRA-15319)
 
 
 4.0-alpha1
