@@ -707,6 +707,16 @@ public class CassandraDaemon
         return nativeTransportService != null ? nativeTransportService.isRunning() : false;
     }
 
+    public int getMaxNativeProtocolVersion()
+    {
+        return nativeTransportService.getMaxProtocolVersion();
+    }
+
+    public void refreshMaxNativeProtocolVersion()
+    {
+        if (nativeTransportService != null)
+            nativeTransportService.refreshMaxNegotiableProtocolVersion();
+    }
 
     /**
      * A convenience method to stop and destroy the daemon in one shot.

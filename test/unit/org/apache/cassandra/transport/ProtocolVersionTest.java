@@ -27,13 +27,13 @@ public class ProtocolVersionTest
     public void testDecode()
     {
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
-            Assert.assertEquals(version, ProtocolVersion.decode(version.asInt()));
+            Assert.assertEquals(version, ProtocolVersion.decode(version.asInt(), ProtocolVersionLimit.SERVER_DEFAULT));
 
         for (ProtocolVersion version : ProtocolVersion.UNSUPPORTED)
         { // unsupported old versions
             try
             {
-                Assert.assertEquals(version, ProtocolVersion.decode(version.asInt()));
+                Assert.assertEquals(version, ProtocolVersion.decode(version.asInt(), ProtocolVersionLimit.SERVER_DEFAULT));
                 Assert.fail("Expected invalid protocol exception");
             }
             catch (ProtocolException ex)
@@ -45,7 +45,7 @@ public class ProtocolVersionTest
 
         try
         { // unsupported newer version
-            Assert.assertEquals(null, ProtocolVersion.decode(63));
+            Assert.assertEquals(null, ProtocolVersion.decode(63, ProtocolVersionLimit.SERVER_DEFAULT));
             Assert.fail("Expected invalid protocol exception");
         }
         catch (ProtocolException ex)

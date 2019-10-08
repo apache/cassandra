@@ -3,7 +3,8 @@
  * Fix cassandra-env.sh to use $CASSANDRA_CONF to find cassandra-jaas.config (CASSANDRA-14305)
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
-Merged from 3.0:
+Merged from 3.0:a
+ * Add ability to cap max negotiable protocol version (CASSANDRA-15193)
  * Gossip tokens on startup if available (CASSANDRA-15335)
  * Fix resource leak in CompressedSequentialWriter (CASSANDRA-15340)
  * Fix bad merge that reverted CASSANDRA-14993 (CASSANDRA-15289)
