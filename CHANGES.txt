@@ -1,4 +1,5 @@
 3.11.5
+ * Fix SASI non-literal string comparisons (range operators) (CASSANDRA-15169)
  * Make sure user defined compaction transactions are always closed (CASSANDRA-15123)
  * Fix cassandra-env.sh to use $CASSANDRA_CONF to find cassandra-jaas.config (CASSANDRA-14305)
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
