@@ -18,15 +18,18 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Supplier;
+
 import org.apache.cassandra.distributed.api.IListen;
+import org.apache.cassandra.gms.Gossiper;
 
 public class Listen implements IListen
 {
     final Instance instance;
+
     public Listen(Instance instance)
     {
         this.instance = instance;
@@ -34,9 +37,18 @@ public class Listen implements IListen
 
     public Cancel schema(Runnable onChange)
     {
-        final AtomicBoolean cancel = new AtomicBoolean();
+        return start(onChange, instance::schemaVersion);
+    }
+
+    public Cancel liveMembers(Runnable onChange)
+    {
+        return start(onChange, instance::liveMemberCount);
+    }
+
+    protected <T> Cancel start(Runnable onChange, Supplier<T> valueSupplier) {
+        AtomicBoolean cancel = new AtomicBoolean(false);
         instance.isolatedExecutor.execute(() -> {
-            UUID prev = instance.schemaVersion();
+            T prev = valueSupplier.get();
             while (true)
             {
                 if (cancel.get())
@@ -44,7 +56,7 @@ public class Listen implements IListen
 
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10L));
 
-                UUID cur = instance.schemaVersion();
+                T cur = valueSupplier.get();
                 if (!prev.equals(cur))
                     onChange.run();
                 prev = cur;

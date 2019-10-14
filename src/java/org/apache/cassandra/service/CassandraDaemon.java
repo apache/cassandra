@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
@@ -83,6 +82,13 @@ public class CassandraDaemon
     private static JMXConnectorServer jmxServer = null;
 
     private static final Logger logger;
+
+    @VisibleForTesting
+    public static CassandraDaemon getInstanceForTesting()
+    {
+        return instance;
+    }
+
     static {
         // Need to register metrics before instrumented appender is created(first access to LoggerFactory).
         SharedMetricRegistries.getOrCreate("logback-metrics").addListener(new MetricRegistryListener.Base()
@@ -357,13 +363,53 @@ public class CassandraDaemon
         int rpcPort = DatabaseDescriptor.getRpcPort();
         int listenBacklog = DatabaseDescriptor.getRpcListenBacklog();
         thriftServer = new ThriftServer(rpcAddr, rpcPort, listenBacklog);
+        initializeNativeTransport();
 
+        completeSetup();
+    }
+
+    public void initializeNativeTransport()
+    {
         // Native transport
         InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
         int nativePort = DatabaseDescriptor.getNativeTransportPort();
         nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
+    }
 
-        completeSetup();
+    public void startNativeTransport()
+    {
+        validateTransportsCanStart();
+
+        if (nativeServer == null)
+            throw new IllegalStateException("native transport should be set up before it can be started");
+
+        nativeServer.start();
+    }
+
+    private void validateTransportsCanStart()
+    {
+        // We only start transports if bootstrap has completed and we're not in survey mode, OR if we are in
+        // survey mode and streaming has completed but we're not using auth.
+        // OR if we have not joined the ring yet.
+        if (StorageService.instance.hasJoined())
+        {
+            if (StorageService.instance.isSurveyMode())
+            {
+                if (StorageService.instance.isBootstrapMode() || DatabaseDescriptor.getAuthenticator().requireAuthentication())
+                {
+                    throw new IllegalStateException("Not starting client transports in write_survey mode as it's bootstrapping or " +
+                                                    "auth is enabled");
+                }
+            }
+            else
+            {
+                if (!SystemKeyspace.bootstrapComplete())
+                {
+                    throw new IllegalStateException("Node is not yet bootstrapped completely. Use nodetool to check bootstrap" +
+                                                    " state and resume. For more, see `nodetool help bootstrap`");
+                }
+            }
+        }
     }
 
     /*
@@ -440,28 +486,15 @@ public class CassandraDaemon
      */
     public void start()
     {
-        // We only start transports if bootstrap has completed and we're not in survey mode, OR if we are in
-        // survey mode and streaming has completed but we're not using auth.
-        // OR if we have not joined the ring yet.
-        if (StorageService.instance.hasJoined())
+        try
         {
-            if (StorageService.instance.isSurveyMode())
-            {
-                if (StorageService.instance.isBootstrapMode() || DatabaseDescriptor.getAuthenticator().requireAuthentication())
-                {
-                    logger.info("Not starting client transports in write_survey mode as it's bootstrapping or " +
-                            "auth is enabled");
-                    return;
-                }
-            }
-            else
-            {
-                if (!SystemKeyspace.bootstrapComplete())
-                {
-                    logger.info("Not starting client transports as bootstrap has not completed");
-                    return;
-                }
-            }
+            validateTransportsCanStart();
+        }
+        catch (IllegalStateException isx)
+        {
+            // If there are any errors, we just log and return in this case
+            logger.info(isx.getMessage());
+            return;
         }
 
         String nativeFlag = System.getProperty("cassandra.start_native_transport");
@@ -507,6 +540,18 @@ public class CassandraDaemon
             {
                 logger.error("Error shutting down local JMX server: ", e);
             }
+        }
+    }
+
+    @VisibleForTesting
+    public void destroyNativeTransport() throws InterruptedException
+    {
+        // In 2.2, just stopping the server works. Future versions require `destroy` to be called
+        // so we maintain the name for consistency
+        if (nativeServer != null)
+        {
+            nativeServer.stopAndAwaitTermination();
+            nativeServer = null;
         }
     }
 
@@ -648,7 +693,7 @@ public class CassandraDaemon
             logger.info("No gossip backlog; proceeding");
     }
 
-    public static void stop(String[] args)
+    public static void stop(String[] args) throws InterruptedException
     {
         instance.deactivate();
     }
@@ -702,6 +747,9 @@ public class CassandraDaemon
          * Should throw a RuntimeException if the server cannot be stopped
          */
         public void stop();
+
+        @VisibleForTesting
+        public void stopAndAwaitTermination();
 
         /**
          * Returns whether the server is currently running.
