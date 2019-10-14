@@ -24,6 +24,8 @@ import java.util.List;
 
 import com.google.common.collect.Iterators;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -69,5 +71,18 @@ public class RowUtil
                                        }
                                        return objectRow;
                                    });
+    }
+
+    public static Iterator<Object[]> toObjects(ResultSet rs)
+    {
+        final int numColumns = rs.getColumnDefinitions().size();
+        return Iterators.transform(rs.iterator(), (Row row) -> {
+            Object[] objectRow = new Object[numColumns];
+            for (int i = 0; i < numColumns; i++)
+            {
+                objectRow[i] = row.getObject(i);
+            }
+            return objectRow;
+        });
     }
 }

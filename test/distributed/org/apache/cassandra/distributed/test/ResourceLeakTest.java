@@ -26,7 +26,6 @@ import java.nio.file.Path;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
-import java.util.List;
 import java.util.function.Consumer;
 import javax.management.MBeanServer;
 
@@ -45,6 +44,7 @@ import org.apache.cassandra.utils.SigarLibrary;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 
 /* Resource Leak Test - useful when tracking down issues with in-JVM framework cleanup.
  * All objects referencing the InstanceClassLoader need to be garbage collected or
@@ -145,6 +145,7 @@ public class ResourceLeakTest extends DistributedTestBase
     {
         for (int loop = 0; loop < numTestLoops; loop++)
         {
+            System.out.println(String.format("========== Starting loop %03d ========", loop));
             try (Cluster cluster = Cluster.build(numClusterNodes).withConfig(updater).start())
             {
                 if (cluster.get(1).config().has(GOSSIP)) // Wait for gossip to settle on the seed node
@@ -171,6 +172,7 @@ public class ResourceLeakTest extends DistributedTestBase
                 System.runFinalization();
                 System.gc();
             }
+            System.out.println(String.format("========== Completed loop %03d ========", loop));
         }
     }
 
@@ -198,5 +200,18 @@ public class ResourceLeakTest extends DistributedTestBase
             Thread.sleep(finalWaitMillis);
         }
         dumpResources("final-gossip-network");
+    }
+
+    @Test
+    public void looperNativeTest() throws Throwable
+    {
+        doTest(2, config -> config.with(NATIVE_PROTOCOL));
+        if (forceCollection)
+        {
+            System.runFinalization();
+            System.gc();
+            Thread.sleep(finalWaitMillis);
+        }
+        dumpResources("final-native");
     }
 }

@@ -41,6 +41,8 @@ public interface IInstance extends IIsolatedExecutor
     Future<Void> shutdown();
     Future<Void> shutdown(boolean graceful);
 
+    int liveMemberCount();
+
     // these methods are not for external use, but for simplicity we leave them public and on the normal IInstance interface
     void startup(ICluster cluster);
     void receiveMessage(IMessage message);

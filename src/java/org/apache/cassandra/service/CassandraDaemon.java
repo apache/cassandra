@@ -152,6 +152,12 @@ public class CassandraDaemon
 
     static final CassandraDaemon instance = new CassandraDaemon();
 
+    @VisibleForTesting
+    public static CassandraDaemon getInstanceForTesting()
+    {
+        return instance;
+    }
+
     public Server thriftServer;
     private NativeTransportService nativeTransportService;
     private JMXConnectorServer jmxServer;
@@ -434,10 +440,15 @@ public class CassandraDaemon
         int listenBacklog = DatabaseDescriptor.getRpcListenBacklog();
         thriftServer = new ThriftServer(rpcAddr, rpcPort, listenBacklog);
 
-        // Native transport
-        nativeTransportService = new NativeTransportService();
+        initializeNativeTransport();
 
         completeSetup();
+    }
+
+    public void initializeNativeTransport()
+    {
+        // Native transport
+        nativeTransportService = new NativeTransportService();
     }
 
     /*
@@ -568,8 +579,7 @@ public class CassandraDaemon
         logger.info("Cassandra shutting down...");
         if (thriftServer != null)
             thriftServer.stop();
-        if (nativeTransportService != null)
-            nativeTransportService.destroy();
+        destroyNativeTransport();
         StorageService.instance.setRpcReady(false);
 
         // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
@@ -702,9 +712,17 @@ public class CassandraDaemon
             nativeTransportService.stop();
     }
 
+    @VisibleForTesting
+    public void destroyNativeTransport() {
+        if (nativeTransportService != null) {
+            nativeTransportService.destroy();
+            nativeTransportService = null;
+        }
+    }
+
     public boolean isNativeTransportRunning()
     {
-        return nativeTransportService != null ? nativeTransportService.isRunning() : false;
+        return nativeTransportService != null && nativeTransportService.isRunning();
     }
 
     public int getMaxNativeProtocolVersion()
