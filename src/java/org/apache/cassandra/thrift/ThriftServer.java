@@ -77,6 +77,11 @@ public class ThriftServer implements CassandraDaemon.Server
         }
     }
 
+    public void stopAndAwaitTermination()
+    {
+        stop();
+    }
+
     public boolean isRunning()
     {
         return server != null;

@@ -24,10 +24,12 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,7 +126,14 @@ public class Server implements CassandraDaemon.Server
     public void stop()
     {
         if (isRunning.compareAndSet(true, false))
-            close();
+            close(false);
+    }
+
+    @VisibleForTesting
+    public void stopAndAwaitTermination()
+    {
+        if (isRunning.compareAndSet(true, false))
+            close(true);
     }
 
     public boolean isRunning()
@@ -206,14 +215,38 @@ public class Server implements CassandraDaemon.Server
 
     private void close()
     {
+        close(false);
+    }
+
+    private void closeAndAwait()
+    {
+        close(true);
+    }
+
+    private void close(boolean awaitTermination)
+    {
         // Close opened connections
         connectionTracker.closeAll();
         workerGroup.shutdownGracefully();
-        workerGroup = null;
-
         eventExecutorGroup.shutdown();
-        eventExecutorGroup = null;
+
         logger.info("Stop listening for CQL clients");
+
+        if (awaitTermination)
+        {
+            try
+            {
+                workerGroup.awaitTermination(1, TimeUnit.MINUTES);
+                eventExecutorGroup.awaitTermination(1, TimeUnit.MINUTES);
+            }
+            catch (InterruptedException e)
+            {
+                logger.error(e.getMessage());
+            }
+        }
+
+        workerGroup = null;
+        eventExecutorGroup = null;
 
         StorageService.instance.setRpcReady(false);
     }

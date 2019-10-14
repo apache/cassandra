@@ -28,8 +28,10 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
+import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
+import org.apache.cassandra.distributed.impl.RowUtil;
 
 public class DistributedTestBase
 {
@@ -79,6 +81,11 @@ public class DistributedTestBase
     {
         cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + cluster.size() + "};");
         return cluster;
+    }
+
+    public static void assertRows(ResultSet actual,Object[]... expected)
+    {
+        assertRows(RowUtil.toObjects(actual), expected);
     }
 
     public static void assertRows(Object[][] actual, Object[]... expected)
