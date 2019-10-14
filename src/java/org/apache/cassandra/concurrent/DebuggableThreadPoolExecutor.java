@@ -17,7 +17,21 @@
  */
 package org.apache.cassandra.concurrent;
 
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.RunnableFuture;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -147,7 +161,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     {
         super.execute(locals == null || command instanceof LocalSessionWrapper
                       ? command
-                      : new LocalSessionWrapper<Object>(command, locals));
+                      : LocalSessionWrapper.create(command, null, locals));
     }
 
     public void maybeExecuteImmediately(Runnable command)
@@ -160,7 +174,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     public void execute(Runnable command)
     {
         super.execute(isTracing() && !(command instanceof LocalSessionWrapper)
-                      ? new LocalSessionWrapper<Object>(Executors.callable(command, null))
+                      ? LocalSessionWrapper.create(command)
                       : command);
     }
 
@@ -168,9 +182,9 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T result)
     {
         if (isTracing() && !(runnable instanceof LocalSessionWrapper))
-        {
-            return new LocalSessionWrapper<T>(Executors.callable(runnable, result));
-        }
+            return LocalSessionWrapper.create(runnable, result);
+        if (runnable instanceof RunnableFuture)
+            return new ForwardingRunnableFuture<>((RunnableFuture) runnable, result);
         return super.newTaskFor(runnable, result);
     }
 
@@ -178,9 +192,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable)
     {
         if (isTracing() && !(callable instanceof LocalSessionWrapper))
-        {
-            return new LocalSessionWrapper<T>(callable);
-        }
+            return LocalSessionWrapper.create(callable);
         return super.newTaskFor(callable);
     }
 
@@ -258,16 +270,32 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
      */
     public static Throwable extractThrowable(Runnable runnable)
     {
-        // Check for exceptions wrapped by FutureTask.  We do this by calling get(), which will
+        // Check for exceptions wrapped by FutureTask or tasks which wrap FutureTask (HasDelegateFuture interface)
+        Throwable throwable = null;
+        if (runnable instanceof Future<?>)
+        {
+            throwable = extractThrowable(((Future<?>) runnable));
+        }
+        if (throwable == null && runnable instanceof HasDelegateFuture)
+        {
+            throwable =  extractThrowable(((HasDelegateFuture) runnable).getDelegate());
+        }
+
+        return throwable;
+    }
+
+    private static Throwable extractThrowable(Future<?> future)
+    {
+        // Check for exceptions wrapped by Future.  We do this by calling get(), which will
         // cause it to throw any saved exception.
         //
         // Complicating things, calling get() on a ScheduledFutureTask will block until the task
         // is cancelled.  Hence, the extra isDone check beforehand.
-        if ((runnable instanceof Future<?>) && ((Future<?>) runnable).isDone())
+        if (future.isDone())
         {
             try
             {
-                ((Future<?>) runnable).get();
+                future.get();
             }
             catch (InterruptedException e)
             {
@@ -282,13 +310,32 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
                 return e.getCause();
             }
         }
-
         return null;
+    }
+
+    /**
+     * If a task wraps a {@link Future} then it should implement this interface to expose the underlining future for
+     * {@link #extractThrowable(Runnable)} to handle.
+     */
+    private interface HasDelegateFuture
+    {
+        Future<?> getDelegate();
     }
 
     /**
      * Used to wrap a Runnable or Callable passed to submit or execute so we can clone the ExecutorLocals and move
      * them into the worker thread.
+     *
+     * The {@link DebuggableThreadPoolExecutor#afterExecute(java.lang.Runnable, java.lang.Throwable)}
+     * method is called after the runnable completes, which will then call {@link #extractThrowable(Runnable)} to
+     * attempt to get the "hidden" throwable from a task which implements {@link Future}.  The problem is that {@link LocalSessionWrapper}
+     * expects that the {@link Callable} provided to it will throw; which is not true for {@link RunnableFuture} tasks;
+     * the expected semantic in this case is to have the LocalSessionWrapper future be successful and a new implementation
+     * {@link FutureLocalSessionWrapper} is created to expose the underline {@link Future} for {@link #extractThrowable(Runnable)}.
+     *
+     * If a task is a {@link Runnable} the create family of methods should be called rather than {@link Executors#callable(Runnable)}
+     * since they will handle the case where the task is also a future, and will make sure the {@link #extractThrowable(Runnable)}
+     * is able to detect the task's underline exception.
      *
      * @param <T>
      */
@@ -296,16 +343,32 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     {
         private final ExecutorLocals locals;
 
-        public LocalSessionWrapper(Callable<T> callable)
+        private LocalSessionWrapper(Callable<T> callable, ExecutorLocals locals)
         {
             super(callable);
-            locals = ExecutorLocals.create();
+            this.locals = locals;
         }
 
-        public LocalSessionWrapper(Runnable command, ExecutorLocals locals)
+        static LocalSessionWrapper<Object> create(Runnable command)
         {
-            super(command, null);
-            this.locals = locals;
+            return create(command, null, ExecutorLocals.create());
+        }
+
+        static <T> LocalSessionWrapper<T> create(Runnable command, T result)
+        {
+            return create(command, result, ExecutorLocals.create());
+        }
+
+        static <T> LocalSessionWrapper<T> create(Runnable command, T result, ExecutorLocals locals)
+        {
+            if (command instanceof RunnableFuture)
+                return new FutureLocalSessionWrapper<>((RunnableFuture) command, result, locals);
+            return new LocalSessionWrapper<>(Executors.callable(command, result), locals);
+        }
+
+        static <T> LocalSessionWrapper<T> create(Callable<T> command)
+        {
+            return new LocalSessionWrapper<>(command, ExecutorLocals.create());
         }
 
         private void setupContext()
@@ -316,6 +379,48 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
         private void reset()
         {
             ExecutorLocals.set(null);
+        }
+    }
+
+    private static class FutureLocalSessionWrapper<T> extends LocalSessionWrapper<T> implements HasDelegateFuture
+    {
+        private final RunnableFuture<T> delegate;
+
+        private FutureLocalSessionWrapper(RunnableFuture command, T result, ExecutorLocals locals)
+        {
+            super(() -> {
+                command.run();
+                return result;
+            }, locals);
+            this.delegate = command;
+        }
+
+        public Future<T> getDelegate()
+        {
+            return delegate;
+        }
+    }
+
+    /**
+     * Similar to {@link FutureLocalSessionWrapper}, this class wraps a {@link Future} and will be success
+     * if the underline future is marked as failed; the main difference is that this class does not setup
+     * {@link ExecutorLocals}.
+     *
+     * @param <T>
+     */
+    private static class ForwardingRunnableFuture<T> extends FutureTask<T> implements HasDelegateFuture
+    {
+        private final RunnableFuture<T> delegate;
+
+        public ForwardingRunnableFuture(RunnableFuture<T> delegate, T result)
+        {
+            super(delegate, result);
+            this.delegate = delegate;
+        }
+
+        public Future<T> getDelegate()
+        {
+            return delegate;
         }
     }
 }

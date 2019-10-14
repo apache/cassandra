@@ -26,7 +26,6 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
@@ -225,33 +224,7 @@ public class CassandraDaemon
         // This should be the first write to SystemKeyspace (CASSANDRA-11742)
         SystemKeyspace.persistLocalMetadata();
 
-        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
-        {
-            public void uncaughtException(Thread t, Throwable e)
-            {
-                StorageMetrics.uncaughtExceptions.inc();
-                logger.error("Exception in thread " + t, e);
-                Tracing.trace("Exception in thread {}", t, e);
-                for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
-                {
-                    JVMStabilityInspector.inspectThrowable(e2);
-
-                    if (e2 instanceof FSError)
-                    {
-                        if (e2 != e) // make sure FSError gets logged exactly once.
-                            logger.error("Exception in thread " + t, e2);
-                        FileUtils.handleFSError((FSError) e2);
-                    }
-
-                    if (e2 instanceof CorruptSSTableException)
-                    {
-                        if (e2 != e)
-                            logger.error("Exception in thread " + t, e2);
-                        FileUtils.handleCorruptSSTable((CorruptSSTableException) e2);
-                    }
-                }
-            }
-        });
+        Thread.setDefaultUncaughtExceptionHandler(CassandraDaemon::uncaughtException);
 
         SystemKeyspaceMigrator40.migrate();
 
@@ -458,6 +431,32 @@ public class CassandraDaemon
     {
         // Native transport
         nativeTransportService = new NativeTransportService();
+    }
+
+    @VisibleForTesting
+    public static void uncaughtException(Thread t, Throwable e)
+    {
+        StorageMetrics.uncaughtExceptions.inc();
+        logger.error("Exception in thread " + t, e);
+        Tracing.trace("Exception in thread {}", t, e);
+        for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
+        {
+            JVMStabilityInspector.inspectThrowable(e2);
+
+            if (e2 instanceof FSError)
+            {
+                if (e2 != e) // make sure FSError gets logged exactly once.
+                    logger.error("Exception in thread " + t, e2);
+                FileUtils.handleFSError((FSError) e2);
+            }
+
+            if (e2 instanceof CorruptSSTableException)
+            {
+                if (e2 != e)
+                    logger.error("Exception in thread " + t, e2);
+                FileUtils.handleCorruptSSTable((CorruptSSTableException) e2);
+            }
+        }
     }
 
     /*
