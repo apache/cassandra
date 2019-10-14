@@ -81,6 +81,11 @@ public class InstanceClassLoader extends URLClassLoader
         this.id = id;
     }
 
+    public int getGeneration()
+    {
+        return generation;
+    }
+
     @Override
     public Class<?> loadClass(String name) throws ClassNotFoundException
     {
