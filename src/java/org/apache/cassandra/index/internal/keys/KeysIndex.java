@@ -22,6 +22,7 @@ package org.apache.cassandra.index.internal.keys;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -48,18 +49,18 @@ public class KeysIndex extends CassandraIndex
         return builder;
     }
 
-    protected CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                                  ClusteringPrefix prefix,
-                                                  CellPath path)
+    protected <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                      ClusteringPrefix<T> prefix,
+                                                      CellPath path)
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
-        builder.add(partitionKey);
+        builder.add(partitionKey, ByteBufferAccessor.instance);
         return builder;
     }
 
     protected ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                      Clustering clustering,
-                                      CellPath path, ByteBuffer cellValue)
+                                         Clustering<?> clustering,
+                                         CellPath path, ByteBuffer cellValue)
     {
         return cellValue;
     }
@@ -78,6 +79,6 @@ public class KeysIndex extends CassandraIndex
 
         return (cell == null
              || !cell.isLive(nowInSec)
-             || indexedColumn.type.compare(indexValue, cell.value()) != 0);
+             || indexedColumn.type.compare(indexValue, cell.buffer()) != 0);
     }
 }

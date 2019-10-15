@@ -24,6 +24,7 @@ import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.utils.FastByteOperations;
 
 public class Digest
@@ -68,7 +69,7 @@ public class Digest
                 // for the purposes of repaired data tracking on the read path, exclude
                 // contexts with legacy shards as these may be irrevocably different on
                 // different replicas
-                if (CounterContext.instance().hasLegacyShards(context))
+                if (CounterContext.instance().hasLegacyShards(context, ByteBufferAccessor.instance))
                     return this;
 
                 return super.updateWithCounterContext(context);
@@ -144,7 +145,7 @@ public class Digest
         if (!context.hasRemaining())
             return this;
 
-        int pos = context.position() + CounterContext.headerLength(context);
+        int pos = context.position() + CounterContext.headerLength(context, ByteBufferAccessor.instance);
         int len = context.limit() - pos;
         update(context, pos, len);
         return this;

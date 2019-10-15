@@ -75,6 +75,11 @@ public class FastByteOperations
         BestHolder.BEST.copy(src, srcPosition, trg, trgPosition, length);
     }
 
+    public static void copy(byte[] src, int srcPosition, ByteBuffer trg, int trgPosition, int length)
+    {
+        BestHolder.BEST.copy(src, srcPosition, trg, trgPosition, length);
+    }
+
     public static void copy(ByteBuffer src, int srcPosition, ByteBuffer trg, int trgPosition, int length)
     {
         BestHolder.BEST.copy(src, srcPosition, trg, trgPosition, length);
@@ -92,6 +97,8 @@ public class FastByteOperations
         abstract public int compare(ByteBuffer buffer1, ByteBuffer buffer2);
 
         abstract public void copy(ByteBuffer src, int srcPosition, byte[] trg, int trgPosition, int length);
+
+        abstract public void copy(byte[] src, int srcPosition, ByteBuffer trg, int trgPosition, int length);
 
         abstract public void copy(ByteBuffer src, int srcPosition, ByteBuffer trg, int trgPosition, int length);
     }
@@ -231,6 +238,14 @@ public class FastByteOperations
                 System.arraycopy(src.array(), src.arrayOffset() + srcPosition, trg, trgPosition, length);
             else
                 copy(null, srcPosition + theUnsafe.getLong(src, DIRECT_BUFFER_ADDRESS_OFFSET), trg, trgPosition, length);
+        }
+
+        public void copy(byte[] src, int srcPosition, ByteBuffer trg, int trgPosition, int length)
+        {
+            if (trg.hasArray())
+                System.arraycopy(src, srcPosition, trg.array(), trg.arrayOffset() + trgPosition, length);
+            else
+                copy(null, srcPosition + theUnsafe.getLong(src, Unsafe.ARRAY_BYTE_BASE_OFFSET), trg, trgPosition, length);
         }
 
         public void copy(ByteBuffer srcBuf, int srcPosition, ByteBuffer trgBuf, int trgPosition, int length)
@@ -459,6 +474,16 @@ public class FastByteOperations
             src = src.duplicate();
             src.position(srcPosition);
             src.get(trg, trgPosition, length);
+        }
+
+        public void copy(byte[] src, int srcPosition, ByteBuffer trg, int trgPosition, int length)
+        {
+            if (trg.hasArray())
+            {
+                System.arraycopy(src, srcPosition, trg.array(), trg.arrayOffset() + trgPosition, length);
+                return;
+            }
+            trg.duplicate().put(src, srcPosition, length);
         }
 
         public void copy(ByteBuffer src, int srcPosition, ByteBuffer trg, int trgPosition, int length)

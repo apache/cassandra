@@ -18,30 +18,28 @@
 
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
-import java.nio.ByteBuffer;
-
-public class DoubleSerializer implements TypeSerializer<Double>
+public class DoubleSerializer extends TypeSerializer<Double>
 {
     public static final DoubleSerializer instance = new DoubleSerializer();
 
-    public Double deserialize(ByteBuffer bytes)
+    public <V> Double deserialize(V value, ValueAccessor<V> handle)
     {
-        if (bytes.remaining() == 0)
+        if (handle.isEmpty(value))
             return null;
-        return ByteBufferUtil.toDouble(bytes);
+        return handle.toDouble(value);
     }
 
-    public ByteBuffer serialize(Double value)
+    public <V> V serialize(Double value, ValueAccessor<V> handle)
     {
-        return (value == null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
+        return (value == null) ? handle.empty() : handle.valueOf(value);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <T> void validate(T value, ValueAccessor<T> handle) throws MarshalException
     {
-        if (bytes.remaining() != 8 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 8 or 0 byte value for a double (%d)", bytes.remaining()));
+        if (handle.size(value) != 8 && handle.size(value) != 0)
+            throw new MarshalException(String.format("Expected 8 or 0 byte value for a double (%d)", handle.size(value)));
     }
 
     public String toString(Double value)

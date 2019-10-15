@@ -665,8 +665,8 @@ public abstract class Slices implements Iterable<Slice>
 
             public static ComponentOfSlice fromSlice(int component, Slice slice)
             {
-                ClusteringBound start = slice.start();
-                ClusteringBound end = slice.end();
+                ClusteringBound<?> start = slice.start();
+                ClusteringBound<?> end = slice.end();
 
                 if (component >= start.size() && component >= end.size())
                     return null;
@@ -676,12 +676,12 @@ public abstract class Slices implements Iterable<Slice>
                 if (component < start.size())
                 {
                     startInclusive = start.isInclusive();
-                    startValue = start.get(component);
+                    startValue = start.getBuffer(component);
                 }
                 if (component < end.size())
                 {
                     endInclusive = end.isInclusive();
-                    endValue = end.get(component);
+                    endValue = end.getBuffer(component);
                 }
                 return new ComponentOfSlice(startInclusive, startValue, endInclusive, endValue);
             }

@@ -30,6 +30,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClockAndCount;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.context.CounterContext.Relationship;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 
@@ -306,7 +307,7 @@ public class CounterContextTest
 
         merged = cc.merge(left.context, right.context);
         assertEquals(headerSizeLength + 5 * headerEltLength + 5 * stepLength, merged.remaining());
-        assertEquals(18L, cc.total(merged));
+        assertEquals(18L, cc.total(merged, ByteBufferAccessor.instance));
         assertEquals(5, merged.getShort(merged.position()));
 
         int headerLength = headerSizeLength + 5 * headerEltLength;
@@ -339,7 +340,7 @@ public class CounterContextTest
         merged = cc.merge(left.context, right.context);
         headerLength = headerSizeLength + headerEltLength;
         assertEquals(headerLength + stepLength, merged.remaining());
-        assertEquals(30L, cc.total(merged));
+        assertEquals(30L, cc.total(merged, ByteBufferAccessor.instance));
         assertEquals(1, merged.getShort(merged.position()));
         assertTrue(Util.equalsCounterId(CounterId.fromInt(1), merged, headerLength));
         assertEquals(10L, merged.getLong(merged.position() + headerLength + idLength));
@@ -361,7 +362,7 @@ public class CounterContextTest
         merged = cc.merge(left.context, right.context);
         headerLength = headerSizeLength + 2 * headerEltLength;
         assertEquals(headerLength + 2 * stepLength, merged.remaining());
-        assertEquals(2L, cc.total(merged));
+        assertEquals(2L, cc.total(merged, ByteBufferAccessor.instance));
         assertEquals(2, merged.getShort(merged.position()));
         assertTrue(Util.equalsCounterId(CounterId.fromInt(1), merged, headerLength));
         assertEquals(1L, merged.getLong(merged.position() + headerLength + idLength));
@@ -380,13 +381,13 @@ public class CounterContextTest
         mixed.writeRemote(CounterId.fromInt(4), 4L, 4L);
         mixed.writeRemote(CounterId.fromInt(5), 5L, 5L);
         mixed.writeLocal(CounterId.getLocalId(), 12L, 12L);
-        assertEquals(24L, cc.total(mixed.context));
+        assertEquals(24L, cc.total(mixed.context, ByteBufferAccessor.instance));
 
         ContextState global = ContextState.allocate(3, 0, 0);
         global.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         global.writeGlobal(CounterId.fromInt(2), 2L, 2L);
         global.writeGlobal(CounterId.fromInt(3), 3L, 3L);
-        assertEquals(6L, cc.total(global.context));
+        assertEquals(6L, cc.total(global.context, ByteBufferAccessor.instance));
     }
 
     @Test

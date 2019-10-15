@@ -210,8 +210,8 @@ public class RangeTombstoneTest
         assertEquals(1, rt.size());
 
         Slices.Builder sb = new Slices.Builder(cfs.getComparator());
-        sb.add(ClusteringBound.create(cfs.getComparator(), true, true, 1), ClusteringBound.create(cfs.getComparator(), false, true, 10));
-        sb.add(ClusteringBound.create(cfs.getComparator(), true, true, 16), ClusteringBound.create(cfs.getComparator(), false, true, 20));
+        sb.add(BufferClusteringBound.create(cfs.getComparator(), true, true, 1), BufferClusteringBound.create(cfs.getComparator(), false, true, 10));
+        sb.add(BufferClusteringBound.create(cfs.getComparator(), true, true, 16), BufferClusteringBound.create(cfs.getComparator(), false, true, 20));
 
         partition = Util.getOnlyPartitionUnfiltered(SinglePartitionReadCommand.create(cfs.metadata(), FBUtilities.nowInSeconds(), Util.dk(key), sb.build()));
         rt = rangeTombstones(partition);
@@ -457,7 +457,7 @@ public class RangeTombstoneTest
         FilteredPartition partition = Util.getOnlyPartition(Util.cmd(cfs, key).build());
         assertTrue(partition.rowCount() > 0);
 
-        int last = i(partition.unfilteredIterator(ColumnFilter.all(cfs.metadata()), Slices.ALL, true).next().clustering().get(0));
+        int last = i(partition.unfilteredIterator(ColumnFilter.all(cfs.metadata()), Slices.ALL, true).next().clustering().getBuffer(0));
         assertEquals("Last column should be column 1 since column 2 has been deleted", 1, last);
     }
 

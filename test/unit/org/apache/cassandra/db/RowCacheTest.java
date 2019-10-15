@@ -121,7 +121,7 @@ public class RowCacheTest
             Row r = (Row) unfiltered;
             for (ColumnData c : r)
             {
-                assertEquals(((Cell)c).value(), ByteBufferUtil.bytes("val" + 0));
+                assertEquals(((Cell)c).buffer(), ByteBufferUtil.bytes("val" + 0));
             }
         }
         cachedStore.truncateBlocking();
@@ -166,7 +166,7 @@ public class RowCacheTest
                 Cell cell = ci.next();
 
                 assert cell.column().name.bytes.equals(ByteBufferUtil.bytes("val"));
-                assert cell.value().equals(ByteBufferUtil.bytes("val" + i));
+                assert cell.buffer().equals(ByteBufferUtil.bytes("val" + i));
             }
         }
 
@@ -193,7 +193,7 @@ public class RowCacheTest
                 Cell cell = ci.next();
 
                 assert cell.column().name.bytes.equals(ByteBufferUtil.bytes("val"));
-                assert cell.value().equals(ByteBufferUtil.bytes("val" + i));
+                assert cell.buffer().equals(ByteBufferUtil.bytes("val" + i));
             }
         }
 
@@ -260,7 +260,7 @@ public class RowCacheTest
                 Cell cell = ci.next();
 
                 assert cell.column().name.bytes.equals(ByteBufferUtil.bytes("val"));
-                assert cell.value().equals(ByteBufferUtil.bytes("val" + i));
+                assert cell.buffer().equals(ByteBufferUtil.bytes("val" + i));
             }
         }
 
@@ -464,7 +464,7 @@ public class RowCacheTest
 
             for (ColumnData c : r)
             {
-                assertEquals(((Cell)c).value(), ByteBufferUtil.bytes(values[i]));
+                assertEquals(((Cell)c).buffer(), ByteBufferUtil.bytes(values[i]));
             }
             i++;
         }

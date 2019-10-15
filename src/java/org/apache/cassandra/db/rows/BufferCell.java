@@ -20,13 +20,15 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.ExpirationDateOverflowHandling;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
-public class BufferCell extends AbstractCell
+public class BufferCell extends AbstractCell<ByteBuffer>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new BufferCell(ColumnMetadata.regularColumn("", "", "", ByteType.instance), 0L, 0, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, null));
 
@@ -98,6 +100,11 @@ public class BufferCell extends AbstractCell
     public ByteBuffer value()
     {
         return value;
+    }
+
+    public ValueAccessor accessor()
+    {
+        return ByteBufferAccessor.instance;
     }
 
     public CellPath path()

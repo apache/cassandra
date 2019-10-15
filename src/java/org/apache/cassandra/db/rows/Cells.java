@@ -22,6 +22,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
@@ -162,9 +163,7 @@ public abstract class Cells
                 return leftLocalDeletionTime > rightLocalDeletionTime ? left : right;
         }
 
-        ByteBuffer leftValue = left.value();
-        ByteBuffer rightValue = right.value();
-        return leftValue.compareTo(rightValue) >= 0 ? left : right;
+        return ValueAccessor.compare(left, right) >= 0 ? left : right;
     }
 
     private static Cell resolveCounter(Cell left, Cell right)
@@ -182,8 +181,8 @@ public abstract class Cells
             return leftIsTombstone ? left : right;
         }
 
-        ByteBuffer leftValue = left.value();
-        ByteBuffer rightValue = right.value();
+        ByteBuffer leftValue = left.buffer();
+        ByteBuffer rightValue = right.buffer();
 
         // Handle empty values. Counters can't truly have empty values, but we can have a counter cell that temporarily
         // has one on read if the column for the cell is not queried by the user due to the optimization of #10657. We

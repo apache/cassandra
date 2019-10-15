@@ -20,6 +20,7 @@ package org.apache.cassandra.utils.memory;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -41,6 +42,27 @@ public abstract class AbstractAllocator
         cloned.put(buffer.duplicate());
         cloned.reset();
         return cloned;
+    }
+
+    /**
+     * Allocate a slice of the given length.
+     */
+    public ByteBuffer clone(byte[] bytes)
+    {
+        assert bytes != null;
+        if (bytes.length == 0)
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        ByteBuffer cloned = allocate(bytes.length);
+
+        cloned.mark();
+        cloned.put(bytes);
+        cloned.reset();
+        return cloned;
+    }
+
+    public <T> ByteBuffer clone(T input, ValueAccessor<T> accessor)
+    {
+        return clone(accessor.toBuffer(input));  // FIXME
     }
 
     public abstract ByteBuffer allocate(int size);

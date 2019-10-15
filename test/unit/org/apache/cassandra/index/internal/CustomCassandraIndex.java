@@ -282,7 +282,7 @@ public class CustomCassandraIndex implements Index
 
         return (cell == null
              || !cell.isLive(nowInSec)
-             || indexedColumn.type.compare(indexValue, cell.value()) != 0);
+             || indexedColumn.type.compare(indexValue, cell.buffer()) != 0);
     }
 
     public Indexer indexerFor(final DecoratedKey key,
@@ -536,7 +536,7 @@ public class CustomCassandraIndex implements Index
                 {
                     for (Cell cell : data)
                     {
-                        validateIndexedValue(getIndexedValue(null, null, cell.path(), cell.value()));
+                        validateIndexedValue(getIndexedValue(null, null, cell.path(), cell.buffer()));
                     }
                 }
             }
@@ -567,7 +567,7 @@ public class CustomCassandraIndex implements Index
         return getIndexedValue(rowKey,
                                clustering,
                                cell == null ? null : cell.path(),
-                               cell == null ? null : cell.value()
+                               cell == null ? null : cell.buffer()
         );
     }
 

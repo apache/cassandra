@@ -118,7 +118,7 @@ public class HintsReaderTest
                     assertEquals(bytes(i), row.clustering().get(0));
                     Cell cell = row.cells().iterator().next();
                     assertNotNull(cell);
-                    assertEquals(bytes(i), cell.value());
+                    assertEquals(bytes(i), cell.buffer());
                     assertEquals(timestamp * 1000, cell.timestamp());
 
                     index++;

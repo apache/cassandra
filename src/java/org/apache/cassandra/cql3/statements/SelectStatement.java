@@ -862,7 +862,7 @@ public class SelectStatement implements CQLStatement
                         result.add(keyComponents[def.position()]);
                         break;
                     case CLUSTERING:
-                        result.add(row.clustering().get(def.position()));
+                        result.add(row.clustering().getBuffer(def.position()));
                         break;
                     case REGULAR:
                         addValue(result, def, row, nowInSec, protocolVersion);

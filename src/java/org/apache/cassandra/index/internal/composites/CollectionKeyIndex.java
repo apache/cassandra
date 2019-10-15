@@ -43,7 +43,7 @@ public class CollectionKeyIndex extends CollectionKeyIndexBase
     }
 
     public ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                      Clustering clustering,
+                                      Clustering<?> clustering,
                                       CellPath path,
                                       ByteBuffer cellValue)
     {

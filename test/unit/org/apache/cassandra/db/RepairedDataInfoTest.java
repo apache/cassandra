@@ -292,7 +292,7 @@ public class RepairedDataInfoTest
     {
         return new RangeTombstoneBoundMarker(
             ClusteringBound.create(ClusteringBound.boundKind(true, true),
-                                   new ByteBuffer[] { Clustering.make(Int32Type.instance.decompose(start)).get(0)}),
+                                   Clustering.make(Int32Type.instance.decompose(start))),
             new DeletionTime(FBUtilities.timestampMicros(), FBUtilities.nowInSeconds()));
     }
 
@@ -300,7 +300,7 @@ public class RepairedDataInfoTest
     {
         return new RangeTombstoneBoundMarker(
             ClusteringBound.create(ClusteringBound.boundKind(false, true),
-                                   new ByteBuffer[] { Clustering.make(Int32Type.instance.decompose(close)).get(0)}),
+                                   Clustering.make(Int32Type.instance.decompose(close))),
             new DeletionTime(FBUtilities.timestampMicros(), FBUtilities.nowInSeconds()));
     }
 

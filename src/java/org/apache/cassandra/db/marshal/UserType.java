@@ -172,7 +172,7 @@ public class UserType extends TupleType implements SchemaElement
             while (fieldPosition < fieldPositionOfCell)
                 components[fieldPosition++] = null;
 
-            components[fieldPosition++] = cell.value();
+            components[fieldPosition++] = cell.accessor().toBuffer(cell.value());
         }
 
         // append trailing nulls for missing cells
@@ -189,11 +189,11 @@ public class UserType extends TupleType implements SchemaElement
             ByteBuffer path = cell.path().get(0);
             nameComparator().validate(path);
             Short fieldPosition = nameComparator().getSerializer().deserialize(path);
-            fieldType(fieldPosition).validate(cell.value());
+            fieldType(fieldPosition).validate(cell.value(), cell.accessor());
         }
         else
         {
-            validate(cell.value());
+            validate(cell.value(), cell.accessor());
         }
     }
 
@@ -379,9 +379,9 @@ public class UserType extends TupleType implements SchemaElement
     }
 
     @Override
-    public boolean referencesUserType(ByteBuffer name)
+    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
     {
-        return this.name.equals(name) || any(fieldTypes(), t -> t.referencesUserType(name));
+        return this.name.equals(name) || any(fieldTypes(), t -> t.referencesUserType(name, accessor));
     }
 
     @Override

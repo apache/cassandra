@@ -53,7 +53,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
      * The clustering values for this row.
      */
     @Override
-    public Clustering clustering();
+    public Clustering<?> clustering();
 
     /**
      * An in-natural-order collection of the columns for which data (incl. simple tombstones)

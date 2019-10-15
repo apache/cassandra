@@ -34,11 +34,10 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.db.rows.SerializationHelper;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.columniterator.AbstractSSTableIterator;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
@@ -49,6 +48,7 @@ import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
@@ -59,6 +59,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.LongSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -126,7 +127,7 @@ public class RowIndexEntryTest extends CQLTester
 
     private static DecoratedKey partitionKey(long l)
     {
-        ByteBuffer key = LongSerializer.instance.serialize(l);
+        ByteBuffer key = LongSerializer.instance.serialize(l, ByteBufferAccessor.instance);
         Token token = Murmur3Partitioner.instance.getToken(key);
         return new BufferDecoratedKey(token, key);
     }

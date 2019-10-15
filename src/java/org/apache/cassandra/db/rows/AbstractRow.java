@@ -16,7 +16,6 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -24,6 +23,7 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -70,17 +70,17 @@ public abstract class AbstractRow implements Row
         apply(ColumnData::digest, digest);
     }
 
-    public void validateData(TableMetadata metadata)
+    private <T> void validateClustering(TableMetadata metadata, Clustering<T> clustering)
     {
-        Clustering clustering = clustering();
+        ValueAccessor<T> accessor = clustering.accessor();
         for (int i = 0; i < clustering.size(); i++)
         {
-            ByteBuffer value = clustering.get(i);
+            T value = clustering.get(i);
             if (value != null)
             {
                 try
                 {
-                    metadata.comparator.subtype(i).validate(value);
+                    metadata.comparator.subtype(i).validate(value, accessor);
                 }
                 catch (Exception e)
                 {
@@ -88,6 +88,11 @@ public abstract class AbstractRow implements Row
                 }
             }
         }
+    }
+
+    public void validateData(TableMetadata metadata)
+    {
+        validateClustering(metadata, clustering());
 
         primaryKeyLivenessInfo().validate();
         if (deletion().time().localDeletionTime() < 0)
@@ -168,7 +173,7 @@ public abstract class AbstractRow implements Row
                     if (cell.isTombstone())
                         sb.append("<tombstone>");
                     else
-                        sb.append(cell.column().type.getString(cell.value()));
+                        sb.append(cell.column().type.getString(cell));
                 }
                 else
                 {
@@ -180,7 +185,7 @@ public abstract class AbstractRow implements Row
                         CollectionType ct = (CollectionType) cd.column().type;
                         transform = cell -> String.format("%s -> %s",
                                                   ct.nameComparator().getString(cell.path().get(0)),
-                                                  ct.valueComparator().getString(cell.value()));
+                                                  ct.valueComparator().getString(cell));
 
                     }
                     else if (cd.column().type.isUDT())
@@ -190,7 +195,7 @@ public abstract class AbstractRow implements Row
                             Short fId = ut.nameComparator().getSerializer().deserialize(cell.path().get(0));
                             return String.format("%s -> %s",
                                                  ut.fieldNameAsString(fId),
-                                                 ut.fieldType(fId).getString(cell.value()));
+                                                 ut.fieldType(fId).getString(cell));
                         };
                     }
                     else

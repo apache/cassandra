@@ -106,8 +106,8 @@ public abstract class CassandraIndex implements Index
      * @param path from the base data being indexed
      * @return a clustering prefix to be used to insert into the index table
      */
-    protected abstract CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                                           ClusteringPrefix prefix,
+    protected abstract <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                           ClusteringPrefix<T> prefix,
                                                            CellPath path);
 
     /**
@@ -141,7 +141,7 @@ public abstract class CassandraIndex implements Index
      * key in the index table
      */
     protected abstract ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                                  Clustering clustering,
+                                                  Clustering<?> clustering,
                                                   CellPath path,
                                                   ByteBuffer cellValue);
     
@@ -602,7 +602,7 @@ public abstract class CassandraIndex implements Index
                 {
                     for (Cell cell : data)
                     {
-                        validateIndexedValue(getIndexedValue(null, null, cell.path(), cell.value()));
+                        validateIndexedValue(getIndexedValue(null, null, cell.path(), cell.buffer()));
                     }
                 }
             }
@@ -632,7 +632,7 @@ public abstract class CassandraIndex implements Index
         return getIndexedValue(rowKey,
                                clustering,
                                cell == null ? null : cell.path(),
-                               cell == null ? null : cell.value()
+                               cell == null ? null : cell.buffer()
         );
     }
 

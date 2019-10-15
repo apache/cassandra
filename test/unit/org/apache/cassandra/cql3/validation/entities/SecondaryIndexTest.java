@@ -1602,7 +1602,7 @@ public class SecondaryIndexTest extends CQLTester
     private void validateCell(Cell cell, ColumnMetadata def, ByteBuffer val, long timestamp)
     {
         assertNotNull(cell);
-        assertEquals(0, def.type.compare(cell.value(), val));
+        assertEquals(0, def.type.compare(cell.buffer(), val));
         assertEquals(timestamp, cell.timestamp());
     }
 
@@ -1610,7 +1610,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         ColumnMetadata col = cfm.getColumn(new ColumnIdentifier(name, true));
         AbstractType<?> type = col.type;
-        assertEquals(expected, type.compose(row.getCell(col).value()));
+        assertEquals(expected, type.compose(row.getCell(col).buffer()));
     }
 
     /**

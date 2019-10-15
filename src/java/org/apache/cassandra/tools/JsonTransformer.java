@@ -349,7 +349,7 @@ public final class JsonTransformer
         json.writeEndObject();
     }
 
-    private void serializeClustering(ClusteringPrefix clustering) throws IOException
+    private <T> void serializeClustering(ClusteringPrefix<T> clustering) throws IOException
     {
         if (clustering.size() > 0)
         {
@@ -367,7 +367,7 @@ public final class JsonTransformer
                 }
                 else
                 {
-                    json.writeRawValue(column.cellValueType().toJSONString(clustering.get(i), ProtocolVersion.CURRENT));
+                    json.writeRawValue(column.cellValueType().toJSONString(clustering.get(i), clustering.accessor(), ProtocolVersion.CURRENT));
                 }
             }
             json.writeEndArray();
@@ -483,7 +483,7 @@ public final class JsonTransformer
             else
             {
                 json.writeFieldName("value");
-                json.writeRawValue(cellType.toJSONString(cell.value(), ProtocolVersion.CURRENT));
+                json.writeRawValue(cellType.toJSONString(cell.value(), cell.accessor(), ProtocolVersion.CURRENT));
             }
             if (liveInfo.isEmpty() || cell.timestamp() != liveInfo.timestamp())
             {

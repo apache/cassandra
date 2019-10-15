@@ -18,7 +18,7 @@
 package org.apache.cassandra.serializers;
 
 import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.time.DateUtils;
 
-public class TimestampSerializer implements TypeSerializer<Date>
+public class TimestampSerializer extends TypeSerializer<Date>
 {
 
     //NOTE: This list is used below and if you change the order
@@ -125,14 +125,14 @@ public class TimestampSerializer implements TypeSerializer<Date>
 
     public static final TimestampSerializer instance = new TimestampSerializer();
 
-    public Date deserialize(ByteBuffer bytes)
+    public <V> Date deserialize(V value, ValueAccessor<V> handle)
     {
-        return bytes.remaining() == 0 ? null : new Date(ByteBufferUtil.toLong(bytes));
+        return handle.isEmpty(value) ? null : new Date(handle.toLong(value));
     }
 
-    public ByteBuffer serialize(Date value)
+    public <V> V serialize(Date value, ValueAccessor<V> handle)
     {
-        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value.getTime());
+        return value == null ? handle.empty() : handle.valueOf(value.getTime());
     }
 
     public static long dateStringToTimestamp(String source) throws MarshalException
@@ -169,10 +169,10 @@ public class TimestampSerializer implements TypeSerializer<Date>
     	return FORMATTER_TO_JSON.get();
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <T> void validate(T value, ValueAccessor<T> handle) throws MarshalException
     {
-        if (bytes.remaining() != 8 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", bytes.remaining()));
+        if (handle.size(value) != 8 && handle.size(value) != 0)
+            throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", handle.size(value)));
     }
 
     public String toString(Date value)
@@ -195,10 +195,10 @@ public class TimestampSerializer implements TypeSerializer<Date>
      * @see #FORMATTER_UTC
      */
     @Override
-    public String toCQLLiteral(ByteBuffer buffer)
+    public <V> String toCQLLiteral(V value, ValueAccessor<V> accessor)
     {
-        return buffer == null || !buffer.hasRemaining()
+        return value == null || accessor.isEmpty(value)
              ? "null"
-             : FORMATTER_UTC.get().format(deserialize(buffer));
+             : FORMATTER_UTC.get().format(deserialize(value, accessor));
     }
 }

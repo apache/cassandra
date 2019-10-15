@@ -162,7 +162,7 @@ public class IndexSummaryManagerTest
             Row row = Util.getOnlyRowUnfiltered(Util.cmd(cfs, String.format("%3d", i)).build());
             Cell cell = row.getCell(cfs.metadata().getColumn(ByteBufferUtil.bytes("val")));
             assertNotNull(cell);
-            assertEquals(100, cell.value().array().length);
+            assertEquals(100, cell.buffer().array().length);
 
         }
     }

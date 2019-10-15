@@ -23,9 +23,9 @@ import java.nio.charset.Charset;
 
 import org.apache.commons.lang3.StringUtils;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
-public abstract class AbstractTextSerializer implements TypeSerializer<String>
+public abstract class AbstractTextSerializer extends TypeSerializer<String>
 {
     private final Charset charset;
 
@@ -34,21 +34,21 @@ public abstract class AbstractTextSerializer implements TypeSerializer<String>
         this.charset = charset;
     }
 
-    public String deserialize(ByteBuffer bytes)
+    public <V> String deserialize(V value, ValueAccessor<V> handle)
     {
         try
         {
-            return ByteBufferUtil.string(bytes, charset);
+            return handle.toString(value, charset);
         }
         catch (CharacterCodingException e)
         {
-            throw new MarshalException("Invalid " + charset + " bytes " + ByteBufferUtil.bytesToHex(bytes));
+            throw new MarshalException("Invalid " + charset + " bytes " + handle.toHex(value));
         }
     }
 
-    public ByteBuffer serialize(String value)
+    public <V> V serialize(String value, ValueAccessor<V> handle)
     {
-        return ByteBufferUtil.bytes(value, charset);
+        return handle.valueOf(value, charset);
     }
 
     public String toString(String value)
@@ -66,10 +66,10 @@ public abstract class AbstractTextSerializer implements TypeSerializer<String>
      * Caveat: it does only generate literals with single quotes and not pg-style literals.
      */
     @Override
-    public String toCQLLiteral(ByteBuffer buffer)
+    public <V> String toCQLLiteral(V value, ValueAccessor<V> accessor)
     {
-        return buffer == null
+        return value == null
              ? "null"
-             : '\'' + StringUtils.replace(deserialize(buffer), "'", "''") + '\'';
+             : '\'' + StringUtils.replace(deserialize(value, accessor), "'", "''") + '\'';
     }
 }

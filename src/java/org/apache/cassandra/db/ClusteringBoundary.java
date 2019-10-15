@@ -22,52 +22,32 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * The threshold between two different ranges, i.e. a shortcut for the combination of two ClusteringBounds -- one
  * specifying the end of one of the ranges, and its (implicit) complement specifying the beginning of the other.
  */
-public class ClusteringBoundary extends ClusteringBoundOrBoundary
+public interface ClusteringBoundary<T> extends ClusteringBoundOrBoundary<T>
 {
-    protected ClusteringBoundary(Kind kind, ByteBuffer[] values)
-    {
-        super(kind, values);
-    }
-
-    public ClusteringPrefix minimize()
-    {
-        if (!ByteBufferUtil.canMinimize(values))
-            return this;
-        return new ClusteringBoundary(kind, ByteBufferUtil.minimizeBuffers(values));
-    }
-
-    public static ClusteringBoundary create(Kind kind, ByteBuffer[] values)
-    {
-        assert kind.isBoundary();
-        return new ClusteringBoundary(kind, values);
-    }
+    @Override
+    public ClusteringBoundary<T> invert();
 
     @Override
-    public ClusteringBoundary invert()
-    {
-        return create(kind().invert(), values);
-    }
+    public ClusteringBoundary<T> copy(AbstractAllocator allocator);
 
-    @Override
-    public ClusteringBoundary copy(AbstractAllocator allocator)
-    {
-        return (ClusteringBoundary) super.copy(allocator);
-    }
+    public ClusteringBound<T> openBound(boolean reversed);
 
-    public ClusteringBound openBound(boolean reversed)
-    {
-        return ClusteringBound.create(kind.openBoundOfBoundary(reversed), values);
-    }
+    public ClusteringBound<T> closeBound(boolean reversed);
 
-    public ClusteringBound closeBound(boolean reversed)
+    public static ClusteringBoundary<?> create(ClusteringBound.Kind kind, ClusteringPrefix<?> from)
     {
-        return ClusteringBound.create(kind.closeBoundOfBoundary(reversed), values);
+        switch (from.accessor().getBackingKind())
+        {
+            case BUFFER:
+                return BufferClusteringBoundary.create(kind, ClusteringPrefix.extractValues((ClusteringPrefix<ByteBuffer>) from));
+            default:
+                throw new UnsupportedOperationException("Unsupported backing kind: " + from.accessor().getBackingKind());
+        }
     }
 }

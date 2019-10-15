@@ -32,7 +32,7 @@ public class TombstoneOverwhelmingException extends RuntimeException
                             numTombstones, query, lastPartitionKey.getToken(), makePKString(metadata, lastPartitionKey.getKey(), lastClustering)));
     }
 
-    private static String makePKString(TableMetadata metadata, ByteBuffer partitionKey, ClusteringPrefix clustering)
+    private static String makePKString(TableMetadata metadata, ByteBuffer partitionKey, ClusteringPrefix<?> clustering)
     {
         StringBuilder sb = new StringBuilder();
 
@@ -61,7 +61,7 @@ public class TombstoneOverwhelmingException extends RuntimeException
             sb.append(")");
 
         for (int i = 0; i < clustering.size(); i++)
-            sb.append(", ").append(metadata.comparator.subtype(i).getString(clustering.get(i)));
+            sb.append(", ").append(clustering.getString(i, metadata.comparator));
 
         return sb.toString();
     }

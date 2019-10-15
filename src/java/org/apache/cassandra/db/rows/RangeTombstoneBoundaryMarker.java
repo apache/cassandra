@@ -42,7 +42,7 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
 
     public static RangeTombstoneBoundaryMarker exclusiveCloseInclusiveOpen(boolean reversed, ByteBuffer[] boundValues, DeletionTime closeDeletion, DeletionTime openDeletion)
     {
-        ClusteringBoundary bound = ClusteringBoundary.exclusiveCloseInclusiveOpen(reversed, boundValues);
+        ClusteringBoundary bound = BufferClusteringBoundary.exclusiveCloseInclusiveOpen(reversed, boundValues);
         DeletionTime endDeletion = reversed ? openDeletion : closeDeletion;
         DeletionTime startDeletion = reversed ? closeDeletion : openDeletion;
         return new RangeTombstoneBoundaryMarker(bound, endDeletion, startDeletion);
@@ -50,7 +50,7 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
 
     public static RangeTombstoneBoundaryMarker inclusiveCloseExclusiveOpen(boolean reversed, ByteBuffer[] boundValues, DeletionTime closeDeletion, DeletionTime openDeletion)
     {
-        ClusteringBoundary bound = ClusteringBoundary.inclusiveCloseExclusiveOpen(reversed, boundValues);
+        ClusteringBoundary bound = BufferClusteringBoundary.inclusiveCloseExclusiveOpen(reversed, boundValues);
         DeletionTime endDeletion = reversed ? openDeletion : closeDeletion;
         DeletionTime startDeletion = reversed ? closeDeletion : openDeletion;
         return new RangeTombstoneBoundaryMarker(bound, endDeletion, startDeletion);
@@ -134,8 +134,8 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
         assert ClusteringPrefix.Kind.compare(close.kind(), open.kind()) == 0 : "Both bound don't form a boundary";
         boolean isExclusiveClose = close.isExclusive() || (close.isInclusive() && open.isInclusive() && openDeletion.supersedes(closeDeletion));
         return isExclusiveClose
-             ? exclusiveCloseInclusiveOpen(reversed, close.getRawValues(), closeDeletion, openDeletion)
-             : inclusiveCloseExclusiveOpen(reversed, close.getRawValues(), closeDeletion, openDeletion);
+             ? exclusiveCloseInclusiveOpen(reversed, close.getBufferArray(), closeDeletion, openDeletion)  // FIXME: can we avoid a buffer array
+             : inclusiveCloseExclusiveOpen(reversed, close.getBufferArray(), closeDeletion, openDeletion);
     }
 
     public RangeTombstoneBoundMarker createCorrespondingCloseMarker(boolean reversed)

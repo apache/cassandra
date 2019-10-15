@@ -21,6 +21,8 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemoryUtil;
@@ -61,7 +63,7 @@ public class NativeClustering extends AbstractClusteringPrefix implements Cluste
         {
             MemoryUtil.setShort(peer + 2 + i * 2, (short) dataOffset);
 
-            ByteBuffer value = clustering.get(i);
+            ByteBuffer value = clustering.getBuffer(i);
             if (value == null)
             {
                 long boffset = bitmapStart + (i >>> 3);
@@ -116,6 +118,16 @@ public class NativeClustering extends AbstractClusteringPrefix implements Cluste
         for (int i = 0 ; i < values.length ; i++)
             values[i] = get(i);
         return values;
+    }
+
+    public ByteBuffer[] getBufferArray()
+    {
+        return getRawValues();
+    }
+
+    public ValueAccessor accessor()
+    {
+        return ByteBufferAccessor.instance;  // FIXME
     }
 
     public long unsharedHeapSize()

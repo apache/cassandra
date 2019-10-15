@@ -40,6 +40,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -220,8 +221,10 @@ public class SinglePartitionSliceCommandTest
                 for (int i = 0; i < CFM_SLICES.comparator.size(); i++)
                 {
                     int cmp = CFM_SLICES.comparator.compareComponent(i,
-                                                                     clustering.getRawValues()[i],
-                                                                     marker.clustering().values[i]);
+                                                                     clustering.getBufferArray()[i],
+                                                                     ByteBufferAccessor.instance,
+                                                                     marker.clustering().getBufferArray()[i],
+                                                                     ByteBufferAccessor.instance);
                     assertEquals(0, cmp);
                 }
                 open = !open;
@@ -252,7 +255,7 @@ public class SinglePartitionSliceCommandTest
         Assert.assertTrue(staticRow.toString(metadata, true), cellIterator.hasNext());
         Cell cell = cellIterator.next();
         Assert.assertEquals(s, cell.column());
-        Assert.assertEquals(ByteBufferUtil.bytesToHex(cell.value()), ByteBufferUtil.bytes("s"), cell.value());
+        Assert.assertEquals(ByteBufferUtil.bytesToHex(cell.buffer()), ByteBufferUtil.bytes("s"), cell.buffer());
         Assert.assertFalse(cellIterator.hasNext());
     }
 
@@ -322,7 +325,7 @@ public class SinglePartitionSliceCommandTest
         DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.bytes("k1"));
 
         ColumnFilter columnFilter = ColumnFilter.selection(RegularAndStaticColumns.of(s));
-        Slice slice = Slice.make(ClusteringBound.BOTTOM, ClusteringBound.inclusiveEndOf(ByteBufferUtil.bytes("i1")));
+        Slice slice = Slice.make(ClusteringBound.BOTTOM, BufferClusteringBound.inclusiveEndOf(ByteBufferUtil.bytes("i1")));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.with(metadata.comparator, slice), false);
         ReadCommand cmd = SinglePartitionReadCommand.create(metadata,
                                                             FBUtilities.nowInSeconds(),

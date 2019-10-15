@@ -160,7 +160,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
             UnfilteredRowIterator iterator = throttled.next();
             assertFalse(throttled.hasNext());
             assertFalse(iterator.hasNext());
-            assertEquals(Int32Type.instance.getSerializer().deserialize(iterator.staticRow().cells().iterator().next().value()), new Integer(160));
+            assertEquals(Int32Type.instance.getSerializer().deserialize(iterator.staticRow().cells().iterator().next().buffer()), new Integer(160));
         }
 
         // test opt out
@@ -319,7 +319,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
                 }
                 else
                 {
-                    ByteBuffer[] byteBuffers = expected.clustering().getRawValues();
+                    ByteBuffer[] byteBuffers = expected.clustering().getBufferArray();
                     RangeTombstoneBoundMarker closeMarker = RangeTombstoneBoundMarker.exclusiveClose(isRevered,
                                                                                                      byteBuffers,
                                                                                                      openDeletionTime);

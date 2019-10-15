@@ -351,7 +351,7 @@ public class SliceTest
         {
             values[i] = ByteBufferUtil.bytes(components[i]);
         }
-        return ClusteringBound.create(kind, values);
+        return BufferClusteringBound.create(kind, values);
     }
 
     private static List<ByteBuffer> columnNames(Integer ... components)

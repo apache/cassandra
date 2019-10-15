@@ -18,28 +18,26 @@
 
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
-import java.nio.ByteBuffer;
-
-public class EmptySerializer implements TypeSerializer<Void>
+public class EmptySerializer extends TypeSerializer<Void>
 {
     public static final EmptySerializer instance = new EmptySerializer();
 
-    public Void deserialize(ByteBuffer bytes)
+    public <V> Void deserialize(V value, ValueAccessor<V> handle)
     {
-        validate(bytes);
+        validate(value, handle);
         return null;
     }
 
-    public ByteBuffer serialize(Void value)
+    public <V> V serialize(Void value, ValueAccessor<V> handle)
     {
-        return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        return handle.empty();
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <T> void validate(T value, ValueAccessor<T> handle) throws MarshalException
     {
-        if (bytes.remaining() > 0)
+        if (handle.size(value) > 0)
             throw new MarshalException("EmptyType only accept empty values");
     }
 

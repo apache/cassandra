@@ -84,9 +84,31 @@ public class CompositeType extends AbstractCompositeType
         return getInstance(Arrays.asList(types));
     }
 
-    protected boolean readIsStatic(ByteBuffer bb)
+    protected static int startingOffsetInternal(boolean isStatic)
     {
-        return readStatic(bb);
+        return isStatic ? 2 : 0;
+    }
+
+    protected int startingOffset(boolean isStatic)
+    {
+        return startingOffsetInternal(isStatic);
+    }
+
+    protected static <V> boolean readIsStaticInternal(V value, ValueAccessor<V> handle)
+    {
+        if (handle.size(value) < 2)
+            return false;
+
+        int header = handle.getShort(value, 0);
+        if ((header & 0xFFFF) != STATIC_MARKER)
+            return false;
+
+        return true;
+    }
+
+    protected <V> boolean readIsStatic(V value, ValueAccessor<V> handle)
+    {
+        return readIsStaticInternal(value, handle);
     }
 
     private static boolean readStatic(ByteBuffer bb)
@@ -116,7 +138,7 @@ public class CompositeType extends AbstractCompositeType
         this.types = ImmutableList.copyOf(types);
     }
 
-    protected AbstractType<?> getComparator(int i, ByteBuffer bb)
+    protected <V> AbstractType<?> getComparator(int i, V value, ValueAccessor<V> handle, int offset)
     {
         try
         {
@@ -133,12 +155,12 @@ public class CompositeType extends AbstractCompositeType
         }
     }
 
-    protected AbstractType<?> getComparator(int i, ByteBuffer bb1, ByteBuffer bb2)
+    protected <VL, VR> AbstractType<?> getComparator(int i, VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR, int offset1, int offset2)
     {
-        return getComparator(i, bb1);
+        return getComparator(i, left, accessorL, offset1);
     }
 
-    protected AbstractType<?> getAndAppendComparator(int i, ByteBuffer bb, StringBuilder sb)
+    protected <V> AbstractType<?> getAndAppendComparator(int i, V value, ValueAccessor<V> handle, StringBuilder sb, int offset)
     {
         return types.get(i);
     }
@@ -148,24 +170,28 @@ public class CompositeType extends AbstractCompositeType
         return new StaticParsedComparator(types.get(i), part);
     }
 
-    protected AbstractType<?> validateComparator(int i, ByteBuffer bb) throws MarshalException
+    protected <V> AbstractType<?> validateComparator(int i, V value, ValueAccessor<V> handle, int offset) throws MarshalException
     {
         if (i >= types.size())
             throw new MarshalException("Too many bytes for comparator");
         return types.get(i);
     }
 
-    public ByteBuffer decompose(Object... objects)
+    protected <V> int getComparatorSize(int i, V value, ValueAccessor<V> handle, int offset)
+    {
+        return 0;
+    }
+
+    public <V> V decompose(ValueAccessor<V> accessor, Object... objects)
     {
         assert objects.length == types.size();
 
-        ByteBuffer[] serialized = new ByteBuffer[objects.length];
+        V[] serialized = accessor.createArray(objects.length);
         for (int i = 0; i < objects.length; i++)
         {
-            ByteBuffer buffer = ((AbstractType) types.get(i)).decompose(objects[i]);
-            serialized[i] = buffer;
+            serialized[i] = (V) ((AbstractType) types.get(i)).decompose(objects[i], accessor);
         }
-        return build(serialized);
+        return build(accessor, serialized);
     }
 
     // Overriding the one of AbstractCompositeType because we can do a tad better
@@ -186,15 +212,17 @@ public class CompositeType extends AbstractCompositeType
         return i == l.length ? l : Arrays.copyOfRange(l, 0, i);
     }
 
-    public static List<ByteBuffer> splitName(ByteBuffer name)
+    public static <V> List<V> splitName(V name, ValueAccessor<V> accessor)
     {
-        List<ByteBuffer> l = new ArrayList<>();
-        ByteBuffer bb = name.duplicate();
-        readStatic(bb);
-        while (bb.remaining() > 0)
+        List<V> l = new ArrayList<>();
+        boolean isStatic = readIsStaticInternal(name, accessor);
+        int offset = startingOffsetInternal(isStatic);
+        while (accessor.sizeFromOffset(name, offset) > 0)
         {
-            l.add(ByteBufferUtil.readBytesWithShortLength(bb));
-            bb.get(); // skip end-of-component
+            V value = accessor.sliceWithShortLength(name, offset);
+            offset += accessor.sizeWithShortLength(value);
+            l.add(value);
+            offset++; // skip end-of-component
         }
         return l;
     }
@@ -217,9 +245,9 @@ public class CompositeType extends AbstractCompositeType
         return null;
     }
 
-    public static boolean isStaticName(ByteBuffer bb)
+    public static <V> boolean isStaticName(V value, ValueAccessor<V> accessor)
     {
-        return bb.remaining() >= 2 && (ByteBufferUtil.getShortLength(bb, bb.position()) & 0xFFFF) == STATIC_MARKER;
+        return accessor.size(value) >= 2 && (accessor.getShortLength(value, 0) & 0xFFFF) == STATIC_MARKER;
     }
 
     @Override
@@ -283,9 +311,9 @@ public class CompositeType extends AbstractCompositeType
     }
 
     @Override
-    public boolean referencesUserType(ByteBuffer name)
+    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
     {
-        return any(types, t -> t.referencesUserType(name));
+        return any(types, t -> t.referencesUserType(name, accessor));
     }
 
     @Override
@@ -340,31 +368,29 @@ public class CompositeType extends AbstractCompositeType
         return getClass().getName() + TypeParser.stringifyTypeParameters(types);
     }
 
-    public static ByteBuffer build(ByteBuffer... buffers)
+    public static <V> V build(ValueAccessor<V> accessor, V... values)
     {
-        return build(false, buffers);
+        return build(accessor, false, values);
     }
 
-    public static ByteBuffer build(boolean isStatic, ByteBuffer... buffers)
+    public static <V> V build(ValueAccessor<V> accessor, boolean isStatic, V... values)
     {
         int totalLength = isStatic ? 2 : 0;
-        for (ByteBuffer bb : buffers)
-            totalLength += 2 + bb.remaining() + 1;
+        for (V v : values)
+            totalLength += 2 + accessor.size(v) + 1;
 
         ByteBuffer out = ByteBuffer.allocate(totalLength);
 
         if (isStatic)
             out.putShort((short)STATIC_MARKER);
 
-        for (ByteBuffer bb : buffers)
+        for (V v : values)
         {
-            ByteBufferUtil.writeShortLength(out, bb.remaining());
-            int toCopy = bb.remaining();
-            ByteBufferUtil.copyBytes(bb, bb.position(), out, out.position(), toCopy);
-            out.position(out.position() + toCopy);
+            ByteBufferUtil.writeShortLength(out, accessor.size(v));
+            accessor.write(v, out);
             out.put((byte) 0);
         }
         out.flip();
-        return out;
+        return accessor.valueOf(out);
     }
 }
