@@ -217,7 +217,7 @@ public class QueryPagerTest
         for (Row row : Util.once(partition.iterator()))
         {
             ByteBuffer expected = names[i++];
-            assertEquals("column " + i + " doesn't match "+string(expected)+" vs "+string(row.clustering().get(0)), expected, row.clustering().get(0));
+            assertEquals("column " + i + " doesn't match "+string(expected)+" vs "+string(row.clustering().bufferAt(0)), expected, row.clustering().bufferAt(0));
         }
     }
 
@@ -496,7 +496,7 @@ public class QueryPagerTest
                     Row row = partition.next();
                     int cellIndex = !reversed ? i : 4 - i;
 
-                    assertEquals(row.clustering().get(0), ByteBufferUtil.bytes(cellIndex));
+                    assertEquals(row.clustering().bufferAt(0), ByteBufferUtil.bytes(cellIndex));
                     assertCell(row, table.getColumn(new ColumnIdentifier("v1", false)), cellIndex);
                     assertCell(row, table.getColumn(new ColumnIdentifier("v2", false)), cellIndex);
 
@@ -516,8 +516,8 @@ public class QueryPagerTest
 
     private void assertCell(Row row, ColumnMetadata column, int value)
     {
-        Cell cell = row.getCell(column);
+        Cell<?> cell = row.getCell(column);
         assertNotNull(cell);
-        assertEquals(value, ByteBufferUtil.toInt(cell.value()));
+        assertEquals(value, ByteBufferUtil.toInt(cell.buffer()));
     }
 }

@@ -143,7 +143,7 @@ public class ListsTest extends CQLTester
         DecoratedKey key = Murmur3Partitioner.instance.decorateKey(keyBuf);
         UpdateParameters parameters =
             new UpdateParameters(metaData, null, QueryOptions.DEFAULT, System.currentTimeMillis(), FBUtilities.nowInSeconds(), 1000, Collections.emptyMap());
-        Clustering clustering = Clustering.make(ByteBufferUtil.bytes(1));
+        Clustering<?> clustering = Clustering.make(ByteBufferUtil.bytes(1));
         parameters.newRow(clustering);
         prepender.execute(key, parameters);
 
@@ -152,7 +152,7 @@ public class ListsTest extends CQLTester
 
         int idx = 0;
         UUID last = null;
-        for (Cell cell : row.cells())
+        for (Cell<?> cell : row.cells())
         {
             UUID uuid = UUIDGen.getUUID(cell.path().get(0));
 
@@ -160,7 +160,7 @@ public class ListsTest extends CQLTester
                 Assert.assertTrue(last.compareTo(uuid) < 0);
             last = uuid;
 
-            Assert.assertEquals(String.format("different values found: expected: '%d', found '%d'", ByteBufferUtil.toInt(terms.get(idx)), ByteBufferUtil.toInt(cell.value())),
+            Assert.assertEquals(String.format("different values found: expected: '%d', found '%d'", ByteBufferUtil.toInt(terms.get(idx)), ByteBufferUtil.toInt(cell.buffer())),
                                 terms.get(idx), cell.value());
             idx++;
         }

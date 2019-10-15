@@ -80,7 +80,7 @@ public class UpdateParameters
             throw new InvalidRequestException(String.format("Out of bound timestamp, must be in [%d, %d]", Long.MIN_VALUE + 1, Long.MAX_VALUE));
     }
 
-    public void newRow(Clustering clustering) throws InvalidRequestException
+    public <V> void newRow(Clustering<V> clustering) throws InvalidRequestException
     {
         if (clustering == Clustering.STATIC_CLUSTERING)
         {
@@ -98,7 +98,7 @@ public class UpdateParameters
         builder.newRow(clustering);
     }
 
-    public Clustering currentClustering()
+    public Clustering<?> currentClustering()
     {
         return builder.clustering();
     }
@@ -130,9 +130,9 @@ public class UpdateParameters
 
     public void addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
-        Cell cell = ttl == LivenessInfo.NO_TTL
-                  ? BufferCell.live(column, timestamp, value, path)
-                  : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
+        Cell<?> cell = ttl == LivenessInfo.NO_TTL
+                       ? BufferCell.live(column, timestamp, value, path)
+                       : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
         builder.addCell(cell);
     }
 
@@ -177,7 +177,7 @@ public class UpdateParameters
         return deletionTime;
     }
 
-    public RangeTombstone makeRangeTombstone(ClusteringComparator comparator, Clustering clustering)
+    public RangeTombstone makeRangeTombstone(ClusteringComparator comparator, Clustering<?> clustering)
     {
         return makeRangeTombstone(Slice.make(comparator, clustering));
     }
@@ -197,7 +197,7 @@ public class UpdateParameters
      * @param clustering the row clustering
      * @return the prefetched row with the already performed modifications
      */
-    public Row getPrefetchedRow(DecoratedKey key, Clustering clustering)
+    public Row getPrefetchedRow(DecoratedKey key, Clustering<?> clustering)
     {
         if (prefetchedRows == null)
             return null;

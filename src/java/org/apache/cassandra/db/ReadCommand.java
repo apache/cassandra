@@ -550,7 +550,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             public Row applyToRow(Row row)
             {
                 boolean hasTombstones = false;
-                for (Cell cell : row.cells())
+                for (Cell<?> cell : row.cells())
                 {
                     if (!cell.isLive(ReadCommand.this.nowInSec()))
                     {
@@ -579,7 +579,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 return marker;
             }
 
-            private void countTombstone(ClusteringPrefix clustering)
+            private void countTombstone(ClusteringPrefix<?> clustering)
             {
                 ++tombstones;
                 if (tombstones > failureThreshold && respectTombstoneThresholds)

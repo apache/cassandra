@@ -45,10 +45,10 @@ public abstract class AbstractReadCommandBuilder
     protected Set<ColumnIdentifier> columns;
     protected final RowFilter filter = RowFilter.create();
 
-    private ClusteringBound lowerClusteringBound;
-    private ClusteringBound upperClusteringBound;
+    private ClusteringBound<?> lowerClusteringBound;
+    private ClusteringBound<?> upperClusteringBound;
 
-    private NavigableSet<Clustering> clusterings;
+    private NavigableSet<Clustering<?>> clusterings;
 
     // Use Util.cmd() instead of this ctor directly
     AbstractReadCommandBuilder(ColumnFamilyStore cfs)
@@ -197,8 +197,8 @@ public abstract class AbstractReadCommandBuilder
         }
         else
         {
-            Slice slice = Slice.make(lowerClusteringBound == null ? ClusteringBound.BOTTOM : lowerClusteringBound,
-                                     upperClusteringBound == null ? ClusteringBound.TOP : upperClusteringBound);
+            Slice slice = Slice.make(lowerClusteringBound == null ? BufferClusteringBound.BOTTOM : lowerClusteringBound,
+                                     upperClusteringBound == null ? BufferClusteringBound.TOP : upperClusteringBound);
             return new ClusteringIndexSliceFilter(Slices.with(cfs.metadata().comparator, slice), reversed);
         }
     }
@@ -221,37 +221,6 @@ public abstract class AbstractReadCommandBuilder
         {
             super(cfs);
             this.partitionKey = key;
-        }
-
-        @Override
-        public ReadCommand build()
-        {
-            return SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter, makeLimits(), partitionKey, makeFilter());
-        }
-    }
-
-    public static class SinglePartitionSliceBuilder extends AbstractReadCommandBuilder
-    {
-        private final DecoratedKey partitionKey;
-        private Slices.Builder sliceBuilder;
-
-        public SinglePartitionSliceBuilder(ColumnFamilyStore cfs, DecoratedKey key)
-        {
-            super(cfs);
-            this.partitionKey = key;
-            sliceBuilder = new Slices.Builder(cfs.getComparator());
-        }
-
-        public SinglePartitionSliceBuilder addSlice(Slice slice)
-        {
-            sliceBuilder.add(slice);
-            return this;
-        }
-
-        @Override
-        protected ClusteringIndexFilter makeFilter()
-        {
-            return new ClusteringIndexSliceFilter(sliceBuilder.build(), reversed);
         }
 
         @Override

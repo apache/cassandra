@@ -18,6 +18,7 @@
 package org.apache.cassandra.serializers;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
@@ -35,7 +36,7 @@ import java.util.TimeZone;
 import java.util.regex.Pattern;
 
 
-public class TimestampSerializer implements TypeSerializer<Date>
+public class TimestampSerializer extends TypeSerializer<Date>
 {
 
     private static final List<DateTimeFormatter> dateFormatters = generateFormatters();
@@ -125,9 +126,9 @@ public class TimestampSerializer implements TypeSerializer<Date>
 
     public static final TimestampSerializer instance = new TimestampSerializer();
 
-    public Date deserialize(ByteBuffer bytes)
+    public <V> Date deserialize(V value, ValueAccessor<V> accessor)
     {
-        return bytes.remaining() == 0 ? null : new Date(ByteBufferUtil.toLong(bytes));
+        return accessor.isEmpty(value) ? null : new Date(accessor.toLong(value));
     }
 
     public ByteBuffer serialize(Date value)
@@ -172,10 +173,10 @@ public class TimestampSerializer implements TypeSerializer<Date>
     	return FORMATTER_TO_JSON.get();
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
-        if (bytes.remaining() != 8 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", bytes.remaining()));
+        if (accessor.size(value) != 8 && !accessor.isEmpty(value))
+            throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", accessor.size(value)));
     }
 
     public String toString(Date value)
@@ -201,7 +202,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
     public String toCQLLiteral(ByteBuffer buffer)
     {
         return buffer == null || !buffer.hasRemaining()
-             ? "null"
-             : FORMATTER_UTC.get().format(deserialize(buffer));
+               ? "null"
+               : FORMATTER_UTC.get().format(deserialize(buffer));
     }
 }

@@ -47,7 +47,7 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
     private final TableMetadata metadata;
     private final DecoratedKey partitionKey;
 
-    private Clustering lastClustering; // clustering of the last observed row
+    private Clustering<?> lastClustering; // clustering of the last observed row
 
     private int lastCounted = 0; // last seen recorded # before attempting to fetch more rows
     private int lastFetched = 0; // # rows returned by last attempt to get more (or by the original read command)
@@ -118,7 +118,7 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
          * This is a table with no clustering columns, and has at most one row per partition - with EMPTY clustering.
          * We already have the row, so there is no point in asking for more from the partition.
          */
-        if (Clustering.EMPTY == lastClustering)
+        if (lastClustering != null && lastClustering.isEmpty())
             return null;
 
         lastFetched = singleResultCounter.rowsCountedInCurrentPartition() - lastCounted;

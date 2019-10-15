@@ -146,7 +146,7 @@ public class ColumnFamilyStoreTest
             public void runMayThrow() throws IOException
             {
                 Row toCheck = Util.getOnlyRowUnfiltered(Util.cmd(cfs, "key1").build());
-                Iterator<Cell> iter = toCheck.cells().iterator();
+                Iterator<Cell<?>> iter = toCheck.cells().iterator();
                 assert(Iterators.size(iter) == 0);
             }
         };
@@ -417,7 +417,7 @@ public class ColumnFamilyStoreTest
             {
                 for (Row r : partition)
                 {
-                    if (r.getCell(col).value().equals(val))
+                    if (r.getCell(col).buffer().equals(val))
                         ++found;
                 }
             }

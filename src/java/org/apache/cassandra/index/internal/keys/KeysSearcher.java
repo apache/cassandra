@@ -79,7 +79,7 @@ public class KeysSearcher extends CassandraIndexSearcher
                 while (next == null && indexHits.hasNext())
                 {
                     Row hit = indexHits.next();
-                    DecoratedKey key = index.baseCfs.decorateKey(hit.clustering().get(0));
+                    DecoratedKey key = index.baseCfs.decorateKey(hit.clustering().bufferAt(0));
                     if (!command.selectsKey(key))
                         continue;
 

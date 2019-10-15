@@ -364,7 +364,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         private DeletionTime deletionTime;
         private Row staticRow = Rows.EMPTY_STATIC_ROW;
         private final Queue<Unfiltered> contents = new ArrayDeque<>();
-        private BTreeSet.Builder<Clustering> toFetch;
+        private BTreeSet.Builder<Clustering<?>> toFetch;
         private int partitionRowsCached;
 
         private PartitionBuilder(DecoratedKey key, Replica source, RegularAndStaticColumns columns, EncodingStats stats)
@@ -507,7 +507,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         {
             assert toFetch != null;
 
-            NavigableSet<Clustering> clusterings = toFetch.build();
+            NavigableSet<Clustering<?>> clusterings = toFetch.build();
             tableMetrics.replicaFilteringProtectionRequests.mark();
 
             if (logger.isTraceEnabled())

@@ -276,7 +276,7 @@ public class ColumnFilter
      * @param cells the cells to filter.
      * @return a filtered iterator that only include the cells from {@code cells} that are included by this filter.
      */
-    public Iterator<Cell> filterComplexCells(ColumnMetadata column, Iterator<Cell> cells)
+    public Iterator<Cell<?>> filterComplexCells(ColumnMetadata column, Iterator<Cell<?>> cells)
     {
         Tester tester = newTester(column);
         if (tester == null)

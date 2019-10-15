@@ -19,6 +19,7 @@ package org.apache.cassandra.db.partition;
 
 import static org.junit.Assert.*;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -81,6 +82,30 @@ public class PartitionImplementationTest
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), metadata);
     }
 
+    public static BufferClusteringBound inclusiveStartOf(ClusteringPrefix<ByteBuffer> prefix)
+    {
+        ByteBuffer[] values = new ByteBuffer[prefix.size()];
+        for (int i = 0; i < prefix.size(); i++)
+            values[i] = prefix.get(i);
+        return BufferClusteringBound.inclusiveStartOf(values);
+    }
+
+    public static BufferClusteringBound exclusiveStartOf(ClusteringPrefix<ByteBuffer> prefix)
+    {
+        ByteBuffer[] values = new ByteBuffer[prefix.size()];
+        for (int i = 0; i < prefix.size(); i++)
+            values[i] = prefix.get(i);
+        return BufferClusteringBound.exclusiveStartOf(values);
+    }
+
+    public static BufferClusteringBound inclusiveEndOf(ClusteringPrefix<ByteBuffer> prefix)
+    {
+        ByteBuffer[] values = new ByteBuffer[prefix.size()];
+        for (int i = 0; i < prefix.size(); i++)
+            values[i] = prefix.get(i);
+        return BufferClusteringBound.inclusiveEndOf(values);
+    }
+
     private List<Row> generateRows()
     {
         List<Row> content = new ArrayList<>();
@@ -98,7 +123,7 @@ public class PartitionImplementationTest
         return content; // not sorted
     }
 
-    Row makeRow(Clustering clustering, String colValue)
+    Row makeRow(Clustering<?> clustering, String colValue)
     {
         ColumnMetadata defCol = metadata.getColumn(new ColumnIdentifier("col", true));
         Row.Builder row = BTreeRow.unsortedBuilder();
@@ -142,9 +167,9 @@ public class PartitionImplementationTest
 
             int start = rand.nextInt(KEY_RANGE);
             DeletionTime dt = new DeletionTime(delTime, delTime);
-            RangeTombstoneMarker open = RangeTombstoneBoundMarker.inclusiveOpen(false, clustering(start).getRawValues(), dt);
+            RangeTombstoneMarker open = RangeTombstoneBoundMarker.inclusiveOpen(false, clustering(start), dt);
             int end = start + rand.nextInt((KEY_RANGE - start) / 4 + 1);
-            RangeTombstoneMarker close = RangeTombstoneBoundMarker.inclusiveClose(false, clustering(end).getRawValues(), dt);
+            RangeTombstoneMarker close = RangeTombstoneBoundMarker.inclusiveClose(false, clustering(end), dt);
             markers.add(open);
             markers.add(close);
         }
@@ -210,9 +235,9 @@ public class PartitionImplementationTest
         return content;
     }
 
-    private Clustering clustering(int i)
+    private Clustering<ByteBuffer> clustering(int i)
     {
-        return metadata.comparator.make(String.format("Row%06d", i));
+        return (Clustering<ByteBuffer>) metadata.comparator.make(String.format("Row%06d", i));
     }
 
     private void test(Supplier<Collection<? extends Unfiltered>> content, Row staticRow)
@@ -257,7 +282,7 @@ public class PartitionImplementationTest
         // get
         for (int i=0; i < KEY_RANGE; ++i)
         {
-            Clustering cl = clustering(i);
+            Clustering<?> cl = clustering(i);
             assertRowsEqual(getRow(sortedContent, cl),
                             partition.getRow(cl));
         }
@@ -321,7 +346,7 @@ public class PartitionImplementationTest
 
     void testSearchIterator(NavigableSet<Clusterable> sortedContent, Partition partition, ColumnFilter cf, boolean reversed)
     {
-        SearchIterator<Clustering, Row> searchIter = partition.searchIterator(cf, reversed);
+        SearchIterator<Clustering<?>, Row> searchIter = partition.searchIterator(cf, reversed);
         int pos = reversed ? KEY_RANGE : 0;
         int mul = reversed ? -1 : 1;
         boolean started = false;
@@ -329,7 +354,7 @@ public class PartitionImplementationTest
         {
             int skip = rand.nextInt(KEY_RANGE / 10);
             pos += skip * mul;
-            Clustering cl = clustering(pos);
+            Clustering<?> cl = clustering(pos);
             Row row = searchIter.next(cl);  // returns row with deletion, incl. empty row with deletion
             if (row == null && skip == 0 && started)    // allowed to return null if already reported row
                 continue;
@@ -351,10 +376,10 @@ public class PartitionImplementationTest
             int skip = rand.nextInt(KEY_RANGE / 10) * (rand.nextInt(3) + 2 / 3); // increased chance of getting 0
             pos += skip;
             int sz = rand.nextInt(KEY_RANGE / 10) + (skip == 0 ? 1 : 0);    // if start is exclusive need at least sz 1
-            Clustering start = clustering(pos);
+            Clustering<ByteBuffer> start = clustering(pos);
             pos += sz;
-            Clustering end = clustering(pos);
-            Slice slice = Slice.make(skip == 0 ? ClusteringBound.exclusiveStartOf(start) : ClusteringBound.inclusiveStartOf(start), ClusteringBound.inclusiveEndOf(end));
+            Clustering<ByteBuffer> end = clustering(pos);
+            Slice slice = Slice.make(skip == 0 ? exclusiveStartOf(start) : inclusiveStartOf(start), inclusiveEndOf(end));
             builder.add(slice);
         }
         return builder.build();
@@ -446,7 +471,7 @@ public class PartitionImplementationTest
         assertArrayEquals("Arrays differ. Expected " + a1s + " was " + a2s, a1, a2);
     }
 
-    private Row getRow(NavigableSet<Clusterable> sortedContent, Clustering cl)
+    private Row getRow(NavigableSet<Clusterable> sortedContent, Clustering<?> cl)
     {
         NavigableSet<Clusterable> nexts = sortedContent.tailSet(cl, true);
         if (nexts.isEmpty())
