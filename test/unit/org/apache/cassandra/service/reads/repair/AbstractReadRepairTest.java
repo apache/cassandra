@@ -85,9 +85,9 @@ public abstract  class AbstractReadRepairTest
 
     static long now = TimeUnit.NANOSECONDS.toMicros(System.nanoTime());
     static DecoratedKey key;
-    static Cell cell1;
-    static Cell cell2;
-    static Cell cell3;
+    static Cell<?> cell1;
+    static Cell<?> cell2;
+    static Cell<?> cell3;
     static Mutation resolved;
 
     static ReadCommand command;
@@ -145,35 +145,35 @@ public abstract  class AbstractReadRepairTest
         return DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.bytes(v));
     }
 
-    static Cell cell(String name, String value, long timestamp)
+    static Cell<?> cell(String name, String value, long timestamp)
     {
         return BufferCell.live(cfm.getColumn(ColumnIdentifier.getInterned(name, false)), timestamp, ByteBufferUtil.bytes(value));
     }
 
-    static PartitionUpdate update(Cell... cells)
+    static PartitionUpdate update(Cell<?>... cells)
     {
         Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(Clustering.EMPTY);
-        for (Cell cell: cells)
+        for (Cell<?> cell: cells)
         {
             builder.addCell(cell);
         }
         return PartitionUpdate.singleRowUpdate(cfm, key, builder.build());
     }
 
-    static PartitionIterator partition(Cell... cells)
+    static PartitionIterator partition(Cell<?>... cells)
     {
         UnfilteredPartitionIterator iter = new SingletonUnfilteredPartitionIterator(update(cells).unfilteredIterator());
         return UnfilteredPartitionIterators.filter(iter, Ints.checkedCast(TimeUnit.MICROSECONDS.toSeconds(now)));
     }
 
-    static Mutation mutation(Cell... cells)
+    static Mutation mutation(Cell<?>... cells)
     {
         return new Mutation(update(cells));
     }
 
     @SuppressWarnings("resource")
-    static Message<ReadResponse> msg(InetAddressAndPort from, Cell... cells)
+    static Message<ReadResponse> msg(InetAddressAndPort from, Cell<?>... cells)
     {
         UnfilteredPartitionIterator iter = new SingletonUnfilteredPartitionIterator(update(cells).unfilteredIterator());
         return Message.builder(INTERNAL_RSP, ReadResponse.createDataResponse(iter, command))

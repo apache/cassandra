@@ -53,6 +53,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.ValueAccessors;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
@@ -298,8 +299,8 @@ public class CompactionsTest
         {
             RowUpdateBuilder deletedRowUpdateBuilder = new RowUpdateBuilder(table, 1, Util.dk(Integer.toString(dk)));
             deletedRowUpdateBuilder.clustering("01").add("val", "a"); //Range tombstone covers this (timestamp 2 > 1)
-            Clustering startClustering = Clustering.make(ByteBufferUtil.bytes("0"));
-            Clustering endClustering = Clustering.make(ByteBufferUtil.bytes("b"));
+            Clustering<?> startClustering = Clustering.make(ByteBufferUtil.bytes("0"));
+            Clustering<?> endClustering = Clustering.make(ByteBufferUtil.bytes("b"));
             deletedRowUpdateBuilder.addRangeTombstone(new RangeTombstone(Slice.make(startClustering, endClustering), new DeletionTime(2, (int) (System.currentTimeMillis() / 1000))));
             deletedRowUpdateBuilder.build().applyUnsafe();
 
@@ -357,11 +358,11 @@ public class CompactionsTest
                 try (RowIterator rowIterator = iterator.next())
                 {
                     Row row = rowIterator.next();
-                    Cell cell = row.getCell(cfs.metadata().getColumn(new ColumnIdentifier("val", false)));
-                    assertEquals(ByteBufferUtil.bytes("a"), cell.value());
+                    Cell<?> cell = row.getCell(cfs.metadata().getColumn(new ColumnIdentifier("val", false)));
+                    assertEquals(ByteBufferUtil.bytes("a"), cell.buffer());
                     assertEquals(3, cell.timestamp());
-                    assertNotEquals(ByteBufferUtil.bytes("01"), row.clustering().getRawValues()[0]);
-                    assertEquals(ByteBufferUtil.bytes("02"), row.clustering().getRawValues()[0]);
+                    ValueAccessors.assertDataNotEquals(ByteBufferUtil.bytes("01"), row.clustering().getRawValues()[0]);
+                    ValueAccessors.assertDataEquals(ByteBufferUtil.bytes("02"), row.clustering().getRawValues()[0]);
                 }
             }
         }

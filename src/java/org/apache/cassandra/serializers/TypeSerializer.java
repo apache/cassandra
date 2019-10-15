@@ -20,32 +20,46 @@ package org.apache.cassandra.serializers;
 
 import java.nio.ByteBuffer;
 
-public interface TypeSerializer<T>
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+
+public abstract class TypeSerializer<T>
 {
-    public ByteBuffer serialize(T value);
+    public abstract ByteBuffer serialize(T value);
+
+    public abstract <V> T deserialize(V value, ValueAccessor<V> accessor);
 
     /*
      * Does not modify the position or limit of the buffer even temporarily.
      */
-    public T deserialize(ByteBuffer bytes);
+    public final T deserialize(ByteBuffer bytes)
+    {
+        return deserialize(bytes, ByteBufferAccessor.instance);
+    }
 
     /*
      * Validate that the byte array is a valid sequence for the type this represents.
      * This guarantees deserialize() can be called without errors.
-     *
-     * Does not modify the position or limit of the buffer even temporarily
      */
-    public void validate(ByteBuffer bytes) throws MarshalException;
+    public abstract <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException;
 
-    public String toString(T value);
+    /*
+     * Does not modify the position or limit of the buffer even temporarily.
+     */
+    public final void validate(ByteBuffer bytes) throws MarshalException
+    {
+        validate(bytes, ByteBufferAccessor.instance);
+    }
 
-    public Class<T> getType();
+    public abstract String toString(T value);
 
-    public default String toCQLLiteral(ByteBuffer buffer)
+    public abstract Class<T> getType();
+
+    public String toCQLLiteral(ByteBuffer buffer)
     {
         return buffer == null || !buffer.hasRemaining()
-             ? "null"
-             : toString(deserialize(buffer));
+               ? "null"
+               : toString(deserialize(buffer));
     }
 }
 

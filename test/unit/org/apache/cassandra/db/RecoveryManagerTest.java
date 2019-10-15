@@ -245,7 +245,7 @@ public class RecoveryManagerTest
 
         ColumnMetadata counterCol = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
         Row row = Util.getOnlyRow(Util.cmd(cfs).includeRow("cc").columns("val").build());
-        assertEquals(10L, CounterContext.instance().total(row.getCell(counterCol).value()));
+        assertEquals(10L, CounterContext.instance().total(row.getCell(counterCol)));
     }
 
     @Test

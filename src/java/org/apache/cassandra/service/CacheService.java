@@ -46,6 +46,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -380,7 +381,7 @@ public class CacheService implements CacheServiceMBean
             TableMetadata tableMetadata = cfs.metadata();
             tableMetadata.id.serialize(out);
             out.writeUTF(tableMetadata.indexName().orElse(""));
-            ByteBufferUtil.writeWithLength(key.key, out);
+            ByteArrayUtil.writeWithLength(key.key, out);
         }
 
         public Future<Pair<RowCacheKey, IRowCacheEntry>> deserialize(DataInputPlus in, final ColumnFamilyStore cfs) throws IOException
@@ -421,7 +422,7 @@ public class CacheService implements CacheServiceMBean
             TableMetadata tableMetadata = cfs.metadata();
             tableMetadata.id.serialize(out);
             out.writeUTF(tableMetadata.indexName().orElse(""));
-            ByteBufferUtil.writeWithLength(key.key, out);
+            ByteArrayUtil.writeWithLength(key.key, out);
             out.writeInt(key.desc.generation);
             out.writeBoolean(true);
 

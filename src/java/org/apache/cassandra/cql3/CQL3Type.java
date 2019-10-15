@@ -24,6 +24,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.CollectionType.Kind;
@@ -57,11 +58,11 @@ public interface CQL3Type
 
     /**
      * Generates CQL literal from a binary value of this type.
-     *  @param buffer the value to convert to a CQL literal. This value must be
+     *  @param bytes the value to convert to a CQL literal. This value must be
      * serialized with {@code version} of the native protocol.
      * @param version the native protocol version in which {@code buffer} is encoded.
      */
-    public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version);
+    String toCQLLiteral(ByteBuffer bytes, ProtocolVersion version);
 
     public enum Native implements CQL3Type
     {
@@ -196,6 +197,7 @@ public interface CQL3Type
             StringBuilder target = new StringBuilder();
             buffer = buffer.duplicate();
             int size = CollectionSerializer.readCollectionSize(buffer, version);
+            buffer.position(buffer.position() + CollectionSerializer.sizeOfCollectionSize(size, version));
 
             switch (type.kind)
             {
@@ -224,25 +226,30 @@ public interface CQL3Type
         {
             CQL3Type keys = ((MapType) type).getKeysType().asCQL3Type();
             CQL3Type values = ((MapType) type).getValuesType().asCQL3Type();
+            int offset = 0;
             for (int i = 0; i < size; i++)
             {
                 if (i > 0)
                     target.append(", ");
-                ByteBuffer element = CollectionSerializer.readValue(buffer, version);
+                ByteBuffer element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset, version);
+                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance, version);
                 target.append(keys.toCQLLiteral(element, version));
                 target.append(": ");
-                element = CollectionSerializer.readValue(buffer, version);
+                element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset, version);
+                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance, version);
                 target.append(values.toCQLLiteral(element, version));
             }
         }
 
         private static void generateSetOrListCQLLiteral(ByteBuffer buffer, ProtocolVersion version, StringBuilder target, int size, CQL3Type elements)
         {
+            int offset = 0;
             for (int i = 0; i < size; i++)
             {
                 if (i > 0)
                     target.append(", ");
-                ByteBuffer element = CollectionSerializer.readValue(buffer, version);
+                ByteBuffer element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset, version);
+                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance, version);
                 target.append(elements.toCQLLiteral(element, version));
             }
         }

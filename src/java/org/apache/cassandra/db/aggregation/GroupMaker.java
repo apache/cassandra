@@ -33,7 +33,7 @@ public abstract class GroupMaker
      */
     public static final GroupMaker GROUP_EVERYTHING = new GroupMaker()
     {
-        public boolean isNewGroup(DecoratedKey partitionKey, Clustering clustering)
+        public boolean isNewGroup(DecoratedKey partitionKey, Clustering<?> clustering)
         {
             return false;
         }
@@ -62,7 +62,7 @@ public abstract class GroupMaker
      * @return <code>true</code> if the row belongs to the same group that the previous one, <code>false</code>
      * otherwise.
      */
-    public abstract boolean isNewGroup(DecoratedKey partitionKey, Clustering clustering);
+    public abstract boolean isNewGroup(DecoratedKey partitionKey, Clustering<?> clustering);
 
     /**
      * Specify if at least one row must be returned. If the selection is performing some aggregations on all the rows,
@@ -95,7 +95,7 @@ public abstract class GroupMaker
         /**
          * The last clustering seen
          */
-        private Clustering lastClustering;
+        private Clustering<?> lastClustering;
 
         public PkPrefixGroupMaker(ClusteringComparator comparator, int clusteringPrefixSize, GroupingState state)
         {
@@ -111,7 +111,7 @@ public abstract class GroupMaker
         }
 
         @Override
-        public boolean isNewGroup(DecoratedKey partitionKey, Clustering clustering)
+        public boolean isNewGroup(DecoratedKey partitionKey, Clustering<?> clustering)
         {
             boolean isNew = false;
 

@@ -1012,7 +1012,7 @@ public class SecondaryIndexTest extends CQLTester
         validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(2), 2);
         newRow = index.rowsUpdated.get(0).right;
         assertEquals(1, newRow.columnCount());
-        Cell newCell = newRow.getCell(v1);
+        Cell<?> newCell = newRow.getCell(v1);
         assertTrue(newCell.isTombstone());
         assertEquals(3, newCell.timestamp());
         index.reset();
@@ -1599,10 +1599,10 @@ public class SecondaryIndexTest extends CQLTester
                                       ClientState.forInternalCalls());
     }
 
-    private void validateCell(Cell cell, ColumnMetadata def, ByteBuffer val, long timestamp)
+    private void validateCell(Cell<?> cell, ColumnMetadata def, ByteBuffer val, long timestamp)
     {
         assertNotNull(cell);
-        assertEquals(0, def.type.compare(cell.value(), val));
+        assertEquals(0, def.type.compare(cell.buffer(), val));
         assertEquals(timestamp, cell.timestamp());
     }
 
@@ -1610,7 +1610,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         ColumnMetadata col = cfm.getColumn(new ColumnIdentifier(name, true));
         AbstractType<?> type = col.type;
-        assertEquals(expected, type.compose(row.getCell(col).value()));
+        assertEquals(expected, type.compose(row.getCell(col).buffer()));
     }
 
     /**

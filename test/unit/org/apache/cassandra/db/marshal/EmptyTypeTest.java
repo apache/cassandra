@@ -46,12 +46,12 @@ public class EmptyTypeTest
     {
         DataInputPlus input = Mockito.mock(DataInputPlus.class);
 
-        ByteBuffer buffer = EmptyType.instance.readValue(input);
+        ByteBuffer buffer = EmptyType.instance.readBuffer(input);
         assertThat(buffer)
                   .isNotNull()
                   .matches(b -> !b.hasRemaining());
 
-        buffer = EmptyType.instance.readValue(input, 42);
+        buffer = EmptyType.instance.readBuffer(input, 42);
         assertThat(buffer)
                   .isNotNull()
                   .matches(b -> !b.hasRemaining());

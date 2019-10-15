@@ -653,26 +653,26 @@ public class OperationTest extends SchemaLoader
         }
     }
 
-    private static Unfiltered buildRow(Cell... cells)
+    private static Unfiltered buildRow(Cell<?>... cells)
     {
         return buildRow(Clustering.EMPTY, null, cells);
     }
 
-    private static Row buildRow(Row.Deletion deletion, Cell... cells)
+    private static Row buildRow(Row.Deletion deletion, Cell<?>... cells)
     {
         return buildRow(Clustering.EMPTY, deletion, cells);
     }
 
-    private static Row buildRow(Clustering clustering, Cell... cells)
+    private static Row buildRow(Clustering<?> clustering, Cell<?>... cells)
     {
         return buildRow(clustering, null, cells);
     }
 
-    private static Row buildRow(Clustering clustering, Row.Deletion deletion, Cell... cells)
+    private static Row buildRow(Clustering<?> clustering, Row.Deletion deletion, Cell<?>... cells)
     {
         Row.Builder rowBuilder = BTreeRow.sortedBuilder();
         rowBuilder.newRow(clustering);
-        for (Cell c : cells)
+        for (Cell<?> c : cells)
             rowBuilder.addCell(c);
 
         if (deletion != null)
@@ -681,12 +681,12 @@ public class OperationTest extends SchemaLoader
         return rowBuilder.build();
     }
 
-    private static Cell buildCell(ColumnMetadata column, ByteBuffer value, long timestamp)
+    private static Cell<?> buildCell(ColumnMetadata column, ByteBuffer value, long timestamp)
     {
         return BufferCell.live(column, timestamp, value);
     }
 
-    private static Cell deletedCell(ColumnMetadata column, long timestamp, int nowInSeconds)
+    private static Cell<?> deletedCell(ColumnMetadata column, long timestamp, int nowInSeconds)
     {
         return BufferCell.tombstone(column, timestamp, nowInSeconds);
     }

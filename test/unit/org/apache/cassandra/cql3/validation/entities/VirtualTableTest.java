@@ -81,7 +81,7 @@ public class VirtualTableTest extends CQLTester
             String key = (String) metadata().partitionKeyType.compose(update.partitionKey().getKey());
             update.forEach(row ->
             {
-                Integer value = Int32Type.instance.compose(row.getCell(valueColumn).value());
+                Integer value = Int32Type.instance.compose(row.getCell(valueColumn).buffer());
                 backingMap.put(key, value);
             });
         }

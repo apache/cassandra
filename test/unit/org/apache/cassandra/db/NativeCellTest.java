@@ -70,7 +70,7 @@ public class NativeCellTest
         }
     }
 
-    private static Clustering rndclustering()
+    private static Clustering<?> rndclustering()
     {
         int count = 1 + rand.nextInt(100);
         ByteBuffer[] values = new ByteBuffer[count];
@@ -117,7 +117,7 @@ public class NativeCellTest
                                   ColumnMetadata.Kind.REGULAR);
     }
 
-    private static Cell rndcell(ColumnMetadata col)
+    private static Cell<?> rndcell(ColumnMetadata col)
     {
         long timestamp = rand.nextLong();
         int ttl = rand.nextInt();

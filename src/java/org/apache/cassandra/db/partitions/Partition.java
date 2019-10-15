@@ -50,12 +50,12 @@ public interface Partition
     /**
      * Returns the row corresponding to the provided clustering, or null if there is not such row.
      */
-    public Row getRow(Clustering clustering);
+    public Row getRow(Clustering<?> clustering);
 
     /**
      * Returns an iterator that allows to search specific rows efficiently.
      */
-    public SearchIterator<Clustering, Row> searchIterator(ColumnFilter columns, boolean reversed);
+    public SearchIterator<Clustering<?>, Row> searchIterator(ColumnFilter columns, boolean reversed);
 
     /**
      * Returns an UnfilteredRowIterator over all the rows/RT contained by this partition.

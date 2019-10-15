@@ -586,7 +586,7 @@ public class CompactionsCQLTest extends CQLTester
                     {
                         Unfiltered unfiltered = iter.next();
                         assertTrue(unfiltered instanceof Row);
-                        for (Cell c : ((Row)unfiltered).cells())
+                        for (Cell<?> c : ((Row)unfiltered).cells())
                         {
                             if (c.isTombstone())
                                 foundTombstone = true;

@@ -42,6 +42,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DataOutputTest
@@ -408,33 +409,33 @@ public class DataOutputTest
         int size = 50;
         byte[] bytes = new byte[size];
         rnd.nextBytes(bytes);
-        ByteBufferUtil.writeWithLength(bytes, test);
-        ByteBufferUtil.writeWithLength(bytes, canon);
+        ByteArrayUtil.writeWithLength(bytes, test);
+        ByteArrayUtil.writeWithLength(bytes, canon);
 
         bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithLength(wrap(bytes, false), test);
-        ByteBufferUtil.writeWithLength(bytes, canon);
+        ByteArrayUtil.writeWithLength(bytes, canon);
 
         bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithLength(wrap(bytes, true), test);
-        ByteBufferUtil.writeWithLength(bytes, canon);
+        ByteArrayUtil.writeWithLength(bytes, canon);
 
         bytes = new byte[size];
         rnd.nextBytes(bytes);
-        ByteBufferUtil.writeWithShortLength(bytes, test);
-        ByteBufferUtil.writeWithShortLength(bytes, canon);
+        ByteArrayUtil.writeWithShortLength(bytes, test);
+        ByteArrayUtil.writeWithShortLength(bytes, canon);
 
         bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithShortLength(wrap(bytes, false), test);
-        ByteBufferUtil.writeWithShortLength(bytes, canon);
+        ByteArrayUtil.writeWithShortLength(bytes, canon);
 
         bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithShortLength(wrap(bytes, true), test);
-        ByteBufferUtil.writeWithShortLength(bytes, canon);
+        ByteArrayUtil.writeWithShortLength(bytes, canon);
         // 318
 
         {

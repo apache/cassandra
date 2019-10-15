@@ -75,8 +75,8 @@ public class CounterCacheTest
         cfs.truncateBlocking();
         CacheService.instance.invalidateCounterCache();
 
-        Clustering c1 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(1)).build();
-        Clustering c2 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(2)).build();
+        Clustering<?> c1 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(1)).build();
+        Clustering<?> c2 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(2)).build();
         ColumnMetadata cd = cfs.metadata().getColumn(ByteBufferUtil.bytes("c"));
 
         assertEquals(0, CacheService.instance.counterCache.size());
@@ -103,8 +103,8 @@ public class CounterCacheTest
         cfs.truncateBlocking();
         CacheService.instance.invalidateCounterCache();
 
-        Clustering c1 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(1)).build();
-        Clustering c2 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(2)).build();
+        Clustering<?> c1 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(1)).build();
+        Clustering<?> c2 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(2)).build();
         ColumnMetadata cd = cfs.metadata().getColumn(ByteBufferUtil.bytes("c"));
 
         assertEquals(0, CacheService.instance.counterCache.size());
@@ -164,8 +164,8 @@ public class CounterCacheTest
         CacheService.instance.counterCache.loadSaved();
         assertEquals(4, CacheService.instance.counterCache.size());
 
-        Clustering c1 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(1)).build();
-        Clustering c2 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(2)).build();
+        Clustering<?> c1 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(1)).build();
+        Clustering<?> c2 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(2)).build();
         ColumnMetadata cd = cfs.metadata().getColumn(ByteBufferUtil.bytes("c"));
 
         assertEquals(1L, cfs.getCachedCounter(bytes(1), c1, cd, null).count);

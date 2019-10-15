@@ -17,12 +17,10 @@
  */
 package org.apache.cassandra.utils;
 
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import com.datastax.driver.core.*;
 

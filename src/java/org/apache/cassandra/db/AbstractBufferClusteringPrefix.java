@@ -19,53 +19,33 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
-public abstract class AbstractBufferClusteringPrefix extends AbstractClusteringPrefix
+public abstract class AbstractBufferClusteringPrefix extends AbstractOnHeapClusteringPrefix<ByteBuffer>
 {
     public static final ByteBuffer[] EMPTY_VALUES_ARRAY = new ByteBuffer[0];
 
-    protected final Kind kind;
-    protected final ByteBuffer[] values;
-
     protected AbstractBufferClusteringPrefix(Kind kind, ByteBuffer[] values)
     {
-        this.kind = kind;
-        this.values = values;
+        super(kind, values);
     }
 
-    public Kind kind()
+    public ValueAccessor<ByteBuffer> accessor()
     {
-        return kind;
+        return ByteBufferAccessor.instance;
     }
 
-    public ClusteringPrefix clustering()
+    public ByteBuffer[] getBufferArray()
     {
-        return this;
+        return getRawValues();
     }
 
-    public int size()
+    public ClusteringPrefix<ByteBuffer> minimize()
     {
-        return values.length;
-    }
-
-    public ByteBuffer get(int i)
-    {
-        return values[i];
-    }
-
-    public ByteBuffer[] getRawValues()
-    {
-        return values;
-    }
-
-    public long unsharedHeapSize()
-    {
-        return Clustering.EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(values);
-    }
-
-    public long unsharedHeapSizeExcludingData()
-    {
-        return Clustering.EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(values);
+        if (!ByteBufferUtil.canMinimize(values))
+            return this;
+        return new BufferClustering(ByteBufferUtil.minimizeBuffers(values));
     }
 }

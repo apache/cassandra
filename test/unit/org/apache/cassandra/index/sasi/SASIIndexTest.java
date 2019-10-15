@@ -1187,7 +1187,7 @@ public class SASIIndexTest
         final ByteBuffer age = UTF8Type.instance.decompose("age");
 
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey(AsciiType.instance.decompose("key1")));
-        update(rm, new ArrayList<Cell>()
+        update(rm, new ArrayList<Cell<?>>()
         {{
             add(buildCell(age, LongType.instance.decompose(26L), System.currentTimeMillis()));
             add(buildCell(firstName, AsciiType.instance.decompose("pavel"), System.currentTimeMillis()));
@@ -1682,9 +1682,9 @@ public class SASIIndexTest
                 return UTF8Type.instance.getSerializer();
             }
 
-            public int compareCustom(ByteBuffer a, ByteBuffer b)
+            public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
             {
-                return UTF8Type.instance.compare(a, b);
+                return UTF8Type.instance.compare(left, accessorL, right, accessorR);
             }
         };
 
@@ -2584,7 +2584,7 @@ public class SASIIndexTest
     private static Mutation newMutation(String key, String firstName, String lastName, int age, long timestamp)
     {
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey(AsciiType.instance.decompose(key)));
-        List<Cell> cells = new ArrayList<>(3);
+        List<Cell<?>> cells = new ArrayList<>(3);
 
         if (age >= 0)
             cells.add(buildCell(ByteBufferUtil.bytes("age"), Int32Type.instance.decompose(age), timestamp));
@@ -2655,27 +2655,27 @@ public class SASIIndexTest
         return decoratedKey(AsciiType.instance.fromString(key));
     }
 
-    private static Row buildRow(Collection<Cell> cells)
+    private static Row buildRow(Collection<Cell<?>> cells)
     {
-        return buildRow(cells.toArray(new Cell[cells.size()]));
+        return buildRow(cells.toArray(new Cell<?>[cells.size()]));
     }
 
-    private static Row buildRow(Cell... cells)
+    private static Row buildRow(Cell<?>... cells)
     {
         Row.Builder rowBuilder = BTreeRow.sortedBuilder();
         rowBuilder.newRow(Clustering.EMPTY);
-        for (Cell c : cells)
+        for (Cell<?> c : cells)
             rowBuilder.addCell(c);
         return rowBuilder.build();
     }
 
-    private static Cell buildCell(ByteBuffer name, ByteBuffer value, long timestamp)
+    private static Cell<?> buildCell(ByteBuffer name, ByteBuffer value, long timestamp)
     {
         TableMetadata cfm = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME).metadata();
         return BufferCell.live(cfm.getColumn(name), timestamp, value);
     }
 
-    private static Cell buildCell(TableMetadata cfm, ByteBuffer name, ByteBuffer value, long timestamp)
+    private static Cell<?> buildCell(TableMetadata cfm, ByteBuffer name, ByteBuffer value, long timestamp)
     {
         ColumnMetadata column = cfm.getColumn(name);
         assert column != null;
@@ -2694,7 +2694,7 @@ public class SASIIndexTest
     }
 
 
-    private static void update(Mutation.PartitionUpdateCollector rm, List<Cell> cells)
+    private static void update(Mutation.PartitionUpdateCollector rm, List<Cell<?>> cells)
     {
         TableMetadata metadata = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME).metadata();
         rm.add(PartitionUpdate.singleRowUpdate(metadata, rm.key(), buildRow(cells)));

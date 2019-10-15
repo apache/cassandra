@@ -26,13 +26,13 @@ import org.apache.cassandra.db.marshal.*;
 
 public class TombstoneOverwhelmingException extends RuntimeException
 {
-    public TombstoneOverwhelmingException(int numTombstones, String query, TableMetadata metadata, DecoratedKey lastPartitionKey, ClusteringPrefix lastClustering)
+    public TombstoneOverwhelmingException(int numTombstones, String query, TableMetadata metadata, DecoratedKey lastPartitionKey, ClusteringPrefix<?> lastClustering)
     {
         super(String.format("Scanned over %d tombstones during query '%s' (last scanned row token was %s and partion key was (%s)); query aborted",
                             numTombstones, query, lastPartitionKey.getToken(), makePKString(metadata, lastPartitionKey.getKey(), lastClustering)));
     }
 
-    private static String makePKString(TableMetadata metadata, ByteBuffer partitionKey, ClusteringPrefix clustering)
+    private static String makePKString(TableMetadata metadata, ByteBuffer partitionKey, ClusteringPrefix<?> clustering)
     {
         StringBuilder sb = new StringBuilder();
 
@@ -61,7 +61,7 @@ public class TombstoneOverwhelmingException extends RuntimeException
             sb.append(")");
 
         for (int i = 0; i < clustering.size(); i++)
-            sb.append(", ").append(metadata.comparator.subtype(i).getString(clustering.get(i)));
+            sb.append(", ").append(clustering.stringAt(i, metadata.comparator));
 
         return sb.toString();
     }

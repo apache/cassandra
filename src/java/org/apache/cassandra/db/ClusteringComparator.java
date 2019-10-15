@@ -25,6 +25,7 @@ import java.util.Objects;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.serializers.MarshalException;
@@ -46,7 +47,8 @@ public class ClusteringComparator implements Comparator<Clusterable>
     private final Comparator<IndexInfo> indexReverseComparator;
     private final Comparator<Clusterable> reverseComparator;
 
-    private final Comparator<Row> rowComparator = (r1, r2) -> compare(r1.clustering(), r2.clustering());
+    private final Comparator<Row> rowComparator = (r1, r2) -> compare((ClusteringPrefix<?>) r1.clustering(),
+                                                                      (ClusteringPrefix<?>) r2.clustering());
 
     public ClusteringComparator(AbstractType<?>... clusteringTypes)
     {
@@ -58,8 +60,10 @@ public class ClusteringComparator implements Comparator<Clusterable>
         // copy the list to ensure despatch is monomorphic
         this.clusteringTypes = ImmutableList.copyOf(clusteringTypes);
 
-        this.indexComparator = (o1, o2) -> ClusteringComparator.this.compare(o1.lastName, o2.lastName);
-        this.indexReverseComparator = (o1, o2) -> ClusteringComparator.this.compare(o1.firstName, o2.firstName);
+        this.indexComparator = (o1, o2) -> ClusteringComparator.this.compare((ClusteringPrefix<?>) o1.lastName,
+                                                                             (ClusteringPrefix<?>) o2.lastName);
+        this.indexReverseComparator = (o1, o2) -> ClusteringComparator.this.compare((ClusteringPrefix<?>) o1.firstName,
+                                                                                    (ClusteringPrefix<?>) o2.firstName);
         this.reverseComparator = (c1, c2) -> ClusteringComparator.this.compare(c2, c1);
         for (AbstractType<?> type : clusteringTypes)
             type.checkComparable(); // this should already be enforced by TableMetadata.Builder.addColumn, but we check again for other constructors
@@ -102,7 +106,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
      *
      * @return the newly created clustering.
      */
-    public Clustering make(Object... values)
+    public Clustering<?> make(Object... values)
     {
         if (values.length != size())
             throw new IllegalArgumentException(String.format("Invalid number of components, expecting %d but got %d", size(), values.length));
@@ -120,10 +124,10 @@ public class ClusteringComparator implements Comparator<Clusterable>
 
     public int compare(Clusterable c1, Clusterable c2)
     {
-        return compare(c1.clustering(), c2.clustering());
+        return compare((ClusteringPrefix<?>) c1.clustering(), (ClusteringPrefix<?>) c2.clustering());
     }
 
-    public int compare(ClusteringPrefix c1, ClusteringPrefix c2)
+    public <V1, V2> int compare(ClusteringPrefix<V1> c1, ClusteringPrefix<V2> c2)
     {
         int s1 = c1.size();
         int s2 = c2.size();
@@ -131,7 +135,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
 
         for (int i = 0; i < minSize; i++)
         {
-            int cmp = compareComponent(i, c1.get(i), c2.get(i));
+            int cmp = compareComponent(i, c1.get(i), c1.accessor(), c2.get(i), c2.accessor());
             if (cmp != 0)
                 return cmp;
         }
@@ -142,7 +146,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
         return s1 < s2 ? c1.kind().comparedToClustering : -c2.kind().comparedToClustering;
     }
 
-    public int compare(Clustering c1, Clustering c2)
+    public <V1, V2> int compare(Clustering<V1> c1, Clustering<V2> c2)
     {
         return compare(c1, c2, size());
     }
@@ -156,25 +160,30 @@ public class ClusteringComparator implements Comparator<Clusterable>
      * @return a negative integer, zero, or a positive integer as the first argument is less than,
      * equal to, or greater than the second.
      */
-    public int compare(Clustering c1, Clustering c2, int size)
+    public <V1, V2> int compare(Clustering<V1> c1, Clustering<V2> c2, int size)
     {
         for (int i = 0; i < size; i++)
         {
-            int cmp = compareComponent(i, c1.get(i), c2.get(i));
+            int cmp = compareComponent(i, c1.get(i), c1.accessor(), c2.get(i), c2.accessor());
             if (cmp != 0)
                 return cmp;
         }
         return 0;
     }
 
-    public int compareComponent(int i, ByteBuffer v1, ByteBuffer v2)
+    public <V1, V2> int compareComponent(int i, V1 v1, ValueAccessor<V1> accessor1, V2 v2, ValueAccessor<V2> accessor2)
     {
         if (v1 == null)
             return v2 == null ? 0 : -1;
         if (v2 == null)
             return 1;
 
-        return clusteringTypes.get(i).compare(v1, v2);
+        return clusteringTypes.get(i).compare(v1, accessor1, v2, accessor2);
+    }
+
+    public <V1, V2> int compareComponent(int i, ClusteringPrefix<V1> v1, ClusteringPrefix<V2> v2)
+    {
+        return compareComponent(i, v1.get(i), v1.accessor(), v2.get(i), v2.accessor());
     }
 
     /**
@@ -212,13 +221,14 @@ public class ClusteringComparator implements Comparator<Clusterable>
      *
      * @throws MarshalException if {@code clustering} contains some invalid data.
      */
-    public void validate(ClusteringPrefix clustering)
+    public <T> void validate(ClusteringPrefix<T> clustering)
     {
+        ValueAccessor<T> accessor = clustering.accessor();
         for (int i = 0; i < clustering.size(); i++)
         {
-            ByteBuffer value = clustering.get(i);
+            T value = clustering.get(i);
             if (value != null)
-                subtype(i).validate(value);
+                subtype(i).validate(value, accessor);
         }
     }
 

@@ -33,6 +33,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.marshal.ValueAccessors;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.util.FileUtils;
@@ -115,10 +116,10 @@ public class HintsReaderTest
 
                     Row row = mutation.getPartitionUpdates().iterator().next().iterator().next();
                     assertEquals(1, Iterables.size(row.cells()));
-                    assertEquals(bytes(i), row.clustering().get(0));
-                    Cell cell = row.cells().iterator().next();
+                    ValueAccessors.assertDataEquals(bytes(i), row.clustering().get(0));
+                    Cell<?> cell = row.cells().iterator().next();
                     assertNotNull(cell);
-                    assertEquals(bytes(i), cell.value());
+                    ValueAccessors.assertDataEquals(bytes(i), cell.buffer());
                     assertEquals(timestamp * 1000, cell.timestamp());
 
                     index++;

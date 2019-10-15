@@ -412,7 +412,7 @@ public class TableViews extends AbstractCollection<View>
 
         // If we had some slices from the deletions above, we'll continue using that. Otherwise, it's more efficient to build
         // a names query.
-        BTreeSet.Builder<Clustering> namesBuilder = sliceBuilder == null ? BTreeSet.builder(metadata.comparator) : null;
+        BTreeSet.Builder<Clustering<?>> namesBuilder = sliceBuilder == null ? BTreeSet.builder(metadata.comparator) : null;
         for (Row row : updates)
         {
             // Don't read the existing state if we can prove the update won't affect any views
@@ -425,7 +425,7 @@ public class TableViews extends AbstractCollection<View>
                 namesBuilder.add(row.clustering());
         }
 
-        NavigableSet<Clustering> names = namesBuilder == null ? null : namesBuilder.build();
+        NavigableSet<Clustering<?>> names = namesBuilder == null ? null : namesBuilder.build();
         // If we have a slice builder, it means we had some deletions and we have to read. But if we had
         // only row updates, it's possible none of them affected the views, in which case we have nothing
         // to do.
@@ -482,7 +482,7 @@ public class TableViews extends AbstractCollection<View>
             generator.addBaseTableUpdate(existingBaseRow, mergedBaseRow);
     }
 
-    private static Row emptyRow(Clustering clustering, DeletionTime deletion)
+    private static Row emptyRow(Clustering<?> clustering, DeletionTime deletion)
     {
         // Returning null for an empty row is slightly ugly, but the case where there is no pre-existing row is fairly common
         // (especially when building the view), so we want to avoid a dummy allocation of an empty row every time.

@@ -188,7 +188,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             // it means that there is only one row per partition. Therefore, in both cases there are no data remaining
             // within the partition.
             if (lastRow != null && (lastRow.clustering() == Clustering.STATIC_CLUSTERING
-                    || lastRow.clustering() == Clustering.EMPTY))
+                    || lastRow.clustering().isEmpty()))
             {
                 remainingInPartition = 0;
             }

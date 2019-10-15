@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -41,82 +43,39 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  *      iterator. See this comment for more details: https://goo.gl/yyB5mR.
  *   2) This saves some storage space.
  */
-public abstract class ClusteringBoundOrBoundary extends AbstractBufferClusteringPrefix
+public interface ClusteringBoundOrBoundary<V> extends ClusteringPrefix<V>
 {
     public static final ClusteringBoundOrBoundary.Serializer serializer = new Serializer();
 
-    protected ClusteringBoundOrBoundary(Kind kind, ByteBuffer[] values)
+    default boolean isBoundary()
     {
-        super(kind, values);
-        assert values.length > 0 || !kind.isBoundary();
+        return kind().isBoundary();
     }
 
-    public static ClusteringBoundOrBoundary create(Kind kind, ByteBuffer[] values)
+    default boolean isOpen(boolean reversed)
     {
-        return kind.isBoundary()
-                ? new ClusteringBoundary(kind, values)
-                : new ClusteringBound(kind, values);
+        return kind().isOpen(reversed);
     }
 
-    public boolean isBoundary()
+    default boolean isClose(boolean reversed)
     {
-        return kind.isBoundary();
+        return kind().isClose(reversed);
     }
 
-    public boolean isOpen(boolean reversed)
-    {
-        return kind.isOpen(reversed);
-    }
-
-    public boolean isClose(boolean reversed)
-    {
-        return kind.isClose(reversed);
-    }
-
-    public static ClusteringBound inclusiveOpen(boolean reversed, ByteBuffer[] boundValues)
-    {
-        return new ClusteringBound(reversed ? Kind.INCL_END_BOUND : Kind.INCL_START_BOUND, boundValues);
-    }
-
-    public static ClusteringBound exclusiveOpen(boolean reversed, ByteBuffer[] boundValues)
-    {
-        return new ClusteringBound(reversed ? Kind.EXCL_END_BOUND : Kind.EXCL_START_BOUND, boundValues);
-    }
-
-    public static ClusteringBound inclusiveClose(boolean reversed, ByteBuffer[] boundValues)
-    {
-        return new ClusteringBound(reversed ? Kind.INCL_START_BOUND : Kind.INCL_END_BOUND, boundValues);
-    }
-
-    public static ClusteringBound exclusiveClose(boolean reversed, ByteBuffer[] boundValues)
-    {
-        return new ClusteringBound(reversed ? Kind.EXCL_START_BOUND : Kind.EXCL_END_BOUND, boundValues);
-    }
-
-    public static ClusteringBoundary inclusiveCloseExclusiveOpen(boolean reversed, ByteBuffer[] boundValues)
-    {
-        return new ClusteringBoundary(reversed ? Kind.EXCL_END_INCL_START_BOUNDARY : Kind.INCL_END_EXCL_START_BOUNDARY, boundValues);
-    }
-
-    public static ClusteringBoundary exclusiveCloseInclusiveOpen(boolean reversed, ByteBuffer[] boundValues)
-    {
-        return new ClusteringBoundary(reversed ? Kind.INCL_END_EXCL_START_BOUNDARY : Kind.EXCL_END_INCL_START_BOUNDARY, boundValues);
-    }
-
-    public ClusteringBoundOrBoundary copy(AbstractAllocator allocator)
+    default ClusteringBoundOrBoundary<ByteBuffer> copy(AbstractAllocator allocator)
     {
         ByteBuffer[] newValues = new ByteBuffer[size()];
         for (int i = 0; i < size(); i++)
-            newValues[i] = allocator.clone(get(i));
-        return create(kind(), newValues);
+            newValues[i] = allocator.clone(get(i), accessor());
+        return ByteBufferAccessor.instance.factory().boundOrBoundary(kind(), newValues);
     }
 
-    public String toString(TableMetadata metadata)
+    default String toString(TableMetadata metadata)
     {
         return toString(metadata.comparator);
     }
 
-    public String toString(ClusteringComparator comparator)
+    default String toString(ClusteringComparator comparator)
     {
         StringBuilder sb = new StringBuilder();
         sb.append(kind()).append('(');
@@ -124,7 +83,7 @@ public abstract class ClusteringBoundOrBoundary extends AbstractBufferClustering
         {
             if (i > 0)
                 sb.append(", ");
-            sb.append(comparator.subtype(i).getString(get(i)));
+            sb.append(comparator.subtype(i).getString(get(i), accessor()));
         }
         return sb.append(')').toString();
     }
@@ -137,25 +96,25 @@ public abstract class ClusteringBoundOrBoundary extends AbstractBufferClustering
      * @return the invert of this bound. For instance, if this bound is an exlusive start, this return
      * an inclusive end with the same values.
      */
-    public abstract ClusteringBoundOrBoundary invert();
+    public abstract ClusteringBoundOrBoundary<V> invert();
 
     public static class Serializer
     {
-        public void serialize(ClusteringBoundOrBoundary bound, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
+        public <T> void serialize(ClusteringBoundOrBoundary<T> bound, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
         {
             out.writeByte(bound.kind().ordinal());
             out.writeShort(bound.size());
             ClusteringPrefix.serializer.serializeValuesWithoutSize(bound, out, version, types);
         }
 
-        public long serializedSize(ClusteringBoundOrBoundary bound, int version, List<AbstractType<?>> types)
+        public <T> long serializedSize(ClusteringBoundOrBoundary<T> bound, int version, List<AbstractType<?>> types)
         {
             return 1 // kind ordinal
                  + TypeSizes.sizeof((short)bound.size())
                  + ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(bound, version, types);
         }
 
-        public ClusteringBoundOrBoundary deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
+        public ClusteringBoundOrBoundary<byte[]> deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
         {
             Kind kind = Kind.values()[in.readByte()];
             return deserializeValues(in, kind, version, types);
@@ -170,14 +129,14 @@ public abstract class ClusteringBoundOrBoundary extends AbstractBufferClustering
             ClusteringPrefix.serializer.skipValuesWithoutSize(in, size, version, types);
         }
 
-        public ClusteringBoundOrBoundary deserializeValues(DataInputPlus in, Kind kind, int version, List<AbstractType<?>> types) throws IOException
+        public ClusteringBoundOrBoundary<byte[]> deserializeValues(DataInputPlus in, Kind kind, int version, List<AbstractType<?>> types) throws IOException
         {
             int size = in.readUnsignedShort();
             if (size == 0)
-                return kind.isStart() ? ClusteringBound.BOTTOM : ClusteringBound.TOP;
+                return ByteArrayAccessor.factory.bound(kind);
 
-            ByteBuffer[] values = ClusteringPrefix.serializer.deserializeValuesWithoutSize(in, size, version, types);
-            return create(kind, values);
+            byte[][] values = ClusteringPrefix.serializer.deserializeValuesWithoutSize(in, size, version, types);
+            return ByteArrayAccessor.factory.boundOrBoundary(kind, values);
         }
     }
 }

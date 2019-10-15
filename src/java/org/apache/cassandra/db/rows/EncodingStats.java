@@ -183,7 +183,7 @@ public class EncodingStats
             }
         }
 
-        public void update(Cell cell)
+        public void update(Cell<?> cell)
         {
             updateTimestamp(cell.timestamp());
             if (cell.isExpiring())

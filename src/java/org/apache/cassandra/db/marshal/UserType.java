@@ -167,7 +167,7 @@ public class UserType extends TupleType implements SchemaElement
         return ShortType.instance;
     }
 
-    public ByteBuffer serializeForNativeProtocol(Iterator<Cell> cells, ProtocolVersion protocolVersion)
+    public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells, ProtocolVersion protocolVersion)
     {
         assert isMultiCell;
 
@@ -175,14 +175,14 @@ public class UserType extends TupleType implements SchemaElement
         short fieldPosition = 0;
         while (cells.hasNext())
         {
-            Cell cell = cells.next();
+            Cell<?> cell = cells.next();
 
             // handle null fields that aren't at the end
             short fieldPositionOfCell = ByteBufferUtil.toShort(cell.path().get(0));
             while (fieldPosition < fieldPositionOfCell)
                 components[fieldPosition++] = null;
 
-            components[fieldPosition++] = cell.value();
+            components[fieldPosition++] = cell.buffer();
         }
 
         // append trailing nulls for missing cells
@@ -192,18 +192,18 @@ public class UserType extends TupleType implements SchemaElement
         return TupleType.buildValue(components);
     }
 
-    public void validateCell(Cell cell) throws MarshalException
+    public <V> void validateCell(Cell<V> cell) throws MarshalException
     {
         if (isMultiCell)
         {
             ByteBuffer path = cell.path().get(0);
             nameComparator().validate(path);
             Short fieldPosition = nameComparator().getSerializer().deserialize(path);
-            fieldType(fieldPosition).validate(cell.value());
+            fieldType(fieldPosition).validate(cell.value(), cell.accessor());
         }
         else
         {
-            validate(cell.value());
+            validate(cell.value(), cell.accessor());
         }
     }
 
@@ -389,9 +389,9 @@ public class UserType extends TupleType implements SchemaElement
     }
 
     @Override
-    public boolean referencesUserType(ByteBuffer name)
+    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
     {
-        return this.name.equals(name) || any(fieldTypes(), t -> t.referencesUserType(name));
+        return this.name.equals(name) || any(fieldTypes(), t -> t.referencesUserType(name, accessor));
     }
 
     @Override

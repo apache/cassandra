@@ -106,7 +106,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         return holder().stats;
     }
 
-    public Row getRow(Clustering clustering)
+    public Row getRow(Clustering<?> clustering)
     {
         Row row = searchIterator(ColumnFilter.selection(columns()), false).next(clustering);
         // Note that for statics, this will never return null, this will return an empty row. However,
@@ -124,16 +124,16 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         return row == null ? Rows.EMPTY_STATIC_ROW : row;
     }
 
-    public SearchIterator<Clustering, Row> searchIterator(final ColumnFilter columns, final boolean reversed)
+    public SearchIterator<Clustering<?>, Row> searchIterator(final ColumnFilter columns, final boolean reversed)
     {
         // TODO: we could optimize comparison for "NativeRow" à la #6755
         final Holder current = holder();
-        return new SearchIterator<Clustering, Row>()
+        return new SearchIterator<Clustering<?>, Row>()
         {
             private final SearchIterator<Clustering, Row> rawIter = BTree.slice(current.tree, metadata().comparator, desc(reversed));
             private final DeletionTime partitionDeletion = current.deletionInfo.getPartitionDeletion();
 
-            public Row next(Clustering clustering)
+            public Row next(Clustering<?> clustering)
             {
                 if (clustering == Clustering.STATIC_CLUSTERING)
                     return staticRow(current, columns, true);
@@ -189,8 +189,8 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     private UnfilteredRowIterator sliceIterator(ColumnFilter selection, Slice slice, boolean reversed, Holder current, Row staticRow)
     {
-        ClusteringBound start = slice.start() == ClusteringBound.BOTTOM ? null : slice.start();
-        ClusteringBound end = slice.end() == ClusteringBound.TOP ? null : slice.end();
+        ClusteringBound<?> start = slice.start().isBottom() ? null : slice.start();
+        ClusteringBound<?> end = slice.end().isTop() ? null : slice.end();
         Iterator<Row> rowIter = BTree.slice(current.tree, metadata().comparator, start, true, end, true, desc(reversed));
         Iterator<RangeTombstone> deleteIter = current.deletionInfo.rangeIterator(slice, reversed);
         return merge(rowIter, deleteIter, selection, reversed, current, staticRow);

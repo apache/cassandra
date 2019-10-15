@@ -53,10 +53,10 @@ public abstract class SimpleBuilders
         return metadata.partitioner.decorateKey(key);
     }
 
-    private static Clustering makeClustering(TableMetadata metadata, Object... clusteringColumns)
+    private static Clustering<?> makeClustering(TableMetadata metadata, Object... clusteringColumns)
     {
         if (clusteringColumns.length == 1 && clusteringColumns[0] instanceof Clustering)
-            return (Clustering)clusteringColumns[0];
+            return (Clustering<?>)clusteringColumns[0];
 
         if (clusteringColumns.length == 0)
         {
@@ -157,7 +157,7 @@ public abstract class SimpleBuilders
     {
         private final TableMetadata metadata;
         private final DecoratedKey key;
-        private final Map<Clustering, RowBuilder> rowBuilders = new HashMap<>();
+        private final Map<Clustering<?>, RowBuilder> rowBuilders = new HashMap<>();
         private List<RTBuilder> rangeBuilders = null; // We use that rarely, so create lazily
         private List<RangeTombstone> rangeTombstones = null;
 
@@ -176,7 +176,7 @@ public abstract class SimpleBuilders
 
         public Row.SimpleBuilder row(Object... clusteringValues)
         {
-            Clustering clustering = makeClustering(metadata, clusteringValues);
+            Clustering<?> clustering = makeClustering(metadata, clusteringValues);
             RowBuilder builder = rowBuilders.get(clustering);
             if (builder == null)
             {
@@ -303,8 +303,8 @@ public abstract class SimpleBuilders
 
             private RangeTombstone build()
             {
-                ClusteringBound startBound = ClusteringBound.create(comparator, true, startInclusive, start);
-                ClusteringBound endBound = ClusteringBound.create(comparator, false, endInclusive, end);
+                ClusteringBound<?> startBound = ClusteringBound.create(comparator, true, startInclusive, start);
+                ClusteringBound<?> endBound = ClusteringBound.create(comparator, false, endInclusive, end);
                 return new RangeTombstone(Slice.make(startBound, endBound), deletionTime);
             }
         }
@@ -446,7 +446,7 @@ public abstract class SimpleBuilders
             return column;
         }
 
-        private Cell cell(ColumnMetadata column, ByteBuffer value, CellPath path)
+        private Cell<?> cell(ColumnMetadata column, ByteBuffer value, CellPath path)
         {
             if (value == null)
                 return BufferCell.tombstone(column, timestamp, nowInSec, path);

@@ -457,7 +457,7 @@ public class RangeTombstoneTest
         FilteredPartition partition = Util.getOnlyPartition(Util.cmd(cfs, key).build());
         assertTrue(partition.rowCount() > 0);
 
-        int last = i(partition.unfilteredIterator(ColumnFilter.all(cfs.metadata()), Slices.ALL, true).next().clustering().get(0));
+        int last = i(partition.unfilteredIterator(ColumnFilter.all(cfs.metadata()), Slices.ALL, true).next().clustering().bufferAt(0));
         assertEquals("Last column should be column 1 since column 2 has been deleted", 1, last);
     }
 

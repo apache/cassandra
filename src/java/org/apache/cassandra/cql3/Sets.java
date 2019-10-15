@@ -214,7 +214,7 @@ public abstract class Sets
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
-                Set<?> s = type.getSerializer().deserializeForNativeProtocol(value, version);
+                Set<?> s = type.getSerializer().deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
                 SortedSet<ByteBuffer> elements = new TreeSet<>(type.getElementsType());
                 for (Object element : s)
                     elements.add(type.getElementsType().decompose(element));

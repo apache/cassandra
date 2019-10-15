@@ -140,7 +140,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         return deletes(info.timestamp());
     }
 
-    public boolean deletes(Cell cell)
+    public boolean deletes(Cell<?> cell)
     {
         return deletes(cell.timestamp());
     }

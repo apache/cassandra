@@ -22,6 +22,8 @@ import java.util.Comparator;
 import java.util.Iterator;
 
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
@@ -39,7 +41,7 @@ public abstract class Cells
      * @param cell the cell for which to collect stats.
      * @param collector the stats collector.
      */
-    public static void collectStats(Cell cell, PartitionStatisticsCollector collector)
+    public static void collectStats(Cell<?> cell, PartitionStatisticsCollector collector)
     {
         collector.update(cell);
 
@@ -70,8 +72,8 @@ public abstract class Cells
      * @return the timestamp delta between existing and update, or {@code Long.MAX_VALUE} if one
      * of them is {@code null} or deleted by {@code deletion}).
      */
-    public static long reconcile(Cell existing,
-                                 Cell update,
+    public static long reconcile(Cell<?> existing,
+                                 Cell<?> update,
                                  DeletionTime deletion,
                                  Row.Builder builder)
     {
@@ -90,7 +92,7 @@ public abstract class Cells
             return Long.MAX_VALUE;
         }
 
-        Cell reconciled = reconcile(existing, update);
+        Cell<?> reconciled = reconcile(existing, update);
         builder.addCell(reconciled);
 
         return Math.abs(existing.timestamp() - update.timestamp());
@@ -112,7 +114,7 @@ public abstract class Cells
      * For non-counter cells, this will always be either {@code c1} or {@code c2}, but for
      * counter cells this can be a newly allocated cell.
      */
-    public static Cell reconcile(Cell c1, Cell c2)
+    public static Cell<?> reconcile(Cell<?> c1, Cell<?> c2)
     {
         if (c1 == null || c2 == null)
             return c2 == null ? c1 : c2;
@@ -123,7 +125,7 @@ public abstract class Cells
         return resolveRegular(c1, c2);
     }
 
-    private static Cell resolveRegular(Cell left, Cell right)
+    private static Cell<?> resolveRegular(Cell<?> left, Cell<?> right)
     {
         long leftTimestamp = left.timestamp();
         long rightTimestamp = right.timestamp();
@@ -162,12 +164,10 @@ public abstract class Cells
                 return leftLocalDeletionTime > rightLocalDeletionTime ? left : right;
         }
 
-        ByteBuffer leftValue = left.value();
-        ByteBuffer rightValue = right.value();
-        return leftValue.compareTo(rightValue) >= 0 ? left : right;
+        return compareValues(left, right) >= 0 ? left : right;
     }
 
-    private static Cell resolveCounter(Cell left, Cell right)
+    private static Cell<?> resolveCounter(Cell<?> left, Cell<?> right)
     {
         long leftTimestamp = left.timestamp();
         long rightTimestamp = right.timestamp();
@@ -182,8 +182,8 @@ public abstract class Cells
             return leftIsTombstone ? left : right;
         }
 
-        ByteBuffer leftValue = left.value();
-        ByteBuffer rightValue = right.value();
+        ByteBuffer leftValue = left.buffer();
+        ByteBuffer rightValue = right.buffer();
 
         // Handle empty values. Counters can't truly have empty values, but we can have a counter cell that temporarily
         // has one on read if the column for the cell is not queried by the user due to the optimization of #10657. We
@@ -239,14 +239,14 @@ public abstract class Cells
      * returns {@code Long.MAX_VALUE}.
      */
     public static long reconcileComplex(ColumnMetadata column,
-                                        Iterator<Cell> existing,
-                                        Iterator<Cell> update,
+                                        Iterator<Cell<?>> existing,
+                                        Iterator<Cell<?>> update,
                                         DeletionTime deletion,
                                         Row.Builder builder)
     {
         Comparator<CellPath> comparator = column.cellPathComparator();
-        Cell nextExisting = getNext(existing);
-        Cell nextUpdate = getNext(update);
+        Cell<?> nextExisting = getNext(existing);
+        Cell<?> nextUpdate = getNext(update);
         long timeDelta = Long.MAX_VALUE;
         while (nextExisting != null || nextUpdate != null)
         {
@@ -287,15 +287,15 @@ public abstract class Cells
      * This deletion time may delete both {@code existing} or {@code update}.
      * @param builder the row builder to which the result of the filtering is written.
      */
-    public static void addNonShadowed(Cell existing,
-                                      Cell update,
+    public static void addNonShadowed(Cell<?> existing,
+                                      Cell<?> update,
                                       DeletionTime deletion,
                                       Row.Builder builder)
     {
         if (deletion.deletes(existing))
             return;
 
-        Cell reconciled = reconcile(existing, update);
+        Cell<?> reconciled = reconcile(existing, update);
         if (reconciled != update)
             builder.addCell(existing);
     }
@@ -316,14 +316,14 @@ public abstract class Cells
      * @param builder the row builder to which the result of the filtering is written.
      */
     public static void addNonShadowedComplex(ColumnMetadata column,
-                                             Iterator<Cell> existing,
-                                             Iterator<Cell> update,
+                                             Iterator<Cell<?>> existing,
+                                             Iterator<Cell<?>> update,
                                              DeletionTime deletion,
                                              Row.Builder builder)
     {
         Comparator<CellPath> comparator = column.cellPathComparator();
-        Cell nextExisting = getNext(existing);
-        Cell nextUpdate = getNext(update);
+        Cell<?> nextExisting = getNext(existing);
+        Cell<?> nextUpdate = getNext(update);
         while (nextExisting != null)
         {
             int cmp = nextUpdate == null ? -1 : comparator.compare(nextExisting.path(), nextUpdate.path());
@@ -345,8 +345,33 @@ public abstract class Cells
         }
     }
 
-    private static Cell getNext(Iterator<Cell> iterator)
+    private static Cell<?> getNext(Iterator<Cell<?>> iterator)
     {
         return iterator == null || !iterator.hasNext() ? null : iterator.next();
+    }
+
+    private static <L, R> int compareValues(Cell<L> left, Cell<R> right)
+    {
+        return ValueAccessor.compare(left.value(), left.accessor(), right.value(), right.accessor());
+    }
+
+    public static <L, R> boolean valueEqual(Cell<L> left, Cell<R> right)
+    {
+        return ValueAccessor.equals(left.value(), left.accessor(), right.value(), right.accessor());
+    }
+
+    public static <T, V> T composeValue(Cell<V> cell, AbstractType<T> type)
+    {
+        return type.compose(cell.value(), cell.accessor());
+    }
+
+    public static <V> String valueString(Cell<V> cell, AbstractType<?> type)
+    {
+        return type.getString(cell.value(), cell.accessor());
+    }
+
+    public static <V> String valueString(Cell<V> cell)
+    {
+        return valueString(cell, cell.column().type);
     }
 }

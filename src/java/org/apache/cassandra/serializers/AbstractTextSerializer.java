@@ -23,9 +23,10 @@ import java.nio.charset.Charset;
 
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public abstract class AbstractTextSerializer implements TypeSerializer<String>
+public abstract class AbstractTextSerializer extends TypeSerializer<String>
 {
     private final Charset charset;
 
@@ -34,15 +35,15 @@ public abstract class AbstractTextSerializer implements TypeSerializer<String>
         this.charset = charset;
     }
 
-    public String deserialize(ByteBuffer bytes)
+    public <V> String deserialize(V value, ValueAccessor<V> accessor)
     {
         try
         {
-            return ByteBufferUtil.string(bytes, charset);
+            return accessor.toString(value, charset);
         }
         catch (CharacterCodingException e)
         {
-            throw new MarshalException("Invalid " + charset + " bytes " + ByteBufferUtil.bytesToHex(bytes));
+            throw new MarshalException("Invalid " + charset + " bytes " + accessor.toHex(value));
         }
     }
 
@@ -51,7 +52,8 @@ public abstract class AbstractTextSerializer implements TypeSerializer<String>
         return ByteBufferUtil.bytes(value, charset);
     }
 
-    public String toString(String value)
+
+        public String toString(String value)
     {
         return value;
     }
@@ -69,7 +71,7 @@ public abstract class AbstractTextSerializer implements TypeSerializer<String>
     public String toCQLLiteral(ByteBuffer buffer)
     {
         return buffer == null
-             ? "null"
-             : '\'' + StringUtils.replace(deserialize(buffer), "'", "''") + '\'';
+               ? "null"
+               : '\'' + StringUtils.replace(deserialize(buffer), "'", "''") + '\'';
     }
 }

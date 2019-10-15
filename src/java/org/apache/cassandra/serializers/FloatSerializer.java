@@ -18,20 +18,21 @@
 
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 import java.nio.ByteBuffer;
 
-public class FloatSerializer implements TypeSerializer<Float>
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+public class FloatSerializer extends TypeSerializer<Float>
 {
     public static final FloatSerializer instance = new FloatSerializer();
 
-    public Float deserialize(ByteBuffer bytes)
+    public <V> Float deserialize(V value, ValueAccessor<V> accessor)
     {
-        if (bytes.remaining() == 0)
+        if (accessor.isEmpty(value))
             return null;
 
-        return ByteBufferUtil.toFloat(bytes);
+        return accessor.toFloat(value);
     }
 
     public ByteBuffer serialize(Float value)
@@ -39,10 +40,10 @@ public class FloatSerializer implements TypeSerializer<Float>
         return (value == null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
-        if (bytes.remaining() != 4 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 4 or 0 byte value for a float (%d)", bytes.remaining()));
+        if (accessor.size(value) != 4 && !accessor.isEmpty(value))
+            throw new MarshalException(String.format("Expected 4 or 0 byte value for a float (%d)", accessor.size(value)));
     }
 
     public String toString(Float value)

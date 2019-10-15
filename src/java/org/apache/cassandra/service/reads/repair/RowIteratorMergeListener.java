@@ -78,7 +78,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
     // For each source, the time of the current deletion as known by the source.
     private final DeletionTime[] sourceDeletionTime;
     // For each source, record if there is an open range to send as repair, and from where.
-    private final ClusteringBound[] markerToRepair;
+    private final ClusteringBound<?>[] markerToRepair;
 
     private final ReadRepair readRepair;
 
@@ -111,37 +111,37 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         this.repairs = new PartitionUpdate.Builder[size + (buildFullDiff ? 1 : 0)];
         this.currentRows = new Row.Builder[size];
         this.sourceDeletionTime = new DeletionTime[size];
-        this.markerToRepair = new ClusteringBound[size];
+        this.markerToRepair = new ClusteringBound<?>[size];
         this.command = command;
         this.readRepair = readRepair;
 
         this.diffListener = new RowDiffListener()
         {
-            public void onPrimaryKeyLivenessInfo(int i, Clustering clustering, LivenessInfo merged, LivenessInfo original)
+            public void onPrimaryKeyLivenessInfo(int i, Clustering<?> clustering, LivenessInfo merged, LivenessInfo original)
             {
                 if (merged != null && !merged.equals(original))
                     currentRow(i, clustering).addPrimaryKeyLivenessInfo(merged);
             }
 
-            public void onDeletion(int i, Clustering clustering, Row.Deletion merged, Row.Deletion original)
+            public void onDeletion(int i, Clustering<?> clustering, Row.Deletion merged, Row.Deletion original)
             {
                 if (merged != null && !merged.equals(original))
                     currentRow(i, clustering).addRowDeletion(merged);
             }
 
-            public void onComplexDeletion(int i, Clustering clustering, ColumnMetadata column, DeletionTime merged, DeletionTime original)
+            public void onComplexDeletion(int i, Clustering<?> clustering, ColumnMetadata column, DeletionTime merged, DeletionTime original)
             {
                 if (merged != null && !merged.equals(original))
                     currentRow(i, clustering).addComplexDeletion(column, merged);
             }
 
-            public void onCell(int i, Clustering clustering, Cell merged, Cell original)
+            public void onCell(int i, Clustering<?> clustering, Cell<?> merged, Cell<?> original)
             {
                 if (merged != null && !merged.equals(original) && isQueried(merged))
                     currentRow(i, clustering).addCell(merged);
             }
 
-            private boolean isQueried(Cell cell)
+            private boolean isQueried(Cell<?> cell)
             {
                 // When we read, we may have some cell that have been fetched but are not selected by the user. Those cells may
                 // have empty values as optimization (see CASSANDRA-10655) and hence they should not be included in the read-repair.
@@ -167,7 +167,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         return repairs[i] == null ? DeletionTime.LIVE : repairs[i].partitionLevelDeletion();
     }
 
-    private Row.Builder currentRow(int i, Clustering clustering)
+    private Row.Builder currentRow(int i, Clustering<?> clustering)
     {
         if (currentRows[i] == null)
         {
@@ -345,9 +345,9 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
             mergedDeletionTime = merged.isOpen(isReversed) ? merged.openDeletionTime(isReversed) : null;
     }
 
-    private void closeOpenMarker(int i, ClusteringBound close)
+    private void closeOpenMarker(int i, ClusteringBound<?> close)
     {
-        ClusteringBound open = markerToRepair[i];
+        ClusteringBound<?> open = markerToRepair[i];
         RangeTombstone rt = new RangeTombstone(Slice.make(isReversed ? close : open, isReversed ? open : close), currentDeletion());
         applyToPartition(i, p -> p.add(rt));
         markerToRepair[i] = null;

@@ -20,13 +20,15 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 
-public class NativeCell extends AbstractCell
+public class NativeCell extends AbstractCell<ByteBuffer>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new NativeCell());
 
@@ -47,7 +49,7 @@ public class NativeCell extends AbstractCell
 
     public NativeCell(NativeAllocator allocator,
                       OpOrder.Group writeOp,
-                      Cell cell)
+                      Cell<?> cell)
     {
         this(allocator,
              writeOp,
@@ -55,7 +57,7 @@ public class NativeCell extends AbstractCell
              cell.timestamp(),
              cell.ttl(),
              cell.localDeletionTime(),
-             cell.value(),
+             cell.buffer(),
              cell.path());
     }
 
@@ -122,10 +124,15 @@ public class NativeCell extends AbstractCell
         return MemoryUtil.getInt(peer + DELETION);
     }
 
-    public ByteBuffer value()
+    public ByteBuffer value()// FIXME: add native accessor
     {
         int length = MemoryUtil.getInt(peer + LENGTH);
         return MemoryUtil.getByteBuffer(peer + VALUE, length, ByteOrder.BIG_ENDIAN);
+    }
+
+    public ValueAccessor<ByteBuffer> accessor()
+    {
+        return ByteBufferAccessor.instance;  // FIXME: add native accessor
     }
 
     public CellPath path()
@@ -138,17 +145,17 @@ public class NativeCell extends AbstractCell
         return CellPath.create(MemoryUtil.getByteBuffer(offset + 4, size, ByteOrder.BIG_ENDIAN));
     }
 
-    public Cell withUpdatedValue(ByteBuffer newValue)
+    public Cell<?> withUpdatedValue(ByteBuffer newValue)
     {
         throw new UnsupportedOperationException();
     }
 
-    public Cell withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    public Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
     {
         return new BufferCell(column, newTimestamp, ttl(), newLocalDeletionTime, value(), path());
     }
 
-    public Cell withUpdatedColumn(ColumnMetadata column)
+    public Cell<?> withUpdatedColumn(ColumnMetadata column)
     {
         return new BufferCell(column, timestamp(), ttl(), localDeletionTime(), value(), path());
     }

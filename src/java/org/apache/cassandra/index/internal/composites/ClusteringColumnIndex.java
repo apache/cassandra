@@ -57,22 +57,22 @@ public class ClusteringColumnIndex extends CassandraIndex
 
 
     public ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                      Clustering clustering,
+                                      Clustering<?> clustering,
                                       CellPath path, ByteBuffer cellValue)
     {
-        return clustering.get(indexedColumn.position());
+        return clustering.bufferAt(indexedColumn.position());
     }
 
-    public CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                               ClusteringPrefix prefix,
-                                               CellPath path)
+    public <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                   ClusteringPrefix<T> prefix,
+                                                   CellPath path)
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
         builder.add(partitionKey);
         for (int i = 0; i < Math.min(indexedColumn.position(), prefix.size()); i++)
-            builder.add(prefix.get(i));
+            builder.add(prefix.get(i), prefix.accessor());
         for (int i = indexedColumn.position() + 1; i < prefix.size(); i++)
-            builder.add(prefix.get(i));
+            builder.add(prefix.get(i), prefix.accessor());
         return builder;
     }
 
@@ -81,20 +81,20 @@ public class ClusteringColumnIndex extends CassandraIndex
     {
         int ckCount = baseCfs.metadata().clusteringColumns().size();
 
-        Clustering clustering = indexEntry.clustering();
+        Clustering<?> clustering = indexEntry.clustering();
         CBuilder builder = CBuilder.create(baseCfs.getComparator());
         for (int i = 0; i < indexedColumn.position(); i++)
-            builder.add(clustering.get(i + 1));
+            builder.add(clustering, i + 1);
 
         builder.add(indexedValue.getKey());
 
         for (int i = indexedColumn.position() + 1; i < ckCount; i++)
-            builder.add(clustering.get(i));
+            builder.add(clustering, i);
 
         return new IndexEntry(indexedValue,
                               clustering,
                               indexEntry.primaryKeyLivenessInfo().timestamp(),
-                              clustering.get(0),
+                              clustering.bufferAt(0),
                               builder.build());
     }
 

@@ -39,7 +39,7 @@ public class DuplicateRowChecker extends Transformation<BaseRowIterator<?>>
 {
     private static final Logger logger = LoggerFactory.getLogger(DuplicateRowChecker.class);
 
-    Clustering previous = null;
+    Clustering<?> previous = null;
     int duplicatesDetected = 0;
 
     final String stage;

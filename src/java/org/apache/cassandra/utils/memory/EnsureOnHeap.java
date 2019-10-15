@@ -34,7 +34,7 @@ public abstract class EnsureOnHeap extends Transformation
 {
     public abstract DecoratedKey applyToPartitionKey(DecoratedKey key);
     public abstract UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition);
-    public abstract SearchIterator<Clustering, Row> applyToPartition(SearchIterator<Clustering, Row> partition);
+    public abstract SearchIterator<Clustering<?>, Row> applyToPartition(SearchIterator<Clustering<?>, Row> partition);
     public abstract Iterator<Row> applyToPartition(Iterator<Row> partition);
     public abstract DeletionInfo applyToDeletionInfo(DeletionInfo deletionInfo);
     public abstract Row applyToRow(Row row);
@@ -79,11 +79,11 @@ public abstract class EnsureOnHeap extends Transformation
             return Transformation.apply(partition, this);
         }
 
-        public SearchIterator<Clustering, Row> applyToPartition(SearchIterator<Clustering, Row> partition)
+        public SearchIterator<Clustering<?>, Row> applyToPartition(SearchIterator<Clustering<?>, Row> partition)
         {
-            return new SearchIterator<Clustering, Row>()
+            return new SearchIterator<Clustering<?>, Row>()
             {
-                public Row next(Clustering key)
+                public Row next(Clustering<?> key)
                 {
                     return applyToRow(partition.next(key));
                 }
@@ -147,7 +147,7 @@ public abstract class EnsureOnHeap extends Transformation
             return partition;
         }
 
-        public SearchIterator<Clustering, Row> applyToPartition(SearchIterator<Clustering, Row> partition)
+        public SearchIterator<Clustering<?>, Row> applyToPartition(SearchIterator<Clustering<?>, Row> partition)
         {
             return partition;
         }

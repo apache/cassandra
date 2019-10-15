@@ -150,7 +150,7 @@ public class SSTableLoaderTest
         assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
         assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")))
                                                                    .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
-                                                                   .value());
+                                                                   .buffer());
 
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
@@ -248,7 +248,7 @@ public class SSTableLoaderTest
         assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
         assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")))
                 .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
-                .value());
+                .buffer());
 
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).

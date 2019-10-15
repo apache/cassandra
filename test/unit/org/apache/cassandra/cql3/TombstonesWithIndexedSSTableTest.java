@@ -82,10 +82,10 @@ public class TombstonesWithIndexedSSTableTest extends CQLTester
                     try (FileDataInput reader = sstable.openIndexReader())
                     {
                         RowIndexEntry.IndexInfoRetriever infoRetriever = indexEntry.openWithIndex(sstable.getIndexFile());
-                        ClusteringPrefix firstName = infoRetriever.columnsIndex(1).firstName;
+                        ClusteringPrefix<?> firstName = infoRetriever.columnsIndex(1).firstName;
                         if (firstName.kind().isBoundary())
                             break deletionLoop;
-                        indexedRow = Int32Type.instance.compose(firstName.get(0));
+                        indexedRow = Int32Type.instance.compose(firstName.bufferAt(0));
                     }
                 }
             }

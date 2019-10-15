@@ -24,7 +24,7 @@ public interface PartitionStatisticsCollector
 {
     public void update(LivenessInfo info);
     public void update(DeletionTime deletionTime);
-    public void update(Cell cell);
+    public void update(Cell<?> cell);
     public void updateColumnSetPerRow(long columnSetInRow);
     public void updateHasLegacyCounterShards(boolean hasLegacyCounterShards);
 }

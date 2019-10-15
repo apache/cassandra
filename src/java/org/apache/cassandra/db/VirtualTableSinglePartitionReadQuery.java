@@ -122,7 +122,7 @@ public class VirtualTableSinglePartitionReadQuery extends VirtualTableReadQuery 
     }
 
     @Override
-    public SinglePartitionReadQuery forPaging(Clustering lastReturned, DataLimits limits)
+    public SinglePartitionReadQuery forPaging(Clustering<?> lastReturned, DataLimits limits)
     {
         return new VirtualTableSinglePartitionReadQuery(metadata(),
                                                         nowInSec(),
