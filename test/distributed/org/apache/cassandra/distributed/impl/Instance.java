@@ -343,6 +343,25 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         runOnInstance(() -> MessagingService.instance().setVersion(endpoint.address, version));
     }
 
+    public void flush(String keyspace)
+    {
+        runOnInstance(() -> FBUtilities.waitOnFutures(Keyspace.open(keyspace).flush()));
+    }
+
+    public void forceCompact(String keyspace, String table)
+    {
+        runOnInstance(() -> {
+            try
+            {
+                Keyspace.open(keyspace).getColumnFamilyStore(table).forceMajorCompaction();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
     @Override
     public void startup(ICluster cluster)
     {
