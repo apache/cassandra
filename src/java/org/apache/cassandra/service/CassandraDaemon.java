@@ -155,6 +155,12 @@ public class CassandraDaemon
 
     static final CassandraDaemon instance = new CassandraDaemon();
 
+    @VisibleForTesting
+    public static CassandraDaemon getInstanceForTesting()
+    {
+        return instance;
+    }
+
     private NativeTransportService nativeTransportService;
     private JMXConnectorServer jmxServer;
 
@@ -263,8 +269,7 @@ public class CassandraDaemon
             throw e;
         }
 
-        VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
-        VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
+        setupVirtualKeyspaces();
 
         // clean up debris in the rest of the keyspaces
         for (String keyspaceName : Schema.instance.getKeyspaces())
@@ -438,10 +443,21 @@ public class CassandraDaemon
             NANOSECONDS
         );
 
-        // Native transport
-        nativeTransportService = new NativeTransportService();
+        initializeNativeTransport();
 
         completeSetup();
+    }
+
+    public void setupVirtualKeyspaces()
+    {
+        VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
+        VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
+    }
+
+    public void initializeNativeTransport()
+    {
+        // Native transport
+        nativeTransportService = new NativeTransportService();
     }
 
     /*
@@ -568,8 +584,7 @@ public class CassandraDaemon
         // On linux, this doesn't entirely shut down Cassandra, just the RPC server.
         // jsvc takes care of taking the rest down
         logger.info("Cassandra shutting down...");
-        if (nativeTransportService != null)
-            nativeTransportService.destroy();
+        destroyNativeTransport();
         StorageService.instance.setRpcReady(false);
 
         // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
@@ -702,9 +717,17 @@ public class CassandraDaemon
             nativeTransportService.stop();
     }
 
+    @VisibleForTesting
+    public void destroyNativeTransport() {
+        if (nativeTransportService != null) {
+            nativeTransportService.destroy();
+            nativeTransportService = null;
+        }
+    }
+
     public boolean isNativeTransportRunning()
     {
-        return nativeTransportService != null ? nativeTransportService.isRunning() : false;
+        return nativeTransportService != null && nativeTransportService.isRunning();
     }
 
 

@@ -31,7 +31,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 /**
  * DiagnosticEvent implementation for {@link Gossiper} activities.
  */
-final class GossiperEvent extends DiagnosticEvent
+public final class GossiperEvent extends DiagnosticEvent
 {
     private final InetAddressAndPort endpoint;
     @Nullable
@@ -49,7 +49,7 @@ final class GossiperEvent extends DiagnosticEvent
     private final Map<InetAddressAndPort, Long> unreachableEndpoints;
 
 
-    enum GossiperEventType
+    public enum GossiperEventType
     {
         MARKED_AS_SHUTDOWN,
         CONVICTED,

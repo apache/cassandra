@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 
 import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.distributed.api.IListen;
+import org.apache.cassandra.gms.GossiperEvent;
 import org.apache.cassandra.schema.SchemaEvent;
 
 public class Listen implements IListen
@@ -37,5 +38,12 @@ public class Listen implements IListen
         Consumer<SchemaEvent> consumer = event -> onChange.run();
         DiagnosticEventService.instance().subscribe(SchemaEvent.class, SchemaEvent.SchemaEventType.VERSION_UPDATED, consumer);
         return () -> DiagnosticEventService.instance().unsubscribe(SchemaEvent.class, consumer);
+    }
+
+    public Cancel liveMembers(Runnable onChange)
+    {
+        Consumer<GossiperEvent> consumer = event -> onChange.run();
+        DiagnosticEventService.instance().subscribe(GossiperEvent.class, GossiperEvent.GossiperEventType.REAL_MARKED_ALIVE, consumer);
+        return () -> DiagnosticEventService.instance().unsubscribe(GossiperEvent.class, consumer);
     }
 }

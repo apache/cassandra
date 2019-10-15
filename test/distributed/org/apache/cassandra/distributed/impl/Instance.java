@@ -51,6 +51,9 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator40;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -73,6 +76,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
@@ -91,6 +95,7 @@ import org.apache.cassandra.utils.memory.BufferPool;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
@@ -291,6 +296,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         });
     }
 
+    public int liveMemberCount()
+    {
+        return callsOnInstance(() -> Gossiper.instance.getLiveMembers().size()).call();
+    }
+
     @Override
     public void startup(ICluster cluster)
     {
@@ -317,6 +327,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // This should be the first write to SystemKeyspace (CASSANDRA-11742)
                 SystemKeyspace.persistLocalMetadata();
                 SystemKeyspaceMigrator40.migrate();
+
+                // Start up virtual table support
+                CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
 
                 try
                 {
@@ -357,6 +370,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 if (config.has(GOSSIP))
                 {
                     StorageService.instance.initServer();
+                    StorageService.instance.removeShutdownHook();
                 }
                 else
                 {
@@ -366,6 +380,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.ensureTraceKeyspace();
 
                 SystemKeyspace.finishStartup();
+
+                if (config.has(NATIVE_PROTOCOL)) {
+                    CassandraDaemon.getInstanceForTesting().initializeNativeTransport();
+                    CassandraDaemon.getInstanceForTesting().startNativeTransport();
+                }
 
                 if (!FBUtilities.getBroadcastAddressAndPort().equals(broadcastAddressAndPort()))
                     throw new IllegalStateException();
@@ -463,6 +482,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
+
+            error = parallelRun(error, executor, CassandraDaemon.getInstanceForTesting()::destroyNativeTransport);
 
             if (config.has(GOSSIP))
             {
