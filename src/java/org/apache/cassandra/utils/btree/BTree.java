@@ -112,6 +112,38 @@ public class BTree
         public static Dir desc(boolean desc) { return desc ? DESC : ASC; }
     }
 
+    /**
+     * Enables methods to consume the contents of iterators, collections, or arrays without duplicating code or
+     * allocating intermediate objects. Instead of taking an argument that implements an interface, a method takes
+     * an opaque object as the input, and a singleton helper object it uses as an intermediary to access it's contents.
+     * The purpose of doing things this way is to avoid memory allocations on hot paths.
+     */
+    private interface IteratingFunction<T>
+    {
+        /**
+         * Returns the next object at the given index. This method  must be called with sequentially increasing index
+         * values, starting at 0, and must only be called once per index value. The results of calling this method
+         * without following these rules are undefined.
+         */
+        <K> K nextAt(T input, int idx);
+    }
+
+    private static final IteratingFunction<Iterator> ITERATOR_FUNCTION = new IteratingFunction<Iterator>()
+    {
+        public <K> K nextAt(Iterator input, int idx)
+        {
+            return (K) input.next();
+        }
+    };
+
+    private static final IteratingFunction<Object[]> ARRAY_FUNCTION = new IteratingFunction<Object[]>()
+    {
+        public <K> K nextAt(Object[] input, int idx)
+        {
+            return (K) input[idx];
+        }
+    };
+
     public static Object[] empty()
     {
         return EMPTY_LEAF;
@@ -124,7 +156,7 @@ public class BTree
 
     public static <C, K extends C, V extends C> Object[] build(Collection<K> source, UpdateFunction<K, V> updateF)
     {
-        return buildInternal(source, source.size(), updateF);
+        return buildInternal(source.iterator(), ITERATOR_FUNCTION, source.size(), updateF);
     }
 
     /**
@@ -138,35 +170,44 @@ public class BTree
     {
         if (size < 0)
             throw new IllegalArgumentException(Integer.toString(size));
-        return buildInternal(source, size, updateF);
+        return buildInternal(source.iterator(), ITERATOR_FUNCTION, size, updateF);
     }
 
-    private static <C, K extends C, V extends C> Object[] buildLeaf(Iterator<K> it, int size, UpdateFunction<K, V> updateF)
+    public static <C, K extends C, V extends C> Object[] build(Object[] source, int size, UpdateFunction<K, V> updateF)
+    {
+        if (size < 0)
+            throw new IllegalArgumentException(Integer.toString(size));
+        return buildInternal(source, ARRAY_FUNCTION, size, updateF);
+    }
+
+    private static <C, K extends C, V extends C, S> Object[] buildLeaf(S source, IteratingFunction<S> iterFunc, int size, int startIdx, UpdateFunction<K, V> updateF)
     {
         V[] values = (V[]) new Object[size | 1];
 
+        int idx = startIdx;
         for (int i = 0; i < size; i++)
         {
-            K k = it.next();
+            K k = iterFunc.nextAt(source, idx);
             values[i] = updateF.apply(k);
+            idx++;
         }
-        if (updateF != UpdateFunction.noOp())
+        if (updateF != UpdateFunction.<K>noOp())
             updateF.allocated(ObjectSizes.sizeOfArray(values));
         return values;
     }
 
-    private static <C, K extends C, V extends C> Object[] buildInternal(Iterator<K> it, int size, int level, UpdateFunction<K, V> updateF)
+    private static <C, K extends C, V extends C, S> Object[] buildInternal(S source, IteratingFunction<S> iterFunc, int size, int level, int startIdx, UpdateFunction<K, V> updateF)
     {
         assert size > 0;
         assert level >= 0;
         if (level == 0)
-            return buildLeaf(it, size, updateF);
+            return buildLeaf(source, iterFunc, size, startIdx, updateF);
 
         // calcuate child num: (size - (childNum - 1)) / maxChildSize <= childNum
         int childNum = size / (TREE_SIZE[level - 1] + 1) + 1;
 
         V[] values = (V[]) new Object[childNum * 2];
-        if (updateF != UpdateFunction.noOp())
+        if (updateF != UpdateFunction.<K>noOp())
             updateF.allocated(ObjectSizes.sizeOfArray(values));
 
         int[] indexOffsets = new int[childNum];
@@ -179,16 +220,16 @@ public class BTree
             // The performance could be improved by pre-compute the childSize (see #9989 comments).
             int childSize = (size - index) / (childNum - i);
             // Build the tree with inorder traversal
-            values[childPos + i] = (V) buildInternal(it, childSize, level - 1, updateF);
+            values[childPos + i] = (V) buildInternal(source, iterFunc, childSize, level - 1, startIdx + index, updateF);
             index += childSize;
             indexOffsets[i] = index;
 
-            K k = it.next();
+            K k = iterFunc.nextAt(source, startIdx + index);
             values[i] = updateF.apply(k);
             index++;
         }
 
-        values[childPos + childNum - 1] = (V) buildInternal(it, size - index, level - 1, updateF);
+        values[childPos + childNum - 1] = (V) buildInternal(source, iterFunc, size - index, level - 1, startIdx + index, updateF);
         indexOffsets[childNum - 1] = size;
 
         values[childPos + childNum] = (V) indexOffsets;
@@ -196,7 +237,7 @@ public class BTree
         return values;
     }
 
-    private static <C, K extends C, V extends C> Object[] buildInternal(Iterable<K> source, int size, UpdateFunction<K, V> updateF)
+    private static <C, K extends C, V extends C, S> Object[] buildInternal(S source, IteratingFunction<S> iterFunc, int size, UpdateFunction<K, V> updateF)
     {
         assert size >= 0;
         if (size == 0)
@@ -206,8 +247,7 @@ public class BTree
         int level = 0;
         while (size > TREE_SIZE[level])
             level++;
-        Iterator<K> it = source.iterator();
-        return buildInternal(it, size, level, updateF);
+        return buildInternal(source, iterFunc, size, level, 0, updateF);
     }
 
     public static <C, K extends C, V extends C> Object[] update(Object[] btree,
@@ -1172,7 +1212,7 @@ public class BTree
         {
             if (auto)
                 autoEnforce();
-            return BTree.build(Arrays.asList(values).subList(0, count), UpdateFunction.noOp());
+            return BTree.build(values, count, UpdateFunction.noOp());
         }
     }
 
