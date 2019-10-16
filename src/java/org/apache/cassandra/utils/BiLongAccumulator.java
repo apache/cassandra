@@ -18,35 +18,7 @@
 
 package org.apache.cassandra.utils;
 
-/**
- * Simple wrapper for native int type
- */
-public class WrappedInt
+public interface BiLongAccumulator<T, A>
 {
-    private int value;
-
-    public WrappedInt(int initial)
-    {
-        this.value = initial;
-    }
-
-    public int get()
-    {
-        return value;
-    }
-
-    public void set(int value)
-    {
-        this.value = value;
-    }
-
-    public void increment()
-    {
-        ++value;
-    }
-
-    public void decrement()
-    {
-        --value;
-    }
+    long apply(T obj, A arguemnt, long v);
 }

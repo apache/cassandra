@@ -24,10 +24,11 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 
 /**
@@ -66,8 +67,7 @@ public abstract class AbstractRow implements Row
         deletion().digest(digest);
         primaryKeyLivenessInfo().digest(digest);
 
-        for (ColumnData cd : this)
-            cd.digest(digest);
+        apply(ColumnData::digest, digest);
     }
 
     public void validateData(TableMetadata metadata)
@@ -93,15 +93,7 @@ public abstract class AbstractRow implements Row
         if (deletion().time().localDeletionTime() < 0)
             throw new MarshalException("A local deletion time should not be negative in '" + metadata + "'");
 
-        for (ColumnData cd : this)
-            try
-            {
-                cd.validate();
-            }
-            catch (Exception e)
-            {
-                throw new MarshalException("data for '" + cd.column.debugString() + "', " + cd + " in '" + metadata + "' didn't validate", e);
-            }
+        apply(cd -> cd.validate());
     }
 
     public boolean hasInvalidDeletions()

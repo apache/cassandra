@@ -38,21 +38,21 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
 {
     final TableMetadata metadata;
     protected final DataInputPlus in;
-    protected final SerializationHelper helper;
+    protected final DeserializationHelper helper;
 
-    private SSTableSimpleIterator(TableMetadata metadata, DataInputPlus in, SerializationHelper helper)
+    private SSTableSimpleIterator(TableMetadata metadata, DataInputPlus in, DeserializationHelper helper)
     {
         this.metadata = metadata;
         this.in = in;
         this.helper = helper;
     }
 
-    public static SSTableSimpleIterator create(TableMetadata metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper, DeletionTime partitionDeletion)
+    public static SSTableSimpleIterator create(TableMetadata metadata, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, DeletionTime partitionDeletion)
     {
         return new CurrentFormatIterator(metadata, in, header, helper);
     }
 
-    public static SSTableSimpleIterator createTombstoneOnly(TableMetadata metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper, DeletionTime partitionDeletion)
+    public static SSTableSimpleIterator createTombstoneOnly(TableMetadata metadata, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, DeletionTime partitionDeletion)
     {
         return new CurrentFormatTombstoneIterator(metadata, in, header, helper);
     }
@@ -65,7 +65,7 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
 
         private final Row.Builder builder;
 
-        private CurrentFormatIterator(TableMetadata metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper)
+        private CurrentFormatIterator(TableMetadata metadata, DataInputPlus in, SerializationHeader header, DeserializationHelper helper)
         {
             super(metadata, in, helper);
             this.header = header;
@@ -95,7 +95,7 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
     {
         private final SerializationHeader header;
 
-        private CurrentFormatTombstoneIterator(TableMetadata metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper)
+        private CurrentFormatTombstoneIterator(TableMetadata metadata, DataInputPlus in, SerializationHeader header, DeserializationHelper helper)
         {
             super(metadata, in, helper);
             this.header = header;

@@ -25,4 +25,8 @@ import org.apache.cassandra.utils.IndexedSearchIterator;
 
 public interface BTreeSearchIterator<K, V> extends IndexedSearchIterator<K, V>, Iterator<V>
 {
+    /**
+     * Reset this Iterator to its starting position
+     */
+    public void rewind();
 }

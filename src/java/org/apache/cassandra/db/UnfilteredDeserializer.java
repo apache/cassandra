@@ -34,7 +34,7 @@ public class UnfilteredDeserializer
 {
     protected final TableMetadata metadata;
     protected final DataInputPlus in;
-    protected final SerializationHelper helper;
+    protected final DeserializationHelper helper;
 
     private final ClusteringPrefix.Deserializer clusteringDeserializer;
     private final SerializationHeader header;
@@ -49,7 +49,7 @@ public class UnfilteredDeserializer
     private UnfilteredDeserializer(TableMetadata metadata,
                                    DataInputPlus in,
                                    SerializationHeader header,
-                                   SerializationHelper helper)
+                                   DeserializationHelper helper)
     {
         this.metadata = metadata;
         this.in = in;
@@ -62,7 +62,7 @@ public class UnfilteredDeserializer
     public static UnfilteredDeserializer create(TableMetadata metadata,
                                                 DataInputPlus in,
                                                 SerializationHeader header,
-                                                SerializationHelper helper)
+                                                DeserializationHelper helper)
     {
         return new UnfilteredDeserializer(metadata, in, header, helper);
     }

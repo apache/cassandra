@@ -34,6 +34,7 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -279,6 +280,7 @@ public class RowIndexEntryTest extends CQLTester
         {
             private final UnfilteredRowIterator iterator;
             private final SequentialWriter writer;
+            private final SerializationHelper helper;
             private final SerializationHeader header;
             private final int version;
 
@@ -306,6 +308,7 @@ public class RowIndexEntryTest extends CQLTester
             {
                 this.iterator = iterator;
                 this.writer = writer;
+                this.helper = new SerializationHelper(header);
                 this.header = header;
                 this.version = version;
                 this.observers = observers == null ? Collections.emptyList() : observers;
@@ -317,7 +320,7 @@ public class RowIndexEntryTest extends CQLTester
                 ByteBufferUtil.writeWithShortLength(iterator.partitionKey().getKey(), writer);
                 DeletionTime.serializer.serialize(iterator.partitionLevelDeletion(), writer);
                 if (header.hasStatic())
-                    UnfilteredSerializer.serializer.serializeStaticRow(iterator.staticRow(), header, writer, version);
+                    UnfilteredSerializer.serializer.serializeStaticRow(iterator.staticRow(), helper, writer, version);
             }
 
             public ColumnIndex build() throws IOException
@@ -358,7 +361,7 @@ public class RowIndexEntryTest extends CQLTester
                     startPosition = pos;
                 }
 
-                UnfilteredSerializer.serializer.serialize(unfiltered, header, writer, pos - previousRowStart, version);
+                UnfilteredSerializer.serializer.serialize(unfiltered, helper, writer, pos - previousRowStart, version);
 
                 // notify observers about each new row
                 if (!observers.isEmpty())
