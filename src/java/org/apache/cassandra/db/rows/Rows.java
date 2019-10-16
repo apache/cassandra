@@ -27,7 +27,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.utils.MergeIterator;
-import org.apache.cassandra.utils.WrappedInt;
 
 /**
  * Static utilities to work on Row objects.
@@ -75,6 +74,46 @@ public abstract class Rows
         return new SimpleBuilders.RowBuilder(metadata, clusteringValues);
     }
 
+    private static class StatsAccumulation
+    {
+        private static final long COLUMN_INCR = 1L << 32;
+        private static final long CELL_INCR = 1L;
+
+        private static long accumulateOnCell(PartitionStatisticsCollector collector, Cell cell, long l)
+        {
+            Cells.collectStats(cell, collector);
+            return l + CELL_INCR;
+        }
+
+        private static long accumulateOnColumnData(PartitionStatisticsCollector collector, ColumnData cd, long l)
+        {
+            if (cd.column().isSimple())
+            {
+                l = accumulateOnCell(collector, (Cell) cd, l) + COLUMN_INCR;
+            }
+            else
+            {
+                ComplexColumnData complexData = (ComplexColumnData)cd;
+                collector.update(complexData.complexDeletion());
+                int startingCells = unpackCellCount(l);
+                l = complexData.accumulate(StatsAccumulation::accumulateOnCell, collector, l);
+                if (unpackCellCount(l) > startingCells)
+                    l += COLUMN_INCR;
+            }
+            return l;
+        }
+
+        private static int unpackCellCount(long v)
+        {
+            return (int) (v & 0xFFFFFFFFL);
+        }
+
+        private static int unpackColumnCount(long v)
+        {
+            return (int) (v >>> 32);
+        }
+    }
+
     /**
      * Collect statistics on a given row.
      *
@@ -89,35 +128,10 @@ public abstract class Rows
         collector.update(row.primaryKeyLivenessInfo());
         collector.update(row.deletion().time());
 
-        //we have to wrap these for the lambda
-        final WrappedInt columnCount = new WrappedInt(0);
-        final WrappedInt cellCount = new WrappedInt(0);
+        long result = row.accumulate(StatsAccumulation::accumulateOnColumnData, collector, 0);
 
-        row.apply(cd -> {
-            if (cd.column().isSimple())
-            {
-                columnCount.increment();
-                cellCount.increment();
-                Cells.collectStats((Cell) cd, collector);
-            }
-            else
-            {
-                ComplexColumnData complexData = (ComplexColumnData)cd;
-                collector.update(complexData.complexDeletion());
-                if (complexData.hasCells())
-                {
-                    columnCount.increment();
-                    for (Cell cell : complexData)
-                    {
-                        cellCount.increment();
-                        Cells.collectStats(cell, collector);
-                    }
-                }
-            }
-        }, false);
-
-        collector.updateColumnSetPerRow(columnCount.get());
-        return cellCount.get();
+        collector.updateColumnSetPerRow(StatsAccumulation.unpackColumnCount(result));
+        return StatsAccumulation.unpackCellCount(result);
     }
 
     /**

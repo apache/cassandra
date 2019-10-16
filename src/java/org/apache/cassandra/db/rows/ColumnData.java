@@ -78,6 +78,11 @@ public abstract class ColumnData
      */
     public abstract void digest(Digest digest);
 
+    public static void digest(Digest digest, ColumnData cd)
+    {
+        cd.digest(digest);
+    }
+
     /**
      * Returns a copy of the data where all timestamps for live data have replaced by {@code newTimestamp} and
      * all deletion timestamp by {@code newTimestamp - 1}.

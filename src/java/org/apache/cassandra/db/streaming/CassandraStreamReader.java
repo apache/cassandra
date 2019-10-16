@@ -181,7 +181,7 @@ public class CassandraStreamReader implements IStreamReader
         private final TableMetadata metadata;
         private final DataInputPlus in;
         private final SerializationHeader header;
-        private final SerializationHelper helper;
+        private final DeserializationHelper helper;
 
         private DecoratedKey key;
         private DeletionTime partitionLevelDeletion;
@@ -193,7 +193,7 @@ public class CassandraStreamReader implements IStreamReader
         {
             this.metadata = metadata;
             this.in = in;
-            this.helper = new SerializationHelper(metadata, version.correspondingMessagingVersion(), SerializationHelper.Flag.PRESERVE_SIZE);
+            this.helper = new DeserializationHelper(metadata, version.correspondingMessagingVersion(), DeserializationHelper.Flag.PRESERVE_SIZE);
             this.header = header;
         }
 

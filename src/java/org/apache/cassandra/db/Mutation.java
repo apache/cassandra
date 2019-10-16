@@ -29,7 +29,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.SerializationHelper;
+import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -336,7 +336,7 @@ public class Mutation implements IMutation
                 PartitionUpdate.serializer.serialize(entry.getValue(), out, version);
         }
 
-        public Mutation deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
+        public Mutation deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
             int size = (int)in.readUnsignedVInt();
             assert size > 0;
@@ -359,7 +359,7 @@ public class Mutation implements IMutation
 
         public Mutation deserialize(DataInputPlus in, int version) throws IOException
         {
-            return deserialize(in, version, SerializationHelper.Flag.FROM_REMOTE);
+            return deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE);
         }
 
         public long serializedSize(Mutation mutation, int version)

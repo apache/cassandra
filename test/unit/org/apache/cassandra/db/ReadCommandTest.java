@@ -47,6 +47,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.Range;
@@ -368,7 +369,7 @@ public class ReadCommandTest
                                                                                                 MessagingService.current_version,
                                                                                                 cfs.metadata(),
                                                                                                 columnFilter,
-                                                                                                SerializationHelper.Flag.LOCAL));
+                                                                                                DeserializationHelper.Flag.LOCAL));
             }
         }
 

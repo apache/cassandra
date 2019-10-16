@@ -53,7 +53,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
     public static final Serializer serializer = new Serializer();
     public static final Columns NONE = new Columns(BTree.empty(), 0);
 
-    private static final ColumnMetadata FIRST_COMPLEX_STATIC =
+    public static final ColumnMetadata FIRST_COMPLEX_STATIC =
         new ColumnMetadata("",
                            "",
                            ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
@@ -61,7 +61,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            ColumnMetadata.NO_POSITION,
                            ColumnMetadata.Kind.STATIC);
 
-    private static final ColumnMetadata FIRST_COMPLEX_REGULAR =
+    public static final ColumnMetadata FIRST_COMPLEX_REGULAR =
         new ColumnMetadata("",
                            "",
                            ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
@@ -382,11 +382,10 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
     /**
      * Apply a function to each column definition in forwards or reversed order.
      * @param function
-     * @param reversed
      */
-    public void apply(Consumer<ColumnMetadata> function, boolean reversed)
+    public void apply(Consumer<ColumnMetadata> function)
     {
-        BTree.apply(columns, function, reversed);
+        BTree.apply(columns, function);
     }
 
     @Override

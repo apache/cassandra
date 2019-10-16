@@ -35,15 +35,12 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
-import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -451,7 +448,7 @@ public abstract class CommitLogStressTest
             {
                 mutation = Mutation.serializer.deserialize(bufIn,
                                                            desc.getMessagingVersion(),
-                                                           SerializationHelper.Flag.LOCAL);
+                                                           DeserializationHelper.Flag.LOCAL);
             }
             catch (IOException e)
             {
