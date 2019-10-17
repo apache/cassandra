@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import com.google.common.collect.Iterables;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -41,13 +42,17 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.SinglePartitionSliceCommandTest;
 import org.apache.cassandra.db.compaction.Verifier;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -62,11 +67,11 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.CQLTester.assertRows;
 import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 /**
  * Tests backwards compatibility for SSTables
@@ -428,10 +433,15 @@ public class LegacySSTableTest
          *            ["b:bb:pk","00000002",1555000750634000],
          *            ["b:bb:v1","bbb",1555000750634000]]}
          * ]
+         * and an extra sstable with only the invalid cell name
+         * [
+         * {"key": "3",
+         *  "cells": [["a:aa:pk","68656c6c6f30",1570466358949]]}
+         * ]
          *
          */
-
-        QueryProcessor.executeInternal("CREATE TABLE legacy_tables.legacy_ka_with_illegal_cell_names (" +
+        String table = "legacy_ka_with_illegal_cell_names";
+        QueryProcessor.executeInternal("CREATE TABLE legacy_tables." + table + " (" +
                                        " pk int," +
                                        " c1 text," +
                                        " c2 text," +
@@ -439,10 +449,68 @@ public class LegacySSTableTest
                                        " PRIMARY KEY(pk, c1, c2))");
         loadLegacyTable("legacy_%s_with_illegal_cell_names%s", "ka", "");
         UntypedResultSet results =
-            QueryProcessor.executeOnceInternal(
-                String.format("SELECT * FROM legacy_tables.legacy_ka_with_illegal_cell_names"));
+            QueryProcessor.executeOnceInternal("SELECT * FROM legacy_tables."+table);
 
-        assertRows(results, row(1, "a", "aa", "aaa"), row(2, "b", "bb", "bbb"));
+        assertRows(results, row(1, "a", "aa", "aaa"), row(2, "b", "bb", "bbb"), row (3, "a", "aa", null));
+        Keyspace.open("legacy_tables").getColumnFamilyStore(table).forceMajorCompaction();
+    }
+
+    @Test
+    public void testReadingLegacyTablesWithIllegalCellNamesPKLI() throws Exception {
+        /**
+         *
+         * Makes sure we grab the correct PKLI when we have illegal columns
+         *
+         * sstable looks like this:
+         * [
+         * {"key": "3",
+         *  "cells": [["a:aa:","",100],
+         *            ["a:aa:pk","6d656570",200]]}
+         * ]
+         */
+        /*
+        this generates the stable on 2.1:
+        CFMetaData metadata = CFMetaData.compile("create table legacy_tables.legacy_ka_with_illegal_cell_names_2 (pk int, c1 text, c2 text, v1 text, primary key (pk, c1, c2))", "legacy_tables");
+        try (SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(new File("/tmp/sstable21"),
+                                                                                  metadata,
+                                                                                  new ByteOrderedPartitioner(),
+                                                                                  10))
+        {
+            writer.newRow(bytes(3));
+            writer.addColumn(new BufferCell(Util.cellname("a", "aa", ""), bytes(""), 100));
+            writer.addColumn(new BufferCell(Util.cellname("a", "aa", "pk"), bytes("meep"), 200));
+        }
+        */
+        String table = "legacy_ka_with_illegal_cell_names_2";
+        QueryProcessor.executeInternal("CREATE TABLE legacy_tables." + table + " (" +
+                                       " pk int," +
+                                       " c1 text," +
+                                       " c2 text," +
+                                       " v1 text," +
+                                       " PRIMARY KEY(pk, c1, c2))");
+        loadLegacyTable("legacy_%s_with_illegal_cell_names_2%s", "ka", "");
+        ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(table);
+        assertEquals(1, Iterables.size(cfs.getSSTables(SSTableSet.CANONICAL)));
+        cfs.forceMajorCompaction();
+        assertEquals(1, Iterables.size(cfs.getSSTables(SSTableSet.CANONICAL)));
+        SSTableReader sstable = Iterables.getFirst(cfs.getSSTables(SSTableSet.CANONICAL), null);
+        LivenessInfo livenessInfo = null;
+        try (ISSTableScanner scanner = sstable.getScanner())
+        {
+            while (scanner.hasNext())
+            {
+                try (UnfilteredRowIterator iter = scanner.next())
+                {
+                    while (iter.hasNext())
+                    {
+                        Unfiltered uf = iter.next();
+                        livenessInfo = ((Row)uf).primaryKeyLivenessInfo();
+                    }
+                }
+            }
+        }
+        assertNotNull(livenessInfo);
+        assertEquals(100, livenessInfo.timestamp());
     }
 
     @Test
