@@ -335,7 +335,7 @@ public class Expression
         if (!hasLower())
             return true;
 
-        int cmp = term.compareTo(validator, lower.value, false);
+        int cmp = term.compareTo(validator, lower.value, operation == Op.RANGE && !isLiteral);
         return cmp > 0 || cmp == 0 && lower.inclusive;
     }
 
@@ -344,7 +344,7 @@ public class Expression
         if (!hasUpper())
             return true;
 
-        int cmp = term.compareTo(validator, upper.value, false);
+        int cmp = term.compareTo(validator, upper.value, operation == Op.RANGE && !isLiteral);
         return cmp < 0 || cmp == 0 && upper.inclusive;
     }
 
