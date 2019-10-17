@@ -119,8 +119,9 @@ public class EncodingStats
             return function.apply(values.get(0));
 
         Collector collector = new Collector();
-        for (V v : values)
+        for (int i=0, isize=values.size(); i<isize; i++)
         {
+            V v = values.get(i);
             EncodingStats stats = function.apply(v);
             if (stats.minTimestamp != TIMESTAMP_EPOCH)
                 collector.updateTimestamp(stats.minTimestamp);

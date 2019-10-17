@@ -316,8 +316,8 @@ public abstract class AbstractCompactionStrategy
         public long getTotalBytesScanned()
         {
             long bytesScanned = 0L;
-            for (ISSTableScanner scanner : scanners)
-                bytesScanned += scanner.getBytesScanned();
+            for (int i=0, isize=scanners.size(); i<isize; i++)
+                bytesScanned += scanners.get(i).getBytesScanned();
 
             return bytesScanned;
         }
@@ -325,8 +325,8 @@ public abstract class AbstractCompactionStrategy
         public long getTotalCompressedSize()
         {
             long compressedSize = 0;
-            for (ISSTableScanner scanner : scanners)
-                compressedSize += scanner.getCompressedLengthInBytes();
+            for (int i=0, isize=scanners.size(); i<isize; i++)
+                compressedSize += scanners.get(i).getCompressedLengthInBytes();
 
             return compressedSize;
         }
@@ -336,8 +336,10 @@ public abstract class AbstractCompactionStrategy
             double compressed = 0.0;
             double uncompressed = 0.0;
 
-            for (ISSTableScanner scanner : scanners)
+            for (int i=0, isize=scanners.size(); i<isize; i++)
             {
+                @SuppressWarnings("resource")
+                ISSTableScanner scanner = scanners.get(i);
                 compressed += scanner.getCompressedLengthInBytes();
                 uncompressed += scanner.getLengthInBytes();
             }
