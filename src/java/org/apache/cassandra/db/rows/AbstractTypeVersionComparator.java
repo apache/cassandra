@@ -76,7 +76,7 @@ final class AbstractTypeVersionComparator implements Comparator<AbstractType<?>>
         for (int i = 0, m = type.componentsCount(); i < m ; i++)
         {
             int test = compare(types.get(i), otherTypes.get(i));
-            if (test != 0);
+            if (test != 0)
                 return test;
         }
         return 0;

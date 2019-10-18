@@ -396,7 +396,7 @@ public class CommitLog implements CommitLogMBean
     {
         Map<String, Double> segmentRatios = new TreeMap<>();
         for (CommitLogSegment seg : segmentManager.getActiveSegments())
-            segmentRatios.put(seg.getName(), 1.0 * seg.onDiskSize() / seg.contentSize());
+            segmentRatios.put(seg.getName(), ((seg.contentSize() != 0) ? (1.0 * seg.onDiskSize() / seg.contentSize()) : 0));
         return segmentRatios;
     }
 

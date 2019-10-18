@@ -394,8 +394,8 @@ public final class Duration
         if (dividend == 0 || dividend < divisor)
             return dividend;
 
-        builder.append(dividend / divisor).append(unit);
-        return dividend % divisor;
+        builder.append(((divisor != 0) ? (dividend / divisor) : 0)).append(unit);
+        return ((divisor != 0) ? (dividend % divisor) : 0);
     }
 
     private static class Builder

@@ -27,7 +27,6 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
@@ -402,7 +401,7 @@ public class UUIDGen
         // Identify the process on the load: we use both the PID and class loader hash.
         long pid = NativeLibrary.getProcessID();
         if (pid < 0)
-            pid = new Random(System.currentTimeMillis()).nextLong();
+           pid = new SecureRandom().nextLong();
         HashingUtils.updateWithLong(hasher, pid);
 
         ClassLoader loader = UUIDGen.class.getClassLoader();

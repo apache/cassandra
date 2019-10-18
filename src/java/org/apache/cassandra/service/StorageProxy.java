@@ -1819,7 +1819,7 @@ public class StorageProxy implements StorageProxyMBean
                                  : index.getEstimatedResultRows();
 
         // adjust maxExpectedResults by the number of tokens this node has and the replication factor for this ks
-        return (maxExpectedResults / DatabaseDescriptor.getNumTokens()) / keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
+        return (((DatabaseDescriptor.getNumTokens() != 0) ? (maxExpectedResults / DatabaseDescriptor.getNumTokens()) : 0)) / keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
     }
 
     private static class RangeIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
