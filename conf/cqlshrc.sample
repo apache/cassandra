@@ -23,7 +23,9 @@
 ; password = !!bang!!$
 ; keyspace = ks1
 
-
+[protocol]
+;; Specify a specific protcol version otherwise the client will default and downgrade as necessary
+; version = None
 
 [ui]
 ;; Whether or not to display query results with colors
