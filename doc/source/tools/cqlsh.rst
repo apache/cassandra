@@ -94,6 +94,12 @@ Options:
 ``--cqlshrc``
   Specify a non-default location for the ``cqlshrc`` file
 
+``--cqlversion``
+  Specify a particular CQL version, by default the highest version supported by the server will be used. Examples: "3.0.3", "3.1.0"
+
+``--protocol-version``
+  Specify a specific protcol version otherwise the client will default and downgrade as necessary.
+
 ``-e`` ``--execute``
   Execute the given statement, then exit
 
