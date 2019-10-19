@@ -33,6 +33,7 @@ import org.junit.Test;
 import org.junit.Assert;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.MockSchema;
@@ -48,6 +49,7 @@ public class HelpersTest
     public static void setUp()
     {
         DatabaseDescriptor.daemonInitialization();
+        CommitLog.instance.start();
         MockSchema.cleanup();
     }
 

@@ -82,7 +82,8 @@ public abstract class AbstractCommitLogSegmentManager
      */
     private final AtomicLong size = new AtomicLong();
 
-    private Thread managerThread;
+    @VisibleForTesting
+    Thread managerThread;
     protected final CommitLog commitLog;
     private volatile boolean shutdown;
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit()) || shutdown;
@@ -485,8 +486,11 @@ public abstract class AbstractCommitLogSegmentManager
      */
     public void awaitTermination() throws InterruptedException
     {
-        managerThread.join();
-        managerThread = null;
+        if (managerThread != null)
+        {
+            managerThread.join();
+            managerThread = null;
+        }
 
         for (CommitLogSegment segment : activeSegments)
             segment.close();

@@ -45,6 +45,9 @@ public final class JVMStabilityInspector
     private static Object lock = new Object();
     private static boolean printingHeapHistogram;
 
+    // It is used for unit test
+    public static OnKillHook killerHook;
+
     private JVMStabilityInspector() {}
 
     /**
@@ -169,11 +172,26 @@ public final class JVMStabilityInspector
                 t.printStackTrace(System.err);
                 logger.error("JVM state determined to be unstable.  Exiting forcefully due to:", t);
             }
-            if (killing.compareAndSet(false, true))
+
+            boolean doExit = killerHook != null ? killerHook.execute(t) : true;
+
+            if (doExit && killing.compareAndSet(false, true))
             {
                 StorageService.instance.removeShutdownHook();
                 System.exit(100);
             }
         }
+    }
+
+    /**
+     * This class is usually used to avoid JVM exit when running junit tests.
+     */
+    public interface OnKillHook
+    {
+        /**
+         *
+         * @return False will skip exit
+         */
+        boolean execute(Throwable t);
     }
 }
