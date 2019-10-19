@@ -28,6 +28,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.junit.AfterClass;
 import org.junit.Test;
@@ -51,6 +52,7 @@ public class ColumnsTest
     static
     {
         DatabaseDescriptor.daemonInitialization();
+        CommitLog.instance.start();
     }
 
     private static final TableMetadata TABLE_METADATA = MockSchema.newCFS().metadata();
