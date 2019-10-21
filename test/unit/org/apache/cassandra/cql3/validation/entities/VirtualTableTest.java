@@ -29,12 +29,12 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RegularAndStaticColumns;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
@@ -157,15 +157,16 @@ public class VirtualTableTest extends CQLTester
                 return vt3keys.iterator();
             }
 
-            protected Iterator<Row> getRows(boolean isReversed, DecoratedKey key, RegularAndStaticColumns columns)
+            protected Iterator<Row> getRows(DecoratedKey key, ClusteringIndexFilter clusteringFilter, ColumnFilter columnFilter)
             {
+                RegularAndStaticColumns columns = columnFilter.queriedColumns();
                 String value = metadata.partitionKeyType.getString(key.getKey());
                 int pk = Integer.parseInt(value.substring(2));
                 List<Row> rows = Lists.newArrayList(
-                        row("c1").add("v1", 10 * pk + 1).add("v2", (long) (10 * pk + 1)).build(columns),
-                        row("c2").add("v1", 10 * pk + 2).add("v2", (long) (10 * pk + 2)).build(columns),
-                        row("c3").add("v1", 10 * pk + 3).add("v2", (long) (10 * pk + 3)).build(columns));
-                if (isReversed)
+                row("c1").add("v1", 10 * pk + 1).add("v2", (long) (10 * pk + 1)).build(columns),
+                row("c2").add("v1", 10 * pk + 2).add("v2", (long) (10 * pk + 2)).build(columns),
+                row("c3").add("v1", 10 * pk + 3).add("v2", (long) (10 * pk + 3)).build(columns));
+                if (clusteringFilter.isReversed())
                 {
                     Collections.reverse(rows);
                 }

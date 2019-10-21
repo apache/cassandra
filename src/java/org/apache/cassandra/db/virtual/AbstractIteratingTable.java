@@ -18,27 +18,19 @@
 package org.apache.cassandra.db.virtual;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.NavigableMap;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.EmptyIterators;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
@@ -51,14 +43,12 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MonotonicClock;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.AbstractIterator;
@@ -71,6 +61,7 @@ import com.google.common.collect.AbstractIterator;
 public abstract class AbstractIteratingTable implements VirtualTable
 {
     final protected TableMetadata metadata;
+    MonotonicClock clock = MonotonicClock.approxTime;
 
     protected AbstractIteratingTable(TableMetadata metadata)
     {
@@ -78,7 +69,6 @@ public abstract class AbstractIteratingTable implements VirtualTable
     }
 
     /**
-     * @param partitionKey
      * @return boolean if the partition key would exist in this table
      */
     protected abstract boolean hasKey(DecoratedKey partitionKey);
@@ -95,16 +85,11 @@ public abstract class AbstractIteratingTable implements VirtualTable
     protected abstract Iterator<DecoratedKey> getPartitionKeys(DataRange dataRange);
 
     /**
-     * @param isReversed if orderby reverse requested
-     * @param key partition key
-     * @param columns queried columns
-     * @return iterator of rows in order for a given partition key
+     * For a given key give the rows
      */
-    protected abstract Iterator<Row> getRows(boolean isReversed, DecoratedKey key, RegularAndStaticColumns columns);
+    protected abstract Iterator<Row> getRows(DecoratedKey key, ClusteringIndexFilter clusteringFilter, ColumnFilter columnFilter);
 
     @Override
-    // eclipse warnings doesnt like returning closeable iterators when created anonymously
-    @SuppressWarnings("resource")
     public UnfilteredPartitionIterator select(DecoratedKey partitionKey, ClusteringIndexFilter clusteringFilter,
             ColumnFilter columnFilter)
     {
@@ -112,7 +97,7 @@ public abstract class AbstractIteratingTable implements VirtualTable
         {
             return EmptyIterators.unfilteredPartition(metadata);
         }
-        Iterator<Row> iter = getRows(clusteringFilter.isReversed(), partitionKey, columnFilter.queriedColumns());
+        Iterator<Row> iter = getRows(partitionKey, clusteringFilter, columnFilter);
         if (iter == null || !iter.hasNext())
         {
             return EmptyIterators.unfilteredPartition(metadata);
@@ -174,13 +159,13 @@ public abstract class AbstractIteratingTable implements VirtualTable
                 EncodingStats.NO_STATS)
         {
             Iterator<Row> iter = null;
-            ClusteringIndexFilter clusteringFilter = null;;
+            ClusteringIndexFilter clusteringFilter = null;
             protected Unfiltered computeNext()
             {
                 if (iter == null)
                 {
                     clusteringFilter = dataRange.clusteringIndexFilter(key);
-                    iter = getRows(clusteringFilter.isReversed(), key, columnFilter.queriedColumns());
+                    iter = getRows(key, clusteringFilter, columnFilter);
                 }
 
                 while (iter.hasNext())
@@ -258,8 +243,8 @@ public abstract class AbstractIteratingTable implements VirtualTable
 
         public Row build(RegularAndStaticColumns columns)
         {
-            int now = FBUtilities.nowInSeconds();
-            Row.Builder builder = BTreeRow.unsortedBuilder((int) TimeUnit.MILLISECONDS.toSeconds(now));
+            long now = clock.now();
+            Row.Builder builder = BTreeRow.unsortedBuilder();
             builder.newRow(clustering);
 
             columns.forEach(c ->
