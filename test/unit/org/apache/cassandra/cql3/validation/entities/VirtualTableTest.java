@@ -27,12 +27,19 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
+import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -54,9 +61,12 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.triggers.ITrigger;
+
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
@@ -179,9 +189,164 @@ public class VirtualTableTest extends CQLTester
             }
         };
 
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3)));
+        /*
+         * vt4 partition key is set of all integers, with rowsPerVT4Partition rows in each value is
+         * primary key + clustering key. Reverse order not supported for these tests as its just to test large
+         * sets
+         */
+        TableMetadata vt4metadata = TableMetadata.builder(KS_NAME, "vt4")
+                                                 .kind(TableMetadata.Kind.VIRTUAL)
+                                                 .partitioner(new LocalPartitioner(Int32Type.instance))
+                                                 .addPartitionKeyColumn("pk", Int32Type.instance)
+                                                 .addClusteringColumn("ck", Int32Type.instance)
+                                                 .addRegularColumn("pk_plus_ck", LongType.instance)
+                                                 .build();
+
+        VirtualTable vt4 = new AbstractIteratingTable(vt4metadata)
+        {
+            protected Iterator<DecoratedKey> getPartitionKeys(DataRange dataRange)
+            {
+                AtomicInteger current = new AtomicInteger();
+                if (dataRange.startKey() instanceof DecoratedKey)
+                {
+                    int start = Int32Type.instance.compose(((DecoratedKey) dataRange.startKey()).getKey());
+                    current.set(start - 1);
+                }
+                return new AbstractIterator<DecoratedKey>()
+                {
+                    protected DecoratedKey computeNext()
+                    {
+                        int next = current.incrementAndGet();
+                        DecoratedKey key = vt4metadata.partitioner.decorateKey(Int32Type.instance.decompose(next));
+                        return key;
+                    }
+                };
+            }
+
+            protected Iterator<Row> getRows(DecoratedKey key, Slice slice, ColumnFilter columnFilter)
+            {
+                int startInclusive = 1;
+                int endExclusive = rowsPerVT4Partition.get() + 1;
+                if (!slice.equals(Slice.ALL)) {
+                    ClusteringBound start = slice.start();
+                    if (start.clustering().size() == 1)
+                    {
+                        startInclusive = Int32Type.instance.compose(start.clustering().get(0));
+                        if (!start.isInclusive()) startInclusive ++;
+                    }
+                    ClusteringBound end = slice.end();
+                    if (end.clustering().size() == 1)
+                    {
+                        endExclusive = Int32Type.instance.compose(end.clustering().get(0));
+                        if (!end.isInclusive()) endExclusive ++;
+                    }
+                }
+                int pk = (Integer) metadata.partitionKeyType.compose(key.getKey());
+                // Note: only goes ascending
+                return IntStream.range(startInclusive, endExclusive).mapToObj(ck ->
+                     row(ck)
+                           .add("pk_plus_ck", (long) pk + ck)
+                           .build(columnFilter.queriedColumns())
+                ).iterator();
+            }
+
+            protected Iterator<Row> getRows(DecoratedKey key, ClusteringIndexFilter clusteringFilter, ColumnFilter columnFilter)
+            {
+                Iterator<Slice> slices = clusteringFilter.getSlices(vt4metadata).iterator();
+                if (clusteringFilter.isReversed()) throw new IllegalArgumentException("Cannot ORDER BY on vt4");
+                return new AbstractIterator<Row>()
+                {
+                    Iterator<Row> current = Collections.emptyIterator();
+                    protected Row computeNext()
+                    {
+                        while(slices.hasNext() && !current.hasNext())
+                            current = getRows(key, slices.next(), columnFilter);
+                        if (current.hasNext())
+                            return current.next();
+                        return endOfData();
+                    }
+                };
+            }
+
+            protected boolean hasKey(DecoratedKey key)
+            {
+                int pk = (Integer) metadata.partitionKeyType.compose(key.getKey());
+                return pk >= 1;
+            }
+        };
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3, vt4)));
 
         CQLTester.setUpClass();
+    }
+
+    private static final AtomicInteger rowsPerVT4Partition = new AtomicInteger(1);
+
+    /**
+     * 2 million rows in single partition fits on heap
+     */
+    @Test
+    public void testHugePartition() throws Throwable
+    {
+        rowsPerVT4Partition.set(2_000_000);
+        ResultSet res = executeNetWithPaging("SELECT * FROM test_virtual_ks.vt4 WHERE pk = 1", 100);
+        Iterator<com.datastax.driver.core.Row> iter = res.iterator();
+        int total = 0;
+        while(iter.hasNext()) {
+            total ++;
+            com.datastax.driver.core.Row next = iter.next();
+            Assert.assertEquals(1, next.getInt("pk"));
+            Assert.assertEquals(total, next.getInt("ck"));
+            Assert.assertEquals((long) total + 1, next.getLong("pk_plus_ck"));
+        }
+        Assert.assertEquals(2_000_000, total);
+    }
+
+    /**
+     * Should be able to read from vt4 indefinitely, we will cap with 2 seconds though. Should page through without
+     * OOMing.
+     */
+    @Test
+    public void testLotsOfPartition() throws Throwable
+    {
+        rowsPerVT4Partition.set(1);
+        ResultSet res = executeNetWithPaging("SELECT * FROM test_virtual_ks.vt4", 100);
+        Iterator<com.datastax.driver.core.Row> iter = res.iterator();
+        int total = 0;
+        long start = System.currentTimeMillis();
+        while(iter.hasNext() && (System.currentTimeMillis() - start) < 2000) {
+            total ++;
+            com.datastax.driver.core.Row next = iter.next();
+            Assert.assertEquals(total, next.getInt("pk"));
+            Assert.assertEquals(1, next.getInt("ck"));
+            Assert.assertEquals((long) total + 1, next.getLong("pk_plus_ck"));
+        }
+        logger.info("Read *" +total+ "* partitions");
+        Assert.assertTrue(total > 1);
+    }
+
+    @Test
+    public void testLargeEverything() throws Throwable
+    {
+        rowsPerVT4Partition.set(13_217);
+        ResultSet res = executeNetWithPaging("SELECT * FROM test_virtual_ks.vt4", 137);
+        Iterator<com.datastax.driver.core.Row> iter = res.iterator();
+        int pk = 1;
+        int ck = 1;
+        while(iter.hasNext() && pk < 20) {
+            com.datastax.driver.core.Row next = iter.next();
+            Assert.assertEquals(pk, next.getInt("pk"));
+            Assert.assertEquals(ck, next.getInt("ck"));
+            Assert.assertEquals((long) ck + pk, next.getLong("pk_plus_ck"));
+            if (ck == rowsPerVT4Partition.get())
+            {
+                ck = 1;
+                pk ++;
+            } else
+            {
+                ck++;
+            }
+        }
+        logger.info("Read *" +pk+ " * " + ck + " * rows");
     }
 
     public void testQueries(String table) throws Throwable

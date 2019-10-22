@@ -90,6 +90,8 @@ public abstract class AbstractIteratingTable implements VirtualTable
     protected abstract Iterator<Row> getRows(DecoratedKey key, ClusteringIndexFilter clusteringFilter, ColumnFilter columnFilter);
 
     @Override
+    // eclipse-warnings ant task doesnt like returning closeable iterators when created anonymously
+    @SuppressWarnings("resource")
     public UnfilteredPartitionIterator select(DecoratedKey partitionKey, ClusteringIndexFilter clusteringFilter,
             ColumnFilter columnFilter)
     {
