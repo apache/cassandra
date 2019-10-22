@@ -1,3 +1,7 @@
+2.2.16
+ * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
+
+
 2.2.15
  * Catch non-IOException in FileUtils.close to make sure that all resources are closed (CASSANDRA-15225)
  * Handle exceptions during authentication/authorization (CASSANDRA-15041)

@@ -293,6 +293,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(imessage.bytes())))
             {
                 int version = imessage.version();
+                if (version > MessagingService.current_version)
+                {
+                    throw new IllegalStateException(String.format("Node%d received message version %d but current version is %d",
+                                                                  this.config.num(),
+                                                                  version,
+                                                                  MessagingService.current_version));
+                }
 
                 MessagingService.validateMagic(input.readInt());
                 int id;
@@ -492,7 +499,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                         ApplicationState.STATUS,
                         new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(tokens.get(i))));
                 Gossiper.instance.realMarkAlive(ep.address, Gossiper.instance.getEndpointStateForEndpoint(ep.address));
-                MessagingService.instance().setVersion(ep.address, MessagingService.current_version);
+                int messagingVersion = cluster.get(ep).isShutdown()
+                                       ? MessagingService.current_version
+                                       : Math.min(MessagingService.current_version, cluster.get(ep).getMessagingVersion());
+                MessagingService.instance().setVersion(ep.address, messagingVersion);
             }
 
             // check that all nodes are in token metadata
