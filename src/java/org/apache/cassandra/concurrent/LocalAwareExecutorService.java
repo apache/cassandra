@@ -66,4 +66,12 @@ public interface LocalAwareExecutorService extends ExecutorService, ResizableThr
     {
         return -1;
     }
+
+    interface MaxWorkersListener
+    {
+        /**
+         * Listener to follow changes to the maximum pool size
+         */
+        void onUpdateMaxWorkers(int maxWorkers);
+    }
 }

@@ -26,8 +26,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -80,14 +78,8 @@ public class SEPExecutorTest
         final int numBusyWorkers = 2; // Number of busy worker threads to run and gum things up
         SharedExecutorPool sharedPool = new SharedExecutorPool("ChangingMaxWorkersMeetsConcurrencyGoalsTest");
         final AtomicInteger notifiedMaxPoolSize = new AtomicInteger();
-        Consumer<Integer> notifyMaxPoolSize = new Consumer<Integer>()
-        {
-            public void accept(Integer integer)
-            {
-                notifiedMaxPoolSize.set(integer);
-            }
-        };
-        LocalAwareExecutorService executor = sharedPool.newExecutor(0, notifyMaxPoolSize, 4, "internal", "resizetest");
+
+        LocalAwareExecutorService executor = sharedPool.newExecutor(0, notifiedMaxPoolSize::set, 4, "internal", "resizetest");
 
         AtomicBoolean stayBusy = new AtomicBoolean(true);
         for (int i = 0; i < numBusyWorkers; i++)

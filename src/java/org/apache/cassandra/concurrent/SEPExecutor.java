@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +40,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     private final SharedExecutorPool pool;
 
     public final AtomicInteger maxWorkers;
-    Consumer<Integer> updatedMaxWorkers;
+    MaxWorkersListener updatedMaxWorkers;
     public final String name;
     private final String mbeanName;
     public final int maxTasksQueued;
@@ -62,12 +61,14 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     // TODO: see if other queue implementations might improve throughput
     protected final ConcurrentLinkedQueue<FutureTask<?>> tasks = new ConcurrentLinkedQueue<>();
 
+
+
     SEPExecutor(SharedExecutorPool pool, int maxWorkers, int maxTasksQueued, String jmxPath, String name)
     {
         this(pool, maxWorkers, i -> {}, maxTasksQueued, jmxPath, name);
     }
 
-    SEPExecutor(SharedExecutorPool pool, int maxWorkers, Consumer<Integer> updatedMaxWorkers, int maxTasksQueued, String jmxPath, String name)
+    SEPExecutor(SharedExecutorPool pool, int maxWorkers, MaxWorkersListener updatedMaxWorkers, int maxTasksQueued, String jmxPath, String name)
     {
         this.pool = pool;
         this.name = name;
@@ -317,6 +318,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
         {
             throw new IllegalStateException("Maximum pool size has been changed while resizing");
         }
+
         if (deltaWorkPermits == 0)
             return;
 
@@ -327,7 +329,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
         }
         while (!permits.compareAndSet(current, updateWorkPermits(current, workPermits + deltaWorkPermits)));
         logger.info("Resized {} maximum pool size from {} to {}", name, oldMaxWorkers, newMaximumPoolSize);
-        updatedMaxWorkers.accept(newMaximumPoolSize);
+        updatedMaxWorkers.onUpdateMaxWorkers(newMaximumPoolSize);
     }
 
     private static int taskPermits(long both)

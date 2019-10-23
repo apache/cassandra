@@ -56,8 +56,8 @@ public class StageManager
         stages.put(Stage.COUNTER_MUTATION, multiThreadedLowSignalStage(Stage.COUNTER_MUTATION, getConcurrentCounterWriters(), DatabaseDescriptor::setConcurrentWriters));
         stages.put(Stage.VIEW_MUTATION, multiThreadedLowSignalStage(Stage.VIEW_MUTATION, getConcurrentViewWriters(), DatabaseDescriptor::setConcurrentViewWriters));
         stages.put(Stage.READ, multiThreadedLowSignalStage(Stage.READ, getConcurrentReaders(), DatabaseDescriptor::setConcurrentReaders));
-        stages.put(Stage.REQUEST_RESPONSE, multiThreadedLowSignalStage(Stage.REQUEST_RESPONSE, FBUtilities.getAvailableProcessors(), setAvailableProcessorSize("request response stage")));
-        stages.put(Stage.INTERNAL_RESPONSE, multiThreadedStage(Stage.INTERNAL_RESPONSE, FBUtilities.getAvailableProcessors(), setAvailableProcessorSize("internal response stage")));
+        stages.put(Stage.REQUEST_RESPONSE, multiThreadedLowSignalStage(Stage.REQUEST_RESPONSE, FBUtilities.getAvailableProcessors()));
+        stages.put(Stage.INTERNAL_RESPONSE, multiThreadedStage(Stage.INTERNAL_RESPONSE, FBUtilities.getAvailableProcessors()));
         // the rest are all single-threaded
         stages.put(Stage.GOSSIP, singleThreadedStage(Stage.GOSSIP));
         stages.put(Stage.ANTI_ENTROPY, singleThreadedStage(Stage.ANTI_ENTROPY));
@@ -84,17 +84,7 @@ public class StageManager
                                    reh);
     }
 
-    static Consumer<Integer> setAvailableProcessorSize(String niceName)
-    {
-        return newSize -> {
-            if (newSize < 0 || newSize > FBUtilities.getAvailableProcessors())
-            {
-                throw new IllegalArgumentException(niceName + " must be between 0 and " + FBUtilities.getAvailableProcessors());
-            }
-        };
-    }
-
-    private static JMXEnabledThreadPoolExecutor multiThreadedStage(Stage stage, int numThreads, Consumer<Integer> setNumThreads)
+    private static JMXEnabledThreadPoolExecutor multiThreadedStage(Stage stage, int numThreads)
     {
         return new JMXEnabledThreadPoolExecutor(numThreads,
                                                 KEEPALIVE,
@@ -104,7 +94,12 @@ public class StageManager
                                                 stage.getJmxType());
     }
 
-    private static LocalAwareExecutorService multiThreadedLowSignalStage(Stage stage, int numThreads, Consumer<Integer> setNumThreads)
+    private static LocalAwareExecutorService multiThreadedLowSignalStage(Stage stage, int numThreads)
+    {
+        return multiThreadedLowSignalStage(stage, numThreads, newSize -> {});
+    }
+
+    private static LocalAwareExecutorService multiThreadedLowSignalStage(Stage stage, int numThreads, LocalAwareExecutorService.MaxWorkersListener setNumThreads)
     {
         return SharedExecutorPool.SHARED.newExecutor(numThreads, setNumThreads, Integer.MAX_VALUE, stage.getJmxType(), stage.getJmxName());
     }
