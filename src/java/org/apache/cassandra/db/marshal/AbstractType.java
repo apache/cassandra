@@ -382,6 +382,14 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         return -1;
     }
 
+    public void validateIfFixedSize(ByteBuffer value)
+    {
+        if (valueLengthIfFixed() < 0)
+            return;
+
+        validate(value);
+    }
+
     // This assumes that no empty values are passed
     public void writeValue(ByteBuffer value, DataOutputPlus out) throws IOException
     {
