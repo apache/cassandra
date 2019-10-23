@@ -198,6 +198,10 @@ public abstract class LegacyLayout
         }
 
         ByteBuffer collectionElement = metadata.isCompound() ? CompositeType.extractComponent(cellname, metadata.comparator.size() + 1) : null;
+        if (collectionElement != null && def.type instanceof CollectionType)
+        {
+            ((CollectionType)def.type).nameComparator().validateIfFixedSize(collectionElement);
+        }
 
         // Note that because static compact columns are translated to static defs in the new world order, we need to force a static
         // clustering if the definition is static (as it might not be in this case).
@@ -223,6 +227,7 @@ public abstract class LegacyLayout
         {
             // The non compound case is a lot easier, in that there is no EOC nor collection to worry about, so dealing
             // with that first.
+            metadata.comparator.subtype(0).validateIfFixedSize(bound);
             return new LegacyBound(isStart ? Slice.Bound.inclusiveStartOf(bound) : Slice.Bound.inclusiveEndOf(bound), false, null);
         }
 
@@ -231,6 +236,10 @@ public abstract class LegacyLayout
         boolean isStatic = metadata.isCompound() && CompositeType.isStaticName(bound);
         List<ByteBuffer> components = CompositeType.splitName(bound);
         byte eoc = CompositeType.lastEOC(bound);
+        for (int i=0; i<Math.min(clusteringSize, components.size()); i++)
+        {
+            metadata.comparator.subtype(i).validateIfFixedSize(components.get(i));
+        }
 
         // if the bound we have decoded is static, 2.2 format requires there to be N empty clusterings
         assert !isStatic ||
@@ -438,6 +447,11 @@ public abstract class LegacyLayout
                                     ? CompositeType.splitName(value)
                                     : Collections.singletonList(value);
 
+        for (int i=0; i<Math.min(csize, components.size()); i++)
+        {
+            AbstractType<?> type = metadata.comparator.subtype(i);
+            type.validateIfFixedSize(components.get(i));
+        }
         return new Clustering(components.subList(0, Math.min(csize, components.size())).toArray(new ByteBuffer[csize]));
     }
 
@@ -769,6 +783,7 @@ public abstract class LegacyLayout
                     continue;
 
                 foundOne = true;
+                cell.name.column.type.validateIfFixedSize(cell.value);
                 builder.addCell(new BufferCell(cell.name.column, cell.timestamp, cell.ttl, cell.localDeletionTime, cell.value, null));
             }
             else
@@ -1420,6 +1435,7 @@ public abstract class LegacyLayout
                         if (!helper.includes(path))
                             return true;
                     }
+                    column.type.validateIfFixedSize(cell.value);
                     Cell c = new BufferCell(column, cell.timestamp, cell.ttl, cell.localDeletionTime, cell.value, path);
                     if (!helper.isDropped(c, column.isComplex()))
                         builder.addCell(c);
@@ -1590,6 +1606,11 @@ public abstract class LegacyLayout
             this.clustering = clustering;
             this.column = column;
             this.collectionElement = collectionElement;
+        }
+
+        public static LegacyCellName create(Clustering clustering, ColumnDefinition column)
+        {
+            return new LegacyCellName(clustering, column, null);
         }
 
         public ByteBuffer encode(CFMetaData metadata)
