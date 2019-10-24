@@ -20,8 +20,11 @@ package org.apache.cassandra.distributed.upgrade;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import org.apache.cassandra.db.MutableDeletionInfo;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.impl.Versions;
@@ -63,6 +66,7 @@ public class UpgradeTestBase extends DistributedTestBase
         private RunOnCluster setup;
         private RunOnClusterAndNode runAfterNodeUpgrade;
         private RunOnCluster runAfterClusterUpgrade;
+        private final Set<Integer> nodesToUpgrade = new HashSet<>();
 
         public TestCase()
         {
@@ -125,6 +129,9 @@ public class UpgradeTestBase extends DistributedTestBase
                 runAfterClusterUpgrade = (c) -> {};
             if (runAfterNodeUpgrade == null)
                 runAfterNodeUpgrade = (c, n) -> {};
+            if (nodesToUpgrade.isEmpty())
+                for (int n = 1; n <= nodeCount; n++)
+                    nodesToUpgrade.add(n);
 
             for (TestVersions upgrade : this.upgrade)
             {
@@ -134,7 +141,7 @@ public class UpgradeTestBase extends DistributedTestBase
 
                     for (Version version : upgrade.upgrade)
                     {
-                        for (int n = 1 ; n <= nodeCount ; ++n)
+                        for (int n : nodesToUpgrade)
                         {
                             cluster.get(n).shutdown().get();
                             cluster.get(n).setVersion(version);
@@ -147,6 +154,14 @@ public class UpgradeTestBase extends DistributedTestBase
                 }
 
             }
+        }
+        public TestCase nodesToUpgrade(int ... nodes)
+        {
+            for (int n : nodes)
+            {
+                nodesToUpgrade.add(n);
+            }
+            return this;
         }
     }
 
