@@ -47,4 +47,7 @@ public interface IInstance extends IIsolatedExecutor
 
     int getMessagingVersion();
     void setMessagingVersion(InetAddressAndPort endpoint, int version);
+
+    void flush(String keyspace);
+    void forceCompact(String keyspace, String table);
 }
