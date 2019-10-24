@@ -875,11 +875,11 @@ public class SinglePartitionReadCommand extends ReadCommand
                 if (iter.isEmpty())
                     continue;
 
-                UnfilteredRowIterator clonedFilter = copyOnHeap
+                UnfilteredRowIterator clonedIter = copyOnHeap
                                                    ? UnfilteredRowIterators.cloningIterator(iter, HeapAllocator.instance)
                                                    : iter;
                 result = add(
-                    RTBoundValidator.validate(isForThrift() ? ThriftResultsMerger.maybeWrap(clonedFilter, nowInSec()) : clonedFilter, RTBoundValidator.Stage.MEMTABLE, false),
+                    RTBoundValidator.validate(isForThrift() ? ThriftResultsMerger.maybeWrap(clonedIter, nowInSec()) : clonedIter, RTBoundValidator.Stage.MEMTABLE, false),
                     result,
                     filter,
                     false
