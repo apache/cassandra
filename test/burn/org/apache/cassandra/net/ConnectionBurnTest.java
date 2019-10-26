@@ -622,7 +622,7 @@ public class ConnectionBurnTest
         }
     }
 
-    public static void test(GlobalInboundSettings inbound, OutboundConnectionSettings outbound) throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
+    private void test(GlobalInboundSettings inbound, OutboundConnectionSettings outbound) throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
     {
         MessageGenerator small = new UniformPayloadGenerator(0, 1, (1 << 15));
         MessageGenerator large = new UniformPayloadGenerator(0, 1, (1 << 16) + (1 << 15));
@@ -635,11 +635,18 @@ public class ConnectionBurnTest
             .endpoints(4)
             .inbound(inbound)
             .outbound(outbound)
-            .time(2L, TimeUnit.DAYS)
+            // change the following for a longer burn
+            .time(2L, TimeUnit.MINUTES)
             .build().run();
     }
 
     public static void main(String[] args) throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
+    {
+        new ConnectionBurnTest().test();
+    }
+
+    @org.junit.Test
+    public void test() throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
     {
         GlobalInboundSettings inboundSettings = new GlobalInboundSettings()
                                                 .withQueueCapacity(1 << 18)
