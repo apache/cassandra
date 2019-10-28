@@ -103,6 +103,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.distributed.impl.InvokableInstance$SerializableTriFunction",
     "org.apache.cassandra.distributed.impl.InvokableInstance$TriFunction",
     "org.apache.cassandra.distributed.impl.Message",
+    "org.apache.cassandra.distributed.impl.NetworkTopology",
     "org.apache.cassandra.exceptions.ConfigurationException",
     "org.apache.cassandra.exceptions.RequestValidationException",
     "org.apache.cassandra.exceptions.CassandraException",
