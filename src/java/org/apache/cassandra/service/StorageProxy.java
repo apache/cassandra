@@ -214,7 +214,7 @@ public class StorageProxy implements StorageProxyMBean
                                   ClientState state,
                                   int nowInSeconds,
                                   long queryStartNanoTime)
-    throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
+    throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException, CasWriteUnknownResultException
     {
         final long startTimeForMetrics = System.nanoTime();
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, cfName);
@@ -287,7 +287,18 @@ public class StorageProxy implements StorageProxyMBean
 
             throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(keyspaceName)));
         }
-        catch (WriteTimeoutException|ReadTimeoutException e)
+        catch (CasWriteUnknownResultException e)
+        {
+            casWriteMetrics.unknownResult.mark();
+            throw e;
+        }
+        catch (WriteTimeoutException wte)
+        {
+            casWriteMetrics.timeouts.mark();
+            writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
+            throw new CasWriteTimeoutException(wte.writeType, wte.consistency, wte.received, wte.blockFor, contentions);
+        }
+        catch (ReadTimeoutException e)
         {
             casWriteMetrics.timeouts.mark();
             writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
@@ -299,7 +310,7 @@ public class StorageProxy implements StorageProxyMBean
             writeMetricsMap.get(consistencyForPaxos).failures.mark();
             throw e;
         }
-        catch(UnavailableException e)
+        catch (UnavailableException e)
         {
             casWriteMetrics.unavailables.mark();
             writeMetricsMap.get(consistencyForPaxos).unavailables.mark();
@@ -465,10 +476,15 @@ public class StorageProxy implements StorageProxyMBean
         return callback;
     }
 
-    private static boolean proposePaxos(Commit proposal, ReplicaPlan.ForPaxosWrite replicaPlan, boolean timeoutIfPartial, long queryStartNanoTime)
-    throws WriteTimeoutException
+    /**
+     * Propose the {@param proposal} accoding to the {@param replicaPlan}.
+     * When {@param backoffIfPartial} is true, the proposer backs off when seeing the proposal being accepted by some but not a quorum.
+     * The result of the cooresponding CAS in uncertain as the accepted proposal may or may not be spread to other nodes in later rounds.
+     */
+    private static boolean proposePaxos(Commit proposal, ReplicaPlan.ForPaxosWrite replicaPlan, boolean backoffIfPartial, long queryStartNanoTime)
+    throws WriteTimeoutException, CasWriteUnknownResultException
     {
-        ProposeCallback callback = new ProposeCallback(replicaPlan.contacts().size(), replicaPlan.requiredParticipants(), !timeoutIfPartial, replicaPlan.consistencyLevel(), queryStartNanoTime);
+        ProposeCallback callback = new ProposeCallback(replicaPlan.contacts().size(), replicaPlan.requiredParticipants(), !backoffIfPartial, replicaPlan.consistencyLevel(), queryStartNanoTime);
         Message<Commit> message = Message.out(PAXOS_PROPOSE_REQ, proposal);
         for (Replica replica : replicaPlan.contacts())
         {
@@ -496,8 +512,8 @@ public class StorageProxy implements StorageProxyMBean
         if (callback.isSuccessful())
             return true;
 
-        if (timeoutIfPartial && !callback.isFullyRefused())
-            throw new WriteTimeoutException(WriteType.CAS, replicaPlan.consistencyLevel(), callback.getAcceptCount(), replicaPlan.requiredParticipants());
+        if (backoffIfPartial && !callback.isFullyRefused())
+            throw new CasWriteUnknownResultException(replicaPlan.consistencyLevel(), callback.getAcceptCount(), replicaPlan.requiredParticipants());
 
         return false;
     }

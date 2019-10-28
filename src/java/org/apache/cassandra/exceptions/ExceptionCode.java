@@ -43,6 +43,7 @@ public enum ExceptionCode
     FUNCTION_FAILURE    (0x1400),
     WRITE_FAILURE       (0x1500),
     CDC_WRITE_FAILURE   (0x1600),
+    CAS_WRITE_UNKNOWN   (0x1700),
 
     // 2xx: problem validating the request
     SYNTAX_ERROR    (0x2000),
@@ -60,7 +61,7 @@ public enum ExceptionCode
             valueToCode.put(code.value, code);
     }
 
-    private ExceptionCode(int value)
+    ExceptionCode(int value)
     {
         this.value = value;
     }
