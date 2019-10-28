@@ -15,24 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.exceptions;
 
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.WriteType;
 
-public class WriteTimeoutException extends RequestTimeoutException
+public class CasWriteUnknownResultException extends RequestExecutionException
 {
-    public final WriteType writeType;
+    public final ConsistencyLevel consistency;
+    public final int received;
+    public final int blockFor;
 
-    public WriteTimeoutException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor)
+    public CasWriteUnknownResultException(ConsistencyLevel consistency, int received, int blockFor)
     {
-        super(ExceptionCode.WRITE_TIMEOUT, consistency, received, blockFor);
-        this.writeType = writeType;
-    }
-
-    public WriteTimeoutException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor, String msg)
-    {
-        super(ExceptionCode.WRITE_TIMEOUT, consistency, received, blockFor, msg);
-        this.writeType = writeType;
+        super(ExceptionCode.CAS_WRITE_UNKNOWN, String.format("CAS operation result is unknown - proposal accepted by %d but not a quorum.", received));
+        this.consistency = consistency;
+        this.received = received;
+        this.blockFor = blockFor;
     }
 }

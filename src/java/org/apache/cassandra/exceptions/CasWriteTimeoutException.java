@@ -20,19 +20,13 @@ package org.apache.cassandra.exceptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 
-public class WriteTimeoutException extends RequestTimeoutException
+public class CasWriteTimeoutException extends WriteTimeoutException
 {
-    public final WriteType writeType;
+    public final int contentions;
 
-    public WriteTimeoutException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor)
+    public CasWriteTimeoutException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor, int contentions)
     {
-        super(ExceptionCode.WRITE_TIMEOUT, consistency, received, blockFor);
-        this.writeType = writeType;
-    }
-
-    public WriteTimeoutException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor, String msg)
-    {
-        super(ExceptionCode.WRITE_TIMEOUT, consistency, received, blockFor, msg);
-        this.writeType = writeType;
+        super(writeType, consistency, received, blockFor, String.format("CAS operation timed out - encountered contentions: %d", contentions));
+        this.contentions = contentions;
     }
 }
