@@ -1,3 +1,7 @@
+4.0-alpha3
+Merged from 2.2:
+ * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
+
 4.0-alpha2
  * Fix SASI non-literal string comparisons (range operators) (CASSANDRA-15169)
  * Upgrade Guava to 27, and to java-driver 3.6.0 (from 3.4.0-SNAPSHOT) (CASSANDRA-14655)

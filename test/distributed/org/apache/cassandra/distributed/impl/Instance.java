@@ -239,6 +239,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(() -> {
             try (DataInputBuffer in = new DataInputBuffer(message.bytes()))
             {
+                if (message.version() > MessagingService.current_version)
+                {
+                    throw new IllegalStateException(String.format("Node%d received message version %d but current version is %d",
+                                                                  this.config.num(),
+                                                                  message.version(),
+                                                                  MessagingService.current_version));
+                }
+
                 Message<?> messageIn = Message.serializer.deserialize(in, message.from(), message.version());
                 Message.Header header = messageIn.header;
                 TraceState state = Tracing.instance.initializeFromMessage(header);
@@ -428,7 +436,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                             new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token)));
                     Gossiper.instance.realMarkAlive(ep, Gossiper.instance.getEndpointStateForEndpoint(ep));
                 });
-                MessagingService.instance().versions.set(ep, MessagingService.current_version);
+
+                int messagingVersion = cluster.get(ep).isShutdown()
+                                       ? MessagingService.current_version
+                                       : Math.min(MessagingService.current_version, cluster.get(ep).getMessagingVersion());
+                MessagingService.instance().versions.set(ep, messagingVersion);
             }
 
             // check that all nodes are in token metadata
