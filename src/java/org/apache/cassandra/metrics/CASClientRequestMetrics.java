@@ -20,6 +20,7 @@ package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -29,11 +30,14 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
 
     public final Counter unfinishedCommit;
 
+    public final Meter uncertainty; // rate of cas returning uncertainty
+
     public CASClientRequestMetrics(String scope) 
     {
         super(scope);
         contention = Metrics.histogram(factory.createMetricName("ContentionHistogram"), false);
-        unfinishedCommit =  Metrics.counter(factory.createMetricName("UnfinishedCommit"));
+        unfinishedCommit = Metrics.counter(factory.createMetricName("UnfinishedCommit"));
+        uncertainty = Metrics.meter(factory.createMetricName("Uncertainties"));
     }
 
     public void release()
@@ -41,5 +45,6 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
         super.release();
         Metrics.remove(factory.createMetricName("ContentionHistogram"));
         Metrics.remove(factory.createMetricName("UnfinishedCommit"));
+        Metrics.remove(factory.createMetricName("Uncertainties"));
     }
 }
