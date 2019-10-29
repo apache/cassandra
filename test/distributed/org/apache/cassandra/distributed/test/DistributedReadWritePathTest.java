@@ -19,8 +19,10 @@
 package org.apache.cassandra.distributed.test;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
@@ -34,6 +36,11 @@ import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHO
 
 public class DistributedReadWritePathTest extends DistributedTestBase
 {
+    @BeforeClass
+    public static void before()
+    {
+        DatabaseDescriptor.clientInitialization();
+    }
 
     @Test
     public void coordinatorReadTest() throws Throwable
