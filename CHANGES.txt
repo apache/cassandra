@@ -2,6 +2,7 @@
  * Fix nodetool compactionstats showing extra pending task for TWCS - patch implemented (CASSANDRA-15409)
  * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)
  * Fix LegacyLayout to have same behavior as 2.x when handling unknown column names (CASSANDRA-15081)
+ * Update nodetool help stop output (CASSANDRA-15401)
 Merged from 3.0:
  * Fix point-in-time recoevery ignoring timestamp of updates to static columns (CASSANDRA-15292)
  * GC logs are also put under $CASSANDRA_LOG_DIR (CASSANDRA-14306)
