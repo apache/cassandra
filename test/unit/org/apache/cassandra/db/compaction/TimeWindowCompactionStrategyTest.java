@@ -192,11 +192,15 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             Pair<Long,Long> bounds = getWindowBoundsInMillis(TimeUnit.HOURS, 1, tstamp );
             buckets.put(bounds.left, sstrs.get(i));
         }
-        List<SSTableReader> newBucket = newestBucket(buckets, 4, 32, new SizeTieredCompactionStrategyOptions(), getWindowBoundsInMillis(TimeUnit.HOURS, 1, System.currentTimeMillis()).left );
-        assertTrue("incoming bucket should not be accepted when it has below the min threshold SSTables", newBucket.isEmpty());
+
+        TimeWindowCompactionStrategy.NewestBucket newBucket = newestBucket(buckets, 4, 32, new SizeTieredCompactionStrategyOptions(), getWindowBoundsInMillis(TimeUnit.HOURS, 1, System.currentTimeMillis()).left );
+        assertTrue("incoming bucket should not be accepted when it has below the min threshold SSTables", newBucket.sstables.isEmpty());
+        assertEquals("there should be no estimated remaining tasks when bucket is below min threshold SSTables", 0, newBucket.estimatedRemainingTasks);
+
 
         newBucket = newestBucket(buckets, 2, 32, new SizeTieredCompactionStrategyOptions(), getWindowBoundsInMillis(TimeUnit.HOURS, 1, System.currentTimeMillis()).left);
-        assertTrue("incoming bucket should be accepted when it is larger than the min threshold SSTables", !newBucket.isEmpty());
+        assertTrue("incoming bucket should be accepted when it is larger than the min threshold SSTables", !newBucket.sstables.isEmpty());
+        assertEquals("there should be one estimated remaining task when bucket is larger than the min threshold SSTables", 1, newBucket.estimatedRemainingTasks);
 
         // And 2 into the second bucket (1 hour back)
         for (int i = 3 ; i < 5; i++)
@@ -232,7 +236,10 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         }
 
         newBucket = newestBucket(buckets, 4, 32, new SizeTieredCompactionStrategyOptions(), getWindowBoundsInMillis(TimeUnit.HOURS, 1, System.currentTimeMillis()).left);
-        assertEquals("new bucket should be trimmed to max threshold of 32", newBucket.size(),  32);
+        assertEquals("new bucket should be trimmed to max threshold of 32", newBucket.sstables.size(),  32);
+
+        // one per bucket because they are all eligible and one more for the sstables that were trimmed
+        assertEquals("there should be one estimated remaining task per eligible bucket", buckets.keySet().size() + 1, newBucket.estimatedRemainingTasks);
     }
 
 
