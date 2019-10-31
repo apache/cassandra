@@ -625,7 +625,7 @@ class Shell(cmd.Cmd):
         result, = self.session.execute("select * from system.local where key = 'local'")
         vers = {
             'build': result['release_version'],
-            'protocol': result['native_protocol_version'],
+            'protocol': self.conn.protocol_version,
             'cql': result['cql_version'],
         }
         self.connection_versions = vers

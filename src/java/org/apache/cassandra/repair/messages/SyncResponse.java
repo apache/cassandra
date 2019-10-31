@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -34,10 +35,8 @@ import org.apache.cassandra.streaming.SessionSummary;
  *
  * @since 2.0
  */
-public class SyncComplete extends RepairMessage
+public class SyncResponse extends RepairMessage
 {
-    public static final MessageSerializer serializer = new SyncCompleteSerializer();
-
     /** nodes that involved in this sync */
     public final SyncNodePair nodes;
     /** true if sync success, false otherwise */
@@ -45,17 +44,17 @@ public class SyncComplete extends RepairMessage
 
     public final List<SessionSummary> summaries;
 
-    public SyncComplete(RepairJobDesc desc, SyncNodePair nodes, boolean success, List<SessionSummary> summaries)
+    public SyncResponse(RepairJobDesc desc, SyncNodePair nodes, boolean success, List<SessionSummary> summaries)
     {
-        super(Type.SYNC_COMPLETE, desc);
+        super(desc);
         this.nodes = nodes;
         this.success = success;
         this.summaries = summaries;
     }
 
-    public SyncComplete(RepairJobDesc desc, InetAddressAndPort endpoint1, InetAddressAndPort endpoint2, boolean success, List<SessionSummary> summaries)
+    public SyncResponse(RepairJobDesc desc, InetAddressAndPort endpoint1, InetAddressAndPort endpoint2, boolean success, List<SessionSummary> summaries)
     {
-        super(Type.SYNC_COMPLETE, desc);
+        super(desc);
         this.summaries = summaries;
         this.nodes = new SyncNodePair(endpoint1, endpoint2);
         this.success = success;
@@ -64,11 +63,10 @@ public class SyncComplete extends RepairMessage
     @Override
     public boolean equals(Object o)
     {
-        if (!(o instanceof SyncComplete))
+        if (!(o instanceof SyncResponse))
             return false;
-        SyncComplete other = (SyncComplete)o;
-        return messageType == other.messageType &&
-               desc.equals(other.desc) &&
+        SyncResponse other = (SyncResponse)o;
+        return desc.equals(other.desc) &&
                success == other.success &&
                nodes.equals(other.nodes) &&
                summaries.equals(other.summaries);
@@ -77,12 +75,12 @@ public class SyncComplete extends RepairMessage
     @Override
     public int hashCode()
     {
-        return Objects.hash(messageType, desc, success, nodes, summaries);
+        return Objects.hash(desc, success, nodes, summaries);
     }
 
-    private static class SyncCompleteSerializer implements MessageSerializer<SyncComplete>
+    public static final IVersionedSerializer<SyncResponse> serializer = new IVersionedSerializer<SyncResponse>()
     {
-        public void serialize(SyncComplete message, DataOutputPlus out, int version) throws IOException
+        public void serialize(SyncResponse message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
             SyncNodePair.serializer.serialize(message.nodes, out, version);
@@ -95,7 +93,7 @@ public class SyncComplete extends RepairMessage
             }
         }
 
-        public SyncComplete deserialize(DataInputPlus in, int version) throws IOException
+        public SyncResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
             SyncNodePair nodes = SyncNodePair.serializer.deserialize(in, version);
@@ -108,10 +106,10 @@ public class SyncComplete extends RepairMessage
                 summaries.add(SessionSummary.serializer.deserialize(in, version));
             }
 
-            return new SyncComplete(desc, nodes, success, summaries);
+            return new SyncResponse(desc, nodes, success, summaries);
         }
 
-        public long serializedSize(SyncComplete message, int version)
+        public long serializedSize(SyncResponse message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
             size += SyncNodePair.serializer.serializedSize(message.nodes, version);
@@ -125,5 +123,5 @@ public class SyncComplete extends RepairMessage
 
             return size;
         }
-    }
+    };
 }

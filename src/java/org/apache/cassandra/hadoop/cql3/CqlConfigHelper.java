@@ -88,7 +88,6 @@ public class CqlConfigHelper
 
     private static final String OUTPUT_CQL = "cassandra.output.cql";
     private static final String OUTPUT_NATIVE_PORT = "cassandra.output.native.port";
-    private static final String ALLOW_SERVER_PORT_DISCOVERY = "cassandra.allowserverportdiscovery";
 
     /**
      * Set the CQL columns for the input of this job.
@@ -652,15 +651,4 @@ public class CqlConfigHelper
                  new SecureRandom());
         return ctx;
     }
-
-    public static void setAllowServerPortDiscovery(Configuration conf, boolean allowServerPortDiscovery)
-    {
-        conf.set(ALLOW_SERVER_PORT_DISCOVERY, Boolean.toString(allowServerPortDiscovery));
-    }
-
-    public static boolean getAllowServerPortDiscovery(Configuration conf)
-    {
-        return Boolean.parseBoolean(conf.get(ALLOW_SERVER_PORT_DISCOVERY, "false"));
-    }
-
 }

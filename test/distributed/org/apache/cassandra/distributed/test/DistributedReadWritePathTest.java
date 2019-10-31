@@ -19,21 +19,28 @@
 package org.apache.cassandra.distributed.test;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.IInvokableInstance;
 
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertEquals;
 
-import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
 
 public class DistributedReadWritePathTest extends DistributedTestBase
 {
+    @BeforeClass
+    public static void before()
+    {
+        DatabaseDescriptor.clientInitialization();
+    }
 
     @Test
     public void coordinatorReadTest() throws Throwable
@@ -110,7 +117,7 @@ public class DistributedReadWritePathTest extends DistributedTestBase
             assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
 
             assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
-                                                     ConsistencyLevel.QUORUM),
+                                                     ConsistencyLevel.ALL), // ensure node3 in preflist
                        row(1, 1, 1));
 
             // Verify that data got repaired to the third node

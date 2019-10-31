@@ -39,7 +39,8 @@ public class InstanceClassLoader extends URLClassLoader
                     Pair.class,
                     InetAddressAndPort.class,
                     ParameterizedClass.class,
-                    IInvokableInstance.class
+                    IInvokableInstance.class,
+                    NetworkTopology.class
             })
             .map(Class::getName)
             .collect(Collectors.toSet());
@@ -48,6 +49,7 @@ public class InstanceClassLoader extends URLClassLoader
                name.startsWith("org.apache.cassandra.distributed.api.")
             || name.startsWith("sun.")
             || name.startsWith("oracle.")
+            || name.startsWith("com.intellij.")
             || name.startsWith("com.sun.")
             || name.startsWith("com.oracle.")
             || name.startsWith("java.")

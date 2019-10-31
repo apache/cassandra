@@ -238,10 +238,6 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         MerkleTrees tree = new MerkleTrees(partitioner);
         tree.addMerkleTrees((int) Math.pow(2, 15), desc.ranges);
         tree.init();
-        for (MerkleTree.TreeRange r : tree.invalids())
-        {
-            r.ensureHashInitialised();
-        }
         return tree;
     }
 

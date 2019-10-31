@@ -96,11 +96,6 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
         setRejectedExecutionHandler(rejectedExecutionHandler);
     }
 
-    public JMXEnabledThreadPoolExecutor(Stage stage)
-    {
-        this(stage.getJmxName(), stage.getJmxType());
-    }
-
     private void unregisterMBean()
     {
         MBeanWrapper.instance.unregisterMBean(mbeanName);

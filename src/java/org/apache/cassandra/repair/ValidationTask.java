@@ -27,7 +27,7 @@ import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.MerkleTrees;
 
-import static org.apache.cassandra.net.Verb.REPAIR_REQ;
+import static org.apache.cassandra.net.Verb.VALIDATION_REQ;
 
 /**
  * ValidationTask sends {@link ValidationRequest} to a replica.
@@ -54,7 +54,7 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
     public void run()
     {
         ValidationRequest request = new ValidationRequest(desc, nowInSec);
-        MessagingService.instance().send(Message.out(REPAIR_REQ, request), endpoint);
+        MessagingService.instance().send(Message.out(VALIDATION_REQ, request), endpoint);
     }
 
     /**

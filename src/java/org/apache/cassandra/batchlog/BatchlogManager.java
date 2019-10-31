@@ -32,6 +32,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Collections2;
@@ -72,6 +73,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.UUIDGen;
@@ -117,10 +119,9 @@ public class BatchlogManager implements BatchlogManagerMBean
                                              MILLISECONDS);
     }
 
-    public void shutdown() throws InterruptedException
+    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        batchlogTasks.shutdown();
-        batchlogTasks.awaitTermination(60, TimeUnit.SECONDS);
+        ExecutorUtils.shutdownAndWait(timeout, unit, batchlogTasks);
     }
 
     public static void remove(UUID id)

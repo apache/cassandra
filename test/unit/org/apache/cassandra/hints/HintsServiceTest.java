@@ -25,6 +25,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -129,7 +130,7 @@ public class HintsServiceTest
             {
                 HintsService.instance.resumeDispatch();
             }
-        });
+        }, MoreExecutors.directExecutor());
 
         Futures.allAsList(
                 noMessagesWhilePaused,

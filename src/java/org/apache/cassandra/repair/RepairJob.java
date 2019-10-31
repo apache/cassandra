@@ -236,7 +236,10 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 }
                 syncTasks.add(task);
             }
+            trees.get(i).trees.release();
         }
+        trees.get(trees.size() - 1).trees.release();
+
         return syncTasks;
     }
 
@@ -388,7 +391,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
                 // failure is handled at root of job chain
                 public void onFailure(Throwable t) {}
-            });
+            }, MoreExecutors.directExecutor());
             currentTask = nextTask;
         }
         // start running tasks
@@ -445,7 +448,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
                     // failure is handled at root of job chain
                     public void onFailure(Throwable t) {}
-                });
+                }, MoreExecutors.directExecutor());
                 currentTask = nextTask;
             }
             // start running tasks

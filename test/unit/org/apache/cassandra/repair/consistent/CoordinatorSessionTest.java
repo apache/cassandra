@@ -35,6 +35,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.repair.RepairSessionResult;
 import org.apache.cassandra.repair.messages.FailSession;
@@ -93,13 +94,13 @@ public class CoordinatorSessionTest extends AbstractRepairTest
 
         Map<InetAddressAndPort, List<RepairMessage>> sentMessages = new HashMap<>();
 
-        protected void sendMessage(InetAddressAndPort destination, RepairMessage message)
+        protected void sendMessage(InetAddressAndPort destination, Message<RepairMessage> message)
         {
             if (!sentMessages.containsKey(destination))
             {
                 sentMessages.put(destination, new ArrayList<>());
             }
-            sentMessages.get(destination).add(message);
+            sentMessages.get(destination).add(message.payload);
         }
 
         Runnable onSetRepairing = null;

@@ -177,35 +177,35 @@ public class OperationFctsTest extends CQLTester
                    row((short) 0, (short) 1, 1, 2L, 2.75F, 3.25, BigInteger.valueOf(3), new BigDecimal("4.25")));
 
         assertRows(execute("SELECT a / c, b / c, c / c, d / c, e / c, f / c, g / c, h / c FROM %s WHERE a = 1 AND b = 2 AND c = 3 / 1"),
-                   row(0, 0, 1, 1L, 1.8333334F, 2.1666666666666665, BigInteger.valueOf(2), new BigDecimal("2.833333333333333333333333333333333")));
+                   row(0, 0, 1, 1L, 1.8333334F, 2.1666666666666665, BigInteger.valueOf(2), new BigDecimal("2.83333333333333333333333333333333")));
 
         assertRows(execute("SELECT a / d, b / d, c / d, d / d, e / d, f / d, g / d, h / d FROM %s WHERE a = 1 AND b = 2 AND c = 3 / 1"),
                    row(0L, 0L, 0L, 1L, 1.375, 1.625, BigInteger.valueOf(1), new BigDecimal("2.125")));
 
         assertRows(execute("SELECT a / e, b / e, c / e, d / e, e / e, f / e, g / e, h / e FROM %s WHERE a = 1 AND b = 2 AND c = 3 / 1"),
-                   row(0.18181819F, 0.36363637F, 0.54545456F, 0.7272727272727273, 1.0F, 1.1818181818181819, new BigDecimal("1.272727272727272727272727272727273"), new BigDecimal("1.545454545454545454545454545454545")));
+                   row(0.18181819F, 0.36363637F, 0.54545456F, 0.7272727272727273, 1.0F, 1.1818181818181819, new BigDecimal("1.27272727272727272727272727272727"), new BigDecimal("1.54545454545454545454545454545455")));
 
         assertRows(execute("SELECT a / f, b / f, c / f, d / f, e / f, f / f, g / f, h / f FROM %s WHERE a = 1 AND b = 2 AND c = 3 / 1"),
-                   row(0.15384615384615385, 0.3076923076923077, 0.46153846153846156, 0.6153846153846154, 0.8461538461538461, 1.0, new BigDecimal("1.076923076923076923076923076923077"), new BigDecimal("1.307692307692307692307692307692308")));
+                   row(0.15384615384615385, 0.3076923076923077, 0.46153846153846156, 0.6153846153846154, 0.8461538461538461, 1.0, new BigDecimal("1.07692307692307692307692307692308"), new BigDecimal("1.30769230769230769230769230769231")));
 
         assertRows(execute("SELECT a / g, b / g, c / g, d / g, e / g, f / g, g / g, h / g FROM %s WHERE a = 1 AND b = 2 AND c = 3 / 1"),
                    row(BigInteger.valueOf(0),
                        BigInteger.valueOf(0),
                        BigInteger.valueOf(0),
                        BigInteger.valueOf(0),
-                       new BigDecimal("0.7857142857142857142857142857142857"),
-                       new BigDecimal("0.9285714285714285714285714285714286"),
+                       new BigDecimal("0.78571428571428571428571428571429"),
+                       new BigDecimal("0.92857142857142857142857142857143"),
                        BigInteger.valueOf(1),
-                       new BigDecimal("1.214285714285714285714285714285714")));
+                       new BigDecimal("1.21428571428571428571428571428571")));
 
         assertRows(execute("SELECT a / h, b / h, c / h, d / h, e / h, f / h, g / h, h / h FROM %s WHERE a = 1 AND b = 2 AND c = 3 / 1"),
-                   row(new BigDecimal("0.1176470588235294117647058823529412"),
-                       new BigDecimal("0.2352941176470588235294117647058824"),
-                       new BigDecimal("0.3529411764705882352941176470588235"),
-                       new BigDecimal("0.4705882352941176470588235294117647"),
-                       new BigDecimal("0.6470588235294117647058823529411765"),
-                       new BigDecimal("0.7647058823529411764705882352941176"),
-                       new BigDecimal("0.8235294117647058823529411764705882"),
+                   row(new BigDecimal("0.11764705882352941176470588235294"),
+                       new BigDecimal("0.23529411764705882352941176470588"),
+                       new BigDecimal("0.35294117647058823529411764705882"),
+                       new BigDecimal("0.47058823529411764705882352941176"),
+                       new BigDecimal("0.64705882352941176470588235294118"),
+                       new BigDecimal("0.76470588235294117647058823529412"),
+                       new BigDecimal("0.82352941176470588235294117647059"),
                        new BigDecimal("1")));
 
         // Test modulo operations
@@ -263,6 +263,16 @@ public class OperationFctsTest extends CQLTester
         execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", null, (byte) 1, (short) 2, 3);
         assertRows(execute("SELECT a + d, b + d, c + d, d + d, e + d, f + d, g + d, h + d FROM %s WHERE a = 1 AND b = 2"),
                    row(null, null, null, null, null, null, null, null));
+    }
+
+    @Test
+    public void testModuloWithDecimals() throws Throwable
+    {
+        createTable("CREATE TABLE %s (numerator decimal, dec_mod decimal, int_mod int, bigint_mod bigint, PRIMARY KEY((numerator, dec_mod)))");
+        execute("INSERT INTO %s (numerator, dec_mod, int_mod, bigint_mod) VALUES (123456789112345678921234567893123456, 2, 2, 2)");
+
+        assertRows(execute("SELECT numerator %% dec_mod, numerator %% int_mod, numerator %% bigint_mod from %s"),
+                   row(new BigDecimal("0"), new BigDecimal("0.0"), new BigDecimal("0.0")));
     }
 
     @Test
@@ -438,7 +448,7 @@ public class OperationFctsTest extends CQLTester
                    row(0, 1, 1, 2L, 2.75F, 3.25, BigInteger.valueOf(3), new BigDecimal("4.25")));
 
         assertRows(execute("SELECT a / 3, b / 3, c / 3, d / 3, e / 3, f / 3, g / 3, h / 3 FROM %s WHERE a = 1 AND b = 2"),
-                   row(0, 0, 1, 1L, 1.8333334F, 2.1666666666666665, BigInteger.valueOf(2), new BigDecimal("2.833333333333333333333333333333333")));
+                   row(0, 0, 1, 1L, 1.8333334F, 2.1666666666666665, BigInteger.valueOf(2), new BigDecimal("2.83333333333333333333333333333333")));
 
         assertRows(execute("SELECT a / " + bigInt + ","
                 + " b / " + bigInt + ","
@@ -456,10 +466,10 @@ public class OperationFctsTest extends CQLTester
                        BigInteger.valueOf(7).divide(BigInteger.valueOf(bigInt))));
 
         assertRows(execute("SELECT a / 5.5, b / 5.5, c / 5.5, d / 5.5, e / 5.5, f / 5.5, g / 5.5, h / 5.5 FROM %s WHERE a = 1 AND b = 2"),
-                   row(0.18181818181818182, 0.36363636363636365, 0.5454545454545454, 0.7272727272727273, 1.0, 1.1818181818181819, new BigDecimal("1.272727272727272727272727272727273"), new BigDecimal("1.545454545454545454545454545454545")));
+                   row(0.18181818181818182, 0.36363636363636365, 0.5454545454545454, 0.7272727272727273, 1.0, 1.1818181818181819, new BigDecimal("1.27272727272727272727272727272727"), new BigDecimal("1.54545454545454545454545454545455")));
 
         assertRows(execute("SELECT a / 6.5, b / 6.5, c / 6.5, d / 6.5, e / 6.5, f / 6.5, g / 6.5, h / 6.5 FROM %s WHERE a = 1 AND b = 2"),
-                   row(0.15384615384615385, 0.3076923076923077, 0.46153846153846156, 0.6153846153846154, 0.8461538461538461, 1.0, new BigDecimal("1.076923076923076923076923076923077"), new BigDecimal("1.307692307692307692307692307692308")));
+                   row(0.15384615384615385, 0.3076923076923077, 0.46153846153846156, 0.6153846153846154, 0.8461538461538461, 1.0, new BigDecimal("1.07692307692307692307692307692308"), new BigDecimal("1.30769230769230769230769230769231")));
 
         // Test modulo operations
 
@@ -500,6 +510,18 @@ public class OperationFctsTest extends CQLTester
 
         assertRows(execute("SELECT a, b, 1 + 1, 2 - 1, 2 * 2, 2 / 1 , 2 %% 1, (int) -1 FROM %s WHERE a = 1 AND b = 2"),
                    row((byte) 1, (short) 2, 2, 1, 4, 2, 0, -1));
+    }
+
+    @Test
+    public void testDivisionWithDecimals() throws Throwable
+    {
+        createTable("CREATE TABLE %s (numerator decimal, denominator decimal, PRIMARY KEY((numerator, denominator)))");
+        execute("INSERT INTO %s (numerator, denominator) VALUES (8.5, 200000000000000000000000000000000000)");
+        execute("INSERT INTO %s (numerator, denominator) VALUES (10000, 3)");
+
+        assertRows(execute("SELECT numerator / denominator from %s"),
+                   row(new BigDecimal("0.0000000000000000000000000000000000425")),
+                   row(new BigDecimal("3333.33333333333333333333333333333333")));
     }
 
     @Test
@@ -663,7 +685,7 @@ public class OperationFctsTest extends CQLTester
                                   OperationExecutionException.class,
                                   "SELECT g / a FROM %s WHERE a = 0 AND b = 2");
 
-        assertInvalidThrowMessage("the operation 'decimal / tinyint' failed: Division by zero",
+        assertInvalidThrowMessage("the operation 'decimal / tinyint' failed: BigInteger divide by zero",
                                   OperationExecutionException.class,
                                   "SELECT h / a FROM %s WHERE a = 0 AND b = 2");
     }

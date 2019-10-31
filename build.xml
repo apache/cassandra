@@ -25,7 +25,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="4.0"/>
+    <property name="base.version" value="4.0-alpha3"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -118,7 +118,7 @@
 
     <!-- https://mvnrepository.com/artifact/net.openhft/chronicle-bom/1.16.23 -->
     <property name="chronicle-queue.version" value="4.16.3" />
-    <property name="chronicle-core.version" value="1.16.3-SNAPSHOT" />
+    <property name="chronicle-core.version" value="1.16.4" />
     <property name="chronicle-bytes.version" value="1.16.3" />
     <property name="chronicle-wire.version" value="1.16.1" />
     <property name="chronicle-threads.version" value="1.16.0" />
@@ -487,7 +487,7 @@
           <dependency groupId="org.lz4" artifactId="lz4-java" version="1.4.0"/>
           <dependency groupId="com.ning" artifactId="compress-lzf" version="0.8.4"/>
           <dependency groupId="com.github.luben" artifactId="zstd-jni" version="1.3.8-5"/>
-          <dependency groupId="com.google.guava" artifactId="guava" version="23.3-jre"/>
+          <dependency groupId="com.google.guava" artifactId="guava" version="27.0-jre"/>
           <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.9"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.9"/>
@@ -557,15 +557,13 @@
           <dependency groupId="net.openhft" artifactId="chronicle-threads" version="${chronicle-threads.version}"/>
           <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" />
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
-	  <!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
-          <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="3.4.0-SNAPSHOT" classifier="shaded">
+          <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="3.6.0" classifier="shaded">
             <exclusion groupId="io.netty" artifactId="netty-buffer"/>
             <exclusion groupId="io.netty" artifactId="netty-codec"/>
             <exclusion groupId="io.netty" artifactId="netty-handler"/>
             <exclusion groupId="io.netty" artifactId="netty-transport"/>
             <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
           </dependency>
-	  -->
           <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj" version="${ecj.version}" />
           <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core" version="${ohc.version}">
             <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
@@ -647,9 +645,7 @@
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster"/>
         <dependency groupId="com.google.code.findbugs" artifactId="jsr305"/>
         <dependency groupId="org.antlr" artifactId="antlr"/>
-	<!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
-	-->
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core-j8"/>
@@ -666,9 +662,7 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <dependency groupId="junit" artifactId="junit"/>
-	<!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
-	-->
         <dependency groupId="io.netty" artifactId="netty-all"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
@@ -743,14 +737,12 @@
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" optional="true"/>
 
         <!-- don't need the Java Driver to run, but if you use the hadoop stuff or UDFs -->
-	<!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded" optional="true">
           <exclusion groupId="io.netty" artifactId="netty-buffer"/>
           <exclusion groupId="io.netty" artifactId="netty-codec"/>
           <exclusion groupId="io.netty" artifactId="netty-handler"/>
           <exclusion groupId="io.netty" artifactId="netty-transport"/>
         </dependency>
-	-->
 
         <!-- don't need jna to run, but nice to have -->
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>
@@ -772,6 +764,7 @@
         <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" />
         <dependency groupId="org.jctools" artifactId="jctools-core"/>
         <dependency groupId="org.ow2.asm" artifactId="asm" />
+        <dependency groupId="com.carrotsearch" artifactId="hppc" version="0.5.4" />
       </artifact:pom>
       <artifact:pom id="dist-pom"
                     artifactId="apache-cassandra"
@@ -1107,7 +1100,7 @@
       </jar>
     </target>
 
-    <target name="_artifacts-init" depends="jar,javadoc,gen-doc" unless="java.version.8">
+    <target name="_artifacts-init" depends="jar,javadoc,gen-doc">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
       <fixcrlf srcdir="bin" includes="**/*" excludes="**/*.bat, **/*.ps1" eol="lf" eof="remove" />
@@ -1169,7 +1162,6 @@
 
     <!-- creates release tarballs -->
     <target name="artifacts" depends="_artifacts-init"
-            unless="java.version.8"
             description="Create Cassandra release artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
@@ -1354,7 +1346,7 @@
              algorithm to limit the metaspace size and clean up SoftReferences
              more aggressively rather than waiting. See CASSANDRA-14922 for more details.
         -->
-        <jvmarg value="-XX:MaxMetaspaceSize=256M" />
+        <jvmarg value="-XX:MaxMetaspaceSize=384M" />
         <jvmarg value="-XX:MetaspaceSize=128M" />
         <jvmarg value="-XX:MaxMetaspaceExpansion=64M" />
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
@@ -1970,10 +1962,24 @@
       </jar>
   </target>
 
-  <target name="test-jvm-dtest" depends="build-test" description="Execute unit tests">
+  <target name="test-jvm-dtest" depends="build-test" description="Execute in-jvm dtests">
     <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true" filter="**/test/*Test.java">
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
-      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
+      <jvmarg value="-Dcassandra.skip_sync=true" />
+    </testmacro>
+  </target>
+
+  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+      ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest -Dtest.methods=looperTest
+    -->
+  <target name="test-jvm-dtest-some" depends="build-test" description="Execute some in-jvm dtests">
+    <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true">
+      <test name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />

@@ -48,7 +48,7 @@ public class SymmetricRemoteSyncTaskTest extends AbstractRepairTest
         InetAddressAndPort sentTo = null;
 
         @Override
-        void sendRequest(RepairMessage request, InetAddressAndPort to)
+        void sendRequest(SyncRequest request, InetAddressAndPort to)
         {
             Assert.assertNull(sentMessage);
             Assert.assertNotNull(request);

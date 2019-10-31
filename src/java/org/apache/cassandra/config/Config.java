@@ -86,6 +86,8 @@ public class Config
     public int num_tokens = 1;
     /** Triggers automatic allocation of tokens if set, using the replication strategy of the referenced keyspace */
     public String allocate_tokens_for_keyspace = null;
+    /** Triggers automatic allocation of tokens if set, based on the provided replica count for a datacenter */
+    public Integer allocate_tokens_for_local_replication_factor = null;
 
     public long native_transport_idle_timeout_in_ms = 0L;
 
@@ -129,6 +131,8 @@ public class Config
     @Deprecated
     public volatile Integer repair_session_max_tree_depth = null;
     public volatile Integer repair_session_space_in_mb = null;
+
+    public volatile boolean use_offheap_merkle_trees = true;
 
     public int storage_port = 7000;
     public int ssl_storage_port = 7001;
@@ -187,6 +191,8 @@ public class Config
     public int native_transport_frame_block_size_in_kb = 32;
     public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
     public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
+    @Deprecated
+    public Integer native_transport_max_negotiable_protocol_version = null;
 
 
     /**

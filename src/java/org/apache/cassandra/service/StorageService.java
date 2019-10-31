@@ -61,7 +61,6 @@ import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -107,6 +106,7 @@ import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.tryFind;
 import static java.util.Arrays.asList;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toList;
@@ -423,7 +423,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         MessagingService.instance().shutdown();
         // give it a second so that task accepted before the MessagingService shutdown gets submitted to the stage (to avoid RejectedExecutionException)
         Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-        StageManager.shutdownNow();
+        Stage.shutdownNow();
     }
 
     public boolean isInitialized()
@@ -793,6 +793,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             else
             {
                 checkForEndpointCollision(localHostId, SystemKeyspace.loadHostIds().keySet());
+                if (SystemKeyspace.bootstrapComplete())
+                {
+                    Preconditions.checkState(!Config.isClientMode());
+                    // tokens are only ever saved to system.local after bootstrap has completed and we're joining the ring,
+                    // or when token update operations (move, decom) are completed
+                    Collection<Token> savedTokens = SystemKeyspace.getSavedTokens();
+                    if (!savedTokens.isEmpty())
+                        appStates.put(ApplicationState.TOKENS, valueFactory.tokens(savedTokens));
+                }
             }
 
             // have to start the gossip service before we can see any info on other nodes.  this is necessary
@@ -982,7 +991,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         // if we don't have system_traces keyspace at this point, then create it manually
-        maybeAddOrUpdateKeyspace(TraceKeyspace.metadata());
+        ensureTraceKeyspace();
         maybeAddOrUpdateKeyspace(SystemDistributedKeyspace.metadata());
 
         if (!isSurveyMode)
@@ -1011,6 +1020,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             else
                 logger.warn("Some data streaming failed. Use nodetool to check bootstrap state and resume. For more, see `nodetool help bootstrap`. {}", SystemKeyspace.getBootstrapState());
         }
+    }
+
+    @VisibleForTesting
+    public void ensureTraceKeyspace()
+    {
+        maybeAddOrUpdateKeyspace(TraceKeyspace.metadata());
     }
 
     public static boolean isReplacingSameAddress()
@@ -1574,7 +1589,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 logger.warn("Error during bootstrap.", e);
             }
-        });
+        }, MoreExecutors.directExecutor());
         try
         {
             bootstrapStream.get();
@@ -1669,7 +1684,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.ERROR, 1, 1, message));
                     progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
                 }
-            });
+            }, MoreExecutors.directExecutor());
             return true;
         }
         else
@@ -2948,7 +2963,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // We still want to send the notification
                 sendReplicationNotification(notifyEndpoint);
             }
-        });
+        }, MoreExecutors.directExecutor());
     }
 
     /**
@@ -4180,7 +4195,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     {
                         logger.info("failed to shutdown message service: {}", ioe);
                     }
-                    StageManager.shutdownNow();
+                    Stage.shutdownNow();
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.DECOMMISSIONED);
                     setMode(Mode.DECOMMISSIONED, true);
                     // let op be responsible for killing the process
@@ -4573,9 +4588,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     protected synchronized void drain(boolean isFinalShutdown) throws IOException, InterruptedException, ExecutionException
     {
-        ExecutorService counterMutationStage = StageManager.getStage(Stage.COUNTER_MUTATION);
-        ExecutorService viewMutationStage = StageManager.getStage(Stage.VIEW_MUTATION);
-        ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
+        ExecutorService counterMutationStage = Stage.COUNTER_MUTATION.executor;
+        ExecutorService viewMutationStage = Stage.VIEW_MUTATION.executor;
+        ExecutorService mutationStage = Stage.MUTATION.executor;
 
         if (mutationStage.isTerminated()
             && counterMutationStage.isTerminated()
@@ -4597,7 +4612,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             setMode(Mode.DRAINING, "starting drain process", !isFinalShutdown);
 
-            BatchlogManager.instance.shutdown();
+            try
+            {
+                /* not clear this is reasonable time, but propagated from prior embedded behaviour */
+                BatchlogManager.instance.shutdownAndWait(1L, MINUTES);
+            }
+            catch (TimeoutException t)
+            {
+                logger.error("Batchlog manager timed out shutting down", t);
+            }
+
             HintsService.instance.pauseDispatch();
 
             if (daemon != null)
@@ -4690,7 +4714,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
             ScheduledExecutors.nonPeriodicTasks.shutdown();
-            if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, TimeUnit.MINUTES))
+            if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, MINUTES))
                 logger.warn("Failed to wait for non periodic tasks to shutdown");
 
             ColumnFamilyStore.shutdownPostFlushExecutor();
@@ -5448,5 +5472,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.valueOf(strategy));
         logger.info("Setting corrupted tombstone strategy to {}", strategy);
+    }
+
+    @VisibleForTesting
+    public void shutdownServer()
+    {
+        if (drainOnShutdown != null)
+        {
+            Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
+        }
     }
 }

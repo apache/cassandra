@@ -1,4 +1,31 @@
-4.0
+4.0-alpha3
+Merged from 2.2:
+ * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
+
+4.0-alpha2
+ * Fix SASI non-literal string comparisons (range operators) (CASSANDRA-15169)
+ * Upgrade Guava to 27, and to java-driver 3.6.0 (from 3.4.0-SNAPSHOT) (CASSANDRA-14655)
+ * Extract an AbstractCompactionController to allow for custom implementations (CASSANDRA-15286)
+ * Move chronicle-core version from snapshot to stable, and include carrotsearch in generated pom.xml (CASSANDRA-15321)
+ * Untangle RepairMessage sub-hierarchy of messages, use new messaging (more) correctly (CASSANDRA-15163)
+ * Add `allocate_tokens_for_local_replication_factor` option for token allocation (CASSANDRA-15260)
+ * Add Alibaba Cloud Platform snitch (CASSANDRA-15092)
+Merged from 3.0:
+ * Add ability to cap max negotiable protocol version (CASSANDRA-15193)
+ * Gossip tokens on startup if available (CASSANDRA-15335)
+ * Fix resource leak in CompressedSequentialWriter (CASSANDRA-15340)
+ * Fix bad merge that reverted CASSANDRA-14993 (CASSANDRA-15289)
+ * Add support for network topology and query tracing for inJVM dtest (CASSANDRA-15319)
+
+
+4.0-alpha1
+ * Inaccurate exception message with nodetool snapshot (CASSANDRA-15287)
+ * Fix InternodeOutboundMetrics overloaded bytes/count mixup (CASSANDRA-15186)
+ * Enhance & reenable RepairTest with compression=off and compression=on (CASSANDRA-15272)
+ * Improve readability of Table metrics Virtual tables units (CASSANDRA-15194)
+ * Fix error with non-existent table for nodetool tablehistograms (CASSANDRA-14410)
+ * Avoid result truncation in decimal operations (CASSANDRA-15232)
+ * Catch non-IOException in FileUtils.close to make sure that all resources are closed (CASSANDRA-15225)
  * Align load column in nodetool status output (CASSANDRA-14787)
  * CassandraNetworkAuthorizer uses cached roles info (CASSANDRA-15089)
  * Introduce optional timeouts for idle client sessions (CASSANDRA-11097)
@@ -364,13 +391,20 @@
  * nodetool clearsnapshot requires --all to clear all snapshots (CASSANDRA-13391)
  * Correctly count range tombstones in traces and tombstone thresholds (CASSANDRA-8527)
  * cqlshrc.sample uses incorrect option for time formatting (CASSANDRA-14243)
+ * Multi-version in-JVM dtests (CASSANDRA-14937)
+ * Allow instance class loaders to be garbage collected for inJVM dtest (CASSANDRA-15170)
 
 
 3.11.5
+ * Make sure user defined compaction transactions are always closed (CASSANDRA-15123)
  * Fix cassandra-env.sh to use $CASSANDRA_CONF to find cassandra-jaas.config (CASSANDRA-14305)
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
 Merged from 3.0:
+ * Fix LegacyLayout RangeTombstoneList IndexOutOfBoundsException when upgrading and RangeTombstone bounds are asymmetric (CASSANDRA-15172)
+ * Fix NPE when using allocate_tokens_for_keyspace on new DC/rack (CASSANDRA-14952)
+ * Filter sstables earlier when running cleanup (CASSANDRA-15100)
+ * Use mean row count instead of mean column count for index selectivity calculation (CASSANDRA-15259)
  * Avoid updating unchanged gossip states (CASSANDRA-15097)
  * Prevent recreation of previously dropped columns with a different kind (CASSANDRA-14948)
  * Prevent client requests from blocking on executor task queue (CASSANDRA-15013)

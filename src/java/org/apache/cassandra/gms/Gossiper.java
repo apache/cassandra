@@ -27,7 +27,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
-import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
@@ -39,11 +38,12 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.concurrent.JMXEnabledSingleThreadExecutor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.CassandraVersion;
-import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
@@ -53,7 +53,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.RequestCallback;
@@ -188,19 +187,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private final Supplier<Boolean> haveMajorVersion3NodesMemoized = Suppliers.memoizeWithExpiration(haveMajorVersion3NodesSupplier, 1, TimeUnit.MINUTES);
 
-    private static FastThreadLocal<Boolean> isGossipStage = new FastThreadLocal<>();
-
     private static final boolean disableThreadValidation = Boolean.getBoolean(Props.DISABLE_THREAD_VALIDATION);
 
     private static boolean isInGossipStage()
     {
-        Boolean isGossip = isGossipStage.get();
-        if (isGossip == null)
-        {
-            isGossip = Thread.currentThread().getName().contains(Stage.GOSSIP.getJmxName());
-            isGossipStage.set(isGossip);
-        }
-        return isGossip;
+        return ((JMXEnabledSingleThreadExecutor) Stage.GOSSIP.executor).isExecutedBy(Thread.currentThread());
     }
 
     private static void checkProperThreadForStateMutation()
@@ -438,7 +429,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         ListenableFutureTask task = ListenableFutureTask.create(runnable, null);
-        StageManager.getStage(Stage.GOSSIP).execute(task);
+        Stage.GOSSIP.executor.execute(task);
         try
         {
             task.get();
@@ -915,7 +906,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         long now = System.currentTimeMillis();
         long nowNano = System.nanoTime();
 
-        long pending = ((JMXEnabledThreadPoolExecutor) StageManager.getStage(Stage.GOSSIP)).metrics.pendingTasks.getValue();
+        long pending = ((JMXEnabledThreadPoolExecutor) Stage.GOSSIP.executor).metrics.pendingTasks.getValue();
         if (pending > 0 && lastProcessedMessageAt < now - 1000)
         {
             // if some new messages just arrived, give the executor some time to work on them
@@ -2041,5 +2032,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         return true;
+    }
+
+    @VisibleForTesting
+    public void stopShutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        stop();
+        ExecutorUtils.shutdownAndWait(timeout, unit, executor);
     }
 }

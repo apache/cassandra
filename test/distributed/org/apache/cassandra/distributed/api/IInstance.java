@@ -37,7 +37,9 @@ public interface IInstance extends IIsolatedExecutor
     UUID schemaVersion();
 
     void startup();
+    boolean isShutdown();
     Future<Void> shutdown();
+    Future<Void> shutdown(boolean graceful);
 
     // these methods are not for external use, but for simplicity we leave them public and on the normal IInstance interface
     void startup(ICluster cluster);
@@ -45,4 +47,7 @@ public interface IInstance extends IIsolatedExecutor
 
     int getMessagingVersion();
     void setMessagingVersion(InetAddressAndPort endpoint, int version);
+
+    void flush(String keyspace);
+    void forceCompact(String keyspace, String table);
 }
