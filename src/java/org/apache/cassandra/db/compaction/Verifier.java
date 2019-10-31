@@ -304,6 +304,11 @@ public class Verifier implements Closeable
                 throw new RuntimeException();
             }
         }
+
+        public boolean isGlobal()
+        {
+            return false;
+        }
     }
 
     private static class VerifyController extends CompactionController

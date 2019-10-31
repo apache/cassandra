@@ -127,6 +127,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                   compactionId);
     }
 
+    public boolean isGlobal()
+    {
+        return false;
+    }
+
     private void updateCounterFor(int rows)
     {
         assert rows > 0 && rows - 1 < mergeCounters.length;

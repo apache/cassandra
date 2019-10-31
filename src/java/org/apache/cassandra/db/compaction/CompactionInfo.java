@@ -165,9 +165,15 @@ public final class CompactionInfo implements Serializable
             stopRequested = true;
         }
 
+        /**
+         * if this compaction involves several/all tables we can safely check globalCompactionsPaused
+         * in isStopRequested() below
+         */
+        public abstract boolean isGlobal();
+
         public boolean isStopRequested()
         {
-            return stopRequested;
+            return stopRequested || (isGlobal() && CompactionManager.instance.isGlobalCompactionPaused());
         }
     }
 }
