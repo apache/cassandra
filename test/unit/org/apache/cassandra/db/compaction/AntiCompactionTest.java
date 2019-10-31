@@ -449,7 +449,7 @@ public class AntiCompactionTest
         return ImmutableSet.copyOf(cfs.getTracker().getView().sstables(SSTableSet.LIVE, (s) -> !s.isRepaired()));
     }
 
-    static void assertOnDiskState(ColumnFamilyStore cfs, int expectedSSTableCount)
+    public static void assertOnDiskState(ColumnFamilyStore cfs, int expectedSSTableCount)
     {
         LifecycleTransaction.waitForDeletions();
         assertEquals(expectedSSTableCount, cfs.getLiveSSTables().size());
