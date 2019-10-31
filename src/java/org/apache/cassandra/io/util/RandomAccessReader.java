@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -205,6 +206,36 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
             throw new IllegalArgumentException(String.format("Unable to seek to position %d in %s (%d bytes) in read-only mode",
                                                          newPosition, getPath(), length()));
         reBufferAt(newPosition);
+    }
+
+    @Override
+    public long skip(long n)
+    {
+        if (n < 0)
+            return 0;
+
+        long oldPosition = getPosition();
+        long length = length();
+        long targetPosition = oldPosition + n;
+        if (targetPosition > length)
+            targetPosition = length;
+
+        seek(targetPosition);
+        assert targetPosition == getPosition() : "Skipping did not switch to the new position";
+        return targetPosition - oldPosition;
+    }
+
+    public void skipFully(long n) throws IOException
+    {
+        long skipped = skip(n);
+        if (skipped != n)
+            throw new EOFException("EOF after " + skipped + " bytes out of " + n);
+    }
+
+    @Override
+    public int skipBytes(int n)
+    {
+        return Math.toIntExact(skip(n));
     }
 
     /**
