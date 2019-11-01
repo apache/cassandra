@@ -110,7 +110,7 @@ public class LegacySSTableTest
     public static void defineSchema() throws ConfigurationException
     {
         String scp = System.getProperty(LEGACY_SSTABLE_PROP);
-        Assert.assertNotNull("System property " + LEGACY_SSTABLE_ROOT + " not set", scp);
+        Assert.assertNotNull("System property " + LEGACY_SSTABLE_PROP + " not set", scp);
         
         LEGACY_SSTABLE_ROOT = new File(scp).getAbsoluteFile();
         Assert.assertTrue("System property " + LEGACY_SSTABLE_ROOT + " does not specify a directory", LEGACY_SSTABLE_ROOT.isDirectory());
@@ -434,6 +434,17 @@ public class LegacySSTableTest
         // drop time forward so that it occurs before the collection timestamp
         cfm.recordColumnDrop(columnToDrop, 1543244999600000L);
         assertExpectedRowsWithDroppedCollection(false);
+    }
+
+    @Test
+    public void test15081() throws Exception
+    {
+        QueryProcessor.executeInternal("CREATE TABLE legacy_tables.legacy_ka_15081 (id int primary key, payload text)");
+        loadLegacyTable("legacy_%s_15081%s", "ka", "");
+        UntypedResultSet results =
+            QueryProcessor.executeOnceInternal(
+                String.format("SELECT * FROM legacy_tables.legacy_ka_15081"));
+        assertRows(results, row(1, "hello world"));
     }
 
     @Test
