@@ -1179,10 +1179,10 @@ public abstract class LegacyLayout
             // but we don't do this here and re-throw the exception because the calling code sometimes has to know
             // about this happening. This does mean code calling this method should handle this case properly.
             if (!metadata.ksName.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME) && metadata.getDroppedColumnDefinition(e.columnName) == null)
-                throw new IllegalStateException(String.format("Got cell for unknown column %s in sstable of %s.%s: " +
-                                                              "This suggest a problem with the schema which doesn't list " +
-                                                              "this column. Even if that column was dropped, it should have " +
-                                                              "been listed as such", metadata.ksName, metadata.cfName, UTF8Type.instance.compose(e.columnName)), e);
+                logger.warn(String.format("Got cell for unknown column %s in sstable of %s.%s: " +
+                                          "This suggest a problem with the schema which doesn't list " +
+                                          "this column. Even if that column was dropped, it should have " +
+                                          "been listed as such", metadata.ksName, metadata.cfName, UTF8Type.instance.compose(e.columnName)), e);
 
             throw e;
         }
