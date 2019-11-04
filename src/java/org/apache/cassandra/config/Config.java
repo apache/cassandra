@@ -314,7 +314,8 @@ public class Config
      */
     public Boolean file_cache_round_up;
 
-    public boolean buffer_pool_use_heap_if_exhausted = true;
+    @Deprecated
+    public boolean buffer_pool_use_heap_if_exhausted;
 
     public DiskOptimizationStrategy disk_optimization_strategy = DiskOptimizationStrategy.ssd;
 

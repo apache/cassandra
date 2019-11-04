@@ -137,7 +137,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
                     throw new IllegalStateException("Can only allocate one ByteBuffer");
                 limiter.acquire(size);
                 holder.promise = beginFlush(size, defaultLowWaterMark, defaultHighWaterMark);
-                holder.buffer = BufferPool.get(size);
+                holder.buffer = BufferPool.get(size, BufferType.OFF_HEAP);
                 return holder.buffer;
             });
         }

@@ -196,6 +196,11 @@ public abstract class MemoryUtil
         return instance;
     }
 
+    public static boolean isExactlyDirect(ByteBuffer buffer)
+    {
+        return buffer.getClass() == DIRECT_BYTE_BUFFER_CLASS;
+    }
+
     public static Object getAttachment(ByteBuffer instance)
     {
         assert instance.getClass() == DIRECT_BYTE_BUFFER_CLASS;

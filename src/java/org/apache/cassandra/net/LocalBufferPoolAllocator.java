@@ -45,7 +45,7 @@ class LocalBufferPoolAllocator extends BufferPoolAllocator
     {
         if (!eventLoop.inEventLoop())
             throw new IllegalStateException("get() called from outside of owning event loop");
-        return pool.get(size, false);
+        return pool.get(size);
     }
 
     @Override
@@ -53,7 +53,7 @@ class LocalBufferPoolAllocator extends BufferPoolAllocator
     {
         if (!eventLoop.inEventLoop())
             throw new IllegalStateException("getAtLeast() called from outside of owning event loop");
-        return pool.get(size, true);
+        return pool.getAtLeast(size);
     }
 
     @Override
