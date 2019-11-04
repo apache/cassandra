@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.DynamicList;
 
 import static org.junit.Assert.*;
@@ -424,7 +425,7 @@ public class LongBufferPoolTest
 
             BufferCheck allocate(int size)
             {
-                ByteBuffer buffer = BufferPool.get(size);
+                ByteBuffer buffer = BufferPool.get(size, BufferType.OFF_HEAP);
                 assertNotNull(buffer);
                 BufferCheck check = new BufferCheck(buffer, rand.nextLong());
                 assertEquals(size, buffer.capacity());
