@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +54,7 @@ public class ZstdCompressor implements ICompressor
     private static final ConcurrentHashMap<Integer, ZstdCompressor> instances = new ConcurrentHashMap<>();
 
     private final int compressionLevel;
+    private final Set<Uses> recommendedUses;
 
     /**
      * Create a Zstd compressor with the given options
@@ -78,6 +80,7 @@ public class ZstdCompressor implements ICompressor
     private ZstdCompressor(int compressionLevel)
     {
         this.compressionLevel = compressionLevel;
+        this.recommendedUses = ImmutableSet.of(Uses.GENERAL);
         logger.trace("Creating Zstd Compressor with compression level={}", compressionLevel);
     }
 
@@ -235,5 +238,11 @@ public class ZstdCompressor implements ICompressor
     public int getCompressionLevel()
     {
         return compressionLevel;
+    }
+
+    @Override
+    public Set<Uses> recommendedUses()
+    {
+        return recommendedUses;
     }
 }
