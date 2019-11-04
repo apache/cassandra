@@ -118,10 +118,13 @@ Upgrading
       on space utilization. You may want to consider manually specifying this value.
     - Additional columns have been added to system_distributed.repair_history,
       system_traces.sessions and system_traces.events. As a result select queries
-      againsts these tables will fail and generate an error in the log
-      during upgrade when the cluster is mixed version. The tables can be made
-      readable by following the instructions in CASSANDRA-14897 to add the
-      new columns to the system tables before upgrading.
+      against these tables - including queries against tracing tables performed
+      automatically by the drivers and cqlsh - will fail and generate an error in the log
+      during upgrade when the cluster is mixed version. On 3.x side this will also lead
+      to broken internode connections and lost messages.
+      Cassandra versions 3.0.20 and 3.11.6 pre-add these columns (see CASSANDRA-15385),
+      so please make sure to upgrade to those versions or higher before upgrading to
+      4.0 for query tracing to not cause any issues during the upgrade to 4.0.
     - Timestamp ties between values resolve differently: if either value has a TTL,
       this value always wins. This is to provide consistent reconciliation before
       and after the value expires into a tombstone.

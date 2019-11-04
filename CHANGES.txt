@@ -2,6 +2,7 @@
 Merged from 2.2:
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
 
+
 4.0-alpha2
  * Fix SASI non-literal string comparisons (range operators) (CASSANDRA-15169)
  * Upgrade Guava to 27, and to java-driver 3.6.0 (from 3.4.0-SNAPSHOT) (CASSANDRA-14655)
@@ -396,8 +397,16 @@ Merged from 3.0:
  * Allow instance class loaders to be garbage collected for inJVM dtest (CASSANDRA-15170)
 
 
+3.11.6
+Merged from 3.0:
+ * Ensure that tracing doesn't break connections in 3.x/4.0 mixed mode by default (CASSANDRA-15385)
+ * Make sure index summary redistribution does not start when compactions are paused (CASSANDRA-15265)
+ * Ensure legacy rows have primary key livenessinfo when they contain illegal cells (CASSANDRA-15365)
+Merged from 2.2:
+ * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
+
+
 3.11.5
- * Make sure user defined compaction transactions are always closed (CASSANDRA-15123)
  * Fix cassandra-env.sh to use $CASSANDRA_CONF to find cassandra-jaas.config (CASSANDRA-14305)
  * Fixed nodetool cfstats printing index name twice (CASSANDRA-14903)
  * Add flag to disable SASI indexes, and warnings on creation (CASSANDRA-14866)
