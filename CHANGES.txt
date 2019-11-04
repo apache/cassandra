@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Flush with fast compressors by default (CASSANDRA-15379)
  * Fix CqlInputFormat regression from the switch to system.size_estimates (CASSANDRA-15637)
  * Allow sending Entire SSTables over SSL (CASSANDRA-15740)
  * Fix CQLSH UTF-8 encoding issue for Python 2/3 compatibility (CASSANDRA-15739)

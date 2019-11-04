@@ -104,6 +104,13 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         runTests("ZSTD");
     }
 
+    @Test
+    public void testNoopWriter() throws IOException
+    {
+        compressionParameters = CompressionParams.noop();
+        runTests("Noop");
+    }
+
     private void testWrite(File f, int bytesToTest, boolean useMemmap) throws IOException
     {
         final String filename = f.getAbsolutePath();
