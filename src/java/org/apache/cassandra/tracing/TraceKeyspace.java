@@ -49,6 +49,7 @@ public final class TraceKeyspace
                 + "command text,"
                 + "client inet,"
                 + "coordinator inet,"
+                + "coordinator_port int,"
                 + "duration int,"
                 + "parameters map<text, text>,"
                 + "request text,"
@@ -63,6 +64,7 @@ public final class TraceKeyspace
                 + "event_id timeuuid,"
                 + "activity text,"
                 + "source inet,"
+                + "source_port int,"
                 + "source_elapsed int,"
                 + "thread text,"
                 + "PRIMARY KEY ((session_id), event_id))");
