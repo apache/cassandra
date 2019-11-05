@@ -66,6 +66,7 @@ public class Validator implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(Validator.class);
 
+    public final ValidationProgress progress = new ValidationProgress();
     public final RepairJobDesc desc;
     public final InetAddressAndPort initiator;
     public final int nowInSec;
@@ -369,6 +370,7 @@ public class Validator implements Runnable
     public void complete()
     {
         assert ranges != null : "Validator was not prepared()";
+        progress.complete();
 
         if (logger.isDebugEnabled())
         {
@@ -387,9 +389,10 @@ public class Validator implements Runnable
      * This sends RepairStatus to inform the initiator that the validation has failed.
      * The actual reason for failure should be looked up in the log of the host calling this function.
      */
-    public void fail()
+    public void fail(Throwable e)
     {
         logger.error("Failed creating a merkle tree for {}, {} (see log for details)", desc, initiator);
+        progress.fail(e);
         respond(new ValidationResponse(desc));
     }
 

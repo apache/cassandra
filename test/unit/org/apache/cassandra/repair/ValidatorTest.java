@@ -149,7 +149,7 @@ public class ValidatorTest
         InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
 
         Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
-        validator.fail();
+        validator.fail(new IllegalStateException("failed"));
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
         assertEquals(Verb.VALIDATION_RSP, message.verb());

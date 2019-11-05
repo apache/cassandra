@@ -22,6 +22,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
@@ -33,6 +34,8 @@ import com.google.common.util.concurrent.AbstractFuture;
 
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.slf4j.Logger;
@@ -62,6 +65,15 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.CommonRange;
+import org.apache.cassandra.repair.RepairDesc;
+import org.apache.cassandra.repair.RepairJob;
+import org.apache.cassandra.repair.JobProgress;
+import org.apache.cassandra.repair.RepairProgress;
+import org.apache.cassandra.repair.RepairRunnable;
+import org.apache.cassandra.repair.RepairSessionDesc;
+import org.apache.cassandra.repair.SessionProgress;
+import org.apache.cassandra.repair.ValidationProgress;
+import org.apache.cassandra.repair.Validator;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
@@ -70,7 +82,6 @@ import org.apache.cassandra.repair.consistent.CoordinatorSessions;
 import org.apache.cassandra.repair.consistent.LocalSessions;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
@@ -96,7 +107,6 @@ import static org.apache.cassandra.net.Verb.PREPARE_MSG;
  */
 public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener, ActiveRepairServiceMBean
 {
-
     public enum ParentRepairStatus
     {
         IN_PROGRESS, COMPLETED, FAILED
@@ -108,6 +118,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         public final CoordinatorSessions coordinated = new CoordinatorSessions();
     }
 
+    private final ConcurrentMap<RepairDesc, RepairProgress> repairProgress = new NonBlockingHashMap<>();
+    private final ConcurrentMap<RepairSessionDesc, SessionProgress> repairSessionProgress = new NonBlockingHashMap<>();
+    private final ConcurrentMap<RepairJobDesc, JobProgress> repairJobProgress = new NonBlockingHashMap<>();
+    private final ConcurrentMap<RepairJobDesc, ValidationProgress> validationProgress = new NonBlockingHashMap<>();
     public final ConsistentSessions consistent = new ConsistentSessions();
 
     private boolean registeredForEndpointChanges = false;
@@ -226,6 +240,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                         parallelismDegree, isIncremental, pullRepair, force,
                                                         previewKind, optimiseStreams, cfnames);
 
+        trackRepairSession(session);
         sessions.put(session.getId(), session);
         // register listeners
         registerOnFdAndGossip(session);
@@ -295,6 +310,76 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     Pair<ParentRepairStatus, List<String>> getRepairStatus(Integer cmd)
     {
         return repairStatusByCmd.getIfPresent(cmd);
+    }
+
+    public void trackRepair(RepairRunnable repair)
+    {
+        putAndLogOnConflict(repairProgress, "repair", repair.desc, repair.progress);
+    }
+
+    public void trackRepairSession(RepairSession session)
+    {
+        putAndLogOnConflict(repairSessionProgress, "repair session", session.desc, session.progress);
+    }
+
+    public void trackRepairJob(RepairJob job)
+    {
+        putAndLogOnConflict(repairJobProgress, "repair jobs", job.desc, job.progress);
+    }
+
+    public void trackValidator(Validator validator)
+    {
+        putAndLogOnConflict(validationProgress, "validators", validator.desc, validator.progress);
+    }
+
+    private static <K, V> void putAndLogOnConflict(Map<K, V> map, String tag, K key, V value)
+    {
+        V previous = map.putIfAbsent(key, value);
+        if (previous != null)
+        {
+            if (previous == value)
+            {
+                // got registered twice, so everything is fine... nothing to see here...
+            }
+            else
+            {
+                logger.warn("Multiple {} attempted to be tracked for {}, no longer able to track latest {}", tag, key);
+            }
+        }
+    }
+
+    public Collection<Pair<RepairJobDesc, ValidationProgress>> getRepairProgress()
+    {
+        return getRepairProgress(ignore -> true);
+    }
+
+    public Collection<Pair<RepairJobDesc, ValidationProgress>> getRepairProgress(UUID parentSessionId)
+    {
+        return getRepairProgress(desc -> parentSessionId.equals(desc.parentSessionId));
+    }
+
+    public Collection<Pair<RepairJobDesc, ValidationProgress>> getRepairProgress(String keyspace)
+    {
+        return getRepairProgress(desc -> keyspace.equals(desc.keyspace));
+    }
+
+    public Collection<Pair<RepairJobDesc, ValidationProgress>> getRepairProgress(String keyspace, String cf)
+    {
+        return getRepairProgress(desc -> keyspace.equals(desc.keyspace) && cf.equals(desc.columnFamily));
+    }
+
+    private Collection<Pair<RepairJobDesc, ValidationProgress>> getRepairProgress(Predicate<RepairJobDesc> fn)
+    {
+        List<Pair<RepairJobDesc, ValidationProgress>> jobs = new ArrayList<>();
+        for (Map.Entry<RepairJobDesc, ValidationProgress> e : validationProgress.entrySet())
+        {
+            if (!fn.test(e.getKey()))
+                continue;
+            jobs.add(Pair.create(e.getKey(), e.getValue()));
+        }
+        if (jobs.isEmpty())
+            return Collections.emptyList();
+        return jobs;
     }
 
     /**

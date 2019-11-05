@@ -29,8 +29,14 @@ public abstract class WrappedRunnable implements Runnable
         }
         catch (Exception e)
         {
+            unhandledException(e);
             throw Throwables.propagate(e);
         }
+    }
+
+    protected void unhandledException(Exception e)
+    {
+
     }
 
     abstract protected void runMayThrow() throws Exception;

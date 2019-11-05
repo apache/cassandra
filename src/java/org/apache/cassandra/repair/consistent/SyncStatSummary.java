@@ -178,6 +178,21 @@ public class SyncStatSummary
         }
     }
 
+    public int getFiles()
+    {
+        return files;
+    }
+
+    public long getBytes()
+    {
+        return bytes;
+    }
+
+    public int getRanges()
+    {
+        return ranges;
+    }
+
     public boolean isEmpty()
     {
         calculateTotals();
