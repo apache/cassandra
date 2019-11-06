@@ -85,21 +85,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
     public final SessionProgress progress = new SessionProgress();
     public final RepairSessionDesc desc;
-//    public final UUID parentRepairSession;
-//    /** Repair session ID */
-//    private final UUID id;
-//    public final String keyspace;
-//    private final String[] cfnames;
-//    public final RepairParallelism parallelismDegree;
-//    public final boolean pullRepair;
-
-    // indicates some replicas were not included in the repair. Only relevant for --force option
-//    public final boolean skippedReplicas;
-
-    /** Range to repair */
-//    public final CommonRange commonRange;
-//    public final boolean isIncremental;
-//    public final PreviewKind previewKind;
 
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
 
@@ -110,7 +95,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
     public final ListeningExecutorService taskExecutor;
-//    public final boolean optimiseStreams;
 
     private volatile boolean terminated = false;
 

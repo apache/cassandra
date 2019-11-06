@@ -22,6 +22,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 import com.google.common.base.Preconditions;
@@ -348,38 +349,17 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
     }
 
-    public Collection<Pair<RepairJobDesc, ValidationProgress>> getRepairProgress()
+    public void validationProgress(BiConsumer<RepairJobDesc, ValidationProgress> fn)
     {
-        return getRepairProgress(ignore -> true);
+        validationProgress.forEach(fn);
     }
 
-    public Collection<Pair<RepairJobDesc, ValidationProgress>> getRepairProgress(UUID parentSessionId)
+    public void validationProgress(UUID parentSessionId, BiConsumer<RepairJobDesc, ValidationProgress> fn)
     {
-        return getRepairProgress(desc -> parentSessionId.equals(desc.parentSessionId));
-    }
-
-    public Collection<Pair<RepairJobDesc, ValidationProgress>> getRepairProgress(String keyspace)
-    {
-        return getRepairProgress(desc -> keyspace.equals(desc.keyspace));
-    }
-
-    public Collection<Pair<RepairJobDesc, ValidationProgress>> getRepairProgress(String keyspace, String cf)
-    {
-        return getRepairProgress(desc -> keyspace.equals(desc.keyspace) && cf.equals(desc.columnFamily));
-    }
-
-    private Collection<Pair<RepairJobDesc, ValidationProgress>> getRepairProgress(Predicate<RepairJobDesc> fn)
-    {
-        List<Pair<RepairJobDesc, ValidationProgress>> jobs = new ArrayList<>();
-        for (Map.Entry<RepairJobDesc, ValidationProgress> e : validationProgress.entrySet())
-        {
-            if (!fn.test(e.getKey()))
-                continue;
-            jobs.add(Pair.create(e.getKey(), e.getValue()));
-        }
-        if (jobs.isEmpty())
-            return Collections.emptyList();
-        return jobs;
+        validationProgress.forEach((desc, progress) -> {
+            if (parentSessionId.equals(desc.parentSessionId))
+                fn.accept(desc, progress);
+        });
     }
 
     /**

@@ -68,55 +68,49 @@ public class RepairValidationTable extends AbstractVirtualTable
 
     public DataSet data()
     {
-        Collection<Pair<RepairJobDesc, ValidationProgress>> repairs = ActiveRepairService.instance.getRepairProgress();
-        SimpleDataSet result = updateDataset(repairs);
+        SimpleDataSet result = new SimpleDataSet(metadata());
+        ActiveRepairService.instance.validationProgress((a, b) -> updateDataset(result, a, b));
         return result;
     }
 
     public DataSet data(DecoratedKey partitionKey)
     {
         UUID parentSessionId = UUIDType.instance.compose(partitionKey.getKey());
-        Collection<Pair<RepairJobDesc, ValidationProgress>> repairs = ActiveRepairService.instance.getRepairProgress(parentSessionId);
-        SimpleDataSet result = updateDataset(repairs);
+        SimpleDataSet result = new SimpleDataSet(metadata());
+        ActiveRepairService.instance.validationProgress(parentSessionId, (a, b) -> updateDataset(result, a, b));
         return result;
     }
 
-    private SimpleDataSet updateDataset(Collection<Pair<RepairJobDesc, ValidationProgress>> repairs)
+    private void updateDataset(SimpleDataSet dataSet, RepairJobDesc desc, ValidationProgress progress)
     {
-        SimpleDataSet result = new SimpleDataSet(metadata());
-        for (Pair<RepairJobDesc, ValidationProgress> e : repairs)
-        {
-            ValidationProgress progress = e.right;
-            // call this early to make sure progress state is visible
-            long lastUpdatedNs = progress.getLastUpdatedAtNs();
-            long creationTimeNs = progress.getCreationtTimeNs();
-            long startTimeNs = progress.getStartTimeNs();
+        // call this early to make sure progress state is visible
+        long lastUpdatedNs = progress.getLastUpdatedAtNs();
+        long creationTimeNs = progress.getCreationtTimeNs();
+        long startTimeNs = progress.getStartTimeNs();
 
-            UUID parentSessionId = e.left.parentSessionId;
-            UUID sessionId = e.left.sessionId;
-            String ks = e.left.keyspace;
-            String cf = e.left.columnFamily;
-            Collection<Range<Token>> ranges = e.left.ranges;
+        UUID parentSessionId = desc.parentSessionId;
+        UUID sessionId = desc.sessionId;
+        String ks = desc.keyspace;
+        String cf = desc.columnFamily;
+        Collection<Range<Token>> ranges = desc.ranges;
 
-            result.row(parentSessionId, sessionId, ranges.stream().map(Range::toString).collect(Collectors.toList()));
+        dataSet.row(parentSessionId, sessionId, ranges.stream().map(Range::toString).collect(Collectors.toList()));
 
-            result.column("keyspace", ks);
-            result.column("column_family", cf);
+        dataSet.column("keyspace", ks);
+        dataSet.column("column_family", cf);
 
-            result.column("state", progress.getState().name().toLowerCase());
-            result.column("progress_percentage", 100 * progress.getProgress());
+        dataSet.column("state", progress.getState().name().toLowerCase());
+        dataSet.column("progress_percentage", 100 * progress.getProgress());
 
-            result.column("estimated_partitions", progress.getEstimatedPartitions());
-            result.column("partitions_processed", progress.getPartitionsProcessed());
-            result.column("estimated_total_bytes", progress.getEstimatedTotalBytes());
+        dataSet.column("estimated_partitions", progress.getEstimatedPartitions());
+        dataSet.column("partitions_processed", progress.getPartitionsProcessed());
+        dataSet.column("estimated_total_bytes", progress.getEstimatedTotalBytes());
 
-            result.column("queue_duration_ms", TimeUnit.NANOSECONDS.toMillis(startTimeNs - creationTimeNs));
-            result.column("runtime_duration_ms", TimeUnit.NANOSECONDS.toMillis(lastUpdatedNs - startTimeNs));
-            result.column("total_duration_ms", TimeUnit.NANOSECONDS.toMillis(lastUpdatedNs - creationTimeNs));
+        dataSet.column("queue_duration_ms", TimeUnit.NANOSECONDS.toMillis(startTimeNs - creationTimeNs));
+        dataSet.column("runtime_duration_ms", TimeUnit.NANOSECONDS.toMillis(lastUpdatedNs - startTimeNs));
+        dataSet.column("total_duration_ms", TimeUnit.NANOSECONDS.toMillis(lastUpdatedNs - creationTimeNs));
 
-            if (progress.getFailureCause() != null)
-                result.column("failure_cause", Throwables.getStackTraceAsString(progress.getFailureCause()));
-        }
-        return result;
+        if (progress.getFailureCause() != null)
+            dataSet.column("failure_cause", Throwables.getStackTraceAsString(progress.getFailureCause()));
     }
 }
