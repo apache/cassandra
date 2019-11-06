@@ -147,7 +147,7 @@ public class RepairTables
                         "  estimated_total_bytes bigint,\n" +
                         "  failure_cause text,\n" +
                         "\n" +
-                        "  PRIMARY KEY ( (parent_session_id), session_id, ranges )\n" +
+                        "  PRIMARY KEY ( (id), session_id, ranges )\n" +
                         ")"));
         }
 
