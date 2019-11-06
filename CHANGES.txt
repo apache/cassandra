@@ -1,5 +1,6 @@
 3.11.6
 Merged from 3.0:
+ * validate value sizes in LegacyLayout (CASSANDRA-15373)
  * Ensure that tracing doesn't break connections in 3.x/4.0 mixed mode by default (CASSANDRA-15385)
  * Make sure index summary redistribution does not start when compactions are paused (CASSANDRA-15265)
  * Ensure legacy rows have primary key livenessinfo when they contain illegal cells (CASSANDRA-15365)

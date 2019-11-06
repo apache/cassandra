@@ -382,5 +382,4 @@ public class LegacyLayoutTest
         LegacyLayout.fromUnfilteredRowIterator(null, p.unfilteredIterator());
         LegacyLayout.serializedSizeAsLegacyPartition(null, p.unfilteredIterator(), VERSION_21);
     }
-
 }
