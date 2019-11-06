@@ -362,6 +362,19 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         });
     }
 
+    public void repairSessionProgress(BiConsumer<RepairSessionDesc, SessionProgress> fn)
+    {
+        repairSessionProgress.forEach(fn);
+    }
+
+    public void repairSessionProgress(UUID parentSessionId, BiConsumer<RepairSessionDesc, SessionProgress> fn)
+    {
+        repairSessionProgress.forEach((desc, progress) -> {
+            if (parentSessionId.equals(desc.parentRepairSession))
+                fn.accept(desc, progress);
+        });
+    }
+
     public void repairJobProgress(BiConsumer<RepairJobDesc, JobProgress> fn)
     {
         repairJobProgress.forEach(fn);
