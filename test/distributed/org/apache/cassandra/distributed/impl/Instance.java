@@ -51,6 +51,9 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator40;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -327,6 +330,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     throw e;
                 }
+
+                VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
+                VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
 
                 Keyspace.setInitialized();
 
