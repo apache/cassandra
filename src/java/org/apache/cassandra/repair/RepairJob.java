@@ -358,6 +358,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      */
     private ListenableFuture<List<TreeResponse>> sendValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
+        progress.validationRequested();
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
         logger.info("{} {}", session.desc.previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);

@@ -132,7 +132,7 @@ public class RepairTables
         {
             super(parse(keyspace, "repair validations",
                         "CREATE TABLE repair_validations (\n" +
-                        "  parent_session_id uuid,\n" +
+                        "  id uuid,\n" +
                         "  session_id uuid,\n" +
                         "  ranges frozen<list<text>>,\n" +
                         "  keyspace_name text,\n" +
