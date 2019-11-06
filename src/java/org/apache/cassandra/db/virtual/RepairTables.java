@@ -55,89 +55,6 @@ public class RepairTables
         );
     }
 
-    private static TableMetadata parse(String keyspace, String comment, String query)
-    {
-        return CreateTableStatement.parse(query, keyspace)
-                            .comment(comment)
-                            .kind(TableMetadata.Kind.VIRTUAL)
-                            .partitioner(new LocalPartitioner(UUIDType.instance))
-                            .build();
-    }
-
-    public static class RepairValidationTable extends AbstractVirtualTable
-    {
-        protected RepairValidationTable(String keyspace)
-        {
-            super(parse(keyspace, "repair validations",
-                        "CREATE TABLE repair_validation (\n" +
-                        "  parent_session_id uuid,\n" +
-                        "  session_id uuid,\n" +
-                        "  ranges frozen<list<text>>,\n" +
-                        "  keyspace_name text,\n" +
-                        "  column_family_name text,\n" +
-                        "  state text,\n" +
-                        "  progress_percentage float,\n" +
-                        "  queue_duration_ms bigint,\n" +
-                        "  runtime_duration_ms bigint,\n" +
-                        "  total_duration_ms bigint,\n" +
-                        "  estimated_partitions bigint,\n" +
-                        "  partitions_processed bigint,\n" +
-                        "  estimated_total_bytes bigint,\n" +
-                        "  failure_cause text,\n" +
-                        "\n" +
-                        "  PRIMARY KEY ( (parent_session_id), session_id, ranges )\n" +
-                        ")"));
-        }
-
-        public DataSet data()
-        {
-            SimpleDataSet result = new SimpleDataSet(metadata());
-            ActiveRepairService.instance.validationProgress((a, b) -> updateDataset(result, a, b));
-            return result;
-        }
-
-        public DataSet data(DecoratedKey partitionKey)
-        {
-            UUID parentSessionId = UUIDType.instance.compose(partitionKey.getKey());
-            SimpleDataSet result = new SimpleDataSet(metadata());
-            ActiveRepairService.instance.validationProgress(parentSessionId, (a, b) -> updateDataset(result, a, b));
-            return result;
-        }
-
-        private void updateDataset(SimpleDataSet dataSet, RepairJobDesc desc, ValidationProgress progress)
-        {
-            // call this early to make sure progress state is visible
-            long lastUpdatedNs = progress.getLastUpdatedAtNs();
-            long creationTimeNs = progress.getCreationtTimeNs();
-            long startTimeNs = progress.getStartTimeNs();
-
-            UUID parentSessionId = desc.parentSessionId;
-            UUID sessionId = desc.sessionId;
-            String ks = desc.keyspace;
-            String cf = desc.columnFamily;
-            Collection<Range<Token>> ranges = desc.ranges;
-
-            dataSet.row(parentSessionId, sessionId, ranges.stream().map(Range::toString).collect(Collectors.toList()));
-
-            dataSet.column("keyspace_name", ks);
-            dataSet.column("column_family_name", cf);
-
-            dataSet.column("state", progress.getState().name().toLowerCase());
-            dataSet.column("progress_percentage", 100 * progress.getProgress());
-
-            dataSet.column("estimated_partitions", progress.getEstimatedPartitions());
-            dataSet.column("partitions_processed", progress.getPartitionsProcessed());
-            dataSet.column("estimated_total_bytes", progress.getEstimatedTotalBytes());
-
-            dataSet.column("queue_duration_ms", TimeUnit.NANOSECONDS.toMillis(startTimeNs - creationTimeNs));
-            dataSet.column("runtime_duration_ms", TimeUnit.NANOSECONDS.toMillis(lastUpdatedNs - startTimeNs));
-            dataSet.column("total_duration_ms", TimeUnit.NANOSECONDS.toMillis(lastUpdatedNs - creationTimeNs));
-
-            if (progress.getFailureCause() != null)
-                dataSet.column("failure_cause", Throwables.getStackTraceAsString(progress.getFailureCause()));
-        }
-    }
-
     public static class RepairTable extends AbstractVirtualTable
     {
 
@@ -206,5 +123,88 @@ public class RepairTables
                     dataSet.column("failure_cause", Throwables.getStackTraceAsString(jobProgress.getFailureCause()));
             });
         }
+    }
+
+    public static class RepairValidationTable extends AbstractVirtualTable
+    {
+        protected RepairValidationTable(String keyspace)
+        {
+            super(parse(keyspace, "repair validations",
+                        "CREATE TABLE repair_validations (\n" +
+                        "  parent_session_id uuid,\n" +
+                        "  session_id uuid,\n" +
+                        "  ranges frozen<list<text>>,\n" +
+                        "  keyspace_name text,\n" +
+                        "  column_family_name text,\n" +
+                        "  state text,\n" +
+                        "  progress_percentage float,\n" +
+                        "  queue_duration_ms bigint,\n" +
+                        "  runtime_duration_ms bigint,\n" +
+                        "  total_duration_ms bigint,\n" +
+                        "  estimated_partitions bigint,\n" +
+                        "  partitions_processed bigint,\n" +
+                        "  estimated_total_bytes bigint,\n" +
+                        "  failure_cause text,\n" +
+                        "\n" +
+                        "  PRIMARY KEY ( (parent_session_id), session_id, ranges )\n" +
+                        ")"));
+        }
+
+        public DataSet data()
+        {
+            SimpleDataSet result = new SimpleDataSet(metadata());
+            ActiveRepairService.instance.validationProgress((a, b) -> updateDataset(result, a, b));
+            return result;
+        }
+
+        public DataSet data(DecoratedKey partitionKey)
+        {
+            UUID parentSessionId = UUIDType.instance.compose(partitionKey.getKey());
+            SimpleDataSet result = new SimpleDataSet(metadata());
+            ActiveRepairService.instance.validationProgress(parentSessionId, (a, b) -> updateDataset(result, a, b));
+            return result;
+        }
+
+        private void updateDataset(SimpleDataSet dataSet, RepairJobDesc desc, ValidationProgress progress)
+        {
+            // call this early to make sure progress state is visible
+            long lastUpdatedNs = progress.getLastUpdatedAtNs();
+            long creationTimeNs = progress.getCreationtTimeNs();
+            long startTimeNs = progress.getStartTimeNs();
+
+            UUID parentSessionId = desc.parentSessionId;
+            UUID sessionId = desc.sessionId;
+            String ks = desc.keyspace;
+            String cf = desc.columnFamily;
+            Collection<Range<Token>> ranges = desc.ranges;
+
+            dataSet.row(parentSessionId, sessionId, ranges.stream().map(Range::toString).collect(Collectors.toList()));
+
+            dataSet.column("keyspace_name", ks);
+            dataSet.column("column_family_name", cf);
+
+            dataSet.column("state", progress.getState().name().toLowerCase());
+            dataSet.column("progress_percentage", 100 * progress.getProgress());
+
+            dataSet.column("estimated_partitions", progress.getEstimatedPartitions());
+            dataSet.column("partitions_processed", progress.getPartitionsProcessed());
+            dataSet.column("estimated_total_bytes", progress.getEstimatedTotalBytes());
+
+            dataSet.column("queue_duration_ms", TimeUnit.NANOSECONDS.toMillis(startTimeNs - creationTimeNs));
+            dataSet.column("runtime_duration_ms", TimeUnit.NANOSECONDS.toMillis(lastUpdatedNs - startTimeNs));
+            dataSet.column("total_duration_ms", TimeUnit.NANOSECONDS.toMillis(lastUpdatedNs - creationTimeNs));
+
+            if (progress.getFailureCause() != null)
+                dataSet.column("failure_cause", Throwables.getStackTraceAsString(progress.getFailureCause()));
+        }
+    }
+
+    private static TableMetadata parse(String keyspace, String comment, String query)
+    {
+        return CreateTableStatement.parse(query, keyspace)
+                                   .comment(comment)
+                                   .kind(TableMetadata.Kind.VIRTUAL)
+                                   .partitioner(new LocalPartitioner(UUIDType.instance))
+                                   .build();
     }
 }
