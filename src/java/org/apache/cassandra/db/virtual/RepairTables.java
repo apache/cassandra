@@ -39,6 +39,7 @@ import org.apache.cassandra.repair.RepairProgress;
 import org.apache.cassandra.repair.ValidationProgress;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class RepairTables
 {
@@ -65,11 +66,11 @@ public class RepairTables
                         "  id uuid,\n" +
                         "  session_id uuid,\n" +
                         "  keyspace_name text,\n" +
-                        "  column_family_name text,\n" +
+                        "  table_name text,\n" +
                         "  ranges frozen<list<text>>,\n" +
                         "  options map<text, text>,\n" +
-                        "  instance inet,\n" +
-                        "  participants set<inet>,\n" +
+                        "  coordinator text,\n" +
+                        "  participants set<text>,\n" +
                         "\n" +
                         "  state text,\n" +
                         "  progress_percentage float, -- between 0.0 and 100.0\n" +
@@ -78,7 +79,7 @@ public class RepairTables
                         "  -- metrics\n" +
                         "  -- TODO\n" +
                         "\n" +
-                        "  PRIMARY KEY ( (id), session_id, column_family_name )\n" +
+                        "  PRIMARY KEY ( (id), session_id, table_name )\n" +
                         ")"));
         }
 
@@ -111,7 +112,7 @@ public class RepairTables
                 // shared columns
                 dataSet.column("keyspace_name", keyspace);
 //                dataSet.column("options", options); //TODO this breaks vtables =)
-//                dataSet.column("instance", ???); // TODO how?
+                dataSet.column("coordinator", FBUtilities.getBroadcastAddressAndPort().toString());
 
                 // job specific columns
                 dataSet.column("ranges", jobDesc.ranges.stream().map(Range::toString).collect(Collectors.toList()));
@@ -135,7 +136,7 @@ public class RepairTables
                         "  session_id uuid,\n" +
                         "  ranges frozen<list<text>>,\n" +
                         "  keyspace_name text,\n" +
-                        "  column_family_name text,\n" +
+                        "  table_name text,\n" +
                         "  state text,\n" +
                         "  progress_percentage float,\n" +
                         "  queue_duration_ms bigint,\n" +
@@ -181,7 +182,7 @@ public class RepairTables
             dataSet.row(parentSessionId, sessionId, ranges.stream().map(Range::toString).collect(Collectors.toList()));
 
             dataSet.column("keyspace_name", ks);
-            dataSet.column("column_family_name", cf);
+            dataSet.column("table_name", cf);
 
             dataSet.column("state", progress.getState().name().toLowerCase());
             dataSet.column("progress_percentage", 100 * progress.getProgress());
