@@ -20,6 +20,7 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -32,7 +33,9 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.repair.RepairDesc;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.RepairProgress;
 import org.apache.cassandra.repair.ValidationProgress;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -47,6 +50,7 @@ public class RepairTables
     public static Collection<VirtualTable> getAll(String keyspace)
     {
         return Arrays.asList(
+            new RepairTable(keyspace),
             new RepairValidationTable(keyspace)
         );
     }
@@ -131,6 +135,76 @@ public class RepairTables
 
             if (progress.getFailureCause() != null)
                 dataSet.column("failure_cause", Throwables.getStackTraceAsString(progress.getFailureCause()));
+        }
+    }
+
+    public static class RepairTable extends AbstractVirtualTable
+    {
+
+        public RepairTable(String keyspace)
+        {
+            super(parse(keyspace, "repairs",
+                        "CREATE TABLE system_views.repairs (\n" +
+                        "  id uuid,\n" +
+                        "  session_id uuid,\n" +
+                        "  keyspace_name text,\n" +
+                        "  column_family_name text,\n" +
+                        "  ranges frozen<list<text>>,\n" +
+                        "  options map<text, text>,\n" +
+                        "  instance inet,\n" +
+                        "  participants set<inet>,\n" +
+                        "\n" +
+                        "  state text,\n" +
+                        "  progress_percentage float, -- between 0.0 and 100.0\n" +
+                        "  failure_cause text,\n" +
+                        "\n" +
+                        "  -- metrics\n" +
+                        "  -- TODO\n" +
+                        "\n" +
+                        "  PRIMARY KEY ( (id), session_id, column_family_name )\n" +
+                        ")"));
+        }
+
+        public DataSet data()
+        {
+            SimpleDataSet result = new SimpleDataSet(metadata());
+            ActiveRepairService.instance.repairProgress((a, b) -> updateDataset(result, a, b));
+            return result;
+        }
+
+        public DataSet data(DecoratedKey partitionKey)
+        {
+            UUID parentSessionId = UUIDType.instance.compose(partitionKey.getKey());
+            SimpleDataSet result = new SimpleDataSet(metadata());
+            ActiveRepairService.instance.repairProgress(parentSessionId, (a, b) -> updateDataset(result, a, b));
+            return result;
+        }
+
+        private void updateDataset(SimpleDataSet dataSet, RepairDesc repairDesc, RepairProgress repairProgress)
+        {
+            UUID parentSessionId = repairDesc.parentSession;
+            Map<String, String> options = repairDesc.options.asMap();
+            String keyspace = repairDesc.keyspace;
+
+            ActiveRepairService.instance.repairJobProgress(parentSessionId, (jobDesc, jobProgress) -> {
+                // call early to make sure reads are visable
+                long jobLastUpdatedAtNs = jobProgress.getLastUpdatedAtNs();
+                dataSet.row(parentSessionId, jobDesc.sessionId, jobDesc.columnFamily);
+
+                // shared columns
+                dataSet.column("keyspace_name", keyspace);
+//                dataSet.column("options", options); //TODO this breaks vtables =)
+//                dataSet.column("instance", ???); // TODO how?
+
+                // job specific columns
+                dataSet.column("ranges", jobDesc.ranges.stream().map(Range::toString).collect(Collectors.toList()));
+//                dataSet.column("participants", this is in session, pull that out) //TODO
+                dataSet.column("state", jobProgress.getState().name().toLowerCase());
+                dataSet.column("progress_percentage", jobProgress.getProgress() * 100);
+
+                if (jobProgress.getFailureCause() != null)
+                    dataSet.column("failure_cause", Throwables.getStackTraceAsString(jobProgress.getFailureCause()));
+            });
         }
     }
 }
