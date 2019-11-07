@@ -173,7 +173,7 @@ public class RepairTables
                             dataSet.column("progress_percentage", jobProgress.getProgress() * 100);
 
                             if (jobProgress.getFailureCause() != null)
-                                dataSet.column("failure_cause", Throwables.getStackTraceAsString(jobProgress.getFailureCause()));
+                                dataSet.column("failure_cause", jobProgress.getFailureCause());
                     }
                 });
             });
@@ -282,7 +282,7 @@ public class RepairTables
             dataSet.column("total_duration_ms", TimeUnit.NANOSECONDS.toMillis(lastUpdatedNs - creationTimeNs));
 
             if (progress.getFailureCause() != null)
-                dataSet.column("failure_cause", Throwables.getStackTraceAsString(progress.getFailureCause()));
+                dataSet.column("failure_cause", progress.getFailureCause());
         }
     }
 

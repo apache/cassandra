@@ -258,7 +258,10 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
         String message;
         if (terminated)
+        {
+            progress.skip("session was terminated");
             return;
+        }
 
         logger.info("{} new session: will sync {} on range {} for {}.{}", desc.previewKind.logPrefix(getId()), repairedNodes(), desc.commonRange, desc.keyspace, Arrays.toString(desc.cfnames));
         Tracing.traceRepair("Syncing range {}", desc.commonRange);

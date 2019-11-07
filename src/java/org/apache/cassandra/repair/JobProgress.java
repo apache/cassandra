@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.repair;
 
+import com.google.common.base.Throwables;
+
 public class JobProgress implements Progress
 {
     public enum State {
@@ -30,7 +32,7 @@ public class JobProgress implements Progress
 
     private final long[] stateTimes = new long[State.values().length];
     private int currentState;
-    private Throwable failureCause;
+    private String failureCause;
     private volatile long lastUpdatedAtNs;
 
     JobProgress()
@@ -73,10 +75,15 @@ public class JobProgress implements Progress
         updateState(State.SYNC_COMPLETE);
     }
 
-    public void fail(Throwable failureCause)
+    public void fail(String failureCause)
     {
         this.failureCause = failureCause;
         updateState(State.FAILURE);
+    }
+
+    public void fail(Throwable failureCause)
+    {
+        fail(Throwables.getStackTraceAsString(failureCause));
     }
 
     public State getState()
@@ -104,7 +111,7 @@ public class JobProgress implements Progress
     }
 
     @Override
-    public Throwable getFailureCause()
+    public String getFailureCause()
     {
         return failureCause;
     }

@@ -141,6 +141,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
     protected void runMayThrow() throws Exception
     {
+        //TODO there are many cases where this code eagerly stops, but this doesn't link back up with nodetool monitoring; should switch that to progress
         progress.start();
         ActiveRepairService.instance.recordRepairStatus(cmd, ActiveRepairService.ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
         final TraceState traceState;

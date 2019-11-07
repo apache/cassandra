@@ -20,6 +20,8 @@ package org.apache.cassandra.repair;
 
 import java.util.List;
 
+import com.google.common.base.Throwables;
+
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
 
 public class RepairProgress implements Progress
@@ -37,7 +39,7 @@ public class RepairProgress implements Progress
     private int files;
     private long bytes;
     private int ranges;
-    private Throwable failureCause;
+    private String failureCause;
     private volatile long lastUpdatedAtNs;
 
     RepairProgress()
@@ -77,7 +79,7 @@ public class RepairProgress implements Progress
 
     public void skip(String reason)
     {
-        failureCause = new RuntimeException(reason);
+        failureCause = reason;
         updateState(State.SKIPPED);
     }
 
@@ -86,10 +88,15 @@ public class RepairProgress implements Progress
         updateState(State.COMPLETE);
     }
 
-    public void fail(Throwable failureCause)
+    public void fail(String failureCause)
     {
         this.failureCause = failureCause;
         updateState(State.FAILURE);
+    }
+
+    public void fail(Throwable failureCause)
+    {
+        fail(Throwables.getStackTraceAsString(failureCause));
     }
 
     public State getState()
@@ -132,7 +139,7 @@ public class RepairProgress implements Progress
     }
 
     @Override
-    public Throwable getFailureCause()
+    public String getFailureCause()
     {
         return failureCause;
     }

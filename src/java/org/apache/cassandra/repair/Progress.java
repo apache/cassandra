@@ -35,7 +35,7 @@ public interface Progress
      */
     long getStartTimeNs();
 
-    Throwable getFailureCause();
+    String getFailureCause();
 
     /**
      * The time the last mutation was made.

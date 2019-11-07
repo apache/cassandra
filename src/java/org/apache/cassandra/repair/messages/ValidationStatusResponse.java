@@ -55,7 +55,7 @@ public class ValidationStatusResponse extends RepairMessage
         long updatedAtMicro = progress.getLastUpdatedAtMicro();
         String cause = null;
         if (progress.getFailureCause() != null)
-            cause = Throwables.getStackTraceAsString(progress.getFailureCause());
+            cause = progress.getFailureCause();
         return new ValidationStatusResponse(desc, progress.getState(), progress.getProgress(), cause, updatedAtMicro);
     }
 

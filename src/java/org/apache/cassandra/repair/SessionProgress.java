@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.repair;
 
+import com.google.common.base.Throwables;
+
 public class SessionProgress implements Progress
 {
     public enum State {
@@ -28,7 +30,7 @@ public class SessionProgress implements Progress
 
     private final long[] stateTimes = new long[State.values().length];
     private int currentState;
-    private Throwable failureCause;
+    private String failureCause;
     private volatile long lastUpdatedAtNs;
 
     SessionProgress()
@@ -53,14 +55,19 @@ public class SessionProgress implements Progress
 
     public void skip(String reason)
     {
-        failureCause = new RuntimeException(reason);
+        failureCause = reason;
         updateState(State.SKIPPED);
+    }
+
+    public void fail(String cause)
+    {
+        failureCause = cause;
+        updateState(State.FAILURE);
     }
 
     public void fail(Throwable cause)
     {
-        failureCause = cause;
-        updateState(State.FAILURE);
+        fail(Throwables.getStackTraceAsString(cause));
     }
 
     public State getState()
@@ -85,7 +92,7 @@ public class SessionProgress implements Progress
         return stateTimes[State.START.ordinal()];
     }
 
-    public Throwable getFailureCause()
+    public String getFailureCause()
     {
         return failureCause;
     }

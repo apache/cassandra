@@ -20,6 +20,8 @@ package org.apache.cassandra.repair;
 
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Throwables;
+
 /**
  * Used for tracking the progress a single validation is making.  The expected usage is to have a single object per
  * validation and must be created <b>before</b> submitting on a stage or thread pool (to track queue time). When ready
@@ -48,7 +50,7 @@ public class ValidationProgress implements Progress
     private long estimatedPartitions;
     private long estimatedTotalBytes;
     private long partitionsProcessed;
-    private Throwable failureCause;
+    private String failureCause;
     private volatile long lastUpdatedAtNs;
 
     public ValidationProgress()
@@ -109,7 +111,7 @@ public class ValidationProgress implements Progress
     }
 
     @Override
-    public Throwable getFailureCause()
+    public String getFailureCause()
     {
         return failureCause;
     }
@@ -187,12 +189,20 @@ public class ValidationProgress implements Progress
     /**
      * Marks state as {@link State#FAILURE}; this may only be called while state is {@link State#RUNNING}.
      */
-    public void fail(Throwable failureCause)
+    public void fail(String failureCause)
     {
         checkState(State.RUNNING);
         this.failureCause = failureCause;
         this.state = State.FAILURE;
         this.lastUpdatedAtNs = System.nanoTime();
+    }
+
+    /**
+     * Marks state as {@link State#FAILURE}; this may only be called while state is {@link State#RUNNING}.
+     */
+    public void fail(Throwable failureCause)
+    {
+        fail(Throwables.getStackTraceAsString(failureCause));
     }
 
     private void checkState(State expected)
