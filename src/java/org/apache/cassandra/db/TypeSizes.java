@@ -31,7 +31,9 @@ public final class TypeSizes
     private static final int BYTE_SIZE = 1;
     private static final int SHORT_SIZE = 2;
     private static final int INT_SIZE = 4;
+    private static final int FLOAT_SIZE = 4;
     private static final int LONG_SIZE = 8;
+    private static final int DOUBLE_SIZE = 8;
     private static final int UUID_SIZE = 16;
 
     /** assumes UTF8 */
@@ -94,9 +96,19 @@ public final class TypeSizes
         return INT_SIZE;
     }
 
+    public static int sizeof(float value)
+    {
+        return FLOAT_SIZE;
+    }
+
     public static int sizeof(long value)
     {
         return LONG_SIZE;
+    }
+
+    public static int sizeof(double value)
+    {
+        return DOUBLE_SIZE;
     }
 
     public static int sizeof(UUID value)

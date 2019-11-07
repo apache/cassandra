@@ -72,6 +72,8 @@ import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.repair.messages.ValidationStatusRequest;
+import org.apache.cassandra.repair.messages.ValidationStatusResponse;
 import org.apache.cassandra.schema.SchemaPullVerbHandler;
 import org.apache.cassandra.schema.SchemaPushVerbHandler;
 import org.apache.cassandra.schema.SchemaVersionVerbHandler;
@@ -150,6 +152,8 @@ public enum Verb
     REPAIR_RSP             (100, P1, rpcTimeout,      REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
     VALIDATION_RSP         (102, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationResponse.serializer,        () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     VALIDATION_REQ         (101, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationRequest.serializer,         () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
+    VALIDATION_STAT_RSP    (118, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationStatusResponse.serializer,  () -> ResponseVerbHandler.instance                             ),
+    VALIDATION_STAT_REQ    (117, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationStatusRequest.serializer,   () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     SYNC_RSP               (104, P1, rpcTimeout,      ANTI_ENTROPY,      () -> SyncResponse.serializer,              () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     SYNC_REQ               (103, P1, rpcTimeout,      ANTI_ENTROPY,      () -> SyncRequest.serializer,               () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     PREPARE_MSG            (105, P1, rpcTimeout,      ANTI_ENTROPY,      () -> PrepareMessage.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
@@ -184,7 +188,7 @@ public enum Verb
     @Deprecated
     INTERNAL_RSP           (23,  P1, rpcTimeout,      INTERNAL_RESPONSE, () -> null,                                 () -> ResponseVerbHandler.instance                             ),
 
-    // largest used ID: 116
+    // largest used ID: 118
     ;
 
     public static final List<Verb> VERBS = ImmutableList.copyOf(Verb.values());

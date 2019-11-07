@@ -59,6 +59,8 @@ import org.apache.cassandra.repair.RepairProgress;
 import org.apache.cassandra.repair.RepairSessionDesc;
 import org.apache.cassandra.repair.SessionProgress;
 import org.apache.cassandra.repair.ValidationProgress;
+import org.apache.cassandra.repair.messages.ValidationStatusRequest;
+import org.apache.cassandra.repair.messages.ValidationStatusResponse;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -128,7 +130,6 @@ public class RepairTables
         private void updateDataset(SimpleDataSet dataSet, RepairDesc repairDesc, RepairProgress repairProgress)
         {
             UUID parentSessionId = repairDesc.parentSession;
-            DecoratedKey key = validationMetadata.partitioner.decorateKey(UUIDType.instance.decompose(parentSessionId));
             String keyspace = repairDesc.keyspace;
 
             Map<UUID, Pair<RepairSessionDesc, SessionProgress>> sessions = new HashMap<>();
@@ -165,7 +166,7 @@ public class RepairTables
                     switch (jobProgress.getState())
                     {
                         case VALIDATION_REQUEST:
-                            RemoteState remoteState = getValidationState(key, participant).join();
+                            RemoteState remoteState = getValidationState(jobDesc, participant).join();
                             dataSet.column("state", remoteState.state);
                             dataSet.column("progress_percentage", remoteState.progressPercentage);
                             if (remoteState.failureCause != null)
@@ -182,87 +183,22 @@ public class RepairTables
             });
         }
 
-        private CompletableFuture<RemoteState> getValidationState(DecoratedKey key, InetAddressAndPort participant)
+        private CompletableFuture<RemoteState> getValidationState(RepairJobDesc desc, InetAddressAndPort participant)
         {
-            SinglePartitionReadCommand readCommand = SinglePartitionReadCommand.fullPartitionRead(validationMetadata, FBUtilities.nowInSeconds(), key);
-            Message<SinglePartitionReadCommand> msg = Message.builder(Verb.READ_REQ, readCommand).build();
-            CompletableFuture<ReadResponse> future = new CompletableFuture<>();
-            MessagingService.instance().sendWithCallback(msg, participant, new RequestCallback()
-            {
-                public void onResponse(Message msg)
-                {
-                    ReadResponse rsp = (ReadResponse) msg.payload;
-                    future.complete(rsp);
-                }
-
-                public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-                {
-                    future.completeExceptionally(new RuntimeException("Read failure: " + failureReason));
-                }
-            });
-
+            CompletableFuture<Message<ValidationStatusResponse>> future = MessagingService.instance().sendFuture(Message.builder(Verb.VALIDATION_STAT_REQ, new ValidationStatusRequest(desc)).build(), participant);
             return future.thenApply(rsp -> {
-                UnfilteredPartitionIterator it = rsp.makeIterator(readCommand);
-                while (it.hasNext())
+                ValidationStatusResponse status = rsp.payload;
+                switch (status.state)
                 {
-                    UnfilteredRowIterator partition = it.next();
-                    while (partition.hasNext())
-                    {
-                        Row row = (Row) partition.next();
-                        Cell state = row.getCell(validationMetadata.getColumn(ByteBufferUtil.bytes("state")));
-
-                        switch (UTF8Type.instance.compose(state.value()))
-                        {
-                            case "success":
-                                return new RemoteState("validaton_complete_await_rsp", 100, null);
-                            case "failure":
-                                Cell failureCause = row.getCell(validationMetadata.getColumn(ByteBufferUtil.bytes("failure_cause")));
-                                return new RemoteState("failure", 100, UTF8Type.instance.compose(failureCause.value()));
-                            default:
-                                Cell progress = row.getCell(validationMetadata.getColumn(ByteBufferUtil.bytes("progress_percentage")));
-                                float progressPercentage = FloatType.instance.compose(progress.value());
-                                // validation is ~50% of the work and sync is the other 50
-                                // but to help with reporting, lets say 0-20% (pre-validation)
-                                // 21-60% (validate)
-                                // 61-100% (sync)
-                                return new RemoteState("validating", 40F * progressPercentage, null);
-                        }
-                    }
+                    case SUCCESS:
+                        return new RemoteState("validaton_complete_await_rsp", 100, null);
+                    case FAILURE:
+                        return new RemoteState("failure", 100, status.failureCause);
+                    default:
+                        return new RemoteState("validating", 40F * status.progress, null);
                 }
-                return new RemoteState("failure", 100F, "No known validation");
             });
         }
-
-//        private void updateValidation(SimpleDataSet dataSet, DecoratedKey key, InetAddressAndPort participant)
-//        {
-//            // just in case i commit this, this is 100% a hack trying to see how this works; this is totally not good code.
-//            SinglePartitionReadCommand readCommand = SinglePartitionReadCommand.fullPartitionRead(validationMetadata, FBUtilities.nowInSeconds(), key);
-//            Message<SinglePartitionReadCommand> msg = Message.builder(Verb.READ_REQ, readCommand).build();
-//            CompletableFuture<ReadResponse> future = new CompletableFuture<>();
-//            MessagingService.instance().sendWithCallback(msg, participant, new RequestCallback()
-//            {
-//                public void onResponse(Message msg)
-//                {
-//                    ReadResponse rsp = (ReadResponse) msg.payload;
-//                    future.complete(rsp);
-//                }
-//
-//                public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-//                {
-//                    future.completeExceptionally(new RuntimeException("Read failure: " + failureReason));
-//                }
-//            });
-//
-//            try
-//            {
-//                ReadResponse rsp = future.get();
-//
-//            }
-//            catch (ExecutionException | InterruptedException e)
-//            {
-//                e.printStackTrace();
-//            }
-//        }
     }
 
     private static class RemoteState {
@@ -299,7 +235,7 @@ public class RepairTables
                         "  estimated_total_bytes bigint,\n" +
                         "  failure_cause text,\n" +
                         "\n" +
-                        "  PRIMARY KEY ( (id), session_id, ranges )\n" +
+                        "  PRIMARY KEY ( (id), session_id, table_name )\n" +
                         ")"));
         }
 
@@ -331,10 +267,10 @@ public class RepairTables
             String cf = desc.columnFamily;
             Collection<Range<Token>> ranges = desc.ranges;
 
-            dataSet.row(parentSessionId, sessionId, ranges.stream().map(Range::toString).collect(Collectors.toList()));
+            dataSet.row(parentSessionId, sessionId, cf);
 
             dataSet.column("keyspace_name", ks);
-            dataSet.column("table_name", cf);
+            dataSet.column("ranges", ranges.stream().map(Range::toString).collect(Collectors.toList()));
 
             dataSet.column("state", progress.getState().name().toLowerCase());
             dataSet.column("progress_percentage", 100 * progress.getProgress());

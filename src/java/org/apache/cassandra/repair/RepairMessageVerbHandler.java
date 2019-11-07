@@ -132,6 +132,25 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     ValidationManager.instance.submitValidation(store, validator);
                     break;
 
+                case VALIDATION_STAT_REQ:
+                    List<ValidationProgress> progresses = new ArrayList<>(1);
+                    ActiveRepairService.instance.validationProgress(desc.parentSessionId, (key, progress) -> {
+                        if (!desc.equals(key))
+                            return;
+                        progresses.add(progress);
+                    });
+                    switch (progresses.size())
+                    {
+                        case 1:
+                            Message<ValidationStatusResponse> reply = message.responseWith(ValidationStatusResponse.create(desc, progresses.get(0)));
+                            MessagingService.instance().send(reply, message.from());
+                            break;
+                        case 0:
+                        default:
+                            throw new IllegalStateException("Unable to locate a validation job for " + desc);
+                    }
+                    break;
+
                 case SYNC_REQ:
                     // forwarded sync request
                     SyncRequest request = (SyncRequest) message.payload;

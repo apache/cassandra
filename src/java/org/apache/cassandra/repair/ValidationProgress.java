@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.repair;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * Used for tracking the progress a single validation is making.  The expected usage is to have a single object per
  * validation and must be created <b>before</b> submitting on a stage or thread pool (to track queue time). When ready
@@ -39,6 +41,7 @@ public class ValidationProgress implements Progress
 {
     public enum State {INIT, RUNNING, SUCCESS, FAILURE}
 
+    private final long creationTimeMillis = System.currentTimeMillis();
     private final long creationtTimeNs = System.nanoTime();
     private long startTimeNs;
     private State state = State.INIT;
@@ -120,6 +123,13 @@ public class ValidationProgress implements Progress
     public long getLastUpdatedAtNs()
     {
         return lastUpdatedAtNs;
+    }
+
+    public long getLastUpdatedAtMicro()
+    {
+        // this is not acurate, but close enough to target human readability
+        long durationNanos = lastUpdatedAtNs - creationtTimeNs;
+        return TimeUnit.MILLISECONDS.toMicros(creationTimeMillis) + TimeUnit.NANOSECONDS.toMicros(durationNanos);
     }
 
     @Override
