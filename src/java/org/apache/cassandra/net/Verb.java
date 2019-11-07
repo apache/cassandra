@@ -153,7 +153,7 @@ public enum Verb
     VALIDATION_RSP         (102, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationResponse.serializer,        () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     VALIDATION_REQ         (101, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationRequest.serializer,         () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     VALIDATION_STAT_RSP    (118, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationStatusResponse.serializer,  () -> ResponseVerbHandler.instance                             ),
-    VALIDATION_STAT_REQ    (117, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationStatusRequest.serializer,   () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
+    VALIDATION_STAT_REQ    (117, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationStatusRequest.serializer,   () -> RepairMessageVerbHandler.instance,   VALIDATION_STAT_RSP ),
     SYNC_RSP               (104, P1, rpcTimeout,      ANTI_ENTROPY,      () -> SyncResponse.serializer,              () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     SYNC_REQ               (103, P1, rpcTimeout,      ANTI_ENTROPY,      () -> SyncRequest.serializer,               () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     PREPARE_MSG            (105, P1, rpcTimeout,      ANTI_ENTROPY,      () -> PrepareMessage.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),

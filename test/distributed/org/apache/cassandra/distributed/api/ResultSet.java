@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.api;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.UUID;
 
 public class ResultSet implements Iterator<Object[]>
 {
@@ -43,6 +44,11 @@ public class ResultSet implements Iterator<Object[]>
         return results.length == 0;
     }
 
+    public int size()
+    {
+        return results.length;
+    }
+
     @Override
     public boolean hasNext()
     {
@@ -57,12 +63,22 @@ public class ResultSet implements Iterator<Object[]>
         return results[offset];
     }
 
-    public String getString(String name)
+    public Object get(String name)
     {
         int idx = findIndex(name);
         if (idx == -1)
             return null;
-        return (String) next()[idx];
+        return next()[idx];
+    }
+
+    public String getString(String name)
+    {
+        return (String) get(name);
+    }
+
+    public UUID getUUID(String name)
+    {
+        return (UUID) get(name);
     }
 
     private int findIndex(String name)

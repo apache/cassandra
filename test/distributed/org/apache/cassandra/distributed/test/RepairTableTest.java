@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -34,6 +35,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
@@ -52,6 +56,8 @@ import org.apache.cassandra.service.StorageService;
 @RunWith(Parameterized.class)
 public class RepairTableTest extends DistributedTestBase implements Serializable
 {
+    private static final Logger logger = LoggerFactory.getLogger(RepairTableTest.class);
+
     private static Cluster CLUSTER;
 
     private final RepairParallelism parallelism;
@@ -142,6 +148,37 @@ public class RepairTableTest extends DistributedTestBase implements Serializable
             return cmd;
         });
 
-        ResultSet rs = CLUSTER.get(coordinator).executeQueryInternal("SELECT id FROM system_vies.repairs WHERE table_name=?", tableName);
+        //TODO current table only shows once RepairJobs are registered; this is a limitation in the current data modeling
+        // really should be able to show RepairRunnable as well
+        UUID repairId;
+        do
+        {
+            // can't push filtering to C*, so need to manually filter
+            ResultSet rs = CLUSTER.get(coordinator).executeQueryInternal("SELECT id, table_name FROM system_views.repairs");
+            if (!rs.hasNext())
+                continue;
+            String cfName = rs.getString("table_name");
+            if (!tableName.equals(cfName))
+                continue;
+            repairId = rs.getUUID("id");
+            break;
+        }
+        while (true);
+
+        while (true)
+        {
+            ResultSet rs = CLUSTER.get(coordinator).executeQueryInternal("SELECT * FROM system_views.repairs WHERE id=?", repairId);
+            if (rs.size() != 3) // wait for the repair jobs to start
+                continue;
+
+            while (rs.hasNext())
+            {
+                String state = rs.getString("state");
+                logger.info("state: {}", state);
+                if (!"validating".equals(state))
+                    break;
+            }
+            // all are validating, kawlz
+        }
     }
 }

@@ -178,6 +178,7 @@ public class RepairTables
                             catch (Exception e)
                             {
                                 // go to default
+                                e.printStackTrace();
                             }
                         default:
                             dataSet.column("state", jobProgress.getState().name().toLowerCase());
