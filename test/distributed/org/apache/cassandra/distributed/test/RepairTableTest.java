@@ -164,7 +164,7 @@ public class RepairTableTest extends DistributedTestBase implements Serializable
         do
         {
             // can't push filtering to C*, so need to manually filter
-            ResultSet rs = CLUSTER.get(coordinator).executeQueryInternal("SELECT id, table_name FROM system_views.repairs");
+            ResultSet rs = CLUSTER.get(coordinator).executeQueryInternal("SELECT id, table_name FROM system_views.repair_tasks");
             while (rs.hasNext())
             {
                 String cfName = rs.getString("table_name");
@@ -181,16 +181,14 @@ public class RepairTableTest extends DistributedTestBase implements Serializable
     {
         while (true)
         {
-            ResultSet rs = CLUSTER.get(coordinator).executeQueryInternal("SELECT * FROM system_views.repairs WHERE id=?", repairId);
+            ResultSet rs = CLUSTER.get(coordinator).executeQueryInternal("SELECT * FROM system_views.repair_tasks WHERE id=?", repairId);
             if (rs.size() != 2) // wait for the repair jobs to start
                 continue;
 
             Set<String> states = new HashSet<>(2);
             while (rs.hasNext())
-            {
-                String state = rs.getString("state");
-                states.add(state);
-            }
+                states.add(rs.getString("state"));
+
             switch (parallelism)
             {
                 case SEQUENTIAL:

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.virtual;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -26,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -35,23 +33,13 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.ReadResponse;
-import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.db.marshal.FloatType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.JobProgress;
 import org.apache.cassandra.repair.RepairDesc;
@@ -64,7 +52,6 @@ import org.apache.cassandra.repair.messages.ValidationStatusRequest;
 import org.apache.cassandra.repair.messages.ValidationStatusResponse;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -79,20 +66,20 @@ public class RepairTables
     {
         RepairValidationTable validations = new RepairValidationTable(keyspace);
         return Arrays.asList(
-            new RepairTable(keyspace, validations.metadata),
+            new RepairTaskTable(keyspace, validations.metadata),
             validations
         );
     }
 
-    public static class RepairTable extends AbstractVirtualTable
+    public static class RepairTaskTable extends AbstractVirtualTable
     {
 
         private final TableMetadata validationMetadata;
 
-        public RepairTable(String keyspace, TableMetadata validationMetadata)
+        public RepairTaskTable(String keyspace, TableMetadata validationMetadata)
         {
-            super(parse(keyspace, "repairs",
-                        "CREATE TABLE system_views.repairs (\n" +
+            super(parse(keyspace, "Sub tasks that make up a repair",
+                        "CREATE TABLE system_views.repair_tasks (\n" +
                         "  id uuid,\n" +
                         "  session_id uuid,\n" +
                         "  keyspace_name text,\n" +
