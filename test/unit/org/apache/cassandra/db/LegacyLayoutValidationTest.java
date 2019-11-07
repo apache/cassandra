@@ -41,6 +41,11 @@ public class LegacyLayoutValidationTest
 {
     static final String KEYSPACE = "ks";
 
+    static
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     private static final CFMetaData FIXED = CFMetaData.Builder.create("ks", "cf")
                                                               .addPartitionKey("k", Int32Type.instance)
                                                               .addClusteringColumn("c1", Int32Type.instance)
