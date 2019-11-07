@@ -147,7 +147,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                             break;
                         case 0:
                         default:
-                            throw new IllegalStateException("Unable to locate a validation job for " + desc);
+                            logErrorAndSendFailureResponse("Unable to locate a validation job for " + desc, message);
                     }
                     break;
 
@@ -229,7 +229,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         }
         catch (Exception e)
         {
-            logger.error("Got error, removing parent repair session");
+            logger.error("Got error, removing parent repair session", e);
             if (desc != null && desc.parentSessionId != null)
                 ActiveRepairService.instance.removeParentRepairSession(desc.parentSessionId);
             throw new RuntimeException(e);

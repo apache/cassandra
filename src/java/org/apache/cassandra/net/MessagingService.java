@@ -328,6 +328,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
 
         public MessageFailureException(InetAddressAndPort from, RequestFailureReason failureReason)
         {
+            super("Failure response from " + from + "; " + failureReason);
             this.from = from;
             this.failureReason = failureReason;
         }

@@ -166,12 +166,19 @@ public class RepairTables
                     switch (jobProgress.getState())
                     {
                         case VALIDATION_REQUEST:
-                            RemoteState remoteState = getValidationState(jobDesc, participant).join();
-                            dataSet.column("state", remoteState.state);
-                            dataSet.column("progress_percentage", remoteState.progressPercentage);
-                            if (remoteState.failureCause != null)
-                                dataSet.column("failure_cause", remoteState.failureCause);
-                            break;
+                            try
+                            {
+                                RemoteState remoteState = getValidationState(jobDesc, participant).join();
+                                dataSet.column("state", remoteState.state);
+                                dataSet.column("progress_percentage", remoteState.progressPercentage);
+                                if (remoteState.failureCause != null)
+                                    dataSet.column("failure_cause", remoteState.failureCause);
+                                break;
+                            }
+                            catch (Exception e)
+                            {
+                                // go to default
+                            }
                         default:
                             dataSet.column("state", jobProgress.getState().name().toLowerCase());
                             dataSet.column("progress_percentage", jobProgress.getProgress() * 100);
