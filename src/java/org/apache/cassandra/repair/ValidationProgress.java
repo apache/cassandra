@@ -51,7 +51,7 @@ public class ValidationProgress implements Progress
     private Throwable failureCause;
     private volatile long lastUpdatedAtNs;
 
-    ValidationProgress()
+    public ValidationProgress()
     {
         lastUpdatedAtNs = creationtTimeNs;
     }

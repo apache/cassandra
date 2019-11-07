@@ -26,6 +26,7 @@ import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.distributed.api.ResultSet;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class RowUtil
@@ -47,6 +48,25 @@ public class RowUtil
             }
         }
         return result;
+    }
+
+    public static ResultSet toResultSet(ResultMessage.Rows rows)
+    {
+        Object[][] result = new Object[rows.result.rows.size()][];
+        List<ColumnSpecification> specs = rows.result.metadata.names;
+        for (int i = 0; i < rows.result.rows.size(); i++)
+        {
+            List<ByteBuffer> row = rows.result.rows.get(i);
+            result[i] = new Object[row.size()];
+            for (int j = 0; j < row.size(); j++)
+            {
+                ByteBuffer bb = row.get(j);
+
+                if (bb != null)
+                    result[i][j] = specs.get(j).type.getSerializer().deserialize(bb);
+            }
+        }
+        return new ResultSet(specs.stream().map(c -> c.name.toString()).toArray(String[]::new), result);
     }
 
     public static Iterator<Object[]> toObjects(UntypedResultSet rs)

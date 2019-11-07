@@ -30,7 +30,8 @@ public interface IInstance extends IIsolatedExecutor
     IListen listen();
 
     void schemaChangeInternal(String query);
-    public Object[][] executeInternal(String query, Object... args);
+    Object[][] executeInternal(String query, Object... args);
+    ResultSet executeQueryInternal(String query, Object... args);
 
     IInstanceConfig config();
     public InetAddressAndPort broadcastAddressAndPort();

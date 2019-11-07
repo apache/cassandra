@@ -164,7 +164,7 @@ public class ValidationManager
                 return this;
             }
         };
-        ActiveRepairService.instance.trackValidator(validator);
+        ActiveRepairService.instance.trackValidation(validator.desc, validator.progress);
         return cfs.getRepairManager().submitValidation(validation);
     }
 }

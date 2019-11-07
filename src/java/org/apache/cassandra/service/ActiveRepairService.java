@@ -328,9 +328,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         putAndLogOnConflict(repairJobProgress, "repair jobs", job.desc, job.progress);
     }
 
-    public void trackValidator(Validator validator)
+    public void trackValidation(RepairJobDesc desc, ValidationProgress progress)
     {
-        putAndLogOnConflict(validationProgress, "validators", validator.desc, validator.progress);
+        putAndLogOnConflict(validationProgress, "validators", desc, progress);
     }
 
     private static <K, V> void putAndLogOnConflict(Map<K, V> map, String tag, K key, V value)

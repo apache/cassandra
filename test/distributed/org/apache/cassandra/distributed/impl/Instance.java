@@ -61,6 +61,7 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.distributed.api.ResultSet;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
@@ -148,6 +149,20 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             if (result instanceof ResultMessage.Rows)
                 return RowUtil.toObjects((ResultMessage.Rows)result);
+            else
+                return null;
+        }).call();
+    }
+
+    public ResultSet executeQueryInternal(String query, Object... args)
+    {
+        return sync(() -> {
+            QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(query);
+            ResultMessage result = prepared.statement.executeLocally(QueryProcessor.internalQueryState(),
+                                                                     QueryProcessor.makeInternalOptions(prepared.statement, args));
+
+            if (result instanceof ResultMessage.Rows)
+                return RowUtil.toResultSet((ResultMessage.Rows)result);
             else
                 return null;
         }).call();
