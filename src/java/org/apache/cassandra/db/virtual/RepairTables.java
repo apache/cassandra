@@ -53,6 +53,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.JobProgress;
 import org.apache.cassandra.repair.RepairDesc;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairProgress;
@@ -198,6 +199,8 @@ public class RepairTables
                 ValidationStatusResponse status = rsp.payload;
                 switch (status.state)
                 {
+                    case UNKNOWN:
+                        return new RemoteState(JobProgress.State.VALIDATION_REQUEST.name().toLowerCase(), .4F, null);
                     case SUCCESS:
                         return new RemoteState("validaton_complete_await_rsp", 100, null);
                     case FAILURE:

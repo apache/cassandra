@@ -388,6 +388,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         });
     }
 
+    public ValidationProgress getValidationProgress(RepairJobDesc desc)
+    {
+        return validationProgress.get(desc);
+    }
+
     public void validationProgress(BiConsumer<RepairJobDesc, ValidationProgress> fn)
     {
         validationProgress.forEach(fn);

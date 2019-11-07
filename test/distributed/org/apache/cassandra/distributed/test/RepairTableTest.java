@@ -24,10 +24,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
+import com.google.common.collect.Sets;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -148,37 +151,57 @@ public class RepairTableTest extends DistributedTestBase implements Serializable
             return cmd;
         });
 
+        UUID repairId = findRepairId(coordinator, tableName);
+
+        waitOnValidating(coordinator, repairId);
+        // based off the parallism, the validations have started; so start incrementing their state
+    }
+
+    private UUID findRepairId(int coordinator, String tableName)
+    {
         //TODO current table only shows once RepairJobs are registered; this is a limitation in the current data modeling
         // really should be able to show RepairRunnable as well
-        UUID repairId;
         do
         {
             // can't push filtering to C*, so need to manually filter
             ResultSet rs = CLUSTER.get(coordinator).executeQueryInternal("SELECT id, table_name FROM system_views.repairs");
-            if (!rs.hasNext())
-                continue;
-            String cfName = rs.getString("table_name");
-            if (!tableName.equals(cfName))
-                continue;
-            repairId = rs.getUUID("id");
-            break;
+            while (rs.hasNext())
+            {
+                String cfName = rs.getString("table_name");
+                if (tableName.equals(cfName))
+                {
+                    return rs.getUUID("id");
+                }
+            }
         }
         while (true);
+    }
 
+    private void waitOnValidating(int coordinator, UUID repairId)
+    {
         while (true)
         {
             ResultSet rs = CLUSTER.get(coordinator).executeQueryInternal("SELECT * FROM system_views.repairs WHERE id=?", repairId);
-            if (rs.size() != 3) // wait for the repair jobs to start
+            if (rs.size() != 2) // wait for the repair jobs to start
                 continue;
 
+            Set<String> states = new HashSet<>(2);
             while (rs.hasNext())
             {
                 String state = rs.getString("state");
-                logger.info("state: {}", state);
-                if (!"validating".equals(state))
-                    break;
+                states.add(state);
             }
-            // all are validating, kawlz
+            switch (parallelism)
+            {
+                case SEQUENTIAL:
+                case DATACENTER_AWARE:
+                    if (Sets.newHashSet("validating", "validation_request").equals(states))
+                        return;
+                    break;
+                default:
+                    if (Sets.newHashSet("validating").equals(states))
+                        return;
+            }
         }
     }
 }

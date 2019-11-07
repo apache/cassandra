@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class ValidationProgress implements Progress
 {
-    public enum State {INIT, RUNNING, SUCCESS, FAILURE}
+    public enum State { UNKNOWN, INIT, RUNNING, SUCCESS, FAILURE}
 
     private final long creationTimeMillis = System.currentTimeMillis();
     private final long creationtTimeNs = System.nanoTime();

@@ -133,21 +133,16 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case VALIDATION_STAT_REQ:
-                    List<ValidationProgress> progresses = new ArrayList<>(1);
-                    ActiveRepairService.instance.validationProgress(desc.parentSessionId, (key, progress) -> {
-                        if (!desc.equals(key))
-                            return;
-                        progresses.add(progress);
-                    });
-                    switch (progresses.size())
+                    ValidationProgress progress = ActiveRepairService.instance.getValidationProgress(desc);
+                    if (progress != null)
                     {
-                        case 1:
-                            Message<ValidationStatusResponse> reply = message.responseWith(ValidationStatusResponse.create(desc, progresses.get(0)));
-                            MessagingService.instance().send(reply, message.from());
-                            break;
-                        case 0:
-                        default:
-                            logErrorAndSendFailureResponse("Unable to locate a validation job for " + desc, message);
+                        Message<ValidationStatusResponse> reply = message.responseWith(ValidationStatusResponse.create(desc, progress));
+                        MessagingService.instance().send(reply, message.from());
+                    }
+                    else
+                    {
+                        Message<ValidationStatusResponse> reply = message.responseWith(ValidationStatusResponse.notFound(desc));
+                        MessagingService.instance().send(reply, message.from());
                     }
                     break;
 

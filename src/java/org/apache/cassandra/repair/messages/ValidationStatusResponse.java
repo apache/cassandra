@@ -59,6 +59,13 @@ public class ValidationStatusResponse extends RepairMessage
         return new ValidationStatusResponse(desc, progress.getState(), progress.getProgress(), cause, updatedAtMicro);
     }
 
+    public static ValidationStatusResponse notFound(RepairJobDesc desc)
+    {
+        long updatedAtMicro = System.currentTimeMillis() * 1000;
+        String cause = "Unable to find validation for job";
+        return new ValidationStatusResponse(desc, ValidationProgress.State.UNKNOWN, -1, cause, updatedAtMicro);
+    }
+
     public static final IVersionedSerializer<ValidationStatusResponse> serializer = new IVersionedSerializer<ValidationStatusResponse>()
     {
 
