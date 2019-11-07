@@ -610,10 +610,33 @@ public class ByteBufferUtil
         return prefix.equals(value.duplicate().limit(value.remaining() - diff));
     }
 
+    public static boolean canMinimize(ByteBuffer buf)
+    {
+        return buf != null && (buf.capacity() > buf.remaining() || !buf.hasArray());
+    }
+
     /** trims size of bytebuffer to exactly number of bytes in it, to do not hold too much memory */
     public static ByteBuffer minimalBufferFor(ByteBuffer buf)
     {
         return buf.capacity() > buf.remaining() || !buf.hasArray() ? ByteBuffer.wrap(getArray(buf)) : buf;
+    }
+
+    public static ByteBuffer[] minimizeBuffers(ByteBuffer[] src)
+    {
+        ByteBuffer[] dst = new ByteBuffer[src.length];
+        for (int i=0; i<src.length; i++)
+            dst[i] = src[i] != null ? minimalBufferFor(src[i]) : null;
+        return dst;
+    }
+
+    public static boolean canMinimize(ByteBuffer[] src)
+    {
+        for (ByteBuffer buffer : src)
+        {
+            if (canMinimize(buffer))
+                return true;
+        }
+        return false;
     }
 
     // Doesn't change bb position

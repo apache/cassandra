@@ -26,6 +26,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 
@@ -172,6 +173,13 @@ public class RangeTombstone
             for (int i = 0; i < size(); i++)
                 newValues[i] = allocator.clone(get(i));
             return new Bound(kind(), newValues);
+        }
+
+        public ClusteringPrefix minimize()
+        {
+            if (!ByteBufferUtil.canMinimize(values))
+                return this;
+            return new Bound(kind, ByteBufferUtil.minimizeBuffers(values));
         }
 
         @Override

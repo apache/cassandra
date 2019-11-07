@@ -25,6 +25,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
@@ -86,6 +87,13 @@ public class Clustering extends AbstractClusteringPrefix
     public Kind kind()
     {
         return Kind.CLUSTERING;
+    }
+
+    public ClusteringPrefix minimize()
+    {
+        if (!ByteBufferUtil.canMinimize(values))
+            return this;
+        return new Clustering(ByteBufferUtil.minimizeBuffers(values));
     }
 
     public Clustering copy(AbstractAllocator allocator)
