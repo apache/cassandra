@@ -19,6 +19,7 @@
 package org.apache.cassandra.repair;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 
@@ -34,6 +35,7 @@ public class RepairProgress implements Progress
         FAILURE
     }
 
+    private final long creationTimeMillis = System.currentTimeMillis();
     private final long[] stateTimes = new long[State.values().length];
     private int currentState;
     private int files;
@@ -148,6 +150,13 @@ public class RepairProgress implements Progress
     public long getLastUpdatedAtNs()
     {
         return lastUpdatedAtNs;
+    }
+
+    public long getLastUpdatedAtMicro()
+    {
+        // this is not acurate, but close enough to target human readability
+        long durationNanos = lastUpdatedAtNs - stateTimes[0];
+        return TimeUnit.MILLISECONDS.toMicros(creationTimeMillis) + TimeUnit.NANOSECONDS.toMicros(durationNanos);
     }
 
     public boolean isComplete()

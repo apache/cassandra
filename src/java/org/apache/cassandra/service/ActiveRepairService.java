@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.function.Predicate;
 
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
@@ -65,6 +64,7 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.RepairDesc;
 import org.apache.cassandra.repair.RepairJob;
@@ -74,7 +74,6 @@ import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.RepairSessionDesc;
 import org.apache.cassandra.repair.SessionProgress;
 import org.apache.cassandra.repair.ValidationProgress;
-import org.apache.cassandra.repair.Validator;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
@@ -83,6 +82,7 @@ import org.apache.cassandra.repair.consistent.CoordinatorSessions;
 import org.apache.cassandra.repair.consistent.LocalSessions;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.CompletableFutureUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
@@ -346,6 +346,155 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             {
                 logger.warn("Multiple {} attempted to be tracked for {}, no longer able to track latest {}", tag, key);
             }
+        }
+    }
+
+    public CompletableFuture<RepairSummary> fetchRepairSummary(UUID id)
+    {
+        RepairDesc desc = null; // from id
+        RepairProgress progress = repairProgress.get(desc);
+        //TODO handle when progress isn't registered yet
+
+    }
+
+    public static final class RepairSummary
+    {
+        UUID id;
+        String keyspace;
+        RepairProgress.State state;
+        public String failureCause;
+        public long lastUpdatedAtMicro;
+    }
+
+    public CompletableFuture<RepairSessionSummary> fetchSessionSummary(RepairSessionDesc desc)
+    {
+        SessionProgress progress = repairSessionProgress.get(desc);
+        //TODO handle when progress isn't registered yet
+
+        List<CompletableFuture<Pair<String, RepairJobSummary>>> futures = new ArrayList<>(desc.cfnames.length);
+        for (String name : desc.cfnames)
+        {
+            RepairJobDesc repairJobDesc = new RepairJobDesc(desc.parentRepairSession, desc.id, desc.keyspace, name, desc.commonRange.ranges);
+            futures.add(fetchJobSummary(repairJobDesc, new ArrayList<>(desc.commonRange.endpoints)).thenApply(s -> Pair.create(name, s)));
+        }
+        return CompletableFutureUtil.allOf(futures)
+                             .thenApply(jobsList -> {
+                                 Map<String, RepairJobSummary> jobs = new HashMap<>();
+                                 for (Pair<String, RepairJobSummary> job : jobsList)
+                                     jobs.put(job.left, job.right);
+
+                                 return new RepairSessionSummary(desc.id, progress.getState(), progress.getFailureCause(), progress.getLastUpdatedAtMicro(), jobs);
+                             });
+    }
+
+    public static final class RepairSessionSummary
+    {
+        public final UUID sessionId;
+        public final SessionProgress.State state;
+        public final String failureCause;
+        public final long lastUpdatedAtMicro;
+        public final Map<String, RepairJobSummary> jobs;
+
+        public RepairSessionSummary(UUID sessionId, SessionProgress.State state, String failureCause, long lastUpdatedAtMicro, Map<String, RepairJobSummary> jobs)
+        {
+            this.sessionId = sessionId;
+            this.state = state;
+            this.failureCause = failureCause;
+            this.lastUpdatedAtMicro = lastUpdatedAtMicro;
+            this.jobs = jobs;
+        }
+    }
+
+    public CompletableFuture<RepairJobSummary> fetchJobSummary(RepairJobDesc desc, List<InetAddressAndPort> endpoints)
+    {
+        JobProgress progress = repairJobProgress.get(desc);
+        //TODO handle when progress isn't registered yet
+        CompletableFuture<Map<InetAddressAndPort, RepairValidationSummary>> validationsFuture =
+            progress.getState() == JobProgress.State.VALIDATION_REQUEST ? fetchValidations(desc, endpoints) : CompletableFuture.completedFuture(Collections.emptyMap());
+
+        return validationsFuture.thenApply(validations ->
+                                           new RepairJobSummary(desc.columnFamily, desc.ranges, progress.getState(), progress.getFailureCause(), progress.getLastUpdatedAtMicro(), validations));
+    }
+
+    public CompletableFuture<Map<InetAddressAndPort, RepairValidationSummary>> fetchValidations(RepairJobDesc desc, List<InetAddressAndPort> endpoints)
+    {
+        List<CompletableFuture<RepairValidationSummary>> futures = new ArrayList<>(endpoints.size());
+        for (InetAddressAndPort endpoint : endpoints)
+            futures.add(fetchValidation(desc, endpoint));
+        return CompletableFuture.allOf(futures.stream().toArray(CompletableFuture[]::new))
+                         .thenApply(ignore -> {
+                             Map<InetAddressAndPort, RepairValidationSummary> map = new HashMap<>();
+                             for (int i = 0; i < endpoints.size(); i++)
+                             {
+                                 InetAddressAndPort endpoint = endpoints.get(i);
+                                 RepairValidationSummary summary = futures.get(i).join();
+                                 map.put(endpoint, summary);
+                             }
+                             return map;
+                         });
+    }
+
+    public static final class RepairJobSummary
+    {
+        public final String columnFamily;
+        public final Collection<Range<Token>> ranges;
+        public final JobProgress.State state;
+        public final String failureCause;
+        public final long lastUpdatedAtMicro;
+        public final Map<InetAddressAndPort, RepairValidationSummary> validations;
+
+        public RepairJobSummary(String columnFamily,
+                                Collection<Range<Token>> ranges,
+                                JobProgress.State state,
+                                String failureCause,
+                                long lastUpdatedAtMicro,
+                                Map<InetAddressAndPort, RepairValidationSummary> validations)
+        {
+            this.columnFamily = columnFamily;
+            this.ranges = ranges;
+            this.state = state;
+            this.failureCause = failureCause;
+            this.lastUpdatedAtMicro = lastUpdatedAtMicro;
+            this.validations = validations;
+        }
+    }
+
+    public CompletableFuture<RepairValidationSummary> fetchValidation(RepairJobDesc desc, InetAddressAndPort participant)
+    {
+        Message<ValidationStatusRequest> message = Message.builder(Verb.VALIDATION_STAT_REQ, new ValidationStatusRequest(desc)).build();
+        CompletableFuture<Message<ValidationStatusResponse>> f = MessagingService.instance().sendFuture(message, participant);
+        return f.thenApply(msg -> {
+            ValidationStatusResponse stat = msg.payload;
+            return new RepairValidationSummary(stat.state, stat.progress, stat.failureCause, stat.lastUpdatedAtMicro);
+        });
+    }
+
+    public static final class RepairValidationSummary
+    {
+        public final ValidationProgress.State state;
+        public final float progress;
+        public final String failureCause;
+        public final long lastUpdatedAtMicro;
+
+        public RepairValidationSummary(ValidationProgress.State state, float progress, String failureCause, long lastUpdatedAtMicro)
+        {
+            this.state = state;
+            this.progress = progress;
+            this.failureCause = failureCause;
+            this.lastUpdatedAtMicro = lastUpdatedAtMicro;
+        }
+    }
+
+
+    public Pair<RepairDesc, RepairProgress> getRepair(UUID id)
+    {
+        List<Pair<RepairDesc, RepairProgress>> matches = new ArrayList<>();
+        repairProgress(id, (desc, p) -> matches.add(Pair.create(desc, p)));
+        switch (matches.size())
+        {
+            case 1: return matches.get(0);
+            case 0: return null;
+            default: throw new IllegalStateException("Multiple matches for repair key " + id);
         }
     }
 

@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.repair;
 
+import java.util.concurrent.TimeUnit;
+
 import com.google.common.base.Throwables;
 
 public class SessionProgress implements Progress
@@ -28,6 +30,7 @@ public class SessionProgress implements Progress
         SKIPPED, FAILURE
     }
 
+    private final long creationTimeMillis = System.currentTimeMillis();
     private final long[] stateTimes = new long[State.values().length];
     private int currentState;
     private String failureCause;
@@ -100,6 +103,13 @@ public class SessionProgress implements Progress
     public long getLastUpdatedAtNs()
     {
         return lastUpdatedAtNs;
+    }
+
+    public long getLastUpdatedAtMicro()
+    {
+        // this is not acurate, but close enough to target human readability
+        long durationNanos = lastUpdatedAtNs - stateTimes[0];
+        return TimeUnit.MILLISECONDS.toMicros(creationTimeMillis) + TimeUnit.NANOSECONDS.toMicros(durationNanos);
     }
 
     public boolean isComplete()

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -25,6 +24,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -62,6 +63,7 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
@@ -72,6 +74,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -79,7 +82,7 @@ import org.apache.cassandra.utils.progress.ProgressEventNotifier;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.ProgressListener;
 
-public class RepairRunnable extends WrappedRunnable implements ProgressEventNotifier
+public class RepairRunnable implements Runnable, ProgressEventNotifier
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairRunnable.class);
 
@@ -95,6 +98,9 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
     private final List<ProgressListener> listeners = new ArrayList<>();
 
     private static final AtomicInteger threadCounter = new AtomicInteger(1);
+
+    // lazy loaded; should only be started/access in run() method
+    private ListeningExecutorService executor;
 
     public RepairRunnable(StorageService storageService, int cmd, RepairOption options, String keyspace)
     {
@@ -128,42 +134,85 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         }
     }
 
-    protected void fireErrorAndComplete(int progressCount, int totalProgress, String message)
+    private void onSetup()
     {
-        StorageMetrics.repairExceptions.inc();
-        String errorMessage = String.format("Repair command #%d failed with error %s", cmd, message);
-        fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCount, totalProgress, errorMessage));
-        String completionMessage = String.format("Repair command #%d finished with error", cmd);
-        fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCount, totalProgress, completionMessage));
-        recordFailure(errorMessage, completionMessage);
+        progress.start();
+        ActiveRepairService.instance.recordRepairStatus(cmd, ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
     }
 
-
-    protected void runMayThrow() throws Exception
+    private void onSetupComplete(Tuple tuple)
     {
-        //TODO there are many cases where this code eagerly stops, but this doesn't link back up with nodetool monitoring; should switch that to progress
-        progress.start();
-        ActiveRepairService.instance.recordRepairStatus(cmd, ActiveRepairService.ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
-        final TraceState traceState;
-        final String tag = "repair:" + cmd;
 
-        final AtomicInteger progressCounter = new AtomicInteger();
-        final int totalProgress = 4 + desc.options.getRanges().size(); // get valid column families, calculate neighbors, validation, prepare for repair + number of ranges to repair
+    }
+
+    private void onStart(Tuple tuple)
+    {
+        if (!desc.options.isPreview())
+        {
+            SystemDistributedKeyspace.startParentRepair(desc.parentSession, desc.keyspace, tuple.cfnames, desc.options);
+        }
+    }
+
+    private void onSkip(String reason)
+    {
+        logger.info("Repair {} skipped: {}", desc.parentSession, reason);
+        progress.skip(reason);
+//        fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, 0, 0, reason));
+
+        onComplete(ParentRepairStatus.COMPLETED, reason, null);
+    }
+
+    private void onError(Throwable t)
+    {
+        onError(t, null);
+    }
+
+    private void onError(Throwable t, String reason)
+    {
+        logger.error("Repair {} failed:", desc.parentSession, t);
+        progress.fail(t);
+        if (!desc.options.isPreview())
+        {
+            SystemDistributedKeyspace.failParentRepair(desc.parentSession, t);
+        }
+        else
+        {
+            logger.error("Error completing preview repair", t); // mostly for backwards comptable logging
+        }
+
+        StorageMetrics.repairExceptions.inc();
+        int progressCount = progressCounter.get();
+        String errorMessage = reason != null ? reason : String.format("Repair command #%d failed with error %s", cmd, t.getMessage());
+        fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCount, totalProgress, errorMessage));
+
+        onComplete(ParentRepairStatus.FAILED, String.format("Repair command #%d finished with error", cmd), errorMessage);
+    }
+
+    private void onSuccess()
+    {
+        onComplete();
+    }
+
+    private void onComplete(ParentRepairStatus status, String completionMessage, String errorMessage)
+    {
+        fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, completionMessage));
+        List<String> msgs = errorMessage == null ? ImmutableList.of(completionMessage) : ImmutableList.of(errorMessage, completionMessage);
+
+        ActiveRepairService.instance.recordRepairStatus(cmd, status, msgs);
+
+        if (executor != null)
+            executor.shutdownNow();
+        executor = null;
+    }
+
+    private Pair<Tuple, String> setup() throws Exception
+    {
+        onSetup();
+        long setupTimeMillis = System.currentTimeMillis();
 
         String[] columnFamilies = desc.options.getColumnFamilies().toArray(new String[desc.options.getColumnFamilies().size()]);
-        Iterable<ColumnFamilyStore> validColumnFamilies;
-        try
-        {
-            validColumnFamilies = storageService.getValidColumnFamilies(false, false, desc.keyspace, columnFamilies);
-            progressCounter.incrementAndGet();
-        }
-        catch (IllegalArgumentException | IOException e)
-        {
-            logger.error("Repair {} failed:", desc.parentSession, e);
-            progress.fail(e);
-            fireErrorAndComplete(progressCounter.get(), totalProgress, e.getMessage());
-            return;
-        }
+        Iterable<ColumnFamilyStore> validColumnFamilies = storageService.getValidColumnFamilies(false, false, desc.keyspace, columnFamilies);
+        progressCounter.incrementAndGet();
 
         if (Iterables.isEmpty(validColumnFamilies))
         {
@@ -171,13 +220,13 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             logger.info(message);
             progress.skip(message);
             fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, 0, 0, message));
-            return;
+            return Pair.create(null, message);
         }
 
-        final long startTime = System.currentTimeMillis();
         String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, desc.parentSession, desc.keyspace,
                                        desc.options);
         logger.info(message);
+        final TraceState traceState;
         if (desc.options.isTraced())
         {
             StringBuilder cfsb = new StringBuilder();
@@ -206,46 +255,26 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
         List<CommonRange> commonRanges = new ArrayList<>();
 
-        try
+        //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
+        //calculation multiple times
+        Iterable<Range<Token>> keyspaceLocalRanges = storageService.getLocalReplicas(desc.keyspace).ranges();
+
+        for (Range<Token> range : desc.options.getRanges())
         {
-            //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
-            //calculation multiple times
-            Iterable<Range<Token>> keyspaceLocalRanges = storageService.getLocalReplicas(desc.keyspace).ranges();
+            EndpointsForRange neighbors = ActiveRepairService.getNeighbors(desc.keyspace, keyspaceLocalRanges, range,
+                                                                           desc.options.getDataCenters(),
+                                                                           desc.options.getHosts());
 
-            for (Range<Token> range : desc.options.getRanges())
-            {
-                EndpointsForRange neighbors = ActiveRepairService.getNeighbors(desc.keyspace, keyspaceLocalRanges, range,
-                                                                               desc.options.getDataCenters(),
-                                                                               desc.options.getHosts());
-
-                addRangeToNeighbors(commonRanges, range, neighbors);
-                allNeighbors.addAll(neighbors.endpoints());
-            }
-
-            progressCounter.incrementAndGet();
+            addRangeToNeighbors(commonRanges, range, neighbors);
+            allNeighbors.addAll(neighbors.endpoints());
         }
-        catch (IllegalArgumentException e)
-        {
-            logger.error("Repair {} failed:", desc.parentSession, e);
-            progress.fail(e);
-            fireErrorAndComplete(progressCounter.get(), totalProgress, e.getMessage());
-            return;
-        }
+
+        progressCounter.incrementAndGet();
 
         // Validate columnfamilies
         List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>();
-        try
-        {
-            Iterables.addAll(columnFamilyStores, validColumnFamilies);
-            progressCounter.incrementAndGet();
-        }
-        catch (IllegalArgumentException e)
-        {
-            logger.error("Repair {} failed:", desc.parentSession, e);
-            progress.fail(e);
-            fireErrorAndComplete(progressCounter.get(), totalProgress, e.getMessage());
-            return;
-        }
+        Iterables.addAll(columnFamilyStores, validColumnFamilies);
+        progressCounter.incrementAndGet();
 
         String[] cfnames = new String[columnFamilyStores.size()];
         for (int i = 0; i < columnFamilyStores.size(); i++)
@@ -253,10 +282,68 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             cfnames[i] = columnFamilyStores.get(i).name;
         }
 
-        if (!desc.options.isPreview())
+        Tuple tuple = new Tuple(traceState, allNeighbors, commonRanges, columnFamilyStores, cfnames, setupTimeMillis);
+        onSetupComplete(tuple);
+        return Pair.create(tuple, null);
+    }
+
+    private static final class Tuple
+    {
+        public final @Nullable TraceState traceState;
+        public final Set<InetAddressAndPort> allNeighbors;
+        public final List<CommonRange> commonRanges;
+        public final List<ColumnFamilyStore> columnFamilyStores;
+        public final String[] cfnames;
+        public final long setupTimeMillis;
+
+        private Tuple(@Nullable TraceState traceState,
+                      Set<InetAddressAndPort> allNeighbors,
+                      List<CommonRange> commonRanges,
+                      List<ColumnFamilyStore> columnFamilyStores,
+                      String[] cfnames,
+                      long setupTimeMillis)
         {
-            SystemDistributedKeyspace.startParentRepair(desc.parentSession, desc.keyspace, cfnames, desc.options);
+            this.traceState = traceState;
+            this.allNeighbors = allNeighbors;
+            this.commonRanges = commonRanges;
+            this.columnFamilyStores = columnFamilyStores;
+            this.cfnames = cfnames;
+            this.setupTimeMillis = setupTimeMillis;
         }
+    }
+
+    @Override
+    public void run()
+    {
+        try
+        {
+            Pair<Tuple, String> started = setup();
+            if (started.right != null)
+            {
+                onSkip(started.right);
+                return;
+            }
+            Tuple tuple = started.left;
+            assert tuple != null : "start() returned null state";
+
+            start(tuple);
+        }
+        catch (Exception e)
+        {
+            onError(e);
+        }
+    }
+
+    private void start(Tuple tuple) throws Exception
+    {
+        @Nullable TraceState traceState = tuple.traceState;
+        Set<InetAddressAndPort> allNeighbors = tuple.allNeighbors;
+        List<CommonRange> commonRanges = tuple.commonRanges;
+        List<ColumnFamilyStore> columnFamilyStores = tuple.columnFamilyStores;
+        String[] cfnames = tuple.cfnames;
+        long startTime = tuple.setupTimeMillis;
+
+        onStart(tuple);
 
         boolean force = desc.options.isForcedRepair();
 
@@ -274,18 +361,9 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             progress.prepareComplete();
             progressCounter.incrementAndGet();
         }
-        catch (Throwable t)
-        {
-            logger.error("Repair {} failed:", desc.parentSession, t);
-            progress.fail(t);
-            if (!desc.options.isPreview())
-            {
-                SystemDistributedKeyspace.failParentRepair(desc.parentSession, t);
-            }
-            fireErrorAndComplete(progressCounter.get(), totalProgress, t.getMessage());
-            return;
-        }
 
+
+        this.executor = createExecutor();
         if (desc.options.isPreview())
         {
             previewRepair(desc.parentSession, startTime, commonRanges, cfnames);
@@ -300,21 +378,12 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         }
     }
 
-    protected void unhandledException(Exception e)
-    {
-        progress.fail(e);
-    }
-
     private void normalRepair(UUID parentSession,
                               long startTime,
                               TraceState traceState,
                               List<CommonRange> commonRanges,
                               String... cfnames)
     {
-
-        // Set up RepairJob executor for this repair command.
-        ListeningExecutorService executor = createExecutor();
-
         // Setting the repairedAt time to UNREPAIRED_SSTABLE causes the repairedAt times to be preserved across streamed sstables
         final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, false, executor, commonRanges, cfnames);
 
@@ -399,7 +468,6 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         List<CommonRange> allRanges = filterCommonRanges(commonRanges, allParticipants, forceRepair);
 
         CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, forceRepair);
-        ListeningExecutorService executor = createExecutor();
         AtomicBoolean hasFailure = new AtomicBoolean(false);
         ListenableFuture repairResult = coordinatorSession.execute(() -> submitRepairSessions(parentSession, true, executor, allRanges, cfnames),
                                                                    hasFailure);
@@ -419,7 +487,6 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
         logger.debug("Starting preview repair for {}", parentSession);
         // Set up RepairJob executor for this repair command.
-        ListeningExecutorService executor = createExecutor();
 
         final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, false, executor, commonRanges, cfnames);
 
@@ -454,9 +521,9 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                     String successMessage = "Repair preview completed successfully";
                     fireProgressEvent(new ProgressEvent(ProgressEventType.SUCCESS, progressCounter.get(), totalProgress,
                                                         successMessage));
-                    String completionMessage = complete();
+                    String completionMessage = completeMessage();
 
-                    ActiveRepairService.instance.recordRepairStatus(cmd, ActiveRepairService.ParentRepairStatus.COMPLETED,
+                    ActiveRepairService.instance.recordRepairStatus(cmd, ParentRepairStatus.COMPLETED,
                                                            ImmutableList.of(message, successMessage, completionMessage));
                 }
                 catch (Throwable t)
@@ -468,24 +535,18 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
             public void onFailure(Throwable t)
             {
-                progress.fail(t);
-                StorageMetrics.repairExceptions.inc();
-                fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCounter.get(), totalProgress, t.getMessage()));
-                logger.error("Error completing preview repair", t);
-                String completionMessage = complete();
+                onError(t);
+                String completionMessage = completeMessage();
                 recordFailure(t.getMessage(), completionMessage);
             }
 
-            private String complete()
+            private String completeMessage()
             {
                 logger.debug("Preview repair {} completed", parentSession);
 
                 String duration = DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime,
                                                                           true, true);
-                String message = String.format("Repair preview #%d finished in %s", cmd, duration);
-                fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, message));
-                executor.shutdownNow();
-                return message;
+                return String.format("Repair preview #%d finished in %s", cmd, duration);
             }
         }, MoreExecutors.directExecutor());
     }
@@ -622,7 +683,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             }
             else
             {
-                ActiveRepairService.instance.recordRepairStatus(cmd, ActiveRepairService.ParentRepairStatus.COMPLETED,
+                ActiveRepairService.instance.recordRepairStatus(cmd, ParentRepairStatus.COMPLETED,
                                                        ImmutableList.of(message, completionMessage));
             }
         }
@@ -665,17 +726,6 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             Keyspace.open(desc.keyspace).metric.repairTime.update(durationMillis, TimeUnit.MILLISECONDS);
             return message;
         }
-    }
-
-    private void recordFailure(String failureMessage, String completionMessage)
-    {
-        // Note we rely on the first message being the reason for the failure
-        // when inspecting this state from RepairRunner.queryForCompletedRepair
-        String failure = failureMessage == null ? "unknown failure" : failureMessage;
-        String completion = completionMessage == null ? "unknown completion" : completionMessage;
-
-        ActiveRepairService.instance.recordRepairStatus(cmd, ActiveRepairService.ParentRepairStatus.FAILED,
-                                               ImmutableList.of(failure, completion));
     }
 
     private static void addRangeToNeighbors(List<CommonRange> neighborRangeList, Range<Token> range, EndpointsForRange neighbors)
