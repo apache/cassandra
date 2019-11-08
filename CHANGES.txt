@@ -1,4 +1,5 @@
 4.0-alpha3
+ * Align record header of FQL and audit binary log (CASSANDRA-15076)
 Merged from 2.2:
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
 

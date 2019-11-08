@@ -1259,11 +1259,6 @@ back_pressure_strategy:
 # each write which may be lower in order to facilitate availability.
 # ideal_consistency_level: EACH_QUORUM
 
-# Path to write full query log data to when the full query log is enabled
-# The full query log will recrusively delete the contents of this path at
-# times. Don't place links in this directory to other parts of the filesystem.
-#full_query_log_dir: /tmp/cassandrafullquerylog
-
 # Automatically upgrade sstables after upgrade - if there is no ordinary compaction to do, the
 # oldest non-upgraded sstable will get upgraded to the latest version
 # automatic_sstable_upgrade: false
