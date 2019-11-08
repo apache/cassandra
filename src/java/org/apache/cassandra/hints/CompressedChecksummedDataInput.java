@@ -27,6 +27,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.Throwables;
 
 public final class CompressedChecksummedDataInput extends ChecksummedDataInput
 {
@@ -160,7 +161,15 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         long position = input.getPosition();
         input.close();
 
-        return new CompressedChecksummedDataInput(new ChannelProxy(input.getPath()), compressor, position);
+        ChannelProxy channel = new ChannelProxy(input.getPath());
+        try
+        {
+            return new CompressedChecksummedDataInput(channel, compressor, position);
+        }
+        catch (Throwable t)
+        {
+            throw Throwables.cleaned(channel.close(t));
+        }
     }
 
     @VisibleForTesting

@@ -81,18 +81,18 @@ class HintsWriter implements AutoCloseable
             ByteBuffer descriptorBytes = dob.buffer();
             updateChecksum(crc, descriptorBytes);
             channel.write(descriptorBytes);
+
+            if (descriptor.isEncrypted())
+                return new EncryptedHintsWriter(directory, descriptor, file, channel, fd, crc);
+            if (descriptor.isCompressed())
+                return new CompressedHintsWriter(directory, descriptor, file, channel, fd, crc);
+            return new HintsWriter(directory, descriptor, file, channel, fd, crc);
         }
         catch (Throwable e)
         {
             channel.close();
             throw e;
         }
-
-        if (descriptor.isEncrypted())
-            return new EncryptedHintsWriter(directory, descriptor, file, channel, fd, crc);
-        if (descriptor.isCompressed())
-            return new CompressedHintsWriter(directory, descriptor, file, channel, fd, crc);
-        return new HintsWriter(directory, descriptor, file, channel, fd, crc);
     }
 
     HintsDescriptor descriptor()
