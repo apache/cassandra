@@ -173,7 +173,10 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
         public int liveMemberCount()
         {
-            return delegate().liveMemberCount();
+            if (!isShutdown && delegate != null)
+                return delegate().liveMemberCount();
+
+            throw new IllegalStateException("Cannot get live member count on shutdown instance");
         }
 
         @Override

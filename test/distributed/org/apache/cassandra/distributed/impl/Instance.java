@@ -547,7 +547,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 .thenRun(super::shutdown);
     }
 
-    // NOTE: This method requires the instance to be initialized and running
     public int liveMemberCount()
     {
         return sync(() -> Gossiper.instance.getLiveMembers()).call().size();
