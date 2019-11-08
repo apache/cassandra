@@ -51,6 +51,9 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator40;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -58,6 +61,7 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.distributed.api.ResultSet;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
@@ -145,6 +149,20 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             if (result instanceof ResultMessage.Rows)
                 return RowUtil.toObjects((ResultMessage.Rows)result);
+            else
+                return null;
+        }).call();
+    }
+
+    public ResultSet executeQueryInternal(String query, Object... args)
+    {
+        return sync(() -> {
+            QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(query);
+            ResultMessage result = prepared.statement.executeLocally(QueryProcessor.internalQueryState(),
+                                                                     QueryProcessor.makeInternalOptions(prepared.statement, args));
+
+            if (result instanceof ResultMessage.Rows)
+                return RowUtil.toResultSet((ResultMessage.Rows)result);
             else
                 return null;
         }).call();
@@ -328,6 +346,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     throw e;
                 }
 
+                VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
+                VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
+
                 Keyspace.setInitialized();
 
                 // Replay any CommitLogSegments found on disk
@@ -366,6 +387,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.ensureTraceKeyspace();
 
                 SystemKeyspace.finishStartup();
+
+                ActiveRepairService.instance.start();
 
                 if (!FBUtilities.getBroadcastAddressAndPort().equals(broadcastAddressAndPort()))
                     throw new IllegalStateException();

@@ -132,6 +132,20 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     ValidationManager.instance.submitValidation(store, validator);
                     break;
 
+                case VALIDATION_STAT_REQ:
+                    ValidationProgress progress = ActiveRepairService.instance.getValidationProgress(desc);
+                    if (progress != null)
+                    {
+                        Message<ValidationStatusResponse> reply = message.responseWith(ValidationStatusResponse.create(desc, progress));
+                        MessagingService.instance().send(reply, message.from());
+                    }
+                    else
+                    {
+                        Message<ValidationStatusResponse> reply = message.responseWith(ValidationStatusResponse.notFound(desc));
+                        MessagingService.instance().send(reply, message.from());
+                    }
+                    break;
+
                 case SYNC_REQ:
                     // forwarded sync request
                     SyncRequest request = (SyncRequest) message.payload;
@@ -210,7 +224,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         }
         catch (Exception e)
         {
-            logger.error("Got error, removing parent repair session");
+            logger.error("Got error, removing parent repair session", e);
             if (desc != null && desc.parentSessionId != null)
                 ActiveRepairService.instance.removeParentRepairSession(desc.parentSessionId);
             throw new RuntimeException(e);

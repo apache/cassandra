@@ -36,6 +36,7 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .add(new InternodeOutboundTable(NAME))
                     .add(new InternodeInboundTable(NAME))
                     .addAll(TableMetricTables.getAll(NAME))
+                    .addAll(RepairTables.getAll(NAME))
                     .build());
     }
 }

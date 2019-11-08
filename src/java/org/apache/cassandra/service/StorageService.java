@@ -3837,6 +3837,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         RepairRunnable task = new RepairRunnable(this, cmd, options, keyspace);
+        ActiveRepairService.instance.trackRepair(task);
         task.addProgressListener(progressSupport);
         for (ProgressListener listener : listeners)
             task.addProgressListener(listener);

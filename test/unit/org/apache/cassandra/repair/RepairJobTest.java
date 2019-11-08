@@ -145,8 +145,8 @@ public class RepairJobTest
                                                     PreviewKind.NONE, false, CF);
 
         this.job = new RepairJob(session, CF);
-        this.sessionJobDesc = new RepairJobDesc(session.parentRepairSession, session.getId(),
-                                                session.keyspace, CF, session.ranges());
+        this.sessionJobDesc = new RepairJobDesc(session.desc.parentRepairSession, session.getId(),
+                                                session.desc.keyspace, CF, session.ranges());
 
         FBUtilities.setBroadcastInetAddress(addr1.address);
     }
@@ -218,9 +218,9 @@ public class RepairJobTest
         List<SyncTask> syncTasks = RepairJob.createStandardSyncTasks(sessionJobDesc, mockTreeResponses,
                                                                      addr4, // local
                                                                      noTransient(),
-                                                                     session.isIncremental,
-                                                                     session.pullRepair,
-                                                                     session.previewKind);
+                                                                     session.desc.isIncremental,
+                                                                     session.desc.pullRepair,
+                                                                     session.desc.previewKind);
 
         // SyncTasks themselves should not contain significant memory
         assertTrue(ObjectSizes.measureDeep(syncTasks) < 0.2 * singleTreeSize);

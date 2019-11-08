@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.net;
 
+import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -296,6 +296,42 @@ public final class MessagingService extends MessagingServiceMBeanImpl
         callbacks.addWithExpiration(handler, message, to, handler.consistencyLevel(), allowHints);
         updateBackPressureOnSend(to.endpoint(), handler, message);
         send(message, to.endpoint(), null);
+    }
+
+    public <T> CompletableFuture<Message<T>> sendFuture(Message message, InetAddressAndPort to)
+    {
+        CompletableFuture<Message<T>> future = new CompletableFuture<>();
+        sendWithCallback(message, to, new RequestCallback()
+        {
+            public void onResponse(Message msg)
+            {
+                future.complete(msg);
+            }
+
+            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            {
+                future.completeExceptionally(new MessageFailureException(from, failureReason));
+            }
+
+            public boolean invokeOnFailure()
+            {
+                return true;
+            }
+        });
+        return future;
+    }
+
+    public static class MessageFailureException extends IOException
+    {
+        public final InetAddressAndPort from;
+        public final RequestFailureReason failureReason;
+
+        public MessageFailureException(InetAddressAndPort from, RequestFailureReason failureReason)
+        {
+            super("Failure response from " + from + "; " + failureReason);
+            this.from = from;
+            this.failureReason = failureReason;
+        }
     }
 
     /**

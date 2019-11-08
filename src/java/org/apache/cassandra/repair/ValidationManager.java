@@ -34,6 +34,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -106,43 +107,36 @@ public class ValidationManager
 
         // Create Merkle trees suitable to hold estimated partitions for the given ranges.
         // We blindly assume that a partition is evenly distributed on all sstables for now.
-        long start = System.nanoTime();
-        long partitionCount = 0;
-        long estimatedTotalBytes = 0;
+        ValidationProgress progress = validator.progress;
         try (ValidationPartitionIterator vi = getValidationIterator(cfs.getRepairManager(), validator))
         {
             MerkleTrees tree = createMerkleTrees(vi, validator.desc.ranges, cfs);
-            try
+            progress.start(vi.estimatedPartitions(), vi.getEstimatedBytes());
+            // validate the CF as we iterate over it
+            validator.prepare(cfs, tree);
+            while (vi.hasNext())
             {
-                // validate the CF as we iterate over it
-                validator.prepare(cfs, tree);
-                while (vi.hasNext())
+                try (UnfilteredRowIterator partition = vi.next())
                 {
-                    try (UnfilteredRowIterator partition = vi.next())
-                    {
-                        validator.add(partition);
-                        partitionCount++;
-                    }
+                    validator.add(partition);
+                    progress.processed(1); //TODO messure to see if this should be every N
                 }
-                validator.complete();
             }
-            finally
-            {
-                estimatedTotalBytes = vi.getEstimatedBytes();
-                partitionCount = vi.estimatedPartitions();
-            }
+            validator.complete();
         }
         finally
         {
-            cfs.metric.bytesValidated.update(estimatedTotalBytes);
-            cfs.metric.partitionsValidated.update(partitionCount);
+            cfs.metric.bytesValidated.update(progress.getEstimatedTotalBytes());
+            //TODO old behavior started w/ processed then switches to estimate in finally; so this call site is always estimate
+            cfs.metric.partitionsValidated.update(progress.getEstimatedPartitions());
         }
         if (logger.isDebugEnabled())
         {
-            long duration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            long duration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - progress.getStartTimeNs());
             logger.debug("Validation of {} partitions (~{}) finished in {} msec, for {}",
-                         partitionCount,
-                         FBUtilities.prettyPrintMemory(estimatedTotalBytes),
+                         //TODO old behavior started w/ processed then switches to estimate in finally; so this call site is always estimate
+                         progress.getEstimatedPartitions(),
+                         FBUtilities.prettyPrintMemory(progress.getEstimatedTotalBytes()),
                          duration,
                          validator.desc);
         }
@@ -164,13 +158,13 @@ public class ValidationManager
                 catch (Throwable e)
                 {
                     // we need to inform the remote end of our failure, otherwise it will hang on repair forever
-                    validator.fail();
+                    validator.fail(e);
                     throw e;
                 }
                 return this;
             }
         };
-
+        ActiveRepairService.instance.trackValidation(validator.desc, validator.progress);
         return cfs.getRepairManager().submitValidation(validation);
     }
 }
