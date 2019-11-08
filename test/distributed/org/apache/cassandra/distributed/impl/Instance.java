@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -409,14 +410,15 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     initializeRing(cluster);
                 }
 
-                if (config.has(NATIVE_PROTOCOL)) {
-                    CassandraDaemon.getInstanceForTesting().initializeNativeTransport();
-                    CassandraDaemon.getInstanceForTesting().startNativeTransport();
-                }
-
                 StorageService.instance.ensureTraceKeyspace();
 
                 SystemKeyspace.finishStartup();
+
+                if (config.has(NATIVE_PROTOCOL))
+                {
+                    CassandraDaemon.getInstanceForTesting().initializeNativeTransport();
+                    CassandraDaemon.getInstanceForTesting().startNativeTransport();
+                }
 
                 if (!FBUtilities.getBroadcastAddress().equals(broadcastAddressAndPort().address))
                     throw new IllegalStateException();
@@ -549,8 +551,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     // NOTE: This method requires the instance to be initialized and running
     public int liveMemberCount()
     {
-        return callsOnInstance(() -> Gossiper.instance.getLiveMembers().size()).call();
+        return liveMembers().size();
     }
+
+    public Set<InetAddress> liveMembers()
+    {
+        return sync(() -> Gossiper.instance.getLiveMembers()).call();
+    }
+
 
     private static Throwable parallelRun(Throwable accumulate, ExecutorService runOn, ThrowingRunnable ... runnables)
     {

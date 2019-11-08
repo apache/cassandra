@@ -37,7 +37,6 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class NativeProtocolTest extends DistributedTestBase
 {
-    public static final String RANGE_MOVEMENT_PROP = "cassandra.consistent.rangemovement";
 
     @Test
     public void withClientRequests() throws Throwable
@@ -51,8 +50,7 @@ public class NativeProtocolTest extends DistributedTestBase
             session.execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) values (1,1,1);");
             Statement select = new SimpleStatement("select * from " + KEYSPACE + ".tbl;").setConsistencyLevel(ConsistencyLevel.ALL);
             final ResultSet resultSet = session.execute(select);
-            Iterator<Object[]> rows = RowUtil.toObjects(resultSet);
-            assertRows(rows, row(1, 1, 1));
+            assertRows(resultSet, row(1, 1, 1));
             Assert.assertEquals(3, cluster.getMetadata().getAllHosts().size());
             session.close();
             cluster.close();

@@ -255,13 +255,18 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
     }
 
     public void forEach(IIsolatedExecutor.SerializableRunnable runnable) { forEach(i -> i.sync(runnable)); }
-    public void forEach(Consumer<? super I> consumer) { instances.forEach(consumer); }
-    public void parallelForEach(IIsolatedExecutor.SerializableConsumer<? super I> consumer, long timeout, TimeUnit units)
+    public void forEach(Consumer<? super I> consumer) { forEach(instances, consumer); }
+    public void forEach(List<I> instancesForOp, Consumer<? super I> consumer) { instancesForOp.forEach(consumer); }
+    public void parallelForEach(List<I> instancesForOp, IIsolatedExecutor.SerializableConsumer<? super I> consumer, long timeout, TimeUnit units)
     {
-        FBUtilities.waitOnFutures(instances.stream()
+        FBUtilities.waitOnFutures(instancesForOp.stream()
                                            .map(i -> i.async(consumer).apply(i))
                                            .collect(Collectors.toList()),
                                   timeout, units);
+    }
+    public void parallelForEach(IIsolatedExecutor.SerializableConsumer<? super I> consumer, long timeout, TimeUnit units)
+    {
+        parallelForEach(instances, consumer, timeout, units);
     }
 
 
@@ -306,7 +311,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
     }
 
-    public abstract class ChangeMonitor<I extends IInstance> implements AutoCloseable
+    public abstract class ChangeMonitor implements AutoCloseable
     {
         final List<IListen.Cancel> cleanup = new ArrayList<>(instances.size());
         final SimpleCondition completed = new SimpleCondition();
@@ -318,6 +323,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         {
             this.timeOut = timeOut;
             this.timeoutUnit = timeoutUnit;
+            startPolling();
         }
 
         protected void signal()
@@ -337,9 +343,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
         public void waitForCompletion()
         {
-            this.changed = true;
-            signal();
-            startPolling();
             changed = true;
             signal();
             try
@@ -378,7 +381,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
      *
      * This could perhaps be made a little more robust, but this should more than suffice.
      */
-    public class SchemaChangeMonitor extends ChangeMonitor<I>
+    public class SchemaChangeMonitor extends ChangeMonitor
     {
         public SchemaChangeMonitor()
         {
@@ -401,8 +404,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
     }
 
-    public class LiveMemberAgreementMonitor extends ChangeMonitor<I> {
-        public LiveMemberAgreementMonitor() {
+    public class AllMembersAliveMonitor extends ChangeMonitor {
+        public AllMembersAliveMonitor() {
             super(60, TimeUnit.SECONDS);
         }
 
@@ -429,12 +432,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     void startup()
     {
-        // With `auto_bootstrap` enabled, starting up the instances using `parallelForEach`
-        // will fail intermittently (and, depending on hardware, > 80% of the time).
-        // Use `forEach` now as any test that explicitly enables `auto_bootstrap` will fail
-        // if we use `parallelForEach`.
-        try (LiveMemberAgreementMonitor monitor = new LiveMemberAgreementMonitor()) {
-            forEach(I::startup);
+        try (AllMembersAliveMonitor monitor = new AllMembersAliveMonitor()) {
+            // Start any instances with auto_bootstrap enabled first, and in series to avoid issues
+            // with multiple nodes bootstrapping with consistent range movement enabled,
+            // and then start any instances with it disabled in parallel.
+            Map<Boolean, List<I>> instMap = instances.stream().collect(Collectors.partitioningBy(
+            i -> (boolean) i.config().get("auto_bootstrap")));
+            forEach(instMap.get(true), I::startup);
+            parallelForEach(instMap.get(false), I::startup, 0, null);
             monitor.waitForCompletion();
         }
     }

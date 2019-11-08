@@ -382,9 +382,9 @@ public class CassandraDaemon
         validateTransportsCanStart();
 
         if (nativeServer == null)
-            throw new IllegalStateException("setup() must be called first for CassandraDaemon");
-        else
-            nativeServer.start();
+            throw new IllegalStateException("native transport should be set up before it can be started");
+
+        nativeServer.start();
     }
 
     private void validateTransportsCanStart()
