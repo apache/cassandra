@@ -135,110 +135,27 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private void notify(String message)
+    @Override
+    public void run()
     {
-        logger.info(message);
-        fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, message));
-    }
-
-    private void progress(String message)
-    {
-        logger.info(message);
-        fireProgressEvent(new ProgressEvent(ProgressEventType.PROGRESS, progressCounter.incrementAndGet(), totalProgress, message));
-    }
-
-    private void onSetup()
-    {
-        progress.start();
-        ActiveRepairService.instance.recordRepairStatus(cmd, ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
-    }
-
-    private void onStart(Tuple tuple)
-    {
-        String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, desc.parentSession, desc.keyspace, desc.options);
-        logger.info(message);
-        if (tuple.traceState != null)
+        try
         {
-            message = message + " tracing with " + tuple.traceState.sessionId;
-            Tracing.traceRepair(message); // TODO this is a timing regression; this was done before setup, but now its done on-start
-        }
-        fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
+            Pair<Tuple, String> started = setup();
+            if (started.right != null)
+            {
+                onSkip(started.right);
+                return;
+            }
+            Tuple tuple = started.left;
+            assert tuple != null : "start() returned null state";
 
-        if (!desc.options.isPreview())
+            start(tuple);
+        }
+        catch (Throwable e)
         {
-            SystemDistributedKeyspace.startParentRepair(desc.parentSession, desc.keyspace, tuple.cfnames, desc.options);
+            onError(e);
+            JVMStabilityInspector.inspectThrowable(e);
         }
-    }
-
-    private void onSkip(String reason)
-    {
-        logger.info("Repair {} skipped: {}", desc.parentSession, reason);
-        progress.skip(reason);
-        onComplete(ParentRepairStatus.COMPLETED, reason);
-    }
-
-    private void onError(Throwable t)
-    {
-        onError(t, null);
-    }
-
-    private void onError(Throwable t, String reason)
-    {
-        logger.error("Repair {} failed:", desc.parentSession, t);
-        progress.fail(t);
-        if (!desc.options.isPreview())
-        {
-            SystemDistributedKeyspace.failParentRepair(desc.parentSession, t);
-        }
-        else
-        {
-            logger.error("Error completing preview repair", t); // mostly for backwards comptable logging
-        }
-
-        StorageMetrics.repairExceptions.inc();
-        int progressCount = progressCounter.get();
-        String errorMessage = reason != null ? reason : String.format("Repair command #%d failed with error %s", cmd, t.getMessage());
-        fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCount, totalProgress, errorMessage));
-
-        onComplete(ParentRepairStatus.FAILED, errorMessage);
-    }
-
-    private void onSuccess(String msg)
-    {
-        logger.debug("Repair {} completed", desc.parentSession);
-        fireProgressEvent(new ProgressEvent(ProgressEventType.SUCCESS, progressCounter.get(), totalProgress, msg));
-
-        onComplete(ParentRepairStatus.COMPLETED, msg);
-    }
-
-    private void onComplete(ParentRepairStatus status, String message)
-    {
-        fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, message));
-        ActiveRepairService.instance.recordRepairStatus(cmd, status, ImmutableList.of(message));
-        ActiveRepairService.instance.removeParentRepairSession(desc.parentSession);
-
-        //TODO traceState
-//        if (desc.options.isTraced() && traceState != null)
-//        {
-//            for (ProgressListener listener : listeners)
-//                traceState.removeProgressListener(listener);
-//            // Because DebuggableThreadPoolExecutor#afterExecute and this callback
-//            // run in a nondeterministic order (within the same thread), the
-//            // TraceState may have been nulled out at this point. The TraceState
-//            // should be traceState, so just set it without bothering to check if it
-//            // actually was nulled out.
-//            Tracing.instance.set(traceState);
-//            Tracing.traceRepair(message);
-//            Tracing.instance.stopSession();
-//        }
-
-        if (executor != null)
-            executor.shutdownNow();
-        executor = null;
-
-        //TODO use progress time
-//        long durationMillis = System.currentTimeMillis() - startTime;
-//        Keyspace.open(desc.keyspace).metric.repairTime.update(durationMillis, TimeUnit.MILLISECONDS);
     }
 
     private Pair<Tuple, String> setup() throws Exception
@@ -310,54 +227,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         Tuple tuple = new Tuple(traceState, allNeighbors, commonRanges, columnFamilyStores, cfnames, setupTimeMillis);
         return Pair.create(tuple, null);
-    }
-
-    private static final class Tuple
-    {
-        public final @Nullable TraceState traceState;
-        public final Set<InetAddressAndPort> allNeighbors;
-        public final List<CommonRange> commonRanges;
-        public final List<ColumnFamilyStore> columnFamilyStores;
-        public final String[] cfnames;
-        public final long setupTimeMillis;
-
-        private Tuple(@Nullable TraceState traceState,
-                      Set<InetAddressAndPort> allNeighbors,
-                      List<CommonRange> commonRanges,
-                      List<ColumnFamilyStore> columnFamilyStores,
-                      String[] cfnames,
-                      long setupTimeMillis)
-        {
-            this.traceState = traceState;
-            this.allNeighbors = allNeighbors;
-            this.commonRanges = commonRanges;
-            this.columnFamilyStores = columnFamilyStores;
-            this.cfnames = cfnames;
-            this.setupTimeMillis = setupTimeMillis;
-        }
-    }
-
-    @Override
-    public void run()
-    {
-        try
-        {
-            Pair<Tuple, String> started = setup();
-            if (started.right != null)
-            {
-                onSkip(started.right);
-                return;
-            }
-            Tuple tuple = started.left;
-            assert tuple != null : "start() returned null state";
-
-            start(tuple);
-        }
-        catch (Throwable e)
-        {
-            onError(e);
-            JVMStabilityInspector.inspectThrowable(e);
-        }
     }
 
     private void start(Tuple tuple) throws Exception
@@ -608,6 +477,112 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                                                                                       "internal"));
     }
 
+    private void notify(String message)
+    {
+        logger.info(message);
+        fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, message));
+    }
+
+    private void progress(String message)
+    {
+        logger.info(message);
+        fireProgressEvent(new ProgressEvent(ProgressEventType.PROGRESS, progressCounter.incrementAndGet(), totalProgress, message));
+    }
+
+    private void onSetup()
+    {
+        progress.start();
+        ActiveRepairService.instance.recordRepairStatus(cmd, ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
+    }
+
+    private void onStart(Tuple tuple)
+    {
+        String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, desc.parentSession, desc.keyspace, desc.options);
+        logger.info(message);
+        if (tuple.traceState != null)
+        {
+            message = message + " tracing with " + tuple.traceState.sessionId;
+            Tracing.traceRepair(message); // TODO this is a timing regression; this was done before setup, but now its done on-start
+        }
+        fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
+
+        if (!desc.options.isPreview())
+        {
+            SystemDistributedKeyspace.startParentRepair(desc.parentSession, desc.keyspace, tuple.cfnames, desc.options);
+        }
+    }
+
+    private void onSkip(String reason)
+    {
+        logger.info("Repair {} skipped: {}", desc.parentSession, reason);
+        progress.skip(reason);
+        onComplete(ParentRepairStatus.COMPLETED, reason);
+    }
+
+    private void onError(Throwable t)
+    {
+        onError(t, null);
+    }
+
+    private void onError(Throwable t, String reason)
+    {
+        logger.error("Repair {} failed:", desc.parentSession, t);
+        progress.fail(t);
+        if (!desc.options.isPreview())
+        {
+            SystemDistributedKeyspace.failParentRepair(desc.parentSession, t);
+        }
+        else
+        {
+            logger.error("Error completing preview repair", t); // mostly for backwards comptable logging
+        }
+
+        StorageMetrics.repairExceptions.inc();
+        int progressCount = progressCounter.get();
+        String errorMessage = reason != null ? reason : String.format("Repair command #%d failed with error %s", cmd, t.getMessage());
+        fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCount, totalProgress, errorMessage));
+
+        onComplete(ParentRepairStatus.FAILED, errorMessage);
+    }
+
+    private void onSuccess(String msg)
+    {
+        logger.debug("Repair {} completed", desc.parentSession);
+        fireProgressEvent(new ProgressEvent(ProgressEventType.SUCCESS, progressCounter.get(), totalProgress, msg));
+
+        onComplete(ParentRepairStatus.COMPLETED, msg);
+    }
+
+    private void onComplete(ParentRepairStatus status, String message)
+    {
+        fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, message));
+        ActiveRepairService.instance.recordRepairStatus(cmd, status, ImmutableList.of(message));
+        ActiveRepairService.instance.removeParentRepairSession(desc.parentSession);
+
+        //TODO traceState
+//        if (desc.options.isTraced() && traceState != null)
+//        {
+//            for (ProgressListener listener : listeners)
+//                traceState.removeProgressListener(listener);
+//            // Because DebuggableThreadPoolExecutor#afterExecute and this callback
+//            // run in a nondeterministic order (within the same thread), the
+//            // TraceState may have been nulled out at this point. The TraceState
+//            // should be traceState, so just set it without bothering to check if it
+//            // actually was nulled out.
+//            Tracing.instance.set(traceState);
+//            Tracing.traceRepair(message);
+//            Tracing.instance.stopSession();
+//        }
+
+        if (executor != null)
+            executor.shutdownNow();
+        executor = null;
+
+        //TODO use progress time
+//        long durationMillis = System.currentTimeMillis() - startTime;
+//        Keyspace.open(desc.keyspace).metric.repairTime.update(durationMillis, TimeUnit.MILLISECONDS);
+    }
+
     private class RepairSessionCallback implements FutureCallback<RepairSessionResult>
     {
         private final RepairSession session;
@@ -781,5 +756,30 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 }
             }
         }, "Repair-Runnable-" + threadCounter.incrementAndGet());
+    }
+
+    private static final class Tuple
+    {
+        public final @Nullable TraceState traceState;
+        public final Set<InetAddressAndPort> allNeighbors;
+        public final List<CommonRange> commonRanges;
+        public final List<ColumnFamilyStore> columnFamilyStores;
+        public final String[] cfnames;
+        public final long setupTimeMillis;
+
+        private Tuple(@Nullable TraceState traceState,
+                      Set<InetAddressAndPort> allNeighbors,
+                      List<CommonRange> commonRanges,
+                      List<ColumnFamilyStore> columnFamilyStores,
+                      String[] cfnames,
+                      long setupTimeMillis)
+        {
+            this.traceState = traceState;
+            this.allNeighbors = allNeighbors;
+            this.commonRanges = commonRanges;
+            this.columnFamilyStores = columnFamilyStores;
+            this.cfnames = cfnames;
+            this.setupTimeMillis = setupTimeMillis;
+        }
     }
 }
