@@ -157,9 +157,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         logger.info("Repair {} skipped: {}", desc.parentSession, reason);
         progress.skip(reason);
-//        fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, 0, 0, reason));
-
-        onComplete(ParentRepairStatus.COMPLETED, reason, null);
+        onComplete(ParentRepairStatus.COMPLETED, reason);
     }
 
     private void onError(Throwable t)
@@ -185,24 +183,45 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         String errorMessage = reason != null ? reason : String.format("Repair command #%d failed with error %s", cmd, t.getMessage());
         fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCount, totalProgress, errorMessage));
 
-        onComplete(ParentRepairStatus.FAILED, String.format("Repair command #%d finished with error", cmd), errorMessage);
+        onComplete(ParentRepairStatus.FAILED, errorMessage);
     }
 
-    private void onSuccess()
+    private void onSuccess(String msg)
     {
-        onComplete();
+        logger.debug("Repair {} completed", desc.parentSession);
+        fireProgressEvent(new ProgressEvent(ProgressEventType.SUCCESS, progressCounter.get(), totalProgress, msg));
+
+        onComplete(ParentRepairStatus.COMPLETED, msg);
     }
 
-    private void onComplete(ParentRepairStatus status, String completionMessage, String errorMessage)
+    private void onComplete(ParentRepairStatus status, String message)
     {
-        fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, completionMessage));
-        List<String> msgs = errorMessage == null ? ImmutableList.of(completionMessage) : ImmutableList.of(errorMessage, completionMessage);
+        fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, message));
+        ActiveRepairService.instance.recordRepairStatus(cmd, status, ImmutableList.of(message));
+        ActiveRepairService.instance.removeParentRepairSession(desc.parentSession);
 
-        ActiveRepairService.instance.recordRepairStatus(cmd, status, msgs);
+        //TODO traceState
+//        if (desc.options.isTraced() && traceState != null)
+//        {
+//            for (ProgressListener listener : listeners)
+//                traceState.removeProgressListener(listener);
+//            // Because DebuggableThreadPoolExecutor#afterExecute and this callback
+//            // run in a nondeterministic order (within the same thread), the
+//            // TraceState may have been nulled out at this point. The TraceState
+//            // should be traceState, so just set it without bothering to check if it
+//            // actually was nulled out.
+//            Tracing.instance.set(traceState);
+//            Tracing.traceRepair(message);
+//            Tracing.instance.stopSession();
+//        }
 
         if (executor != null)
             executor.shutdownNow();
         executor = null;
+
+        //TODO use progress time
+//        long durationMillis = System.currentTimeMillis() - startTime;
+//        Keyspace.open(desc.keyspace).metric.repairTime.update(durationMillis, TimeUnit.MILLISECONDS);
     }
 
     private Pair<Tuple, String> setup() throws Exception
@@ -216,11 +235,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         if (Iterables.isEmpty(validColumnFamilies))
         {
-            String message = String.format("Empty keyspace, skipping repair: %s", desc.keyspace);
-            logger.info(message);
-            progress.skip(message);
-            fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, 0, 0, message));
-            return Pair.create(null, message);
+            return Pair.create(null, String.format("Empty keyspace, skipping repair: %s", desc.keyspace));
         }
 
         String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, desc.parentSession, desc.keyspace,
@@ -506,44 +521,29 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     if (summary.isEmpty())
                     {
                         message = previewKind == PreviewKind.REPAIRED ? "Repaired data is in sync" : "Previewed data was in sync";
-                        logger.info(message);
-                        fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, message));
                     }
                     else
                     {
                         message =  (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
-                        logger.info(message);
-                        fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, message));
                     }
+                    logger.info(message);
+                    fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, message));
 
-                    progress.complete();
-
-                    String successMessage = "Repair preview completed successfully";
-                    fireProgressEvent(new ProgressEvent(ProgressEventType.SUCCESS, progressCounter.get(), totalProgress,
-                                                        successMessage));
-                    String completionMessage = completeMessage();
-
-                    ActiveRepairService.instance.recordRepairStatus(cmd, ParentRepairStatus.COMPLETED,
-                                                           ImmutableList.of(message, successMessage, completionMessage));
+                    RepairRunnable.this.onSuccess(completeMessage());
                 }
                 catch (Throwable t)
                 {
-                    logger.error("Error completing preview repair", t);
-                    onFailure(t);
+                    onError(t);
                 }
             }
 
             public void onFailure(Throwable t)
             {
                 onError(t);
-                String completionMessage = completeMessage();
-                recordFailure(t.getMessage(), completionMessage);
             }
 
             private String completeMessage()
             {
-                logger.debug("Preview repair {} completed", parentSession);
-
                 String duration = DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime,
                                                                           true, true);
                 return String.format("Repair preview #%d finished in %s", cmd, duration);
@@ -633,21 +633,21 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         final UUID parentSession;
         final Collection<Range<Token>> successfulRanges;
-        final long startTime;
+        final long startTimeMillis;
         final TraceState traceState;
         final AtomicBoolean hasFailure;
         final ExecutorService executor;
 
         public RepairCompleteCallback(UUID parentSession,
                                       Collection<Range<Token>> successfulRanges,
-                                      long startTime,
+                                      long startTimeMillis,
                                       TraceState traceState,
                                       AtomicBoolean hasFailure,
                                       ExecutorService executor)
         {
             this.parentSession = parentSession;
             this.successfulRanges = successfulRanges;
-            this.startTime = startTime;
+            this.startTimeMillis = startTimeMillis;
             this.traceState = traceState;
             this.hasFailure = hasFailure;
             this.executor = executor;
@@ -655,76 +655,35 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         public void onSuccess(Object result)
         {
-            // the session progress should have the failure cause, so the hasFailure field isn't needed
-            progress.complete();
+            // Update the parent_repair_history table to show the ranges which were successful.
+            // There is a assumption this code makes that the successful ranges may be a subset of repair ranges
+            // since some may have failed (and should be marked as such with the hasFailure field).
             if (!desc.options.isPreview())
             {
                 SystemDistributedKeyspace.successfulParentRepair(parentSession, successfulRanges);
             }
-            final String message;
             if (hasFailure.get())
             {
-                StorageMetrics.repairExceptions.inc();
-                message = "Some repair failed";
-                progress.fail(new RuntimeException(message));
-                fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCounter.get(), totalProgress,
-                                                    message));
+                //TODO should get the exception from the session rather than create a new one
+                //TODO complete message regression here
+                onError(new RuntimeException("Some repair failed"));
             }
             else
             {
-                message = "Repair completed successfully";
-                fireProgressEvent(new ProgressEvent(ProgressEventType.SUCCESS, progressCounter.get(), totalProgress,
-                                                    message));
-            }
-            String completionMessage = repairComplete();
-            if (hasFailure.get())
-            {
-                recordFailure(message, completionMessage);
-            }
-            else
-            {
-                ActiveRepairService.instance.recordRepairStatus(cmd, ParentRepairStatus.COMPLETED,
-                                                       ImmutableList.of(message, completionMessage));
+                RepairRunnable.this.onSuccess(repairComplete());
             }
         }
 
         public void onFailure(Throwable t)
         {
-            progress.fail(t);
-            StorageMetrics.repairExceptions.inc();
-            fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCounter.get(), totalProgress, t.getMessage()));
-            if (!desc.options.isPreview())
-            {
-                SystemDistributedKeyspace.failParentRepair(parentSession, t);
-            }
-            String completionMessage = repairComplete();
-            recordFailure(t.getMessage(), completionMessage);
+            onError(t);
         }
 
         private String repairComplete()
         {
-            ActiveRepairService.instance.removeParentRepairSession(parentSession);
-            long durationMillis = System.currentTimeMillis() - startTime;
+            long durationMillis = System.currentTimeMillis() - startTimeMillis;
             String duration = DurationFormatUtils.formatDurationWords(durationMillis,true, true);
-            String message = String.format("Repair command #%d finished in %s", cmd, duration);
-            fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, message));
-            logger.info(message);
-            if (desc.options.isTraced() && traceState != null)
-            {
-                for (ProgressListener listener : listeners)
-                    traceState.removeProgressListener(listener);
-                // Because DebuggableThreadPoolExecutor#afterExecute and this callback
-                // run in a nondeterministic order (within the same thread), the
-                // TraceState may have been nulled out at this point. The TraceState
-                // should be traceState, so just set it without bothering to check if it
-                // actually was nulled out.
-                Tracing.instance.set(traceState);
-                Tracing.traceRepair(message);
-                Tracing.instance.stopSession();
-            }
-            executor.shutdownNow();
-            Keyspace.open(desc.keyspace).metric.repairTime.update(durationMillis, TimeUnit.MILLISECONDS);
-            return message;
+            return String.format("Repair command #%d finished in %s", cmd, duration);
         }
     }
 
