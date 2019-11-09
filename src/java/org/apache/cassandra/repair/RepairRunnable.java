@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -262,25 +263,39 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         // Looks possible, RepairCompleteCallback is incrementla and normal, and that is defining success; preview could do the same
         // so may be much cleaner to only have repair work on happy case and this caller attach a listener for failures
         this.executor = createExecutor();
+        final ListenableFuture<String> repairFutures;
         if (desc.options.isPreview())
         {
-            previewRepair(desc.parentSession, startTime, commonRanges, cfnames);
+            repairFutures = previewRepair(desc.parentSession, startTime, commonRanges, cfnames);
         }
         else if (desc.options.isIncremental())
         {
-            incrementalRepair(desc.parentSession, startTime, force, traceState, allNeighbors, commonRanges, cfnames);
+            repairFutures = incrementalRepair(desc.parentSession, startTime, force, traceState, allNeighbors, commonRanges, cfnames);
         }
         else
         {
-            normalRepair(desc.parentSession, startTime, traceState, commonRanges, cfnames);
+            repairFutures = normalRepair(desc.parentSession, startTime, traceState, commonRanges, cfnames);
         }
+
+        Futures.addCallback(repairFutures, new FutureCallback<>()
+        {
+            public void onSuccess(String s)
+            {
+                RepairRunnable.this.onSuccess(s);
+            }
+
+            public void onFailure(Throwable throwable)
+            {
+                onError(throwable);
+            }
+        }, MoreExecutors.directExecutor());
     }
 
-    private void normalRepair(UUID parentSession,
-                              long startTime,
-                              TraceState traceState,
-                              List<CommonRange> commonRanges,
-                              String... cfnames)
+    private ListenableFuture<String> normalRepair(UUID parentSession,
+                                                  long startTime,
+                                                  TraceState traceState,
+                                                  List<CommonRange> commonRanges,
+                                                  String... cfnames)
     {
         // Setting the repairedAt time to UNREPAIRED_SSTABLE causes the repairedAt times to be preserved across streamed sstables
         final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, false, executor, commonRanges, cfnames);
@@ -315,7 +330,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 return Futures.immediateFuture(null);
             }
         }, MoreExecutors.directExecutor());
-        Futures.addCallback(repairResult, new RepairCompleteCallback(parentSession, successfulRanges, startTime, traceState, hasFailure, executor), MoreExecutors.directExecutor());
+        return Futures.transform(repairResult, new RepairCompleteCallback(parentSession, successfulRanges, startTime, traceState, hasFailure, executor), MoreExecutors.directExecutor());
     }
 
     /**
@@ -349,13 +364,13 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private void incrementalRepair(UUID parentSession,
-                                   long startTime,
-                                   boolean forceRepair,
-                                   TraceState traceState,
-                                   Set<InetAddressAndPort> allNeighbors,
-                                   List<CommonRange> commonRanges,
-                                   String... cfnames)
+    private ListenableFuture<String> incrementalRepair(UUID parentSession,
+                                                       long startTime,
+                                                       boolean forceRepair,
+                                                       TraceState traceState,
+                                                       Set<InetAddressAndPort> allNeighbors,
+                                                       List<CommonRange> commonRanges,
+                                                       String... cfnames)
     {
         // the local node also needs to be included in the set of participants, since coordinator sessions aren't persisted
         Set<InetAddressAndPort> allParticipants = ImmutableSet.<InetAddressAndPort>builder()
@@ -374,62 +389,41 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         {
             ranges.addAll(range);
         }
-        Futures.addCallback(repairResult, new RepairCompleteCallback(parentSession, ranges, startTime, traceState, hasFailure, executor), MoreExecutors.directExecutor());
+        return Futures.transform(repairResult, new RepairCompleteCallback(parentSession, ranges, startTime, traceState, hasFailure, executor), MoreExecutors.directExecutor());
     }
 
-    private void previewRepair(UUID parentSession,
-                               long startTime,
-                               List<CommonRange> commonRanges,
-                               String... cfnames)
+    private ListenableFuture<String> previewRepair(UUID parentSession,
+                                                   long startTime,
+                                                   List<CommonRange> commonRanges,
+                                                   String... cfnames)
     {
 
         logger.debug("Starting preview repair for {}", parentSession);
         // Set up RepairJob executor for this repair command.
 
         final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, false, executor, commonRanges, cfnames);
+        return Futures.transform(allSessions, results -> {
+            progress.sessionComplete(results);
+            PreviewKind previewKind = desc.options.getPreviewKind();
+            assert previewKind != PreviewKind.NONE;
+            SyncStatSummary summary = new SyncStatSummary(true);
+            summary.consumeSessionResults(results);
 
-        Futures.addCallback(allSessions, new FutureCallback<List<RepairSessionResult>>()
-        {
-            public void onSuccess(List<RepairSessionResult> results)
+            final String message;
+            if (summary.isEmpty())
             {
-                progress.sessionComplete(results);
-                try
-                {
-                    PreviewKind previewKind = desc.options.getPreviewKind();
-                    assert previewKind != PreviewKind.NONE;
-                    SyncStatSummary summary = new SyncStatSummary(true);
-                    summary.consumeSessionResults(results);
-
-                    final String message;
-                    if (summary.isEmpty())
-                    {
-                        message = previewKind == PreviewKind.REPAIRED ? "Repaired data is in sync" : "Previewed data was in sync";
-                    }
-                    else
-                    {
-                        message =  (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
-                    }
-                    logger.info(message);
-                    RepairRunnable.this.notify(message);
-                    RepairRunnable.this.onSuccess(completeMessage());
-                }
-                catch (Throwable t)
-                {
-                    onError(t);
-                }
+                message = previewKind == PreviewKind.REPAIRED ? "Repaired data is in sync" : "Previewed data was in sync";
+            }
+            else
+            {
+                message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
             }
 
-            public void onFailure(Throwable t)
-            {
-                onError(t);
-            }
-
-            private String completeMessage()
-            {
-                String duration = DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime,
-                                                                          true, true);
-                return String.format("Repair preview #%d finished in %s", cmd, duration);
-            }
+            logger.info(message);
+            RepairRunnable.this.notify(message);
+            String duration = DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime,
+                                                                      true, true);
+            return String.format("Repair preview #%d finished in %s", cmd, duration);
         }, MoreExecutors.directExecutor());
     }
 
@@ -605,7 +599,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private class RepairCompleteCallback implements FutureCallback<Object>
+    private class RepairCompleteCallback implements Function<Object, String>
     {
         final UUID parentSession;
         final Collection<Range<Token>> successfulRanges;
@@ -629,7 +623,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             this.executor = executor;
         }
 
-        public void onSuccess(Object result)
+        public String apply(Object o)
         {
             // Update the parent_repair_history table to show the ranges which were successful.
             // There is a assumption this code makes that the successful ranges may be a subset of repair ranges
@@ -643,24 +637,14 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 //TODO should get the exception from the session rather than create a new one
                 //TODO complete message regression here
                 //TODO onError should have been called by session already, so do we need here?
-                onError(new RuntimeException("Some repair failed"));
+                throw new RuntimeException("Some repair failed");
             }
             else
             {
-                RepairRunnable.this.onSuccess(repairComplete());
+                long durationMillis = System.currentTimeMillis() - startTimeMillis;
+                String duration = DurationFormatUtils.formatDurationWords(durationMillis,true, true);
+                return String.format("Repair command #%d finished in %s", cmd, duration);
             }
-        }
-
-        public void onFailure(Throwable t)
-        {
-            onError(t);
-        }
-
-        private String repairComplete()
-        {
-            long durationMillis = System.currentTimeMillis() - startTimeMillis;
-            String duration = DurationFormatUtils.formatDurationWords(durationMillis,true, true);
-            return String.format("Repair command #%d finished in %s", cmd, duration);
         }
     }
 
