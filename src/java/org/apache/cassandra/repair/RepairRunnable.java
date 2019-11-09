@@ -74,6 +74,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -134,19 +135,35 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
+    private void notify(String message)
+    {
+        logger.info(message);
+        fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, message));
+    }
+
+    private void progress(String message)
+    {
+        logger.info(message);
+        fireProgressEvent(new ProgressEvent(ProgressEventType.PROGRESS, progressCounter.incrementAndGet(), totalProgress, message));
+    }
+
     private void onSetup()
     {
         progress.start();
         ActiveRepairService.instance.recordRepairStatus(cmd, ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
     }
 
-    private void onSetupComplete(Tuple tuple)
-    {
-
-    }
-
     private void onStart(Tuple tuple)
     {
+        String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, desc.parentSession, desc.keyspace, desc.options);
+        logger.info(message);
+        if (tuple.traceState != null)
+        {
+            message = message + " tracing with " + tuple.traceState.sessionId;
+            Tracing.traceRepair(message); // TODO this is a timing regression; this was done before setup, but now its done on-start
+        }
+        fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
+
         if (!desc.options.isPreview())
         {
             SystemDistributedKeyspace.startParentRepair(desc.parentSession, desc.keyspace, tuple.cfnames, desc.options);
@@ -227,6 +244,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private Pair<Tuple, String> setup() throws Exception
     {
         onSetup();
+        //TODO should be part of progress, but added here to get code to compile later
         long setupTimeMillis = System.currentTimeMillis();
 
         String[] columnFamilies = desc.options.getColumnFamilies().toArray(new String[desc.options.getColumnFamilies().size()]);
@@ -238,9 +256,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             return Pair.create(null, String.format("Empty keyspace, skipping repair: %s", desc.keyspace));
         }
 
-        String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, desc.parentSession, desc.keyspace,
-                                       desc.options);
-        logger.info(message);
         final TraceState traceState;
         if (desc.options.isTraced())
         {
@@ -251,9 +266,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             UUID sessionId = Tracing.instance.newSession(Tracing.TraceType.REPAIR);
             traceState = Tracing.instance.begin("repair", ImmutableMap.of("keyspace", desc.keyspace, "columnFamilies",
                                                                           cfsb.substring(2)));
-            message = message + " tracing with " + sessionId;
-            fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
-            Tracing.traceRepair(message);
             traceState.enableActivityNotification(tag);
             for (ProgressListener listener : listeners)
                 traceState.addProgressListener(listener);
@@ -263,7 +275,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
         else
         {
-            fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
             traceState = null;
         }
 
@@ -298,7 +309,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
 
         Tuple tuple = new Tuple(traceState, allNeighbors, commonRanges, columnFamilyStores, cfnames, setupTimeMillis);
-        onSetupComplete(tuple);
         return Pair.create(tuple, null);
     }
 
@@ -343,9 +353,10 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
             start(tuple);
         }
-        catch (Exception e)
+        catch (Throwable e)
         {
             onError(e);
+            JVMStabilityInspector.inspectThrowable(e);
         }
     }
 
@@ -527,8 +538,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                         message =  (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
                     }
                     logger.info(message);
-                    fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, message));
-
+                    RepairRunnable.this.notify(message);
                     RepairRunnable.this.onSuccess(completeMessage());
                 }
                 catch (Throwable t)
@@ -608,24 +618,12 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         {
             String message = String.format("Repair session %s for range %s finished", session.getId(),
                                            session.ranges().toString());
-            logger.info(message);
-            fireProgressEvent(new ProgressEvent(ProgressEventType.PROGRESS,
-                                                progressCounter.incrementAndGet(),
-                                                totalProgress,
-                                                message));
+            progress(message);
         }
 
         public void onFailure(Throwable t)
         {
-            StorageMetrics.repairExceptions.inc();
-
-            String message = String.format("Repair session %s for range %s failed with error %s",
-                                           session.getId(), session.ranges().toString(), t.getMessage());
-            logger.error(message, t);
-            fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR,
-                                                progressCounter.incrementAndGet(),
-                                                totalProgress,
-                                                message));
+            onError(t); //TODO will this double count?
         }
     }
 
@@ -770,7 +768,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                         if (seen[si == 0 ? 1 : 0].contains(uuid))
                             continue;
                         String message = String.format("%s: %s", r.getInetAddress("source"), r.getString("activity"));
-                        fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, 0, 0, message));
+                        RepairRunnable.this.notify(message);
                     }
                     tlast = tcur;
 
