@@ -389,6 +389,9 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
 
 
+        //TODO can repair return a future and do cleanup there rather than each callbac?
+        // Looks possible, RepairCompleteCallback is incrementla and normal, and that is defining success; preview could do the same
+        // so may be much cleaner to only have repair work on happy case and this caller attach a listener for failures
         this.executor = createExecutor();
         if (desc.options.isPreview())
         {
@@ -664,6 +667,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             {
                 //TODO should get the exception from the session rather than create a new one
                 //TODO complete message regression here
+                //TODO onError should have been called by session already, so do we need here?
                 onError(new RuntimeException("Some repair failed"));
             }
             else
