@@ -26,6 +26,7 @@ import java.util.concurrent.locks.Lock;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -233,9 +234,10 @@ public class Keyspace
      * @param snapshotName     the tag associated with the name of the snapshot.  This value may not be null
      * @param columnFamilyName the column family to snapshot or all on null
      * @param skipFlush Skip blocking flush of memtable
+     * @param rateLimiter Rate limiter for hardlinks-per-second
      * @throws IOException if the column family doesn't exist
      */
-    public void snapshot(String snapshotName, String columnFamilyName, boolean skipFlush) throws IOException
+    public void snapshot(String snapshotName, String columnFamilyName, boolean skipFlush, RateLimiter rateLimiter) throws IOException
     {
         assert snapshotName != null;
         boolean tookSnapShot = false;
@@ -244,7 +246,7 @@ public class Keyspace
             if (columnFamilyName == null || cfStore.name.equals(columnFamilyName))
             {
                 tookSnapShot = true;
-                cfStore.snapshot(snapshotName, skipFlush);
+                cfStore.snapshot(snapshotName, skipFlush, rateLimiter);
             }
         }
 
@@ -262,7 +264,7 @@ public class Keyspace
      */
     public void snapshot(String snapshotName, String columnFamilyName) throws IOException
     {
-        snapshot(snapshotName, columnFamilyName, false);
+        snapshot(snapshotName, columnFamilyName, false, null);
     }
 
     /**
@@ -309,8 +311,11 @@ public class Keyspace
      */
     public static void clearSnapshot(String snapshotName, String keyspace)
     {
+        RateLimiter snapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
+                                                             Double.MAX_VALUE : DatabaseDescriptor.getSnapshotLinksPerSecond());
+
         List<File> snapshotDirs = Directories.getKSChildDirectories(keyspace);
-        Directories.clearSnapshot(snapshotName, snapshotDirs);
+        Directories.clearSnapshot(snapshotName, snapshotDirs, snapshotRateLimiter);
     }
 
     /**

@@ -40,9 +40,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.SyncUtil;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -177,15 +179,24 @@ public final class FileUtils
 
     public static Throwable deleteWithConfirm(String filePath, boolean expect, Throwable accumulate)
     {
-        return deleteWithConfirm(new File(filePath), expect, accumulate);
+        return deleteWithConfirm(new File(filePath), expect, accumulate, null);
     }
 
     public static Throwable deleteWithConfirm(File file, boolean expect, Throwable accumulate)
     {
+        return deleteWithConfirm(file, expect, accumulate, null);
+    }
+    
+    public static Throwable deleteWithConfirm(File file, boolean expect, Throwable accumulate, RateLimiter rateLimiter)
+    {
+        if (rateLimiter == null)
+            rateLimiter = RateLimiter.create(Double.MAX_VALUE);
+
         boolean exists = file.exists();
         assert exists || !expect : "attempted to delete non-existing file " + file.getName();
         try
         {
+            rateLimiter.acquire();
             if (exists)
                 Files.delete(file.toPath());
         }
@@ -210,7 +221,12 @@ public final class FileUtils
 
     public static void deleteWithConfirm(File file)
     {
-        maybeFail(deleteWithConfirm(file, true, null));
+        maybeFail(deleteWithConfirm(file, true, null, null));
+    }
+
+    public static void deleteWithConfirmWithThrottle(File file, RateLimiter rateLimiter)
+    {
+        maybeFail(deleteWithConfirm(file, true, null, rateLimiter));
     }
 
     public static void renameWithOutConfirm(String from, String to)
@@ -533,6 +549,25 @@ public final class FileUtils
             return val + " bytes";
         }
     }
+
+    /**
+     * Deletes all files and subdirectories under "dir".
+     * @param dir Directory to be deleted
+     * @throws FSWriteError if any part of the tree cannot be deleted
+     */
+    public static void deleteRecursiveWithThrottle(File dir, RateLimiter rateLimiter)
+    {
+        if (dir.isDirectory())
+        {
+            String[] children = dir.list();
+            for (String child : children)
+                deleteRecursiveWithThrottle(new File(dir, child), rateLimiter);
+        }
+
+        // The directory is now empty so now it can be smoked
+        deleteWithConfirmWithThrottle(dir, rateLimiter);
+    }
+
 
     /**
      * Deletes all files and subdirectories under "dir".

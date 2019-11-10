@@ -3562,8 +3562,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 throw new IOException("Snapshot " + tag + " already exists.");
 
 
+        RateLimiter snapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
+                                                             Double.MAX_VALUE : DatabaseDescriptor.getSnapshotLinksPerSecond());
+
         for (Keyspace keyspace : keyspaces)
-            keyspace.snapshot(tag, null, skipFlush);
+            keyspace.snapshot(tag, null, skipFlush, snapshotRateLimiter);
     }
 
     /**
@@ -3623,10 +3626,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
 
+        RateLimiter snapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
+                                                             Double.MAX_VALUE : DatabaseDescriptor.getSnapshotLinksPerSecond());
+
         for (Entry<Keyspace, List<String>> entry : keyspaceColumnfamily.entrySet())
         {
             for (String table : entry.getValue())
-                entry.getKey().snapshot(tag, table, skipFlush);
+                entry.getKey().snapshot(tag, table, skipFlush, snapshotRateLimiter);
         }
 
     }
@@ -3712,6 +3718,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         return total;
+    }
+
+    public void setSnapshotLinksPerSecond(long throttle)
+    {
+        if (throttle < 0)
+            throw new InvalidRequestException(String.format("Invalid snapshot throttle (must be long >= 0): %s", throttle));
+        logger.info("Setting snapshot throttle to {}", throttle);
+        DatabaseDescriptor.setSnapshotLinksPerSecond(throttle);
+    }
+
+    public long getSnapshotLinksPerSecond()
+    {
+        return DatabaseDescriptor.getSnapshotLinksPerSecond();
     }
 
     public void refreshSizeEstimates() throws ExecutionException

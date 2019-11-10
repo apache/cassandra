@@ -774,6 +774,9 @@ public class DatabaseDescriptor
                 conf.stream_entire_sstables = false;
             }
         }
+        
+        if (conf.snapshot_links_per_second < 0)
+            throw new ConfigurationException("snapshot_links_per_second must be >= 0");
 
         if (conf.max_value_size_in_mb <= 0)
             throw new ConfigurationException("max_value_size_in_mb must be positive", false);
@@ -2206,6 +2209,16 @@ public class DatabaseDescriptor
     public static boolean getAutoSnapshot()
     {
         return conf.auto_snapshot;
+    }
+
+    public static long getSnapshotLinksPerSecond()
+    {
+        return conf.snapshot_links_per_second;
+    }
+
+    public static void setSnapshotLinksPerSecond(long throttle)
+    {
+        conf.snapshot_links_per_second = throttle;
     }
 
     public static boolean isAutoBootstrap()
