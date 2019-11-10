@@ -281,7 +281,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Get the current hardlink-per-second throttle for snapshots
      * A setting of zero indicates no throttling.
      *
-     * @return
+     * @return snapshot links-per-second throttle
      */
     public long getSnapshotLinksPerSecond();
 

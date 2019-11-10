@@ -158,6 +158,8 @@ public class NodeTool
                 SetMaxHintWindow.class,
                 Snapshot.class,
                 ListSnapshots.class,
+                GetSnapshotThrottle.class,
+                SetSnapshotThrottle.class,
                 Status.class,
                 StatusBinary.class,
                 StatusGossip.class,
