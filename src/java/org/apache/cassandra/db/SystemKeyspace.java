@@ -1401,9 +1401,6 @@ public final class SystemKeyspace
         String previous = getPreviousVersionString();
         String next = FBUtilities.getReleaseVersionString();
 
-        RateLimiter snapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
-                                                             Double.MAX_VALUE : DatabaseDescriptor.getSnapshotLinksPerSecond());
-
         // if we're restarting after an upgrade, snapshot the system and schema keyspaces
         if (!previous.equals(NULL_VERSION.toString()) && !previous.equals(next))
 
@@ -1413,7 +1410,7 @@ public final class SystemKeyspace
                                                                              previous,
                                                                              next));
             for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
-                Keyspace.open(keyspace).snapshot(snapshotName, null, false, snapshotRateLimiter);
+                Keyspace.open(keyspace).snapshot(snapshotName, null, false, null);
         }
     }
 

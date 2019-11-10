@@ -774,7 +774,7 @@ public class DatabaseDescriptor
                 conf.stream_entire_sstables = false;
             }
         }
-        
+
         if (conf.snapshot_links_per_second < 0)
             throw new ConfigurationException("snapshot_links_per_second must be >= 0");
 
