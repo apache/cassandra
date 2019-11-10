@@ -204,6 +204,7 @@ public class Config
 
     public boolean snapshot_before_compaction = false;
     public boolean auto_snapshot = true;
+    public volatile long snapshot_links_per_second = 0;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public int column_index_size_in_kb = 64;

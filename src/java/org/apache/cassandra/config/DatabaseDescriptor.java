@@ -34,6 +34,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
+import com.google.common.util.concurrent.RateLimiter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -771,6 +772,9 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl", false);
             }
         }
+
+        if (conf.snapshot_links_per_second < 0)
+            throw new ConfigurationException("snapshot_links_per_second must be >= 0");
 
         if (conf.max_value_size_in_mb <= 0)
             throw new ConfigurationException("max_value_size_in_mb must be positive", false);
@@ -2292,6 +2296,24 @@ public class DatabaseDescriptor
     public static boolean getAutoSnapshot()
     {
         return conf.auto_snapshot;
+    }
+
+    public static long getSnapshotLinksPerSecond()
+    {
+        return conf.snapshot_links_per_second == 0 ? Long.MAX_VALUE : conf.snapshot_links_per_second;
+    }
+
+    public static void setSnapshotLinksPerSecond(long throttle)
+    {
+        if (throttle < 0)
+            throw new IllegalArgumentException("Invalid throttle for snapshot_links_per_second: must be positive");
+
+        conf.snapshot_links_per_second = throttle;
+    }
+
+    public static RateLimiter getSnapshotRateLimiter()
+    {
+        return RateLimiter.create(getSnapshotLinksPerSecond());
     }
 
     public static boolean isAutoBootstrap()
