@@ -1815,13 +1815,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     protected static void clearEphemeralSnapshots(Directories directories)
     {
-        RateLimiter snapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
+        RateLimiter clearSnapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
                                                              Double.MAX_VALUE : DatabaseDescriptor.getSnapshotLinksPerSecond());
 
         for (String ephemeralSnapshot : directories.listEphemeralSnapshots())
         {
             logger.trace("Clearing ephemeral snapshot {} leftover from previous session.", ephemeralSnapshot);
-            Directories.clearSnapshot(ephemeralSnapshot, directories.getCFDirectories(), snapshotRateLimiter);
+            Directories.clearSnapshot(ephemeralSnapshot, directories.getCFDirectories(), clearSnapshotRateLimiter);
         }
     }
 
@@ -1929,11 +1929,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void clearSnapshot(String snapshotName)
     {
-        RateLimiter snapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
+        RateLimiter clearSnapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
                                                              Double.MAX_VALUE : DatabaseDescriptor.getSnapshotLinksPerSecond());
 
         List<File> snapshotDirs = getDirectories().getCFDirectories();
-        Directories.clearSnapshot(snapshotName, snapshotDirs, snapshotRateLimiter);
+        Directories.clearSnapshot(snapshotName, snapshotDirs, clearSnapshotRateLimiter);
     }
     /**
      *
