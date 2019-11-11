@@ -81,8 +81,14 @@ public class CassandraDaemon
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=NativeAccess";
 
     private static final Logger logger;
-    static
+
+    @VisibleForTesting
+    public static CassandraDaemon getInstanceForTesting()
     {
+        return instance;
+    }
+
+    static {
         // Need to register metrics before instrumented appender is created(first access to LoggerFactory).
         SharedMetricRegistries.getOrCreate("logback-metrics").addListener(new MetricRegistryListener.Base()
         {
@@ -433,11 +439,15 @@ public class CassandraDaemon
         int rpcPort = DatabaseDescriptor.getRpcPort();
         int listenBacklog = DatabaseDescriptor.getRpcListenBacklog();
         thriftServer = new ThriftServer(rpcAddr, rpcPort, listenBacklog);
-
-        // Native transport
-        nativeTransportService = new NativeTransportService();
+        initializeNativeTransport();
 
         completeSetup();
+    }
+
+    public void initializeNativeTransport()
+    {
+        // Native transport
+        nativeTransportService = new NativeTransportService();
     }
 
     /*
@@ -516,28 +526,15 @@ public class CassandraDaemon
      */
     public void start()
     {
-        // We only start transports if bootstrap has completed and we're not in survey mode, OR if we are in
-        // survey mode and streaming has completed but we're not using auth.
-        // OR if we have not joined the ring yet.
-        if (StorageService.instance.hasJoined())
+        try
         {
-            if (StorageService.instance.isSurveyMode())
-            {
-                if (StorageService.instance.isBootstrapMode() || DatabaseDescriptor.getAuthenticator().requireAuthentication())
-                {
-                    logger.info("Not starting client transports in write_survey mode as it's bootstrapping or " +
-                            "auth is enabled");
-                    return;
-                }
-            }
-            else
-            {
-                if (!SystemKeyspace.bootstrapComplete())
-                {
-                    logger.info("Not starting client transports as bootstrap has not completed");
-                    return;
-                }
-            }
+            validateTransportsCanStart();
+        }
+        catch (IllegalStateException isx)
+        {
+            // If there are any errors, we just log and return in this case
+            logger.info(isx.getMessage());
+            return;
         }
 
         String nativeFlag = System.getProperty("cassandra.start_native_transport");
@@ -587,6 +584,16 @@ public class CassandraDaemon
             {
                 logger.error("Error shutting down local JMX server: ", e);
             }
+        }
+    }
+
+    @VisibleForTesting
+    public void destroyNativeTransport() throws InterruptedException
+    {
+        if (nativeTransportService != null)
+        {
+            nativeTransportService.destroy();
+            nativeTransportService = null;
         }
     }
 
@@ -665,7 +672,7 @@ public class CassandraDaemon
         DatabaseDescriptor.daemonInitialization();
     }
 
-    public void startNativeTransport()
+    public void validateTransportsCanStart()
     {
         // We only start transports if bootstrap has completed and we're not in survey mode, OR if we are in
         // survey mode and streaming has completed but we're not using auth.
@@ -677,7 +684,7 @@ public class CassandraDaemon
                 if (StorageService.instance.isBootstrapMode() || DatabaseDescriptor.getAuthenticator().requireAuthentication())
                 {
                     throw new IllegalStateException("Not starting client transports in write_survey mode as it's bootstrapping or " +
-                            "auth is enabled");
+                                                    "auth is enabled");
                 }
             }
             else
@@ -685,10 +692,15 @@ public class CassandraDaemon
                 if (!SystemKeyspace.bootstrapComplete())
                 {
                     throw new IllegalStateException("Node is not yet bootstrapped completely. Use nodetool to check bootstrap" +
-                            " state and resume. For more, see `nodetool help bootstrap`");
+                                                    " state and resume. For more, see `nodetool help bootstrap`");
                 }
             }
         }
+    }
+
+    public void startNativeTransport()
+    {
+        validateTransportsCanStart();
 
         if (nativeTransportService == null)
             throw new IllegalStateException("setup() must be called first for CassandraDaemon");
