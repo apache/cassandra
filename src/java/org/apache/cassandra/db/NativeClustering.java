@@ -34,6 +34,11 @@ public class NativeClustering extends AbstractClusteringPrefix implements Cluste
 
     private NativeClustering() { peer = 0; }
 
+    public ClusteringPrefix minimize()
+    {
+        return this;
+    }
+
     public NativeClustering(NativeAllocator allocator, OpOrder.Group writeOp, Clustering clustering)
     {
         int count = clustering.size();

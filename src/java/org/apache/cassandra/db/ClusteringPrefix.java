@@ -267,6 +267,12 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
      */
     public ByteBuffer[] getRawValues();
 
+    /**
+     * If the prefix contains byte buffers that can be minimized (see {@link ByteBufferUtil#minimalBufferFor(ByteBuffer)}),
+     * this will return a copy of the prefix with minimized values, otherwise it returns itself.
+     */
+    public ClusteringPrefix minimize();
+
     public static class Serializer
     {
         public void serialize(ClusteringPrefix clustering, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException

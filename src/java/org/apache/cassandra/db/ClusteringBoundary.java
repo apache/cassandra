@@ -22,6 +22,7 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
@@ -33,6 +34,13 @@ public class ClusteringBoundary extends ClusteringBoundOrBoundary
     protected ClusteringBoundary(Kind kind, ByteBuffer[] values)
     {
         super(kind, values);
+    }
+
+    public ClusteringPrefix minimize()
+    {
+        if (!ByteBufferUtil.canMinimize(values))
+            return this;
+        return new ClusteringBoundary(kind, ByteBufferUtil.minimizeBuffers(values));
     }
 
     public static ClusteringBoundary create(Kind kind, ByteBuffer[] values)
