@@ -122,4 +122,9 @@ public class NativeClustering extends AbstractClusteringPrefix implements Cluste
     {
         return EMPTY_SIZE;
     }
+
+    public ClusteringPrefix minimize()
+    {
+        return this;
+    }
 }
