@@ -65,4 +65,30 @@ public class CBUtilTest
         Assert.assertEquals(text, CBUtil.readLongString(buf));
         Assert.assertEquals(buf.writerIndex(), buf.readerIndex());
     }
+
+    @Test
+    public void writeAndReadAsciiString()
+    {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 1; i < 128; i++)
+            sb.append((char) i);
+        String write = sb.toString();
+        int size = CBUtil.sizeOfString(write);
+        buf = allocator.heapBuffer(size);
+        CBUtil.writeAsciiString(write, buf);
+        String read = CBUtil.readString(buf);
+        Assert.assertEquals(write, read);
+    }
+
+    @Test
+    public void writeAndReadAsciiStringMismatchWithNonUSAscii()
+    {
+        String invalidAsciiStr = "\u0080 \u0123 \u0321"; // a valid string contains no char > 0x007F
+        int size = CBUtil.sizeOfString(invalidAsciiStr);
+        buf = allocator.heapBuffer(size);
+        CBUtil.writeAsciiString(invalidAsciiStr, buf);
+        Assert.assertNotEquals("Characters (> 0x007F) is considered as 2 bytes in sizeOfString, meanwhile writeAsciiString writes just 1 byte",
+                               size,
+                               buf.writerIndex());
+    }
 }

@@ -152,13 +152,13 @@ public abstract class ResultMessage extends Message.Response
             public void encode(ResultMessage msg, ByteBuf dest, ProtocolVersion version)
             {
                 assert msg instanceof SetKeyspace;
-                CBUtil.writeString(((SetKeyspace)msg).keyspace, dest);
+                CBUtil.writeAsciiString(((SetKeyspace)msg).keyspace, dest);
             }
 
             public int encodedSize(ResultMessage msg, ProtocolVersion version)
             {
                 assert msg instanceof SetKeyspace;
-                return CBUtil.sizeOfString(((SetKeyspace)msg).keyspace);
+                return CBUtil.sizeOfAsciiString(((SetKeyspace)msg).keyspace);
             }
         };
 
