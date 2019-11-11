@@ -114,7 +114,9 @@ public class ErrorMessageTest
 
     private ErrorMessage serializeAndGetDeserializedErrorMessage(ErrorMessage message, ProtocolVersion version)
     {
-        ByteBuf buffer = Unpooled.buffer(ErrorMessage.codec.encodedSize(message, version));
+        int size = ErrorMessage.codec.encodedSize(message, version);
+        // cap the maxCapticity of buffer so that the correctness of the calculated encodeSize is examed.
+        ByteBuf buffer = Unpooled.buffer(size, size);
         ErrorMessage.codec.encode(message, buffer, version);
         return ErrorMessage.codec.decode(buffer, version);
     }

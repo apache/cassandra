@@ -38,7 +38,6 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
-import io.netty.util.CharsetUtil;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -137,11 +136,18 @@ public abstract class CBUtil
         }
     }
 
+    private static int inferSizeAndWriteString(String str, ByteBuf cb)
+    {
+        // leverage the encodeSize from previous step, instead of over-estimating the utf8MaxBytes
+        int estimation = cb.capacity() - cb.writerIndex();
+        return ByteBufUtil.reserveAndWriteUtf8(cb, str, estimation);
+    }
+
     public static void writeString(String str, ByteBuf cb)
     {
         int writerIndex = cb.writerIndex();
         cb.writeShort(0);
-        int written = ByteBufUtil.writeUtf8(cb, str);
+        int written = inferSizeAndWriteString(str, cb);
         cb.setShort(writerIndex, written);
     }
 
@@ -167,7 +173,7 @@ public abstract class CBUtil
     {
         int writerIndex = cb.writerIndex();
         cb.writeInt(0);
-        int written = ByteBufUtil.writeUtf8(cb, str);
+        int written = inferSizeAndWriteString(str, cb);
         cb.setInt(writerIndex, written);
     }
 
