@@ -3562,8 +3562,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 throw new IOException("Snapshot " + tag + " already exists.");
 
 
-        RateLimiter snapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
-                                                             Double.MAX_VALUE : DatabaseDescriptor.getSnapshotLinksPerSecond());
+        RateLimiter snapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond());
 
         for (Keyspace keyspace : keyspaces)
             keyspace.snapshot(tag, null, skipFlush, snapshotRateLimiter);
@@ -3626,8 +3625,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
 
-        RateLimiter snapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
-                                                             Double.MAX_VALUE : DatabaseDescriptor.getSnapshotLinksPerSecond());
+        RateLimiter snapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond());
 
         for (Entry<Keyspace, List<String>> entry : keyspaceColumnfamily.entrySet())
         {
@@ -3720,15 +3718,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return total;
     }
 
-    public void setSnapshotLinksPerSecond(long throttle)
+    public void setSnapshotLinksPerSecond(double throttle)
     {
-        if (throttle < 0)
-            throw new InvalidRequestException(String.format("Invalid snapshot throttle (must be long >= 0): %s", throttle));
         logger.info("Setting snapshot throttle to {}", throttle);
         DatabaseDescriptor.setSnapshotLinksPerSecond(throttle);
     }
 
-    public long getSnapshotLinksPerSecond()
+    public double getSnapshotLinksPerSecond()
     {
         return DatabaseDescriptor.getSnapshotLinksPerSecond();
     }

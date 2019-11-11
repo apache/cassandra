@@ -608,12 +608,12 @@ public class NodeProbe implements AutoCloseable
         return memProxy.getHeapMemoryUsage();
     }
 
-    public long getSnapshotLinksPerSecond()
+    public double getSnapshotLinksPerSecond()
     {
         return ssProxy.getSnapshotLinksPerSecond();
     }
 
-    public void setSnapshotLinksPerSecond(long throttle)
+    public void setSnapshotLinksPerSecond(double throttle)
     {
         ssProxy.setSnapshotLinksPerSecond(throttle);
     }

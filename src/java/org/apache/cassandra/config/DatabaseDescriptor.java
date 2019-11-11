@@ -2211,13 +2211,16 @@ public class DatabaseDescriptor
         return conf.auto_snapshot;
     }
 
-    public static long getSnapshotLinksPerSecond()
+    public static double getSnapshotLinksPerSecond()
     {
-        return conf.snapshot_links_per_second;
+        return conf.snapshot_links_per_second == 0 ? Double.POSITIVE_INFINITY : conf.snapshot_links_per_second;
     }
 
-    public static void setSnapshotLinksPerSecond(long throttle)
+    public static void setSnapshotLinksPerSecond(double throttle)
     {
+        if (throttle < 0)
+            throw new IllegalArgumentException("Invalid throttle for snapshot_links_per_second: must be positive");
+
         conf.snapshot_links_per_second = throttle;
     }
 

@@ -27,7 +27,7 @@ public class GetSnapshotThrottle extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        long throttle = probe.getSnapshotLinksPerSecond();
+        double throttle = probe.getSnapshotLinksPerSecond();
         if (throttle > 0)
             System.out.println("Current snapshot throttle: " + throttle + " links/s");
         else

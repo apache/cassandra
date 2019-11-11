@@ -188,14 +188,12 @@ public final class FileUtils
     
     public static Throwable deleteWithConfirm(File file, boolean expect, Throwable accumulate, RateLimiter rateLimiter)
     {
-        if (rateLimiter == null)
-            rateLimiter = RateLimiter.create(Double.MAX_VALUE);
-
         boolean exists = file.exists();
         assert exists || !expect : "attempted to delete non-existing file " + file.getName();
         try
         {
-            rateLimiter.acquire();
+            if (rateLimiter != null)
+                rateLimiter.acquire();
             if (exists)
                 Files.delete(file.toPath());
         }

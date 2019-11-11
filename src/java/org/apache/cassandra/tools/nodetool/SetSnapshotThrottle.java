@@ -26,7 +26,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class SetSnapshotThrottle extends NodeToolCmd
 {
     @Arguments(title = "setsnapshotthrottle", usage = "<throttle>", description = "Value represents hardlinks per second, 0 to disable throttling", required = true)
-    private Long snapshotThrottle = null;
+    private Double snapshotThrottle = null;
 
     @Override
     public void execute(NodeProbe probe)

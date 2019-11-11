@@ -1717,8 +1717,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public Set<SSTableReader> snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, RateLimiter rateLimiter)
     {
         if (rateLimiter == null)
-            rateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
-                                                                 Double.MAX_VALUE : DatabaseDescriptor.getSnapshotLinksPerSecond());
+            rateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond());
 
         Set<SSTableReader> snapshottedSSTables = new HashSet<>();
         for (ColumnFamilyStore cfs : concatWithIndexes())
@@ -1815,8 +1814,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     protected static void clearEphemeralSnapshots(Directories directories)
     {
-        RateLimiter clearSnapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
-                                                             Double.MAX_VALUE : DatabaseDescriptor.getSnapshotLinksPerSecond());
+        RateLimiter clearSnapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond());
 
         for (String ephemeralSnapshot : directories.listEphemeralSnapshots())
         {
@@ -1929,8 +1927,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void clearSnapshot(String snapshotName)
     {
-        RateLimiter clearSnapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond() == 0 ?
-                                                             Double.MAX_VALUE : DatabaseDescriptor.getSnapshotLinksPerSecond());
+        RateLimiter clearSnapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond());
 
         List<File> snapshotDirs = getDirectories().getCFDirectories();
         Directories.clearSnapshot(snapshotName, snapshotDirs, clearSnapshotRateLimiter);
