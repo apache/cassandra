@@ -25,19 +25,18 @@ import java.util.Map;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.transport.messages.EncodeAndDecodeTestBase;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 
 import static org.junit.Assert.assertEquals;
 
-public class ErrorMessageTest
+public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
 {
     private static Map<InetAddressAndPort, RequestFailureReason> failureReasonMap1;
     private static Map<InetAddressAndPort, RequestFailureReason> failureReasonMap2;
@@ -63,7 +62,7 @@ public class ErrorMessageTest
         boolean dataPresent = false;
         ReadFailureException rfe = new ReadFailureException(consistencyLevel, receivedBlockFor, receivedBlockFor, dataPresent, failureReasonMap1);
 
-        ErrorMessage deserialized = serializeAndGetDeserializedErrorMessage(ErrorMessage.fromException(rfe), ProtocolVersion.V5);
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(rfe), ProtocolVersion.V5);
         ReadFailureException deserializedRfe = (ReadFailureException) deserialized.error;
 
         assertEquals(failureReasonMap1, deserializedRfe.failureReasonByEndpoint);
@@ -81,7 +80,7 @@ public class ErrorMessageTest
         WriteType writeType = WriteType.SIMPLE;
         WriteFailureException wfe = new WriteFailureException(consistencyLevel, receivedBlockFor, receivedBlockFor, writeType, failureReasonMap2);
 
-        ErrorMessage deserialized = serializeAndGetDeserializedErrorMessage(ErrorMessage.fromException(wfe), ProtocolVersion.V5);
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(wfe), ProtocolVersion.V5);
         WriteFailureException deserializedWfe = (WriteFailureException) deserialized.error;
 
         assertEquals(failureReasonMap2, deserializedWfe.failureReasonByEndpoint);
@@ -112,10 +111,8 @@ public class ErrorMessageTest
         assertEquals(failureReasonMap1, wfe.failureReasonByEndpoint);
     }
 
-    private ErrorMessage serializeAndGetDeserializedErrorMessage(ErrorMessage message, ProtocolVersion version)
+    protected Message.Codec<ErrorMessage> getCodec()
     {
-        ByteBuf buffer = Unpooled.buffer(ErrorMessage.codec.encodedSize(message, version));
-        ErrorMessage.codec.encode(message, buffer, version);
-        return ErrorMessage.codec.decode(buffer, version);
+        return ErrorMessage.codec;
     }
 }
