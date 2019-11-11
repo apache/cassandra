@@ -73,6 +73,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
@@ -92,6 +93,7 @@ import org.apache.cassandra.utils.memory.BufferPool;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
@@ -357,6 +359,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 if (config.has(GOSSIP))
                 {
                     StorageService.instance.initServer();
+                    StorageService.instance.removeShutdownHook();
                 }
                 else
                 {
@@ -366,6 +369,15 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.ensureTraceKeyspace();
 
                 SystemKeyspace.finishStartup();
+
+                if (config.has(NATIVE_PROTOCOL))
+                {
+                    // Start up virtual table support
+                    CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
+
+                    CassandraDaemon.getInstanceForTesting().initializeNativeTransport();
+                    CassandraDaemon.getInstanceForTesting().startNativeTransport();
+                }
 
                 if (!FBUtilities.getBroadcastAddressAndPort().equals(broadcastAddressAndPort()))
                     throw new IllegalStateException();
@@ -464,7 +476,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
 
-            if (config.has(GOSSIP))
+            error = parallelRun(error, executor, CassandraDaemon.getInstanceForTesting()::destroyNativeTransport);
+
+            if (config.has(GOSSIP) || config.has(NETWORK))
             {
                 StorageService.instance.shutdownServer();
             }
@@ -505,6 +519,15 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         return CompletableFuture.runAsync(ThrowingRunnable.toRunnable(future::get), isolatedExecutor)
                                 .thenRun(super::shutdown);
+    }
+
+    public int liveMemberCount()
+    {
+        return sync(() -> {
+            if (!DatabaseDescriptor.isDaemonInitialized() || !Gossiper.instance.isEnabled())
+                return 0;
+            return Gossiper.instance.getLiveMembers().size();
+        }).call();
     }
 
     private static void shutdownAndWait(List<ExecutorService> executors) throws TimeoutException, InterruptedException
