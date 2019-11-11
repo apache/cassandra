@@ -58,16 +58,21 @@ public class InstanceConfig implements IInstanceConfig
     {
         if (broadcastAddressAndPort == null)
         {
-            try
-            {
-                broadcastAddressAndPort = InetAddressAndPort.getByNameOverrideDefaults(getString("broadcast_address"), getInt("storage_port"));
-            }
-            catch (UnknownHostException e)
-            {
-                throw new IllegalStateException(e);
-            }
+            broadcastAddressAndPort = getAddressAndPortFromConfig("broadcast_address", "storage_port");
         }
         return broadcastAddressAndPort;
+    }
+
+    private InetAddressAndPort getAddressAndPortFromConfig(String addressProp, String portProp)
+    {
+        try
+        {
+            return InetAddressAndPort.getByNameOverrideDefaults(getString(addressProp), getInt(portProp));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new IllegalStateException(e);
+        }
     }
 
     private InstanceConfig(int num,
@@ -97,6 +102,7 @@ public class InstanceConfig implements IInstanceConfig
 //                .set("cdc_directory", cdc_directory)
                 .set("initial_token", initial_token)
                 .set("partitioner", "org.apache.cassandra.dht.Murmur3Partitioner")
+                .set("start_native_transport", true)
                 .set("concurrent_writes", 2)
                 .set("concurrent_counter_writes", 2)
                 .set("concurrent_materialized_view_writes", 2)
@@ -109,6 +115,11 @@ public class InstanceConfig implements IInstanceConfig
                 .set("endpoint_snitch", DistributedTestSnitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
                         Collections.singletonMap("seeds", "127.0.0.1")))
+                .set("auto_bootstrap", false)
+                // capacities that are based on `totalMemory` that should be fixed size
+                .set("index_summary_capacity_in_mb", 50l)
+                .set("counter_cache_size_in_mb", 50l)
+                .set("key_cache_size_in_mb", 50l)
                 // legacy parameters
                 .forceSet("commitlog_sync_batch_window_in_ms", 1.0);
         this.featureFlags = EnumSet.noneOf(Feature.class);
@@ -127,6 +138,13 @@ public class InstanceConfig implements IInstanceConfig
     public InstanceConfig with(Feature featureFlag)
     {
         featureFlags.add(featureFlag);
+        return this;
+    }
+
+    public InstanceConfig with(Feature... flags)
+    {
+        for (Feature flag : flags)
+            featureFlags.add(flag);
         return this;
     }
 

@@ -43,9 +43,11 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -129,7 +131,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
         private IInvokableInstance newInstance(int generation)
         {
-            ClassLoader classLoader = new InstanceClassLoader(generation, version.classpath, sharedClassLoader);
+            ClassLoader classLoader = new InstanceClassLoader(generation, config.num, version.classpath, sharedClassLoader);
             return Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>)Instance::new, classLoader)
                            .apply(config, classLoader);
         }
@@ -169,6 +171,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             Future<Void> future = delegate.shutdown(graceful);
             delegate = null;
             return future;
+        }
+
+        public int liveMemberCount()
+        {
+            if (!isShutdown && delegate != null)
+                return delegate().liveMemberCount();
+
+            throw new IllegalStateException("Cannot get live member count on shutdown instance");
         }
 
         @Override
@@ -250,15 +260,21 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
     }
 
     public void forEach(IIsolatedExecutor.SerializableRunnable runnable) { forEach(i -> i.sync(runnable)); }
-    public void forEach(Consumer<? super I> consumer) { instances.forEach(consumer); }
-    public void parallelForEach(IIsolatedExecutor.SerializableConsumer<? super I> consumer, long timeout, TimeUnit units)
+    public void forEach(Consumer<? super I> consumer) { forEach(instances, consumer); }
+    public void forEach(List<I> instancesForOp, Consumer<? super I> consumer) { instancesForOp.forEach(consumer); }
+
+    public void parallelForEach(IIsolatedExecutor.SerializableConsumer<? super I> consumer, long timeout, TimeUnit unit)
+    {
+            parallelForEach(instances, consumer, timeout, unit);
+    }
+
+    public void parallelForEach(List<I> instances, IIsolatedExecutor.SerializableConsumer<? super I> consumer, long timeout, TimeUnit unit)
     {
         FBUtilities.waitOnFutures(instances.stream()
                                            .map(i -> i.async(consumer).apply(i))
                                            .collect(Collectors.toList()),
-                                  timeout, units);
+                                  timeout, unit);
     }
-
 
     public IMessageFilters filters() { return filters; }
     public MessageFilters.Builder verbs(MessagingService.Verb ... verbs) { return filters.verbs(verbs); }
@@ -278,7 +294,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             {
                 // execute the schema change
                 coordinator(1).execute(query, ConsistencyLevel.ALL);
-                monitor.waitForAgreement();
+                monitor.waitForCompletion();
             }
         }).run();
     }
@@ -301,6 +317,66 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
     }
 
+    public abstract class ChangeMonitor implements AutoCloseable
+    {
+        final List<IListen.Cancel> cleanup;
+        final SimpleCondition completed;
+        private final long timeOut;
+        private final TimeUnit timeoutUnit;
+        volatile boolean changed;
+
+        public ChangeMonitor(long timeOut, TimeUnit timeoutUnit)
+        {
+            this.timeOut = timeOut;
+            this.timeoutUnit = timeoutUnit;
+            this.cleanup = new ArrayList<>(instances.size());
+            this.completed = new SimpleCondition();
+        }
+
+        protected void signal()
+        {
+            if (changed && isCompleted())
+                completed.signalAll();
+        }
+
+        @Override
+        public void close()
+        {
+            for (IListen.Cancel cancel : cleanup)
+                cancel.cancel();
+        }
+
+        public void waitForCompletion()
+        {
+            startPolling();
+            changed = true;
+            signal();
+            try
+            {
+                if (!completed.await(timeOut, timeoutUnit))
+                    throw new InterruptedException();
+            }
+            catch (InterruptedException e)
+            {
+                throw new IllegalStateException(getMonitorTimeoutMessage());
+            }
+        }
+
+        private void startPolling()
+        {
+            for (IInstance instance : instances)
+                cleanup.add(startPolling(instance));
+        }
+
+        protected abstract IListen.Cancel startPolling(IInstance instance);
+
+        protected abstract boolean isCompleted();
+
+        protected abstract String getMonitorTimeoutMessage();
+    }
+
+
+
     /**
      * Will wait for a schema change AND agreement that occurs after it is created
      * (and precedes the invocation to waitForAgreement)
@@ -311,45 +387,49 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
      *
      * This could perhaps be made a little more robust, but this should more than suffice.
      */
-    public class SchemaChangeMonitor implements AutoCloseable
+    public class SchemaChangeMonitor extends ChangeMonitor
     {
-        final List<IListen.Cancel> cleanup;
-        volatile boolean schemaHasChanged;
-        final SimpleCondition agreement = new SimpleCondition();
-
         public SchemaChangeMonitor()
         {
-            this.cleanup = new ArrayList<>(instances.size());
-            for (IInstance instance : instances)
-                cleanup.add(instance.listen().schema(this::signal));
+            super(70, TimeUnit.SECONDS);
         }
 
-        private void signal()
+        protected IListen.Cancel startPolling(IInstance instance)
         {
-            if (schemaHasChanged && 1 == instances.stream().filter(i -> !i.isShutdown()).map(IInstance::schemaVersion).distinct().count())
-                agreement.signalAll();
+            return instance.listen().schema(this::signal);
         }
 
-        @Override
-        public void close()
+        protected boolean isCompleted()
         {
-            for (IListen.Cancel cancel : cleanup)
-                cancel.cancel();
+            return 1 == instances.stream().map(IInstance::schemaVersion).distinct().count();
         }
 
-        public void waitForAgreement()
+        protected String getMonitorTimeoutMessage()
         {
-            schemaHasChanged = true;
-            signal();
-            try
-            {
-                if (!agreement.await(1L, TimeUnit.MINUTES))
-                    throw new InterruptedException();
-            }
-            catch (InterruptedException e)
-            {
-                throw new IllegalStateException("Schema agreement not reached");
-            }
+            return "Schema agreement not reached";
+        }
+    }
+
+    public class AllMembersAliveMonitor extends ChangeMonitor
+    {
+        public AllMembersAliveMonitor()
+        {
+            super(60, TimeUnit.SECONDS);
+        }
+
+        protected IListen.Cancel startPolling(IInstance instance)
+        {
+            return instance.listen().liveMembers(this::signal);
+        }
+
+        protected boolean isCompleted()
+        {
+            return instances.stream().allMatch(i -> !i.config().has(Feature.GOSSIP) || i.liveMemberCount() == instances.size());
+        }
+
+        protected String getMonitorTimeoutMessage()
+        {
+            return "Live member count did not converge across all instances";
         }
     }
 
@@ -360,7 +440,25 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     public void startup()
     {
-        forEach(I::startup);
+        try (AllMembersAliveMonitor monitor = new AllMembersAliveMonitor())
+        {
+            // Start any instances with auto_bootstrap enabled first, and in series to avoid issues
+            // with multiple nodes bootstrapping with consistent range movement enabled,
+            // and then start any instances with it disabled in parallel.
+            List<I> startSequentially = new ArrayList<>();
+            List<I> startParallel = new ArrayList<>();
+            for (I instance : instances)
+            {
+                if ((boolean) instance.config().get("auto_bootstrap"))
+                    startSequentially.add(instance);
+                else
+                    startParallel.add(instance);
+            }
+
+            forEach(startSequentially, I::startup);
+            parallelForEach(startParallel, I::startup, 0, null);
+            monitor.waitForCompletion();
+        }
     }
 
     protected interface Factory<I extends IInstance, C extends AbstractCluster<I>>
