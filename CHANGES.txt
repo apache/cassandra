@@ -13,6 +13,7 @@ Merged from 2.2:
  * Add `allocate_tokens_for_local_replication_factor` option for token allocation (CASSANDRA-15260)
  * Add Alibaba Cloud Platform snitch (CASSANDRA-15092)
 Merged from 3.0:
+ * Minimize clustering values in metadata collector (CASSANDRA-15400)
  * Make sure index summary redistribution does not start when compactions are paused (CASSANDRA-15265)
  * Add ability to cap max negotiable protocol version (CASSANDRA-15193)
  * Gossip tokens on startup if available (CASSANDRA-15335)
