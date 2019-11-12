@@ -20,9 +20,7 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -39,20 +37,16 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.repair.JobProgress;
 import org.apache.cassandra.repair.RepairJobDesc;
-import org.apache.cassandra.repair.RepairSessionDesc;
 import org.apache.cassandra.repair.RepairState;
 import org.apache.cassandra.repair.RepairState.JobState;
 import org.apache.cassandra.repair.RepairState.SessionState;
-import org.apache.cassandra.repair.SessionProgress;
 import org.apache.cassandra.repair.ValidationProgress;
 import org.apache.cassandra.repair.messages.ValidationStatusRequest;
 import org.apache.cassandra.repair.messages.ValidationStatusResponse;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 public class RepairTables
 {
@@ -181,7 +175,7 @@ public class RepairTables
                 switch (status.state)
                 {
                     case UNKNOWN:
-                        return new RemoteState(JobProgress.State.VALIDATION_REQUEST.name().toLowerCase(), .4F, null);
+                        return new RemoteState(JobState.State.VALIDATION_REQUEST.name().toLowerCase(), .4F, null);
                     case SUCCESS:
                         return new RemoteState("validaton_complete_await_rsp", 100, null);
                     case FAILURE:

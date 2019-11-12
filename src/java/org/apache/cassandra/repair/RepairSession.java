@@ -82,8 +82,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 {
     private static Logger logger = LoggerFactory.getLogger(RepairSession.class);
 
-    public final SessionProgress progress = new SessionProgress();
-
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
 
     // Each validation task waits response from replica in validating ConcurrentMap (keyed by CF name and endpoint address)
@@ -275,12 +273,12 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      */
     public void start(ListeningExecutorService executor)
     {
-        progress.start();
+        state.start();
 
         String message;
         if (terminated)
         {
-            progress.skip("session was terminated");
+            state.skip("session was terminated");
             return;
         }
 
@@ -295,7 +293,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         {
             logger.info("{} {}", repairState.options.getPreviewKind().logPrefix(getId()), message = String.format("No neighbors to repair with on range %s: session completed", state.range));
             Tracing.traceRepair(message);
-            progress.skip(message);
+            state.skip(message);
             set(new RepairSessionResult(state.id, repairState.keyspace, state.range.ranges, Lists.<RepairResult>newArrayList(), forceSkippedReplicas));
             if (!repairState.options.getPreviewKind().isPreview())
             {
@@ -312,7 +310,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                 message = String.format("Cannot proceed on repair because a neighbor (%s) is dead: session failed", endpoint);
                 logger.error("{} {}", repairState.options.getPreviewKind().logPrefix(getId()), message);
                 Exception e = new IOException(message);
-                progress.fail(e);
+                state.fail(e);
                 setException(e);
                 if (!repairState.options.getPreviewKind().isPreview())
                 {
@@ -331,7 +329,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             jobs.add(job);
         }
 
-        progress.jobsSubmitted();
+        state.jobsSubmitted();
 
         // When all RepairJobs are done without error, cleanup and set the final result
         Futures.addCallback(Futures.allAsList(jobs), new FutureCallback<List<RepairResult>>()
@@ -340,7 +338,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             {
                 // this repair session is completed
                 logger.info("{} {}", repairState.options.getPreviewKind().logPrefix(getId()), "Session completed successfully");
-                progress.complete();
+                state.complete();
                 Tracing.traceRepair("Completed sync of range {}", state.range);
                 set(new RepairSessionResult(state.id, repairState.keyspace, state.range.ranges, results, forceSkippedReplicas));
 
@@ -352,7 +350,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             public void onFailure(Throwable t)
             {
                 logger.error("{} Session completed with the following error", repairState.options.getPreviewKind().logPrefix(getId()), t);
-                progress.fail(t);
+                state.fail(t);
                 Tracing.traceRepair("Session completed with the following error: {}", t);
                 forceShutdown(t);
             }

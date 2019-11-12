@@ -86,7 +86,7 @@ public class RepairState implements Iterable<RepairState.SessionState>
 
     public SessionState createSession(CommonRange range)
     {
-        SessionState sessionState = new SessionState(range);
+        SessionState sessionState = new SessionState(this, range);
         sessions.put(sessionState.id, sessionState);
         return sessionState;
     }
@@ -192,23 +192,79 @@ public class RepairState implements Iterable<RepairState.SessionState>
         lastUpdatedAtNs = now;
     }
 
-    public final class SessionState implements Iterable<JobState>
+    public static final class SessionState implements Iterable<JobState>
     {
+        public enum State {
+            INIT, START,
+            JOBS_SUBMIT, JOBS_COMPLETE,
+            SKIPPED, FAILURE
+        }
+
         public final UUID id = UUIDGen.getTimeUUID();
         public final Map<UUID, JobState> jobs = new HashMap<>();
+        private final long creationTimeMillis = System.currentTimeMillis();
+        private final long[] stateTimes = new long[State.values().length];
+        private int currentState;
+        private String failureCause;
+        private volatile long lastUpdatedAtNs;
+        private final RepairState repair;
         public final CommonRange range;
 
-        private SessionState(CommonRange range)
+        private SessionState(RepairState repair, CommonRange range)
         {
+            this.repair = repair;
             this.range = range;
         }
 
         public JobState createJob(String tableName)
         {
-            RepairState repair = RepairState.this;
             JobState state = new JobState(new RepairJobDesc(repair.id, id, repair.keyspace, tableName, range.ranges));
             jobs.put(state.id, state);
             return state;
+        }
+
+        public void start()
+        {
+            updateState(State.START);
+        }
+
+        public void jobsSubmitted()
+        {
+            updateState(State.JOBS_SUBMIT);
+        }
+
+        public void complete()
+        {
+            updateState(State.JOBS_COMPLETE);
+        }
+
+        public void skip(String reason)
+        {
+            failureCause = reason;
+            updateState(State.SKIPPED);
+        }
+
+        public void fail(String cause)
+        {
+            failureCause = cause;
+            updateState(State.FAILURE);
+        }
+
+        public void fail(Throwable cause)
+        {
+            fail(Throwables.getStackTraceAsString(cause));
+        }
+
+        public State getState()
+        {
+            return State.values()[currentState];
+        }
+
+        private void updateState(State state)
+        {
+            long now = System.nanoTime();
+            stateTimes[currentState = state.ordinal()] = now;
+            lastUpdatedAtNs = now;
         }
 
         public Iterator<JobState> iterator()
@@ -229,7 +285,7 @@ public class RepairState implements Iterable<RepairState.SessionState>
 
         public final UUID id = UUIDGen.getTimeUUID();
         private final long creationTimeMillis = System.currentTimeMillis();
-        private final long[] stateTimes = new long[JobProgress.State.values().length];
+        private final long[] stateTimes = new long[State.values().length];
         private int currentState;
         private String failureCause;
         private volatile long lastUpdatedAtNs;
