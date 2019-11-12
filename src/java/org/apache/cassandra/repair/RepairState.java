@@ -18,16 +18,31 @@
 
 package org.apache.cassandra.repair;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.repair.messages.ValidationStatusRequest;
+import org.apache.cassandra.repair.messages.ValidationStatusResponse;
+import org.apache.cassandra.utils.CompletableFutureUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
@@ -218,7 +233,13 @@ public class RepairState implements Iterable<RepairState.SessionState>
 
         public JobState createJob(String tableName)
         {
-            JobState state = new JobState(new RepairJobDesc(repair.id, id, repair.keyspace, tableName, range.ranges));
+            RepairJobDesc desc = new RepairJobDesc(repair.id, id, repair.keyspace, tableName, range.ranges);
+            // endpoints removes self, so add it back
+            Set<InetAddressAndPort> participants = ImmutableSet.<InetAddressAndPort>builder()
+                                                   .addAll(range.endpoints) // this includes transient endpoints
+                                                   .add(FBUtilities.getBroadcastAddressAndPort())
+                                                   .build();
+            JobState state = new JobState(desc, participants);
             jobs.put(state.id, state);
             return state;
         }
@@ -290,11 +311,78 @@ public class RepairState implements Iterable<RepairState.SessionState>
         private String failureCause;
         private volatile long lastUpdatedAtNs;
         public final RepairJobDesc desc;
+        private final Set<InetAddressAndPort> participants;
 
-        public JobState(RepairJobDesc desc)
+        public JobState(RepairJobDesc desc, Set<InetAddressAndPort> participants)
         {
             this.desc = desc;
+            this.participants = participants;
             updateState(State.INIT);
+        }
+
+        public CompletableFuture<Map<InetAddressAndPort, RemoteState>> getParticipantState()
+        {
+            CompletableFuture<Map<InetAddressAndPort, RemoteState>> future;
+            switch (getState())
+            {
+                case VALIDATION_REQUEST:
+                    future = getValidationState();
+                    break;
+                default:
+                    future = getLocalState();
+            }
+            return future;
+        }
+
+        private CompletableFuture<Map<InetAddressAndPort, RemoteState>> getValidationState()
+        {
+            MessagingService ms = MessagingService.instance();
+            Message<ValidationStatusRequest> msg = Message.builder(Verb.VALIDATION_STAT_REQ, new ValidationStatusRequest(desc)).build();
+            List<CompletableFuture<Pair<InetAddressAndPort, RemoteState>>> futures = new ArrayList<>(participants.size());
+            for (InetAddressAndPort participant : participants)
+            {
+                CompletableFuture<Pair<InetAddressAndPort, RemoteState>> f = ms.<ValidationStatusResponse>sendFuture(msg, participant).thenApply(rsp -> {
+                    ValidationStatusResponse status = rsp.payload;
+                    RemoteState state;
+                    switch (status.state)
+                    {
+                        case UNKNOWN:
+                            state = new RemoteState(JobState.State.VALIDATION_REQUEST.name().toLowerCase(), 0f, null);
+                            break;
+                        case SUCCESS:
+                            state = new RemoteState("validaton_complete_await_rsp", 1f, null);
+                            break;
+                        case FAILURE:
+                            state = new RemoteState("failure", 1f, status.failureCause);
+                            break;
+                        default:
+                            state = new RemoteState("validating", status.progress, null);
+                    }
+                    return Pair.create(participant, state);
+                });
+                futures.add(f);
+            }
+            return CompletableFutureUtil.allOf(futures)
+                                 .thenApply(list -> {
+                                     Map<InetAddressAndPort, RemoteState> map = Maps.newHashMapWithExpectedSize(list.size());
+                                     for (Pair<InetAddressAndPort, RemoteState> e : list)
+                                         map.put(e.left, e.right);
+                                     return map;
+                                 });
+        }
+
+        private CompletableFuture<Map<InetAddressAndPort, RemoteState>> getLocalState()
+        {
+            Map<InetAddressAndPort, RemoteState> map = Maps.newHashMapWithExpectedSize(participants.size());
+            State state = getState();
+            for (InetAddressAndPort p : participants)
+                map.put(p, new RemoteState(state.name().toLowerCase(), 0f, null));
+            return CompletableFuture.completedFuture(map);
+        }
+
+        public Set<InetAddressAndPort> getParticipants()
+        {
+            return participants;
         }
 
         public void start()

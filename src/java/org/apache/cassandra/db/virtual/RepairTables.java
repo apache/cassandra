@@ -21,11 +21,11 @@ package org.apache.cassandra.db.virtual;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.DecoratedKey;
@@ -34,16 +34,12 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.RemoteState;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairState;
 import org.apache.cassandra.repair.RepairState.JobState;
 import org.apache.cassandra.repair.RepairState.SessionState;
 import org.apache.cassandra.repair.ValidationProgress;
-import org.apache.cassandra.repair.messages.ValidationStatusRequest;
-import org.apache.cassandra.repair.messages.ValidationStatusResponse;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -115,11 +111,16 @@ public class RepairTables
             UUID parentSessionId = state.id;
             String keyspace = state.keyspace;
             InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPort();
+            Map<String, String> options = state.options.asMap();
 
             for (SessionState session : state)
             {
                 for (JobState job : session)
                 {
+                    //TODO if all jobs are validating/syncing, is it best to do blocking at job level?
+                    // if blocking was at repair level, then N (num_jobs) * P (num_participants) concurrent messages would go out
+                    // if this is "too big" then could get a hoard affect with replies, so by blocking
+                    // at the job level, this is bounded to P
                     RepairJobDesc jobDesc = job.desc;
 
                     // call early to make sure reads are visable
@@ -127,7 +128,13 @@ public class RepairTables
 
                     List<String> ranges = jobDesc.ranges.stream().map(Range::toString).collect(Collectors.toList());
 
-                    Stream.concat(Stream.of(coordinator), session.range.endpoints.stream()).forEach(participant -> {
+                    CompletableFuture<Map<InetAddressAndPort, RemoteState>> participantStates = job.getParticipantState();
+                    //TODO if exception, should query fail or should partition be skipped?
+                    for (Map.Entry<InetAddressAndPort, RemoteState> e : participantStates.join().entrySet())
+                    {
+                        InetAddressAndPort participant = e.getKey();
+                        RemoteState remoteState = e.getValue();
+
                         dataSet.row(parentSessionId, jobDesc.sessionId, jobDesc.columnFamily, participant.toString());
 
                         // shared columns
@@ -138,65 +145,35 @@ public class RepairTables
                         // job specific columns
                         dataSet.column("ranges", ranges);
 
-//                        switch (jobProgress.getState())
-//                        {
-//                            case VALIDATION_REQUEST:
-//                                try
-//                                {
-//                                    RemoteState remoteState = getValidationState(jobDesc, participant).join();
-//                                    dataSet.column("state", remoteState.state);
-//                                    dataSet.column("progress_percentage", remoteState.progressPercentage);
-//                                    if (remoteState.failureCause != null)
-//                                        dataSet.column("failure_cause", remoteState.failureCause);
-//                                    break;
-//                                }
-//                                catch (Exception e)
-//                                {
-//                                    // go to default
-//                                    e.printStackTrace();
-//                                }
-//                            default:
-//                                dataSet.column("state", jobProgress.getState().name().toLowerCase());
-//                                dataSet.column("progress_percentage", jobProgress.getProgress() * 100);
-//
-//                                if (jobProgress.getFailureCause() != null)
-//                                    dataSet.column("failure_cause", jobProgress.getFailureCause());
-//                        }
-                    });
+                        // participant state
+                        dataSet.column("state", remoteState.state);
+                        dataSet.column("progress_percentage", getTaskProgress(job.getState(), remoteState.progress) * 100);
+                        if (remoteState.failureCause != null)
+                            dataSet.column("failure_cause", remoteState.failureCause);
+                    }
                 }
             }
         }
 
-        private CompletableFuture<RemoteState> getValidationState(RepairJobDesc desc, InetAddressAndPort participant)
+        private static float getTaskProgress(JobState.State state, float progress)
         {
-            CompletableFuture<Message<ValidationStatusResponse>> future = MessagingService.instance().sendFuture(Message.builder(Verb.VALIDATION_STAT_REQ, new ValidationStatusRequest(desc)).build(), participant);
-            return future.thenApply(rsp -> {
-                ValidationStatusResponse status = rsp.payload;
-                switch (status.state)
-                {
-                    case UNKNOWN:
-                        return new RemoteState(JobState.State.VALIDATION_REQUEST.name().toLowerCase(), .4F, null);
-                    case SUCCESS:
-                        return new RemoteState("validaton_complete_await_rsp", 100, null);
-                    case FAILURE:
-                        return new RemoteState("failure", 100, status.failureCause);
-                    default:
-                        return new RemoteState("validating", 40F * status.progress, null);
-                }
-            });
-        }
-    }
-
-    private static class RemoteState {
-        public final String state;
-        public final float progressPercentage;
-        public final String failureCause;
-
-        private RemoteState(String state, float progressPercentage, String failureCause)
-        {
-            this.state = state;
-            this.progressPercentage = progressPercentage;
-            this.failureCause = failureCause;
+            // assume validation is 40% of work and syncing is 40% as well (20% for bookkeeping)
+            int validationRange = 40;
+            int syncRange = 40;
+            switch (state)
+            {
+                case VALIDATION_REQUEST:
+                    // 21-60%
+                    return progress;
+                case VALIDATON_COMPLETE:
+                    return .6f;
+                case SYNC_REQUEST:
+                    // 61-100%
+                    return progress;
+                default:
+                    //TODO
+                    return progress;
+            }
         }
     }
 

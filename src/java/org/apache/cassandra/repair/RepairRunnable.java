@@ -274,7 +274,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             repairFutures = normalRepair(state.id, startTimeMillis, traceState, commonRanges, cfnames);
         }
 
-        Futures.addCallback(repairFutures, new FutureCallback<>()
+        Futures.addCallback(repairFutures, new FutureCallback<String>()
         {
             public void onSuccess(String s)
             {
