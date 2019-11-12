@@ -36,6 +36,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
@@ -63,11 +64,11 @@ public class RepairSessionTest
         IPartitioner p = Murmur3Partitioner.instance;
         Range<Token> repairRange = new Range<>(p.getToken(ByteBufferUtil.bytes(0)), p.getToken(ByteBufferUtil.bytes(100)));
         Set<InetAddressAndPort> endpoints = Sets.newHashSet(remote);
-        RepairSession session = new RepairSession(parentSessionId, sessionId,
-                                                  new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)),
-                                                  "Keyspace1", RepairParallelism.SEQUENTIAL,
-                                                  false, false, false,
-                                                  PreviewKind.NONE, false, "Standard1");
+        CommonRange commonRange = new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange));
+        RepairOption options = new RepairOption(RepairParallelism.SEQUENTIAL, false, false, false, 1, commonRange.ranges, false, false, false, PreviewKind.NONE, false);
+        RepairState repairState = new RepairState(parentSessionId, 1, "Keyspace1", options);
+        repairState.phaseStart(new String[]{ "Standard1" }, Arrays.asList(commonRange));
+        RepairSession session = new RepairSession(repairState, commonRange);
 
         // perform convict
         session.convict(remote, Double.MAX_VALUE);

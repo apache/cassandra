@@ -43,6 +43,8 @@ import org.apache.cassandra.repair.JobProgress;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairSessionDesc;
 import org.apache.cassandra.repair.RepairState;
+import org.apache.cassandra.repair.RepairState.JobState;
+import org.apache.cassandra.repair.RepairState.SessionState;
 import org.apache.cassandra.repair.SessionProgress;
 import org.apache.cassandra.repair.ValidationProgress;
 import org.apache.cassandra.repair.messages.ValidationStatusRequest;
@@ -118,64 +120,57 @@ public class RepairTables
         {
             UUID parentSessionId = state.id;
             String keyspace = state.keyspace;
+            InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPort();
 
-            Map<UUID, Pair<RepairSessionDesc, SessionProgress>> sessions = new HashMap<>();
-            ActiveRepairService.instance.repairSessionProgress(parentSessionId, (a, b) -> {
-                sessions.put(a.id, Pair.create(a, b));
-            });
-
-            ActiveRepairService.instance.repairJobProgress(parentSessionId, (jobDesc, jobProgress) -> {
-                Pair<RepairSessionDesc, SessionProgress> session = sessions.get(jobDesc.sessionId);
-                if (session == null)
+            for (SessionState session : state)
+            {
+                for (JobState job : session)
                 {
-                    //TODO handle this; means that between this call the session should be there now
-                    return;
+                    RepairJobDesc jobDesc = job.desc;
+
+                    // call early to make sure reads are visable
+//                    long jobLastUpdatedAtNs = jobProgress.getLastUpdatedAtNs();
+
+                    List<String> ranges = jobDesc.ranges.stream().map(Range::toString).collect(Collectors.toList());
+
+                    Stream.concat(Stream.of(coordinator), session.range.endpoints.stream()).forEach(participant -> {
+                        dataSet.row(parentSessionId, jobDesc.sessionId, jobDesc.columnFamily, participant.toString());
+
+                        // shared columns
+                        dataSet.column("keyspace_name", keyspace);
+//                        dataSet.column("options", options); //TODO this breaks vtables =)
+                        dataSet.column("coordinator", coordinator.toString());
+
+                        // job specific columns
+                        dataSet.column("ranges", ranges);
+
+//                        switch (jobProgress.getState())
+//                        {
+//                            case VALIDATION_REQUEST:
+//                                try
+//                                {
+//                                    RemoteState remoteState = getValidationState(jobDesc, participant).join();
+//                                    dataSet.column("state", remoteState.state);
+//                                    dataSet.column("progress_percentage", remoteState.progressPercentage);
+//                                    if (remoteState.failureCause != null)
+//                                        dataSet.column("failure_cause", remoteState.failureCause);
+//                                    break;
+//                                }
+//                                catch (Exception e)
+//                                {
+//                                    // go to default
+//                                    e.printStackTrace();
+//                                }
+//                            default:
+//                                dataSet.column("state", jobProgress.getState().name().toLowerCase());
+//                                dataSet.column("progress_percentage", jobProgress.getProgress() * 100);
+//
+//                                if (jobProgress.getFailureCause() != null)
+//                                    dataSet.column("failure_cause", jobProgress.getFailureCause());
+//                        }
+                    });
                 }
-
-                // call early to make sure reads are visable
-//                long jobLastUpdatedAtNs = jobProgress.getLastUpdatedAtNs();
-
-                InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPort();
-                List<String> ranges = jobDesc.ranges.stream().map(Range::toString).collect(Collectors.toList());
-
-                RepairSessionDesc sessionDesc = session.left;
-                Stream.concat(Stream.of(coordinator), sessionDesc.commonRange.endpoints.stream()).forEach(participant -> {
-                    dataSet.row(parentSessionId, jobDesc.sessionId, jobDesc.columnFamily, participant.toString());
-
-                    // shared columns
-                    dataSet.column("keyspace_name", keyspace);
-//                dataSet.column("options", options); //TODO this breaks vtables =)
-                    dataSet.column("coordinator", coordinator.toString());
-
-                    // job specific columns
-                    dataSet.column("ranges", ranges);
-
-                    switch (jobProgress.getState())
-                    {
-                        case VALIDATION_REQUEST:
-                            try
-                            {
-                                RemoteState remoteState = getValidationState(jobDesc, participant).join();
-                                dataSet.column("state", remoteState.state);
-                                dataSet.column("progress_percentage", remoteState.progressPercentage);
-                                if (remoteState.failureCause != null)
-                                    dataSet.column("failure_cause", remoteState.failureCause);
-                                break;
-                            }
-                            catch (Exception e)
-                            {
-                                // go to default
-                                e.printStackTrace();
-                            }
-                        default:
-                            dataSet.column("state", jobProgress.getState().name().toLowerCase());
-                            dataSet.column("progress_percentage", jobProgress.getProgress() * 100);
-
-                            if (jobProgress.getFailureCause() != null)
-                                dataSet.column("failure_cause", jobProgress.getFailureCause());
-                    }
-                });
-            });
+            }
         }
 
         private CompletableFuture<RemoteState> getValidationState(RepairJobDesc desc, InetAddressAndPort participant)

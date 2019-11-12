@@ -118,8 +118,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     }
 
     private final ConcurrentMap<UUID, RepairState> repairHistory = new NonBlockingHashMap<>();
-    private final ConcurrentMap<RepairSessionDesc, SessionProgress> repairSessionProgress = new NonBlockingHashMap<>();
-    private final ConcurrentMap<RepairJobDesc, JobProgress> repairJobProgress = new NonBlockingHashMap<>();
     private final ConcurrentMap<RepairJobDesc, ValidationProgress> validationProgress = new NonBlockingHashMap<>();
     public final ConsistentSessions consistent = new ConsistentSessions();
 
@@ -217,29 +215,16 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *
      * @return Future for asynchronous call or null if there is no need to repair
      */
-    public RepairSession submitRepairSession(UUID parentRepairSession,
-                                             CommonRange range,
-                                             String keyspace,
-                                             RepairParallelism parallelismDegree,
-                                             boolean isIncremental,
-                                             boolean pullRepair,
-                                             boolean force,
-                                             PreviewKind previewKind,
-                                             boolean optimiseStreams,
-                                             ListeningExecutorService executor,
-                                             String... cfnames)
+    public RepairSession submitRepairSession(RepairState repairState, CommonRange range, ListeningExecutorService executor)
     {
         if (range.endpoints.isEmpty())
             return null;
 
-        if (cfnames.length == 0)
+        if (repairState.cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace,
-                                                        parallelismDegree, isIncremental, pullRepair, force,
-                                                        previewKind, optimiseStreams, cfnames);
+        final RepairSession session = new RepairSession(repairState, range);
 
-        trackRepairSession(session);
         sessions.put(session.getId(), session);
         // register listeners
         registerOnFdAndGossip(session);
@@ -316,16 +301,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         putAndLogOnConflict(repairHistory, "repair", repair.state.id, repair.state);
     }
 
-    public void trackRepairSession(RepairSession session)
-    {
-        putAndLogOnConflict(repairSessionProgress, "repair session", session.desc, session.progress);
-    }
-
-    public void trackRepairJob(RepairJob job)
-    {
-        putAndLogOnConflict(repairJobProgress, "repair jobs", job.desc, job.progress);
-    }
-
     public void trackValidation(RepairJobDesc desc, ValidationProgress progress)
     {
         putAndLogOnConflict(validationProgress, "validators", desc, progress);
@@ -399,32 +374,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public Collection<RepairState> getRepairStates()
     {
         return Collections.unmodifiableCollection(repairHistory.values());
-    }
-
-    public void repairSessionProgress(BiConsumer<RepairSessionDesc, SessionProgress> fn)
-    {
-        repairSessionProgress.forEach(fn);
-    }
-
-    public void repairSessionProgress(UUID parentSessionId, BiConsumer<RepairSessionDesc, SessionProgress> fn)
-    {
-        repairSessionProgress.forEach((desc, progress) -> {
-            if (parentSessionId.equals(desc.parentRepairSession))
-                fn.accept(desc, progress);
-        });
-    }
-
-    public void repairJobProgress(BiConsumer<RepairJobDesc, JobProgress> fn)
-    {
-        repairJobProgress.forEach(fn);
-    }
-
-    public void repairJobProgress(UUID parentSessionId, BiConsumer<RepairJobDesc, JobProgress> fn)
-    {
-        repairJobProgress.forEach((desc, progress) -> {
-            if (parentSessionId.equals(desc.parentSessionId))
-                fn.accept(desc, progress);
-        });
     }
 
     public ValidationProgress getValidationProgress(RepairJobDesc desc)

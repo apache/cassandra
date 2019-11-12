@@ -439,17 +439,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         for (CommonRange commonRange : commonRanges)
         {
             logger.info("Starting RepairSession for {}", commonRange);
-            RepairSession session = ActiveRepairService.instance.submitRepairSession(parentSession,
-                                                                                     commonRange,
-                                                                                     state.keyspace,
-                                                                                     state.options.getParallelism(),
-                                                                                     isIncremental,
-                                                                                     state.options.isPullRepair(),
-                                                                                     force,
-                                                                                     state.options.getPreviewKind(),
-                                                                                     state.options.optimiseStreams(),
-                                                                                     executor,
-                                                                                     cfnames);
+            RepairSession session = ActiveRepairService.instance.submitRepairSession(state, commonRange, executor);
             if (session == null)
                 continue;
             Futures.addCallback(session, new RepairSessionCallback(session), MoreExecutors.directExecutor());

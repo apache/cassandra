@@ -32,6 +32,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.repair.RepairState.JobState;
+import org.apache.cassandra.repair.RepairState.SessionState;
 import org.apache.cassandra.repair.asymmetric.DifferenceHolder;
 import org.apache.cassandra.repair.asymmetric.HostDifferences;
 import org.apache.cassandra.repair.asymmetric.PreferedNodeFilter;
@@ -51,11 +53,11 @@ import org.apache.cassandra.utils.Pair;
 public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairJob.class);
-
-    public final JobProgress progress = new JobProgress();
-    public final RepairJobDesc desc;
-    private final RepairSession session;
+    
     private final RepairParallelism parallelismDegree;
+    private final RepairSession session;
+    private final JobState state;
+    private final RepairJobDesc desc;
     private final ListeningExecutorService taskExecutor;
 
     /**
@@ -67,12 +69,12 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     public RepairJob(RepairSession session, String columnFamily)
     {
         this.session = session;
-        this.desc = new RepairJobDesc(session.desc.parentRepairSession, session.getId(), session.desc.keyspace, columnFamily, session.desc.commonRange.ranges);
+        this.state = session.state.createJob(columnFamily);
+        this.desc = state.desc;
         this.taskExecutor = session.taskExecutor;
-        this.parallelismDegree = session.desc.parallelismDegree;
+        this.parallelismDegree = session.getParallelism();
     }
-
-
+    
     /**
      * Runs repair job.
      *
@@ -81,11 +83,11 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      */
     public void run()
     {
-        progress.start();
-        Keyspace ks = Keyspace.open(desc.keyspace);
-        ColumnFamilyStore cfs = ks.getColumnFamilyStore(desc.columnFamily);
+        state.start();
+        Keyspace ks = Keyspace.open(state.desc.keyspace);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(state.desc.columnFamily);
         cfs.metric.repairsStarted.inc();
-        List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.desc.commonRange.endpoints);
+        List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.endpoints());
         allEndpoints.add(FBUtilities.getBroadcastAddressAndPort());
 
         ListenableFuture<List<TreeResponse>> validations;
@@ -93,7 +95,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         if (parallelismDegree != RepairParallelism.PARALLEL)
         {
             ListenableFuture<List<InetAddressAndPort>> allSnapshotTasks;
-            if (session.desc.isIncremental)
+            if (session.isIncremental())
             {
                 // consistent repair does it's own "snapshotting"
                 allSnapshotTasks = Futures.immediateFuture(allEndpoints);
@@ -101,7 +103,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             else
             {
                 // Request snapshot to all replica
-                progress.snapshotRequest();
+                state.snapshotRequest();
                 List<ListenableFuture<InetAddressAndPort>> snapshotTasks = new ArrayList<>(allEndpoints.size());
                 for (InetAddressAndPort endpoint : allEndpoints)
                 {
@@ -110,7 +112,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     taskExecutor.execute(snapshotTask);
                 }
                 allSnapshotTasks = Futures.transform(Futures.allAsList(snapshotTasks), rsps -> {
-                    progress.snapshotComplete();
+                    state.snapshotComplete();
                     return rsps;
                 }, MoreExecutors.directExecutor());
             }
@@ -120,7 +122,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             {
                 public ListenableFuture<List<TreeResponse>> apply(List<InetAddressAndPort> endpoints)
                 {
-                    progress.validationRequested();
+                    state.validationRequested();
                     if (parallelismDegree == RepairParallelism.SEQUENTIAL)
                         return sendSequentialValidationRequest(endpoints);
                     else
@@ -135,13 +137,13 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         }
 
         validations = Futures.transform(validations, rsp -> {
-            progress.validationComplete();
+            state.validationComplete();
             return rsp;
         }, MoreExecutors.directExecutor());
 
         // When all validations complete, submit sync tasks
         ListenableFuture<List<SyncStat>> syncResults = Futures.transformAsync(validations,
-                                                                              session.desc.optimiseStreams && !session.desc.pullRepair ? this::optimisedSyncing : this::standardSyncing,
+                                                                              session.isOptimiseStreams() && !session.isPullRepair() ? this::optimisedSyncing : this::standardSyncing,
                                                                               taskExecutor);
 
         // When all sync complete, set the final result
@@ -149,11 +151,11 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         {
             public void onSuccess(List<SyncStat> stats)
             {
-                progress.complete();
-                if (!session.desc.previewKind.isPreview())
+                state.complete();
+                if (!session.getPreviewKind().isPreview())
                 {
-                    logger.info("{} {} is fully synced", session.desc.previewKind.logPrefix(session.getId()), desc.columnFamily);
-                    SystemDistributedKeyspace.successfulRepairJob(session.getId(), desc.keyspace, desc.columnFamily);
+                    logger.info("{} {} is fully synced", session.getPreviewKind().logPrefix(session.getId()), state.desc.columnFamily);
+                    SystemDistributedKeyspace.successfulRepairJob(session.getId(), state.desc.keyspace, state.desc.columnFamily);
                 }
                 cfs.metric.repairsCompleted.inc();
                 set(new RepairResult(desc, stats));
@@ -164,11 +166,11 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
              */
             public void onFailure(Throwable t)
             {
-                progress.fail(t);
-                if (!session.desc.previewKind.isPreview())
+                state.fail(t);
+                if (!session.getPreviewKind().isPreview())
                 {
-                    logger.warn("{} {} sync failed", session.desc.previewKind.logPrefix(session.getId()), desc.columnFamily);
-                    SystemDistributedKeyspace.failedRepairJob(session.getId(), desc.keyspace, desc.columnFamily, t);
+                    logger.warn("{} {} sync failed", session.getPreviewKind().logPrefix(session.getId()), state.desc.columnFamily);
+                    SystemDistributedKeyspace.failedRepairJob(session.getId(), state.desc.keyspace, state.desc.columnFamily, t);
                 }
                 cfs.metric.repairsCompleted.inc();
                 setException(t);
@@ -178,7 +180,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
     private boolean isTransient(InetAddressAndPort ep)
     {
-        return session.desc.commonRange.transEndpoints.contains(ep);
+        return session.getCommonRange().transEndpoints.contains(ep);
     }
 
     private ListenableFuture<List<SyncStat>> standardSyncing(List<TreeResponse> trees)
@@ -187,9 +189,9 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                                                            trees,
                                                            FBUtilities.getLocalAddressAndPort(),
                                                            this::isTransient,
-                                                           session.desc.isIncremental,
-                                                           session.desc.pullRepair,
-                                                           session.desc.previewKind);
+                                                           session.isIncremental(),
+                                                           session.isPullRepair(),
+                                                           session.getPreviewKind());
         return executeTasks(syncTasks);
     }
 
@@ -265,8 +267,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                                                                    FBUtilities.getLocalAddressAndPort(),
                                                                    this::isTransient,
                                                                    this::getDC,
-                                                                   session.desc.isIncremental,
-                                                                   session.desc.previewKind);
+                                                                   session.isIncremental(),
+                                                                   session.getPreviewKind());
 
         return executeTasks(syncTasks);
     }
@@ -280,7 +282,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 session.trackSyncCompletion(Pair.create(desc, task.nodePair()), (CompletableRemoteSyncTask) task);
             taskExecutor.submit(task);
         }
-        progress.syncRequest();
+        state.syncRequest();
 
         return Futures.allAsList(syncTasks);
     }
@@ -358,15 +360,15 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      */
     private ListenableFuture<List<TreeResponse>> sendValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
-        progress.validationRequested();
-        String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
-        logger.info("{} {}", session.desc.previewKind.logPrefix(desc.sessionId), message);
+        state.validationRequested();
+        String message = String.format("Requesting merkle trees for %s (to %s)", state.desc.columnFamily, endpoints);
+        logger.info("{} {}", session.getPreviewKind().logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         int nowInSec = FBUtilities.nowInSeconds();
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
         for (InetAddressAndPort endpoint : endpoints)
         {
-            ValidationTask task = new ValidationTask(desc, endpoint, nowInSec, session.desc.previewKind);
+            ValidationTask task = new ValidationTask(desc, endpoint, nowInSec, session.getPreviewKind());
             tasks.add(task);
             session.trackValidationCompletion(Pair.create(desc, endpoint), task);
             taskExecutor.execute(task);
@@ -379,15 +381,15 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      */
     private ListenableFuture<List<TreeResponse>> sendSequentialValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
-        String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
-        logger.info("{} {}", session.desc.previewKind.logPrefix(desc.sessionId), message);
+        String message = String.format("Requesting merkle trees for %s (to %s)", state.desc.columnFamily, endpoints);
+        logger.info("{} {}", session.getPreviewKind().logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         int nowInSec = FBUtilities.nowInSeconds();
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
 
         Queue<InetAddressAndPort> requests = new LinkedList<>(endpoints);
         InetAddressAndPort address = requests.poll();
-        ValidationTask firstTask = new ValidationTask(desc, address, nowInSec, session.desc.previewKind);
+        ValidationTask firstTask = new ValidationTask(desc, address, nowInSec, session.getPreviewKind());
         logger.info("Validating {}", address);
         session.trackValidationCompletion(Pair.create(desc, address), firstTask);
         tasks.add(firstTask);
@@ -395,7 +397,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         while (requests.size() > 0)
         {
             final InetAddressAndPort nextAddress = requests.poll();
-            final ValidationTask nextTask = new ValidationTask(desc, nextAddress, nowInSec, session.desc.previewKind);
+            final ValidationTask nextTask = new ValidationTask(desc, nextAddress, nowInSec, session.getPreviewKind());
             tasks.add(nextTask);
             Futures.addCallback(currentTask, new FutureCallback<TreeResponse>()
             {
@@ -421,8 +423,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      */
     private ListenableFuture<List<TreeResponse>> sendDCAwareValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
-        String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
-        logger.info("{} {}", session.desc.previewKind.logPrefix(desc.sessionId), message);
+        String message = String.format("Requesting merkle trees for %s (to %s)", state.desc.columnFamily, endpoints);
+        logger.info("{} {}", session.getPreviewKind().logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         int nowInSec = FBUtilities.nowInSeconds();
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
@@ -444,7 +446,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         {
             Queue<InetAddressAndPort> requests = entry.getValue();
             InetAddressAndPort address = requests.poll();
-            ValidationTask firstTask = new ValidationTask(desc, address, nowInSec, session.desc.previewKind);
+            ValidationTask firstTask = new ValidationTask(desc, address, nowInSec, session.getPreviewKind());
             logger.info("Validating {}", address);
             session.trackValidationCompletion(Pair.create(desc, address), firstTask);
             tasks.add(firstTask);
@@ -452,7 +454,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             while (requests.size() > 0)
             {
                 final InetAddressAndPort nextAddress = requests.poll();
-                final ValidationTask nextTask = new ValidationTask(desc, nextAddress, nowInSec, session.desc.previewKind);
+                final ValidationTask nextTask = new ValidationTask(desc, nextAddress, nowInSec, session.getPreviewKind());
                 tasks.add(nextTask);
                 Futures.addCallback(currentTask, new FutureCallback<TreeResponse>()
                 {

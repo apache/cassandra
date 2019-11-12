@@ -18,13 +18,17 @@
 
 package org.apache.cassandra.repair;
 
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * Keeps track of the state for a single repair.
@@ -44,7 +48,7 @@ import org.apache.cassandra.repair.messages.RepairOption;
  * each repair ({@link RepairRunnable}) and tasks are actors which can fail on their own.  For this reason its possible
  * to have a repair succeed or fail without any child tasks; same is true for {@link RepairSession} as well.
  */
-public class RepairState
+public class RepairState implements Iterable<RepairState.SessionState>
 {
     public enum Phase {
         INIT, SETUP, STARTED,
@@ -64,10 +68,11 @@ public class RepairState
     private int currentState;
     private String failureCause;
     private volatile long lastUpdatedAtNs;
+    private final Map<UUID, SessionState> sessions = new HashMap<>();
 
     // defined once repair starts
-    private List<CommonRange> commonRanges; // each CommonRange will spawn a new RepairSession
-    private String[] cfnames;
+    public List<CommonRange> commonRanges; // each CommonRange will spawn a new RepairSession
+    public String[] cfnames;
 
     public RepairState(UUID id, int cmd, String keyspace, RepairOption options)
     {
@@ -77,6 +82,18 @@ public class RepairState
         this.options = options;
 
         updatePhase(Phase.INIT);
+    }
+
+    public SessionState createSession(CommonRange range)
+    {
+        SessionState sessionState = new SessionState(range);
+        sessions.put(sessionState.id, sessionState);
+        return sessionState;
+    }
+
+    public Iterator<SessionState> iterator()
+    {
+        return sessions.values().iterator();
     }
 
     public Phase getPhase()
@@ -173,5 +190,113 @@ public class RepairState
         long now = System.nanoTime();
         phaseTimesNanos[currentState = phase.ordinal()] = now;
         lastUpdatedAtNs = now;
+    }
+
+    public final class SessionState implements Iterable<JobState>
+    {
+        public final UUID id = UUIDGen.getTimeUUID();
+        public final Map<UUID, JobState> jobs = new HashMap<>();
+        public final CommonRange range;
+
+        private SessionState(CommonRange range)
+        {
+            this.range = range;
+        }
+
+        public JobState createJob(String tableName)
+        {
+            RepairState repair = RepairState.this;
+            JobState state = new JobState(new RepairJobDesc(repair.id, id, repair.keyspace, tableName, range.ranges));
+            jobs.put(state.id, state);
+            return state;
+        }
+
+        public Iterator<JobState> iterator()
+        {
+            return jobs.values().iterator();
+        }
+    }
+
+    public static final class JobState
+    {
+        public enum State {
+            INIT, START,
+            SNAPSHOT_REQUEST, SNAPSHOT_COMPLETE,
+            VALIDATION_REQUEST, VALIDATON_COMPLETE,
+            SYNC_REQUEST, SYNC_COMPLETE,
+            FAILURE
+        }
+
+        public final UUID id = UUIDGen.getTimeUUID();
+        private final long creationTimeMillis = System.currentTimeMillis();
+        private final long[] stateTimes = new long[JobProgress.State.values().length];
+        private int currentState;
+        private String failureCause;
+        private volatile long lastUpdatedAtNs;
+        public final RepairJobDesc desc;
+
+        public JobState(RepairJobDesc desc)
+        {
+            this.desc = desc;
+            updateState(State.INIT);
+        }
+
+        public void start()
+        {
+            updateState(State.START);
+        }
+
+        public void snapshotRequest()
+        {
+            updateState(State.SNAPSHOT_REQUEST);
+        }
+
+        public void snapshotComplete()
+        {
+            updateState(State.SNAPSHOT_COMPLETE);
+        }
+
+        public void validationRequested()
+        {
+            updateState(State.VALIDATION_REQUEST);
+        }
+
+        public void validationComplete()
+        {
+            updateState(State.VALIDATON_COMPLETE);
+        }
+
+        public void syncRequest()
+        {
+            updateState(State.SYNC_REQUEST);
+        }
+
+        public void complete()
+        {
+            updateState(State.SYNC_COMPLETE);
+        }
+
+        public void fail(String failureCause)
+        {
+            this.failureCause = failureCause;
+            updateState(State.FAILURE);
+        }
+
+        public void fail(Throwable failureCause)
+        {
+            fail(Throwables.getStackTraceAsString(failureCause));
+        }
+
+        public State getState()
+        {
+            return State.values()[currentState];
+        }
+
+        private void updateState(State state)
+        {
+            long now = System.nanoTime();
+            stateTimes[currentState = state.ordinal()] = now;
+            lastUpdatedAtNs = now;
+        }
     }
 }

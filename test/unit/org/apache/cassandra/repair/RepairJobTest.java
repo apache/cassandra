@@ -56,6 +56,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -101,11 +102,9 @@ public class RepairJobTest
     // memory retention from CASSANDRA-14096
     private static class MeasureableRepairSession extends RepairSession
     {
-        public MeasureableRepairSession(UUID parentRepairSession, UUID id, CommonRange commonRange, String keyspace,
-                                        RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
-                                        boolean force, PreviewKind previewKind, boolean optimiseStreams, String... cfnames)
+        public MeasureableRepairSession(RepairState repairState, CommonRange commonRange)
         {
-            super(parentRepairSession, id, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair, force, previewKind, optimiseStreams, cfnames);
+            super(repairState, commonRange);
         }
 
         protected DebuggableThreadPoolExecutor createExecutor()
@@ -138,15 +137,14 @@ public class RepairJobTest
                                                                  Collections.singletonList(Keyspace.open(KEYSPACE).getColumnFamilyStore(CF)), fullRange, false,
                                                                  ActiveRepairService.UNREPAIRED_SSTABLE, false, PreviewKind.NONE);
 
-        this.session = new MeasureableRepairSession(parentRepairSession, UUIDGen.getTimeUUID(),
-                                                    new CommonRange(neighbors, Collections.emptySet(), fullRange),
-                                                    KEYSPACE, RepairParallelism.SEQUENTIAL,
-                                                    false, false, false,
-                                                    PreviewKind.NONE, false, CF);
-
+        CommonRange commonRange = new CommonRange(neighbors, Collections.emptySet(), fullRange);
+        RepairOption options = new RepairOption(RepairParallelism.SEQUENTIAL, false, false, false, 1, commonRange.ranges, false, false, false, PreviewKind.NONE, false);
+        RepairState state = new RepairState(parentRepairSession, 1, KEYSPACE, options);
+        state.phaseStart(new String[]{ CF }, Arrays.asList(commonRange));
+        this.session = new MeasureableRepairSession(state, commonRange);
         this.job = new RepairJob(session, CF);
-        this.sessionJobDesc = new RepairJobDesc(session.desc.parentRepairSession, session.getId(),
-                                                session.desc.keyspace, CF, session.ranges());
+        this.sessionJobDesc = new RepairJobDesc(session.getParentRepairId(), session.getId(),
+                                                session.getKeyspace(), CF, session.ranges());
 
         FBUtilities.setBroadcastInetAddress(addr1.address);
     }
@@ -218,9 +216,9 @@ public class RepairJobTest
         List<SyncTask> syncTasks = RepairJob.createStandardSyncTasks(sessionJobDesc, mockTreeResponses,
                                                                      addr4, // local
                                                                      noTransient(),
-                                                                     session.desc.isIncremental,
-                                                                     session.desc.pullRepair,
-                                                                     session.desc.previewKind);
+                                                                     session.isIncremental(),
+                                                                     session.isPullRepair(),
+                                                                     session.getPreviewKind());
 
         // SyncTasks themselves should not contain significant memory
         assertTrue(ObjectSizes.measureDeep(syncTasks) < 0.2 * singleTreeSize);
