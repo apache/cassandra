@@ -20,6 +20,9 @@ package org.apache.cassandra.repair;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+import com.google.common.base.Throwables;
 
 import org.apache.cassandra.repair.messages.RepairOption;
 
@@ -44,19 +47,131 @@ import org.apache.cassandra.repair.messages.RepairOption;
 public class RepairState
 {
     public enum Phase {
-        INIT,
-        STARTING, STARTED,
+        INIT, SETUP, STARTED,
         PREPARE_SUBMIT, PREPARE_COMPLETE,
         SESSIONS_SUBMIT, SESSIONS_COMPLETE,
-        SKIPPED, COMPLETE, FAILURE // represents RepairRunnable early termination
+        SKIPPED, SUCCESS, FAILURE
     }
-    // required on object init
-    UUID id;
-    int cmd; // managed by org.apache.cassandra.service.ActiveRepairService.repairStatusByCmd.  TODO can this be removed in favor of this class?
-    String keyspace;
-    RepairOption options;
 
-    // calculated once repair is in phase STARTED
-    List<CommonRange> commonRanges; // each CommonRange will spawn a new RepairSession
-    String[] cfnames; // TODO when can this be different than org.apache.cassandra.repair.messages.RepairOption.columnFamilies?  Is it only in the empty case?
+    public final UUID id;
+    public final int cmd; // managed by org.apache.cassandra.service.ActiveRepairService.repairStatusByCmd.  TODO can this be removed in favor of this class?
+    public final String keyspace;
+    public final RepairOption options;
+
+    // state tracking
+    private final long creationTimeMillis = System.currentTimeMillis();
+    private final long[] phaseTimesNanos = new long[Phase.values().length];
+    private int currentState;
+    private String failureCause;
+    private volatile long lastUpdatedAtNs;
+
+    // defined once repair starts
+    private List<CommonRange> commonRanges; // each CommonRange will spawn a new RepairSession
+    private String[] cfnames;
+
+    public RepairState(UUID id, int cmd, String keyspace, RepairOption options)
+    {
+        this.id = id;
+        this.cmd = cmd;
+        this.keyspace = keyspace;
+        this.options = options;
+
+        updatePhase(Phase.INIT);
+    }
+
+    public Phase getPhase()
+    {
+        return Phase.values()[currentState];
+    }
+
+    public boolean isComplete()
+    {
+        switch (getPhase())
+        {
+            case SKIPPED:
+            case SUCCESS:
+            case FAILURE:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public long getPhaseTimeMillis(Phase phase)
+    {
+        long deltaNanos = phaseTimesNanos[phase.ordinal()] - phaseTimesNanos[0];
+        return creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(deltaNanos);
+    }
+
+    public long getLastUpdatedAtMillis()
+    {
+        long deltaNanos = lastUpdatedAtNs - phaseTimesNanos[0];
+        return creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(deltaNanos);
+    }
+
+    public String getFailureCause()
+    {
+        return failureCause;
+    }
+
+    public void phaseSetup()
+    {
+        updatePhase(Phase.SETUP);
+    }
+
+    public void phaseStart(String[] cfnames, List<CommonRange> commonRanges)
+    {
+        this.cfnames = cfnames;
+        this.commonRanges = commonRanges;
+        updatePhase(Phase.STARTED);
+    }
+
+    public void phasePrepareStart()
+    {
+        updatePhase(Phase.PREPARE_SUBMIT);
+    }
+
+    public void phasePrepareComplete()
+    {
+        updatePhase(Phase.PREPARE_COMPLETE);
+    }
+
+    public void phasSessionsSubmitted()
+    {
+        updatePhase(Phase.SESSIONS_SUBMIT);
+    }
+
+    public void phaseSessionsCompleted()
+    {
+        updatePhase(Phase.SESSIONS_COMPLETE);
+    }
+
+    public void success()
+    {
+        updatePhase(Phase.SUCCESS);
+    }
+
+    public void skip(String reason)
+    {
+        this.failureCause = reason;
+        updatePhase(Phase.SKIPPED);
+    }
+
+    public void fail(Throwable reason)
+    {
+        fail(Throwables.getStackTraceAsString(reason));
+    }
+
+    public void fail(String reason)
+    {
+        this.failureCause = reason;
+        updatePhase(Phase.FAILURE);
+    }
+
+    private void updatePhase(Phase phase)
+    {
+        long now = System.nanoTime();
+        phaseTimesNanos[currentState = phase.ordinal()] = now;
+        lastUpdatedAtNs = now;
+    }
 }

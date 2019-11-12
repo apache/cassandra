@@ -29,8 +29,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.base.Throwables;
-
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -42,10 +40,9 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.JobProgress;
-import org.apache.cassandra.repair.RepairDesc;
 import org.apache.cassandra.repair.RepairJobDesc;
-import org.apache.cassandra.repair.RepairProgress;
 import org.apache.cassandra.repair.RepairSessionDesc;
+import org.apache.cassandra.repair.RepairState;
 import org.apache.cassandra.repair.SessionProgress;
 import org.apache.cassandra.repair.ValidationProgress;
 import org.apache.cassandra.repair.messages.ValidationStatusRequest;
@@ -103,22 +100,24 @@ public class RepairTables
         public DataSet data()
         {
             SimpleDataSet result = new SimpleDataSet(metadata());
-            ActiveRepairService.instance.repairProgress((a, b) -> updateDataset(result, a, b));
+            ActiveRepairService.instance.getRepairStates().forEach(s -> updateDataset(result, s));
             return result;
         }
 
         public DataSet data(DecoratedKey partitionKey)
         {
-            UUID parentSessionId = UUIDType.instance.compose(partitionKey.getKey());
+            UUID id = UUIDType.instance.compose(partitionKey.getKey());
             SimpleDataSet result = new SimpleDataSet(metadata());
-            ActiveRepairService.instance.repairProgress(parentSessionId, (a, b) -> updateDataset(result, a, b));
+            RepairState state = ActiveRepairService.instance.getRepairState(id);
+            if (state != null)
+                updateDataset(result, state);
             return result;
         }
 
-        private void updateDataset(SimpleDataSet dataSet, RepairDesc repairDesc, RepairProgress repairProgress)
+        private void updateDataset(SimpleDataSet dataSet, RepairState state)
         {
-            UUID parentSessionId = repairDesc.parentSession;
-            String keyspace = repairDesc.keyspace;
+            UUID parentSessionId = state.id;
+            String keyspace = state.keyspace;
 
             Map<UUID, Pair<RepairSessionDesc, SessionProgress>> sessions = new HashMap<>();
             ActiveRepairService.instance.repairSessionProgress(parentSessionId, (a, b) -> {

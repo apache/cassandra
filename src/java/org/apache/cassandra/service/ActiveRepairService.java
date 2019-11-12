@@ -66,12 +66,11 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.CommonRange;
-import org.apache.cassandra.repair.RepairDesc;
 import org.apache.cassandra.repair.RepairJob;
 import org.apache.cassandra.repair.JobProgress;
-import org.apache.cassandra.repair.RepairProgress;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.RepairSessionDesc;
+import org.apache.cassandra.repair.RepairState;
 import org.apache.cassandra.repair.SessionProgress;
 import org.apache.cassandra.repair.ValidationProgress;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -82,7 +81,6 @@ import org.apache.cassandra.repair.consistent.CoordinatorSessions;
 import org.apache.cassandra.repair.consistent.LocalSessions;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.utils.CompletableFutureUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
@@ -119,7 +117,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         public final CoordinatorSessions coordinated = new CoordinatorSessions();
     }
 
-    private final ConcurrentMap<RepairDesc, RepairProgress> repairProgress = new NonBlockingHashMap<>();
+    private final ConcurrentMap<UUID, RepairState> repairHistory = new NonBlockingHashMap<>();
     private final ConcurrentMap<RepairSessionDesc, SessionProgress> repairSessionProgress = new NonBlockingHashMap<>();
     private final ConcurrentMap<RepairJobDesc, JobProgress> repairJobProgress = new NonBlockingHashMap<>();
     private final ConcurrentMap<RepairJobDesc, ValidationProgress> validationProgress = new NonBlockingHashMap<>();
@@ -315,7 +313,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public void trackRepair(RepairRunnable repair)
     {
-        putAndLogOnConflict(repairProgress, "repair", repair.desc, repair.progress);
+        putAndLogOnConflict(repairHistory, "repair", repair.state.id, repair.state);
     }
 
     public void trackRepairSession(RepairSession session)
@@ -393,30 +391,14 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
     }
 
-
-    public Pair<RepairDesc, RepairProgress> getRepair(UUID id)
+    public RepairState getRepairState(UUID id)
     {
-        List<Pair<RepairDesc, RepairProgress>> matches = new ArrayList<>();
-        repairProgress(id, (desc, p) -> matches.add(Pair.create(desc, p)));
-        switch (matches.size())
-        {
-            case 1: return matches.get(0);
-            case 0: return null;
-            default: throw new IllegalStateException("Multiple matches for repair key " + id);
-        }
+        return repairHistory.get(id);
     }
 
-    public void repairProgress(BiConsumer<RepairDesc, RepairProgress> fn)
+    public Collection<RepairState> getRepairStates()
     {
-        repairProgress.forEach(fn);
-    }
-
-    public void repairProgress(UUID parentSessionId, BiConsumer<RepairDesc, RepairProgress> fn)
-    {
-        repairProgress.forEach((desc, progress) -> {
-            if (parentSessionId.equals(desc.parentSession))
-                fn.accept(desc, progress);
-        });
+        return Collections.unmodifiableCollection(repairHistory.values());
     }
 
     public void repairSessionProgress(BiConsumer<RepairSessionDesc, SessionProgress> fn)
