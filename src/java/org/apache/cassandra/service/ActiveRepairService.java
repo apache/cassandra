@@ -623,6 +623,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         try
         {
             // Failed repair is expensive so we wait for longer time.
+            // This timeout is expected to be much larger than rpc timeout defined in Verb, for this reason its unexpected
+            // for the latch to timeout and instead the callback should timeout and update the latch.
             if (!prepareLatch.await(1, TimeUnit.HOURS)) {
                 failRepair(parentRepairSession, "Did not get replies from all endpoints.");
             }

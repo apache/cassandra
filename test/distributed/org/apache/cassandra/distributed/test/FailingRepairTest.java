@@ -20,10 +20,16 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.net.UnknownHostException;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -34,9 +40,12 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.impl.MessageFilters;
 import org.apache.cassandra.distributed.util.RepairUtil;
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Tests check the different code paths expected to cause a repair to fail
@@ -169,6 +178,42 @@ public class FailingRepairTest extends DistributedTestBase implements Serializab
         finally
         {
             verbFilter.restore();
+        }
+    }
+
+    @Test(timeout = 1 * 60 * 1000)
+    public void neighbourDown() throws ExecutionException, InterruptedException
+    {
+        CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".neighbourdown (key text, value text, PRIMARY KEY (key))");
+        Future<Void> shutdownFuture = CLUSTER.get(2).shutdown();
+        String downNodeAddress = CLUSTER.get(2).callOnInstance(() -> FBUtilities.getBroadcastAddressAndPort().toString());
+        try
+        {
+            // wait for the node to stop
+            shutdownFuture.get();
+            // wait for the failure detector to detect this
+            CLUSTER.get(1).runOnInstance(() -> {
+                InetAddressAndPort neighbor;
+                try
+                {
+                    neighbor = InetAddressAndPort.getByName(downNodeAddress);
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                while (FailureDetector.instance.isAlive(neighbor))
+                    Uninterruptibles.sleepUninterruptibly(500, TimeUnit.MILLISECONDS);
+            });
+
+
+            RepairUtil.Result result = RepairUtil.runRepairAndAwait(CLUSTER.get(1), KEYSPACE, RepairUtil.forTables("neighbourdown"));
+            result.assertStatus(ParentRepairStatus.FAILED);
+            Assert.assertTrue("failure should have been caused by node 2 not being alive; " + result.fullStatus, result.fullStatus.stream().anyMatch(s -> s.contains("Endpoint not alive")));
+        }
+        finally
+        {
+            CLUSTER.get(2).startup(CLUSTER);
         }
     }
 }
