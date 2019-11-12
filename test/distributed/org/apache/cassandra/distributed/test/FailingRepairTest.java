@@ -20,41 +20,37 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Set;
 
+import com.google.common.collect.Iterables;
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.impl.MessageFilters;
 import org.apache.cassandra.distributed.util.RepairUtil;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
+import org.apache.cassandra.service.StorageService;
 
 /**
  * Tests check the different code paths expected to cause a repair to fail
  */
-//@RunWith(Parameterized.class)
 public class FailingRepairTest extends DistributedTestBase implements Serializable
 {
     private static Cluster CLUSTER;
 
-//    private final RepairOption option;
-//
-//    public FailingRepairTest(RepairOption option)
-//    {
-//        this.option = option;
-//    }
-
-//    @Parameterized.Parameters(name = "{0}")
-//    public static Collection<Object[]> tests()
-//    {
-//        List<RepairOption> tests = new ArrayList<>();
-//
-//        tests.add(RepairUtil.forDataCenter("not-found"));
-//
-//        return tests.stream().map(tc -> new Object[] { tc }).collect(Collectors.toList());
-//    }
+    @BeforeClass
+    public static void before()
+    {
+        // ;_;
+        DatabaseDescriptor.clientInitialization();
+    }
 
     @BeforeClass
     public static void setupCluster() throws IOException
@@ -74,21 +70,105 @@ public class FailingRepairTest extends DistributedTestBase implements Serializab
             CLUSTER.close();
     }
 
-    @Test(timeout = 1 * 60 * 1000)
-    public void notThere()
+    @Test(timeout = 1 * 60 * 1000, expected = AssertionError.class)
+    public void missingKeyspace()
     {
-        // test showing what happens when a table doesn't exist
-        RepairUtil.Result result = RepairUtil.runRepairAndAwait(CLUSTER.get(2), KEYSPACE, RepairUtil.forTables("doesnotexist"));
-        Assert.assertEquals(result.fullStatus.toString(), ParentRepairStatus.FAILED, result.status);
+        // if the keyspace doesn't exist, then repair fails early, before anything gets registered
+        // for this reason a assert is thrown rather than a failure response
+        RepairUtil.runRepairAndAwait(CLUSTER.get(2), "doesnotexist", RepairUtil.fullRange());
     }
 
     @Test(timeout = 1 * 60 * 1000)
-    public void emptyTables()
+    public void missingTable()
     {
+        RepairUtil.Result result = RepairUtil.runRepairAndAwait(CLUSTER.get(2), KEYSPACE, RepairUtil.forTables("doesnotexist"));
+        result.assertStatus(ParentRepairStatus.FAILED);
+    }
+
+    @Test(timeout = 1 * 60 * 1000)
+    public void noTablesToRepair()
+    {
+        // index CF currently don't support repair, so they get dropped when listed
+        // this is done in this test to cause the keyspace to have 0 tables to repair, which causes repair to no-op
+        // early and skip.
         CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".withindex (key text, value text, PRIMARY KEY (key))");
         CLUSTER.schemaChange("CREATE INDEX value ON " + KEYSPACE + ".withindex (value)");
         // if CF has a . in it, it is assumed to be a 2i which rejects repairs
         RepairUtil.Result result = RepairUtil.runRepairAndAwait(CLUSTER.get(2), KEYSPACE, RepairUtil.forTables("withindex.value"));
-        Assert.assertEquals(result.fullStatus.toString(), ParentRepairStatus.COMPLETED, result.status);
+        result.assertStatus(ParentRepairStatus.COMPLETED);
+    }
+
+    @Test(timeout = 1 * 60 * 1000)
+    public void intersectingRange()
+    {
+        // this test exists to show that this case will cause repair to finish; success or failure isn't imporant
+        // if repair is enhanced to allow intersecting ranges w/ local then this test will fail saying that we expected
+        // repair to fail but it didn't, this would be fine and this test should be updated to reflect the new
+        // semantic
+        CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".intersectingrange (key text, value text, PRIMARY KEY (key))");
+
+        String tokenRange = CLUSTER.get(2).callOnInstance(() -> {
+            Set<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE).ranges();
+            Range<Token> range = Iterables.getFirst(ranges, null);
+            long right = (long) range.right.getTokenValue();
+            return (right - 7) + ":" + (right + 7);
+        });
+
+        RepairUtil.Result result = RepairUtil.runRepairAndAwait(CLUSTER.get(2), KEYSPACE, RepairUtil.forTables("intersectingrange").withRanges(tokenRange));
+        result.assertStatus(ParentRepairStatus.FAILED);
+    }
+
+    @Test(timeout = 1 * 60 * 1000)
+    public void unknownHost()
+    {
+        CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".unknownhost (key text, value text, PRIMARY KEY (key))");
+
+        RepairUtil.Result result = RepairUtil.runRepairAndAwait(CLUSTER.get(2), KEYSPACE, RepairUtil.forTables("unknownhost").withHosts("thisreally.should.not.exist.apache.org"));
+        result.assertStatus(ParentRepairStatus.FAILED);
+    }
+
+    @Test(timeout = 1 * 60 * 1000)
+    public void desiredHostNotCoordinator()
+    {
+        // current limitation is that the coordinator must be apart of the repair, so as long as that exists this test
+        // verifies that the validation logic will termniate the repair properly
+        CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".desiredhostnotcoordinator (key text, value text, PRIMARY KEY (key))");
+
+        RepairUtil.Result result = RepairUtil.runRepairAndAwait(CLUSTER.get(2), KEYSPACE, RepairUtil.forTables("desiredhostnotcoordinator").withHosts("localhost"));
+        result.assertStatus(ParentRepairStatus.FAILED);
+    }
+
+    @Test(timeout = 1 * 60 * 1000)
+    public void onlyCoordinator()
+    {
+        CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".onlycoordinator (key text, value text, PRIMARY KEY (key))");
+
+        RepairUtil.Result result = RepairUtil.runRepairAndAwait(CLUSTER.get(1), KEYSPACE, RepairUtil.forTables("onlycoordinator").withHosts("localhost"));
+        result.assertStatus(ParentRepairStatus.FAILED);
+    }
+
+    @Test(timeout = 1 * 60 * 1000, expected = AssertionError.class)
+    public void replicationFactorOne()
+    {
+        CLUSTER.schemaChange("CREATE KEYSPACE replicationfactor WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+        CLUSTER.schemaChange("CREATE TABLE replicationfactor.one (key text, value text, PRIMARY KEY (key))");
+
+        RepairUtil.runRepairAndAwait(CLUSTER.get(1), "replicationfactor", RepairUtil.forTables("one"));
+    }
+
+    @Test(timeout = 1 * 60 * 1000)
+    public void prepareRPCTimeout()
+    {
+        CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".preparerpctimeout (key text, value text, PRIMARY KEY (key))");
+        MessageFilters.Filter verbFilter = CLUSTER.verbs(Verb.PREPARE_MSG).drop();
+        try
+        {
+            RepairUtil.Result result = RepairUtil.runRepairAndAwait(CLUSTER.get(1), KEYSPACE, RepairUtil.forTables("preparerpctimeout"));
+            result.assertStatus(ParentRepairStatus.FAILED);
+        }
+        finally
+        {
+            verbFilter.restore();
+        }
     }
 }

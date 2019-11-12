@@ -40,6 +40,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import com.google.common.base.Throwables;
 import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.LoggerContext;
@@ -202,7 +203,9 @@ public class IsolatedExecutor implements IIsolatedExecutor
         }
         catch (ExecutionException e)
         {
-            throw new RuntimeException(e.getCause());
+            Throwable cause = e.getCause();
+            Throwables.throwIfUnchecked(cause);
+            throw new RuntimeException(cause);
         }
     }
 

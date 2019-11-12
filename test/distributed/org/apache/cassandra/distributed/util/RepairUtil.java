@@ -26,6 +26,9 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.distributed.impl.IInvokableInstance;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
@@ -33,24 +36,28 @@ import org.apache.cassandra.service.StorageService;
 
 public class RepairUtil
 {
+    private static final Logger logger = LoggerFactory.getLogger(RepairUtil.class);
+
     private RepairUtil()
     {
 
     }
 
-    public static Map<String, String> fullRange()
+    public static RepairOptionBuilder fullRange()
     {
-        return new HashMap<>() {{
-            put(RepairOption.RANGES_KEY, "0:" + Long.MIN_VALUE);
-        }};
+        return new RepairOptionBuilder().withFullRange();
     }
 
-    public static Map<String, String> forTables(String... tables)
+    public static RepairOptionBuilder forTables(String... tables)
     {
-        return new HashMap<>() {{
-            put(RepairOption.RANGES_KEY, "0:" + Long.MIN_VALUE);
-            put(RepairOption.COLUMNFAMILIES_KEY, String.join(",", tables));
-        }};
+        return new RepairOptionBuilder()
+               .withFullRange()
+               .withTables(tables);
+    }
+
+    public static Result runRepairAndAwait(IInvokableInstance instance, String keyspace, RepairOptionBuilder option)
+    {
+        return runRepairAndAwait(instance, keyspace, option.asMap());
     }
 
     public static Result runRepairAndAwait(IInvokableInstance instance, String keyspace, Map<String, String> option)
@@ -72,6 +79,7 @@ public class RepairUtil
 
             return status;
         });
+        logger.info("Repair {} finished: {}", cmd, results);
         return new Result(cmd, ParentRepairStatus.valueOf(results.get(0)), results);
     }
 
@@ -86,6 +94,44 @@ public class RepairUtil
             this.cmd = cmd;
             this.status = status;
             this.fullStatus = fullStatus;
+        }
+
+        public void assertStatus(ParentRepairStatus expected)
+        {
+            Assert.assertEquals(fullStatus.toString(), expected, status);
+        }
+    }
+
+    public static final class RepairOptionBuilder
+    {
+        private final Map<String, String> map = new HashMap<>();
+
+        public RepairOptionBuilder withFullRange()
+        {
+            return withRanges("0:" + Long.MIN_VALUE);
+        }
+
+        public RepairOptionBuilder withRanges(String... ranges)
+        {
+            map.put(RepairOption.RANGES_KEY, String.join(",", ranges));
+            return this;
+        }
+
+        public RepairOptionBuilder withTables(String... tables)
+        {
+            map.put(RepairOption.COLUMNFAMILIES_KEY, String.join(",", tables));
+            return this;
+        }
+
+        public RepairOptionBuilder withHosts(String... hosts)
+        {
+            map.put(RepairOption.HOSTS_KEY, String.join(",", hosts));
+            return this;
+        }
+
+        public Map<String, String> asMap()
+        {
+            return map;
         }
     }
 }
