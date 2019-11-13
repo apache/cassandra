@@ -162,17 +162,25 @@ public class RepairTables
             int syncRange = 40;
             switch (state)
             {
+                case INIT:
+                case START:
+                    return 0f;
+                case SNAPSHOT_REQUEST:
+                case SNAPSHOT_COMPLETE:
+                    return .2f;
                 case VALIDATION_REQUEST:
                     // 21-60%
-                    return progress;
+                    return ((validationRange * progress) + 20) / 100;
                 case VALIDATON_COMPLETE:
                     return .6f;
                 case SYNC_REQUEST:
                     // 61-100%
-                    return progress;
+                    return ((validationRange * progress) + 60) / 100;
+                case SYNC_COMPLETE:
+                case FAILURE:
+                    return 1f;
                 default:
-                    //TODO
-                    return progress;
+                    throw new IllegalStateException("Unknown state: " + state);
             }
         }
     }
