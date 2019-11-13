@@ -107,7 +107,7 @@ public class ValidationManager
 
         // Create Merkle trees suitable to hold estimated partitions for the given ranges.
         // We blindly assume that a partition is evenly distributed on all sstables for now.
-        ValidationProgress progress = validator.progress;
+        ValidationState progress = validator.progress;
         try (ValidationPartitionIterator vi = getValidationIterator(cfs.getRepairManager(), validator))
         {
             MerkleTrees tree = createMerkleTrees(vi, validator.desc.ranges, cfs);

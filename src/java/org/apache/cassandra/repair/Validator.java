@@ -66,7 +66,7 @@ public class Validator implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(Validator.class);
 
-    public final ValidationProgress progress = new ValidationProgress();
+    public final ValidationState progress;
     public final RepairJobDesc desc;
     public final InetAddressAndPort initiator;
     public final int nowInSec;
@@ -97,6 +97,7 @@ public class Validator implements Runnable
 
     public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
     {
+        this.progress = new ValidationState(initiator);
         this.desc = desc;
         this.initiator = initiator;
         this.nowInSec = nowInSec;

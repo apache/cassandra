@@ -39,7 +39,7 @@ import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairState;
 import org.apache.cassandra.repair.RepairState.JobState;
 import org.apache.cassandra.repair.RepairState.SessionState;
-import org.apache.cassandra.repair.ValidationProgress;
+import org.apache.cassandra.repair.ValidationState;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -200,6 +200,7 @@ public class RepairTables
                         "  ranges frozen<list<text>>,\n" +
                         "  keyspace_name text,\n" +
                         "  table_name text,\n" +
+                        "  initiator text,\n" +
                         "  state text,\n" +
                         "  progress_percentage float,\n" +
                         "  queue_duration_ms bigint,\n" +
@@ -229,7 +230,7 @@ public class RepairTables
             return result;
         }
 
-        private void updateDataset(SimpleDataSet dataSet, RepairJobDesc desc, ValidationProgress progress)
+        private void updateDataset(SimpleDataSet dataSet, RepairJobDesc desc, ValidationState progress)
         {
             // call this early to make sure progress state is visible
             long lastUpdatedNs = progress.getLastUpdatedAtNs();
@@ -246,6 +247,7 @@ public class RepairTables
 
             dataSet.column("keyspace_name", ks);
             dataSet.column("ranges", ranges.stream().map(Range::toString).collect(Collectors.toList()));
+            dataSet.column("initiator", progress.getInitiator().toString());
 
             dataSet.column("state", progress.getState().name().toLowerCase());
             dataSet.column("progress_percentage", 100 * progress.getProgress());

@@ -85,7 +85,7 @@ import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.RepairSession;
 import org.apache.cassandra.repair.RepairState;
-import org.apache.cassandra.repair.ValidationProgress;
+import org.apache.cassandra.repair.ValidationState;
 import org.apache.cassandra.repair.consistent.CoordinatorSessions;
 import org.apache.cassandra.repair.consistent.LocalSessions;
 import org.apache.cassandra.repair.messages.PrepareMessage;
@@ -133,7 +133,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     }
 
     private final ConcurrentMap<UUID, RepairState> repairHistory = new NonBlockingHashMap<>();
-    private final ConcurrentMap<RepairJobDesc, ValidationProgress> validationProgress = new NonBlockingHashMap<>();
+    private final ConcurrentMap<RepairJobDesc, ValidationState> validationProgress = new NonBlockingHashMap<>();
     public final ConsistentSessions consistent = new ConsistentSessions();
 
     private boolean registeredForEndpointChanges = false;
@@ -316,7 +316,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         putAndLogOnConflict(repairHistory, "repair", repair.state.id, repair.state);
     }
 
-    public void trackValidation(RepairJobDesc desc, ValidationProgress progress)
+    public void trackValidation(RepairJobDesc desc, ValidationState progress)
     {
         putAndLogOnConflict(validationProgress, "validators", desc, progress);
     }
@@ -367,12 +367,12 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public static final class RepairValidationSummary
     {
-        public final ValidationProgress.State state;
+        public final ValidationState.State state;
         public final float progress;
         public final String failureCause;
         public final long lastUpdatedAtMicro;
 
-        public RepairValidationSummary(ValidationProgress.State state, float progress, String failureCause, long lastUpdatedAtMicro)
+        public RepairValidationSummary(ValidationState.State state, float progress, String failureCause, long lastUpdatedAtMicro)
         {
             this.state = state;
             this.progress = progress;
@@ -391,17 +391,17 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return Collections.unmodifiableCollection(repairHistory.values());
     }
 
-    public ValidationProgress getValidationProgress(RepairJobDesc desc)
+    public ValidationState getValidationProgress(RepairJobDesc desc)
     {
         return validationProgress.get(desc);
     }
 
-    public void validationProgress(BiConsumer<RepairJobDesc, ValidationProgress> fn)
+    public void validationProgress(BiConsumer<RepairJobDesc, ValidationState> fn)
     {
         validationProgress.forEach(fn);
     }
 
-    public void validationProgress(UUID parentSessionId, BiConsumer<RepairJobDesc, ValidationProgress> fn)
+    public void validationProgress(UUID parentSessionId, BiConsumer<RepairJobDesc, ValidationState> fn)
     {
         validationProgress.forEach((desc, progress) -> {
             if (parentSessionId.equals(desc.parentSessionId))

@@ -50,7 +50,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
-import org.apache.cassandra.repair.ValidationProgress;
+import org.apache.cassandra.repair.ValidationState;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -131,7 +131,7 @@ public class RepairTableTest extends DistributedTestBase implements Serializable
 
                     RepairJobDesc desc = ((RepairMessage) msg.payload).desc;
                     ActiveRepairService.instance.consistent.local.maybeSetRepairing(desc.parentSessionId);
-                    ValidationProgress progress = new ValidationProgress();
+                    ValidationState progress = new ValidationState(initiator);
                     ActiveRepairService.instance.trackValidation(desc, progress);
 
                     return false;

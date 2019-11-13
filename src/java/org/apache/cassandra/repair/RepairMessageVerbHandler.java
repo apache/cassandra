@@ -133,7 +133,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case VALIDATION_STAT_REQ:
-                    ValidationProgress progress = ActiveRepairService.instance.getValidationProgress(desc);
+                    ValidationState progress = ActiveRepairService.instance.getValidationProgress(desc);
                     if (progress != null)
                     {
                         Message<ValidationStatusResponse> reply = message.responseWith(ValidationStatusResponse.create(desc, progress));

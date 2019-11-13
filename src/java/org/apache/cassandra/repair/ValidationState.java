@@ -22,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
+
 /**
  * Used for tracking the progress a single validation is making.  The expected usage is to have a single object per
  * validation and must be created <b>before</b> submitting on a stage or thread pool (to track queue time). When ready
@@ -39,7 +41,7 @@ import com.google.common.base.Throwables;
  *     <li>for latest data, call {@link #getLastUpdatedAtNs()} before calling other getters</li>
  * </ul>
  */
-public class ValidationProgress implements Progress
+public class ValidationState
 {
     public enum State { UNKNOWN, INIT, RUNNING, SUCCESS, FAILURE}
 
@@ -47,15 +49,17 @@ public class ValidationProgress implements Progress
     private final long creationtTimeNs = System.nanoTime();
     private long startTimeNs;
     private State state = State.INIT;
+    private final InetAddressAndPort initiator;
     private long estimatedPartitions;
     private long estimatedTotalBytes;
     private long partitionsProcessed;
     private String failureCause;
     private volatile long lastUpdatedAtNs;
 
-    public ValidationProgress()
+    public ValidationState(InetAddressAndPort initiator)
     {
-        lastUpdatedAtNs = creationtTimeNs;
+        this.lastUpdatedAtNs = creationtTimeNs;
+        this.initiator = initiator;
     }
 
     public void start(long estimatedPartitions, long estimatedTotalBytes)
@@ -68,12 +72,16 @@ public class ValidationProgress implements Progress
         this.lastUpdatedAtNs = startTimeNs;
     }
 
+    public InetAddressAndPort getInitiator()
+    {
+        return initiator;
+    }
+
     /**
      * What time this object was created.
      *
      * Uses {@link System#nanoTime()} so does not reflect unix epoch.
      */
-    @Override
     public long getCreationtTimeNs()
     {
         return creationtTimeNs;
@@ -84,7 +92,6 @@ public class ValidationProgress implements Progress
      *
      * Uses {@link System#nanoTime()} so does not reflect unix epoch.
      */
-    @Override
     public long getStartTimeNs()
     {
         return startTimeNs;
@@ -110,7 +117,6 @@ public class ValidationProgress implements Progress
         return partitionsProcessed;
     }
 
-    @Override
     public String getFailureCause()
     {
         return failureCause;
@@ -121,7 +127,6 @@ public class ValidationProgress implements Progress
      *
      * Uses {@link System#nanoTime()} so does not reflect unix epoch.
      */
-    @Override
     public long getLastUpdatedAtNs()
     {
         return lastUpdatedAtNs;
@@ -142,7 +147,6 @@ public class ValidationProgress implements Progress
         return creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(durationNanos);
     }
 
-    @Override
     public boolean isComplete()
     {
         switch (state)
@@ -158,7 +162,6 @@ public class ValidationProgress implements Progress
     /**
      * @return 0.0 to 1.0 to represent estimate on validation progress
      */
-    @Override
     public float getProgress()
     {
         switch (state)

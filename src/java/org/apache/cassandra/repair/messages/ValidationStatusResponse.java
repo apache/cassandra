@@ -25,19 +25,19 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.RepairJobDesc;
-import org.apache.cassandra.repair.ValidationProgress;
+import org.apache.cassandra.repair.ValidationState;
 
 public class ValidationStatusResponse extends RepairMessage
 {
     // progress
-    public final ValidationProgress.State state;
+    public final ValidationState.State state;
     public final float progress;
     public final String failureCause;
     public final long lastUpdatedAtMillis;
     public final long durationNanos;
 
     public ValidationStatusResponse(RepairJobDesc desc,
-                                    ValidationProgress.State state,
+                                    ValidationState.State state,
                                     float progress,
                                     String failureCause,
                                     long lastUpdatedAtMillis,
@@ -51,7 +51,7 @@ public class ValidationStatusResponse extends RepairMessage
         this.durationNanos = durationNanos;
     }
 
-    public static ValidationStatusResponse create(RepairJobDesc desc, ValidationProgress progress)
+    public static ValidationStatusResponse create(RepairJobDesc desc, ValidationState progress)
     {
         long updatedAtMillis = progress.getLastUpdatedAtMillis();
         long durationNanos = progress.getDurationNanos();
@@ -64,7 +64,7 @@ public class ValidationStatusResponse extends RepairMessage
     public static ValidationStatusResponse notFound(RepairJobDesc desc)
     {
         String cause = "Unable to find validation for job";
-        return new ValidationStatusResponse(desc, ValidationProgress.State.UNKNOWN, -1, cause, System.currentTimeMillis(), 0);
+        return new ValidationStatusResponse(desc, ValidationState.State.UNKNOWN, -1, cause, System.currentTimeMillis(), 0);
     }
 
     public static final IVersionedSerializer<ValidationStatusResponse> serializer = new IVersionedSerializer<ValidationStatusResponse>()
@@ -89,7 +89,7 @@ public class ValidationStatusResponse extends RepairMessage
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
 
             // progress
-            ValidationProgress.State state = ValidationProgress.State.valueOf(in.readUTF().toUpperCase());
+            ValidationState.State state = ValidationState.State.valueOf(in.readUTF().toUpperCase());
             float progress = in.readFloat();
             String failureCause = in.readBoolean() ? in.readUTF() : null;
             long lastUpdatedAtMillis = in.readLong();
