@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -46,6 +47,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ResultSet;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.RepairJobDesc;
@@ -55,6 +57,7 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 @RunWith(Parameterized.class)
 public class RepairTableTest extends DistributedTestBase implements Serializable
@@ -122,6 +125,8 @@ public class RepairTableTest extends DistributedTestBase implements Serializable
             CLUSTER.coordinator(1)
                    .execute("INSERT INTO " + fqtn + " (k) VALUES (?)", ConsistencyLevel.ONE, i);
 
+        String coordiantorAddress = CLUSTER.get(coordinator).callOnInstance(() -> FBUtilities.getBroadcastAddressAndPort().toString());
+
         // override validation msg so the test can control the progress
         for (int i = 1; i <= CLUSTER.size(); i++)
             CLUSTER.get(i).runOnInstance(() -> {
@@ -131,7 +136,15 @@ public class RepairTableTest extends DistributedTestBase implements Serializable
 
                     RepairJobDesc desc = ((RepairMessage) msg.payload).desc;
                     ActiveRepairService.instance.consistent.local.maybeSetRepairing(desc.parentSessionId);
-                    ValidationState progress = new ValidationState(initiator);
+                    ValidationState progress = null;
+                    try
+                    {
+                        progress = new ValidationState(InetAddressAndPort.getByName(coordiantorAddress));
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
                     ActiveRepairService.instance.trackValidation(desc, progress);
 
                     return false;
