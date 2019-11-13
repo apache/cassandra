@@ -23,11 +23,15 @@ public class RemoteState
     public final String state;
     public final float progress;
     public final String failureCause;
+    public final long lastUpdatedAtMillis;
+    public final long durationNanos;
 
-    public RemoteState(String state, float progress, String failureCause)
+    public RemoteState(String state, float progress, String failureCause, long lastUpdatedAtMillis, long durationNanos)
     {
         this.state = state;
         this.progress = progress;
         this.failureCause = failureCause;
+        this.lastUpdatedAtMillis = lastUpdatedAtMillis;
+        this.durationNanos = durationNanos;
     }
 }

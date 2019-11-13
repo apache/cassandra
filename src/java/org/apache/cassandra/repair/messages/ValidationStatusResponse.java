@@ -20,8 +20,6 @@ package org.apache.cassandra.repair.messages;
 
 import java.io.IOException;
 
-import com.google.common.base.Throwables;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -35,35 +33,38 @@ public class ValidationStatusResponse extends RepairMessage
     public final ValidationProgress.State state;
     public final float progress;
     public final String failureCause;
-    public final long lastUpdatedAtMicro;
+    public final long lastUpdatedAtMillis;
+    public final long durationNanos;
 
     public ValidationStatusResponse(RepairJobDesc desc,
                                     ValidationProgress.State state,
                                     float progress,
                                     String failureCause,
-                                    long lastUpdatedAtMicro)
+                                    long lastUpdatedAtMillis,
+                                    long durationNanos)
     {
         super(desc);
         this.state = state;
         this.progress = progress;
         this.failureCause = failureCause;
-        this.lastUpdatedAtMicro = lastUpdatedAtMicro;
+        this.lastUpdatedAtMillis = lastUpdatedAtMillis;
+        this.durationNanos = durationNanos;
     }
 
     public static ValidationStatusResponse create(RepairJobDesc desc, ValidationProgress progress)
     {
-        long updatedAtMicro = progress.getLastUpdatedAtMicro();
+        long updatedAtMillis = progress.getLastUpdatedAtMillis();
+        long durationNanos = progress.getDurationNanos();
         String cause = null;
         if (progress.getFailureCause() != null)
             cause = progress.getFailureCause();
-        return new ValidationStatusResponse(desc, progress.getState(), progress.getProgress(), cause, updatedAtMicro);
+        return new ValidationStatusResponse(desc, progress.getState(), progress.getProgress(), cause, updatedAtMillis, durationNanos);
     }
 
     public static ValidationStatusResponse notFound(RepairJobDesc desc)
     {
-        long updatedAtMicro = System.currentTimeMillis() * 1000;
         String cause = "Unable to find validation for job";
-        return new ValidationStatusResponse(desc, ValidationProgress.State.UNKNOWN, -1, cause, updatedAtMicro);
+        return new ValidationStatusResponse(desc, ValidationProgress.State.UNKNOWN, -1, cause, System.currentTimeMillis(), 0);
     }
 
     public static final IVersionedSerializer<ValidationStatusResponse> serializer = new IVersionedSerializer<ValidationStatusResponse>()
@@ -79,7 +80,8 @@ public class ValidationStatusResponse extends RepairMessage
             out.writeBoolean(t.failureCause != null);
             if (t.failureCause != null)
                 out.writeUTF(t.failureCause);
-            out.writeLong(t.lastUpdatedAtMicro);
+            out.writeLong(t.lastUpdatedAtMillis);
+            out.writeLong(t.durationNanos);
         }
 
         public ValidationStatusResponse deserialize(DataInputPlus in, int version) throws IOException
@@ -90,8 +92,9 @@ public class ValidationStatusResponse extends RepairMessage
             ValidationProgress.State state = ValidationProgress.State.valueOf(in.readUTF().toUpperCase());
             float progress = in.readFloat();
             String failureCause = in.readBoolean() ? in.readUTF() : null;
-            long lastUpdatedAtMicro = in.readLong();
-            return new ValidationStatusResponse(desc, state, progress, failureCause, lastUpdatedAtMicro);
+            long lastUpdatedAtMillis = in.readLong();
+            long durationNanos = in.readLong();
+            return new ValidationStatusResponse(desc, state, progress, failureCause, lastUpdatedAtMillis, durationNanos);
         }
 
         public long serializedSize(ValidationStatusResponse t, int version)
@@ -105,7 +108,8 @@ public class ValidationStatusResponse extends RepairMessage
             size += TypeSizes.sizeof(t.failureCause != null);
             if (t.failureCause != null)
                 size += TypeSizes.sizeof(t.failureCause);
-            size += TypeSizes.sizeof(t.lastUpdatedAtMicro);
+            size += TypeSizes.sizeof(t.lastUpdatedAtMillis);
+            size += TypeSizes.sizeof(t.durationNanos);
             return size;
         }
     };

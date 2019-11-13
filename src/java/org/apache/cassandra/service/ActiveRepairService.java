@@ -361,7 +361,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         CompletableFuture<Message<ValidationStatusResponse>> f = MessagingService.instance().sendFuture(message, participant);
         return f.thenApply(msg -> {
             ValidationStatusResponse stat = msg.payload;
-            return new RepairValidationSummary(stat.state, stat.progress, stat.failureCause, stat.lastUpdatedAtMicro);
+            return new RepairValidationSummary(stat.state, stat.progress, stat.failureCause, stat.lastUpdatedAtMillis);
         });
     }
 

@@ -347,16 +347,16 @@ public class RepairState implements Iterable<RepairState.SessionState>
                     switch (status.state)
                     {
                         case UNKNOWN:
-                            state = new RemoteState(JobState.State.VALIDATION_REQUEST.name().toLowerCase(), 0f, null);
+                            state = new RemoteState(JobState.State.VALIDATION_REQUEST.name().toLowerCase(), 0f, null, status.lastUpdatedAtMillis, status.durationNanos);
                             break;
                         case SUCCESS:
-                            state = new RemoteState("participant validation is successful, but coordinator has not seen the merkle tree yet", 1f, null);
+                            state = new RemoteState("participant validation is successful, but coordinator has not seen the merkle tree yet", 1f, null, status.lastUpdatedAtMillis, status.durationNanos);
                             break;
                         case FAILURE:
-                            state = new RemoteState("failure", 1f, status.failureCause);
+                            state = new RemoteState("failure", 1f, status.failureCause, status.lastUpdatedAtMillis, status.durationNanos);
                             break;
                         default:
-                            state = new RemoteState("validating", status.progress, null);
+                            state = new RemoteState("validating", status.progress, null, status.lastUpdatedAtMillis, status.durationNanos);
                     }
                     return Pair.create(participant, state);
                 });
@@ -376,7 +376,7 @@ public class RepairState implements Iterable<RepairState.SessionState>
             Map<InetAddressAndPort, RemoteState> map = Maps.newHashMapWithExpectedSize(participants.size());
             State state = getState();
             for (InetAddressAndPort p : participants)
-                map.put(p, new RemoteState(state.name().toLowerCase(), 0f, null));
+                map.put(p, new RemoteState(state.name().toLowerCase(), 0f, null, -1, -1)); //TODO impl
             return CompletableFuture.completedFuture(map);
         }
 

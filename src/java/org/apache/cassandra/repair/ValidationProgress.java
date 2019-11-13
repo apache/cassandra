@@ -127,11 +127,19 @@ public class ValidationProgress implements Progress
         return lastUpdatedAtNs;
     }
 
-    public long getLastUpdatedAtMicro()
+    public long getDurationNanos()
+    {
+        if (isComplete())
+            return lastUpdatedAtNs - creationtTimeNs;
+        // progress may not be updated frequently, so this shows live duration
+        return System.nanoTime() - creationtTimeNs;
+    }
+
+    public long getLastUpdatedAtMillis()
     {
         // this is not acurate, but close enough to target human readability
         long durationNanos = lastUpdatedAtNs - creationtTimeNs;
-        return TimeUnit.MILLISECONDS.toMicros(creationTimeMillis) + TimeUnit.NANOSECONDS.toMicros(durationNanos);
+        return creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(durationNanos);
     }
 
     @Override

@@ -79,6 +79,8 @@ public class RepairTables
                         "\n" +
                         "  state text,\n" +
                         "  progress_percentage float, -- between 0.0 and 100.0\n" +
+                        "  last_updated_at_millis bigint,\n" +
+                        "  duration_micro bigint,\n" +
                         "  failure_cause text,\n" +
                         "\n" +
                         "  -- metrics\n" +
@@ -148,6 +150,8 @@ public class RepairTables
                         // participant state
                         dataSet.column("state", remoteState.state);
                         dataSet.column("progress_percentage", getTaskProgress(job.getState(), remoteState.progress) * 100);
+                        dataSet.column("last_updated_at_millis", remoteState.lastUpdatedAtMillis);
+                        dataSet.column("duration_micro", TimeUnit.NANOSECONDS.toMicros(remoteState.durationNanos));
                         if (remoteState.failureCause != null)
                             dataSet.column("failure_cause", remoteState.failureCause);
                     }
