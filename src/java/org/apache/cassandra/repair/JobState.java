@@ -30,6 +30,8 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Maps;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -59,7 +61,8 @@ public final class JobState
     private volatile long lastUpdatedAtNs;
     public final RepairJobDesc desc;
     private final Set<InetAddressAndPort> participants;
-    private final Map<InetAddressAndPort, RemoteState> validationResults = new HashMap<>();
+    // mutabed in ANTI_ENTROPY, accessed in READ stage
+    private final Map<InetAddressAndPort, RemoteState> validationResults = new NonBlockingHashMap<>();
 
     public JobState(RepairJobDesc desc, Set<InetAddressAndPort> participants)
     {
@@ -104,6 +107,7 @@ public final class JobState
         List<CompletableFuture<Pair<InetAddressAndPort, RemoteState>>> futures = new ArrayList<>(participants.size());
         for (InetAddressAndPort participant : participants)
         {
+            // if validation has already replied back, don't need to ask for currnent state
             RemoteState finishedResult = validationResults.get(participant);
             if (finishedResult != null)
             {
