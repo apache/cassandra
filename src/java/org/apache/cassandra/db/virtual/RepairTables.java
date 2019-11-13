@@ -54,6 +54,7 @@ public class RepairTables
     public static Collection<VirtualTable> getAll(String keyspace)
     {
         return Arrays.asList(
+            new RepairTable(keyspace),
             new RepairTaskTable(keyspace),
             new RepairValidationTable(keyspace)
         );
@@ -64,7 +65,7 @@ public class RepairTables
         public RepairTable(String keyspace)
         {
             super(parse(keyspace, "Repair summary",
-                        "CREATE TABLE system_views.repairs (\n" +
+                        "CREATE TABLE repairs (\n" +
                         "  id uuid,\n" +
                         "  keyspace_name text,\n" +
                         "  table_names frozen<list<text>>,\n" +
@@ -76,7 +77,7 @@ public class RepairTables
                         "  progress_percentage float,\n" +
                         "  last_updated_at_millis bigint,\n" +
                         "  duration_micro bigint,\n" +
-                        "  failure_cause text\n" +
+                        "  failure_cause text,\n" +
                         "\n" +
                         "  PRIMARY KEY ( (id) )\n" +
                         ")"));
@@ -107,7 +108,7 @@ public class RepairTables
             result.column("table_names", Arrays.asList(state.cfnames));
             result.column("ranges", state.commonRanges.stream().flatMap(r -> r.ranges.stream()).distinct().map(Range::toString).collect(Collectors.toList()));
             result.column("coordinator", FBUtilities.getBroadcastAddressAndPort().toString());
-            result.column("participants", state.commonRanges.stream().flatMap(r -> r.endpoints.stream()).distinct().map(InetAddressAndPort::toString).collect(Collectors.toList()));
+            result.column("participants", state.participants.stream().distinct().map(InetAddressAndPort::toString).collect(Collectors.toList()));
             result.column("state", state.getState().name().toLowerCase());
             //TODO impl when not tired
 //            result.column("progress_percentage");
@@ -123,7 +124,7 @@ public class RepairTables
         public RepairTaskTable(String keyspace)
         {
             super(parse(keyspace, "Sub tasks that make up a repair",
-                        "CREATE TABLE system_views.repair_tasks (\n" +
+                        "CREATE TABLE repair_tasks (\n" +
                         "  id uuid,\n" +
                         "  session_id uuid,\n" +
                         "  keyspace_name text,\n" +
@@ -133,6 +134,7 @@ public class RepairTables
                         "  participant text,\n" +
                         "\n" +
                         "  state text,\n" +
+                        "  state_description text,\n" +
                         "  progress_percentage float, -- between 0.0 and 100.0\n" +
                         "  last_updated_at_millis bigint,\n" +
                         "  duration_micro bigint,\n" +
@@ -202,7 +204,8 @@ public class RepairTables
                         dataSet.column("ranges", ranges);
 
                         // participant state
-                        dataSet.column("state", remoteState.state);
+                        dataSet.column("state", remoteState.state.name().toLowerCase());
+                        dataSet.column("state_description", remoteState.state.description);
                         dataSet.column("progress_percentage", getTaskProgress(job.getState(), remoteState.progress) * 100);
                         dataSet.column("last_updated_at_millis", remoteState.lastUpdatedAtMillis);
                         dataSet.column("duration_micro", TimeUnit.NANOSECONDS.toMicros(remoteState.durationNanos));

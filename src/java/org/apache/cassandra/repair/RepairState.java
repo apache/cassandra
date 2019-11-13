@@ -22,12 +22,16 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Keeps track of the state for a single repair.
@@ -73,6 +77,7 @@ public class RepairState implements Iterable<SessionState>
     // defined once repair starts
     public List<CommonRange> commonRanges; // each CommonRange will spawn a new RepairSession
     public String[] cfnames;
+    public Set<InetAddressAndPort> participants;
 
     public RepairState(UUID id, int cmd, String keyspace, RepairOption options)
     {
@@ -154,6 +159,10 @@ public class RepairState implements Iterable<SessionState>
     {
         this.cfnames = cfnames;
         this.commonRanges = commonRanges;
+        ImmutableSet.Builder<InetAddressAndPort> participants = ImmutableSet.builder();
+        commonRanges.forEach(c -> participants.addAll(c.endpoints));
+        participants.add(FBUtilities.getBroadcastAddressAndPort());
+        this.participants = participants.build();
         updateState(State.STARTED);
     }
 

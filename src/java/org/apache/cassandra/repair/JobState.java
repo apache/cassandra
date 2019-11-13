@@ -46,11 +46,29 @@ import org.apache.cassandra.utils.UUIDGen;
 public final class JobState
 {
     public enum State {
-        INIT, START,
-        SNAPSHOT_REQUEST, SNAPSHOT_COMPLETE,
-        VALIDATION_REQUEST, VALIDATON_COMPLETE,
-        SYNC_REQUEST, SYNC_COMPLETE,
-        SUCCESS, FAILURE
+        INIT("coordinator created, but not running"),
+        START("coordinator is running"),
+        // snapshot
+        SNAPSHOT_REQUEST("requested snapshots from participents"),
+        SNAPSHOT_COMPLETE("all snapshots are complete"),
+        // validation
+        VALIDATION_REQUEST("coordiantor sent validation request to participent; participent may not have recieved yet"),
+        VALIDATING("participent is running validation"),
+        VALIDATON_COMPLETE_AWAIT_TREES("participant validation is successful, but coordinator has not seen the merkle tree yet"),
+        VALIDATON_COMPLETE("coordiantor has recieved merkle trees"),
+        // sync
+        SYNC_REQUEST("coordiantor has detected a difference, requested streaming to repair ranges"),
+        SYNC_COMPLETE("all streams have completed"),
+        // terminal states
+        SUCCESS("repair tasks were successful"),
+        FAILURE("a repair task has failed");
+
+        public final String description;
+
+        State(String description)
+        {
+            this.description = description;
+        }
     }
 
     public final UUID id = UUIDGen.getTimeUUID();
@@ -77,11 +95,11 @@ public final class JobState
         RemoteState result;
         if (trees == null)
         {
-            result = new RemoteState("failure", 1f, "Validation failed in " + endpoint, System.currentTimeMillis(), 0);
+            result = new RemoteState(State.FAILURE, 1f, "Validation failed in " + endpoint, System.currentTimeMillis(), 0);
         }
         else
         {
-            result = new RemoteState("validaton_complete", 1f, null, System.currentTimeMillis(), 0);
+            result = new RemoteState(State.VALIDATON_COMPLETE, 1f, null, System.currentTimeMillis(), 0);
         }
         validationResults.put(endpoint, result);
     }
@@ -117,18 +135,18 @@ public final class JobState
             CompletableFuture<Pair<InetAddressAndPort, RemoteState>> f = ms.<ValidationStatusResponse>sendFuture(msg, participant).thenApply(rsp -> {
                 ValidationStatusResponse status = rsp.payload;
                 if (!status.isFound())
-                    return Pair.create(participant, new RemoteState(State.VALIDATION_REQUEST.name().toLowerCase(), 0f, status.failureCause, 0, 0));
+                    return Pair.create(participant, new RemoteState(State.VALIDATION_REQUEST, 0f, status.failureCause, 0, 0));
                 RemoteState state;
                 switch (status.state)
                 {
                     case SUCCESS:
-                        state = new RemoteState("participant validation is successful, but coordinator has not seen the merkle tree yet", 1f, null, status.lastUpdatedAtMillis, status.durationNanos);
+                        state = new RemoteState(State.VALIDATON_COMPLETE_AWAIT_TREES, 1f, null, status.lastUpdatedAtMillis, status.durationNanos);
                         break;
                     case FAILURE:
-                        state = new RemoteState("failure", 1f, status.failureCause, status.lastUpdatedAtMillis, status.durationNanos);
+                        state = new RemoteState(State.FAILURE, 1f, status.failureCause, status.lastUpdatedAtMillis, status.durationNanos);
                         break;
                     default:
-                        state = new RemoteState("validating", status.progress, null, status.lastUpdatedAtMillis, status.durationNanos);
+                        state = new RemoteState(State.VALIDATING, status.progress, null, status.lastUpdatedAtMillis, status.durationNanos);
                 }
                 return Pair.create(participant, state);
             });
@@ -155,7 +173,7 @@ public final class JobState
         Map<InetAddressAndPort, RemoteState> map = Maps.newHashMapWithExpectedSize(participants.size());
         State state = getState();
         for (InetAddressAndPort p : participants)
-            map.put(p, new RemoteState(state.name().toLowerCase(), getProgress(), failureCause, getLastUpdatedAtMillis(), getDurationNanos()));
+            map.put(p, new RemoteState(state, getProgress(), failureCause, getLastUpdatedAtMillis(), getDurationNanos()));
         return CompletableFuture.completedFuture(map);
     }
 
