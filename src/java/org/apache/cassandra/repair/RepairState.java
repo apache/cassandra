@@ -371,12 +371,19 @@ public class RepairState implements Iterable<RepairState.SessionState>
                                  });
         }
 
+        private float getProgress()
+        {
+            if (isComplete())
+                return 1f;
+            return (float) currentState / (float) State.values().length;
+        }
+
         private CompletableFuture<Map<InetAddressAndPort, RemoteState>> getLocalState()
         {
             Map<InetAddressAndPort, RemoteState> map = Maps.newHashMapWithExpectedSize(participants.size());
             State state = getState();
             for (InetAddressAndPort p : participants)
-                map.put(p, new RemoteState(state.name().toLowerCase(), 0f, null, getLastUpdatedAtMillis(), getDurationNanos()));
+                map.put(p, new RemoteState(state.name().toLowerCase(), getProgress(), failureCause, getLastUpdatedAtMillis(), getDurationNanos()));
             return CompletableFuture.completedFuture(map);
         }
 
