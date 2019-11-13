@@ -96,6 +96,26 @@ public class RepairState implements Iterable<SessionState>
         return sessions.values().iterator();
     }
 
+    public long getLastUpdatedAtMillis()
+    {
+        long lastUpdatedAtMillis = creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(lastUpdatedAtNs - stateTimesNanos[0]);
+        if (isComplete())
+            return lastUpdatedAtMillis;
+        // not complete, so most accurate state is with leafs
+        long max = lastUpdatedAtMillis;
+        for (SessionState session : sessions.values())
+            max = Math.max(max, session.getLastUpdatedAtMillis());
+        return max;
+    }
+
+    public long getDurationNanos()
+    {
+        if (isComplete())
+            return lastUpdatedAtNs - stateTimesNanos[0];
+        // since its still running, get the latest time
+        return System.nanoTime() - stateTimesNanos[0];
+    }
+
     public State getState()
     {
         return State.values()[currentState];
@@ -117,12 +137,6 @@ public class RepairState implements Iterable<SessionState>
     public long getStateTimeMillis(State state)
     {
         long deltaNanos = stateTimesNanos[state.ordinal()] - stateTimesNanos[0];
-        return creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(deltaNanos);
-    }
-
-    public long getLastUpdatedAtMillis()
-    {
-        long deltaNanos = lastUpdatedAtNs - stateTimesNanos[0];
         return creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(deltaNanos);
     }
 

@@ -111,8 +111,8 @@ public class RepairTables
             result.column("state", state.getState().name().toLowerCase());
             //TODO impl when not tired
 //            result.column("progress_percentage");
-//            result.column("last_updated_at_millis");
-//            result.column("duration_micro");
+            result.column("last_updated_at_millis", state.getLastUpdatedAtMillis());
+            result.column("duration_micro", TimeUnit.NANOSECONDS.toMicros(state.getDurationNanos()));
             result.column("failure_cause", state.getFailureCause());
         }
     }

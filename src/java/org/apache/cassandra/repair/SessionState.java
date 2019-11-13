@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
@@ -44,7 +45,7 @@ public final class SessionState implements Iterable<JobState>
     public final Map<UUID, JobState> jobs = new HashMap<>();
     private final Map<RepairJobDesc, UUID> jobIdLookup = new HashMap<>();
     private final long creationTimeMillis = System.currentTimeMillis();
-    private final long[] stateTimes = new long[State.values().length];
+    private final long[] stateTimesNanos = new long[State.values().length];
     private int currentState;
     private String failureCause;
     private volatile long lastUpdatedAtNs;
@@ -75,6 +76,31 @@ public final class SessionState implements Iterable<JobState>
     {
         return Optional.ofNullable(jobIdLookup.get(desc))
                        .flatMap(id -> Optional.ofNullable(jobs.get(id)));
+    }
+
+    public long getLastUpdatedAtMillis()
+    {
+        long lastUpdatedAtMillis = creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(lastUpdatedAtNs - stateTimesNanos[0]);
+        if (isComplete())
+            return lastUpdatedAtMillis;
+        // not complete, so most accurate state is with leafs
+        long max = lastUpdatedAtMillis;
+        for (JobState job : jobs.values())
+            max = Math.max(max, job.getLastUpdatedAtMillis());
+        return max;
+    }
+
+    public boolean isComplete()
+    {
+        switch (getState())
+        {
+            case SKIPPED:
+            case SUCCESS:
+            case FAILURE:
+                return true;
+            default:
+                return false;
+        }
     }
 
     public void start()
@@ -117,7 +143,7 @@ public final class SessionState implements Iterable<JobState>
     private void updateState(State state)
     {
         long now = System.nanoTime();
-        stateTimes[currentState = state.ordinal()] = now;
+        stateTimesNanos[currentState = state.ordinal()] = now;
         lastUpdatedAtNs = now;
     }
 
