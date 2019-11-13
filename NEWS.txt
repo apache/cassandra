@@ -435,6 +435,8 @@ Upgrading
    - The 'index_interval' option for 'CREATE TABLE' statements, which has been deprecated
      since 2.1 and replaced with the 'min_index_interval' and 'max_index_interval' options,
      has now been removed.
+   - The 'replicate_on_write' and 'populate_io_cache_on_flush' options for 'CREATE TABLE' statements,
+     which have been deprecated since 2.1, have also been removed.
    - Batchlog entries are now stored in a new table - system.batches.
      The old one has been deprecated.
    - JMX methods set/getCompactionStrategyClass have been removed, use
