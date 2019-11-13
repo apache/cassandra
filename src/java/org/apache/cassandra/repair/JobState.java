@@ -19,6 +19,7 @@
 package org.apache.cassandra.repair;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +37,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.messages.ValidationStatusRequest;
 import org.apache.cassandra.repair.messages.ValidationStatusResponse;
 import org.apache.cassandra.utils.CompletableFutureUtil;
+import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -57,12 +59,28 @@ public final class JobState
     private volatile long lastUpdatedAtNs;
     public final RepairJobDesc desc;
     private final Set<InetAddressAndPort> participants;
+    private final Map<InetAddressAndPort, RemoteState> validationResults = new HashMap<>();
 
     public JobState(RepairJobDesc desc, Set<InetAddressAndPort> participants)
     {
         this.desc = desc;
         this.participants = participants;
         updateState(State.INIT);
+    }
+
+    public void treesReceived(InetAddressAndPort endpoint, MerkleTrees trees)
+    {
+        //TODO how do we get duration? Do we track submission? What about phase change (--sequential may be misleading)
+        RemoteState result;
+        if (trees == null)
+        {
+            result = new RemoteState("failure", 1f, "Validation failed in " + endpoint, System.currentTimeMillis(), 0);
+        }
+        else
+        {
+            result = new RemoteState("validaton_complete", 1f, null, System.currentTimeMillis(), 0);
+        }
+        validationResults.put(endpoint, result);
     }
 
     public CompletableFuture<Map<InetAddressAndPort, RemoteState>> getParticipantState()
@@ -86,6 +104,12 @@ public final class JobState
         List<CompletableFuture<Pair<InetAddressAndPort, RemoteState>>> futures = new ArrayList<>(participants.size());
         for (InetAddressAndPort participant : participants)
         {
+            RemoteState finishedResult = validationResults.get(participant);
+            if (finishedResult != null)
+            {
+                futures.add(CompletableFuture.completedFuture(Pair.create(participant, finishedResult)));
+                continue;
+            }
             CompletableFuture<Pair<InetAddressAndPort, RemoteState>> f = ms.<ValidationStatusResponse>sendFuture(msg, participant).thenApply(rsp -> {
                 ValidationStatusResponse status = rsp.payload;
                 if (!status.isFound())

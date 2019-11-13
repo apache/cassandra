@@ -21,6 +21,7 @@ package org.apache.cassandra.repair;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -41,6 +42,7 @@ public final class SessionState implements Iterable<JobState>
 
     public final UUID id = UUIDGen.getTimeUUID();
     public final Map<UUID, JobState> jobs = new HashMap<>();
+    private final Map<RepairJobDesc, UUID> jobIdLookup = new HashMap<>();
     private final long creationTimeMillis = System.currentTimeMillis();
     private final long[] stateTimes = new long[State.values().length];
     private int currentState;
@@ -65,7 +67,14 @@ public final class SessionState implements Iterable<JobState>
                                                .build();
         JobState state = new JobState(desc, participants);
         jobs.put(state.id, state);
+        jobIdLookup.put(desc, state.id);
         return state;
+    }
+
+    public Optional<JobState> getJob(RepairJobDesc desc)
+    {
+        return Optional.ofNullable(jobIdLookup.get(desc))
+                       .flatMap(id -> Optional.ofNullable(jobs.get(id)));
     }
 
     public void start()
