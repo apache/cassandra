@@ -376,7 +376,7 @@ public class RepairState implements Iterable<RepairState.SessionState>
             Map<InetAddressAndPort, RemoteState> map = Maps.newHashMapWithExpectedSize(participants.size());
             State state = getState();
             for (InetAddressAndPort p : participants)
-                map.put(p, new RemoteState(state.name().toLowerCase(), 0f, null, -1, -1)); //TODO impl
+                map.put(p, new RemoteState(state.name().toLowerCase(), 0f, null, getLastUpdatedAtMillis(), getDurationNanos()));
             return CompletableFuture.completedFuture(map);
         }
 
@@ -434,6 +434,33 @@ public class RepairState implements Iterable<RepairState.SessionState>
         public State getState()
         {
             return State.values()[currentState];
+        }
+
+        public boolean isComplete()
+        {
+            switch (getState())
+            {
+                case SYNC_COMPLETE:
+                case FAILURE:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public long getDurationNanos()
+        {
+            if (isComplete())
+                return lastUpdatedAtNs - stateTimes[0];
+            // progress may not be updated frequently, so this shows live duration
+            return System.nanoTime() - stateTimes[0];
+        }
+
+        public long getLastUpdatedAtMillis()
+        {
+            // this is not acurate, but close enough to target human readability
+            long durationNanos = lastUpdatedAtNs - stateTimes[0];
+            return creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(durationNanos);
         }
 
         private void updateState(State state)
