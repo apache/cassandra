@@ -53,19 +53,74 @@ public class RepairTables
 
     public static Collection<VirtualTable> getAll(String keyspace)
     {
-        RepairValidationTable validations = new RepairValidationTable(keyspace);
         return Arrays.asList(
-            new RepairTaskTable(keyspace, validations.metadata),
-            validations
+            new RepairTaskTable(keyspace),
+            new RepairValidationTable(keyspace)
         );
+    }
+
+    public static class RepairTable extends AbstractVirtualTable
+    {
+        public RepairTable(String keyspace)
+        {
+            super(parse(keyspace, "Repair summary",
+                        "CREATE TABLE system_views.repairs (\n" +
+                        "  id uuid,\n" +
+                        "  keyspace_name text,\n" +
+                        "  table_names frozen<list<text>>,\n" +
+                        "  ranges frozen<list<text>>,\n" +
+                        "  coordinator text,\n" +
+                        "  participants frozen<list<text>>,\n" +
+                        "\n" +
+                        "  state text,\n" +
+                        "  progress_percentage float,\n" +
+                        "  last_updated_at_millis bigint,\n" +
+                        "  duration_micro bigint,\n" +
+                        "  failure_cause text\n" +
+                        "\n" +
+                        "  PRIMARY KEY ( (id) )\n" +
+                        ")"));
+        }
+
+        public DataSet data()
+        {
+            SimpleDataSet result = new SimpleDataSet(metadata());
+            ActiveRepairService.instance.getRepairStates().forEach(s -> updateDataset(result, s));
+            return result;
+        }
+
+        public DataSet data(DecoratedKey partitionKey)
+        {
+            UUID id = UUIDType.instance.compose(partitionKey.getKey());
+            SimpleDataSet result = new SimpleDataSet(metadata());
+            RepairState state = ActiveRepairService.instance.getRepairState(id);
+            if (state != null)
+                updateDataset(result, state);
+            return result;
+        }
+
+        private void updateDataset(SimpleDataSet result, RepairState state)
+        {
+            result.row(state.id);
+
+            result.column("keyspace_name", state.keyspace);
+            result.column("table_names", Arrays.asList(state.cfnames));
+            result.column("ranges", state.commonRanges.stream().flatMap(r -> r.ranges.stream()).distinct().map(Range::toString).collect(Collectors.toList()));
+            result.column("coordinator", FBUtilities.getBroadcastAddressAndPort().toString());
+            result.column("participants", state.commonRanges.stream().flatMap(r -> r.endpoints.stream()).distinct().map(InetAddressAndPort::toString).collect(Collectors.toList()));
+            result.column("state", state.getState().name().toLowerCase());
+            //TODO impl when not tired
+//            result.column("progress_percentage");
+//            result.column("last_updated_at_millis");
+//            result.column("duration_micro");
+            result.column("failure_cause", state.getFailureCause());
+        }
     }
 
     public static class RepairTaskTable extends AbstractVirtualTable
     {
 
-        private final TableMetadata validationMetadata;
-
-        public RepairTaskTable(String keyspace, TableMetadata validationMetadata)
+        public RepairTaskTable(String keyspace)
         {
             super(parse(keyspace, "Sub tasks that make up a repair",
                         "CREATE TABLE system_views.repair_tasks (\n" +
@@ -88,7 +143,6 @@ public class RepairTables
                         "\n" +
                         "  PRIMARY KEY ( (id), session_id, table_name, participant )\n" +
                         ")"));
-            this.validationMetadata = validationMetadata;
         }
 
         public DataSet data()

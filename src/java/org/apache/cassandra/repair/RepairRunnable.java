@@ -236,7 +236,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         List<CommonRange> commonRanges = tuple.commonRanges;
         List<ColumnFamilyStore> columnFamilyStores = tuple.columnFamilyStores;
         String[] cfnames = tuple.cfnames;
-        long startTimeMillis = state.getPhaseTimeMillis(RepairState.State.SETUP);
+        long startTimeMillis = state.getStateTimeMillis(RepairState.State.SETUP);
 
         boolean force = state.options.isForcedRepair();
 

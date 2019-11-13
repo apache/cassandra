@@ -64,7 +64,7 @@ public class RepairState implements Iterable<SessionState>
 
     // state tracking
     private final long creationTimeMillis = System.currentTimeMillis();
-    private final long[] phaseTimesNanos = new long[State.values().length];
+    private final long[] stateTimesNanos = new long[State.values().length];
     private int currentState;
     private String failureCause;
     private volatile long lastUpdatedAtNs;
@@ -81,7 +81,7 @@ public class RepairState implements Iterable<SessionState>
         this.keyspace = keyspace;
         this.options = options;
 
-        updatePhase(State.INIT);
+        updateState(State.INIT);
     }
 
     public SessionState createSession(CommonRange range)
@@ -96,14 +96,14 @@ public class RepairState implements Iterable<SessionState>
         return sessions.values().iterator();
     }
 
-    public State getPhase()
+    public State getState()
     {
         return State.values()[currentState];
     }
 
     public boolean isComplete()
     {
-        switch (getPhase())
+        switch (getState())
         {
             case SKIPPED:
             case SUCCESS:
@@ -114,15 +114,15 @@ public class RepairState implements Iterable<SessionState>
         }
     }
 
-    public long getPhaseTimeMillis(State state)
+    public long getStateTimeMillis(State state)
     {
-        long deltaNanos = phaseTimesNanos[state.ordinal()] - phaseTimesNanos[0];
+        long deltaNanos = stateTimesNanos[state.ordinal()] - stateTimesNanos[0];
         return creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(deltaNanos);
     }
 
     public long getLastUpdatedAtMillis()
     {
-        long deltaNanos = lastUpdatedAtNs - phaseTimesNanos[0];
+        long deltaNanos = lastUpdatedAtNs - stateTimesNanos[0];
         return creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(deltaNanos);
     }
 
@@ -133,45 +133,45 @@ public class RepairState implements Iterable<SessionState>
 
     public void phaseSetup()
     {
-        updatePhase(State.SETUP);
+        updateState(State.SETUP);
     }
 
     public void phaseStart(String[] cfnames, List<CommonRange> commonRanges)
     {
         this.cfnames = cfnames;
         this.commonRanges = commonRanges;
-        updatePhase(State.STARTED);
+        updateState(State.STARTED);
     }
 
     public void phasePrepareStart()
     {
-        updatePhase(State.PREPARE_SUBMIT);
+        updateState(State.PREPARE_SUBMIT);
     }
 
     public void phasePrepareComplete()
     {
-        updatePhase(State.PREPARE_COMPLETE);
+        updateState(State.PREPARE_COMPLETE);
     }
 
     public void phasSessionsSubmitted()
     {
-        updatePhase(State.SESSIONS_SUBMIT);
+        updateState(State.SESSIONS_SUBMIT);
     }
 
     public void phaseSessionsCompleted()
     {
-        updatePhase(State.SESSIONS_COMPLETE);
+        updateState(State.SESSIONS_COMPLETE);
     }
 
     public void success()
     {
-        updatePhase(State.SUCCESS);
+        updateState(State.SUCCESS);
     }
 
     public void skip(String reason)
     {
         this.failureCause = reason;
-        updatePhase(State.SKIPPED);
+        updateState(State.SKIPPED);
     }
 
     public void fail(Throwable reason)
@@ -182,13 +182,13 @@ public class RepairState implements Iterable<SessionState>
     public void fail(String reason)
     {
         this.failureCause = reason;
-        updatePhase(State.FAILURE);
+        updateState(State.FAILURE);
     }
 
-    private void updatePhase(State state)
+    private void updateState(State state)
     {
         long now = System.nanoTime();
-        phaseTimesNanos[currentState = state.ordinal()] = now;
+        stateTimesNanos[currentState = state.ordinal()] = now;
         lastUpdatedAtNs = now;
     }
 }
