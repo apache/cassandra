@@ -32,8 +32,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.repair.RepairState.JobState;
-import org.apache.cassandra.repair.RepairState.SessionState;
 import org.apache.cassandra.repair.asymmetric.DifferenceHolder;
 import org.apache.cassandra.repair.asymmetric.HostDifferences;
 import org.apache.cassandra.repair.asymmetric.PreferedNodeFilter;

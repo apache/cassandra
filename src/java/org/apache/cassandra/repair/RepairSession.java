@@ -92,7 +92,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
     public final ListeningExecutorService taskExecutor;
     private final RepairState repairState;
-    public final RepairState.SessionState state;
+    public final SessionState state;
     private final boolean forceSkippedReplicas;
 
     private volatile boolean terminated = false;

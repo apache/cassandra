@@ -43,7 +43,11 @@ import org.apache.cassandra.locator.InetAddressAndPort;
  */
 public class ValidationState
 {
-    public enum State { UNKNOWN, INIT, RUNNING, SUCCESS, FAILURE}
+    public enum State {
+        INIT,
+        RUNNING,
+        SUCCESS, FAILURE
+    }
 
     private final long creationTimeMillis = System.currentTimeMillis();
     private final long creationtTimeNs = System.nanoTime();

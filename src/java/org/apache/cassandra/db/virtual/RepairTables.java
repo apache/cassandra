@@ -37,8 +37,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RemoteState;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairState;
-import org.apache.cassandra.repair.RepairState.JobState;
-import org.apache.cassandra.repair.RepairState.SessionState;
+import org.apache.cassandra.repair.JobState;
+import org.apache.cassandra.repair.SessionState;
 import org.apache.cassandra.repair.ValidationState;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -179,8 +179,9 @@ public class RepairTables
                     return .6f;
                 case SYNC_REQUEST:
                     // 61-100%
-                    return ((validationRange * progress) + 60) / 100;
+                    return ((syncRange * progress) + 60) / 100;
                 case SYNC_COMPLETE:
+                case SUCCESS:
                 case FAILURE:
                     return 1f;
                 default:

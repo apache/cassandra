@@ -64,7 +64,17 @@ public class ValidationStatusResponse extends RepairMessage
     public static ValidationStatusResponse notFound(RepairJobDesc desc)
     {
         String cause = "Unable to find validation for job";
-        return new ValidationStatusResponse(desc, ValidationState.State.UNKNOWN, -1, cause, System.currentTimeMillis(), 0);
+        return notFound(desc, cause);
+    }
+
+    private static ValidationStatusResponse notFound(RepairJobDesc desc, String cause)
+    {
+        return new ValidationStatusResponse(desc, null, -1, cause, 0, 0);
+    }
+
+    public boolean isFound()
+    {
+        return state != null;
     }
 
     public static final IVersionedSerializer<ValidationStatusResponse> serializer = new IVersionedSerializer<ValidationStatusResponse>()
@@ -74,21 +84,34 @@ public class ValidationStatusResponse extends RepairMessage
         {
             RepairJobDesc.serializer.serialize(t.desc, out, version);
 
-            // progress
-            out.writeUTF(t.state.name());
-            out.writeFloat(t.progress);
-            out.writeBoolean(t.failureCause != null);
-            if (t.failureCause != null)
-                out.writeUTF(t.failureCause);
-            out.writeLong(t.lastUpdatedAtMillis);
-            out.writeLong(t.durationNanos);
+            out.writeBoolean(t.isFound());
+            if (t.isFound())
+            {
+                out.writeUTF(t.state.name());
+                out.writeFloat(t.progress);
+                out.writeBoolean(t.failureCause != null);
+                if (t.failureCause != null)
+                    out.writeUTF(t.failureCause);
+                out.writeLong(t.lastUpdatedAtMillis);
+                out.writeLong(t.durationNanos);
+            }
+            else
+            {
+                out.writeBoolean(t.failureCause != null);
+                if (t.failureCause != null)
+                    out.writeUTF(t.failureCause);
+            }
         }
 
         public ValidationStatusResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
 
-            // progress
+            if (!in.readBoolean())
+            {
+                String failureCause = in.readBoolean() ? in.readUTF() : null;
+                return notFound(desc, failureCause);
+            }
             ValidationState.State state = ValidationState.State.valueOf(in.readUTF().toUpperCase());
             float progress = in.readFloat();
             String failureCause = in.readBoolean() ? in.readUTF() : null;
@@ -102,14 +125,25 @@ public class ValidationStatusResponse extends RepairMessage
             int size = 0;
             size += RepairJobDesc.serializer.serializedSize(t.desc, version);
 
-            // progress
-            size += TypeSizes.sizeof(t.state.name()); //TODO should make this a byte
-            size += TypeSizes.sizeof(t.progress);
-            size += TypeSizes.sizeof(t.failureCause != null);
-            if (t.failureCause != null)
-                size += TypeSizes.sizeof(t.failureCause);
-            size += TypeSizes.sizeof(t.lastUpdatedAtMillis);
-            size += TypeSizes.sizeof(t.durationNanos);
+            size += TypeSizes.sizeof(true);
+
+            if (t.isFound())
+            {
+                size += TypeSizes.sizeof(t.state.name()); //TODO should make this a byte
+                size += TypeSizes.sizeof(t.progress);
+                size += TypeSizes.sizeof(t.failureCause != null);
+                if (t.failureCause != null)
+                    size += TypeSizes.sizeof(t.failureCause);
+                size += TypeSizes.sizeof(t.lastUpdatedAtMillis);
+                size += TypeSizes.sizeof(t.durationNanos);
+            }
+            else
+            {
+                size += TypeSizes.sizeof(t.failureCause != null);
+                if (t.failureCause != null)
+                    size += TypeSizes.sizeof(t.failureCause);
+            }
+
             return size;
         }
     };
