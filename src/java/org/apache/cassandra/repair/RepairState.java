@@ -350,7 +350,7 @@ public class RepairState implements Iterable<RepairState.SessionState>
                             state = new RemoteState(JobState.State.VALIDATION_REQUEST.name().toLowerCase(), 0f, null);
                             break;
                         case SUCCESS:
-                            state = new RemoteState("validaton_complete_await_rsp", 1f, null);
+                            state = new RemoteState("participant validation is successful, but coordinator has not seen the merkle tree yet", 1f, null);
                             break;
                         case FAILURE:
                             state = new RemoteState("failure", 1f, status.failureCause);
