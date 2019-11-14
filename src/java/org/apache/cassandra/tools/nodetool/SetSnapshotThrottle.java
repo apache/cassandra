@@ -22,11 +22,11 @@ import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "setsnapshotthrottle", description = "Set the hardlinks-per-second cap for snapshot and clearsnapshot throttling")
+@Command(name = "setsnapshotthrottle", description = "Set the snapshot_links_per_second cap for snapshot and clearsnapshot throttling")
 public class SetSnapshotThrottle extends NodeToolCmd
 {
-    @Arguments(title = "setsnapshotthrottle", usage = "<throttle>", description = "Value represents hardlinks per second, 0 to disable throttling", required = true)
-    private Double snapshotThrottle = null;
+    @Arguments(title = "setsnapshotthrottle", usage = "<throttle>", description = "Value represents hardlinks per second ( snapshot_links_per_second ) , 0 to disable throttling", required = true)
+    private Long snapshotThrottle = null;
 
     @Override
     public void execute(NodeProbe probe)

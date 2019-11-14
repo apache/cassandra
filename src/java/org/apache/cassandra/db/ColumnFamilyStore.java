@@ -1717,7 +1717,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public Set<SSTableReader> snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, RateLimiter rateLimiter)
     {
         if (rateLimiter == null)
-            rateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond());
+            rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
         Set<SSTableReader> snapshottedSSTables = new HashSet<>();
         for (ColumnFamilyStore cfs : concatWithIndexes())
@@ -1814,7 +1814,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     protected static void clearEphemeralSnapshots(Directories directories)
     {
-        RateLimiter clearSnapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond());
+        RateLimiter clearSnapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
         for (String ephemeralSnapshot : directories.listEphemeralSnapshots())
         {
@@ -1927,7 +1927,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void clearSnapshot(String snapshotName)
     {
-        RateLimiter clearSnapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond());
+        RateLimiter clearSnapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
         List<File> snapshotDirs = getDirectories().getCFDirectories();
         Directories.clearSnapshot(snapshotName, snapshotDirs, clearSnapshotRateLimiter);

@@ -311,7 +311,7 @@ public class Keyspace
      */
     public static void clearSnapshot(String snapshotName, String keyspace)
     {
-        RateLimiter clearSnapshotRateLimiter = RateLimiter.create(DatabaseDescriptor.getSnapshotLinksPerSecond());
+        RateLimiter clearSnapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
         List<File> snapshotDirs = Directories.getKSChildDirectories(keyspace);
         Directories.clearSnapshot(snapshotName, snapshotDirs, clearSnapshotRateLimiter);

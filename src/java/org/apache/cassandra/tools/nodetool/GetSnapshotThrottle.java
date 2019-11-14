@@ -21,13 +21,13 @@ import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "getsnapshotthrottle", description = "Print the hardlink-per-second throttle for snapshot/clearsnapshot")
+@Command(name = "getsnapshotthrottle", description = "Print the snapshot_links_per_second throttle for snapshot/clearsnapshot")
 public class GetSnapshotThrottle extends NodeToolCmd
 {
     @Override
     public void execute(NodeProbe probe)
     {
-        double throttle = probe.getSnapshotLinksPerSecond();
+        long throttle = probe.getSnapshotLinksPerSecond();
         if (throttle > 0)
             System.out.println("Current snapshot throttle: " + throttle + " links/s");
         else

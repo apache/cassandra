@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -44,6 +45,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.SyncUtil;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -64,6 +66,8 @@ public final class FileUtils
     public static final Charset CHARSET = StandardCharsets.UTF_8;
 
     private static final Logger logger = LoggerFactory.getLogger(FileUtils.class);
+    private static final NoSpamLogger nospam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
     public static final long ONE_KB = 1024;
     public static final long ONE_MB = 1024 * ONE_KB;
     public static final long ONE_GB = 1024 * ONE_MB;
@@ -193,7 +197,11 @@ public final class FileUtils
         try
         {
             if (rateLimiter != null)
-                rateLimiter.acquire();
+            {
+                double throttled = rateLimiter.acquire();
+                if (throttled > 0.0)
+                    nospam1m.warn("Throttling file deletion: waited {} seconds to delete {}", throttled, file);
+            }
             if (exists)
                 Files.delete(file.toPath());
         }

@@ -275,7 +275,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      *
      * @param throttle
      */
-    public void setSnapshotLinksPerSecond(double throttle);
+    public void setSnapshotLinksPerSecond(long throttle);
 
     /**
      * Get the current hardlink-per-second throttle for snapshots
@@ -283,7 +283,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      *
      * @return snapshot links-per-second throttle
      */
-    public double getSnapshotLinksPerSecond();
+    public long getSnapshotLinksPerSecond();
 
     /**
      * Forces refresh of values stored in system.size_estimates of all column families.
