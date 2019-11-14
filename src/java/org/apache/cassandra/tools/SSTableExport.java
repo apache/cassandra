@@ -312,8 +312,7 @@ public class SSTableExport
             excludeSet = new HashSet<>(Arrays.asList(excludes));
 
         SSTableIdentityIterator row;
-        ISSTableScanner scanner = reader.getScanner();
-        try
+        try (ISSTableScanner scanner = reader.getScanner())
         {
             outs.println("[");
 
@@ -339,10 +338,6 @@ public class SSTableExport
 
             outs.println("\n]");
             outs.flush();
-        }
-        finally
-        {
-            scanner.close();
         }
     }
 

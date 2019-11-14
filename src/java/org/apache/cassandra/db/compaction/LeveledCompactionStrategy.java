@@ -215,6 +215,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         return maxSSTableSizeInMB * 1024L * 1024L;
     }
 
+    @SuppressWarnings("resource")
     public ScannerList getScanners(Collection<SSTableReader> sstables, Range<Token> range)
     {
         Set<SSTableReader>[] sstablesPerLevel = manifest.getSStablesPerLevelSnapshot();
