@@ -27,6 +27,7 @@ Contents:
    :maxdepth: 2
 
    getting_started/index
+   new/index
    architecture/index
    data_modeling/index
    cql/index
