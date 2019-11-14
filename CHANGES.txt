@@ -10,6 +10,7 @@
  * Make sure all exceptions are propagated in DebuggableThreadPoolExecutor (CASSANDRA-15332)
  * Make it possible to resize concurrent read / write thread pools at runtime (CASSANDRA-15277)
  * Close channels on error (CASSANDRA-15407)
+ * Add documentation for Java 11 support in Cassandra (CASSANDRA-15428)
 Merged from 3.11:
  * Fix nodetool compactionstats showing extra pending task for TWCS - patch implemented (CASSANDRA-15409)
  * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)
