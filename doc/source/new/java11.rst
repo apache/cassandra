@@ -101,7 +101,7 @@ To run Apache Cassandra 4.0 with either of Java 8 or Java 11 run the Cassandra a
 
  $ cassandra
 
-The Java version used to run Cassandra gets output as Cassandra is getting started. As an example if Java 11 is used the run output includes the following:
+The Java version used to run Cassandra gets output as Cassandra is getting started. As an example if Java 11 is used, the run output should include similar to the following output snippet:
 
 ::
 
