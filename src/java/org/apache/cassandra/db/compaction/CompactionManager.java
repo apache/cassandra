@@ -844,6 +844,7 @@ public class CompactionManager implements CompactionManagerMBean
      *
      * @throws IOException
      */
+    @SuppressWarnings("resource")
     private void doCleanupOne(final ColumnFamilyStore cfs, LifecycleTransaction txn, CleanupStrategy cleanupStrategy, Collection<Range<Token>> ranges, boolean hasIndexes) throws IOException
     {
         assert !cfs.isIndex();
