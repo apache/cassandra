@@ -25,6 +25,7 @@ import java.util.Map;
 
 import com.google.common.collect.Multimap;
 
+import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.Keyspace;
@@ -67,6 +68,7 @@ public class InternalNodeProbe extends NodeProbe
         hhProxy = HintedHandOffManager.instance;
         gcProxy = new GCInspector();
         gossProxy = Gossiper.instance;
+        bmProxy = BatchlogManager.instance;
         memProxy = ManagementFactory.getMemoryMXBean();
         runtimeProxy = ManagementFactory.getRuntimeMXBean();
     }

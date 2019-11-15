@@ -119,7 +119,7 @@ public class NodeProbe implements AutoCloseable
     protected CacheServiceMBean cacheService;
     protected StorageProxyMBean spProxy;
     protected HintedHandOffManagerMBean hhProxy;
- 	private BatchlogManagerMBean bmProxy;
+    protected BatchlogManagerMBean bmProxy;
     private boolean failed;
 
     /**
@@ -810,6 +810,11 @@ public class NodeProbe implements AutoCloseable
     public StorageProxyMBean getSpProxy()
     {
         return spProxy;
+    }
+
+    public GossiperMBean getGossProxy()
+    {
+        return gossProxy;
     }
 
     public String getEndpoint()
