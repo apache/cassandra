@@ -230,8 +230,10 @@ public class RepairTables
                 case SNAPSHOT_COMPLETE:
                     return .2f;
                 case VALIDATION_REQUEST:
+                case VALIDATING:
                     // 21-60%
                     return ((validationRange * progress) + 20) / 100;
+                case VALIDATON_COMPLETE_AWAIT_TREES:
                 case VALIDATON_COMPLETE:
                     return .6f;
                 case SYNC_REQUEST:
