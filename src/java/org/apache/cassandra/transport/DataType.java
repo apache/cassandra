@@ -160,7 +160,7 @@ public enum DataType
                 break;
             case UDT:
                 UserType udt = (UserType)value;
-                CBUtil.writeString(udt.keyspace, cb);
+                CBUtil.writeAsciiString(udt.keyspace, cb);
                 CBUtil.writeString(UTF8Type.instance.compose(udt.name), cb);
                 cb.writeShort(udt.size());
                 for (int i = 0; i < udt.size(); i++)

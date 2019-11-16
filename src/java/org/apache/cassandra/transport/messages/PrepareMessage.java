@@ -63,7 +63,7 @@ public class PrepareMessage extends Message.Request
                     dest.writeInt(0x0);
                 else {
                     dest.writeInt(0x1);
-                    CBUtil.writeString(msg.keyspace, dest);
+                    CBUtil.writeAsciiString(msg.keyspace, dest);
                 }
             }
         }

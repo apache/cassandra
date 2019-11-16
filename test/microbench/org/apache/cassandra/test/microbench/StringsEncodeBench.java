@@ -41,7 +41,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 6, time = 20)
 @Fork(value = 1,jvmArgsAppend = { "-Xmx256M", "-Djmh.executor=CUSTOM", "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor"})
 @State(Scope.Benchmark)
-public class Utf8StringEncodeBench
+public class StringsEncodeBench
 {
     private String shortText = "abcdefghijk";
     private String longText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
@@ -75,6 +75,13 @@ public class Utf8StringEncodeBench
     }
 
     @Benchmark
+    public void writeShortTextAsASCII()
+    {
+        ByteBuf cb = Unpooled.buffer(shortTextEncodeSize);
+        CBUtil.writeAsciiString(shortText, cb);
+    }
+
+    @Benchmark
     public int writeLongText() // expecting resize
     {
         ByteBuf cb = Unpooled.buffer(longTextEncodeSize);
@@ -100,4 +107,10 @@ public class Utf8StringEncodeBench
         return ByteBufUtil.reserveAndWriteUtf8(cb, longText, size);
     }
 
+    @Benchmark
+    public void writeLongTextAsASCII()
+    {
+        ByteBuf cb = Unpooled.buffer(longTextEncodeSize);
+        CBUtil.writeAsciiString(longText, cb);
+    }
 }

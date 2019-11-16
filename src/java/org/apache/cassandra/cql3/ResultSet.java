@@ -433,8 +433,8 @@ public class ResultSet
                 {
                     if (globalTablesSpec)
                     {
-                        CBUtil.writeString(m.names.get(0).ksName, dest);
-                        CBUtil.writeString(m.names.get(0).cfName, dest);
+                        CBUtil.writeAsciiString(m.names.get(0).ksName, dest);
+                        CBUtil.writeAsciiString(m.names.get(0).cfName, dest);
                     }
 
                     for (int i = 0; i < m.columnCount; i++)
@@ -442,10 +442,10 @@ public class ResultSet
                         ColumnSpecification name = m.names.get(i);
                         if (!globalTablesSpec)
                         {
-                            CBUtil.writeString(name.ksName, dest);
-                            CBUtil.writeString(name.cfName, dest);
+                            CBUtil.writeAsciiString(name.ksName, dest);
+                            CBUtil.writeAsciiString(name.cfName, dest);
                         }
-                        CBUtil.writeString(name.name.toString(), dest);
+                        CBUtil.writeAsciiString(name.name.toString(), dest);
                         DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
                     }
                 }
@@ -639,18 +639,18 @@ public class ResultSet
 
                 if (globalTablesSpec)
                 {
-                    CBUtil.writeString(m.names.get(0).ksName, dest);
-                    CBUtil.writeString(m.names.get(0).cfName, dest);
+                    CBUtil.writeAsciiString(m.names.get(0).ksName, dest);
+                    CBUtil.writeAsciiString(m.names.get(0).cfName, dest);
                 }
 
                 for (ColumnSpecification name : m.names)
                 {
                     if (!globalTablesSpec)
                     {
-                        CBUtil.writeString(name.ksName, dest);
-                        CBUtil.writeString(name.cfName, dest);
+                        CBUtil.writeAsciiString(name.ksName, dest);
+                        CBUtil.writeAsciiString(name.cfName, dest);
                     }
-                    CBUtil.writeString(name.name.toString(), dest);
+                    CBUtil.writeAsciiString(name.name.toString(), dest);
                     DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
                 }
             }

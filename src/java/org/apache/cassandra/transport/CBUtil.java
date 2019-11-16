@@ -136,19 +136,23 @@ public abstract class CBUtil
         }
     }
 
-    private static int inferSizeAndWriteString(String str, ByteBuf cb)
+    /**
+     * Write US-ASCII strings. It does not work if containing any char > 0x007F (127)
+     * @param str, satisfies {@link org.apache.cassandra.db.marshal.AsciiType},
+     *             i.e. seven-bit ASCII, a.k.a. ISO646-US
+     * @throws ProtocolException, when the input {@param str} cannot satisfy the encoding.
+     */
+    public static void writeAsciiString(String str, ByteBuf cb)
     {
-        // leverage the encodeSize from previous step, instead of over-estimating the utf8MaxBytes
-        int estimation = cb.capacity() - cb.writerIndex();
-        return ByteBufUtil.reserveAndWriteUtf8(cb, str, estimation);
+        cb.writeShort(str.length());
+        ByteBufUtil.writeAscii(cb, str);
     }
 
     public static void writeString(String str, ByteBuf cb)
     {
-        int writerIndex = cb.writerIndex();
-        cb.writeShort(0);
-        int written = inferSizeAndWriteString(str, cb);
-        cb.setShort(writerIndex, written);
+        int length = TypeSizes.encodedUTF8Length(str);
+        cb.writeShort(length);
+        ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
 
     public static int sizeOfString(String str)
@@ -171,10 +175,9 @@ public abstract class CBUtil
 
     public static void writeLongString(String str, ByteBuf cb)
     {
-        int writerIndex = cb.writerIndex();
-        cb.writeInt(0);
-        int written = inferSizeAndWriteString(str, cb);
-        cb.setInt(writerIndex, written);
+        int length = TypeSizes.encodedUTF8Length(str);
+        cb.writeInt(length);
+        ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
 
     public static int sizeOfLongString(String str)
@@ -272,7 +275,9 @@ public abstract class CBUtil
 
     public static <T extends Enum<T>> void writeEnumValue(T enumValue, ByteBuf cb)
     {
-        writeString(enumValue.toString(), cb);
+        // UTF-8 (non-ascii) literals can be used for as a valid identifier in Java. It is possible for an enum to be named using those characters.
+        // There is no such occurence in the code base.
+        writeAsciiString(enumValue.toString(), cb);
     }
 
     public static <T extends Enum<T>> int sizeOfEnumValue(T enumValue)

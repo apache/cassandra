@@ -510,7 +510,7 @@ public abstract class QueryOptions
             if (flags.contains(Flag.TIMESTAMP))
                 dest.writeLong(options.getSpecificOptions().timestamp);
             if (flags.contains(Flag.KEYSPACE))
-                CBUtil.writeString(options.getSpecificOptions().keyspace, dest);
+                CBUtil.writeAsciiString(options.getSpecificOptions().keyspace, dest);
             if (flags.contains(Flag.NOW_IN_SECONDS))
                 dest.writeInt(options.getSpecificOptions().nowInSeconds);
 

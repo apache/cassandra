@@ -204,7 +204,7 @@ public class ErrorMessage extends Message.Response
                         }
 
                         if (isWrite)
-                            CBUtil.writeString(((WriteFailureException)rfe).writeType.toString(), dest);
+                            CBUtil.writeAsciiString(((WriteFailureException)rfe).writeType.toString(), dest);
                         else
                             dest.writeByte((byte)(((ReadFailureException)rfe).dataPresent ? 1 : 0));
                     }
@@ -218,14 +218,14 @@ public class ErrorMessage extends Message.Response
                     dest.writeInt(rte.received);
                     dest.writeInt(rte.blockFor);
                     if (isWrite)
-                        CBUtil.writeString(((WriteTimeoutException)rte).writeType.toString(), dest);
+                        CBUtil.writeAsciiString(((WriteTimeoutException)rte).writeType.toString(), dest);
                     else
                         dest.writeByte((byte)(((ReadTimeoutException)rte).dataPresent ? 1 : 0));
                     break;
                 case FUNCTION_FAILURE:
                     FunctionExecutionException fee = (FunctionExecutionException)msg.error;
-                    CBUtil.writeString(fee.functionName.keyspace, dest);
-                    CBUtil.writeString(fee.functionName.name, dest);
+                    CBUtil.writeAsciiString(fee.functionName.keyspace, dest);
+                    CBUtil.writeAsciiString(fee.functionName.name, dest);
                     CBUtil.writeStringList(fee.argTypes, dest);
                     break;
                 case UNPREPARED:
@@ -234,8 +234,8 @@ public class ErrorMessage extends Message.Response
                     break;
                 case ALREADY_EXISTS:
                     AlreadyExistsException aee = (AlreadyExistsException)err;
-                    CBUtil.writeString(aee.ksName, dest);
-                    CBUtil.writeString(aee.cfName, dest);
+                    CBUtil.writeAsciiString(aee.ksName, dest);
+                    CBUtil.writeAsciiString(aee.cfName, dest);
                     break;
             }
         }
