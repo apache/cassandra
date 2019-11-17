@@ -356,7 +356,8 @@ public class SerDeserTest
                                     version,
                                     "some_keyspace",
                                     FBUtilities.timestampMicros(),
-                                    FBUtilities.nowInSeconds())
+                                    FBUtilities.nowInSeconds(),
+                                    Integer.MAX_VALUE)
             );
         }
     }

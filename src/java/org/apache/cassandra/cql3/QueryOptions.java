@@ -78,7 +78,7 @@ public abstract class QueryOptions
                                       ProtocolVersion version,
                                       String keyspace)
     {
-        return create(consistency, values, skipMetadata, pageSize, pagingState, serialConsistency, version, keyspace, Long.MIN_VALUE, Integer.MIN_VALUE);
+        return create(consistency, values, skipMetadata, pageSize, pagingState, serialConsistency, version, keyspace, Long.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
     }
 
     public static QueryOptions create(ConsistencyLevel consistency,
@@ -90,12 +90,13 @@ public abstract class QueryOptions
                                       ProtocolVersion version,
                                       String keyspace,
                                       long timestamp,
-                                      int nowInSeconds)
+                                      int nowInSeconds,
+                                      int timeoutInMillis)
     {
         return new DefaultQueryOptions(consistency,
                                        values,
                                        skipMetadata,
-                                       new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds),
+                                       new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds, timeoutInMillis),
                                        version);
     }
 
@@ -203,6 +204,11 @@ public abstract class QueryOptions
     {
         int nowInSeconds = getSpecificOptions().nowInSeconds;
         return nowInSeconds != Integer.MIN_VALUE ? nowInSeconds : state.getNowInSeconds();
+    }
+
+    public int getTimeoutInMillis()
+    {
+        return getSpecificOptions().timeoutInMillis;
     }
 
     /** The keyspace that this query is bound to, or null if not relevant. */
@@ -377,7 +383,7 @@ public abstract class QueryOptions
     // Options that are likely to not be present in most queries
     static class SpecificOptions
     {
-        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE, null, Integer.MIN_VALUE);
+        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE, null, Integer.MIN_VALUE, Integer.MIN_VALUE);
 
         private final int pageSize;
         private final PagingState state;
@@ -385,13 +391,15 @@ public abstract class QueryOptions
         private final long timestamp;
         private final String keyspace;
         private final int nowInSeconds;
+        private final int timeoutInMillis;
 
         private SpecificOptions(int pageSize,
                                 PagingState state,
                                 ConsistencyLevel serialConsistency,
                                 long timestamp,
                                 String keyspace,
-                                int nowInSeconds)
+                                int nowInSeconds,
+                                int timeoutInMillis)
         {
             this.pageSize = pageSize;
             this.state = state;
@@ -399,6 +407,7 @@ public abstract class QueryOptions
             this.timestamp = timestamp;
             this.keyspace = keyspace;
             this.nowInSeconds = nowInSeconds;
+            this.timeoutInMillis = timeoutInMillis;
         }
     }
 
@@ -415,7 +424,8 @@ public abstract class QueryOptions
             TIMESTAMP,
             NAMES_FOR_VALUES,
             KEYSPACE,
-            NOW_IN_SECONDS;
+            NOW_IN_SECONDS,
+            TIMEOUT_IN_MILLIS;
 
             private static final Flag[] ALL_VALUES = values();
 
@@ -482,7 +492,8 @@ public abstract class QueryOptions
                 }
                 String keyspace = flags.contains(Flag.KEYSPACE) ? CBUtil.readString(body) : null;
                 int nowInSeconds = flags.contains(Flag.NOW_IN_SECONDS) ? body.readInt() : Integer.MIN_VALUE;
-                options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds);
+                int timeoutInMillis = flags.contains(Flag.TIMEOUT_IN_MILLIS) ? body.readInt() : Integer.MIN_VALUE;
+                options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds, timeoutInMillis);
             }
 
             DefaultQueryOptions opts = new DefaultQueryOptions(consistency, values, skipMetadata, options, version);
@@ -513,6 +524,8 @@ public abstract class QueryOptions
                 CBUtil.writeAsciiString(options.getSpecificOptions().keyspace, dest);
             if (flags.contains(Flag.NOW_IN_SECONDS))
                 dest.writeInt(options.getSpecificOptions().nowInSeconds);
+            if (flags.contains(Flag.TIMEOUT_IN_MILLIS))
+                dest.writeInt(options.getSpecificOptions().timeoutInMillis);
 
             // Note that we don't really have to bother with NAMES_FOR_VALUES server side,
             // and in fact we never really encode QueryOptions, only decode them, so we
@@ -542,6 +555,8 @@ public abstract class QueryOptions
                 size += CBUtil.sizeOfAsciiString(options.getSpecificOptions().keyspace);
             if (flags.contains(Flag.NOW_IN_SECONDS))
                 size += 4;
+            if (flags.contains(Flag.TIMEOUT_IN_MILLIS))
+                size += 4;
 
             return size;
         }
@@ -568,6 +583,8 @@ public abstract class QueryOptions
                     flags.add(Flag.KEYSPACE);
                 if (options.getSpecificOptions().nowInSeconds != Integer.MIN_VALUE)
                     flags.add(Flag.NOW_IN_SECONDS);
+                if (options.getSpecificOptions().timeoutInMillis != Integer.MIN_VALUE)
+                    flags.add(Flag.TIMEOUT_IN_MILLIS);
             }
 
             return flags;

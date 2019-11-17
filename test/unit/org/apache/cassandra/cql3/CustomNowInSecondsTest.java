@@ -201,7 +201,8 @@ public class CustomNowInSecondsTest extends CQLTester
                                    ProtocolVersion.CURRENT,
                                    null,
                                    Long.MIN_VALUE,
-                                   nowInSeconds);
+                                   nowInSeconds,
+                                   Integer.MAX_VALUE);
     }
 
     private static BatchQueryOptions batchQueryOptions(int nowInSeconds)
