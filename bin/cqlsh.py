@@ -583,7 +583,7 @@ class Shell(cmd.Cmd):
             return format_value(val, cqltype=cqltype, encoding=self.output_codec.name,
                                 addcolor=self.color, date_time_format=dtformats,
                                 float_precision=precision, **kwargs)
-        except Exception, e:
+        except Exception as e:
             err = FormatError(val, e)
             self.decoding_errors.append(err)
             return format_value(err, cqltype=cqltype, encoding=self.output_codec.name, addcolor=self.color)
@@ -997,7 +997,7 @@ class Shell(cmd.Cmd):
         for st in statements:
             try:
                 self.handle_statement(st, statementtext)
-            except Exception, e:
+            except Exception as e:
                 if self.debug:
                     traceback.print_exc()
                 else:
@@ -1085,7 +1085,7 @@ class Shell(cmd.Cmd):
                     self.writeresult(msg, color=RED)
                     for trace_id in future.get_query_trace_ids():
                         self.show_session(trace_id, partial_session=True)
-                except Exception, err:
+                except Exception as err:
                     self.printerr("Unable to fetch query trace: %s" % (str(err),))
 
         return success
