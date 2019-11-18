@@ -257,7 +257,7 @@ public class ErrorMessage extends Message.Response
                         RequestFailureException rfe = (RequestFailureException)err;
                         boolean isWrite = err.code() == ExceptionCode.WRITE_FAILURE;
                         size += CBUtil.sizeOfConsistencyLevel(rfe.consistency) + 4 + 4 + 4;
-                        size += isWrite ? CBUtil.sizeOfString(((WriteFailureException)rfe).writeType.toString()) : 1;
+                        size += isWrite ? CBUtil.sizeOfAsciiString(((WriteFailureException)rfe).writeType.toString()) : 1;
 
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
@@ -274,12 +274,12 @@ public class ErrorMessage extends Message.Response
                     RequestTimeoutException rte = (RequestTimeoutException)err;
                     boolean isWrite = err.code() == ExceptionCode.WRITE_TIMEOUT;
                     size += CBUtil.sizeOfConsistencyLevel(rte.consistency) + 8;
-                    size += isWrite ? CBUtil.sizeOfString(((WriteTimeoutException)rte).writeType.toString()) : 1;
+                    size += isWrite ? CBUtil.sizeOfAsciiString(((WriteTimeoutException)rte).writeType.toString()) : 1;
                     break;
                 case FUNCTION_FAILURE:
                     FunctionExecutionException fee = (FunctionExecutionException)msg.error;
-                    size += CBUtil.sizeOfString(fee.functionName.keyspace);
-                    size += CBUtil.sizeOfString(fee.functionName.name);
+                    size += CBUtil.sizeOfAsciiString(fee.functionName.keyspace);
+                    size += CBUtil.sizeOfAsciiString(fee.functionName.name);
                     size += CBUtil.sizeOfStringList(fee.argTypes);
                     break;
                 case UNPREPARED:
@@ -288,8 +288,8 @@ public class ErrorMessage extends Message.Response
                     break;
                 case ALREADY_EXISTS:
                     AlreadyExistsException aee = (AlreadyExistsException)err;
-                    size += CBUtil.sizeOfString(aee.ksName);
-                    size += CBUtil.sizeOfString(aee.cfName);
+                    size += CBUtil.sizeOfAsciiString(aee.ksName);
+                    size += CBUtil.sizeOfAsciiString(aee.cfName);
                     break;
             }
             return size;

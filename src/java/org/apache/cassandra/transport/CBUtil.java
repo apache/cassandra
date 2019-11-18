@@ -140,7 +140,6 @@ public abstract class CBUtil
      * Write US-ASCII strings. It does not work if containing any char > 0x007F (127)
      * @param str, satisfies {@link org.apache.cassandra.db.marshal.AsciiType},
      *             i.e. seven-bit ASCII, a.k.a. ISO646-US
-     * @throws ProtocolException, when the input {@param str} cannot satisfy the encoding.
      */
     public static void writeAsciiString(String str, ByteBuf cb)
     {
@@ -158,6 +157,16 @@ public abstract class CBUtil
     public static int sizeOfString(String str)
     {
         return 2 + TypeSizes.encodedUTF8Length(str);
+    }
+
+    /**
+     * Returns the ecoding size of a US-ASCII string. It does not work if containing any char > 0x007F (127)
+     * @param str, satisfies {@link org.apache.cassandra.db.marshal.AsciiType},
+     *             i.e. seven-bit ASCII, a.k.a. ISO646-US
+     */
+    public static int sizeOfAsciiString(String str)
+    {
+        return 2 + str.length();
     }
 
     public static String readLongString(ByteBuf cb)
@@ -282,7 +291,7 @@ public abstract class CBUtil
 
     public static <T extends Enum<T>> int sizeOfEnumValue(T enumValue)
     {
-        return sizeOfString(enumValue.toString());
+        return sizeOfAsciiString(enumValue.toString());
     }
 
     public static UUID readUUID(ByteBuf cb)

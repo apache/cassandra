@@ -363,26 +363,26 @@ public abstract class Event
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
                     return CBUtil.sizeOfEnumValue(change)
                                + CBUtil.sizeOfEnumValue(target)
-                               + CBUtil.sizeOfString(keyspace)
-                               + CBUtil.sizeOfString(name)
+                               + CBUtil.sizeOfAsciiString(keyspace)
+                               + CBUtil.sizeOfAsciiString(name)
                                + CBUtil.sizeOfStringList(argTypes);
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
                     return CBUtil.sizeOfEnumValue(Change.UPDATED)
                            + CBUtil.sizeOfEnumValue(Target.KEYSPACE)
-                           + CBUtil.sizeOfString(keyspace);
+                           + CBUtil.sizeOfAsciiString(keyspace);
                 return CBUtil.sizeOfEnumValue(Change.UPDATED)
-                       + CBUtil.sizeOfString(keyspace)
-                       + CBUtil.sizeOfString("");
+                       + CBUtil.sizeOfAsciiString(keyspace)
+                       + CBUtil.sizeOfAsciiString("");
             }
 
             if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
             {
                 int size = CBUtil.sizeOfEnumValue(change)
                          + CBUtil.sizeOfEnumValue(target)
-                         + CBUtil.sizeOfString(keyspace);
+                         + CBUtil.sizeOfAsciiString(keyspace);
 
                 if (target != Target.KEYSPACE)
-                    size += CBUtil.sizeOfString(name);
+                    size += CBUtil.sizeOfAsciiString(name);
 
                 return size;
             }
@@ -391,12 +391,12 @@ public abstract class Event
                 if (target == Target.TYPE)
                 {
                     return CBUtil.sizeOfEnumValue(Change.UPDATED)
-                         + CBUtil.sizeOfString(keyspace)
-                         + CBUtil.sizeOfString("");
+                         + CBUtil.sizeOfAsciiString(keyspace)
+                         + CBUtil.sizeOfAsciiString("");
                 }
                 return CBUtil.sizeOfEnumValue(change)
-                     + CBUtil.sizeOfString(keyspace)
-                     + CBUtil.sizeOfString(target == Target.KEYSPACE ? "" : name);
+                     + CBUtil.sizeOfAsciiString(keyspace)
+                     + CBUtil.sizeOfAsciiString(target == Target.KEYSPACE ? "" : name);
             }
         }
 

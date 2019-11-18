@@ -200,7 +200,7 @@ public enum DataType
             case UDT:
                 UserType udt = (UserType)value;
                 int size = 0;
-                size += CBUtil.sizeOfString(udt.keyspace);
+                size += CBUtil.sizeOfAsciiString(udt.keyspace);
                 size += CBUtil.sizeOfString(UTF8Type.instance.compose(udt.name));
                 size += 2;
                 for (int i = 0; i < udt.size(); i++)

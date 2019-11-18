@@ -113,4 +113,16 @@ public class StringsEncodeBench
         ByteBuf cb = Unpooled.buffer(longTextEncodeSize);
         CBUtil.writeAsciiString(longText, cb);
     }
+
+    @Benchmark
+    public int sizeOfString()
+    {
+        return CBUtil.sizeOfString(longText);
+    }
+
+    @Benchmark
+    public int sizeOfAsciiString()
+    {
+        return CBUtil.sizeOfAsciiString(longText);
+    }
 }

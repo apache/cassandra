@@ -158,7 +158,7 @@ public abstract class ResultMessage extends Message.Response
             public int encodedSize(ResultMessage msg, ProtocolVersion version)
             {
                 assert msg instanceof SetKeyspace;
-                return CBUtil.sizeOfString(((SetKeyspace)msg).keyspace);
+                return CBUtil.sizeOfAsciiString(((SetKeyspace)msg).keyspace);
             }
         };
 

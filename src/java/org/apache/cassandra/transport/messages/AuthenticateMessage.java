@@ -44,7 +44,7 @@ public class AuthenticateMessage extends Message.Response
 
         public int encodedSize(AuthenticateMessage msg, ProtocolVersion version)
         {
-            return CBUtil.sizeOfString(msg.authenticator);
+            return CBUtil.sizeOfAsciiString(msg.authenticator);
         }
     };
 

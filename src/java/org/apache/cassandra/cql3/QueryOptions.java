@@ -539,7 +539,7 @@ public abstract class QueryOptions
             if (flags.contains(Flag.TIMESTAMP))
                 size += 8;
             if (flags.contains(Flag.KEYSPACE))
-                size += CBUtil.sizeOfString(options.getSpecificOptions().keyspace);
+                size += CBUtil.sizeOfAsciiString(options.getSpecificOptions().keyspace);
             if (flags.contains(Flag.NOW_IN_SECONDS))
                 size += 4;
 

@@ -80,12 +80,15 @@ public class CBUtilTest
         Assert.assertEquals(write, read);
     }
 
-    @Test(expected = ProtocolException.class)
-    public void writeAndReadAsciiStringFailedWithNonAscii()
+    @Test
+    public void writeAndReadAsciiStringMismatchWithNonUSAscii()
     {
         String invalidAsciiStr = "\u0080 \u0123 \u0321"; // a valid string contains no char > 0x007F
         int size = CBUtil.sizeOfString(invalidAsciiStr);
         buf = allocator.heapBuffer(size);
         CBUtil.writeAsciiString(invalidAsciiStr, buf);
+        Assert.assertNotEquals("Characters (> 0x007F) is considered as 2 bytes in sizeOfString, meanwhile writeAsciiString writes just 1 byte",
+                               size,
+                               buf.writerIndex());
     }
 }
