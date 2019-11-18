@@ -1,7 +1,7 @@
 2.2.16
  * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
-
+ * In-JVM DTest: Support NodeTool in dtest
 
 2.2.15
  * Catch non-IOException in FileUtils.close to make sure that all resources are closed (CASSANDRA-15225)
