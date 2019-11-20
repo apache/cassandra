@@ -33,6 +33,7 @@ import java.util.function.Supplier;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Multimap;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 
@@ -2312,6 +2313,25 @@ public class DatabaseDescriptor
     public static void setIncrementalBackupsEnabled(boolean value)
     {
         conf.incremental_backups = value;
+    }
+    
+    public static void setIncrementalBackupsKSTBs(Multimap<String, String> ksTbs)
+    {
+        conf.incrementalbackupKsTbs = ksTbs;
+    }
+    
+    public static Multimap<String, String> getIncrementalBackupsKSTBs()
+    {
+        return conf.incrementalbackupKsTbs;
+    }
+    
+    public static boolean incrementalBackupForKSTB(String keyspace, String table)
+    {
+        if (conf.incrementalbackupKsTbs.containsEntry(keyspace, table))
+        {
+            return true;
+        }
+        return false;
     }
 
     public static int getFileCacheSizeInMB()

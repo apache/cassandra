@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
@@ -275,6 +277,7 @@ public class Config
     public ParameterizedClass hints_compression;
 
     public volatile boolean incremental_backups = false;
+    public volatile Multimap<String, String> incrementalbackupKsTbs = HashMultimap.<String, String>create();
     public boolean trickle_fsync = false;
     public int trickle_fsync_interval_in_kb = 10240;
 

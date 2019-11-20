@@ -1490,11 +1490,76 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.isIncrementalBackupsEnabled();
     }
 
-    public void setIncrementalBackupsEnabled(boolean value)
+    public Multimap<String, String> getIncrementalBackupsKSTBs()
     {
-        DatabaseDescriptor.setIncrementalBackupsEnabled(value);
+        return DatabaseDescriptor.getIncrementalBackupsKSTBs();
     }
 
+    public void setIncrementalBackupsEnabled(boolean value, String ... ksTbStringList) throws IOException, IllegalArgumentException
+    {
+        Multimap<String, String> incrementalbackupKsTbs;
+        if ( null != ksTbStringList && ksTbStringList.length > 0)
+        {
+            boolean previousStatus = DatabaseDescriptor.isIncrementalBackupsEnabled();
+            incrementalbackupKsTbs = HashMultimap.<String, String>create(DatabaseDescriptor.getIncrementalBackupsKSTBs());
+            for (String ksTbString : ksTbStringList)
+            {
+                String splittedString[] = StringUtils.split(ksTbString, '.');
+                if (splittedString.length == 2)
+                {
+                    String keyspaceName = splittedString[0];
+                    String tableName = splittedString[1];
+                    
+                    if (null == keyspaceName)
+                    {
+                        throw new IOException("You must supply a keyspace name");
+                    }
+                    
+                    if (null == tableName)
+                    {
+                        throw new IOException("You must supply a table name");
+                    }
+                    
+                    Keyspace keyspace = getValidKeyspace(keyspaceName);
+                    keyspace.getColumnFamilyStore(tableName);
+                    
+                    if (value)
+                    {
+                        incrementalbackupKsTbs.put(keyspaceName, tableName);
+                    }
+                    else 
+                    {
+                        incrementalbackupKsTbs.remove(keyspaceName, tableName);
+                    }
+                }
+                else 
+                {
+                    throw new IllegalArgumentException("Cannot enable incremental backup on secondary index or invalid table name. You must supply a table name in the form of keyspace.table");
+                }
+            }
+            
+            if (!previousStatus && value)
+            {
+                DatabaseDescriptor.setIncrementalBackupsEnabled(value);
+            }
+        }
+        else 
+        {
+            incrementalbackupKsTbs = HashMultimap.<String, String>create();
+            if (value)
+            {
+                Keyspace.all().forEach(keyspace -> {
+                    keyspace.getMetadata().tables.forEach(table -> incrementalbackupKsTbs.put(table.keyspace, table.name));
+                });
+            }
+            
+            DatabaseDescriptor.setIncrementalBackupsEnabled(value);
+        }
+        
+        logger.debug("Incremental backups " + ( value ? " enabled. " : " disableed. ") + " backups keyspce table information : " + incrementalbackupKsTbs);
+        DatabaseDescriptor.setIncrementalBackupsKSTBs(incrementalbackupKsTbs);
+    }
+    
     private void setMode(Mode m, boolean log)
     {
         setMode(m, null, log);

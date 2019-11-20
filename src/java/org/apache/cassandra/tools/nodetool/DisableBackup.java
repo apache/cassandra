@@ -18,16 +18,40 @@
 package org.apache.cassandra.tools.nodetool;
 
 import io.airlift.airline.Command;
-
+import io.airlift.airline.Option;
+import java.io.IOException;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "disablebackup", description = "Disable incremental backup")
+@Command(name = "disablebackup", description = "Disable incremental backup with specified keyspace and table")
 public class DisableBackup extends NodeToolCmd
 {
+    @Option(title = "ktlist", name = { "-kt", "--kt-list" }, description = "The list of Keyspace.table connected by ',' to take incremental backup. All table will take backup if not set. ")
+    private String ktList = null;
+    
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.setIncrementalBackupsEnabled(false);
+        try 
+        {
+            System.out.printf("%s%n", "Requested disable encremental backup for :");
+            
+            if (null != ktList && !ktList.isEmpty())
+            {
+                ktList = ktList.replace(" ", "");
+                probe.setIncrementalBackupsEnabled(false, ktList.split(","));
+                System.out.printf("    %s", probe.getIncrementalBackupsKSTBs());
+            }
+            else 
+            {
+                probe.setIncrementalBackupsEnabled(false); 
+                System.out.printf("    %s", "All keyspaces");
+            }
+            
+        }
+        catch (IOException | IllegalArgumentException e) 
+        {
+            throw new RuntimeException("Error during diable incremental backup.", e);
+        }
     }
 }

@@ -33,6 +33,7 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import com.google.common.collect.Multimap;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -587,7 +588,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setConcurrentViewBuilders(int value);
 
     public boolean isIncrementalBackupsEnabled();
-    public void setIncrementalBackupsEnabled(boolean value);
+    public void setIncrementalBackupsEnabled(boolean value, String ... ksTbStringList) throws IOException, IllegalArgumentException;
+    public Multimap<String, String> getIncrementalBackupsKSTBs();
 
     /**
      * Initiate a process of streaming data for which we are responsible from other nodes. It is similar to bootstrap

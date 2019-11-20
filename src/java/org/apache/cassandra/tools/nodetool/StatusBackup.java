@@ -28,9 +28,16 @@ public class StatusBackup extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println(
-                probe.isIncrementalBackupsEnabled()
-                ? "running"
-                : "not running");
+        System.out.printf("%s%n", "Incremental backup status:");
+        
+        if (!probe.isIncrementalBackupsEnabled())
+        {
+            System.out.printf("    %s", "Not running");
+        }
+        else 
+        {
+            System.out.printf("    %s%n", "Runinng, backup keyspace and table are :");
+            System.out.printf("    %s", probe.getIncrementalBackupsKSTBs());
+        }
     }
 }

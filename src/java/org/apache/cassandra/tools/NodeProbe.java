@@ -763,14 +763,19 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getAutoCompactionStatus(ks, tableNames);
     }
 
-    public void setIncrementalBackupsEnabled(boolean enabled)
+    public void setIncrementalBackupsEnabled(boolean enabled, String ... ksTbStringList) throws IllegalArgumentException, IOException
     {
-        ssProxy.setIncrementalBackupsEnabled(enabled);
+        ssProxy.setIncrementalBackupsEnabled(enabled, ksTbStringList);
     }
 
     public boolean isIncrementalBackupsEnabled()
     {
         return ssProxy.isIncrementalBackupsEnabled();
+    }
+    
+    public  Multimap<String, String> getIncrementalBackupsKSTBs()
+    {
+        return ssProxy.getIncrementalBackupsKSTBs();
     }
 
     public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity, int counterCacheCapacity)

@@ -40,17 +40,20 @@ import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.StartupClusterConnectivityChecker;
+import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
@@ -67,6 +70,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
@@ -285,7 +289,7 @@ public class CassandraDaemon
                 }
             }
         }
-
+        
         Keyspace.setInitialized();
 
         // initialize keyspaces
@@ -334,6 +338,23 @@ public class CassandraDaemon
             throw new RuntimeException(e);
         }
 
+       //config incremental backup
+        if (DatabaseDescriptor.isIncrementalBackupsEnabled())
+        {
+            Multimap<String, String> incrementalbackupKsTbs = HashMultimap.<String, String>create();
+            Keyspace.all().forEach(keyspace -> 
+            {
+                keyspace.getMetadata().tables.forEach(table -> incrementalbackupKsTbs.put(table.keyspace, table.name));
+            });
+            
+            //add trace/auth/distributed keyspace though they have not been loaded.
+            TraceKeyspace.metadata().tables.forEach(table -> incrementalbackupKsTbs.put(table.keyspace, table.name));
+            SystemDistributedKeyspace.metadata().tables.forEach(table -> incrementalbackupKsTbs.put(table.keyspace, table.name));
+            AuthKeyspace.metadata().tables.forEach(table -> incrementalbackupKsTbs.put(table.keyspace, table.name));
+            
+            DatabaseDescriptor.setIncrementalBackupsKSTBs(incrementalbackupKsTbs);
+        }
+        
         // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
         StorageService.instance.populateTokenMetadata();
 
