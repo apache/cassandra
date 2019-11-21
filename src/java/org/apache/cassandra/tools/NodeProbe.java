@@ -97,6 +97,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
+import org.apache.cassandra.utils.NativeLibrary;
 
 /**
  * JMX client operations for Cassandra.
@@ -517,6 +518,11 @@ public class NodeProbe implements AutoCloseable
     public Map<String, Float> effectiveOwnershipWithPort(String keyspace) throws IllegalStateException
     {
         return ssProxy.effectiveOwnershipWithPort(keyspace);
+    }
+
+    public MBeanServerConnection getMbeanServerConn()
+    {
+        return mbeanServerConn;
     }
 
     public CacheServiceMBean getCacheServiceMBean()
@@ -1296,6 +1302,11 @@ public class NodeProbe implements AutoCloseable
         return failed;
     }
 
+    public void failed()
+    {
+        this.failed = true;
+    }
+
     public long getReadRepairAttempted()
     {
         return spProxy.getReadRepairAttempted();
@@ -1670,6 +1681,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getLoggingLevels();
     }
 
+    public long getPid()
+    {
+        return NativeLibrary.getProcessID();
+    }
+
     public void resumeBootstrap(PrintStream out) throws IOException
     {
         BootstrapMonitor monitor = new BootstrapMonitor(out);
@@ -1755,7 +1771,7 @@ public class NodeProbe implements AutoCloseable
     {
         ssProxy.clearConnectionHistory();
     }
-    
+
     public void disableAuditLog()
     {
         ssProxy.disableAuditLog();
