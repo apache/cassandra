@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import javax.management.MBeanServerConnection;
+
 import io.airlift.airline.Command;
 
 import io.airlift.airline.Option;

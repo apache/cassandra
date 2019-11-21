@@ -583,6 +583,15 @@
           <dependency groupId="org.ow2.asm" artifactId="asm" version="${asm.version}" />
           <dependency groupId="org.ow2.asm" artifactId="asm-tree" version="${asm.version}" />
           <dependency groupId="org.ow2.asm" artifactId="asm-commons" version="${asm.version}" />
+          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-cli" version="0.14"/>
+          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-core" version="0.14"/>
+          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-stacktrace" version="0.14"/>
+          <dependency groupId="org.gridkit.jvmtool" artifactId="mxdump" version="0.14"/>
+          <dependency groupId="org.gridkit.lab" artifactId="jvm-attach-api" version="1.5"/>
+          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-json" version="0.14"/>
+
+          <dependency groupId="com.beust" artifactId="jcommander" version="1.30"/>
+
         </dependencyManagement>
         <developer id="adelapena" name="Andres de la Peña"/>
         <developer id="alakshman" name="Avinash Lakshman"/>
@@ -653,6 +662,13 @@
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess"/>
         <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
         <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.7" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-cli" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-core" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-stacktrace" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="mxdump" />
+        <dependency groupId="org.gridkit.lab" artifactId="jvm-attach-api" />
+        <dependency groupId="com.beust" artifactId="jcommander" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-json"/>
       </artifact:pom>
       <!-- this build-deps-pom-sources "artifact" is the same as build-deps-pom but only with those
            artifacts that have "-source.jar" files -->
@@ -764,7 +780,14 @@
         <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" />
         <dependency groupId="org.jctools" artifactId="jctools-core"/>
         <dependency groupId="org.ow2.asm" artifactId="asm" />
-        <dependency groupId="com.carrotsearch" artifactId="hppc" version="0.5.4" />
+        <dependency groupId="com.carrotsearch" artifactId="hppc" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-cli" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-core" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-stacktrace" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="mxdump" />
+        <dependency groupId="org.gridkit.lab" artifactId="jvm-attach-api" />
+        <dependency groupId="com.beust" artifactId="jcommander" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-json"/>
       </artifact:pom>
       <artifact:pom id="dist-pom"
                     artifactId="apache-cassandra"
