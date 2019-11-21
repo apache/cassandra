@@ -97,6 +97,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
+import org.apache.cassandra.utils.NativeLibrary;
 
 /**
  * JMX client operations for Cassandra.
@@ -143,7 +144,7 @@ public class NodeProbe implements AutoCloseable
     public NodeProbe(String host, int port, String username, String password) throws IOException
     {
         assert username != null && !username.isEmpty() && password != null && !password.isEmpty()
-               : "neither username nor password can be blank";
+        : "neither username nor password can be blank";
 
         this.host = host;
         this.port = port;
@@ -229,13 +230,13 @@ public class NodeProbe implements AutoCloseable
         catch (MalformedObjectNameException e)
         {
             throw new RuntimeException(
-                    "Invalid ObjectName? Please report this as a bug.", e);
+            "Invalid ObjectName? Please report this as a bug.", e);
         }
 
         memProxy = ManagementFactory.newPlatformMXBeanProxy(mbeanServerConn,
-                ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
+                                                            ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
         runtimeProxy = ManagementFactory.newPlatformMXBeanProxy(
-                mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
+        mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
     }
 
     private RMIClientSocketFactory getRMIClientSocketFactory()
@@ -519,6 +520,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.effectiveOwnershipWithPort(keyspace);
     }
 
+    public MBeanServerConnection getMbeanServerConn()
+    {
+        return mbeanServerConn;
+    }
+
     public CacheServiceMBean getCacheServiceMBean()
     {
         String cachePath = "org.apache.cassandra.db:type=Caches";
@@ -556,7 +562,7 @@ public class NodeProbe implements AutoCloseable
 
     public CompactionManagerMBean getCompactionManagerProxy()
     {
-      return compactionProxy;
+        return compactionProxy;
     }
 
     public List<String> getTokens()
@@ -645,7 +651,7 @@ public class NodeProbe implements AutoCloseable
      *            list of columnfamily from different keyspace in the form of ks1.cf1 ks2.cf2
      */
     public void takeMultipleTableSnapshot(String snapshotName, Map<String, String> options, String... tableList)
-            throws IOException
+    throws IOException
     {
         if (null != tableList && tableList.length != 0)
         {
@@ -887,7 +893,7 @@ public class NodeProbe implements AutoCloseable
         {
             String type = cf.contains(".") ? "IndexColumnFamilies" : "ColumnFamilies";
             Set<ObjectName> beans = mbeanServerConn.queryNames(
-                    new ObjectName("org.apache.cassandra.db:type=*" + type +",keyspace=" + ks + ",columnfamily=" + cf), null);
+            new ObjectName("org.apache.cassandra.db:type=*" + type +",keyspace=" + ks + ",columnfamily=" + cf), null);
 
             if (beans.isEmpty())
                 throw new MalformedObjectNameException("couldn't find that bean");
@@ -1296,6 +1302,11 @@ public class NodeProbe implements AutoCloseable
         return failed;
     }
 
+    public void failed()
+    {
+        this.failed = true;
+    }
+
     public long getReadRepairAttempted()
     {
         return spProxy.getReadRepairAttempted();
@@ -1328,22 +1339,22 @@ public class NodeProbe implements AutoCloseable
                 case "HitRate":
                 case "Size":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
                 case "Requests":
                 case "Hits":
                 case "Misses":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
                 case "MissLatency":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
                 case "MissLatencyUnit":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=MissLatency"),
-                            CassandraMetricsRegistry.JmxTimerMBean.class).getDurationUnit();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=MissLatency"),
+                                             CassandraMetricsRegistry.JmxTimerMBean.class).getDurationUnit();
                 default:
                     throw new RuntimeException("Unknown cache metric name.");
 
@@ -1362,8 +1373,8 @@ public class NodeProbe implements AutoCloseable
             Multimap<String, String> threadPools = HashMultimap.create();
 
             Set<ObjectName> threadPoolObjectNames = mbeanServerConn.queryNames(
-                    new ObjectName("org.apache.cassandra.metrics:type=ThreadPools,*"),
-                    null);
+            new ObjectName("org.apache.cassandra.metrics:type=ThreadPools,*"),
+            null);
 
             for (ObjectName oName : threadPoolObjectNames)
             {
@@ -1384,35 +1395,35 @@ public class NodeProbe implements AutoCloseable
 
     public Object getThreadPoolMetric(String pathName, String poolName, String metricName)
     {
-      String name = String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s",
-              pathName, poolName, metricName);
+        String name = String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s",
+                                    pathName, poolName, metricName);
 
-      try
-      {
-          ObjectName oName = new ObjectName(name);
-          if (!mbeanServerConn.isRegistered(oName))
-          {
-              return "N/A";
-          }
+        try
+        {
+            ObjectName oName = new ObjectName(name);
+            if (!mbeanServerConn.isRegistered(oName))
+            {
+                return "N/A";
+            }
 
-          switch (metricName)
-          {
-              case ThreadPoolMetrics.ACTIVE_TASKS:
-              case ThreadPoolMetrics.PENDING_TASKS:
-              case ThreadPoolMetrics.COMPLETED_TASKS:
-              case ThreadPoolMetrics.MAX_POOL_SIZE:
-                  return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxGaugeMBean.class).getValue();
-              case ThreadPoolMetrics.TOTAL_BLOCKED_TASKS:
-              case ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS:
-                  return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxCounterMBean.class).getCount();
-              default:
-                  throw new AssertionError("Unknown metric name " + metricName);
-          }
-      }
-      catch (Exception e)
-      {
-          throw new RuntimeException("Error reading: " + name, e);
-      }
+            switch (metricName)
+            {
+                case ThreadPoolMetrics.ACTIVE_TASKS:
+                case ThreadPoolMetrics.PENDING_TASKS:
+                case ThreadPoolMetrics.COMPLETED_TASKS:
+                case ThreadPoolMetrics.MAX_POOL_SIZE:
+                    return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxGaugeMBean.class).getValue();
+                case ThreadPoolMetrics.TOTAL_BLOCKED_TASKS:
+                case ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS:
+                    return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxCounterMBean.class).getCount();
+                default:
+                    throw new AssertionError("Unknown metric name " + metricName);
+            }
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Error reading: " + name, e);
+        }
     }
 
     /**
@@ -1519,8 +1530,8 @@ public class NodeProbe implements AutoCloseable
         try
         {
             return JMX.newMBeanProxy(mbeanServerConn,
-                    new ObjectName("org.apache.cassandra.metrics:type=ClientRequest,scope=" + scope + ",name=Latency"),
-                    CassandraMetricsRegistry.JmxTimerMBean.class);
+                                     new ObjectName("org.apache.cassandra.metrics:type=ClientRequest,scope=" + scope + ",name=Latency"),
+                                     CassandraMetricsRegistry.JmxTimerMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -1554,18 +1565,18 @@ public class NodeProbe implements AutoCloseable
             {
                 case "BytesCompacted":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
-                            CassandraMetricsRegistry.JmxCounterMBean.class);
+                                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
+                                             CassandraMetricsRegistry.JmxCounterMBean.class);
                 case "CompletedTasks":
                 case "PendingTasks":
                 case "PendingTasksByTableName":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
-                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
+                                             CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
                 case "TotalCompactionsCompleted":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
-                            CassandraMetricsRegistry.JmxMeterMBean.class);
+                                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
+                                             CassandraMetricsRegistry.JmxMeterMBean.class);
                 default:
                     throw new RuntimeException("Unknown compaction metric.");
             }
@@ -1591,8 +1602,8 @@ public class NodeProbe implements AutoCloseable
                 case "connectedNativeClientsByUser": // number of native clients by username
                 case "clientsByProtocolVersion": // number of native clients by username
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Client,name=" + metricName),
-                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Client,name=" + metricName),
+                                             CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
                 default:
                     throw new RuntimeException("Unknown client metric " + metricName);
             }
@@ -1612,8 +1623,8 @@ public class NodeProbe implements AutoCloseable
         try
         {
             return JMX.newMBeanProxy(mbeanServerConn,
-                    new ObjectName("org.apache.cassandra.metrics:type=Storage,name=" + metricName),
-                    CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
+                                     new ObjectName("org.apache.cassandra.metrics:type=Storage,name=" + metricName),
+                                     CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
         }
         catch (MalformedObjectNameException e)
         {
@@ -1624,23 +1635,23 @@ public class NodeProbe implements AutoCloseable
     public double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxHistogramMBean metric)
     {
         return new double[]{ metric.get50thPercentile(),
-                metric.get75thPercentile(),
-                metric.get95thPercentile(),
-                metric.get98thPercentile(),
-                metric.get99thPercentile(),
-                metric.getMin(),
-                metric.getMax()};
+                             metric.get75thPercentile(),
+                             metric.get95thPercentile(),
+                             metric.get98thPercentile(),
+                             metric.get99thPercentile(),
+                             metric.getMin(),
+                             metric.getMax()};
     }
 
     public double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxTimerMBean metric)
     {
         return new double[]{ metric.get50thPercentile(),
-                metric.get75thPercentile(),
-                metric.get95thPercentile(),
-                metric.get98thPercentile(),
-                metric.get99thPercentile(),
-                metric.getMin(),
-                metric.getMax()};
+                             metric.get75thPercentile(),
+                             metric.get95thPercentile(),
+                             metric.get98thPercentile(),
+                             metric.get99thPercentile(),
+                             metric.getMin(),
+                             metric.getMax()};
     }
 
     public TabularData getCompactionHistory()
@@ -1661,13 +1672,18 @@ public class NodeProbe implements AutoCloseable
         }
         catch (Exception e)
         {
-          throw new RuntimeException("Error setting log for " + classQualifier +" on level " + level +". Please check logback configuration and ensure to have <jmxConfigurator /> set", e);
+            throw new RuntimeException("Error setting log for " + classQualifier +" on level " + level +". Please check logback configuration and ensure to have <jmxConfigurator /> set", e);
         }
     }
 
     public Map<String, String> getLoggingLevels()
     {
         return ssProxy.getLoggingLevels();
+    }
+
+    public long getPid()
+    {
+        return NativeLibrary.getProcessID();
     }
 
     public void resumeBootstrap(PrintStream out) throws IOException
@@ -1755,7 +1771,7 @@ public class NodeProbe implements AutoCloseable
     {
         ssProxy.clearConnectionHistory();
     }
-    
+
     public void disableAuditLog()
     {
         ssProxy.disableAuditLog();
@@ -1788,7 +1804,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
     Iterator<Entry<String, ColumnFamilyStoreMBean>> mbeans;
 
     public ColumnFamilyStoreMBeanIterator(MBeanServerConnection mbeanServerConn)
-        throws MalformedObjectNameException, NullPointerException, IOException
+    throws MalformedObjectNameException, NullPointerException, IOException
     {
         this.mbeanServerConn = mbeanServerConn;
         List<Entry<String, ColumnFamilyStoreMBean>> cfMbeans = getCFSMBeans(mbeanServerConn, "ColumnFamilies");
@@ -1828,7 +1844,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
     }
 
     private List<Entry<String, ColumnFamilyStoreMBean>> getCFSMBeans(MBeanServerConnection mbeanServerConn, String type)
-            throws MalformedObjectNameException, IOException
+    throws MalformedObjectNameException, IOException
     {
         ObjectName query = new ObjectName("org.apache.cassandra.db:type=" + type +",*");
         Set<ObjectName> cfObjects = mbeanServerConn.queryNames(query, null);
