@@ -1495,6 +1495,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getIncrementalBackupsKSTBs();
     }
 
+    /**
+     * Set the incremental backup status with the specified keyspace and table
+     * 
+     * @param value if set true then means incremental backup is turn on for the keyspace/table.
+     *        If the value set false, that means incremental backup should be turn off for the keyspace/table.
+     * @param ksTbStringList the array of the string with the format keyspace.table, This means the keyspace/table
+     *        that should turn on/off incremental backup. All keyspace/table will be set when this variable is null  
+     *          
+     * */
     public void setIncrementalBackupsEnabled(boolean value, String ... ksTbStringList) throws IOException, IllegalArgumentException
     {
         Multimap<String, String> incrementalbackupKsTbs;
