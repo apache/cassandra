@@ -1,0 +1,595 @@
+version: 2.1
+
+default_env_vars: &default_env_vars
+    ANT_HOME: /usr/share/ant
+    LANG: en_US.UTF-8
+    KEEP_TEST_DIR: true
+    DEFAULT_DIR: /home/cassandra/cassandra-dtest
+    PYTHONIOENCODING: utf-8
+    PYTHONUNBUFFERED: true
+    CASS_DRIVER_NO_EXTENSIONS: true
+    CASS_DRIVER_NO_CYTHON: true
+    #Skip all syncing to disk to avoid performance issues in flaky CI environments
+    CASSANDRA_SKIP_SYNC: true
+    DTEST_REPO: git://github.com/apache/cassandra-dtest.git
+    DTEST_BRANCH: master
+    CCM_MAX_HEAP_SIZE: 1024M
+    CCM_HEAP_NEWSIZE: 256M
+
+j8_par_executor: &j8_par_executor
+  executor:
+    name: java8-executor
+    #exec_resource_class: xlarge
+  parallelism: 4
+
+j8_seq_executor: &j8_seq_executor
+  executor:
+    name: java8-executor
+    #exec_resource_class: xlarge
+  parallelism: 1 # sequential, single container tests: no parallelism benefits
+
+j11_par_executor: &j11_par_executor
+  executor:
+    name: java11-executor
+    #exec_resource_class: xlarge
+  parallelism: 4
+
+j8_with_dtests_jobs: &j8_with_dtests_jobs
+  jobs:
+    - j8_build
+    # Java 8 unit tests will be run automatically
+    - j8_unit_tests:
+        requires:
+          - j8_build
+    - j8_jvm_dtests:
+        requires:
+          - j8_build
+    # Java 11 unit tests (on request, currently not working)
+    - start_j11_unit_tests:
+        type: approval
+        requires:
+          - j8_build
+    - j11_unit_tests:
+        requires:
+          - start_j11_unit_tests
+    # specialized unit tests (all run on request using Java 8)
+    - start_utests_long:
+        type: approval
+        requires:
+          - j8_build
+    - utests_long:
+        requires:
+          - start_utests_long
+    - start_utests_compression:
+        type: approval
+        requires:
+          - j8_build
+    - utests_compression:
+        requires:
+          - start_utests_compression
+    - start_utests_stress:
+        type: approval
+        requires:
+          - j8_build
+    - utests_stress:
+        requires:
+          - start_utests_stress
+    - start_utests_fqltool:
+        type: approval
+        requires:
+          - j8_build
+    - utests_fqltool:
+        requires:
+          - start_utests_fqltool
+    # Java 8 dtests (on request)
+    - start_j8_dtests:
+        type: approval
+        requires:
+          - j8_build
+    - j8_dtests-with-vnodes:
+        requires:
+          - start_j8_dtests
+    - j8_dtests-no-vnodes:
+        requires:
+          - start_j8_dtests
+    # Java 11 dtests (on request)
+    - start_j11_dtests:
+        type: approval
+        requires:
+          - j8_build
+    - j11_dtests-with-vnodes:
+        requires:
+        - start_j11_dtests
+    - j11_dtests-no-vnodes:
+        requires:
+        - start_j11_dtests
+    # Java 8 upgrade tests
+    - start_upgrade_tests:
+        type: approval
+        requires:
+          - j8_build
+    - j8_upgradetests-no-vnodes:
+        requires:
+          - start_upgrade_tests
+
+j11_with_dtests_jobs: &j11_with_dtests_jobs
+  jobs:
+    - j11_build
+    # Java 11 unit tests (on request, currently not working)
+    - start_j11_unit_tests:
+        type: approval
+        requires:
+          - j11_build
+    - j11_unit_tests:
+        requires:
+          - start_j11_unit_tests
+    # Java 11 dtests (on request)
+    - start_j11_dtests:
+        type: approval
+        requires:
+          - j11_build
+    - j11_dtests-with-vnodes:
+        requires:
+          - start_j11_dtests
+    - j11_dtests-no-vnodes:
+        requires:
+          - start_j11_dtests
+
+j8_with_dtest_jobs_only: &j8_with_dtest_jobs_only
+        jobs:
+            - j8_build
+            - j8_dtests-with-vnodes:
+                  requires:
+                      - j8_build
+            - j8_dtests-no-vnodes:
+                  requires:
+                      - j8_build
+
+j11_with_dtest_jobs_only: &j11_with_dtest_jobs_only
+        jobs:
+            - build
+            - j11-with-vnodes:
+                requires:
+                  - j11_build
+            - j11_dtests-no-vnodes:
+                requires:
+                  - j11_build
+
+workflows:
+    version: 2
+    java8_build_and_run_tests: *j8_with_dtests_jobs
+#    java8_build_and_run_tests: *j8_with_dtest_jobs_only
+    java11_build_and_run_tests: *j11_with_dtests_jobs
+#    java11_build_and_run_tests: *j11_with_dtest_jobs_only
+
+executors:
+  java8-executor:
+    parameters:
+      exec_resource_class:
+        type: string
+        default: medium
+    docker:
+      - image: spod/cassandra-testing-ubuntu1810-java11-w-dependencies:20190306
+    resource_class: << parameters.exec_resource_class >>
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    environment:
+      <<: *default_env_vars
+      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+      JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+
+  java11-executor:
+    parameters:
+      exec_resource_class:
+        type: string
+        default: medium
+    docker:
+    - image: spod/cassandra-testing-ubuntu1810-java11:20181210
+    resource_class: << parameters.exec_resource_class >>
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    environment:
+      <<: *default_env_vars
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+      JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+      CASSANDRA_USE_JDK11: true
+
+build_common: &build_common
+  parallelism: 1 # This job doesn't benefit from parallelism
+  steps:
+    - log_environment
+    - clone_cassandra
+    - build_cassandra
+    - run_eclipse_warnings
+    - persist_to_workspace:
+        root: /home/cassandra
+        paths:
+          - cassandra
+          - .m2
+
+jobs:
+  j8_build:
+    executor: java8-executor
+    <<: *build_common
+
+  j11_build:
+    executor: java11-executor
+    <<: *build_common
+
+  j8_unit_tests:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests
+
+  j8_jvm_dtests:
+    <<: *j8_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_junit_tests:
+          target: test-jvm-dtest-forking
+
+  j11_unit_tests:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests
+
+  utests_long:
+    <<: *j8_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_junit_tests:
+          target: long-test
+
+  utests_compression:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests:
+          target: testclasslist-compression
+
+  utests_stress:
+    <<: *j8_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_junit_tests:
+          target: stress-test
+
+  utests_fqltool:
+    <<: *j8_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_junit_tests:
+          target: fqltool-test
+
+  j8_dtests-with-vnodes:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j8_with_vnodes
+          run_dtests_extra_args: '--use-vnodes --skip-resource-intensive-tests'
+      - run_dtests:
+          file_tag: j8_with_vnodes
+          pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+
+  j11_dtests-with-vnodes:
+    <<: *j11_par_executor
+    steps:
+    - attach_workspace:
+        at: /home/cassandra
+    - log_environment
+    - clone_dtest
+    - create_venv
+    - create_dtest_containers:
+        file_tag: j11_with_vnodes
+        run_dtests_extra_args: '--use-vnodes --skip-resource-intensive-tests'
+    - run_dtests:
+        file_tag: j11_with_vnodes
+        pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+
+  j8_dtests-no-vnodes:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j8_without_vnodes
+          run_dtests_extra_args: '--skip-resource-intensive-tests'
+      - run_dtests:
+          file_tag: j8_without_vnodes
+          pytest_extra_args: '--skip-resource-intensive-tests'
+
+  j11_dtests-no-vnodes:
+    <<: *j11_par_executor
+    steps:
+    - attach_workspace:
+        at: /home/cassandra
+    - log_environment
+    - clone_dtest
+    - create_venv
+    - create_dtest_containers:
+        file_tag: j11_without_vnodes
+        run_dtests_extra_args: '--skip-resource-intensive-tests'
+    - run_dtests:
+        file_tag: j11_without_vnodes
+        pytest_extra_args: '--skip-resource-intensive-tests'
+
+  j8_upgradetests-no-vnodes:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j8_upgradetests_without_vnodes
+          run_dtests_extra_args: '--execute-upgrade-tests'
+          extra_env_args: 'RUN_STATIC_UPGRADE_MATRIX=true'
+          tests_filter_pattern: '^upgrade_tests'
+      - run_dtests:
+          file_tag: j8_upgradetests_without_vnodes
+          extra_env_args: 'RUN_STATIC_UPGRADE_MATRIX=true'
+          pytest_extra_args: '--execute-upgrade-tests'
+
+commands:
+  log_environment:
+    steps:
+    - run:
+        name: Log Environment Information
+        command: |
+          echo '*** id ***'
+          id
+          echo '*** cat /proc/cpuinfo ***'
+          cat /proc/cpuinfo
+          echo '*** free -m ***'
+          free -m
+          echo '*** df -m ***'
+          df -m
+          echo '*** ifconfig -a ***'
+          ifconfig -a
+          echo '*** uname -a ***'
+          uname -a
+          echo '*** mount ***'
+          mount
+          echo '*** env ***'
+          env
+          echo '*** java ***'
+          which java
+          java -version
+
+  clone_cassandra:
+    steps:
+    - run:
+        name: Clone Cassandra Repository (via git)
+        command: |
+          git clone --single-branch --depth 1 --branch $CIRCLE_BRANCH git://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git ~/cassandra
+
+  clone_dtest:
+    steps:
+    - run:
+        name: Clone Cassandra dtest Repository (via git)
+        command: |
+          git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+
+  build_cassandra:
+    steps:
+    - run:
+        name: Build Cassandra
+        command: |
+          export PATH=$JAVA_HOME/bin:$PATH
+          cd ~/cassandra
+          # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
+          for x in $(seq 1 3); do
+              ${ANT_HOME}/bin/ant clean realclean jar
+              RETURN="$?"
+              if [ "${RETURN}" -eq "0" ]; then
+                  break
+              fi
+          done
+          # Exit, if we didn't build successfully
+          if [ "${RETURN}" -ne "0" ]; then
+              echo "Build failed with exit code: ${RETURN}"
+              exit ${RETURN}
+          fi
+        no_output_timeout: 15m
+
+  run_eclipse_warnings:
+    steps:
+    - run:
+        name: Run eclipse-warnings
+        command: |
+          export PATH=$JAVA_HOME/bin:$PATH
+          cd ~/cassandra
+          ant eclipse-warnings
+
+  create_junit_containers:
+    steps:
+    - run:
+        name: Determine Unit Tests to Run
+        command: |
+          # reminder: this code (along with all the steps) is independently executed on every circle container
+          # so the goal here is to get the circleci script to return the tests *this* container will run
+          # which we do via the `circleci` cli tool.
+
+          rm -fr ~/cassandra-dtest/upgrade_tests
+          echo "***java tests***"
+
+          # get all of our unit test filenames
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/unit/**/*.java" > /tmp/all_java_unit_tests.txt
+
+          # split up the unit tests into groups based on the number of containers we have
+          set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
+          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | cut -c 37-1000000 | grep "Test\.java$" > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+          echo "** /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt"
+          cat /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+
+        no_output_timeout: 15m
+
+  run_junit_tests:
+    parameters:
+      target:
+        type: string
+      no_output_timeout:
+        type: string
+        default: 15m
+    steps:
+    - run:
+        name: Run Unit Tests (<<parameters.target>>)
+        command: |
+          export PATH=$JAVA_HOME/bin:$PATH
+          time mv ~/cassandra /tmp
+          cd /tmp/cassandra
+          ant <<parameters.target>>
+        no_output_timeout: <<parameters.no_output_timeout>>
+    - store_test_results:
+        path: /tmp/cassandra/build/test/output/
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/output
+        destination: junitxml
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/logs
+        destination: logs
+
+  run_parallel_junit_tests:
+    parameters:
+      target:
+        type: string
+        default: testclasslist
+      no_output_timeout:
+        type: string
+        default: 15m
+    steps:
+    - run:
+        name: Run Unit Tests (<<parameters.target>>)
+        command: |
+          export PATH=$JAVA_HOME/bin:$PATH
+          time mv ~/cassandra /tmp
+          cd /tmp/cassandra
+          ant <<parameters.target>> -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
+        no_output_timeout: <<parameters.no_output_timeout>>
+    - store_test_results:
+        path: /tmp/cassandra/build/test/output/
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/output
+        destination: junitxml
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/logs
+        destination: logs
+
+  create_venv:
+    steps:
+    - run:
+        name: Configure virtualenv and python Dependencies
+        command: |
+          # note, this should be super quick as all dependencies should be pre-installed in the docker image
+          # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
+          # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
+          # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
+          source ~/env/bin/activate
+          export PATH=$JAVA_HOME/bin:$PATH
+          pip3 install --upgrade -r ~/cassandra-dtest/requirements.txt
+          pip3 freeze
+
+  create_dtest_containers:
+    parameters:
+      file_tag:
+        type: string
+      run_dtests_extra_args:
+        type: string
+        default: ''
+      extra_env_args:
+        type: string
+        default: ''
+      tests_filter_pattern:
+        type: string
+        default: ''
+    steps:
+    - run:
+        name: Determine Tests to Run (<<parameters.file_tag>>)
+        no_output_timeout: 5m
+        command: |
+          # reminder: this code (along with all the steps) is independently executed on every circle container
+          # so the goal here is to get the circleci script to return the tests *this* container will run
+          # which we do via the `circleci` cli tool.
+
+          cd cassandra-dtest
+          source ~/env/bin/activate
+          export PATH=$JAVA_HOME/bin:$PATH
+
+          if [ -n '<<parameters.extra_env_args>>' ]; then
+            export <<parameters.extra_env_args>>
+          fi
+
+          echo "***Collected DTests (<<parameters.file_tag>>)***"
+          set -eo pipefail && ./run_dtests.py <<parameters.run_dtests_extra_args>> --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_<<parameters.file_tag>>_raw --cassandra-dir=../cassandra
+          if [ -z '<<parameters.tests_filter_pattern>>' ]; then
+            mv /tmp/all_dtest_tests_<<parameters.file_tag>>_raw /tmp/all_dtest_tests_<<parameters.file_tag>>
+          else
+            grep -e '<<parameters.tests_filter_pattern>>' /tmp/all_dtest_tests_<<parameters.file_tag>>_raw > /tmp/all_dtest_tests_<<parameters.file_tag>> || { echo "Filter did not match any tests! Exiting build."; exit 0; }
+          fi
+          set -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_<<parameters.file_tag>> > /tmp/split_dtest_tests_<<parameters.file_tag>>.txt
+          cat /tmp/split_dtest_tests_<<parameters.file_tag>>.txt | tr '\n' ' ' > /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt
+          cat /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt
+
+  run_dtests:
+    parameters:
+      file_tag:
+        type: string
+      pytest_extra_args:
+        type: string
+        default: ''
+      extra_env_args:
+        type: string
+        default: ''
+    steps:
+      - run:
+          name: Run dtests (<<parameters.file_tag>>)
+          no_output_timeout: 15m
+          command: |
+            echo "cat /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt"
+            cat /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt
+
+            source ~/env/bin/activate
+            export PATH=$JAVA_HOME/bin:$PATH
+            if [ -n '<<parameters.extra_env_args>>' ]; then
+              export <<parameters.extra_env_args>>
+            fi
+
+            java -version
+            cd ~/cassandra-dtest
+            mkdir -p /tmp/dtest
+
+            echo "env: $(env)"
+            echo "** done env"
+            mkdir -p /tmp/results/dtests
+            # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
+            export SPLIT_TESTS=`cat /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt`
+            set -o pipefail && cd ~/cassandra-dtest && pytest <<parameters.pytest_extra_args>> --log-level="INFO" --junit-xml=/tmp/results/dtests/pytest_result_<<parameters.file_tag>>.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+      - store_test_results:
+          path: /tmp/results
+      - store_artifacts:
+          path: /tmp/dtest
+          destination: dtest_<<parameters.file_tag>>
+      - store_artifacts:
+          path: ~/cassandra-dtest/logs
+          destination: dtest_<<parameters.file_tag>>_logs

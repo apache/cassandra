@@ -87,7 +87,11 @@ import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
+import static org.apache.cassandra.utils.Throwables.merge;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -102,7 +106,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     have that many flushes going at the same time.
     */
     private static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
-                                                                                          StageManager.KEEPALIVE,
+                                                                                          Stage.KEEP_ALIVE_SECONDS,
                                                                                           TimeUnit.SECONDS,
                                                                                           new LinkedBlockingQueue<Runnable>(),
                                                                                           new NamedThreadFactory("MemtableFlushWriter"),
@@ -115,7 +119,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (int i = 0; i < DatabaseDescriptor.getAllDataFileLocations().length; i++)
         {
             perDiskflushExecutors[i] = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
-                                                                        StageManager.KEEPALIVE,
+                                                                        Stage.KEEP_ALIVE_SECONDS,
                                                                         TimeUnit.SECONDS,
                                                                         new LinkedBlockingQueue<Runnable>(),
                                                                         new NamedThreadFactory("PerDiskMemtableFlushWriter_"+i),
@@ -125,14 +129,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     // post-flush executor is single threaded to provide guarantee that any flush Future on a CF will never return until prior flushes have completed
     private static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor(1,
-                                                                                              StageManager.KEEPALIVE,
+                                                                                              Stage.KEEP_ALIVE_SECONDS,
                                                                                               TimeUnit.SECONDS,
                                                                                               new LinkedBlockingQueue<Runnable>(),
                                                                                               new NamedThreadFactory("MemtablePostFlush"),
                                                                                               "internal");
 
     private static final ExecutorService reclaimExecutor = new JMXEnabledThreadPoolExecutor(1,
-                                                                                            StageManager.KEEPALIVE,
+                                                                                            Stage.KEEP_ALIVE_SECONDS,
                                                                                             TimeUnit.SECONDS,
                                                                                             new LinkedBlockingQueue<Runnable>(),
                                                                                             new NamedThreadFactory("MemtableReclaimMemory"),
@@ -217,31 +221,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private volatile boolean neverPurgeTombstones = false;
 
-    public static void shutdownFlushExecutor() throws InterruptedException
-    {
-        flushExecutor.shutdown();
-        flushExecutor.awaitTermination(60, TimeUnit.SECONDS);
-    }
-
-
     public static void shutdownPostFlushExecutor() throws InterruptedException
     {
         postFlushExecutor.shutdown();
         postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
     }
 
-    public static void shutdownReclaimExecutor() throws InterruptedException
+    public static void shutdownExecutorsAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        reclaimExecutor.shutdown();
-        reclaimExecutor.awaitTermination(60, TimeUnit.SECONDS);
-    }
-
-    public static void shutdownPerDiskFlushExecutors() throws InterruptedException
-    {
-        for (ExecutorService executorService : perDiskflushExecutors)
-            executorService.shutdown();
-        for (ExecutorService executorService : perDiskflushExecutors)
-            executorService.awaitTermination(60, TimeUnit.SECONDS);
+        List<ExecutorService> executors = new ArrayList<>(perDiskflushExecutors.length + 3);
+        Collections.addAll(executors, reclaimExecutor, postFlushExecutor, flushExecutor);
+        Collections.addAll(executors, perDiskflushExecutors);
+        ExecutorUtils.shutdownAndWait(timeout, unit, executors);
     }
 
     public void reload()
@@ -401,8 +392,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         viewManager = keyspace.viewManager.forTable(metadata.id);
         metric = new TableMetrics(this);
         fileIndexGenerator.set(generation);
-        sampleReadLatencyNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getReadRpcTimeout() / 2);
-        additionalWriteLatencyNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getWriteRpcTimeout() / 2);
+        sampleReadLatencyNanos = DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS) / 2;
+        additionalWriteLatencyNanos = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) / 2;
 
         logger.info("Initializing {}.{}", keyspace.getName(), name);
 
@@ -2185,28 +2176,45 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation, boolean interruptViews)
     {
+        return runWithCompactionsDisabled(callable, (sstable) -> true, interruptValidation, interruptViews, true);
+    }
+
+    /**
+     * Runs callable with compactions paused and compactions including sstables matching sstablePredicate stopped
+     *
+     * @param callable what to do when compactions are paused
+     * @param sstablesPredicate which sstables should we cancel compactions for
+     * @param interruptValidation if we should interrupt validation compactions
+     * @param interruptViews if we should interrupt view compactions
+     * @param interruptIndexes if we should interrupt compactions on indexes. NOTE: if you set this to true your sstablePredicate
+     *                         must be able to handle LocalPartitioner sstables!
+     */
+    public <V> V runWithCompactionsDisabled(Callable<V> callable, Predicate<SSTableReader> sstablesPredicate, boolean interruptValidation, boolean interruptViews, boolean interruptIndexes)
+    {
         // synchronize so that concurrent invocations don't re-enable compactions partway through unexpectedly,
         // and so we only run one major compaction at a time
         synchronized (this)
         {
             logger.trace("Cancelling in-progress compactions for {}", metadata.name);
+            Iterable<ColumnFamilyStore> toInterruptFor = interruptIndexes
+                                                         ? concatWithIndexes()
+                                                         : Collections.singleton(this);
 
-            Iterable<ColumnFamilyStore> selfWithAuxiliaryCfs = interruptViews
-                                                               ? Iterables.concat(concatWithIndexes(), viewManager.allViewsCfs())
-                                                               : concatWithIndexes();
+            toInterruptFor = interruptViews
+                             ? Iterables.concat(toInterruptFor, viewManager.allViewsCfs())
+                             : toInterruptFor;
 
-            for (ColumnFamilyStore cfs : selfWithAuxiliaryCfs)
-                cfs.getCompactionStrategyManager().pause();
-            try
+            try (CompactionManager.CompactionPauser pause = CompactionManager.instance.pauseGlobalCompaction();
+                 CompactionManager.CompactionPauser pausedStrategies = pauseCompactionStrategies(toInterruptFor))
             {
                 // interrupt in-progress compactions
-                CompactionManager.instance.interruptCompactionForCFs(selfWithAuxiliaryCfs, interruptValidation);
-                CompactionManager.instance.waitForCessation(selfWithAuxiliaryCfs);
+                CompactionManager.instance.interruptCompactionForCFs(toInterruptFor, sstablesPredicate, interruptValidation);
+                CompactionManager.instance.waitForCessation(toInterruptFor, sstablesPredicate);
 
                 // doublecheck that we finished, instead of timing out
-                for (ColumnFamilyStore cfs : selfWithAuxiliaryCfs)
+                for (ColumnFamilyStore cfs : toInterruptFor)
                 {
-                    if (!cfs.getTracker().getCompacting().isEmpty())
+                    if (cfs.getTracker().getCompacting().stream().anyMatch(sstablesPredicate))
                     {
                         logger.warn("Unable to cancel in-progress compactions for {}.  Perhaps there is an unusually large row in progress somewhere, or the system is simply overloaded.", metadata.name);
                         return null;
@@ -2224,12 +2232,43 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     throw new RuntimeException(e);
                 }
             }
-            finally
+        }
+    }
+
+    private static CompactionManager.CompactionPauser pauseCompactionStrategies(Iterable<ColumnFamilyStore> toPause)
+    {
+        ArrayList<ColumnFamilyStore> successfullyPaused = new ArrayList<>();
+        try
+        {
+            for (ColumnFamilyStore cfs : toPause)
             {
-                for (ColumnFamilyStore cfs : selfWithAuxiliaryCfs)
-                    cfs.getCompactionStrategyManager().resume();
+                successfullyPaused.ensureCapacity(successfullyPaused.size() + 1); // to avoid OOM:ing after pausing the strategies
+                cfs.getCompactionStrategyManager().pause();
+                successfullyPaused.add(cfs);
+            }
+            return () -> maybeFail(resumeAll(null, toPause));
+        }
+        catch (Throwable t)
+        {
+            resumeAll(t, successfullyPaused);
+            throw t;
+        }
+    }
+
+    private static Throwable resumeAll(Throwable accumulate, Iterable<ColumnFamilyStore> cfss)
+    {
+        for (ColumnFamilyStore cfs : cfss)
+        {
+            try
+            {
+                cfs.getCompactionStrategyManager().resume();
+            }
+            catch (Throwable t)
+            {
+                accumulate = merge(accumulate, t);
             }
         }
+        return accumulate;
     }
 
     public LifecycleTransaction markAllCompacting(final OperationType operationType)
@@ -2241,7 +2280,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 assert data.getCompacting().isEmpty() : data.getCompacting();
                 Iterable<SSTableReader> sstables = getLiveSSTables();
                 sstables = AbstractCompactionStrategy.filterSuspectSSTables(sstables);
-                sstables = ImmutableList.copyOf(sstables);
                 LifecycleTransaction modifier = data.tryModify(sstables, operationType);
                 assert modifier != null: "something marked things compacting while compactions are disabled";
                 return modifier;
@@ -2373,14 +2411,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     // End JMX get/set.
 
-    public int getMeanColumns()
+    public int getMeanEstimatedCellPerPartitionCount()
     {
         long sum = 0;
         long count = 0;
         for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
         {
-            long n = sstable.getEstimatedColumnCount().count();
-            sum += sstable.getEstimatedColumnCount().mean() * n;
+            long n = sstable.getEstimatedCellPerPartitionCount().count();
+            sum += sstable.getEstimatedCellPerPartitionCount().mean() * n;
             count += n;
         }
         return count > 0 ? (int) (sum / count) : 0;
@@ -2397,6 +2435,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             count += n;
         }
         return count > 0 ? sum * 1.0 / count : 0;
+    }
+
+    public int getMeanRowCount()
+    {
+        long totalRows = 0;
+        long totalPartitions = 0;
+        for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
+        {
+            totalPartitions += sstable.getEstimatedPartitionSize().count();
+            totalRows += sstable.getTotalRows();
+        }
+
+        return totalPartitions > 0 ? (int) (totalRows / totalPartitions) : 0;
     }
 
     public long estimateKeys()
@@ -2539,7 +2590,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (SSTableReader sstable : getSSTables(SSTableSet.LIVE))
         {
             allDroppable += sstable.getDroppableTombstonesBefore(localTime - metadata().params.gcGraceSeconds);
-            allColumns += sstable.getEstimatedColumnCount().mean() * sstable.getEstimatedColumnCount().count();
+            allColumns += sstable.getEstimatedCellPerPartitionCount().mean() * sstable.getEstimatedCellPerPartitionCount().count();
         }
         return allColumns > 0 ? allDroppable / allColumns : 0;
     }

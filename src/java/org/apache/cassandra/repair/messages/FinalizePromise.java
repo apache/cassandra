@@ -22,11 +22,13 @@ import java.io.IOException;
 import java.util.UUID;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.utils.UUIDSerializer;
+
+import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 
 public class FinalizePromise extends RepairMessage
 {
@@ -36,7 +38,7 @@ public class FinalizePromise extends RepairMessage
 
     public FinalizePromise(UUID sessionID, InetAddressAndPort participant, boolean promised)
     {
-        super(Type.FINALIZE_PROMISE, null);
+        super(null);
         assert sessionID != null;
         assert participant != null;
         this.sessionID = sessionID;
@@ -64,26 +66,26 @@ public class FinalizePromise extends RepairMessage
         return result;
     }
 
-    public static MessageSerializer serializer = new MessageSerializer<FinalizePromise>()
+    public static final IVersionedSerializer<FinalizePromise> serializer = new IVersionedSerializer<FinalizePromise>()
     {
         public void serialize(FinalizePromise msg, DataOutputPlus out, int version) throws IOException
         {
             UUIDSerializer.serializer.serialize(msg.sessionID, out, version);
-            CompactEndpointSerializationHelper.instance.serialize(msg.participant, out, version);
+            inetAddressAndPortSerializer.serialize(msg.participant, out, version);
             out.writeBoolean(msg.promised);
         }
 
         public FinalizePromise deserialize(DataInputPlus in, int version) throws IOException
         {
             return new FinalizePromise(UUIDSerializer.serializer.deserialize(in, version),
-                                       CompactEndpointSerializationHelper.instance.deserialize(in, version),
+                                       inetAddressAndPortSerializer.deserialize(in, version),
                                        in.readBoolean());
         }
 
         public long serializedSize(FinalizePromise msg, int version)
         {
             long size = UUIDSerializer.serializer.serializedSize(msg.sessionID, version);
-            size += CompactEndpointSerializationHelper.instance.serializedSize(msg.participant, version);
+            size += inetAddressAndPortSerializer.serializedSize(msg.participant, version);
             size += TypeSizes.sizeof(msg.promised);
             return size;
         }

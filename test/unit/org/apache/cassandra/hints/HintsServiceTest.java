@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.hints;
 
-import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +25,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -34,6 +34,7 @@ import org.junit.Test;
 import com.datastax.driver.core.utils.MoreFutures;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.DecoratedKey;
@@ -41,15 +42,16 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MockMessagingService;
 import org.apache.cassandra.net.MockMessagingSpy;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.dk;
+import static org.apache.cassandra.net.Verb.HINT_REQ;
+import static org.apache.cassandra.net.Verb.HINT_RSP;
 import static org.apache.cassandra.net.MockMessagingService.verb;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -80,7 +82,8 @@ public class HintsServiceTest
     @Before
     public void reinstanciateService() throws Throwable
     {
-        MessagingService.instance().clearMessageSinks();
+        MessagingService.instance().inboundSink.clear();
+        MessagingService.instance().outboundSink.clear();
 
         if (!HintsService.instance.isShutDown())
         {
@@ -127,7 +130,7 @@ public class HintsServiceTest
             {
                 HintsService.instance.resumeDispatch();
             }
-        });
+        }, MoreExecutors.directExecutor());
 
         Futures.allAsList(
                 noMessagesWhilePaused,
@@ -182,20 +185,16 @@ public class HintsServiceTest
     private MockMessagingSpy sendHintsAndResponses(int noOfHints, int noOfResponses)
     {
         // create spy for hint messages, but only create responses for noOfResponses hints
-        MessageIn<HintResponse> messageIn = MessageIn.create(FBUtilities.getBroadcastAddressAndPort(),
-                HintResponse.instance,
-                Collections.emptyMap(),
-                MessagingService.Verb.REQUEST_RESPONSE,
-                MessagingService.current_version);
+        Message<NoPayload> message = Message.internalResponse(HINT_RSP, NoPayload.noPayload);
 
         MockMessagingSpy spy;
         if (noOfResponses != -1)
         {
-            spy = MockMessagingService.when(verb(MessagingService.Verb.HINT)).respondN(messageIn, noOfResponses);
+            spy = MockMessagingService.when(verb(HINT_REQ)).respondN(message, noOfResponses);
         }
         else
         {
-            spy = MockMessagingService.when(verb(MessagingService.Verb.HINT)).respond(messageIn);
+            spy = MockMessagingService.when(verb(HINT_REQ)).respond(message);
         }
 
         // create and write noOfHints using service

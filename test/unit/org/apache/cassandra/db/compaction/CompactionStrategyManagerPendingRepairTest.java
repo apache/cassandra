@@ -252,7 +252,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertSame(PendingRepairManager.RepairFinishedCompactionTask.class, compactionTask.getClass());
 
         // run the compaction
-        compactionTask.execute(null);
+        compactionTask.execute(ActiveCompactionsTracker.NOOP);
 
         Assert.assertTrue(repairedContains(sstable));
         Assert.assertFalse(unrepairedContains(sstable));
@@ -293,7 +293,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertSame(PendingRepairManager.RepairFinishedCompactionTask.class, compactionTask.getClass());
 
         // run the compaction
-        compactionTask.execute(null);
+        compactionTask.execute(ActiveCompactionsTracker.NOOP);
 
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertTrue(unrepairedContains(sstable));
@@ -330,7 +330,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertSame(PendingRepairManager.RepairFinishedCompactionTask.class, compactionTask.getClass());
 
         // run the compaction
-        compactionTask.execute(null);
+        compactionTask.execute(ActiveCompactionsTracker.NOOP);
 
         Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
@@ -361,7 +361,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertSame(PendingRepairManager.RepairFinishedCompactionTask.class, compactionTask.getClass());
 
         // run the compaction
-        compactionTask.execute(null);
+        compactionTask.execute(ActiveCompactionsTracker.NOOP);
 
         Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
         Assert.assertFalse(hasPendingStrategiesFor(repairID));

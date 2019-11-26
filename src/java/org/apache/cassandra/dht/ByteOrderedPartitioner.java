@@ -234,6 +234,12 @@ public class ByteOrderedPartitioner implements IPartitioner
             return new BytesToken(bytes);
         }
 
+        @Override
+        public int byteSize(Token token)
+        {
+            return ((BytesToken) token).token.length;
+        }
+
         public String toString(Token token)
         {
             BytesToken bytesToken = (BytesToken) token;

@@ -143,19 +143,44 @@ NodeTool command to reload AuditLog filters
 ``enableauditlog``: NodeTool enableauditlog command can be used to reload auditlog filters when called with default or previous ``loggername`` and updated filters
 
 E.g.,
+
 ::
 
     nodetool enableauditlog --loggername <Default/ existing loggerName> --included-keyspaces <New Filter values>
 
 
 
+View the contents of AuditLog Files
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+``auditlogviewer`` is the new tool introduced to help view the contents of binlog file in human readable text format.
 
+::
 
+	auditlogviewer <path1> [<path2>...<pathN>] [options]
 
+Options
+""""""""
 
+``-f,--follow`` 
+	Upon reacahing the end of the log continue indefinitely
+				waiting for more records
+``-r,--roll_cycle``
+   How often to roll the log file was rolled. May be
+				necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY,
+				DAILY). Default HOURLY.
+
+``-h,--help``
+         display this help message
+
+For example, to dump the contents of audit log files on the console
+
+::
+
+	auditlogviewer /logs/cassandra/audit
 
 Sample output
-^^^^^^^^^^^^^^^^
+"""""""""""""
+
 ::
 
     LogMessage: user:anonymous|host:localhost/X.X.X.X|source:/X.X.X.X|port:60878|timestamp:1521158923615|type:USE_KS|category:DDL|ks:dev1|operation:USE "dev1"

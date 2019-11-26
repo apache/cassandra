@@ -24,23 +24,25 @@ import java.util.List;
 
 import com.google.common.collect.MinMaxPriorityQueue;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
 public abstract class MaxSampler<T> extends Sampler<T>
 {
     private int capacity;
     private MinMaxPriorityQueue<Sample<T>> queue;
-    private long endTimeMillis = -1;
+    private long endTimeNanos = -1;
     private final Comparator<Sample<T>> comp = Collections.reverseOrder(Comparator.comparing(p -> p.count));
 
     public boolean isEnabled()
     {
-        return endTimeMillis != -1 && clock.currentTimeMillis() <= endTimeMillis;
+        return endTimeNanos != -1 && clock.now() <= endTimeNanos;
     }
 
     public synchronized void beginSampling(int capacity, int durationMillis)
     {
-        if (endTimeMillis == -1 || clock.currentTimeMillis() > endTimeMillis)
+        if (endTimeNanos == -1 || clock.now() > endTimeNanos)
         {
-            endTimeMillis = clock.currentTimeMillis() + durationMillis;
+            endTimeNanos = clock.now() + MILLISECONDS.toNanos(durationMillis);
             queue = MinMaxPriorityQueue
                     .orderedBy(comp)
                     .maximumSize(Math.max(1, capacity))
@@ -54,9 +56,9 @@ public abstract class MaxSampler<T> extends Sampler<T>
     public synchronized List<Sample<T>> finishSampling(int count)
     {
         List<Sample<T>> result = new ArrayList<>(count);
-        if (endTimeMillis != -1)
+        if (endTimeNanos != -1)
         {
-            endTimeMillis = -1;
+            endTimeNanos = -1;
             Sample<T> next;
             while ((next = queue.poll()) != null && result.size() <= count)
                 result.add(next);
@@ -67,7 +69,7 @@ public abstract class MaxSampler<T> extends Sampler<T>
     @Override
     protected synchronized void insert(T item, long value)
     {
-        if (value > 0 && clock.currentTimeMillis() <= endTimeMillis
+        if (value > 0 && clock.now() <= endTimeNanos
                 && (queue.isEmpty() || queue.size() < capacity || queue.peekLast().count < value))
             queue.add(new Sample<T>(item, value, 0));
     }

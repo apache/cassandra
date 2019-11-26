@@ -26,11 +26,13 @@ import java.util.UUID;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.utils.UUIDSerializer;
+
+import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 
 public class PrepareConsistentRequest extends RepairMessage
 {
@@ -40,7 +42,7 @@ public class PrepareConsistentRequest extends RepairMessage
 
     public PrepareConsistentRequest(UUID parentSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> participants)
     {
-        super(Type.CONSISTENT_REQUEST, null);
+        super(null);
         assert parentSession != null;
         assert coordinator != null;
         assert participants != null && !participants.isEmpty();
@@ -78,29 +80,28 @@ public class PrepareConsistentRequest extends RepairMessage
                '}';
     }
 
-    public static MessageSerializer serializer = new MessageSerializer<PrepareConsistentRequest>()
+    public static final IVersionedSerializer<PrepareConsistentRequest> serializer = new IVersionedSerializer<PrepareConsistentRequest>()
     {
-
         public void serialize(PrepareConsistentRequest request, DataOutputPlus out, int version) throws IOException
         {
             UUIDSerializer.serializer.serialize(request.parentSession, out, version);
-            CompactEndpointSerializationHelper.instance.serialize(request.coordinator, out, version);
+            inetAddressAndPortSerializer.serialize(request.coordinator, out, version);
             out.writeInt(request.participants.size());
             for (InetAddressAndPort peer : request.participants)
             {
-                CompactEndpointSerializationHelper.instance.serialize(peer, out, version);
+                inetAddressAndPortSerializer.serialize(peer, out, version);
             }
         }
 
         public PrepareConsistentRequest deserialize(DataInputPlus in, int version) throws IOException
         {
             UUID sessionId = UUIDSerializer.serializer.deserialize(in, version);
-            InetAddressAndPort coordinator = CompactEndpointSerializationHelper.instance.deserialize(in, version);
+            InetAddressAndPort coordinator = inetAddressAndPortSerializer.deserialize(in, version);
             int numPeers = in.readInt();
             Set<InetAddressAndPort> peers = new HashSet<>(numPeers);
             for (int i = 0; i < numPeers; i++)
             {
-                InetAddressAndPort peer = CompactEndpointSerializationHelper.instance.deserialize(in, version);
+                InetAddressAndPort peer = inetAddressAndPortSerializer.deserialize(in, version);
                 peers.add(peer);
             }
             return new PrepareConsistentRequest(sessionId, coordinator, peers);
@@ -109,11 +110,11 @@ public class PrepareConsistentRequest extends RepairMessage
         public long serializedSize(PrepareConsistentRequest request, int version)
         {
             long size = UUIDSerializer.serializer.serializedSize(request.parentSession, version);
-            size += CompactEndpointSerializationHelper.instance.serializedSize(request.coordinator, version);
+            size += inetAddressAndPortSerializer.serializedSize(request.coordinator, version);
             size += TypeSizes.sizeof(request.participants.size());
             for (InetAddressAndPort peer : request.participants)
             {
-                size += CompactEndpointSerializationHelper.instance.serializedSize(peer, version);
+                size += inetAddressAndPortSerializer.serializedSize(peer, version);
             }
             return size;
         }

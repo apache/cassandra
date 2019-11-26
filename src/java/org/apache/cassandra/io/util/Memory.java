@@ -417,7 +417,7 @@ public class Memory implements AutoCloseable
     public void setByteBuffer(ByteBuffer buffer, long offset, int length)
     {
         checkBounds(offset, offset + length);
-        MemoryUtil.setByteBuffer(buffer, peer + offset, length);
+        MemoryUtil.setDirectByteBuffer(buffer, peer + offset, length);
     }
 
     public String toString()

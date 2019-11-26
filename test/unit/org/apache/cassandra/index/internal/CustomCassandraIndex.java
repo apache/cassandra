@@ -28,6 +28,8 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.cassandra.index.TargetParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +59,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.index.internal.CassandraIndex.getFunctions;
@@ -205,7 +206,7 @@ public class CustomCassandraIndex implements Index
 
     public long getEstimatedResultRows()
     {
-        return indexCfs.getMeanColumns();
+        return indexCfs.getMeanEstimatedCellPerPartitionCount();
     }
 
     /**
@@ -593,8 +594,8 @@ public class CustomCassandraIndex implements Index
     {
         // interrupt in-progress compactions
         Collection<ColumnFamilyStore> cfss = Collections.singleton(indexCfs);
-        CompactionManager.instance.interruptCompactionForCFs(cfss, true);
-        CompactionManager.instance.waitForCessation(cfss);
+        CompactionManager.instance.interruptCompactionForCFs(cfss, (sstable) -> true, true);
+        CompactionManager.instance.waitForCessation(cfss, (sstable) -> true);
         indexCfs.keyspace.writeOrder.awaitNewBarrier();
         indexCfs.forceBlockingFlush();
         indexCfs.readOrdering.awaitNewBarrier();
@@ -641,7 +642,8 @@ public class CustomCassandraIndex implements Index
 
             SecondaryIndexBuilder builder = new CollatedViewIndexBuilder(baseCfs,
                                                                          Collections.singleton(this),
-                                                                         new ReducingKeyIterator(sstables));
+                                                                         new ReducingKeyIterator(sstables),
+                                                                         ImmutableSet.copyOf(sstables));
             Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
             FBUtilities.waitOnFuture(future);
             indexCfs.forceBlockingFlush();

@@ -58,9 +58,8 @@ import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.IAsyncCallbackWithFailure;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -72,7 +71,6 @@ import org.apache.cassandra.repair.consistent.LocalSessions;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
@@ -80,6 +78,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.net.Verb.PREPARE_MSG;
 
 /**
  * ActiveRepairService is the starting point for manual "active" repairs.
@@ -112,8 +111,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public final ConsistentSessions consistent = new ConsistentSessions();
 
     private boolean registeredForEndpointChanges = false;
-
-    public static CassandraVersion SUPPORTS_GLOBAL_PREPARE_FLAG_VERSION = new CassandraVersion("2.2.1");
 
     private static final Logger logger = LoggerFactory.getLogger(ActiveRepairService.class);
     // singleton enforcement
@@ -190,6 +187,18 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         consistent.local.cancelSession(sessionID, force);
     }
 
+    @Override
+    public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes)
+    {
+        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(sizeInMegabytes);
+    }
+
+    @Override
+    public int getRepairSessionSpaceInMegabytes()
+    {
+        return DatabaseDescriptor.getRepairSessionSpaceInMegabytes();
+    }
+
     /**
      * Requests repairs for the given keyspace and column families.
      *
@@ -234,6 +243,16 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }, MoreExecutors.directExecutor());
         session.start(executor);
         return session;
+    }
+
+    public boolean getUseOffheapMerkleTrees()
+    {
+        return DatabaseDescriptor.useOffheapMerkleTrees();
+    }
+
+    public void setUseOffheapMerkleTrees(boolean value)
+    {
+        DatabaseDescriptor.useOffheapMerkleTrees(value);
     }
 
     private <T extends AbstractFuture &
@@ -369,7 +388,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         // end up skipping replicas
         if (options.isIncremental() && options.isGlobal() && ! force)
         {
-            return Clock.instance.currentTimeMillis();
+            return System.currentTimeMillis();
         }
         else
         {
@@ -384,23 +403,26 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         final CountDownLatch prepareLatch = new CountDownLatch(endpoints.size());
         final AtomicBoolean status = new AtomicBoolean(true);
         final Set<String> failedNodes = Collections.synchronizedSet(new HashSet<String>());
-        IAsyncCallbackWithFailure callback = new IAsyncCallbackWithFailure()
+        RequestCallback callback = new RequestCallback()
         {
-            public void response(MessageIn msg)
+            @Override
+            public void onResponse(Message msg)
             {
                 prepareLatch.countDown();
             }
 
-            public boolean isLatencyForSnitch()
-            {
-                return false;
-            }
-
+            @Override
             public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
             {
                 status.set(false);
                 failedNodes.add(from.toString());
                 prepareLatch.countDown();
+            }
+
+            @Override
+            public boolean invokeOnFailure()
+            {
+                return true;
             }
         };
 
@@ -413,8 +435,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             if (FailureDetector.instance.isAlive(neighbour))
             {
                 PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
-                MessageOut<RepairMessage> msg = message.createMessage();
-                MessagingService.instance().sendRR(msg, neighbour, callback, DatabaseDescriptor.getRpcTimeout(), true);
+                Message<RepairMessage> msg = Message.out(PREPARE_MSG, message);
+                MessagingService.instance().sendWithCallback(msg, neighbour, callback);
             }
             else
             {
@@ -503,21 +525,21 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return parentRepairSessions.remove(parentSessionId);
     }
 
-    public void handleMessage(InetAddressAndPort endpoint, RepairMessage message)
+    public void handleMessage(Message<? extends RepairMessage> message)
     {
-        RepairJobDesc desc = message.desc;
+        RepairJobDesc desc = message.payload.desc;
         RepairSession session = sessions.get(desc.sessionId);
         if (session == null)
             return;
-        switch (message.messageType)
+        switch (message.verb())
         {
-            case VALIDATION_COMPLETE:
-                ValidationComplete validation = (ValidationComplete) message;
-                session.validationComplete(desc, endpoint, validation.trees);
+            case VALIDATION_RSP:
+                ValidationResponse validation = (ValidationResponse) message.payload;
+                session.validationComplete(desc, message.from(), validation.trees);
                 break;
-            case SYNC_COMPLETE:
+            case SYNC_RSP:
                 // one of replica is synced.
-                SyncComplete sync = (SyncComplete) message;
+                SyncResponse sync = (SyncResponse) message.payload;
                 session.syncComplete(desc, sync.nodes, sync.success, sync.summaries);
                 break;
             default:

@@ -18,6 +18,7 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -33,6 +34,7 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.Pair;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -273,6 +275,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void refreshSizeEstimates() throws ExecutionException;
 
     /**
+     * Removes extraneous entries in system.size_estimates.
+     */
+    public void cleanupSizeEstimates();
+
+    /**
      * Forces major compaction of a single keyspace
      */
     public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
@@ -353,6 +360,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int repairAsync(String keyspace, Map<String, String> options);
 
     public void forceTerminateAllRepairSessions();
+
+    public void setRepairSessionMaxTreeDepth(int depth);
+
+    public int getRepairSessionMaxTreeDepth();
 
     /**
      * Get the status of a given parent repair session.
@@ -516,6 +527,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean isJoined();
     public boolean isDrained();
     public boolean isDraining();
+    /** Check if currently bootstrapping.
+     * Note this becomes false before {@link org.apache.cassandra.db.SystemKeyspace#bootstrapComplete()} is called,
+     * as setting bootstrap to complete is called only when the node joins the ring.
+     * @return True prior to bootstrap streaming completing. False prior to start of bootstrap and post streaming.
+     */
+    public boolean isBootstrapMode();
 
     public void setRpcTimeout(long value);
     public long getRpcTimeout();
@@ -561,6 +578,12 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public int getConcurrentValidators();
     public void setConcurrentValidators(int value);
+
+    public int getSSTablePreemptiveOpenIntervalInMB();
+    public void setSSTablePreemptiveOpenIntervalInMB(int intervalInMB);
+
+    public boolean getMigrateKeycacheOnCompaction();
+    public void setMigrateKeycacheOnCompaction(boolean invalidateKeyCacheOnCompaction);
 
     public int getConcurrentViewBuilders();
     public void setConcurrentViewBuilders(int value);
@@ -686,6 +709,23 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public boolean resumeBootstrap();
 
+    /** Gets the concurrency settings for processing stages*/
+    static class StageConcurrency implements Serializable
+    {
+        public final int corePoolSize;
+        public final int maximumPoolSize;
+
+        public StageConcurrency(int corePoolSize, int maximumPoolSize)
+        {
+            this.corePoolSize = corePoolSize;
+            this.maximumPoolSize = maximumPoolSize;
+        }
+
+    }
+    public Map<String, List<Integer>> getConcurrency(List<String> stageNames);
+
+    /** Sets the concurrency setting for processing stages */
+    public void setConcurrency(String threadPoolName, int newCorePoolSize, int newMaximumPoolSize);
 
     /** Clears the history of clients that have connected in the past **/
     void clearConnectionHistory();

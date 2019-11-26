@@ -69,6 +69,12 @@ public abstract class DataLimits
         {
             return iter;
         }
+
+        @Override
+        public PartitionIterator filter(PartitionIterator iter, int nowInSec, boolean countPartitionsWithOnlyStaticData, boolean enforceStrictLiveness)
+        {
+            return iter;
+        }
     };
 
     // We currently deal with distinct queries by querying full partitions but limiting the result at 1 row per
@@ -440,7 +446,7 @@ public abstract class DataLimits
         {
             // TODO: we should start storing stats on the number of rows (instead of the number of cells, which
             // is what getMeanColumns returns)
-            float rowsPerPartition = ((float) cfs.getMeanColumns()) / cfs.metadata().regularColumns().size();
+            float rowsPerPartition = ((float) cfs.getMeanEstimatedCellPerPartitionCount()) / cfs.metadata().regularColumns().size();
             return rowsPerPartition * (cfs.estimateKeys());
         }
 

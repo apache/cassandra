@@ -38,12 +38,13 @@ public class AuthenticateMessage extends Message.Response
 
         public void encode(AuthenticateMessage msg, ByteBuf dest, ProtocolVersion version)
         {
-            CBUtil.writeString(msg.authenticator, dest);
+            // Safe to skip. `msg.authenticator` is a FQCN string. All characters are ASCII encoded.
+            CBUtil.writeAsciiString(msg.authenticator, dest);
         }
 
         public int encodedSize(AuthenticateMessage msg, ProtocolVersion version)
         {
-            return CBUtil.sizeOfString(msg.authenticator);
+            return CBUtil.sizeOfAsciiString(msg.authenticator);
         }
     };
 

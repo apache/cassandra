@@ -34,9 +34,11 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
 import com.google.common.collect.ArrayListMultimap;
 
+@SuppressWarnings("UseOfSystemOutOrSystemErr")
 @Command(name = "status", description = "Print cluster information (state, load, IDs, ...)")
 public class Status extends NodeToolCmd
 {
@@ -47,8 +49,6 @@ public class Status extends NodeToolCmd
     private boolean resolveIp = false;
 
     private boolean isTokenPerNode = true;
-    private int maxAddressLength = 0;
-    private String format = null;
     private Collection<String> joiningNodes, leavingNodes, movingNodes, liveNodes, unreachableNodes;
     private Map<String, String> loadMap, hostIDMap;
     private EndpointSnitchInfoMBean epSnitchInfo;
@@ -67,6 +67,7 @@ public class Status extends NodeToolCmd
         epSnitchInfo = probe.getEndpointSnitchInfoProxy();
 
         StringBuilder errors = new StringBuilder();
+        TableBuilder tableBuilder = new TableBuilder("  ");
 
         if (printPort)
         {
@@ -94,13 +95,11 @@ public class Status extends NodeToolCmd
             if (dcs.size() < tokensToEndpoints.size())
                 isTokenPerNode = false;
 
-            findMaxAddressLengthWithPort(dcs);
-
             // Datacenters
             for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())
             {
                 String dcHeader = String.format("Datacenter: %s%n", dc.getKey());
-                System.out.printf(dcHeader);
+                System.out.print(dcHeader);
                 for (int i = 0; i < (dcHeader.length() - 1); i++) System.out.print('=');
                 System.out.println();
 
@@ -108,7 +107,7 @@ public class Status extends NodeToolCmd
                 System.out.println("Status=Up/Down");
                 System.out.println("|/ State=Normal/Leaving/Joining/Moving");
 
-                printNodesHeader(hasEffectiveOwns, isTokenPerNode);
+                addNodesHeader(hasEffectiveOwns, tableBuilder);
 
                 ArrayListMultimap<InetAddressAndPort, HostStatWithPort> hostToTokens = ArrayListMultimap.create();
                 for (HostStatWithPort stat : dc.getValue())
@@ -118,11 +117,12 @@ public class Status extends NodeToolCmd
                 {
                     Float owns = ownerships.get(endpoint.toString());
                     List<HostStatWithPort> tokens = hostToTokens.get(endpoint);
-                    printNodeWithPort(endpoint.toString(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
+                    addNodeWithPort(endpoint.toString(), owns, tokens, hasEffectiveOwns, tableBuilder);
                 }
             }
 
-            System.out.printf("%n" + errors.toString());
+            tableBuilder.printTo(System.out);
+            System.out.printf("%n" + errors);
         }
         else
         {
@@ -150,13 +150,11 @@ public class Status extends NodeToolCmd
             if (dcs.values().size() < tokensToEndpoints.keySet().size())
                 isTokenPerNode = false;
 
-            findMaxAddressLength(dcs);
-
             // Datacenters
             for (Map.Entry<String, SetHostStat> dc : dcs.entrySet())
             {
                 String dcHeader = String.format("Datacenter: %s%n", dc.getKey());
-                System.out.printf(dcHeader);
+                System.out.print(dcHeader);
                 for (int i = 0; i < (dcHeader.length() - 1); i++) System.out.print('=');
                 System.out.println();
 
@@ -164,7 +162,7 @@ public class Status extends NodeToolCmd
                 System.out.println("Status=Up/Down");
                 System.out.println("|/ State=Normal/Leaving/Joining/Moving");
 
-                printNodesHeader(hasEffectiveOwns, isTokenPerNode);
+                addNodesHeader(hasEffectiveOwns, tableBuilder);
 
                 ArrayListMultimap<InetAddress, HostStat> hostToTokens = ArrayListMultimap.create();
                 for (HostStat stat : dc.getValue())
@@ -174,53 +172,29 @@ public class Status extends NodeToolCmd
                 {
                     Float owns = ownerships.get(endpoint);
                     List<HostStat> tokens = hostToTokens.get(endpoint);
-                    printNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
+                    addNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, tableBuilder);
                 }
             }
 
-            System.out.printf("%n" + errors.toString());
+            tableBuilder.printTo(System.out);
+            System.out.printf("%n" + errors);
         }
     }
 
-    private void findMaxAddressLength(Map<String, SetHostStat> dcs)
+    private void addNodesHeader(boolean hasEffectiveOwns, TableBuilder tableBuilder)
     {
-        maxAddressLength = 0;
-        for (Map.Entry<String, SetHostStat> dc : dcs.entrySet())
-        {
-            for (HostStat stat : dc.getValue())
-            {
-                maxAddressLength = Math.max(maxAddressLength, stat.ipOrDns().length());
-            }
-        }
-    }
-
-    private void findMaxAddressLengthWithPort(Map<String, SetHostStatWithPort> dcs)
-    {
-        maxAddressLength = 0;
-        for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())
-        {
-            for (HostStatWithPort stat : dc.getValue())
-            {
-                maxAddressLength = Math.max(maxAddressLength, stat.ipOrDns().length());
-            }
-        }
-    }
-
-    private void printNodesHeader(boolean hasEffectiveOwns, boolean isTokenPerNode)
-    {
-        String fmt = getFormat(hasEffectiveOwns, isTokenPerNode);
         String owns = hasEffectiveOwns ? "Owns (effective)" : "Owns";
 
         if (isTokenPerNode)
-            System.out.printf(fmt, "-", "-", "Address", "Load", owns, "Host ID", "Token", "Rack");
+            tableBuilder.add("--", "Address", "Load", owns, "Host ID", "Token", "Rack");
         else
-            System.out.printf(fmt, "-", "-", "Address", "Load", "Tokens", owns, "Host ID", "Rack");
+            tableBuilder.add("--", "Address", "Load", "Tokens", owns, "Host ID", "Rack");
     }
 
-    private void printNode(String endpoint, Float owns, List<HostStat> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode)
+    private void addNode(String endpoint, Float owns, String epDns, String token, int size, boolean hasEffectiveOwns,
+                           TableBuilder tableBuilder)
     {
-        String status, state, load, strOwns, hostID, rack, fmt;
-        fmt = getFormat(hasEffectiveOwns, isTokenPerNode);
+        String status, state, load, strOwns, hostID, rack;
         if (liveNodes.contains(endpoint)) status = "U";
         else if (unreachableNodes.contains(endpoint)) status = "D";
         else status = "?";
@@ -229,7 +203,8 @@ public class Status extends NodeToolCmd
         else if (movingNodes.contains(endpoint)) state = "M";
         else state = "N";
 
-        load = loadMap.containsKey(endpoint) ? loadMap.get(endpoint) : "?";
+        String statusAndState = status.concat(state);
+        load = loadMap.getOrDefault(endpoint, "?");
         strOwns = owns != null && hasEffectiveOwns ? new DecimalFormat("##0.0%").format(owns) : "?";
         hostID = hostIDMap.get(endpoint);
 
@@ -241,69 +216,25 @@ public class Status extends NodeToolCmd
             throw new RuntimeException(e);
         }
 
-        String endpointDns = tokens.get(0).ipOrDns();
         if (isTokenPerNode)
-            System.out.printf(fmt, status, state, endpointDns, load, strOwns, hostID, tokens.get(0).token, rack);
+        {
+            tableBuilder.add(statusAndState, epDns, load, strOwns, hostID, token, rack);
+        }
         else
-            System.out.printf(fmt, status, state, endpointDns, load, tokens.size(), strOwns, hostID, rack);
+        {
+            tableBuilder.add(statusAndState, epDns, load, String.valueOf(size), strOwns, hostID, rack);
+        }
     }
 
-    private void printNodeWithPort(String endpoint, Float owns, List<HostStatWithPort> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode)
+    private void addNode(String endpoint, Float owns, List<HostStat> tokens, boolean hasEffectiveOwns,
+                         TableBuilder tableBuilder)
     {
-        String status, state, load, strOwns, hostID, rack, fmt;
-        fmt = getFormat(hasEffectiveOwns, isTokenPerNode);
-        if (liveNodes.contains(endpoint)) status = "U";
-        else if (unreachableNodes.contains(endpoint)) status = "D";
-        else status = "?";
-        if (joiningNodes.contains(endpoint)) state = "J";
-        else if (leavingNodes.contains(endpoint)) state = "L";
-        else if (movingNodes.contains(endpoint)) state = "M";
-        else state = "N";
-
-        load = loadMap.containsKey(endpoint) ? loadMap.get(endpoint) : "?";
-        strOwns = owns != null && hasEffectiveOwns ? new DecimalFormat("##0.0%").format(owns) : "?";
-        hostID = hostIDMap.get(endpoint);
-
-        try
-        {
-            rack = epSnitchInfo.getRack(endpoint);
-        } catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        String endpointDns = tokens.get(0).ipOrDns();
-        if (isTokenPerNode)
-            System.out.printf(fmt, status, state, endpointDns, load, strOwns, hostID, tokens.get(0).token, rack);
-        else
-            System.out.printf(fmt, status, state, endpointDns, load, tokens.size(), strOwns, hostID, rack);
+        addNode(endpoint, owns, tokens.get(0).ipOrDns(), tokens.get(0).token, tokens.size(), hasEffectiveOwns, tableBuilder);
     }
 
-    private String getFormat(
-            boolean hasEffectiveOwns,
-            boolean isTokenPerNode)
+    private void addNodeWithPort(String endpoint, Float owns, List<HostStatWithPort> tokens, boolean hasEffectiveOwns,
+                                 TableBuilder tableBuilder)
     {
-        if (format == null)
-        {
-            StringBuilder buf = new StringBuilder();
-            String addressPlaceholder = String.format("%%-%ds  ", maxAddressLength);
-            buf.append("%s%s  ");                         // status
-            buf.append(addressPlaceholder);               // address
-            buf.append("%-9s  ");                         // load
-            if (!isTokenPerNode)
-                buf.append("%-11s  ");                     // "Tokens"
-            if (hasEffectiveOwns)
-                buf.append("%-16s  ");                    // "Owns (effective)"
-            else
-                buf.append("%-6s  ");                     // "Owns
-            buf.append("%-36s  ");                        // Host ID
-            if (isTokenPerNode)
-                buf.append("%-39s  ");                    // token
-            buf.append("%s%n");                           // "Rack"
-
-            format = buf.toString();
-        }
-
-        return format;
+        addNode(endpoint, owns, tokens.get(0).ipOrDns(), tokens.get(0).token, tokens.size(), hasEffectiveOwns, tableBuilder);
     }
 }

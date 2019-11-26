@@ -105,7 +105,7 @@ public interface IAuthenticator
     public interface SaslNegotiator
     {
         /**
-         * Evaluates the client response data and generates a byte[] reply which may be a further challenge or purely
+         * Evaluates the client response data and generates a byte[] response which may be a further challenge or purely
          * informational in the case that the negotiation is completed on this round.
          *
          * This method is called each time a {@link org.apache.cassandra.transport.messages.AuthResponse} is received

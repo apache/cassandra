@@ -577,8 +577,8 @@ Name                        Type           Description
 HintsSucceeded               Meter          A meter of the hints successfully delivered
 HintsFailed                  Meter          A meter of the hints that failed deliver
 HintsTimedOut                Meter          A meter of the hints that timed out
-Hints_delays                 Histogram      Histogram of hint delivery delays (in milliseconds)
-Hints_delays-<PeerIP>        Histogram      Histogram of hint delivery delays (in milliseconds) per peer
+Hint_delays                 Histogram      Histogram of hint delivery delays (in milliseconds)
+Hint_delays-<PeerIP>        Histogram      Histogram of hint delivery delays (in milliseconds) per peer
 =========================== ============== ===========
 
 SSTable Index Metrics

@@ -24,6 +24,7 @@ import java.util.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * A slice represents the selection of a range of rows.
@@ -159,7 +160,15 @@ public class Slice
     public static boolean isEmpty(ClusteringComparator comparator, ClusteringBound start, ClusteringBound end)
     {
         assert start.isStart() && end.isEnd();
-        return comparator.compare(end, start) <= 0;
+
+        int cmp = comparator.compare(start, end);
+
+        if (cmp < 0)
+            return false;
+        else if (cmp > 0)
+            return true;
+        else
+            return start.isExclusive() || end.isExclusive();
     }
 
     /**

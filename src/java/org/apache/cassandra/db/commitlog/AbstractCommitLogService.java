@@ -30,7 +30,7 @@ import com.codahale.metrics.Timer.Context;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
-import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
@@ -133,21 +133,21 @@ public abstract class AbstractCommitLogService
             throw new IllegalArgumentException(String.format("Commit log flush interval must be positive: %fms",
                                                              syncIntervalNanos * 1e-6));
         shutdown = false;
-        Runnable runnable = new SyncRunnable(new Clock());
+        Runnable runnable = new SyncRunnable(MonotonicClock.preciseTime);
         thread = NamedThreadFactory.createThread(runnable, name);
         thread.start();
     }
 
     class SyncRunnable implements Runnable
     {
-        private final Clock clock;
+        private final MonotonicClock clock;
         private long firstLagAt = 0;
         private long totalSyncDuration = 0; // total time spent syncing since firstLagAt
         private long syncExceededIntervalBy = 0; // time that syncs exceeded pollInterval since firstLagAt
         private int lagCount = 0;
         private int syncCount = 0;
 
-        SyncRunnable(Clock clock)
+        SyncRunnable(MonotonicClock clock)
         {
             this.clock = clock;
         }
@@ -169,7 +169,7 @@ public abstract class AbstractCommitLogService
             try
             {
                 // sync and signal
-                long pollStarted = clock.nanoTime();
+                long pollStarted = clock.now();
                 boolean flushToDisk = lastSyncedAt + syncIntervalNanos <= pollStarted || shutdownRequested || syncRequested;
                 if (flushToDisk)
                 {
@@ -186,7 +186,7 @@ public abstract class AbstractCommitLogService
                     commitLog.sync(false);
                 }
 
-                long now = clock.nanoTime();
+                long now = clock.now();
                 if (flushToDisk)
                     maybeLogFlushLag(pollStarted, now);
 

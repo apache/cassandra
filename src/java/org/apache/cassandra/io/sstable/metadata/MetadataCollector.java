@@ -229,40 +229,9 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     public MetadataCollector updateClusteringValues(ClusteringPrefix clustering)
     {
-        minClustering = minClustering == null || comparator.compare(clustering, minClustering) < 0 ? clustering : minClustering;
-        maxClustering = maxClustering == null || comparator.compare(clustering, maxClustering) > 0 ? clustering : maxClustering;
+        minClustering = minClustering == null || comparator.compare(clustering, minClustering) < 0 ? clustering.minimize() : minClustering;
+        maxClustering = maxClustering == null || comparator.compare(clustering, maxClustering) > 0 ? clustering.minimize() : maxClustering;
         return this;
-    }
-
-    private static ByteBuffer maybeMinimize(ByteBuffer buffer)
-    {
-        // ByteBuffer.minimalBufferFor doesn't handle null, but we can get it in this case since it's possible
-        // for some clustering values to be null
-        return buffer == null ? null : ByteBufferUtil.minimalBufferFor(buffer);
-    }
-
-    private static ByteBuffer min(ByteBuffer b1, ByteBuffer b2, AbstractType<?> comparator)
-    {
-        if (b1 == null)
-            return b2;
-        if (b2 == null)
-            return b1;
-
-        if (comparator.compare(b1, b2) >= 0)
-            return b2;
-        return b1;
-    }
-
-    private static ByteBuffer max(ByteBuffer b1, ByteBuffer b2, AbstractType<?> comparator)
-    {
-        if (b1 == null)
-            return b2;
-        if (b2 == null)
-            return b1;
-
-        if (comparator.compare(b1, b2) >= 0)
-            return b1;
-        return b2;
     }
 
     public void updateHasLegacyCounterShards(boolean hasLegacyCounterShards)

@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
@@ -125,19 +124,30 @@ public class SimpleClient implements Closeable
 
     public SimpleClient connect(boolean useCompression, boolean useChecksums) throws IOException
     {
+        return connect(useCompression, useChecksums, false);
+    }
+
+    public SimpleClient connect(boolean useCompression, boolean useChecksums, boolean throwOnOverload) throws IOException
+    {
         establishConnection();
 
         Map<String, String> options = new HashMap<>();
         options.put(StartupMessage.CQL_VERSION, "3.0.0");
+        if (throwOnOverload)
+            options.put(StartupMessage.THROW_ON_OVERLOAD, "1");
+        connection.setThrowOnOverload(throwOnOverload);
 
         if (useChecksums)
         {
             Compressor compressor = useCompression ? LZ4Compressor.INSTANCE : null;
             connection.setTransformer(ChecksummingTransformer.getTransformer(ChecksumType.CRC32, compressor));
+            options.put(StartupMessage.CHECKSUM, "crc32");
+            options.put(StartupMessage.COMPRESSION, "lz4");
         }
         else if (useCompression)
         {
             connection.setTransformer(CompressingTransformer.getTransformer(LZ4Compressor.INSTANCE));
+            options.put(StartupMessage.COMPRESSION, "lz4");
         }
 
         execute(new StartupMessage(options));
@@ -292,8 +302,8 @@ public class SimpleClient implements Closeable
         protected void initChannel(Channel channel) throws Exception
         {
             super.initChannel(channel);
-            SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, encryptionOptions.require_client_auth,
-                                                             SSLFactory.ConnectionType.NATIVE_TRANSPORT, SSLFactory.SocketType.CLIENT);
+            SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.require_client_auth,
+                                                                     SSLFactory.SocketType.CLIENT);
             channel.pipeline().addFirst("ssl", sslContext.newHandler(channel.alloc()));
         }
     }

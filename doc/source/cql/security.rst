@@ -148,6 +148,14 @@ status may ``DROP`` another ``SUPERUSER`` role.
 Attempting to drop a role which does not exist results in an invalid query condition unless the ``IF EXISTS`` option is
 used. If the option is used and the role does not exist the statement is a no-op.
 
+.. note:: DROP ROLE intentionally does not terminate any open user sessions. Currently connected sessions will remain
+   connected and will retain the ability to perform any database actions which do not require :ref:`authorization<authorization>`.
+   However, if authorization is enabled, :ref:`permissions<cql-permissions>` of the dropped role are also revoked,
+   subject to the :ref:`caching options<auth-caching>` configured in :ref:`cassandra.yaml<cassandra-yaml>`.
+   Should a dropped role be subsequently recreated and have new :ref:`permissions<grant-permission-statement>` or
+   :ref:`roles<grant-role-statement>` granted to it, any client sessions still connected will acquire the newly granted
+   permissions and roles.
+
 .. _grant-role-statement:
 
 GRANT ROLE
@@ -246,17 +254,17 @@ statements are equivalent::
     CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
     CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = true;
 
-    CREATE USER IF EXISTS alice WITH PASSWORD 'password_a' SUPERUSER;
-    CREATE ROLE IF EXISTS alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = true;
+    CREATE USER IF NOT EXISTS alice WITH PASSWORD 'password_a' SUPERUSER;
+    CREATE ROLE IF NOT EXISTS alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = true;
 
     CREATE USER alice WITH PASSWORD 'password_a' NOSUPERUSER;
     CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = false;
 
     CREATE USER alice WITH PASSWORD 'password_a' NOSUPERUSER;
-    CREATE ROLE alice WITH PASSWORD = 'password_a' WITH LOGIN = true;
+    CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
 
     CREATE USER alice WITH PASSWORD 'password_a';
-    CREATE ROLE alice WITH PASSWORD = 'password_a' WITH LOGIN = true;
+    CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
 
 .. _alter-user-statement:
 

@@ -43,23 +43,26 @@ public class SettingsTransport implements Serializable
         EncryptionOptions encOptions = new EncryptionOptions();
         if (options.trustStore.present())
         {
-            encOptions.enabled = true;
-            encOptions.truststore = options.trustStore.value();
-            encOptions.truststore_password = options.trustStorePw.value();
+            encOptions = encOptions
+                         .withEnabled(true)
+                         .withTrustStore(options.trustStore.value())
+                         .withTrustStorePassword(options.trustStorePw.value())
+                         .withAlgorithm(options.alg.value())
+                         .withProtocol(options.protocol.value())
+                         .withCipherSuites(options.ciphers.value().split(","));
             if (options.keyStore.present())
             {
-                encOptions.keystore = options.keyStore.value();
-                encOptions.keystore_password = options.keyStorePw.value();
+                encOptions = encOptions
+                             .withKeyStore(options.keyStore.value())
+                             .withKeyStorePassword(options.keyStorePw.value());
             }
             else
             {
                 // mandatory for SSLFactory.createSSLContext(), see CASSANDRA-9325
-                encOptions.keystore = encOptions.truststore;
-                encOptions.keystore_password = encOptions.truststore_password;
+                encOptions = encOptions
+                             .withKeyStore(encOptions.truststore)
+                             .withKeyStorePassword(encOptions.truststore_password);
             }
-            encOptions.algorithm = options.alg.value();
-            encOptions.protocol = options.protocol.value();
-            encOptions.cipher_suites = options.ciphers.value().split(",");
         }
         return encOptions;
     }

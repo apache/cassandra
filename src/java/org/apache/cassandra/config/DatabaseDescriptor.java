@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -72,6 +73,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.commons.lang3.StringUtils;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
 
 public class DatabaseDescriptor
@@ -80,6 +82,7 @@ public class DatabaseDescriptor
     {
         // This static block covers most usages
         FBUtilities.preventIllegalAccessWarnings();
+        System.setProperty("io.netty.transport.estimateSizeOnSubmit", "false");
     }
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
@@ -140,6 +143,9 @@ public class DatabaseDescriptor
 
     private static final boolean disableSTCSInL0 = Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_stcs_in_l0");
     private static final boolean unsafeSystem = Boolean.getBoolean(Config.PROPERTY_PREFIX + "unsafesystem");
+
+    // turns some warnings into exceptions for testing
+    private static final boolean strictRuntimeChecks = Boolean.getBoolean("cassandra.strict.runtime.checks");
 
     public static void daemonInitialization() throws ConfigurationException
     {
@@ -275,6 +281,9 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static Config loadConfig() throws ConfigurationException
     {
+        if (Config.getOverrideLoadConfig() != null)
+            return Config.getOverrideLoadConfig().get();
+
         String loaderClass = System.getProperty(Config.PROPERTY_PREFIX + "config.loader");
         ConfigurationLoader loader = loaderClass == null
                                    ? new YamlConfigurationLoader()
@@ -458,6 +467,27 @@ public class DatabaseDescriptor
         else
             logger.info("Global memtable off-heap threshold is enabled at {}MB", conf.memtable_offheap_space_in_mb);
 
+        if (conf.repair_session_max_tree_depth != null)
+        {
+            logger.warn("repair_session_max_tree_depth has been deprecated and should be removed from cassandra.yaml. Use repair_session_space_in_mb instead");
+            if (conf.repair_session_max_tree_depth < 10)
+                throw new ConfigurationException("repair_session_max_tree_depth should not be < 10, but was " + conf.repair_session_max_tree_depth);
+            if (conf.repair_session_max_tree_depth > 20)
+                logger.warn("repair_session_max_tree_depth of " + conf.repair_session_max_tree_depth + " > 20 could lead to excessive memory usage");
+        }
+        else
+        {
+            conf.repair_session_max_tree_depth = 20;
+        }
+
+        if (conf.repair_session_space_in_mb == null)
+            conf.repair_session_space_in_mb = Math.max(1, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576)));
+
+        if (conf.repair_session_space_in_mb < 1)
+            throw new ConfigurationException("repair_session_space_in_mb must be > 0, but was " + conf.repair_session_space_in_mb);
+        else if (conf.repair_session_space_in_mb > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
+            logger.warn("A repair_session_space_in_mb of " + conf.repair_session_space_in_mb + " megabytes is likely to cause heap pressure");
+
         checkForLowestAcceptedTimeouts(conf);
 
         if (conf.native_transport_max_frame_size_in_mb <= 0)
@@ -465,6 +495,10 @@ public class DatabaseDescriptor
         else if (conf.native_transport_max_frame_size_in_mb >= 2048)
             throw new ConfigurationException("native_transport_max_frame_size_in_mb must be smaller than 2048, but was "
                     + conf.native_transport_max_frame_size_in_mb, false);
+
+        if (conf.native_transport_max_negotiable_protocol_version != null)
+            logger.warn("The configuration option native_transport_max_negotiable_protocol_version has been deprecated " +
+                        "and should be removed from cassandra.yaml as it has no longer has any effect.");
 
         // if data dirs, commitlog dir, or saved caches dir are set in cassandra.yaml, use that.  Otherwise,
         // use -Dcassandra.storagedir (set in cassandra-env.sh) as the parent dir for data/, commitlog/, and saved_caches/
@@ -476,6 +510,16 @@ public class DatabaseDescriptor
         if (conf.hints_directory == null)
         {
             conf.hints_directory = storagedirFor("hints");
+        }
+
+        if (conf.native_transport_max_concurrent_requests_in_bytes <= 0)
+        {
+            conf.native_transport_max_concurrent_requests_in_bytes = Runtime.getRuntime().maxMemory() / 10;
+        }
+
+        if (conf.native_transport_max_concurrent_requests_in_bytes_per_ip <= 0)
+        {
+            conf.native_transport_max_concurrent_requests_in_bytes_per_ip = Runtime.getRuntime().maxMemory() / 40;
         }
 
         if (conf.cdc_raw_directory == null)
@@ -774,6 +818,28 @@ public class DatabaseDescriptor
         if (conf.otc_coalescing_enough_coalesced_messages <= 0)
             throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be positive", false);
 
+        Integer maxMessageSize = conf.internode_max_message_size_in_bytes;
+        if (maxMessageSize != null)
+        {
+            if (maxMessageSize > conf.internode_application_receive_queue_reserve_endpoint_capacity_in_bytes)
+                throw new ConfigurationException("internode_max_message_size_in_mb must no exceed internode_application_receive_queue_reserve_endpoint_capacity_in_bytes", false);
+
+            if (maxMessageSize > conf.internode_application_receive_queue_reserve_global_capacity_in_bytes)
+                throw new ConfigurationException("internode_max_message_size_in_mb must no exceed internode_application_receive_queue_reserve_global_capacity_in_bytes", false);
+
+            if (maxMessageSize > conf.internode_application_send_queue_reserve_endpoint_capacity_in_bytes)
+                throw new ConfigurationException("internode_max_message_size_in_mb must no exceed internode_application_send_queue_reserve_endpoint_capacity_in_bytes", false);
+
+            if (maxMessageSize > conf.internode_application_send_queue_reserve_global_capacity_in_bytes)
+                throw new ConfigurationException("internode_max_message_size_in_mb must no exceed internode_application_send_queue_reserve_global_capacity_in_bytes", false);
+        }
+        else
+        {
+            conf.internode_max_message_size_in_bytes =
+                Math.min(conf.internode_application_receive_queue_reserve_endpoint_capacity_in_bytes,
+                         conf.internode_application_send_queue_reserve_endpoint_capacity_in_bytes);
+        }
+
         validateMaxConcurrentAutoUpgradeTasksConf(conf.max_concurrent_automatic_sstable_upgrades);
     }
 
@@ -899,7 +965,14 @@ public class DatabaseDescriptor
 
     public static void applySslContextHotReload()
     {
-        SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
+        try
+        {
+            SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
+        }
+        catch(IOException e)
+        {
+            throw new ConfigurationException("Failed to initialize SSL hot reloading", e);
+        }
     }
 
     public static void applySeedProvider()
@@ -1353,6 +1426,11 @@ public class DatabaseDescriptor
         return System.getProperty(Config.PROPERTY_PREFIX + "allocate_tokens_for_keyspace", conf.allocate_tokens_for_keyspace);
     }
 
+    public static Integer getAllocateTokensForLocalRf()
+    {
+        return conf.allocate_tokens_for_local_replication_factor;
+    }
+
     public static Collection<String> tokensFromString(String tokenString)
     {
         List<String> tokens = new ArrayList<String>();
@@ -1414,9 +1492,19 @@ public class DatabaseDescriptor
         return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "ssl_storage_port", Integer.toString(conf.ssl_storage_port)));
     }
 
-    public static long getRpcTimeout()
+    public static long nativeTransportIdleTimeout()
     {
-        return conf.request_timeout_in_ms;
+        return conf.native_transport_idle_timeout_in_ms;
+    }
+
+    public static void setNativeTransportIdleTimeout(long nativeTransportTimeout)
+    {
+        conf.native_transport_idle_timeout_in_ms = nativeTransportTimeout;
+    }
+
+    public static long getRpcTimeout(TimeUnit unit)
+    {
+        return unit.convert(conf.request_timeout_in_ms, MILLISECONDS);
     }
 
     public static void setRpcTimeout(long timeOutInMillis)
@@ -1424,9 +1512,9 @@ public class DatabaseDescriptor
         conf.request_timeout_in_ms = timeOutInMillis;
     }
 
-    public static long getReadRpcTimeout()
+    public static long getReadRpcTimeout(TimeUnit unit)
     {
-        return conf.read_request_timeout_in_ms;
+        return unit.convert(conf.read_request_timeout_in_ms, MILLISECONDS);
     }
 
     public static void setReadRpcTimeout(long timeOutInMillis)
@@ -1434,9 +1522,9 @@ public class DatabaseDescriptor
         conf.read_request_timeout_in_ms = timeOutInMillis;
     }
 
-    public static long getRangeRpcTimeout()
+    public static long getRangeRpcTimeout(TimeUnit unit)
     {
-        return conf.range_request_timeout_in_ms;
+        return unit.convert(conf.range_request_timeout_in_ms, MILLISECONDS);
     }
 
     public static void setRangeRpcTimeout(long timeOutInMillis)
@@ -1444,9 +1532,9 @@ public class DatabaseDescriptor
         conf.range_request_timeout_in_ms = timeOutInMillis;
     }
 
-    public static long getWriteRpcTimeout()
+    public static long getWriteRpcTimeout(TimeUnit unit)
     {
-        return conf.write_request_timeout_in_ms;
+        return unit.convert(conf.write_request_timeout_in_ms, MILLISECONDS);
     }
 
     public static void setWriteRpcTimeout(long timeOutInMillis)
@@ -1454,9 +1542,9 @@ public class DatabaseDescriptor
         conf.write_request_timeout_in_ms = timeOutInMillis;
     }
 
-    public static long getCounterWriteRpcTimeout()
+    public static long getCounterWriteRpcTimeout(TimeUnit unit)
     {
-        return conf.counter_write_request_timeout_in_ms;
+        return unit.convert(conf.counter_write_request_timeout_in_ms, MILLISECONDS);
     }
 
     public static void setCounterWriteRpcTimeout(long timeOutInMillis)
@@ -1464,9 +1552,9 @@ public class DatabaseDescriptor
         conf.counter_write_request_timeout_in_ms = timeOutInMillis;
     }
 
-    public static long getCasContentionTimeout()
+    public static long getCasContentionTimeout(TimeUnit unit)
     {
-        return conf.cas_contention_timeout_in_ms;
+        return unit.convert(conf.cas_contention_timeout_in_ms, MILLISECONDS);
     }
 
     public static void setCasContentionTimeout(long timeOutInMillis)
@@ -1474,9 +1562,9 @@ public class DatabaseDescriptor
         conf.cas_contention_timeout_in_ms = timeOutInMillis;
     }
 
-    public static long getTruncateRpcTimeout()
+    public static long getTruncateRpcTimeout(TimeUnit unit)
     {
-        return conf.truncate_request_timeout_in_ms;
+        return unit.convert(conf.truncate_request_timeout_in_ms, MILLISECONDS);
     }
 
     public static void setTruncateRpcTimeout(long timeOutInMillis)
@@ -1489,27 +1577,32 @@ public class DatabaseDescriptor
         return conf.cross_node_timeout;
     }
 
-    public static long getSlowQueryTimeout()
+    public static void setCrossNodeTimeout(boolean crossNodeTimeout)
     {
-        return conf.slow_query_log_timeout_in_ms;
+        conf.cross_node_timeout = crossNodeTimeout;
+    }
+
+    public static long getSlowQueryTimeout(TimeUnit units)
+    {
+        return units.convert(conf.slow_query_log_timeout_in_ms, MILLISECONDS);
     }
 
     /**
      * @return the minimum configured {read, write, range, truncate, misc} timeout
      */
-    public static long getMinRpcTimeout()
+    public static long getMinRpcTimeout(TimeUnit unit)
     {
-        return Longs.min(getRpcTimeout(),
-                         getReadRpcTimeout(),
-                         getRangeRpcTimeout(),
-                         getWriteRpcTimeout(),
-                         getCounterWriteRpcTimeout(),
-                         getTruncateRpcTimeout());
+        return Longs.min(getRpcTimeout(unit),
+                         getReadRpcTimeout(unit),
+                         getRangeRpcTimeout(unit),
+                         getWriteRpcTimeout(unit),
+                         getCounterWriteRpcTimeout(unit),
+                         getTruncateRpcTimeout(unit));
     }
 
-    public static long getPingTimeout()
+    public static long getPingTimeout(TimeUnit unit)
     {
-        return TimeUnit.SECONDS.toMillis(getBlockForPeersTimeoutInSeconds());
+        return unit.convert(getBlockForPeersTimeoutInSeconds(), TimeUnit.SECONDS);
     }
 
     public static double getPhiConvictThreshold()
@@ -1527,9 +1620,27 @@ public class DatabaseDescriptor
         return conf.concurrent_reads;
     }
 
+    public static void setConcurrentReaders(int concurrent_reads)
+    {
+        if (concurrent_reads < 0)
+        {
+            throw new IllegalArgumentException("Concurrent reads must be non-negative");
+        }
+        conf.concurrent_reads = concurrent_reads;
+    }
+
     public static int getConcurrentWriters()
     {
         return conf.concurrent_writes;
+    }
+
+    public static void setConcurrentWriters(int concurrent_writers)
+    {
+        if (concurrent_writers < 0)
+        {
+            throw new IllegalArgumentException("Concurrent reads must be non-negative");
+        }
+        conf.concurrent_writes = concurrent_writers;
     }
 
     public static int getConcurrentCounterWriters()
@@ -1537,9 +1648,27 @@ public class DatabaseDescriptor
         return conf.concurrent_counter_writes;
     }
 
+    public static void setConcurrentCounterWriters(int concurrent_counter_writes)
+    {
+        if (concurrent_counter_writes < 0)
+        {
+            throw new IllegalArgumentException("Concurrent reads must be non-negative");
+        }
+        conf.concurrent_counter_writes = concurrent_counter_writes;
+    }
+
     public static int getConcurrentViewWriters()
     {
         return conf.concurrent_materialized_view_writes;
+    }
+
+    public static void setConcurrentViewWriters(int concurrent_materialized_view_writes)
+    {
+        if (concurrent_materialized_view_writes < 0)
+        {
+            throw new IllegalArgumentException("Concurrent reads must be non-negative");
+        }
+        conf.concurrent_materialized_view_writes = concurrent_materialized_view_writes;
     }
 
     public static int getFlushWriters()
@@ -1799,14 +1928,44 @@ public class DatabaseDescriptor
         return conf.rpc_keepalive;
     }
 
-    public static int getInternodeSendBufferSize()
+    public static int getInternodeSocketSendBufferSizeInBytes()
     {
-        return conf.internode_send_buff_size_in_bytes;
+        return conf.internode_socket_send_buffer_size_in_bytes;
     }
 
-    public static int getInternodeRecvBufferSize()
+    public static int getInternodeSocketReceiveBufferSizeInBytes()
     {
-        return conf.internode_recv_buff_size_in_bytes;
+        return conf.internode_socket_receive_buffer_size_in_bytes;
+    }
+
+    public static int getInternodeApplicationSendQueueCapacityInBytes()
+    {
+        return conf.internode_application_send_queue_capacity_in_bytes;
+    }
+
+    public static int getInternodeApplicationSendQueueReserveEndpointCapacityInBytes()
+    {
+        return conf.internode_application_send_queue_reserve_endpoint_capacity_in_bytes;
+    }
+
+    public static int getInternodeApplicationSendQueueReserveGlobalCapacityInBytes()
+    {
+        return conf.internode_application_send_queue_reserve_global_capacity_in_bytes;
+    }
+
+    public static int getInternodeApplicationReceiveQueueCapacityInBytes()
+    {
+        return conf.internode_application_receive_queue_capacity_in_bytes;
+    }
+
+    public static int getInternodeApplicationReceiveQueueReserveEndpointCapacityInBytes()
+    {
+        return conf.internode_application_receive_queue_reserve_endpoint_capacity_in_bytes;
+    }
+
+    public static int getInternodeApplicationReceiveQueueReserveGlobalCapacityInBytes()
+    {
+        return conf.internode_application_receive_queue_reserve_global_capacity_in_bytes;
     }
 
     public static int getInternodeTcpConnectTimeoutInMS()
@@ -1827,6 +1986,17 @@ public class DatabaseDescriptor
     public static void setInternodeTcpUserTimeoutInMS(int value)
     {
         conf.internode_tcp_user_timeout_in_ms = value;
+    }
+
+    public static int getInternodeMaxMessageSizeInBytes()
+    {
+        return conf.internode_max_message_size_in_bytes;
+    }
+
+    @VisibleForTesting
+    public static void setInternodeMaxMessageSizeInBytes(int value)
+    {
+        conf.internode_max_message_size_in_bytes = value;
     }
 
     public static boolean startNativeTransport()
@@ -1863,6 +2033,11 @@ public class DatabaseDescriptor
     public static int getNativeTransportMaxThreads()
     {
         return conf.native_transport_max_threads;
+    }
+
+    public static void setNativeTransportMaxThreads(int max_threads)
+    {
+        conf.native_transport_max_threads = max_threads;
     }
 
     public static int getNativeTransportMaxFrameSize()
@@ -1918,6 +2093,26 @@ public class DatabaseDescriptor
     public static void setCommitLogSyncGroupWindow(double windowMillis)
     {
         conf.commitlog_sync_group_window_in_ms = windowMillis;
+    }
+
+    public static long getNativeTransportMaxConcurrentRequestsInBytesPerIp()
+    {
+        return conf.native_transport_max_concurrent_requests_in_bytes_per_ip;
+    }
+
+    public static void setNativeTransportMaxConcurrentRequestsInBytesPerIp(long maxConcurrentRequestsInBytes)
+    {
+        conf.native_transport_max_concurrent_requests_in_bytes_per_ip = maxConcurrentRequestsInBytes;
+    }
+
+    public static long getNativeTransportMaxConcurrentRequestsInBytes()
+    {
+        return conf.native_transport_max_concurrent_requests_in_bytes;
+    }
+
+    public static void setNativeTransportMaxConcurrentRequestsInBytes(long maxConcurrentRequestsInBytes)
+    {
+        conf.native_transport_max_concurrent_requests_in_bytes = maxConcurrentRequestsInBytes;
     }
 
     public static int getCommitLogSyncPeriod()
@@ -2108,6 +2303,12 @@ public class DatabaseDescriptor
         return conf.client_encryption_options;
     }
 
+    @VisibleForTesting
+    public static void updateNativeProtocolEncryptionOptions(Function<EncryptionOptions, EncryptionOptions> update)
+    {
+        conf.client_encryption_options = update.apply(conf.client_encryption_options);
+    }
+
     public static int getHintedHandoffThrottleInKB()
     {
         return conf.hinted_handoff_throttle_in_kb;
@@ -2207,11 +2408,21 @@ public class DatabaseDescriptor
         return conf.commitlog_total_space_in_mb;
     }
 
-    public static int getSSTablePreempiveOpenIntervalInMB()
+    public static boolean shouldMigrateKeycacheOnCompaction()
+    {
+        return conf.key_cache_migrate_during_compaction;
+    }
+
+    public static void setMigrateKeycacheOnCompaction(boolean migrateCacheEntry)
+    {
+        conf.key_cache_migrate_during_compaction = migrateCacheEntry;
+    }
+
+    public static int getSSTablePreemptiveOpenIntervalInMB()
     {
         return FBUtilities.isWindows ? -1 : conf.sstable_preemptive_open_interval_in_mb;
     }
-    public static void setSSTablePreempiveOpenIntervalInMB(int mb)
+    public static void setSSTablePreemptiveOpenIntervalInMB(int mb)
     {
         conf.sstable_preemptive_open_interval_in_mb = mb;
     }
@@ -2372,6 +2583,39 @@ public class DatabaseDescriptor
         return conf.memtable_allocation_type;
     }
 
+    public static int getRepairSessionMaxTreeDepth()
+    {
+        return conf.repair_session_max_tree_depth;
+    }
+
+    public static void setRepairSessionMaxTreeDepth(int depth)
+    {
+        if (depth < 10)
+            throw new ConfigurationException("Cannot set repair_session_max_tree_depth to " + depth +
+                                             " which is < 10, doing nothing");
+        else if (depth > 20)
+            logger.warn("repair_session_max_tree_depth of " + depth + " > 20 could lead to excessive memory usage");
+
+        conf.repair_session_max_tree_depth = depth;
+    }
+
+    public static int getRepairSessionSpaceInMegabytes()
+    {
+        return conf.repair_session_space_in_mb;
+    }
+
+    public static void setRepairSessionSpaceInMegabytes(int sizeInMegabytes)
+    {
+        if (sizeInMegabytes < 1)
+            throw new ConfigurationException("Cannot set repair_session_space_in_mb to " + sizeInMegabytes +
+                                             " < 1 megabyte");
+        else if (sizeInMegabytes > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
+            logger.warn("A repair_session_space_in_mb of " + conf.repair_session_space_in_mb +
+                        " megabytes is likely to cause heap pressure.");
+
+        conf.repair_session_space_in_mb = sizeInMegabytes;
+    }
+
     public static Float getMemtableCleanupThreshold()
     {
         return conf.memtable_cleanup_threshold;
@@ -2408,41 +2652,6 @@ public class DatabaseDescriptor
         return conf.tracetype_query_ttl;
     }
 
-    public static String getOtcCoalescingStrategy()
-    {
-        return conf.otc_coalescing_strategy;
-    }
-
-    public static void setOtcCoalescingStrategy(String strategy)
-    {
-        conf.otc_coalescing_strategy = strategy;
-    }
-
-    public static int getOtcCoalescingWindow()
-    {
-        return conf.otc_coalescing_window_us;
-    }
-
-    public static int getOtcCoalescingEnoughCoalescedMessages()
-    {
-        return conf.otc_coalescing_enough_coalesced_messages;
-    }
-
-    public static void setOtcCoalescingEnoughCoalescedMessages(int otc_coalescing_enough_coalesced_messages)
-    {
-        conf.otc_coalescing_enough_coalesced_messages = otc_coalescing_enough_coalesced_messages;
-    }
-
-    public static int getOtcBacklogExpirationInterval()
-    {
-        return conf.otc_backlog_expiration_interval_ms;
-    }
-
-    public static void setOtcBacklogExpirationInterval(int intervalInMillis)
-    {
-        conf.otc_backlog_expiration_interval_ms = intervalInMillis;
-    }
- 
     public static int getWindowsTimerInterval()
     {
         return conf.windows_timer_interval;
@@ -2483,9 +2692,24 @@ public class DatabaseDescriptor
         conf.user_defined_function_warn_timeout = userDefinedFunctionWarnTimeout;
     }
 
-    public static boolean enableMaterializedViews()
+    public static boolean getEnableMaterializedViews()
     {
         return conf.enable_materialized_views;
+    }
+
+    public static void setEnableMaterializedViews(boolean enableMaterializedViews)
+    {
+        conf.enable_materialized_views = enableMaterializedViews;
+    }
+
+    public static boolean getEnableSASIIndexes()
+    {
+        return conf.enable_sasi_indexes;
+    }
+
+    public static void setEnableSASIIndexes(boolean enableSASIIndexes)
+    {
+        conf.enable_sasi_indexes = enableSASIIndexes;
     }
 
     public static boolean isTransientReplicationEnabled()
@@ -2727,5 +2951,21 @@ public class DatabaseDescriptor
     public static void reportUnconfirmedRepairedDataMismatches(boolean enabled)
     {
         conf.report_unconfirmed_repaired_data_mismatches = enabled;
+    }
+
+    public static boolean strictRuntimeChecks()
+    {
+        return strictRuntimeChecks;
+    }
+
+    public static boolean useOffheapMerkleTrees()
+    {
+        return conf.use_offheap_merkle_trees;
+    }
+
+    public static void useOffheapMerkleTrees(boolean value)
+    {
+        logger.info("Setting use_offheap_merkle_trees to {}", value);
+        conf.use_offheap_merkle_trees = value;
     }
 }

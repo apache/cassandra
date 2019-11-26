@@ -13,33 +13,42 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
 A script to use nodetool to generate documentation for nodetool
 """
+from __future__ import print_function
 
 import os
 import re
 import subprocess
-from subprocess import PIPE, Popen
+from subprocess import PIPE
+from subprocess import Popen
+
 
 nodetool = "../bin/nodetool"
 outdir = "source/tools/nodetool"
 helpfilename = outdir + "/nodetool.txt"
 command_re = re.compile("(    )([_a-z]+)")
-commandRSTContent = ".. _nodetool_{0}:\n\n{0}\n-------\n\nUsage\n---------\n\n.. include:: {0}.txt\n  :literal:\n\n"
+commandRSTContent = ".. _nodetool_{0}:\n\n{0}\n{1}\n\nUsage\n---------\n\n.. include:: {0}.txt\n  :literal:\n\n"
 
 # create the documentation directory
 if not os.path.exists(outdir):
     os.makedirs(outdir)
 
 # create the base help file to use for discovering the commands
-def createHelpfile():
-    with open(helpfilename, "w+") as file:
-        subprocess.call([nodetool, "help"], stdout=file)
+def create_help_file():
+    with open(helpfilename, "w+") as output_file:
+        try:
+            subprocess.check_call([nodetool, "help"], stdout=output_file)
+        except subprocess.CalledProcessError as cpe:
+            print(
+                'ERROR: Nodetool failed to run, you likely need to build '
+                'cassandra using ant jar from the top level directory'
+            )
+            raise cpe
 
 # for a given command, create the help file and an RST file to contain it
-def createRST(command):
+def create_rst(command):
     if command:
         cmdName = command.group(0).strip()
         cmdFilename = outdir + "/" + cmdName + ".txt"
@@ -49,15 +58,15 @@ def createRST(command):
             (out, err) = proc.communicate()
             cmdFile.write(out)
         with open(rstFilename, "w+") as rstFile:
-            rstFile.write(commandRSTContent.format(cmdName))
+            rstFile.write(commandRSTContent.format(cmdName, '-' * len(cmdName)))
 
 # create base file
-createHelpfile()
+create_help_file()
 
 # create the main usage page
 with open(outdir + "/nodetool.rst", "w+") as output:
     with open(helpfilename, "r+") as helpfile:
-        output.write(".. _nodetool\n\nNodetool\n-------\n\nUsage\n---------\n\n")
+        output.write(".. _nodetool\n\nNodetool\n--------\n\nUsage\n---------\n\n")
         for commandLine in helpfile:
             command = command_re.sub(r'\n\1:doc:`\2` - ',commandLine)
             output.write(command)
@@ -66,4 +75,4 @@ with open(outdir + "/nodetool.rst", "w+") as output:
 with open(helpfilename, "rw+") as helpfile:
     for commandLine in helpfile:
         command = command_re.match(commandLine)
-        createRST(command)
+        create_rst(command)

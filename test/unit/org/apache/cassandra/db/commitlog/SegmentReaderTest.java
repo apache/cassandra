@@ -41,6 +41,7 @@ import org.apache.cassandra.io.compress.DeflateCompressor;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
+import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -76,6 +77,12 @@ public class SegmentReaderTest
     public void compressedSegmenter_Deflate() throws IOException
     {
         compressedSegmenter(DeflateCompressor.create(null));
+    }
+
+    @Test
+    public void compressedSegmenter_Zstd() throws IOException
+    {
+        compressedSegmenter(ZstdCompressor.create(Collections.emptyMap()));
     }
 
     private void compressedSegmenter(ICompressor compressor) throws IOException

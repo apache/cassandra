@@ -20,10 +20,8 @@ package org.apache.cassandra.service.reads;
 
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -40,12 +38,12 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.ReplicaLayout;
-import org.apache.cassandra.locator.ReplicaUtils;
-import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceParams;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -205,24 +203,16 @@ public class ReadExecutorTest
         }
 
         @Override
-        public long getTimeout()
+        public long getTimeout(TimeUnit unit)
         {
-            return timeout;
+            return unit.convert(timeout, MILLISECONDS);
         }
 
         @Override
-        public MessageOut createMessage()
+        public Message createMessage(boolean trackRepairedData)
         {
-            return new MessageOut(MessagingService.Verb.BATCH_REMOVE)
-            {
-                @Override
-                public int serializedSize(int version)
-                {
-                    return 0;
-                }
-            };
+            return Message.out(Verb.ECHO_REQ, NoPayload.noPayload);
         }
-
     }
 
     private ReplicaPlan.ForTokenRead plan(EndpointsForToken targets, ConsistencyLevel consistencyLevel)

@@ -74,6 +74,8 @@ public class FBUtilities
 
     private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
 
+    public static final String UNKNOWN_RELEASE_VERSION = "Unknown";
+
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
@@ -169,6 +171,15 @@ public class FBUtilities
     }
 
     /**
+     * <b>THIS IS FOR TESTING ONLY!!</b>
+     */
+    public static void setBroadcastInetAddressAndPort(InetAddressAndPort addr)
+    {
+        broadcastInetAddress = addr.address;
+        broadcastInetAddressAndPort = addr;
+    }
+
+    /**
      * This returns the address that is bound to for the native protocol for communicating with clients. This is ambiguous
      * because it doesn't include the port and it's almost always the wrong thing to be using you want getBroadcastNativeAddressAndPort
      */
@@ -254,30 +265,6 @@ public class FBUtilities
         return compareUnsigned(bytes1, bytes2, 0, 0, bytes1.length, bytes2.length);
     }
 
-    /**
-     * @return The bitwise XOR of the inputs. The output will be the same length as the
-     * longer input, but if either input is null, the output will be null.
-     */
-    public static byte[] xor(byte[] left, byte[] right)
-    {
-        if (left == null || right == null)
-            return null;
-        if (left.length > right.length)
-        {
-            byte[] swap = left;
-            left = right;
-            right = swap;
-        }
-
-        // left.length is now <= right.length
-        byte[] out = Arrays.copyOf(right, right.length);
-        for (int i = 0; i < left.length; i++)
-        {
-            out[i] = (byte)((left[i] & 0xFF) ^ (right[i] & 0xFF));
-        }
-        return out;
-    }
-
     public static void sortSampledKeys(List<DecoratedKey> keys, Range<Token> range)
     {
         if (range.left.compareTo(range.right) >= 0)
@@ -343,7 +330,7 @@ public class FBUtilities
         {
             if (in == null)
             {
-                return System.getProperty("cassandra.releaseVersion", "Unknown");
+                return System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
             }
             Properties props = new Properties();
             props.load(in);
@@ -355,6 +342,16 @@ public class FBUtilities
             logger.warn("Unable to load version.properties", e);
             return "debug version";
         }
+    }
+
+    public static String getReleaseVersionMajor()
+    {
+        String releaseVersion = FBUtilities.getReleaseVersionString();
+        if (FBUtilities.UNKNOWN_RELEASE_VERSION.equals(releaseVersion))
+        {
+            throw new AssertionError("Release version is unknown");
+        }
+        return releaseVersion.substring(0, releaseVersion.indexOf('.'));
     }
 
     public static long timestampMicros()
@@ -371,28 +368,37 @@ public class FBUtilities
 
     public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures)
     {
-        return waitOnFutures(futures, -1);
+        return waitOnFutures(futures, -1, null);
     }
 
     /**
-     * Block for a collection of futures, with an optional timeout for each future.
+     * Block for a collection of futures, with optional timeout.
      *
      * @param futures
-     * @param ms The number of milliseconds to wait on each future. If this value is less than or equal to zero,
+     * @param timeout The number of units to wait in total. If this value is less than or equal to zero,
      *           no tiemout value will be passed to {@link Future#get()}.
+     * @param units The units of timeout.
      */
-    public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures, long ms)
+    public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures, long timeout, TimeUnit units)
     {
+        long endNanos = 0;
+        if (timeout > 0)
+            endNanos = System.nanoTime() + units.toNanos(timeout);
         List<T> results = new ArrayList<>();
         Throwable fail = null;
         for (Future<? extends T> f : futures)
         {
             try
             {
-                if (ms <= 0)
+                if (endNanos == 0)
+                {
                     results.add(f.get());
+                }
                 else
-                    results.add(f.get(ms, TimeUnit.MILLISECONDS));
+                {
+                    long waitFor = Math.max(1, endNanos - System.nanoTime());
+                    results.add(f.get(waitFor, TimeUnit.NANOSECONDS));
+                }
             }
             catch (Throwable t)
             {
@@ -417,12 +423,6 @@ public class FBUtilities
         {
             throw new AssertionError(ie);
         }
-    }
-
-    public static void waitOnFutures(List<AsyncOneResponse> results, long ms) throws TimeoutException
-    {
-        for (AsyncOneResponse result : results)
-            result.get(ms, TimeUnit.MILLISECONDS);
     }
 
     public static <T> Future<? extends T> waitOnFirstFuture(Iterable<? extends Future<? extends T>> futures)
@@ -889,7 +889,7 @@ public class FBUtilities
         return historyDir;
     }
 
-    public static void closeAll(List<? extends AutoCloseable> l) throws Exception
+    public static void closeAll(Collection<? extends AutoCloseable> l) throws Exception
     {
         Exception toThrow = null;
         for (AutoCloseable c : l)

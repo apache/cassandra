@@ -30,7 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -55,6 +54,9 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+
+import static java.util.concurrent.TimeUnit.*;
+import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 /**
  * It represents a Keyspace.
@@ -384,7 +386,7 @@ public class Keyspace
             return;
 
         cfs.getCompactionStrategyManager().shutdown();
-        CompactionManager.instance.interruptCompactionForCFs(cfs.concatWithIndexes(), true);
+        CompactionManager.instance.interruptCompactionForCFs(cfs.concatWithIndexes(), (sstable) -> true, true);
         // wait for any outstanding reads/writes that might affect the CFS
         cfs.keyspace.writeOrder.awaitNewBarrier();
         cfs.readOrdering.awaitNewBarrier();
@@ -544,7 +546,7 @@ public class Keyspace
                     if (lock == null)
                     {
                         //throw WTE only if request is droppable
-                        if (isDroppable && (System.currentTimeMillis() - mutation.createdAt) > DatabaseDescriptor.getWriteRpcTimeout())
+                        if (isDroppable && (approxTime.isAfter(mutation.approxCreatedAtNanos + DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS))))
                         {
                             for (int j = 0; j < i; j++)
                                 locks[j].unlock();
@@ -568,8 +570,8 @@ public class Keyspace
                             // This view update can't happen right now. so rather than keep this thread busy
                             // we will re-apply ourself to the queue and try again later
                             final CompletableFuture<?> mark = future;
-                            StageManager.getStage(Stage.MUTATION).execute(() ->
-                                                                          applyInternal(mutation, makeDurable, true, isDroppable, true, mark)
+                            Stage.MUTATION.execute(() ->
+                                                   applyInternal(mutation, makeDurable, true, isDroppable, true, mark)
                             );
                             return future;
                         }
@@ -605,7 +607,7 @@ public class Keyspace
             if (isDroppable)
             {
                 for(TableId tableId : tableIds)
-                    columnFamilyStores.get(tableId).metric.viewLockAcquireTime.update(acquireTime, TimeUnit.MILLISECONDS);
+                    columnFamilyStores.get(tableId).metric.viewLockAcquireTime.update(acquireTime, MILLISECONDS);
             }
         }
         int nowInSec = FBUtilities.nowInSeconds();

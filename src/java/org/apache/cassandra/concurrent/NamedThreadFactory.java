@@ -24,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import io.netty.util.concurrent.FastThreadLocalThread;
+import org.apache.cassandra.utils.memory.BufferPool;
 
 /**
  * This class is an implementation of the <i>ThreadFactory</i> interface. This
@@ -33,6 +34,10 @@ import io.netty.util.concurrent.FastThreadLocalThread;
 
 public class NamedThreadFactory implements ThreadFactory
 {
+    private static volatile String globalPrefix;
+    public static void setGlobalPrefix(String prefix) { globalPrefix = prefix; }
+    public static String globalPrefix() { return globalPrefix == null ? "" : globalPrefix; }
+
     public final String id;
     private final int priority;
     private final ClassLoader contextClassLoader;
@@ -67,26 +72,6 @@ public class NamedThreadFactory implements ThreadFactory
         return thread;
     }
 
-    /**
-     * Ensures that {@link FastThreadLocal#remove() FastThreadLocal.remove()} is called when the {@link Runnable#run()}
-     * method of the given {@link Runnable} instance completes to ensure cleanup of {@link FastThreadLocal} instances.
-     * This is especially important for direct byte buffers allocated locally for a thread.
-     */
-    public static Runnable threadLocalDeallocator(Runnable r)
-    {
-        return () ->
-        {
-            try
-            {
-                r.run();
-            }
-            finally
-            {
-                FastThreadLocal.removeAll();
-            }
-        };
-    }
-
     private static final AtomicInteger threadCounter = new AtomicInteger();
 
     @VisibleForTesting
@@ -112,7 +97,8 @@ public class NamedThreadFactory implements ThreadFactory
 
     public static Thread createThread(ThreadGroup threadGroup, Runnable runnable, String name, boolean daemon)
     {
-        Thread thread = new FastThreadLocalThread(threadGroup, threadLocalDeallocator(runnable), name);
+        String prefix = globalPrefix;
+        Thread thread = new FastThreadLocalThread(threadGroup, runnable, prefix != null ? prefix + name : name);
         thread.setDaemon(daemon);
         return thread;
     }

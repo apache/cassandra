@@ -1,4 +1,3 @@
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -18,120 +17,215 @@
  */
 package org.apache.cassandra.auth;
 
-import org.junit.Assert;
-import org.junit.BeforeClass;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
+import java.util.function.IntConsumer;
+import java.util.function.IntSupplier;
+
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.UnavailableException;
 
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class AuthCacheTest
 {
-    private boolean loadFuncCalled = false;
-    private boolean isCacheEnabled = false;
+    private int loadCounter = 0;
+    private int validity = 2000;
+    private boolean isCacheEnabled = true;
 
-    @BeforeClass
-    public static void setup()
+    @Test
+    public void testCacheLoaderIsCalledOnFirst()
     {
-        DatabaseDescriptor.daemonInitialization();
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        int result = authCache.get("10");
+
+        assertEquals(10, result);
+        assertEquals(1, loadCounter);
     }
 
     @Test
-    public void testCaching()
+    public void testCacheLoaderIsNotCalledOnSecond()
     {
-        AuthCache<String, String> authCache = new AuthCache<>("TestCache",
-                                                              DatabaseDescriptor::setCredentialsValidity,
-                                                              DatabaseDescriptor::getCredentialsValidity,
-                                                              DatabaseDescriptor::setCredentialsUpdateInterval,
-                                                              DatabaseDescriptor::getCredentialsUpdateInterval,
-                                                              DatabaseDescriptor::setCredentialsCacheMaxEntries,
-                                                              DatabaseDescriptor::getCredentialsCacheMaxEntries,
-                                                              this::load,
-                                                              () -> true
-        );
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+        assertEquals(1, loadCounter);
 
-        // Test cacheloader is called if set
-        loadFuncCalled = false;
-        String result = authCache.get("test");
-        assertTrue(loadFuncCalled);
-        Assert.assertEquals("load", result);
+        int result = authCache.get("10");
 
-        // value should be fetched from cache
-        loadFuncCalled = false;
-        String result2 = authCache.get("test");
-        assertFalse(loadFuncCalled);
-        Assert.assertEquals("load", result2);
+        assertEquals(10, result);
+        assertEquals(1, loadCounter);
+    }
 
-        // value should be fetched from cache after complete invalidate
+    @Test
+    public void testCacheLoaderIsAlwaysCalledWhenDisabled()
+    {
+        isCacheEnabled = false;
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        authCache.get("10");
+        int result = authCache.get("10");
+
+        assertEquals(10, result);
+        assertEquals(2, loadCounter);
+    }
+
+    @Test
+    public void testCacheLoaderIsAlwaysCalledWhenValidityIsZero()
+    {
+        setValidity(0);
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        authCache.get("10");
+        int result = authCache.get("10");
+
+        assertEquals(10, result);
+        assertEquals(2, loadCounter);
+    }
+
+    @Test
+    public void testCacheLoaderIsCalledAfterFullInvalidate()
+    {
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+
         authCache.invalidate();
-        loadFuncCalled = false;
-        String result3 = authCache.get("test");
-        assertTrue(loadFuncCalled);
-        Assert.assertEquals("load", result3);
+        int result = authCache.get("10");
 
-        // value should be fetched from cache after invalidating key
-        authCache.invalidate("test");
-        loadFuncCalled = false;
-        String result4 = authCache.get("test");
-        assertTrue(loadFuncCalled);
-        Assert.assertEquals("load", result4);
-
-        // set cache to null and load function should be called
-        loadFuncCalled = false;
-        authCache.cache = null;
-        String result5 = authCache.get("test");
-        assertTrue(loadFuncCalled);
-        Assert.assertEquals("load", result5);
+        assertEquals(10, result);
+        assertEquals(2, loadCounter);
     }
 
     @Test
-    public void testInitCache()
+    public void testCacheLoaderIsCalledAfterInvalidateKey()
     {
-        // Test that a validity of <= 0 will turn off caching
-        DatabaseDescriptor.setCredentialsValidity(0);
-        AuthCache<String, String> authCache = new AuthCache<>("TestCache2",
-                                                              DatabaseDescriptor::setCredentialsValidity,
-                                                              DatabaseDescriptor::getCredentialsValidity,
-                                                              DatabaseDescriptor::setCredentialsUpdateInterval,
-                                                              DatabaseDescriptor::getCredentialsUpdateInterval,
-                                                              DatabaseDescriptor::setCredentialsCacheMaxEntries,
-                                                              DatabaseDescriptor::getCredentialsCacheMaxEntries,
-                                                              this::load,
-                                                              () -> true);
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+
+        authCache.invalidate("10");
+        int result = authCache.get("10");
+
+        assertEquals(10, result);
+        assertEquals(2, loadCounter);
+    }
+
+    @Test
+    public void testCacheLoaderIsCalledAfterReset()
+    {
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+
+        authCache.cache = null;
+        int result = authCache.get("10");
+
+        assertEquals(10, result);
+        assertEquals(2, loadCounter);
+    }
+
+    @Test
+    public void testThatZeroValidityTurnOffCaching()
+    {
+        setValidity(0);
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+        int result = authCache.get("10");
+
         assertNull(authCache.cache);
+        assertEquals(10, result);
+        assertEquals(2, loadCounter);
+    }
+
+    @Test
+    public void testThatRaisingValidityTurnOnCaching()
+    {
+        setValidity(0);
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
         authCache.setValidity(2000);
         authCache.cache = authCache.initCache(null);
-        assertNotNull(authCache.cache);
 
-        // Test enableCache works as intended
-        authCache = new AuthCache<>("TestCache3",
-                                    DatabaseDescriptor::setCredentialsValidity,
-                                    DatabaseDescriptor::getCredentialsValidity,
-                                    DatabaseDescriptor::setCredentialsUpdateInterval,
-                                    DatabaseDescriptor::getCredentialsUpdateInterval,
-                                    DatabaseDescriptor::setCredentialsCacheMaxEntries,
-                                    DatabaseDescriptor::getCredentialsCacheMaxEntries,
-                                    this::load,
-                                    () -> isCacheEnabled);
+        assertNotNull(authCache.cache);
+    }
+
+    @Test
+    public void testDisableCache()
+    {
+        isCacheEnabled = false;
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
         assertNull(authCache.cache);
+    }
+
+    @Test
+    public void testDynamicallyEnableCache()
+    {
+        isCacheEnabled = false;
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
         isCacheEnabled = true;
         authCache.cache = authCache.initCache(null);
-        assertNotNull(authCache.cache);
 
-        // Ensure at a minimum these policies have been initialised by default
+        assertNotNull(authCache.cache);
+    }
+
+    @Test
+    public void testDefaultPolicies()
+    {
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
         assertTrue(authCache.cache.policy().expireAfterWrite().isPresent());
         assertTrue(authCache.cache.policy().refreshAfterWrite().isPresent());
         assertTrue(authCache.cache.policy().eviction().isPresent());
     }
 
-    private String load(String test)
+    @Test(expected = UnavailableException.class)
+    public void testCassandraExceptionPassThroughWhenCacheEnabled()
     {
-        loadFuncCalled = true;
-        return "load";
+        TestCache<String, Integer> cache = new TestCache<>(s -> { throw UnavailableException.create(ConsistencyLevel.QUORUM, 3, 1); }, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        cache.get("expect-exception");
     }
 
+    @Test(expected = UnavailableException.class)
+    public void testCassandraExceptionPassThroughWhenCacheDisable()
+    {
+        isCacheEnabled = false;
+        TestCache<String, Integer> cache = new TestCache<>(s -> { throw UnavailableException.create(ConsistencyLevel.QUORUM, 3, 1); }, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        cache.get("expect-exception");
+    }
+
+    private void setValidity(int validity)
+    {
+        this.validity = validity;
+    }
+
+    private Integer countingLoader(String s)
+    {
+        loadCounter++;
+        return Integer.parseInt(s);
+    }
+
+    private static class TestCache<K, V> extends AuthCache<K, V>
+    {
+        private static int nameCounter = 0; // Allow us to create many instances of cache with same name prefix
+
+        TestCache(Function<K, V> loadFunction, IntConsumer setValidityDelegate, IntSupplier getValidityDelegate, BooleanSupplier cacheEnabledDelegate)
+        {
+            super("TestCache" + nameCounter++,
+                  setValidityDelegate,
+                  getValidityDelegate,
+                  (updateInterval) -> {},
+                  () -> 1000,
+                  (maxEntries) -> {},
+                  () -> 10,
+                  loadFunction,
+                  cacheEnabledDelegate);
+        }
+    }
 }

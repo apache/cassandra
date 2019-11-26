@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.commons.lang3.builder.EqualsBuilder;
@@ -46,7 +47,7 @@ public class StatsMetadata extends MetadataComponent
     public static final ISerializer<IntervalSet<CommitLogPosition>> commitLogPositionSetSerializer = IntervalSet.serializer(CommitLogPosition.serializer);
 
     public final EstimatedHistogram estimatedPartitionSize;
-    public final EstimatedHistogram estimatedColumnCount;
+    public final EstimatedHistogram estimatedCellPerPartitionCount;
     public final IntervalSet<CommitLogPosition> commitLogIntervals;
     public final long minTimestamp;
     public final long maxTimestamp;
@@ -65,9 +66,11 @@ public class StatsMetadata extends MetadataComponent
     public final long totalRows;
     public final UUID pendingRepair;
     public final boolean isTransient;
+    // just holds the current encoding stats to avoid allocating - it is not serialized
+    public final EncodingStats encodingStats;
 
     public StatsMetadata(EstimatedHistogram estimatedPartitionSize,
-                         EstimatedHistogram estimatedColumnCount,
+                         EstimatedHistogram estimatedCellPerPartitionCount,
                          IntervalSet<CommitLogPosition> commitLogIntervals,
                          long minTimestamp,
                          long maxTimestamp,
@@ -88,7 +91,7 @@ public class StatsMetadata extends MetadataComponent
                          boolean isTransient)
     {
         this.estimatedPartitionSize = estimatedPartitionSize;
-        this.estimatedColumnCount = estimatedColumnCount;
+        this.estimatedCellPerPartitionCount = estimatedCellPerPartitionCount;
         this.commitLogIntervals = commitLogIntervals;
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
@@ -107,6 +110,7 @@ public class StatsMetadata extends MetadataComponent
         this.totalRows = totalRows;
         this.pendingRepair = pendingRepair;
         this.isTransient = isTransient;
+        this.encodingStats = new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
     }
 
     public MetadataType getType()
@@ -120,7 +124,7 @@ public class StatsMetadata extends MetadataComponent
      */
     public double getEstimatedDroppableTombstoneRatio(int gcBefore)
     {
-        long estimatedColumnCount = this.estimatedColumnCount.mean() * this.estimatedColumnCount.count();
+        long estimatedColumnCount = this.estimatedCellPerPartitionCount.mean() * this.estimatedCellPerPartitionCount.count();
         if (estimatedColumnCount > 0)
         {
             double droppable = getDroppableTombstonesBefore(gcBefore);
@@ -141,7 +145,7 @@ public class StatsMetadata extends MetadataComponent
     public StatsMetadata mutateLevel(int newLevel)
     {
         return new StatsMetadata(estimatedPartitionSize,
-                                 estimatedColumnCount,
+                                 estimatedCellPerPartitionCount,
                                  commitLogIntervals,
                                  minTimestamp,
                                  maxTimestamp,
@@ -165,7 +169,7 @@ public class StatsMetadata extends MetadataComponent
     public StatsMetadata mutateRepairedMetadata(long newRepairedAt, UUID newPendingRepair, boolean newIsTransient)
     {
         return new StatsMetadata(estimatedPartitionSize,
-                                 estimatedColumnCount,
+                                 estimatedCellPerPartitionCount,
                                  commitLogIntervals,
                                  minTimestamp,
                                  maxTimestamp,
@@ -195,7 +199,7 @@ public class StatsMetadata extends MetadataComponent
         StatsMetadata that = (StatsMetadata) o;
         return new EqualsBuilder()
                        .append(estimatedPartitionSize, that.estimatedPartitionSize)
-                       .append(estimatedColumnCount, that.estimatedColumnCount)
+                       .append(estimatedCellPerPartitionCount, that.estimatedCellPerPartitionCount)
                        .append(commitLogIntervals, that.commitLogIntervals)
                        .append(minTimestamp, that.minTimestamp)
                        .append(maxTimestamp, that.maxTimestamp)
@@ -221,7 +225,7 @@ public class StatsMetadata extends MetadataComponent
     {
         return new HashCodeBuilder()
                        .append(estimatedPartitionSize)
-                       .append(estimatedColumnCount)
+                       .append(estimatedCellPerPartitionCount)
                        .append(commitLogIntervals)
                        .append(minTimestamp)
                        .append(maxTimestamp)
@@ -248,7 +252,7 @@ public class StatsMetadata extends MetadataComponent
         {
             int size = 0;
             size += EstimatedHistogram.serializer.serializedSize(component.estimatedPartitionSize);
-            size += EstimatedHistogram.serializer.serializedSize(component.estimatedColumnCount);
+            size += EstimatedHistogram.serializer.serializedSize(component.estimatedCellPerPartitionCount);
             size += CommitLogPosition.serializer.serializedSize(component.commitLogIntervals.upperBound().orElse(CommitLogPosition.NONE));
             size += 8 + 8 + 4 + 4 + 4 + 4 + 8 + 8; // mix/max timestamp(long), min/maxLocalDeletionTime(int), min/max TTL, compressionRatio(double), repairedAt (long)
             size += TombstoneHistogram.serializer.serializedSize(component.estimatedTombstoneDropTime);
@@ -286,7 +290,7 @@ public class StatsMetadata extends MetadataComponent
         public void serialize(Version version, StatsMetadata component, DataOutputPlus out) throws IOException
         {
             EstimatedHistogram.serializer.serialize(component.estimatedPartitionSize, out);
-            EstimatedHistogram.serializer.serialize(component.estimatedColumnCount, out);
+            EstimatedHistogram.serializer.serialize(component.estimatedCellPerPartitionCount, out);
             CommitLogPosition.serializer.serialize(component.commitLogIntervals.upperBound().orElse(CommitLogPosition.NONE), out);
             out.writeLong(component.minTimestamp);
             out.writeLong(component.maxTimestamp);

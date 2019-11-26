@@ -70,14 +70,15 @@ public class InfiniteLoopExecutor
         return this;
     }
 
-    public void shutdown()
+    public void shutdownNow()
     {
         isShutdown = true;
         thread.interrupt();
     }
 
-    public void awaitTermination(long time, TimeUnit unit) throws InterruptedException
+    public boolean awaitTermination(long time, TimeUnit unit) throws InterruptedException
     {
         thread.join(unit.toMillis(time));
+        return !thread.isAlive();
     }
 }

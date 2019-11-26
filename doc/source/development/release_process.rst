@@ -55,7 +55,7 @@ Create and publish your GPG key
 To create a GPG key, follow the `guidelines <http://www.apache.org/dev/openpgp.html>`_.
 Include your public key in::
 
-  https://dist.apache.org/repos/dist/cassandra/KEYS
+  https://dist.apache.org/repos/dist/release/cassandra/KEYS
 
 
 Publish your GPG key in a PGP key server, such as `MIT Keyserver <http://pgp.mit.edu/>`_.
@@ -108,6 +108,15 @@ The next step is to copy and commit these binaries to staging svnpubsub::
     svn add cassandra-dist-dev/<version>
     svn ci cassandra-dist-dev/<version>
 
+After committing the binaries to staging, increment the version number in Cassandra on the `cassandra-<version-branch>`
+
+    cd ~/git/cassandra/
+    git checkout cassandra-<version-branch>
+    edit build.xml          # update `<property name="base.version" value="…"/> `
+    edit debian/changelog   # add entry for new version
+    edit CHANGES.txt        # add entry for new version
+    git commit -m "Update version to <next-version>" build.xml debian/changelog CHANGES.txt
+    git push
 
 Call for a Vote
 ===============
@@ -118,7 +127,7 @@ Fill out the following email template and send to the dev mailing list::
 
     sha1: <git-sha>
 
-    Git: http://git-wip-us.apache.org/repos/asf?p=cassandra.git;a=shortlog;h=refs/tags/<version>-tentative
+    Git: https://gitbox.apache.org/repos/asf?p=cassandra.git;a=shortlog;h=refs/tags/<version>-tentative
 
     Artifacts: https://repository.apache.org/content/repositories/orgapachecassandra-<nexus-id>/org/apache/cassandra/apache-cassandra/<version>/
 
@@ -241,12 +250,11 @@ Fill out the following email template and send to both user and dev mailing list
     [2]: (NEWS.txt) https://git1-us-west.apache.org/repos/asf?p=cassandra.git;a=blob_plain;f=NEWS.txt;hb=<version>
     [3]: https://issues.apache.org/jira/browse/CASSANDRA
 
-Update IRC #cassandra topic
+Update Slack Cassandra topic
 ---------------------------
 
-Update #cassandra topic on irc::
-    /msg chanserv op #cassandra
-    /topic #cassandra "cassandra.apache.org | Latest: 3.11.2 (https://goo.gl/M34ZbG) | Stable: 3.0.16 (https://goo.gl/B4Zumg) | Oldstable: 2.2.12 (https://goo.gl/Uf3GVw) | ask, don't ask to ask"
+Update topic in ``cassandra`` :ref:`Slack room <slack>`
+    /topic cassandra.apache.org | Latest releases: 3.11.4, 3.0.18, 2.2.14, 2.1.21 | ask, don't ask to ask
 
 Tweet from @Cassandra
 ---------------------

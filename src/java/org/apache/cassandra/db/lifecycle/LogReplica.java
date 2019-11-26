@@ -22,7 +22,13 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 
@@ -39,18 +45,28 @@ import org.apache.cassandra.utils.NativeLibrary;
  */
 final class LogReplica implements AutoCloseable
 {
+    private static final Logger logger = LoggerFactory.getLogger(LogReplica.class);
+
     private final File file;
     private int directoryDescriptor;
     private final Map<String, String> errors = new HashMap<>();
 
     static LogReplica create(File directory, String fileName)
     {
-        return new LogReplica(new File(fileName), NativeLibrary.tryOpenDirectory(directory.getPath()));
+        int folderFD = NativeLibrary.tryOpenDirectory(directory.getPath());
+        if (folderFD == -1)
+            throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", directory.getPath())), directory.getPath());
+
+        return new LogReplica(new File(fileName), folderFD);
     }
 
     static LogReplica open(File file)
     {
-        return new LogReplica(file, NativeLibrary.tryOpenDirectory(file.getParentFile().getPath()));
+        int folderFD = NativeLibrary.tryOpenDirectory(file.getParentFile().getPath());
+        if (folderFD == -1)
+            throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", file.getParentFile().getPath())), file.getParentFile().getPath());
+
+        return new LogReplica(file, folderFD);
     }
 
     LogReplica(File file, int directoryDescriptor)
@@ -82,7 +98,15 @@ final class LogReplica implements AutoCloseable
     void append(LogRecord record)
     {
         boolean existed = exists();
-        FileUtils.appendAndSync(file, record.toString());
+        try
+        {
+            FileUtils.appendAndSync(file, record.toString());
+        }
+        catch (FSError e)
+        {
+            logger.error("Failed to sync file {}", file, e);
+            FileUtils.handleFSErrorAndPropagate(e);
+        }
 
         // If the file did not exist before appending the first
         // line, then sync the directory as well since now it must exist
@@ -92,8 +116,16 @@ final class LogReplica implements AutoCloseable
 
     void syncDirectory()
     {
-        if (directoryDescriptor >= 0)
-            NativeLibrary.trySync(directoryDescriptor);
+        try
+        {
+            if (directoryDescriptor >= 0)
+                NativeLibrary.trySync(directoryDescriptor);
+        }
+        catch (FSError e)
+        {
+            logger.error("Failed to sync directory descriptor {}", directoryDescriptor, e);
+            FileUtils.handleFSErrorAndPropagate(e);
+        }
     }
 
     void delete()

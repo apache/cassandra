@@ -127,7 +127,7 @@ public class LongCompactionsTest
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.COMPACTION))
         {
             assert txn != null : "Cannot markCompacting all sstables";
-            new CompactionTask(store, txn, gcBefore).execute(null);
+            new CompactionTask(store, txn, gcBefore).execute(ActiveCompactionsTracker.NOOP);
         }
         System.out.println(String.format("%s: sstables=%d rowsper=%d colsper=%d: %d ms",
                                          this.getClass().getName(),

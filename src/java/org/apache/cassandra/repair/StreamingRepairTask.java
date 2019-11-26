@@ -29,8 +29,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.messages.SyncComplete;
+import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
@@ -38,9 +39,11 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamOperation;
 
+import static org.apache.cassandra.net.Verb.SYNC_RSP;
+
 /**
  * StreamingRepairTask performs data streaming between two remote replicas, neither of which is repair coordinator.
- * Task will send {@link SyncComplete} message back to coordinator upon streaming completion.
+ * Task will send {@link SyncResponse} message back to coordinator upon streaming completion.
  */
 public class StreamingRepairTask implements Runnable, StreamEventHandler
 {
@@ -95,19 +98,19 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     }
 
     /**
-     * If we succeeded on both stream in and out, reply back to coordinator
+     * If we succeeded on both stream in and out, respond back to coordinator
      */
     public void onSuccess(StreamState state)
     {
         logger.info("[repair #{}] streaming task succeed, returning response to {}", desc.sessionId, initiator);
-        MessagingService.instance().sendOneWay(new SyncComplete(desc, src, dst, true, state.createSummaries()).createMessage(), initiator);
+        MessagingService.instance().send(Message.out(SYNC_RSP, new SyncResponse(desc, src, dst, true, state.createSummaries())), initiator);
     }
 
     /**
-     * If we failed on either stream in or out, reply fail to coordinator
+     * If we failed on either stream in or out, respond fail to coordinator
      */
     public void onFailure(Throwable t)
     {
-        MessagingService.instance().sendOneWay(new SyncComplete(desc, src, dst, false, Collections.emptyList()).createMessage(), initiator);
+        MessagingService.instance().send(Message.out(SYNC_RSP, new SyncResponse(desc, src, dst, false, Collections.emptyList())), initiator);
     }
 }

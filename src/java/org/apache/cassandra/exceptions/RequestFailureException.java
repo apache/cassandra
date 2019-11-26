@@ -19,6 +19,7 @@ package org.apache.cassandra.exceptions;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -32,7 +33,10 @@ public class RequestFailureException extends RequestExecutionException
 
     protected RequestFailureException(ExceptionCode code, ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
-        super(code, String.format("Operation failed - received %d responses and %d failures", received, failureReasonByEndpoint.size()));
+        super(code, String.format("Operation failed - received %d responses and %d failures: %s",
+                                  received,
+                                  failureReasonByEndpoint.size(),
+                                  buildFailureString(failureReasonByEndpoint)));
         this.consistency = consistency;
         this.received = received;
         this.blockFor = blockFor;
@@ -44,5 +48,12 @@ public class RequestFailureException extends RequestExecutionException
         // modified any further. Otherwise, there could be implications when
         // we encode this map for transport.
         this.failureReasonByEndpoint = new HashMap<>(failureReasonByEndpoint);
+    }
+
+    private static String buildFailureString(Map<InetAddressAndPort, RequestFailureReason> failures)
+    {
+        return failures.entrySet().stream()
+                       .map(e -> String.format("%s from %s", e.getValue(), e.getKey()))
+                       .collect(Collectors.joining(", "));
     }
 }

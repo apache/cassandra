@@ -22,6 +22,7 @@ import java.util.function.Predicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.*;
@@ -235,7 +236,10 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 }
                 syncTasks.add(task);
             }
+            trees.get(i).trees.release();
         }
+        trees.get(trees.size() - 1).trees.release();
+
         return syncTasks;
     }
 
@@ -252,7 +256,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         return executeTasks(syncTasks);
     }
 
-    private ListenableFuture<List<SyncStat>> executeTasks(List<SyncTask> syncTasks)
+    @VisibleForTesting
+    ListenableFuture<List<SyncStat>> executeTasks(List<SyncTask> syncTasks)
     {
         for (SyncTask task : syncTasks)
         {
@@ -386,7 +391,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
                 // failure is handled at root of job chain
                 public void onFailure(Throwable t) {}
-            });
+            }, MoreExecutors.directExecutor());
             currentTask = nextTask;
         }
         // start running tasks
@@ -443,7 +448,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
                     // failure is handled at root of job chain
                     public void onFailure(Throwable t) {}
-                });
+                }, MoreExecutors.directExecutor());
                 currentTask = nextTask;
             }
             // start running tasks

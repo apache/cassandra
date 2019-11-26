@@ -38,78 +38,78 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
-   - Nodes will now bootstrap all intra-cluster connections at startup by default and wait
-     10 seconds for the all but one node in the local data center to be connected and marked
-     UP in gossip. This prevents nodes from coordinating requests and failing because they
-     aren't able to connect to the cluster fast enough. block_for_peers_timeout_in_secs in
-     cassandra.yaml can be used to configure how long to wait (or whether to wait at all)
-     and block_for_peers_in_remote_dcs can be used to also block on all but one node in
-     each remote DC as well. See CASSANDRA-14297 and CASSANDRA-13993 for more information.
-   - *Experimental* support for Transient Replication and Cheap Quorums introduced by CASSANDRA-14404
-     The intended audience for this functionality is expert users of Cassandra who are prepared
-     to validate every aspect of the database for their application and deployment practices. Future
-     releases of Cassandra will make this feature suitable for a wider audience.
-   - *Experimental* support for Java 11 has been added. JVM options that differ between or are
-     specific for Java 8 and 11 have been moved from jvm.options into jvm8.options and jvm11.options.
-     IMPORTANT: Running C* on Java 11 is *experimental* and do it at your own risk.
-     Compilation recommendations: configure Java 11 SDK via JAVA_HOME and Java 8 SDK via JAVA8_HOME.
-     Release builds require Java 11 + Java 8. Development builds can use Java 8 without 11.
-   - LCS now respects the max_threshold parameter when compacting - this was hard coded to 32
-     before, but now it is possible to do bigger compactions when compacting from L0 to L1.
-     This also applies to STCS-compactions in L0 - if there are more than 32 sstables in L0
-     we will compact at most max_threshold sstables in an L0 STCS compaction. See CASSANDRA-14388
-     for more information.
-   - There is now an option to automatically upgrade sstables after Cassandra upgrade, enable
-     either in `cassandra.yaml:automatic_sstable_upgrade` or via JMX during runtime. See
-     CASSANDRA-14197.
-   - `nodetool refresh` has been deprecated in favour of `nodetool import` - see CASSANDRA-6719
-     for details
-   - An experimental option to compare all merkle trees together has been added - for example, in
-     a 3 node cluster with 2 replicas identical and 1 out-of-date, with this option enabled, the
-     out-of-date replica will only stream a single copy from up-to-date replica. Enable it by adding
-     "-os" to nodetool repair. See CASSANDRA-3200.
-   - The currentTimestamp, currentDate, currentTime and currentTimeUUID functions have been added.
-     See CASSANDRA-13132
-   - Support for arithmetic operations between `timestamp`/`date` and `duration` has been added.
-     See CASSANDRA-11936
-   - Support for arithmetic operations on number has been added. See CASSANDRA-11935
-   - Preview expected streaming required for a repair (nodetool repair --preview), and validate the
-     consistency of repaired data between nodes (nodetool repair --validate). See CASSANDRA-13257
-   - Support for selecting Map values and Set elements has been added for SELECT queries. See CASSANDRA-7396
-   - Change-Data-Capture has been modified to make CommitLogSegments available
-     immediately upon creation via hard-linking the files. This means that incomplete
-     segments will be available in cdc_raw rather than fully flushed. See documentation
-     and CASSANDRA-12148 for more detail.
-   - The initial build of materialized views can be parallelized. The number of concurrent builder
-     threads is specified by the property `cassandra.yaml:concurrent_materialized_view_builders`.
-     This property can be modified at runtime through both JMX and the new `setconcurrentviewbuilders`
-     and `getconcurrentviewbuilders` nodetool commands. See CASSANDRA-12245 for more details.
-   - There is now a binary full query log based on Chronicle Queue that can be controlled using
-     nodetool enablefullquerylog, disablefullquerylog, and resetfullquerylog. The log
-     contains all queries invoked, approximate time they were invoked, any parameters necessary
-     to bind wildcard values, and all query options. A human readable version of the log can be
-     dumped or tailed using the new bin/fqltool utility. The full query log is designed to be safe
-     to use in production and limits utilization of heap memory and disk space with limits
-     you can specify when enabling the log.
-     See nodetool and fqltool help text for more information.
-   - SSTableDump now supports the -l option to output each partition as it's own json object
-     See CASSANDRA-13848 for more detail
-   - Metric for coordinator writes per table has been added. See CASSANDRA-14232
-   - Nodetool cfstats now has options to sort by various metrics as well as limit results.
-   - Operators can restrict login user activity to one or more datacenters. See `network_authorizer`
-     in cassandra.yaml, and the docs for create and alter role statements. CASSANDRA-13985
-   - Roles altered from login=true to login=false will prevent existing connections from executing any
-     statements after the cache has been refreshed. CASSANDRA-13985
-   - Support for audit logging of database activity. If enabled, logs every incoming
-     CQL command request, Authentication (successful as well as unsuccessful login) to a node.
-   - Faster streaming of entire SSTables using ZeroCopy APIs. If enabled, Cassandra will use stream
-     entire SSTables, significantly speeding up transfers. Any streaming related operations will see
-     corresponding improvement. See CASSANDRA-14556.
-   - NetworkTopologyStrategy now supports auto-expanding the replication_factor
-     option into all available datacenters at CREATE or ALTER time. For example,
-     specifying replication_factor: 3 translates to three replicas in every
-     datacenter. This auto-expansion will _only add_ datacenters for safety.
-     See CASSANDRA-14303 for more details.
+    - Nodes will now bootstrap all intra-cluster connections at startup by default and wait
+      10 seconds for the all but one node in the local data center to be connected and marked
+      UP in gossip. This prevents nodes from coordinating requests and failing because they
+      aren't able to connect to the cluster fast enough. block_for_peers_timeout_in_secs in
+      cassandra.yaml can be used to configure how long to wait (or whether to wait at all)
+      and block_for_peers_in_remote_dcs can be used to also block on all but one node in
+      each remote DC as well. See CASSANDRA-14297 and CASSANDRA-13993 for more information.
+    - *Experimental* support for Transient Replication and Cheap Quorums introduced by CASSANDRA-14404
+      The intended audience for this functionality is expert users of Cassandra who are prepared
+      to validate every aspect of the database for their application and deployment practices. Future
+      releases of Cassandra will make this feature suitable for a wider audience.
+    - *Experimental* support for Java 11 has been added. JVM options that differ between or are
+      specific for Java 8 and 11 have been moved from jvm.options into jvm8.options and jvm11.options.
+      IMPORTANT: Running C* on Java 11 is *experimental* and do it at your own risk.
+      Compilation recommendations: configure Java 11 SDK via JAVA_HOME and Java 8 SDK via JAVA8_HOME.
+      Release builds require Java 11 + Java 8. Development builds can use Java 8 without 11.
+    - LCS now respects the max_threshold parameter when compacting - this was hard coded to 32
+      before, but now it is possible to do bigger compactions when compacting from L0 to L1.
+      This also applies to STCS-compactions in L0 - if there are more than 32 sstables in L0
+      we will compact at most max_threshold sstables in an L0 STCS compaction. See CASSANDRA-14388
+      for more information.
+    - There is now an option to automatically upgrade sstables after Cassandra upgrade, enable
+      either in `cassandra.yaml:automatic_sstable_upgrade` or via JMX during runtime. See
+      CASSANDRA-14197.
+    - `nodetool refresh` has been deprecated in favour of `nodetool import` - see CASSANDRA-6719
+      for details
+    - An experimental option to compare all merkle trees together has been added - for example, in
+      a 3 node cluster with 2 replicas identical and 1 out-of-date, with this option enabled, the
+      out-of-date replica will only stream a single copy from up-to-date replica. Enable it by adding
+      "-os" to nodetool repair. See CASSANDRA-3200.
+    - The currentTimestamp, currentDate, currentTime and currentTimeUUID functions have been added.
+      See CASSANDRA-13132
+    - Support for arithmetic operations between `timestamp`/`date` and `duration` has been added.
+      See CASSANDRA-11936
+    - Support for arithmetic operations on number has been added. See CASSANDRA-11935
+    - Preview expected streaming required for a repair (nodetool repair --preview), and validate the
+      consistency of repaired data between nodes (nodetool repair --validate). See CASSANDRA-13257
+    - Support for selecting Map values and Set elements has been added for SELECT queries. See CASSANDRA-7396
+    - Change-Data-Capture has been modified to make CommitLogSegments available
+      immediately upon creation via hard-linking the files. This means that incomplete
+      segments will be available in cdc_raw rather than fully flushed. See documentation
+      and CASSANDRA-12148 for more detail.
+    - The initial build of materialized views can be parallelized. The number of concurrent builder
+      threads is specified by the property `cassandra.yaml:concurrent_materialized_view_builders`.
+      This property can be modified at runtime through both JMX and the new `setconcurrentviewbuilders`
+      and `getconcurrentviewbuilders` nodetool commands. See CASSANDRA-12245 for more details.
+    - There is now a binary full query log based on Chronicle Queue that can be controlled using
+      nodetool enablefullquerylog, disablefullquerylog, and resetfullquerylog. The log
+      contains all queries invoked, approximate time they were invoked, any parameters necessary
+      to bind wildcard values, and all query options. A human readable version of the log can be
+      dumped or tailed using the new bin/fqltool utility. The full query log is designed to be safe
+      to use in production and limits utilization of heap memory and disk space with limits
+      you can specify when enabling the log.
+      See nodetool and fqltool help text for more information.
+    - SSTableDump now supports the -l option to output each partition as it's own json object
+      See CASSANDRA-13848 for more detail
+    - Metric for coordinator writes per table has been added. See CASSANDRA-14232
+    - Nodetool cfstats now has options to sort by various metrics as well as limit results.
+    - Operators can restrict login user activity to one or more datacenters. See `network_authorizer`
+      in cassandra.yaml, and the docs for create and alter role statements. CASSANDRA-13985
+    - Roles altered from login=true to login=false will prevent existing connections from executing any
+      statements after the cache has been refreshed. CASSANDRA-13985
+    - Support for audit logging of database activity. If enabled, logs every incoming
+      CQL command request, Authentication (successful as well as unsuccessful login) to a node.
+    - Faster streaming of entire SSTables using ZeroCopy APIs. If enabled, Cassandra will use stream
+      entire SSTables, significantly speeding up transfers. Any streaming related operations will see
+      corresponding improvement. See CASSANDRA-14556.
+    - NetworkTopologyStrategy now supports auto-expanding the replication_factor
+      option into all available datacenters at CREATE or ALTER time. For example,
+      specifying replication_factor: 3 translates to three replicas in every
+      datacenter. This auto-expansion will _only add_ datacenters for safety.
+      See CASSANDRA-14303 for more details.
 
 Upgrading
 ---------
@@ -118,10 +118,13 @@ Upgrading
       on space utilization. You may want to consider manually specifying this value.
     - Additional columns have been added to system_distributed.repair_history,
       system_traces.sessions and system_traces.events. As a result select queries
-      againsts these tables will fail and generate an error in the log
-      during upgrade when the cluster is mixed version. The tables can be made
-      readable by following the instructions in CASSANDRA-14897 to add the
-      new columns to the system tables before upgrading.
+      against these tables - including queries against tracing tables performed
+      automatically by the drivers and cqlsh - will fail and generate an error in the log
+      during upgrade when the cluster is mixed version. On 3.x side this will also lead
+      to broken internode connections and lost messages.
+      Cassandra versions 3.0.20 and 3.11.6 pre-add these columns (see CASSANDRA-15385),
+      so please make sure to upgrade to those versions or higher before upgrading to
+      4.0 for query tracing to not cause any issues during the upgrade to 4.0.
     - Timestamp ties between values resolve differently: if either value has a TTL,
       this value always wins. This is to provide consistent reconciliation before
       and after the value expires into a tombstone.
@@ -160,23 +163,23 @@ Upgrading
     - Config option index_interval has been removed (it was deprecated since 2.0)
     - Deprecated repair JMX APIs are removed.
     - The version of snappy-java has been upgraded to 1.1.2.6
-	- the miniumum value for internode message timeouts is 10ms. Previously, any
-	  positive value was allowed. See cassandra.yaml entries like
-	  read_request_timeout_in_ms for more details.
-	- Cassandra 4.0 allows a single port to be used for both secure and insecure
-	  connections between cassandra nodes (CASSANDRA-10404). See the yaml for
-	  specific property changes, and see the security doc for full details.
+    - the miniumum value for internode message timeouts is 10ms. Previously, any
+      positive value was allowed. See cassandra.yaml entries like
+      read_request_timeout_in_ms for more details.
+    - Cassandra 4.0 allows a single port to be used for both secure and insecure
+      connections between cassandra nodes (CASSANDRA-10404). See the yaml for
+      specific property changes, and see the security doc for full details.
     - Due to the parallelization of the initial build of materialized views,
       the per token range view building status is stored in the new table
       `system.view_builds_in_progress`. The old table `system.views_builds_in_progress`
       is no longer used and can be removed. See CASSANDRA-12245 for more details.
-	- Config option commitlog_sync_batch_window_in_ms has been deprecated as it's
-	  documentation has been incorrect and the setting itself near useless.
-	  Batch mode remains a valid commit log mode, however.
-	- There is a new commit log mode, group, which is similar to batch mode
-	  but blocks for up to a configurable number of milliseconds between disk flushes.
-	- nodetool clearsnapshot now required the --all flag to remove all snapshots.
-	  Previous behavior would delete all snapshots by default.
+    - Config option commitlog_sync_batch_window_in_ms has been deprecated as it's
+      documentation has been incorrect and the setting itself near useless.
+      Batch mode remains a valid commit log mode, however.
+    - There is a new commit log mode, group, which is similar to batch mode
+      but blocks for up to a configurable number of milliseconds between disk flushes.
+    - nodetool clearsnapshot now required the --all flag to remove all snapshots.
+      Previous behavior would delete all snapshots by default.
     - Nodes are now identified by a combination of IP, and storage port.
       Existing JMX APIs, nodetool, and system tables continue to work
       and accept/return just an IP, but there is a new
@@ -208,17 +211,35 @@ Upgrading
       `cassandra.yaml:internode_tcp_connect_timeout_in_ms` and
       `cassandra.yaml:internode_tcp_user_timeout_in_ms` options respectively.
       See CASSANDRA-14358 for details.
+    - repair_session_space_in_mb setting has been added to cassandra.yaml to allow operators to reduce
+      merkle tree size if repair is creating too much heap pressure. The repair_session_max_tree_depth
+      setting added in 3.0.19 and 3.11.5 is deprecated in favor of this setting. See CASSANDRA-14096
+    - The flags 'enable_materialized_views' and 'enable_sasi_indexes' in cassandra.yaml
+      have been set as false by default. Operators should modify them to allow the
+      creation of new views and SASI indexes, the existing ones will continue working.
+      See CASSANDRA-14866 for details.
 
 Materialized Views
 -------------------
-   - Following a discussion regarding concerns about the design and safety of Materialized Views, the C* development
-     community no longer recommends them for production use, and considers them experimental. Warnings messages will
-     now be logged when they are created. (See https://www.mail-archive.com/dev@cassandra.apache.org/msg11511.html)
-   - An 'enable_materialized_views' flag has been added to cassandra.yaml to allow operators to prevent creation of
-     views
-   - CREATE MATERIALIZED VIEW syntax has become stricter. Partition key columns are no longer implicitly considered
-     to be NOT NULL, and no base primary key columns get automatically included in view definition. You have to
-     specify them explicitly now.
+    - Following a discussion regarding concerns about the design and safety of Materialized Views, the C* development
+      community no longer recommends them for production use, and considers them experimental. Warnings messages will
+      now be logged when they are created. (See https://www.mail-archive.com/dev@cassandra.apache.org/msg11511.html)
+    - An 'enable_materialized_views' flag has been added to cassandra.yaml to allow operators to prevent creation of
+      views
+    - CREATE MATERIALIZED VIEW syntax has become stricter. Partition key columns are no longer implicitly considered
+      to be NOT NULL, and no base primary key columns get automatically included in view definition. You have to
+      specify them explicitly now.
+
+3.11.5
+======
+
+Experimental features
+---------------------
+    - An 'enable_sasi_indexes' flag, true by default, has been added to cassandra.yaml to allow operators to prevent
+      the creation of new SASI indexes, which are considered experimental and are not recommended for production use.
+      (See https://www.mail-archive.com/dev@cassandra.apache.org/msg13582.html)
+    - The flags 'enable_sasi_indexes' and 'enable_materialized_views' have been grouped under an experimental features
+      section in cassandra.yaml.
 
 3.11.4
 ======
@@ -245,7 +266,7 @@ Upgrading
 
 Upgrading
 ---------
-   - See MAXIMUM TTL EXPIRATION DATE NOTICE above.
+    - See MAXIMUM TTL EXPIRATION DATE NOTICE above.
     - Cassandra is now relying on the JVM options to properly shutdown on OutOfMemoryError. By default it will
       rely on the OnOutOfMemoryError option as the ExitOnOutOfMemoryError and CrashOnOutOfMemoryError options
       are not supported by the older 1.7 and 1.8 JVMs. A warning will be logged at startup if none of those JVM
@@ -692,6 +713,8 @@ Upgrading
    - The 'index_interval' option for 'CREATE TABLE' statements, which has been deprecated
      since 2.1 and replaced with the 'min_index_interval' and 'max_index_interval' options,
      has now been removed.
+   - The 'replicate_on_write' and 'populate_io_cache_on_flush' options for 'CREATE TABLE' statements,
+     which have been deprecated since 2.1, have also been removed.
    - Batchlog entries are now stored in a new table - system.batches.
      The old one has been deprecated.
    - JMX methods set/getCompactionStrategyClass have been removed, use

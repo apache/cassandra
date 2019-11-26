@@ -688,16 +688,17 @@ public final class SystemKeyspace
         executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, tokensAsSet(tokens));
     }
 
-    public static synchronized void updatePreferredIP(InetAddressAndPort ep, InetAddressAndPort preferred_ip)
+    public static synchronized boolean updatePreferredIP(InetAddressAndPort ep, InetAddressAndPort preferred_ip)
     {
-        if (getPreferredIP(ep) == preferred_ip)
-            return;
+        if (preferred_ip.equals(getPreferredIP(ep)))
+            return false;
 
         String req = "INSERT INTO system.%s (peer, preferred_ip) VALUES (?, ?)";
         executeInternal(String.format(req, LEGACY_PEERS), ep.address, preferred_ip.address);
         req = "INSERT INTO system.%s (peer, peer_port, preferred_ip, preferred_port) VALUES (?, ?, ?, ?)";
         executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, preferred_ip.address, preferred_ip.port);
         forceBlockingFlush(LEGACY_PEERS, PEERS_V2);
+        return true;
     }
 
     public static synchronized void updatePeerInfo(InetAddressAndPort ep, String columnName, Object value)
@@ -777,7 +778,7 @@ public final class SystemKeyspace
 
     /**
      * This method is used to update the System Keyspace with the new tokens for this node
-    */
+     */
     public static synchronized void updateTokens(Collection<Token> tokens)
     {
         assert !tokens.isEmpty() : "removeEndpoint should be used instead";
@@ -1275,6 +1276,30 @@ public final class SystemKeyspace
         executeInternal(cql, keyspace, table);
     }
 
+    /**
+     * Clears size estimates for a keyspace (used to manually clean when we miss a keyspace drop)
+     */
+    public static void clearSizeEstimates(String keyspace)
+    {
+        String cql = String.format("DELETE FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SIZE_ESTIMATES);
+        executeInternal(cql, keyspace);
+    }
+
+    /**
+     * @return A multimap from keyspace to table for all tables with entries in size estimates
+     */
+    public static synchronized SetMultimap<String, String> getTablesWithSizeEstimates()
+    {
+        SetMultimap<String, String> keyspaceTableMap = HashMultimap.create();
+        String cql = String.format("SELECT keyspace_name, table_name FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SIZE_ESTIMATES);
+        UntypedResultSet rs = executeInternal(cql);
+        for (UntypedResultSet.Row row : rs)
+        {
+            keyspaceTableMap.put(row.getString("keyspace_name"), row.getString("table_name"));
+        }
+        return keyspaceTableMap;
+    }
+
     public static synchronized void updateAvailableRanges(String keyspace, Collection<Range<Token>> completedFullRanges, Collection<Range<Token>> completedTransientRanges)
     {
         String cql = "UPDATE system.%s SET full_ranges = full_ranges + ?, transient_ranges = transient_ranges + ? WHERE keyspace_name = ?";
@@ -1365,30 +1390,27 @@ public final class SystemKeyspace
 
     /**
      * Compare the release version in the system.local table with the one included in the distro.
-     * If they don't match, snapshot all tables in the system keyspace. This is intended to be
-     * called at startup to create a backup of the system tables during an upgrade
+     * If they don't match, snapshot all tables in the system and schema keyspaces. This is intended
+     * to be called at startup to create a backup of the system tables during an upgrade
      *
      * @throws IOException
      */
-    public static boolean snapshotOnVersionChange() throws IOException
+    public static void snapshotOnVersionChange() throws IOException
     {
         String previous = getPreviousVersionString();
         String next = FBUtilities.getReleaseVersionString();
 
-        // if we're restarting after an upgrade, snapshot the system keyspace
+        // if we're restarting after an upgrade, snapshot the system and schema keyspaces
         if (!previous.equals(NULL_VERSION.toString()) && !previous.equals(next))
 
         {
-            logger.info("Detected version upgrade from {} to {}, snapshotting system keyspace", previous, next);
+            logger.info("Detected version upgrade from {} to {}, snapshotting system keyspaces", previous, next);
             String snapshotName = Keyspace.getTimestampedSnapshotName(format("upgrade-%s-%s",
                                                                              previous,
                                                                              next));
-            Keyspace systemKs = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
-            systemKs.snapshot(snapshotName, null);
-            return true;
+            for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
+                Keyspace.open(keyspace).snapshot(snapshotName, null);
         }
-
-        return false;
     }
 
     /**

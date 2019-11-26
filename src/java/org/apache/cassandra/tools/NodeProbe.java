@@ -96,6 +96,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * JMX client operations for Cassandra.
@@ -684,6 +685,11 @@ public class NodeProbe implements AutoCloseable
     public boolean isDraining()
     {
         return ssProxy.isDraining();
+    }
+
+    public boolean isBootstrapMode()
+    {
+        return ssProxy.isBootstrapMode();
     }
 
     public void joinRing() throws IOException
@@ -1712,6 +1718,16 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    public Map<String, List<Integer>> getMaximumPoolSizes(List<String> stageNames)
+    {
+        return ssProxy.getConcurrency(stageNames);
+    }
+
+    public void setConcurrency(String stageName, int coreThreads, int maxConcurrency)
+    {
+        ssProxy.setConcurrency(stageName, coreThreads, maxConcurrency);
+    }
+
     public void replayBatchlog() throws IOException
     {
         try
@@ -1741,7 +1757,7 @@ public class NodeProbe implements AutoCloseable
         return arsProxy;
     }
 
-    public void reloadSslCerts()
+    public void reloadSslCerts() throws IOException
     {
         msProxy.reloadSslCertificates();
     }

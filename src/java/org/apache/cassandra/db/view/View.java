@@ -45,6 +45,8 @@ import org.slf4j.LoggerFactory;
  */
 public class View
 {
+    public final static String USAGE_WARNING = "Materialized views are experimental and are not recommended for production use.";
+
     private static final Logger logger = LoggerFactory.getLogger(View.class);
 
     public final String name;

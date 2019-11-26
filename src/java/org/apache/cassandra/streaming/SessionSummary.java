@@ -28,7 +28,9 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.CompactEndpointSerializationHelper;
+import org.apache.cassandra.locator.InetAddressAndPort.Serializer;
+
+import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 
 public class SessionSummary
 {
@@ -80,8 +82,8 @@ public class SessionSummary
     {
         public void serialize(SessionSummary summary, DataOutputPlus out, int version) throws IOException
         {
-            CompactEndpointSerializationHelper.instance.serialize(summary.coordinator, out, version);
-            CompactEndpointSerializationHelper.instance.serialize(summary.peer, out, version);
+            inetAddressAndPortSerializer.serialize(summary.coordinator, out, version);
+            inetAddressAndPortSerializer.serialize(summary.peer, out, version);
 
             out.writeInt(summary.receivingSummaries.size());
             for (StreamSummary streamSummary: summary.receivingSummaries)
@@ -98,8 +100,8 @@ public class SessionSummary
 
         public SessionSummary deserialize(DataInputPlus in, int version) throws IOException
         {
-            InetAddressAndPort coordinator = CompactEndpointSerializationHelper.instance.deserialize(in, version);
-            InetAddressAndPort peer = CompactEndpointSerializationHelper.instance.deserialize(in, version);
+            InetAddressAndPort coordinator = inetAddressAndPortSerializer.deserialize(in, version);
+            InetAddressAndPort peer = inetAddressAndPortSerializer.deserialize(in, version);
 
             int numRcvd = in.readInt();
             List<StreamSummary> receivingSummaries = new ArrayList<>(numRcvd);
@@ -121,8 +123,8 @@ public class SessionSummary
         public long serializedSize(SessionSummary summary, int version)
         {
             long size = 0;
-            size += CompactEndpointSerializationHelper.instance.serializedSize(summary.coordinator, version);
-            size += CompactEndpointSerializationHelper.instance.serializedSize(summary.peer, version);
+            size += inetAddressAndPortSerializer.serializedSize(summary.coordinator, version);
+            size += inetAddressAndPortSerializer.serializedSize(summary.peer, version);
 
             size += TypeSizes.sizeof(summary.receivingSummaries.size());
             for (StreamSummary streamSummary: summary.receivingSummaries)
