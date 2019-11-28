@@ -4,6 +4,8 @@
  * Make sure all exceptions are propagated in DebuggableThreadPoolExecutor (CASSANDRA-15332)
  * Make it possible to resize concurrent read / write thread pools at runtime (CASSANDRA-15277)
  * Close channels on error (CASSANDRA-15407)
+Merged from 3.11:
+ * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)
 Merged from 2.2:
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
 
