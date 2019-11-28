@@ -21,6 +21,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 
 import org.apache.cassandra.serializers.SimpleDateSerializer;
@@ -38,6 +39,8 @@ import java.net.InetAddress;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
+
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 public class JsonTest extends CQLTester
@@ -943,10 +946,10 @@ public class JsonTest extends CQLTester
 
         // ================ duration ================
         execute("INSERT INTO %s (k, durationval) VALUES (?, 12µs)", 0);
-        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "12us"));
+        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "\"12us\""));
 
         execute("INSERT INTO %s (k, durationval) VALUES (?, P1Y1M2DT10H5M)", 0);
-        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "1y1mo2d10h5m"));
+        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "\"1y1mo2d10h5m\""));
     }
 
     @Test
@@ -1426,5 +1429,20 @@ public class JsonTest extends CQLTester
 
         // JSON does not support NaN, Infinity and -Infinity values. Most of the parser convert them into null.
         assertRows(execute("SELECT JSON * FROM %s"), row("{\"pk\": 1, \"d1\": null, \"d2\": null, \"d3\": null, \"f1\": null, \"f2\": null, \"f3\": null}"));
+    }
+
+    @Test
+    public void testDurationJsonRoundtrip() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, d duration)");
+        execute("INSERT INTO %s (pk, d) VALUES (1, 6h40m)");
+        UntypedResultSet res = execute("SELECT JSON * FROM %s WHERE pk = 1");
+        UntypedResultSet.Row r = res.one();
+        String json = r.getString("[json]");
+        execute("DELETE FROM %s WHERE pk = 1");
+        execute("INSERT INTO %s JSON '"+json+"'");
+        res = execute("SELECT JSON * FROM %s WHERE pk = 1");
+        assertEquals(json, res.one().getString("[json]"));
+
     }
 }
