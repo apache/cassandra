@@ -33,20 +33,22 @@ public class DiskBoundaries
     public final ImmutableList<PartitionPosition> positions;
     final long ringVersion;
     final int directoriesVersion;
+    private final ColumnFamilyStore cfs;
     private volatile boolean isInvalid = false;
 
-    public DiskBoundaries(Directories.DataDirectory[] directories, int diskVersion)
+    public DiskBoundaries(ColumnFamilyStore cfs, Directories.DataDirectory[] directories, int diskVersion)
     {
-        this(directories, null, -1, diskVersion);
+        this(cfs, directories, null, -1, diskVersion);
     }
 
     @VisibleForTesting
-    public DiskBoundaries(Directories.DataDirectory[] directories, List<PartitionPosition> positions, long ringVersion, int diskVersion)
+    public DiskBoundaries(ColumnFamilyStore cfs, Directories.DataDirectory[] directories, List<PartitionPosition> positions, long ringVersion, int diskVersion)
     {
         this.directories = directories == null ? null : ImmutableList.copyOf(directories);
         this.positions = positions == null ? null : ImmutableList.copyOf(positions);
         this.ringVersion = ringVersion;
         this.directoriesVersion = diskVersion;
+        this.cfs = cfs;
     }
 
     public boolean equals(Object o)
@@ -115,10 +117,11 @@ public class DiskBoundaries
      */
     private int getBoundariesFromSSTableDirectory(SSTableReader sstable)
     {
+        Directories.DataDirectory actualDirectory = cfs.getDirectories().getDataDirectoryForFile(sstable.descriptor);
         for (int i = 0; i < directories.size(); i++)
         {
             Directories.DataDirectory directory = directories.get(i);
-            if (sstable.descriptor.directory.getAbsolutePath().startsWith(directory.location.getAbsolutePath()))
+            if (actualDirectory != null && actualDirectory.equals(directory))
                 return i;
         }
         return 0;

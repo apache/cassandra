@@ -2,6 +2,7 @@
  * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)
  * Fix LegacyLayout to have same behavior as 2.x when handling unknown column names (CASSANDRA-15081)
 Merged from 3.0:
+ * Fix various data directory prefix matching issues (CASSANDRA-13974)
  * Minimize clustering values in metadata collector (CASSANDRA-15400)
  * Avoid over-trimming of results in mixed mode clusters (CASSANDRA-15405)
  * validate value sizes in LegacyLayout (CASSANDRA-15373)

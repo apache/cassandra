@@ -23,6 +23,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
@@ -177,6 +178,7 @@ public class Directories
     private final CFMetaData metadata;
     private final DataDirectory[] paths;
     private final File[] dataPaths;
+    private final ImmutableMap<Path, DataDirectory> canonicalPathToDD;
 
     public Directories(final CFMetaData metadata)
     {
@@ -199,6 +201,8 @@ public class Directories
         this.metadata = metadata;
         this.paths = paths;
 
+        ImmutableMap.Builder<Path, DataDirectory> canonicalPathsBuilder = ImmutableMap.builder();
+
         String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId));
         int idx = metadata.cfName.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
         String cfName = idx >= 0 ? metadata.cfName.substring(0, idx) : metadata.cfName;
@@ -210,27 +214,33 @@ public class Directories
         for (int i = 0; i < paths.length; ++i)
         {
             // check if old SSTable directory exists
-            dataPaths[i] = new File(paths[i].location, oldSSTableRelativePath);
+            File dataPath = new File(paths[i].location, oldSSTableRelativePath);
+            dataPaths[i] = dataPath;
+            canonicalPathsBuilder.put(Paths.get(FileUtils.getCanonicalPath(dataPath)), paths[i]);
         }
-        boolean olderDirectoryExists = Iterables.any(Arrays.asList(dataPaths), new Predicate<File>()
-        {
-            public boolean apply(File file)
-            {
-                return file.exists();
-            }
-        });
+        boolean olderDirectoryExists = Iterables.any(Arrays.asList(dataPaths), File::exists);
         if (!olderDirectoryExists)
         {
+            canonicalPathsBuilder = ImmutableMap.builder();
             // use 2.1+ style
             String newSSTableRelativePath = join(metadata.ksName, cfName + '-' + cfId);
             for (int i = 0; i < paths.length; ++i)
-                dataPaths[i] = new File(paths[i].location, newSSTableRelativePath);
+            {
+                File dataPath = new File(paths[i].location, newSSTableRelativePath);;
+                dataPaths[i] = dataPath;
+                canonicalPathsBuilder.put(Paths.get(FileUtils.getCanonicalPath(dataPath)), paths[i]);
+            }
         }
         // if index, then move to its own directory
         if (indexNameWithDot != null)
         {
+            canonicalPathsBuilder = ImmutableMap.builder();
             for (int i = 0; i < paths.length; ++i)
-                dataPaths[i] = new File(dataPaths[i], indexNameWithDot);
+            {
+                File dataPath = new File(dataPaths[i], indexNameWithDot);
+                dataPaths[i] = dataPath;
+                canonicalPathsBuilder.put(Paths.get(FileUtils.getCanonicalPath(dataPath)), paths[i]);
+            }
         }
 
         for (File dir : dataPaths)
@@ -274,6 +284,7 @@ public class Directories
                 }
             }
         }
+        canonicalPathToDD = canonicalPathsBuilder.build();
     }
 
     /**
@@ -286,21 +297,20 @@ public class Directories
     {
         if (dataDirectory != null)
             for (File dir : dataPaths)
-                if (dir.getAbsolutePath().startsWith(dataDirectory.location.getAbsolutePath()))
+            {
+                // Note that we must compare absolute paths (not canonical) here since keyspace directories might be symlinks
+                Path dirPath = Paths.get(dir.getAbsolutePath());
+                Path locationPath = Paths.get(dataDirectory.location.getAbsolutePath());
+                if (dirPath.startsWith(locationPath))
                     return dir;
+            }
         return null;
     }
 
-    public DataDirectory getDataDirectoryForFile(File directory)
+    public DataDirectory getDataDirectoryForFile(Descriptor descriptor)
     {
-        if (directory != null)
-        {
-            for (DataDirectory dataDirectory : paths)
-            {
-                if (directory.getAbsolutePath().startsWith(dataDirectory.location.getAbsolutePath()))
-                    return dataDirectory;
-            }
-        }
+        if (descriptor != null)
+            return canonicalPathToDD.get(descriptor.directory.toPath());
         return null;
     }
 
