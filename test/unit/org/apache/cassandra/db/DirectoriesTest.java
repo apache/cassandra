@@ -20,11 +20,15 @@ package org.apache.cassandra.db;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -471,6 +475,150 @@ public class DirectoriesTest
         }
     }
 
+    @Test
+    public void testGetLocationForDisk()
+    {
+        Collection<DataDirectory> paths = new ArrayList<>();
+        paths.add(new DataDirectory(new File("/tmp/aaa")));
+        paths.add(new DataDirectory(new File("/tmp/aa")));
+        paths.add(new DataDirectory(new File("/tmp/a")));
+
+        for (CFMetaData cfm : CFM)
+        {
+            Directories dirs = new Directories(cfm, paths);
+            for (DataDirectory dir : paths)
+            {
+                String p = dirs.getLocationForDisk(dir).getAbsolutePath() + File.separator;
+                assertTrue(p.startsWith(dir.location.getAbsolutePath() + File.separator));
+            }
+        }
+    }
+
+    @Test
+    public void testGetLocationWithSymlinks() throws IOException
+    {
+        Path p = Files.createTempDirectory("something");
+        Path symlinktarget = Files.createDirectories(p.resolve("symlinktarget"));
+        Path ddir = Files.createDirectories(p.resolve("datadir1"));
+
+        Path p1 = Files.createDirectories(ddir.resolve("p1").resolve("ks")).getParent(); // the data dir does not include the keyspace dir
+        Path p2 = Files.createDirectories(ddir.resolve("p2"));
+        Path l1 = Files.createSymbolicLink(p2.resolve("ks"), symlinktarget);
+
+        DataDirectory path1 = new DataDirectory(p1.toFile());
+        DataDirectory path2 = new DataDirectory(p2.toFile());
+        Directories dirs = new Directories(CFM.iterator().next(), new DataDirectory[] {path1, path2});
+        dirs.getLocationForDisk(new DataDirectory(p1.toFile()));
+        dirs.getLocationForDisk(new DataDirectory(p2.toFile()));
+
+        assertTrue(dirs.getLocationForDisk(path2).toPath().startsWith(l1));
+        assertTrue(dirs.getLocationForDisk(path1).toPath().startsWith(p1));
+    }
+
+    @Test
+    public void getDataDirectoryForFile()
+    {
+        Collection<DataDirectory> paths = new ArrayList<>();
+        paths.add(new DataDirectory(new File("/tmp/a")));
+        paths.add(new DataDirectory(new File("/tmp/aa")));
+        paths.add(new DataDirectory(new File("/tmp/aaa")));
+
+        for (CFMetaData cfm : CFM)
+        {
+            Directories dirs = new Directories(cfm, paths);
+            for (DataDirectory dir : paths)
+            {
+                Descriptor d = Descriptor.fromFilename(new File(dir.location, getNewFilename(cfm, false)).toString());
+                String p = dirs.getDataDirectoryForFile(d).location.getAbsolutePath() + File.separator;
+                assertTrue(p.startsWith(dir.location.getAbsolutePath() + File.separator));
+            }
+        }
+    }
+
+    /**
+     * Makes sure we can find the data directory when it is a symlink
+     *
+     * creates the following data directories:
+     * <tempdir something>/datadir1
+     * <tempdir something>/datadir11 (symlink to <tempdir something>/symlinktarget)
+     *
+     * and then makes sure that we get the correct directory back.
+     */
+    @Test
+    public void testDirectoriesSymlinks() throws IOException
+    {
+        Path p = Files.createTempDirectory("something");
+        Path symlinktarget = Files.createDirectories(p.resolve("symlinktarget"));
+        Path ddir1 = Files.createDirectories(p.resolve("datadir1"));
+        Path ddir2 = Files.createSymbolicLink(p.resolve("datadir11"), symlinktarget);
+        DataDirectory dd1 = new DataDirectory(ddir1.toFile());
+        DataDirectory dd2 = new DataDirectory(ddir2.toFile());
+
+        for (CFMetaData tm : CFM)
+        {
+            Directories dirs = new Directories(tm, Sets.newHashSet(dd1, dd2));
+            Descriptor desc = Descriptor.fromFilename(ddir1.resolve(getNewFilename(tm, false)).toString());
+            assertEquals(ddir1.toFile(), dirs.getDataDirectoryForFile(desc).location);
+            desc = Descriptor.fromFilename(ddir2.resolve(getNewFilename(tm, false)).toString());
+            assertEquals(ddir2.toFile(), dirs.getDataDirectoryForFile(desc).location);
+        }
+    }
+
+    @Test
+    public void testDirectoriesOldTableSymlink() throws IOException
+    {
+        testDirectoriesSymlinksHelper(true);
+    }
+
+    @Test
+    public void testDirectoriesTableSymlink() throws IOException
+    {
+        testDirectoriesSymlinksHelper(false);
+    }
+
+    /**
+     * Makes sure we can find the data directory for a file when the table directory is a symlink
+     *
+     * if oldStyle is false we append the table id to the table directory
+     *
+     * creates the following structure
+     * <tempdir>/datadir1/<ks>/<table>
+     * <tempdir>/datadir11/<ks>/<table symlink to <tempdir>/symlinktarget>
+     *
+     * and then we create a fake descriptor to a file in the table directory and make sure we get the correct
+     * data directory back.
+     */
+    private void testDirectoriesSymlinksHelper(boolean oldStyle) throws IOException
+    {
+        Path p = Files.createTempDirectory("something");
+        Path symlinktarget = Files.createDirectories(p.resolve("symlinktarget"));
+        Path ddir1 = Files.createDirectories(p.resolve("datadir1"));
+        Path ddir2 = Files.createDirectories(p.resolve("datadir11"));
+
+        for (CFMetaData metadata : CFM)
+        {
+            Path keyspacedir = Files.createDirectories(ddir2.resolve(metadata.ksName));
+            String tabledir = metadata.cfName + (oldStyle ? "" : Component.separator +  ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId)));
+            Files.createSymbolicLink(keyspacedir.resolve(tabledir), symlinktarget);
+        }
+
+        DataDirectory dd1 = new DataDirectory(ddir1.toFile());
+        DataDirectory dd2 = new DataDirectory(ddir2.toFile());
+        for (CFMetaData tm : CFM)
+        {
+            Directories dirs = new Directories(tm, Sets.newHashSet(dd1, dd2));
+            Descriptor desc = Descriptor.fromFilename(ddir1.resolve(getNewFilename(tm, oldStyle)).toFile().toString());
+            assertEquals(ddir1.toFile(), dirs.getDataDirectoryForFile(desc).location);
+            desc = Descriptor.fromFilename(ddir2.resolve(getNewFilename(tm, oldStyle)).toFile().toString());
+            assertEquals(ddir2.toFile(), dirs.getDataDirectoryForFile(desc).location);
+        }
+    }
+
+    private String getNewFilename(CFMetaData metadata, boolean oldStyle)
+    {
+        return metadata.ksName + File.separator + metadata.cfName + (oldStyle ? "" : Component.separator +  ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId))) + "/na-1-big-Data.db";
+    }
+
     private List<Directories.DataDirectoryCandidate> getWriteableDirectories(DataDirectory[] dataDirectories, long writeSize)
     {
         // copied from Directories.getWriteableLocation(long)
@@ -492,4 +640,5 @@ public class DirectoriesTest
 
         return candidates;
     }
+
 }
