@@ -359,7 +359,7 @@ public class CompactionStrategyManagerTest
         cfs.getCompactionStrategyManager().mutateRepaired(pendingRepair, 0, UUID.randomUUID(), false);
         cfs.getCompactionStrategyManager().mutateRepaired(repaired, 1000, null, false);
 
-        DiskBoundaries boundaries = new DiskBoundaries(cfs.getDirectories().getWriteableLocations(),
+        DiskBoundaries boundaries = new DiskBoundaries(cfs, cfs.getDirectories().getWriteableLocations(),
                                                        Lists.newArrayList(forKey(100), forKey(200), forKey(300)),
                                                        10, 10);
 
@@ -496,7 +496,7 @@ public class CompactionStrategyManagerTest
         private DiskBoundaries createDiskBoundaries(ColumnFamilyStore cfs, Integer[] boundaries)
         {
             List<PartitionPosition> positions = Arrays.stream(boundaries).map(b -> Util.token(String.format(String.format("%04d", b))).minKeyBound()).collect(Collectors.toList());
-            return new DiskBoundaries(cfs.getDirectories().getWriteableLocations(), positions, 0, 0);
+            return new DiskBoundaries(cfs, cfs.getDirectories().getWriteableLocations(), positions, 0, 0);
         }
     }
 
