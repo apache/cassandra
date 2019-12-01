@@ -52,6 +52,11 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
     {
     }
 
+    public void resolveTimeout(QueryOptions options, QueryState state)
+    {
+        // no-op
+    }
+
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws InvalidRequestException
     {
         state.getClientState().setKeyspace(keyspace);

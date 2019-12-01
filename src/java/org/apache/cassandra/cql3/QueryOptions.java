@@ -19,6 +19,8 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.ToLongFunction;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.pager.PagingState;
@@ -41,4 +43,10 @@ public interface QueryOptions
     int getTimeoutInMillis();
     ProtocolVersion getProtocolVersion();
     QueryOptions prepare(List<ColumnSpecification> specs);
+
+    default long calculateTimeout(ToLongFunction<TimeUnit> configuredTimeout, TimeUnit timeUnit)
+    {
+        return Math.min(timeUnit.convert(getTimeoutInMillis(), TimeUnit.MILLISECONDS),
+                        configuredTimeout.applyAsLong(timeUnit));
+    }
 }

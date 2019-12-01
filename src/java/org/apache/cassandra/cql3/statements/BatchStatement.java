@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.ToLongFunction;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
@@ -163,6 +164,40 @@ public class BatchStatement implements CQLStatement
     {
         for (ModificationStatement statement : statements)
             statement.authorize(state);
+    }
+
+    public void resolveTimeout(QueryOptions options, QueryState state)
+    {
+        if (isCounter()) // BATCH can only contain either counter or non-counter DML statements
+        {
+            state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getCounterWriteRpcTimeout, TimeUnit.NANOSECONDS));
+        }
+        else if (hasConditions()) // BATCH can contain CAS/normal DML statements
+        {
+            boolean allConditional = true;
+            for (ModificationStatement statement : statements)
+            {
+                if (!statement.hasConditions())
+                {
+                    allConditional = false;
+                    break;
+                }
+            }
+            if (allConditional)
+            {
+                state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getCasContentionTimeout, TimeUnit.NANOSECONDS));
+            }
+            else // mixed with CAS and normal DML
+            {
+                ToLongFunction<TimeUnit> max = tu -> Math.max(DatabaseDescriptor.getCasContentionTimeout(tu),
+                                                              DatabaseDescriptor.getWriteRpcTimeout(tu));
+                state.setTimeoutInNanos(options.calculateTimeout(max, TimeUnit.NANOSECONDS));
+            }
+        }
+        else // BATCH can only contain DML statment
+        {
+            state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getWriteRpcTimeout, TimeUnit.NANOSECONDS));
+        }
     }
 
     // Validates a prepared batch statement without validating its nested statements.

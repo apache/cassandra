@@ -49,6 +49,11 @@ abstract class AlterSchemaStatement implements CQLStatement, SchemaTransformatio
         // no-op; validation is performed while executing the statement, in apply()
     }
 
+    public void resolveTimeout(QueryOptions options, QueryState state)
+    {
+        // no-op; there is no timeout applicable here
+    }
+
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
     {
         return execute(state, false);

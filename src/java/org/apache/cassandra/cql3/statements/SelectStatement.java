@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
@@ -29,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -227,6 +229,17 @@ public class SelectStatement implements CQLStatement
         // Nothing to do, all validation has been done by RawStatement.prepare()
     }
 
+    public void resolveTimeout(QueryOptions options, QueryState state)
+    {
+        // ReadQuery's consistency level could be set to Serial/LocalSerial to trigger 'paxos' read.
+        // In this case, the extra rounds to repair any in-progress proposal is added.
+        // The read timeout value, either for a single row or range, should consider those extra rounds.
+        if (isPartitionRangeQuery())
+            state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getRangeRpcTimeout, TimeUnit.NANOSECONDS));
+        else
+            state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getReadRpcTimeout, TimeUnit.NANOSECONDS));
+    }
+
     public ResultMessage.Rows execute(QueryState state, QueryOptions options, long queryStartNanoTime)
     {
         ConsistencyLevel cl = options.getConsistency();
@@ -274,14 +287,17 @@ public class SelectStatement implements CQLStatement
                               int perPartitionLimit,
                               int pageSize)
     {
-        boolean isPartitionRangeQuery = restrictions.isKeyRange() || restrictions.usesSecondaryIndexing();
-
         DataLimits limit = getDataLimits(userLimit, perPartitionLimit, pageSize);
 
-        if (isPartitionRangeQuery)
+        if (isPartitionRangeQuery())
             return getRangeCommand(options, columnFilter, limit, nowInSec);
 
         return getSliceCommands(options, columnFilter, limit, nowInSec);
+    }
+
+    private boolean isPartitionRangeQuery()
+    {
+        return restrictions.isKeyRange() || restrictions.usesSecondaryIndexing();
     }
 
     private ResultMessage.Rows execute(ReadQuery query,

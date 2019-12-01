@@ -37,6 +37,11 @@ public abstract class AuthorizationStatement extends CQLStatement.Raw implements
         return this;
     }
 
+    public void resolveTimeout(QueryOptions options, QueryState state)
+    {
+        // no-op; the statements are internal read statements that query system tables. @see IRoleManager impls
+    }
+
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
     throws RequestValidationException, RequestExecutionException
     {

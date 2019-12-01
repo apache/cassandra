@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -165,6 +167,19 @@ public abstract class ModificationStatement implements CQLStatement
         List<Function> functions = new ArrayList<>();
         addFunctionsTo(functions);
         return functions;
+    }
+
+    @Override
+    public void resolveTimeout(QueryOptions options, QueryState state)
+    {
+        if (isCounter())
+        {
+            state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getCounterWriteRpcTimeout, TimeUnit.NANOSECONDS));
+        }
+        else if (hasConditions())
+        {
+            state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getWriteRpcTimeout, TimeUnit.NANOSECONDS));
+        }
     }
 
     public void addFunctionsTo(List<Function> functions)

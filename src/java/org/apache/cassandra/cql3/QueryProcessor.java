@@ -202,6 +202,7 @@ public class QueryProcessor implements QueryHandler
         ClientState clientState = queryState.getClientState();
         statement.authorize(clientState);
         statement.validate(clientState);
+        statement.resolveTimeout(options, queryState);
 
         ResultMessage result;
         if (options.getConsistency() == ConsistencyLevel.NODE_LOCAL)
@@ -252,6 +253,7 @@ public class QueryProcessor implements QueryHandler
         return getStatement(queryStr, clientState);
     }
 
+    // todo: YIFAN. Keep it
     public static UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
     {
         return process(query, cl, Collections.<ByteBuffer>emptyList());
@@ -506,6 +508,7 @@ public class QueryProcessor implements QueryHandler
         batch.authorize(clientState);
         batch.validate();
         batch.validate(clientState);
+        batch.resolveTimeout(options, queryState);
         return batch.execute(queryState, options, queryStartNanoTime);
     }
 

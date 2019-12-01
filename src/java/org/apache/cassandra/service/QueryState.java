@@ -34,15 +34,24 @@ public class QueryState
 
     private long timestamp = Long.MIN_VALUE;
     private int nowInSeconds = Integer.MIN_VALUE;
+    private final long startTimeNanos;
+    private long timeoutInNanos = Long.MAX_VALUE;
 
     public QueryState(ClientState clientState)
     {
+        this(clientState, System.nanoTime());
+    }
+
+    // todo: YIFAN
+    public QueryState(ClientState clientState, long startTimeNanos)
+    {
         this.clientState = clientState;
+        this.startTimeNanos = startTimeNanos;
     }
 
     public QueryState(ClientState clientState, long timestamp, int nowInSeconds)
     {
-        this(clientState);
+        this(clientState, System.nanoTime());
         this.timestamp = timestamp;
         this.nowInSeconds = nowInSeconds;
     }
@@ -72,6 +81,11 @@ public class QueryState
         return timestamp;
     }
 
+    public long getStartTimeNanos()
+    {
+        return startTimeNanos;
+    }
+
     /**
      * Generate, cache, and record a nowInSeconds value on the server-side.
      *
@@ -88,6 +102,21 @@ public class QueryState
         if (nowInSeconds == Integer.MIN_VALUE)
             nowInSeconds = FBUtilities.nowInSeconds();
         return nowInSeconds;
+    }
+
+    public long getTimeoutInNanos()
+    {
+        return timeoutInNanos;
+    }
+
+    public void setTimeoutInNanos(long timeoutInNanos)
+    {
+        this.timeoutInNanos = timeoutInNanos;
+    }
+
+    public boolean hasResolvedTimeout()
+    {
+        return timeoutInNanos != Long.MIN_VALUE;
     }
 
     /**

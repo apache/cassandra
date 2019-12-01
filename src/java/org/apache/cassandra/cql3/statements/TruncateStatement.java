@@ -17,11 +17,13 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -55,6 +57,11 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
     public void validate(ClientState state) throws InvalidRequestException
     {
         Schema.instance.validateTable(keyspace(), name());
+    }
+
+    public void resolveTimeout(QueryOptions options, QueryState state)
+    {
+        state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getTruncateRpcTimeout, TimeUnit.NANOSECONDS));
     }
 
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws InvalidRequestException, TruncateException

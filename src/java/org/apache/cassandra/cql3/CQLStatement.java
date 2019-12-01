@@ -19,6 +19,8 @@ package org.apache.cassandra.cql3;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.ToLongFunction;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.cql3.functions.Function;
@@ -69,6 +71,15 @@ public interface CQLStatement
      * @param state the current client state
      */
     public void validate(ClientState state);
+
+    /**
+     * // todo: YIFAN
+     * Resolve the actual timeout value for this CQLStatement
+     * The mehtod is invoked only after the statement has been validated in QueryHanlder
+     * @param options
+     * @param state
+     */
+    public void resolveTimeout(QueryOptions options, QueryState state);
 
     /**
      * Execute the statement and return the resulting result or null if there is no result.
