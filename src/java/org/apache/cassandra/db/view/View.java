@@ -200,7 +200,7 @@ public class View
     ReadQuery getReadQuery()
     {
         if (query == null)
-            query = getSelectStatement().getQuery(QueryOptions.forInternalCalls(Collections.emptyList()), FBUtilities.nowInSeconds());
+            query = getSelectStatement().getQuery(QueryOptionsFactory.forInternalCalls(Collections.emptyList()), FBUtilities.nowInSeconds());
 
         return query;
     }

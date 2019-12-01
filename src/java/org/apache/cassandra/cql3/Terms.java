@@ -265,6 +265,6 @@ public interface Terms
     {
         ColumnSpecification receiver = new ColumnSpecification(keyspace, "--dummy--", new ColumnIdentifier("(dummy)", true), type);
         Term.Raw rawTerm = CQLFragmentParser.parseAny(CqlParser::term, term, "CQL term");
-        return rawTerm.prepare(keyspace, receiver).bindAndGet(QueryOptions.DEFAULT);
+        return rawTerm.prepare(keyspace, receiver).bindAndGet(QueryOptionsFactory.DEFAULT);
     }
 }

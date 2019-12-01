@@ -42,6 +42,7 @@ import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.WireIn;
 import org.apache.cassandra.audit.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.binlog.BinLog;
 
@@ -104,8 +105,8 @@ public class Dump implements Runnable
               .append(System.lineSeparator());
 
             QueryOptions options =
-                QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read(FullQueryLogger.QUERY_OPTIONS).bytes()),
-                                          ProtocolVersion.decode(protocolVersion, true));
+                QueryOptionsFactory.codec.decode(Unpooled.wrappedBuffer(wireIn.read(FullQueryLogger.QUERY_OPTIONS).bytes()),
+                                                 ProtocolVersion.decode(protocolVersion, true));
 
             long generatedTimestamp = wireIn.read(FullQueryLogger.GENERATED_TIMESTAMP).int64();
             sb.append("Generated timestamp:")

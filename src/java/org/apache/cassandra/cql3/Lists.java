@@ -149,7 +149,7 @@ public abstract class Lists
                 values.add(t);
             }
             DelayedValue value = new DelayedValue(values);
-            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
+            return allTerminal ? value.bind(QueryOptionsFactory.DEFAULT) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException

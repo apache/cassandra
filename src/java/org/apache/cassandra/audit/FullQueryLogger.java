@@ -31,6 +31,7 @@ import net.openhft.chronicle.bytes.BytesStore;
 import net.openhft.chronicle.wire.ValueOut;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
@@ -270,7 +271,7 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
             this.queryStartTime = queryStartTime;
 
             this.protocolVersion = queryOptions.getProtocolVersion().asInt();
-            int optionsSize = QueryOptions.codec.encodedSize(queryOptions, queryOptions.getProtocolVersion());
+            int optionsSize = QueryOptionsFactory.codec.encodedSize(queryOptions, queryOptions.getProtocolVersion());
             queryOptionsBuffer = CBUtil.allocator.buffer(optionsSize, optionsSize);
 
             this.generatedTimestamp = queryState.generatedTimestamp();
@@ -291,7 +292,7 @@ public class FullQueryLogger extends BinLogAuditLogger implements IAuditLogger
              */
             try
             {
-                QueryOptions.codec.encode(queryOptions, queryOptionsBuffer, queryOptions.getProtocolVersion());
+                QueryOptionsFactory.codec.encode(queryOptions, queryOptionsBuffer, queryOptions.getProtocolVersion());
             }
             catch (Throwable e)
             {

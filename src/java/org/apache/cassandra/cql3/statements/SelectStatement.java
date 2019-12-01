@@ -182,7 +182,7 @@ public class SelectStatement implements CQLStatement
      */
     public ColumnFilter queriedColumns()
     {
-        return selection.newSelectors(QueryOptions.DEFAULT).getColumnFilter();
+        return selection.newSelectors(QueryOptionsFactory.DEFAULT).getColumnFilter();
     }
 
     // Creates a simple select based on the given selection.
@@ -490,7 +490,7 @@ public class SelectStatement implements CQLStatement
 
     public ResultSet process(PartitionIterator partitions, int nowInSec) throws InvalidRequestException
     {
-        QueryOptions options = QueryOptions.DEFAULT;
+        QueryOptions options = QueryOptionsFactory.DEFAULT;
         Selectors selectors = selection.newSelectors(options);
         return process(partitions, options, selectors, nowInSec, getLimit(options));
     }
@@ -553,7 +553,7 @@ public class SelectStatement implements CQLStatement
      */
     public Slices clusteringIndexFilterAsSlices()
     {
-        QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
+        QueryOptions options = QueryOptionsFactory.forInternalCalls(Collections.emptyList());
         ColumnFilter columnFilter = selection.newSelectors(options).getColumnFilter();
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
         if (filter instanceof ClusteringIndexSliceFilter)
@@ -571,7 +571,7 @@ public class SelectStatement implements CQLStatement
      */
     public SinglePartitionReadCommand internalReadForView(DecoratedKey key, int nowInSec)
     {
-        QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
+        QueryOptions options = QueryOptionsFactory.forInternalCalls(Collections.emptyList());
         ColumnFilter columnFilter = selection.newSelectors(options).getColumnFilter();
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
         RowFilter rowFilter = getRowFilter(options);
@@ -583,7 +583,7 @@ public class SelectStatement implements CQLStatement
      */
     public RowFilter rowFilterForInternalCalls()
     {
-        return getRowFilter(QueryOptions.forInternalCalls(Collections.emptyList()));
+        return getRowFilter(QueryOptionsFactory.forInternalCalls(Collections.emptyList()));
     }
 
     private ReadQuery getRangeCommand(QueryOptions options, ColumnFilter columnFilter, DataLimits limit, int nowInSec)

@@ -30,6 +30,7 @@ import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.WireIn;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 import static org.apache.cassandra.audit.FullQueryLogger.CURRENT_VERSION;
@@ -60,7 +61,7 @@ public class FQLQueryReader implements ReadMarshallable
 
         long queryStartTime = wireIn.read(QUERY_START_TIME).int64();
         int protocolVersion = wireIn.read(PROTOCOL_VERSION).int32();
-        QueryOptions queryOptions = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read(QUERY_OPTIONS).bytes()), ProtocolVersion.decode(protocolVersion, true));
+        QueryOptions queryOptions = QueryOptionsFactory.codec.decode(Unpooled.wrappedBuffer(wireIn.read(QUERY_OPTIONS).bytes()), ProtocolVersion.decode(protocolVersion, true));
         long generatedTimestamp = wireIn.read(GENERATED_TIMESTAMP).int64();
         int generatedNowInSeconds = wireIn.read(GENERATED_NOW_IN_SECONDS).int32();
         String keyspace = wireIn.read(KEYSPACE).text();

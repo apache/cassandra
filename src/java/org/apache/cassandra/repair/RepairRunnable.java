@@ -37,6 +37,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.*;
 
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.Replica;
 import org.apache.commons.lang3.time.DurationFormatUtils;
@@ -722,9 +723,8 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                     }
                     ByteBuffer tminBytes = ByteBufferUtil.bytes(UUIDGen.minTimeUUID(tlast - 1000));
                     ByteBuffer tmaxBytes = ByteBufferUtil.bytes(UUIDGen.maxTimeUUID(tcur = System.currentTimeMillis()));
-                    QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.ONE, Lists.newArrayList(sessionIdBytes,
-                                                                                                                  tminBytes,
-                                                                                                                  tmaxBytes));
+                    QueryOptions options = QueryOptionsFactory.forInternalCalls(ConsistencyLevel.ONE,
+                                                                                Lists.newArrayList(sessionIdBytes, tminBytes, tmaxBytes));
                     ResultMessage.Rows rows = statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
                     UntypedResultSet result = UntypedResultSet.create(rows.result);
 

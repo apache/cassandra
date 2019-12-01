@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -105,9 +106,9 @@ public class PasswordAuthenticator implements IAuthenticator
         {
             ResultMessage.Rows rows =
             authenticateStatement.execute(QueryState.forInternalCalls(),
-                                            QueryOptions.forInternalCalls(consistencyForRole(username),
-                                                                          Lists.newArrayList(ByteBufferUtil.bytes(username))),
-                                            System.nanoTime());
+                                          QueryOptionsFactory.forInternalCalls(consistencyForRole(username),
+                                                                               Lists.newArrayList(ByteBufferUtil.bytes(username))),
+                                          System.nanoTime());
 
             // If either a non-existent role name was supplied, or no credentials
             // were found for that role we don't want to cache the result so we throw

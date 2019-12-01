@@ -25,6 +25,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
@@ -63,8 +64,8 @@ public class CassandraNetworkAuthorizer implements INetworkAuthorizer
 
     private Set<String> getAuthorizedDcs(String name)
     {
-        QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
-                                                             Lists.newArrayList(ByteBufferUtil.bytes(name)));
+        QueryOptions options = QueryOptionsFactory.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
+                                                                    Lists.newArrayList(ByteBufferUtil.bytes(name)));
 
         ResultMessage.Rows rows = select(authorizeUserStatement, options);
         UntypedResultSet result = UntypedResultSet.create(rows.result);

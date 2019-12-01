@@ -160,7 +160,7 @@ public abstract class Maps
                 values.put(k, v);
             }
             DelayedValue value = new DelayedValue(((MapType<?, ?>)receiver.type).getKeysType(), values);
-            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
+            return allTerminal ? value.bind(QueryOptionsFactory.DEFAULT) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException

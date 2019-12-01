@@ -189,9 +189,9 @@ public class CassandraAuthorizer implements IAuthorizer
     private void addPermissionsForRole(Set<Permission> permissions, IResource resource, RoleResource role)
     throws RequestExecutionException, RequestValidationException
     {
-        QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
-                                                             Lists.newArrayList(ByteBufferUtil.bytes(role.getRoleName()),
-                                                                                ByteBufferUtil.bytes(resource.getName())));
+        QueryOptions options = QueryOptionsFactory.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
+                                                                    Lists.newArrayList(ByteBufferUtil.bytes(role.getRoleName()),
+                                                                                       ByteBufferUtil.bytes(resource.getName())));
 
         ResultMessage.Rows rows = select(authorizeRoleStatement, options);
 
@@ -359,7 +359,7 @@ public class CassandraAuthorizer implements IAuthorizer
     {
         QueryProcessor.instance.processBatch(statement,
                                              QueryState.forInternalCalls(),
-                                             BatchQueryOptions.withoutPerStatementVariables(QueryOptions.DEFAULT),
+                                             BatchQueryOptions.withoutPerStatementVariables(QueryOptionsFactory.DEFAULT),
                                              System.nanoTime());
     }
 }

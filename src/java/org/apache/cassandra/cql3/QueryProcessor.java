@@ -222,7 +222,7 @@ public class QueryProcessor implements QueryHandler
     public static ResultMessage process(String queryString, ConsistencyLevel cl, QueryState queryState, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
-        return instance.process(queryString, queryState, QueryOptions.forInternalCalls(cl, Collections.<ByteBuffer>emptyList()), queryStartNanoTime);
+        return instance.process(queryString, queryState, QueryOptionsFactory.forInternalCalls(cl, Collections.emptyList()), queryStartNanoTime);
     }
 
     public ResultMessage process(String query,
@@ -261,7 +261,7 @@ public class QueryProcessor implements QueryHandler
 
     public static UntypedResultSet process(String query, ConsistencyLevel cl, List<ByteBuffer> values) throws RequestExecutionException
     {
-        ResultMessage result = instance.process(query, QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, values), System.nanoTime());
+        ResultMessage result = instance.process(query, QueryState.forInternalCalls(), QueryOptionsFactory.forInternalCalls(cl, values), System.nanoTime());
         if (result instanceof ResultMessage.Rows)
             return UntypedResultSet.create(((ResultMessage.Rows)result).result);
         else
@@ -286,7 +286,7 @@ public class QueryProcessor implements QueryHandler
             AbstractType type = prepared.getBindVariables().get(i).type;
             boundValues.add(value instanceof ByteBuffer || value == null ? (ByteBuffer)value : type.decompose(value));
         }
-        return QueryOptions.forInternalCalls(cl, boundValues);
+        return QueryOptionsFactory.forInternalCalls(cl, boundValues);
     }
 
     public static Prepared prepareInternal(String query) throws RequestValidationException

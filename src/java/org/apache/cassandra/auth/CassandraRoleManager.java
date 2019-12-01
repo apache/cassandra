@@ -413,8 +413,8 @@ public class CassandraRoleManager implements IRoleManager
      */
     private Role getRole(String name)
     {
-        QueryOptions options = QueryOptions.forInternalCalls(consistencyForRole(name),
-                                                             Collections.singletonList(ByteBufferUtil.bytes(name)));
+        QueryOptions options = QueryOptionsFactory.forInternalCalls(consistencyForRole(name),
+                                                                    Collections.singletonList(ByteBufferUtil.bytes(name)));
         ResultMessage.Rows rows = select(loadRoleStatement, options);
         if (rows.result.isEmpty())
             return Roles.nullRole();
