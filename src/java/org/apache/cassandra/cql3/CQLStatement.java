@@ -19,8 +19,6 @@ package org.apache.cassandra.cql3;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.function.ToLongFunction;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.cql3.functions.Function;
@@ -86,9 +84,8 @@ public interface CQLStatement
      *
      * @param state the current query state
      * @param options options for this query (consistency, variables, pageSize, ...)
-     * @param queryStartNanoTime the timestamp returned by System.nanoTime() when this statement was received
      */
-    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime);
+    public ResultMessage execute(QueryState state, QueryOptions options);
 
     /**
      * Variant of execute used for internal query against the system tables, and thus only query the local node.

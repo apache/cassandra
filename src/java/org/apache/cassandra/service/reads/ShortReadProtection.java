@@ -18,16 +18,13 @@
 
 package org.apache.cassandra.service.reads;
 
-import java.net.InetAddress;
-
-
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.service.QueryState;
 
 /**
  * We have a potential short read if the result from a given node contains the requested number of rows
@@ -42,16 +39,19 @@ import org.apache.cassandra.locator.Replica;
 public class ShortReadProtection
 {
     @SuppressWarnings("resource")
-    public static UnfilteredPartitionIterator extend(Replica source, UnfilteredPartitionIterator partitions,
-                                                     ReadCommand command, DataLimits.Counter mergedResultCounter,
-                                                     long queryStartNanoTime, boolean enforceStrictLiveness)
+    public static UnfilteredPartitionIterator extend(Replica source,
+                                                     UnfilteredPartitionIterator partitions,
+                                                     ReadCommand command,
+                                                     DataLimits.Counter mergedResultCounter,
+                                                     boolean enforceStrictLiveness,
+                                                     QueryState queryState)
     {
         DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
                                                                              false,
                                                                              command.selectsFullPartition(),
                                                                              enforceStrictLiveness).onlyCount();
 
-        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection(command, source, singleResultCounter, mergedResultCounter, queryStartNanoTime);
+        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection(command, source, singleResultCounter, mergedResultCounter, queryState);
 
         /*
          * The order of extention and transformations is important here. Extending with more partitions has to happen

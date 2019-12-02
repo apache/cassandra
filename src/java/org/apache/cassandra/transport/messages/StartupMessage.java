@@ -21,11 +21,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.netty.buffer.ByteBuf;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.transport.*;
+import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ProtocolException;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.frame.checksum.ChecksummingTransformer;
 import org.apache.cassandra.transport.frame.compress.CompressingTransformer;
 import org.apache.cassandra.transport.frame.compress.Compressor;
@@ -75,7 +77,7 @@ public class StartupMessage extends Message.Request
     }
 
     @Override
-    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Message.Response execute(QueryState state, boolean traceRequest)
     {
         String cqlVersion = options.get(CQL_VERSION);
         if (cqlVersion == null)

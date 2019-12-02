@@ -90,8 +90,7 @@ public class Coordinator implements ICoordinator
                                                                         null,
                                                                         null,
                                                                         ProtocolVersion.V4,
-                                                                        null),
-                                             System.nanoTime());
+                                                                        null));
 
         if (res != null && res.kind == ResultMessage.Kind.ROWS)
             return RowUtil.toObjects((ResultMessage.Rows) res);
@@ -112,6 +111,7 @@ public class Coordinator implements ICoordinator
 
         return instance.sync(() -> {
             ClientState clientState = makeFakeClientState();
+            QueryState queryState = new QueryState(makeFakeClientState());
             ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
             CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
             List<ByteBuffer> boundBBValues = new ArrayList<>();
@@ -139,7 +139,7 @@ public class Coordinator implements ICoordinator
             // Usually pager fetches a single page (see SelectStatement#execute). We need to iterate over all
             // of the results lazily.
             return new Iterator<Object[]>() {
-                Iterator<Object[]> iter = RowUtil.toObjects(UntypedResultSet.create(selectStatement, consistencyLevel, clientState, pager,  pageSize));
+                Iterator<Object[]> iter = RowUtil.toObjects(UntypedResultSet.create(selectStatement, consistencyLevel, queryState, pager,  pageSize));
 
                 public boolean hasNext()
                 {

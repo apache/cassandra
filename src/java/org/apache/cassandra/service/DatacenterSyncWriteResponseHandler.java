@@ -22,13 +22,13 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.WriteType;
 
 /**
  * This class blocks for a quorum of responses _in all datacenters_ (CL.EACH_QUORUM).
@@ -43,10 +43,10 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
     public DatacenterSyncWriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan,
                                               Runnable callback,
                                               WriteType writeType,
-                                              long queryStartNanoTime)
+                                              QueryState queryState)
     {
         // Response is been managed by the map so make it 1 for the superclass.
-        super(replicaPlan, callback, writeType, queryStartNanoTime);
+        super(replicaPlan, callback, writeType, queryState);
         assert replicaPlan.consistencyLevel() == ConsistencyLevel.EACH_QUORUM;
 
         NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) replicaPlan.keyspace().getReplicationStrategy();

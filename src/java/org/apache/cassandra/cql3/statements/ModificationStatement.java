@@ -437,8 +437,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                            DataLimits limits,
                                                            boolean local,
                                                            ConsistencyLevel cl,
-                                                           int nowInSeconds,
-                                                           long queryStartNanoTime)
+                                                           int nowInSeconds)
     {
         if (!requiresRead())
             return null;
@@ -473,7 +472,7 @@ public abstract class ModificationStatement implements CQLStatement
             }
         }
 
-        try (PartitionIterator iter = group.execute(cl, null, queryStartNanoTime))
+        try (PartitionIterator iter = group.execute(cl, null))
         {
             return asMaterializedMap(iter);
         }
@@ -504,22 +503,22 @@ public abstract class ModificationStatement implements CQLStatement
                && getRestrictions().isColumnRange();
     }
 
-    public ResultMessage execute(QueryState queryState, QueryOptions options, long queryStartNanoTime)
+    public ResultMessage execute(QueryState queryState, QueryOptions options)
     throws RequestExecutionException, RequestValidationException
     {
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
         return hasConditions()
-             ? executeWithCondition(queryState, options, queryStartNanoTime)
-             : executeWithoutCondition(queryState, options, queryStartNanoTime);
+             ? executeWithCondition(queryState, options)
+             : executeWithoutCondition(queryState, options);
     }
 
-    private ResultMessage executeWithoutCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime)
+    private ResultMessage executeWithoutCondition(QueryState queryState, QueryOptions options)
     throws RequestExecutionException, RequestValidationException
     {
         if (isVirtual())
-            return executeInternalWithoutCondition(queryState, options, queryStartNanoTime);
+            return executeInternalWithoutCondition(queryState, options);
 
         ConsistencyLevel cl = options.getConsistency();
         if (isCounter())
@@ -531,15 +530,14 @@ public abstract class ModificationStatement implements CQLStatement
             getMutations(options,
                          false,
                          options.getTimestampWithFallback(queryState),
-                         options.getNowInSecondsWithFallback(queryState),
-                         queryStartNanoTime);
+                         options.getNowInSecondsWithFallback(queryState));
         if (!mutations.isEmpty())
-            StorageProxy.mutateWithTriggers(mutations, cl, false, queryStartNanoTime);
+            StorageProxy.mutateWithTriggers(mutations, cl, false, queryState);
 
         return null;
     }
 
-    private ResultMessage executeWithCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime)
+    private ResultMessage executeWithCondition(QueryState queryState, QueryOptions options)
     {
         CQL3CasRequest request = makeCasRequest(queryState, options);
 
@@ -549,9 +547,8 @@ public abstract class ModificationStatement implements CQLStatement
                                                    request,
                                                    options.getSerialConsistency(),
                                                    options.getConsistency(),
-                                                   queryState.getClientState(),
                                                    options.getNowInSecondsWithFallback(queryState),
-                                                   queryStartNanoTime))
+                                                   queryState))
         {
             return new ResultMessage.Rows(buildCasResultSet(result, queryState, options));
         }
@@ -683,15 +680,15 @@ public abstract class ModificationStatement implements CQLStatement
     {
         return hasConditions()
                ? executeInternalWithCondition(queryState, options)
-               : executeInternalWithoutCondition(queryState, options, System.nanoTime());
+               : executeInternalWithoutCondition(queryState, options);
     }
 
-    public ResultMessage executeInternalWithoutCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime)
+    public ResultMessage executeInternalWithoutCondition(QueryState queryState, QueryOptions options)
     throws RequestValidationException, RequestExecutionException
     {
         long timestamp = options.getTimestampWithFallback(queryState);
         int nowInSeconds = options.getNowInSecondsWithFallback(queryState);
-        for (IMutation mutation : getMutations(options, true, timestamp, nowInSeconds, queryStartNanoTime))
+        for (IMutation mutation : getMutations(options, true, timestamp, nowInSeconds))
             mutation.apply();
         return null;
     }
@@ -741,11 +738,10 @@ public abstract class ModificationStatement implements CQLStatement
     private List<? extends IMutation> getMutations(QueryOptions options,
                                                          boolean local,
                                                          long timestamp,
-                                                         int nowInSeconds,
-                                                         long queryStartNanoTime)
+                                                         int nowInSeconds)
     {
         UpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, 1);
-        addUpdates(collector, options, local, timestamp, nowInSeconds, queryStartNanoTime);
+        addUpdates(collector, options, local, timestamp, nowInSeconds);
         return collector.toMutations();
     }
 
@@ -753,8 +749,7 @@ public abstract class ModificationStatement implements CQLStatement
                           QueryOptions options,
                           boolean local,
                           long timestamp,
-                          int nowInSeconds,
-                          long queryStartNanoTime)
+                          int nowInSeconds)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options);
 
@@ -772,8 +767,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                            DataLimits.NONE,
                                                            local,
                                                            timestamp,
-                                                           nowInSeconds,
-                                                           queryStartNanoTime);
+                                                           nowInSeconds);
             for (ByteBuffer key : keys)
             {
                 Validation.validateKey(metadata(), key);
@@ -793,7 +787,7 @@ public abstract class ModificationStatement implements CQLStatement
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            UpdateParameters params = makeUpdateParameters(keys, clusterings, options, local, timestamp, nowInSeconds, queryStartNanoTime);
+            UpdateParameters params = makeUpdateParameters(keys, clusterings, options, local, timestamp, nowInSeconds);
 
             for (ByteBuffer key : keys)
             {
@@ -837,8 +831,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                   QueryOptions options,
                                                   boolean local,
                                                   long timestamp,
-                                                  int nowInSeconds,
-                                                  long queryStartNanoTime)
+                                                  int nowInSeconds)
     {
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
             return makeUpdateParameters(keys,
@@ -847,8 +840,7 @@ public abstract class ModificationStatement implements CQLStatement
                                         DataLimits.cqlLimits(1),
                                         local,
                                         timestamp,
-                                        nowInSeconds,
-                                        queryStartNanoTime);
+                                        nowInSeconds);
 
         return makeUpdateParameters(keys,
                                     new ClusteringIndexNamesFilter(clusterings, false),
@@ -856,8 +848,7 @@ public abstract class ModificationStatement implements CQLStatement
                                     DataLimits.NONE,
                                     local,
                                     timestamp,
-                                    nowInSeconds,
-                                    queryStartNanoTime);
+                                    nowInSeconds);
     }
 
     private UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
@@ -866,8 +857,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                   DataLimits limits,
                                                   boolean local,
                                                   long timestamp,
-                                                  int nowInSeconds,
-                                                  long queryStartNanoTime)
+                                                  int nowInSeconds)
     {
         // Some lists operation requires reading
         Map<DecoratedKey, Partition> lists =
@@ -876,8 +866,7 @@ public abstract class ModificationStatement implements CQLStatement
                               limits,
                               local,
                               options.getConsistency(),
-                              nowInSeconds,
-                              queryStartNanoTime);
+                              nowInSeconds);
 
         return new UpdateParameters(metadata(),
                                     updatedColumns(),

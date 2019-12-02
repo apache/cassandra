@@ -92,7 +92,7 @@ public class QueryMessage extends Message.Request
     }
 
     @Override
-    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Message.Response execute(QueryState state, boolean traceRequest)
     {
         AuditLogManager auditLogManager = AuditLogManager.getInstance();
 
@@ -106,7 +106,7 @@ public class QueryMessage extends Message.Request
 
             long queryStartTime = auditLogManager.isLoggingEnabled() ? System.currentTimeMillis() : 0L;
 
-            Message.Response response = ClientState.getCQLQueryHandler().process(query, state, options, getCustomPayload(), queryStartNanoTime);
+            Message.Response response = ClientState.getCQLQueryHandler().process(query, state, options, getCustomPayload());
 
             if (auditLogManager.isLoggingEnabled())
                 logSuccess(state, queryStartTime);

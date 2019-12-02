@@ -25,6 +25,7 @@ import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 
 public abstract class ResponseResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
@@ -36,14 +37,14 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
     protected final Accumulator<Message<ReadResponse>> responses;
-    protected final long queryStartNanoTime;
+    protected final QueryState queryState;
 
-    public ResponseResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
+    public ResponseResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, QueryState queryState)
     {
         this.command = command;
         this.replicaPlan = replicaPlan;
         this.responses = new Accumulator<>(replicaPlan.get().candidates().size());
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.queryState = queryState;
     }
 
     protected P replicaPlan()

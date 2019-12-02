@@ -18,8 +18,9 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
+import java.util.concurrent.TimeUnit;
+import java.util.function.ToLongFunction;
 
-import org.apache.cassandra.transport.ClientStat;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -69,7 +70,7 @@ public class QueryState
      *
      * Used in reads for all live and expiring cells, and all kinds of deletion infos.
      *
-     * Shouldn't be used directly. {@link org.apache.cassandra.cql3.QueryOptions#getTimestamp(QueryState)} should be used
+     * Shouldn't be used directly. {@link org.apache.cassandra.cql3.QueryOptions#getTimestampWithFallback(QueryState)} should be used
      * by all consumers.
      *
      * @return server-generated, recorded timestamp in seconds
@@ -92,7 +93,7 @@ public class QueryState
      * In writes is used for calculating localDeletionTime for tombstones and expiring cells and other deletion infos.
      * In reads used to determine liveness of expiring cells and rows.
      *
-     * Shouldn't be used directly. {@link org.apache.cassandra.cql3.QueryOptions#getNowInSeconds(QueryState)} should be used
+     * Shouldn't be used directly. {@link org.apache.cassandra.cql3.QueryOptions#getNowInSecondsWithFallback(QueryState)} should be used
      * by all consumers.
      *
      * @return server-generated, recorded timestamp in seconds
@@ -117,6 +118,39 @@ public class QueryState
     public boolean hasResolvedTimeout()
     {
         return timeoutInNanos != Long.MIN_VALUE;
+    }
+
+    public long getTimeoutWithFallback(ToLongFunction<TimeUnit> fallback, TimeUnit timeUnit)
+    {
+         if (!hasResolvedTimeout())
+         {
+             long timeout = fallback.applyAsLong(timeUnit);
+             setTimeoutInNanos(timeout);
+         }
+         return timeUnit.convert(getTimeoutInNanos(), TimeUnit.NANOSECONDS);
+    }
+
+    /**
+     * Calculate the remaning timeout, i.e. `timeout - elapsed`.
+     * If there is resolved timeout value, the {@param fallback} is ignored.
+     * If there is no resolved timeout value, the calculation falls back to the {@param fallback}.
+     *
+     * @param fallback, the function to provide the timeout in the desired {@link TimeUnit} as a fallback.
+     *                  Note that the timeout value should have been resolved at {@link org.apache.cassandra.cql3.QueryProcessor} for each cql statement.
+     *                  The fallback exists mainly for safety.
+     * @param timeUnit, the target time unit to convert the timeout value to.
+     * @return the remaning timeout.
+     */
+    public long getRemainingTimeoutWithFallback(ToLongFunction<TimeUnit> fallback, TimeUnit timeUnit)
+    {
+        return hasResolvedTimeout()
+               ? timeUnit.convert(timeoutInNanos - getElapsedInNanos(), TimeUnit.NANOSECONDS)
+               : fallback.applyAsLong(timeUnit) - getElapsedInNanos();
+    }
+
+    public long getElapsedInNanos()
+    {
+        return System.nanoTime() - getStartTimeNanos();
     }
 
     /**

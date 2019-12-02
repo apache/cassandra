@@ -27,6 +27,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.service.QueryState;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
@@ -35,14 +36,14 @@ public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
     protected final CountDownLatch latch;
     protected final int targets;
     private final ConsistencyLevel consistency;
-    private final long queryStartNanoTime;
+    private final QueryState queryState;
 
-    public AbstractPaxosCallback(int targets, ConsistencyLevel consistency, long queryStartNanoTime)
+    public AbstractPaxosCallback(int targets, ConsistencyLevel consistency, QueryState queryState)
     {
         this.targets = targets;
         this.consistency = consistency;
         latch = new CountDownLatch(targets);
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.queryState = queryState;
     }
 
     public int getResponseCount()
@@ -54,7 +55,7 @@ public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
     {
         try
         {
-            long timeout = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) - (System.nanoTime() - queryStartNanoTime);
+            long timeout = queryState.getRemainingTimeoutWithFallback(DatabaseDescriptor::getWriteRpcTimeout, NANOSECONDS);
             if (!latch.await(timeout, NANOSECONDS))
                 throw new WriteTimeoutException(WriteType.CAS, consistency, getResponseCount(), targets);
         }

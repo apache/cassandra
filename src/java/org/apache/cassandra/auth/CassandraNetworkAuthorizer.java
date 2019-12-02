@@ -23,7 +23,6 @@ import java.util.Set;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -53,7 +52,7 @@ public class CassandraNetworkAuthorizer implements INetworkAuthorizer
     @VisibleForTesting
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
-        return statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
+        return statement.execute(QueryState.forInternalCalls(), options);
     }
 
     @VisibleForTesting

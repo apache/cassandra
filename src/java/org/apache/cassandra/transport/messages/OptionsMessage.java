@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 
 import io.netty.buffer.ByteBuf;
-
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Message;
@@ -59,7 +58,7 @@ public class OptionsMessage extends Message.Request
     }
 
     @Override
-    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Message.Response execute(QueryState state, boolean traceRequest)
     {
         List<String> cqlVersions = new ArrayList<>();
         cqlVersions.add(QueryProcessor.CQL_VERSION.toString());

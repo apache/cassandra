@@ -40,6 +40,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.ReadCallback;
 
 public class BlockingReadRepairTest extends AbstractReadRepairTest
@@ -82,9 +83,9 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     private static class InstrumentedBlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
             extends BlockingReadRepair<E, P> implements InstrumentedReadRepair<E, P>
     {
-        public InstrumentedBlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
+        public InstrumentedBlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, QueryState queryState)
         {
-            super(command, replicaPlan, queryStartNanoTime);
+            super(command, replicaPlan, queryState);
         }
 
         Set<InetAddressAndPort> readCommandRecipients = new HashSet<>();
@@ -112,9 +113,9 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     }
 
     @Override
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, long queryStartNanoTime)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, QueryState queryState)
     {
-        return new InstrumentedBlockingReadRepair(command, replicaPlan, queryStartNanoTime);
+        return new InstrumentedBlockingReadRepair(command, replicaPlan, queryState);
     }
 
     @Test

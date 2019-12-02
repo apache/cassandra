@@ -321,10 +321,9 @@ public class BatchStatement implements CQLStatement
     }
 
     private List<? extends IMutation> getMutations(BatchQueryOptions options,
-                                                         boolean local,
-                                                         long batchTimestamp,
-                                                         int nowInSeconds,
-                                                         long queryStartNanoTime)
+                                                   boolean local,
+                                                   long batchTimestamp,
+                                                   int nowInSeconds)
     {
         Set<String> tablesWithZeroGcGs = null;
         BatchUpdatesCollector collector = new BatchUpdatesCollector(updatedColumns, updatedRows());
@@ -339,7 +338,7 @@ public class BatchStatement implements CQLStatement
             }
             QueryOptions statementOptions = options.forStatement(i);
             long timestamp = attrs.getTimestamp(batchTimestamp, statementOptions);
-            statement.addUpdates(collector, statementOptions, local, timestamp, nowInSeconds, queryStartNanoTime);
+            statement.addUpdates(collector, statementOptions, local, timestamp, nowInSeconds);
         }
 
         if (tablesWithZeroGcGs != null)
@@ -434,12 +433,12 @@ public class BatchStatement implements CQLStatement
     }
 
 
-    public ResultMessage execute(QueryState queryState, QueryOptions options, long queryStartNanoTime)
+    public ResultMessage execute(QueryState queryState, QueryOptions options)
     {
-        return execute(queryState, BatchQueryOptions.withoutPerStatementVariables(options), queryStartNanoTime);
+        return execute(queryState, BatchQueryOptions.withoutPerStatementVariables(options));
     }
 
-    public ResultMessage execute(QueryState queryState, BatchQueryOptions options, long queryStartNanoTime)
+    public ResultMessage execute(QueryState queryState, BatchQueryOptions options)
     {
         long timestamp = options.getTimestampWithFallback(queryState);
         int nowInSeconds = options.getNowInSecondsWithFallback(queryState);
@@ -450,17 +449,17 @@ public class BatchStatement implements CQLStatement
             throw new InvalidRequestException("Invalid empty serial consistency level");
 
         if (hasConditions)
-            return executeWithConditions(options, queryState, queryStartNanoTime);
+            return executeWithConditions(options, queryState);
 
         if (updatesVirtualTables)
-            executeInternalWithoutCondition(queryState, options, queryStartNanoTime);
+            executeInternalWithoutCondition(queryState, options);
         else    
-            executeWithoutConditions(getMutations(options, false, timestamp, nowInSeconds, queryStartNanoTime), options.getConsistency(), queryStartNanoTime);
+            executeWithoutConditions(getMutations(options, false, timestamp, nowInSeconds), options.getConsistency(), queryState);
 
         return new ResultMessage.Void();
     }
 
-    private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, long queryStartNanoTime) throws RequestExecutionException, RequestValidationException
+    private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, QueryState queryState) throws RequestExecutionException, RequestValidationException
     {
         if (mutations.isEmpty())
             return;
@@ -471,7 +470,7 @@ public class BatchStatement implements CQLStatement
         updatePartitionsPerBatchMetrics(mutations.size());
 
         boolean mutateAtomic = (isLogged() && mutations.size() > 1);
-        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, queryStartNanoTime);
+        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, queryState);
     }
 
     private void updatePartitionsPerBatchMetrics(int updatedPartitions)
@@ -485,7 +484,7 @@ public class BatchStatement implements CQLStatement
         }
     }
 
-    private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state, long queryStartNanoTime)
+    private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state)
     {
         Pair<CQL3CasRequest, Set<ColumnMetadata>> p = makeCasRequest(options, state);
         CQL3CasRequest casRequest = p.left;
@@ -500,9 +499,8 @@ public class BatchStatement implements CQLStatement
                                                    casRequest,
                                                    options.getSerialConsistency(),
                                                    options.getConsistency(),
-                                                   state.getClientState(),
                                                    options.getNowInSecondsWithFallback(state),
-                                                   queryStartNanoTime))
+                                                   state))
         {
             return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(ksName,
                                                                                   tableName,
@@ -591,16 +589,16 @@ public class BatchStatement implements CQLStatement
         if (hasConditions)
             return executeInternalWithConditions(batchOptions, queryState);
 
-        executeInternalWithoutCondition(queryState, batchOptions, System.nanoTime());
+        executeInternalWithoutCondition(queryState, batchOptions);
         return new ResultMessage.Void();
     }
 
-    private ResultMessage executeInternalWithoutCondition(QueryState queryState, BatchQueryOptions batchOptions, long queryStartNanoTime)
+    private ResultMessage executeInternalWithoutCondition(QueryState queryState, BatchQueryOptions batchOptions)
     {
         long timestamp = batchOptions.getTimestampWithFallback(queryState);
         int nowInSeconds = batchOptions.getNowInSecondsWithFallback(queryState);
 
-        for (IMutation mutation : getMutations(batchOptions, true, timestamp, nowInSeconds, queryStartNanoTime))
+        for (IMutation mutation : getMutations(batchOptions, true, timestamp, nowInSeconds))
             mutation.apply();
         return null;
     }

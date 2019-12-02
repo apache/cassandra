@@ -17,17 +17,18 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
-import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class UseStatement extends CQLStatement.Raw implements CQLStatement
 {
@@ -57,7 +58,7 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
         // no-op
     }
 
-    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws InvalidRequestException
+    public ResultMessage execute(QueryState state, QueryOptions options) throws InvalidRequestException
     {
         state.getClientState().setKeyspace(keyspace);
         return new ResultMessage.SetKeyspace(keyspace);
@@ -67,7 +68,7 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
     {
         // In production, internal queries are exclusively on the system keyspace and 'use' is thus useless
         // but for some unit tests we need to set the keyspace (e.g. for tests with DROP INDEX)
-        return execute(state, options, System.nanoTime());
+        return execute(state, options);
     }
     
     @Override

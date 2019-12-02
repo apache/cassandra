@@ -164,7 +164,7 @@ public class BatchMessage extends Message.Request
     }
 
     @Override
-    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Message.Response execute(QueryState state, boolean traceRequest)
     {
         AuditLogManager auditLogManager = AuditLogManager.getInstance();
 
@@ -219,7 +219,7 @@ public class BatchMessage extends Message.Request
             BatchStatement batch = new BatchStatement(batchType, VariableSpecifications.empty(), statements, Attributes.none());
 
             long fqlTime = auditLogManager.isLoggingEnabled() ? System.currentTimeMillis() : 0;
-            Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);
+            Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload());
 
             if (auditLogManager.isLoggingEnabled())
                 auditLogManager.logBatch(batchType, queryOrIdList, values, prepared, options, state, fqlTime);

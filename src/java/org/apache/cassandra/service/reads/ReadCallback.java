@@ -22,11 +22,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
@@ -35,13 +34,15 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> implements RequestCallback<ReadResponse>
 {
@@ -49,7 +50,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     public final ResponseResolver resolver;
     final SimpleCondition condition = new SimpleCondition();
-    private final long queryStartNanoTime;
+    private final QueryState queryState;
     final int blockFor; // TODO: move to replica plan as well?
     // this uses a plain reference, but is initialised before handoff to any other threads; the later updates
     // may not be visible to the threads immediately, but ReplicaPlan only contains final fields, so they will never see an uninitialised object
@@ -63,11 +64,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
 
-    public ReadCallback(ResponseResolver resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
+    public ReadCallback(ResponseResolver resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, QueryState queryState)
     {
         this.command = command;
         this.resolver = resolver;
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.queryState = queryState;
         this.replicaPlan = replicaPlan;
         this.blockFor = replicaPlan.get().blockFor();
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
@@ -83,12 +84,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return replicaPlan.get();
     }
 
-    public boolean await(long timePastStart, TimeUnit unit)
+    public boolean await(long timeoutInNanos)
     {
-        long time = unit.toNanos(timePastStart) - (System.nanoTime() - queryStartNanoTime);
         try
         {
-            return condition.await(time, TimeUnit.NANOSECONDS);
+            return condition.await(timeoutInNanos, TimeUnit.NANOSECONDS);
         }
         catch (InterruptedException ex)
         {
@@ -98,7 +98,8 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     public void awaitResults() throws ReadFailureException, ReadTimeoutException
     {
-        boolean signaled = await(command.getTimeout(MILLISECONDS), TimeUnit.MILLISECONDS);
+        long timeoutInNanos = queryState.getRemainingTimeoutWithFallback(command::getTimeout, NANOSECONDS);
+        boolean signaled = await(timeoutInNanos);
         boolean failed = failures > 0 && blockFor + failures > replicaPlan().contacts().size();
         if (signaled && !failed)
             return;

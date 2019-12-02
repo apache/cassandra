@@ -112,7 +112,7 @@ public class ExecuteMessage extends Message.Request
     }
 
     @Override
-    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Message.Response execute(QueryState state, boolean traceRequest)
     {
         AuditLogManager auditLogManager = AuditLogManager.getInstance();
 
@@ -138,7 +138,7 @@ public class ExecuteMessage extends Message.Request
 
             long requestStartTime = auditLogManager.isLoggingEnabled() ? System.currentTimeMillis() : 0L;
 
-            Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
+            Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload());
 
             if (auditLogManager.isLoggingEnabled())
                 logSuccess(state, prepared, requestStartTime);

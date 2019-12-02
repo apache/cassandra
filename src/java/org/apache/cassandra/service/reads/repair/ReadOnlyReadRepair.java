@@ -29,6 +29,7 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
+import org.apache.cassandra.service.QueryState;
 
 /**
  * Only performs the collection of data responses and reconciliation of them, doesn't send repair mutations
@@ -37,9 +38,9 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 public class ReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
         extends AbstractReadRepair<E, P>
 {
-    ReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
+    ReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, QueryState queryState)
     {
-        super(command, replicaPlan, queryStartNanoTime);
+        super(command, replicaPlan, queryState);
     }
 
     @Override

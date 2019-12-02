@@ -18,13 +18,13 @@
 package org.apache.cassandra.service.pager;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.filter.DataLimits;
-import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 
 /**
  * Perform a query, paging it by page of a given size.
@@ -54,7 +54,7 @@ public interface QueryPager
             return ReadExecutionController.empty();
         }
 
-        public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
+        public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, QueryState queryState) throws RequestValidationException, RequestExecutionException
         {
             return EmptyIterators.partition();
         }
@@ -90,11 +90,12 @@ public interface QueryPager
      *
      * @param pageSize the maximum number of elements to return in the next page.
      * @param consistency the consistency level to achieve for the query.
+     *                    // todo: YIFAN
      * @param clientState the {@code ClientState} for the query. In practice, this can be null unless
      * {@code consistency} is a serial consistency.
      * @return the page of result.
      */
-    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException;
+    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, QueryState queryState) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Starts a new read operation.

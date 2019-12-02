@@ -23,11 +23,12 @@ package org.apache.cassandra.service.paxos;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.QueryState;
 
 /**
  * ProposeCallback has two modes of operation, controlled by the failFast parameter.
@@ -50,9 +51,9 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
     private final int requiredAccepts;
     private final boolean failFast;
 
-    public ProposeCallback(int totalTargets, int requiredTargets, boolean failFast, ConsistencyLevel consistency, long queryStartNanoTime)
+    public ProposeCallback(int totalTargets, int requiredTargets, boolean failFast, ConsistencyLevel consistency, QueryState queryState)
     {
-        super(totalTargets, consistency, queryStartNanoTime);
+        super(totalTargets, consistency, queryState);
         this.requiredAccepts = requiredTargets;
         this.failFast = failFast;
     }
