@@ -46,6 +46,7 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -348,21 +349,6 @@ public class MigrationManager
         announceNewColumnFamily(cfm, announceLocally, true);
     }
 
-    /**
-     * Announces the table even if the definition is already know locally.
-     * This should generally be avoided but is used internally when we want to force the most up to date version of
-     * a system table schema (Note that we don't know if the schema we force _is_ the most recent version or not, we
-     * just rely on idempotency to basically ignore that announce if it's not. That's why we can't use announceUpdateColumnFamily,
-     * it would for instance delete new columns if this is not called with the most up-to-date version)
-     *
-     * Note that this is only safe for system tables where we know the cfId is fixed and will be the same whatever version
-     * of the definition is used.
-     */
-    public static void forceAnnounceNewColumnFamily(CFMetaData cfm) throws ConfigurationException
-    {
-        announceNewColumnFamily(cfm, false, false, 0);
-    }
-
     private static void announceNewColumnFamily(CFMetaData cfm, boolean announceLocally, boolean throwOnDuplicate) throws ConfigurationException
     {
         announceNewColumnFamily(cfm, announceLocally, throwOnDuplicate, FBUtilities.timestampMicros());
@@ -562,6 +548,16 @@ public class MigrationManager
         announce(SchemaKeyspace.makeDropAggregateMutation(ksm, udf, FBUtilities.timestampMicros()), announceLocally);
     }
 
+    static void announceGlobally(Mutation change)
+    {
+        announceGlobally(Collections.singletonList(change));
+    }
+
+    static void announceGlobally(Collection<Mutation> change)
+    {
+        FBUtilities.waitOnFuture(announce(change));
+    }
+
     /**
      * actively announce a new version to active hosts via rpc
      * @param schema The schema mutation to be applied
@@ -653,6 +649,51 @@ public class MigrationManager
         }
 
         logger.info("Local schema reset is complete.");
+    }
+
+    /**
+     * We have a set of non-local, distributed system keyspaces, e.g. system_traces, system_auth, etc.
+     * (see {@link Schema#REPLICATED_SYSTEM_KEYSPACE_NAMES}), that need to be created on cluster initialisation,
+     * and later evolved on major upgrades (sometimes minor too). This method compares the current known definitions
+     * of the tables (if the keyspace exists) to the expected, most modern ones expected by the running version of C*;
+     * if any changes have been detected, a schema Mutation will be created which, when applied, should make
+     * cluster's view of that keyspace aligned with the expected modern definition.
+     *
+     * @param keyspace   the expected modern definition of the keyspace
+     * @param generation timestamp to use for the table changes in the schema mutation
+     *
+     * @return empty Optional if the current definition is up to date, or an Optional with the Mutation that would
+     *         bring the schema in line with the expected definition.
+     */
+    static Optional<Mutation> evolveSystemKeyspace(KeyspaceMetadata keyspace, long generation)
+    {
+        Mutation.SimpleBuilder builder = null;
+
+        KeyspaceMetadata definedKeyspace = Schema.instance.getKSMetaData(keyspace.name);
+        Tables definedTables = null == definedKeyspace ? Tables.none() : definedKeyspace.tables;
+
+        for (CFMetaData table : keyspace.tables)
+        {
+            if (table.equals(definedTables.getNullable(table.cfName)))
+                continue;
+
+            if (null == builder)
+            {
+                // for the keyspace definition itself (name, replication, durability) always use generation 0;
+                // this ensures that any changes made to replication by the user will never be overwritten.
+                builder = SchemaKeyspace.makeCreateKeyspaceMutation(keyspace.name, keyspace.params, 0);
+
+                // now set the timestamp to generation, so the tables have the expected timestamp
+                builder.timestamp(generation);
+            }
+
+            // for table definitions always use the provided generation; these tables, unlike their containing
+            // keyspaces, are *NOT* meant to be altered by the user; if their definitions need to change,
+            // the schema must be updated in code, and the appropriate generation must be bumped.
+            SchemaKeyspace.addTableToSchemaMutation(table, true, builder);
+        }
+
+        return builder == null ? Optional.empty() : Optional.of(builder.build());
     }
 
     public static class MigrationsSerializer implements IVersionedSerializer<Collection<Mutation>>
