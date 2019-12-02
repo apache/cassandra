@@ -721,8 +721,10 @@ Altering an existing table uses the ``ALTER TABLE`` statement:
 
 .. productionlist::
    alter_table_statement: ALTER TABLE `table_name` `alter_table_instruction`
-   alter_table_instruction: ADD `column_name` `cql_type` ( ',' `column_name` `cql_type` )*
-                          : | DROP `column_name` ( `column_name` )*
+   alter_table_instruction: ADD `column_name` `cql_type`
+                          : | ADD '(' `column_name` `cql_type` ( ',' `column_name` `cql_type`)* ')'
+                          : | DROP `column_name`
+                          : | DROP '(' `column_name` (',' `column_name` )* ')'
                           : | WITH `options`
 
 For instance::
