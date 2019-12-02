@@ -31,6 +31,15 @@ public final class AuthKeyspace
     {
     }
 
+    /**
+     * Generation is used as a timestamp for automatic table creation on startup.
+     * If you make any changes to the tables below, make sure to increment the
+     * generation and document your change here.
+     *
+     * gen 0: original definition in 3.0
+     */
+    public static final long GENERATION = 0;
+
     public static final String ROLES = "roles";
     public static final String ROLE_MEMBERS = "role_members";
     public static final String ROLE_PERMISSIONS = "role_permissions";
