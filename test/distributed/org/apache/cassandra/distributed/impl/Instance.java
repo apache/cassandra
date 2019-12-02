@@ -42,6 +42,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -96,8 +97,8 @@ import org.apache.cassandra.utils.memory.BufferPool;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
-import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
@@ -186,7 +187,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 CQLStatement statement = QueryProcessor.parseStatement(query, queryState.getClientState());
                 statement.validate(state);
 
-                QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
+                QueryOptions options = QueryOptionsFactory.forInternalCalls(Collections.emptyList());
                 statement.executeLocally(queryState, options);
             }
             catch (Exception e)

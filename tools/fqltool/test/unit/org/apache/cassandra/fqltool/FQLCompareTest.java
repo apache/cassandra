@@ -34,10 +34,9 @@ import org.junit.Test;
 import net.openhft.chronicle.core.io.Closeable;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ChronicleQueueBuilder;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.fqltool.commands.Compare;
 import org.apache.cassandra.tools.Util;
-
 
 import static org.psjava.util.AssertStatus.assertTrue;
 
@@ -126,6 +125,6 @@ public class FQLCompareTest
 
     private FQLQuery.Single query()
     {
-        return new FQLQuery.Single("abc", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 12345, 5555, 6666, "select * from xyz", Collections.emptyList());
+        return new FQLQuery.Single("abc", QueryOptionsFactory.DEFAULT.getProtocolVersion().asInt(), QueryOptionsFactory.DEFAULT, 12345, 5555, 6666, "select * from xyz", Collections.emptyList());
     }
 }

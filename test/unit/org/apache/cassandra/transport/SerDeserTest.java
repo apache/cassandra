@@ -18,30 +18,55 @@
 package org.apache.cassandra.transport;
 
 import java.nio.ByteBuffer;
-import java.util.*;
-
-import io.netty.buffer.Unpooled;
-import io.netty.buffer.ByteBuf;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.Lists;
+import org.apache.cassandra.cql3.Maps;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.Sets;
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.UserTypes;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.transport.Event.TopologyChange;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.StatusChange;
+import org.apache.cassandra.transport.Event.TopologyChange;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
-import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 
@@ -220,7 +245,7 @@ public class SerDeserTest
         UserTypes.Literal u = new UserTypes.Literal(value);
         Term t = u.prepare("ks", columnSpec("myValue", udt));
 
-        QueryOptions options = QueryOptions.DEFAULT;
+        QueryOptions options = QueryOptionsFactory.DEFAULT;
 
         ByteBuffer serialized = t.bindAndGet(options);
 
@@ -315,14 +340,14 @@ public class SerDeserTest
         {
             queryOptionsSerDeserTest(
                 version,
-                QueryOptions.create(ConsistencyLevel.ALL,
-                                    Collections.singletonList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 })),
-                                    false,
-                                    5000,
-                                    Util.makeSomePagingState(version),
-                                    ConsistencyLevel.SERIAL,
-                                    version,
-                                    null)
+                QueryOptionsFactory.create(ConsistencyLevel.ALL,
+                                           Collections.singletonList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 })),
+                                           false,
+                                           5000,
+                                           Util.makeSomePagingState(version),
+                                           ConsistencyLevel.SERIAL,
+                                           version,
+                                           null)
             );
         }
 
@@ -330,15 +355,15 @@ public class SerDeserTest
         {
             queryOptionsSerDeserTest(
                 version,
-                QueryOptions.create(ConsistencyLevel.LOCAL_ONE,
-                                    Arrays.asList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 }),
-                                                  ByteBuffer.wrap(new byte[] { 0x03, 0x04, 0x05, 0x03, 0x04, 0x05 })),
-                                    true,
-                                    10,
-                                    Util.makeSomePagingState(version),
-                                    ConsistencyLevel.SERIAL,
-                                    version,
-                                    "some_keyspace")
+                QueryOptionsFactory.create(ConsistencyLevel.LOCAL_ONE,
+                                           Arrays.asList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 }),
+                                                         ByteBuffer.wrap(new byte[] { 0x03, 0x04, 0x05, 0x03, 0x04, 0x05 })),
+                                           true,
+                                           10,
+                                           Util.makeSomePagingState(version),
+                                           ConsistencyLevel.SERIAL,
+                                           version,
+                                           "some_keyspace")
             );
         }
 
@@ -346,27 +371,27 @@ public class SerDeserTest
         {
             queryOptionsSerDeserTest(
                 version,
-                QueryOptions.create(ConsistencyLevel.LOCAL_ONE,
-                                    Arrays.asList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 }),
-                                                  ByteBuffer.wrap(new byte[] { 0x03, 0x04, 0x05, 0x03, 0x04, 0x05 })),
-                                    true,
-                                    10,
-                                    Util.makeSomePagingState(version),
-                                    ConsistencyLevel.SERIAL,
-                                    version,
-                                    "some_keyspace",
-                                    FBUtilities.timestampMicros(),
-                                    FBUtilities.nowInSeconds(),
-                                    Integer.MAX_VALUE)
+                QueryOptionsFactory.create(ConsistencyLevel.LOCAL_ONE,
+                                           Arrays.asList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 }),
+                                                         ByteBuffer.wrap(new byte[] { 0x03, 0x04, 0x05, 0x03, 0x04, 0x05 })),
+                                           true,
+                                           10,
+                                           Util.makeSomePagingState(version),
+                                           ConsistencyLevel.SERIAL,
+                                           version,
+                                           "some_keyspace",
+                                           FBUtilities.timestampMicros(),
+                                           FBUtilities.nowInSeconds(),
+                                           Integer.MAX_VALUE)
             );
         }
     }
 
     private void queryOptionsSerDeserTest(ProtocolVersion version, QueryOptions options)
     {
-        ByteBuf buf = Unpooled.buffer(QueryOptions.codec.encodedSize(options, version));
-        QueryOptions.codec.encode(options, buf, version);
-        QueryOptions decodedOptions = QueryOptions.codec.decode(buf, version);
+        ByteBuf buf = Unpooled.buffer(QueryOptionsFactory.codec.encodedSize(options, version));
+        QueryOptionsFactory.codec.encode(options, buf, version);
+        QueryOptions decodedOptions = QueryOptionsFactory.codec.decode(buf, version);
 
         QueryState state = new QueryState(ClientState.forInternalCalls());
 
@@ -379,7 +404,7 @@ public class SerDeserTest
         assertEquals(options.getPagingState(), decodedOptions.getPagingState());
         assertEquals(options.skipMetadata(), decodedOptions.skipMetadata());
         assertEquals(options.getKeyspace(), decodedOptions.getKeyspace());
-        assertEquals(options.getTimestamp(state), decodedOptions.getTimestamp(state));
-        assertEquals(options.getNowInSeconds(state), decodedOptions.getNowInSeconds(state));
+        assertEquals(options.getTimestampWithFallback(state), decodedOptions.getTimestampWithFallback(state));
+        assertEquals(options.getNowInSecondsWithFallback(state), decodedOptions.getNowInSecondsWithFallback(state));
     }
 }

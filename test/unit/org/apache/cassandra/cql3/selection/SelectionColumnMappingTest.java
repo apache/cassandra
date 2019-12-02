@@ -26,15 +26,33 @@ import java.util.List;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -124,7 +142,7 @@ public class SelectionColumnMappingTest extends CQLTester
         // we don't use verify like with the other tests because this query will produce no results
         SelectStatement statement = getSelect("SELECT token(a,b) FROM %s");
         verifyColumnMapping(expected, statement);
-        statement.executeLocally(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
+        statement.executeLocally(QueryState.forInternalCalls(), QueryOptionsFactory.DEFAULT);
     }
 
     private void testSimpleTypes() throws Throwable
@@ -582,7 +600,7 @@ public class SelectionColumnMappingTest extends CQLTester
     throws RequestExecutionException, RequestValidationException
     {
         UntypedResultSet rs = UntypedResultSet.create(statement.executeLocally(QueryState.forInternalCalls(),
-                                                                               QueryOptions.DEFAULT).result);
+                                                                               QueryOptionsFactory.DEFAULT).result);
 
         assertEquals(expectedResultColumns, rs.one().getColumns());
     }

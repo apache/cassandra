@@ -32,6 +32,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.AlterRoleStatement;
@@ -50,8 +51,8 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.apache.cassandra.auth.AuthKeyspace.NETWORK_PERMISSIONS;
 import static org.apache.cassandra.auth.RoleTestUtils.LocalCassandraRoleManager;
-import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 import static org.apache.cassandra.auth.RoleTestUtils.getReadCount;
+import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 
 public class CassandraNetworkAuthorizerTest
 {
@@ -70,7 +71,7 @@ public class CassandraNetworkAuthorizerTest
         @Override
         void processBatch(BatchStatement statement)
         {
-            statement.executeLocally(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
+            statement.executeLocally(QueryState.forInternalCalls(), QueryOptionsFactory.DEFAULT);
         }
     }
 

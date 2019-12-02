@@ -36,7 +36,8 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MD5Digest;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class PstmtPersistenceTest extends CQLTester
 {
@@ -116,8 +117,8 @@ public class PstmtPersistenceTest extends CQLTester
     private void validatePstmts(List<MD5Digest> stmtIds, QueryHandler handler)
     {
         assertEquals(5, QueryProcessor.preparedStatementsCount());
-        QueryOptions optionsStr = QueryOptions.forInternalCalls(Collections.singletonList(UTF8Type.instance.fromString("foobar")));
-        QueryOptions optionsInt = QueryOptions.forInternalCalls(Collections.singletonList(Int32Type.instance.decompose(42)));
+        QueryOptions optionsStr = QueryOptionsFactory.forInternalCalls(Collections.singletonList(UTF8Type.instance.fromString("foobar")));
+        QueryOptions optionsInt = QueryOptionsFactory.forInternalCalls(Collections.singletonList(Int32Type.instance.decompose(42)));
         validatePstmt(handler, stmtIds.get(0), optionsStr);
         validatePstmt(handler, stmtIds.get(1), optionsInt);
         validatePstmt(handler, stmtIds.get(2), optionsStr);

@@ -30,6 +30,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.transport.messages.QueryMessage;
@@ -77,13 +78,13 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
         try
         {
             client.connect(false, false, true);
-            QueryOptions queryOptions = QueryOptions.create(
-            QueryOptions.DEFAULT.getConsistency(),
-            QueryOptions.DEFAULT.getValues(),
-            QueryOptions.DEFAULT.skipMetadata(),
-            QueryOptions.DEFAULT.getPageSize(),
-            QueryOptions.DEFAULT.getPagingState(),
-            QueryOptions.DEFAULT.getSerialConsistency(),
+            QueryOptions queryOptions = QueryOptionsFactory.create(
+            QueryOptionsFactory.DEFAULT.getConsistency(),
+            QueryOptionsFactory.DEFAULT.getValues(),
+            QueryOptionsFactory.DEFAULT.skipMetadata(),
+            QueryOptionsFactory.DEFAULT.getPageSize(),
+            QueryOptionsFactory.DEFAULT.getPagingState(),
+            QueryOptionsFactory.DEFAULT.getSerialConsistency(),
             ProtocolVersion.V5,
             KEYSPACE);
 
@@ -109,13 +110,13 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
         try
         {
             client.connect(false, false, false);
-            QueryOptions queryOptions = QueryOptions.create(
-            QueryOptions.DEFAULT.getConsistency(),
-            QueryOptions.DEFAULT.getValues(),
-            QueryOptions.DEFAULT.skipMetadata(),
-            QueryOptions.DEFAULT.getPageSize(),
-            QueryOptions.DEFAULT.getPagingState(),
-            QueryOptions.DEFAULT.getSerialConsistency(),
+            QueryOptions queryOptions = QueryOptionsFactory.create(
+            QueryOptionsFactory.DEFAULT.getConsistency(),
+            QueryOptionsFactory.DEFAULT.getValues(),
+            QueryOptionsFactory.DEFAULT.skipMetadata(),
+            QueryOptionsFactory.DEFAULT.getPageSize(),
+            QueryOptionsFactory.DEFAULT.getPagingState(),
+            QueryOptionsFactory.DEFAULT.getSerialConsistency(),
             ProtocolVersion.V5,
             KEYSPACE);
 
@@ -144,13 +145,13 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
         try
         {
             client.connect(false, false, false);
-            QueryOptions queryOptions = QueryOptions.create(
-            QueryOptions.DEFAULT.getConsistency(),
-            QueryOptions.DEFAULT.getValues(),
-            QueryOptions.DEFAULT.skipMetadata(),
-            QueryOptions.DEFAULT.getPageSize(),
-            QueryOptions.DEFAULT.getPagingState(),
-            QueryOptions.DEFAULT.getSerialConsistency(),
+            QueryOptions queryOptions = QueryOptionsFactory.create(
+            QueryOptionsFactory.DEFAULT.getConsistency(),
+            QueryOptionsFactory.DEFAULT.getValues(),
+            QueryOptionsFactory.DEFAULT.skipMetadata(),
+            QueryOptionsFactory.DEFAULT.getPageSize(),
+            QueryOptionsFactory.DEFAULT.getPagingState(),
+            QueryOptionsFactory.DEFAULT.getSerialConsistency(),
             ProtocolVersion.V5,
             KEYSPACE);
 
@@ -180,13 +181,13 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
         try
         {
             client.connect(false, false, true);
-            QueryOptions queryOptions = QueryOptions.create(
-            QueryOptions.DEFAULT.getConsistency(),
-            QueryOptions.DEFAULT.getValues(),
-            QueryOptions.DEFAULT.skipMetadata(),
-            QueryOptions.DEFAULT.getPageSize(),
-            QueryOptions.DEFAULT.getPagingState(),
-            QueryOptions.DEFAULT.getSerialConsistency(),
+            QueryOptions queryOptions = QueryOptionsFactory.create(
+            QueryOptionsFactory.DEFAULT.getConsistency(),
+            QueryOptionsFactory.DEFAULT.getValues(),
+            QueryOptionsFactory.DEFAULT.skipMetadata(),
+            QueryOptionsFactory.DEFAULT.getPageSize(),
+            QueryOptionsFactory.DEFAULT.getPagingState(),
+            QueryOptionsFactory.DEFAULT.getSerialConsistency(),
             ProtocolVersion.V5,
             KEYSPACE);
 
@@ -224,13 +225,13 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
         try
         {
             client.connect(false, false, true);
-            QueryOptions queryOptions = QueryOptions.create(
-            QueryOptions.DEFAULT.getConsistency(),
-            QueryOptions.DEFAULT.getValues(),
-            QueryOptions.DEFAULT.skipMetadata(),
-            QueryOptions.DEFAULT.getPageSize(),
-            QueryOptions.DEFAULT.getPagingState(),
-            QueryOptions.DEFAULT.getSerialConsistency(),
+            QueryOptions queryOptions = QueryOptionsFactory.create(
+            QueryOptionsFactory.DEFAULT.getConsistency(),
+            QueryOptionsFactory.DEFAULT.getValues(),
+            QueryOptionsFactory.DEFAULT.skipMetadata(),
+            QueryOptionsFactory.DEFAULT.getPageSize(),
+            QueryOptionsFactory.DEFAULT.getPagingState(),
+            QueryOptionsFactory.DEFAULT.getSerialConsistency(),
             ProtocolVersion.V5,
             KEYSPACE);
 

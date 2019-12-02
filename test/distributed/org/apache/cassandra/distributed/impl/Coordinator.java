@@ -28,7 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.Future;
 
 import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
@@ -37,8 +37,8 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.QueryPager;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -83,14 +83,14 @@ public class Coordinator implements ICoordinator
 
         prepared.validate(QueryState.forInternalCalls().getClientState());
         ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
-                                             QueryOptions.create(consistencyLevel,
-                                                                 boundBBValues,
-                                                                 false,
-                                                                 Integer.MAX_VALUE,
-                                                                 null,
-                                                                 null,
-                                                                 ProtocolVersion.V4,
-                                                                 null),
+                                             QueryOptionsFactory.create(consistencyLevel,
+                                                                        boundBBValues,
+                                                                        false,
+                                                                        Integer.MAX_VALUE,
+                                                                        null,
+                                                                        null,
+                                                                        ProtocolVersion.V4,
+                                                                        null),
                                              System.nanoTime());
 
         if (res != null && res.kind == ResultMessage.Kind.ROWS)
@@ -125,14 +125,14 @@ public class Coordinator implements ICoordinator
 
             SelectStatement selectStatement = (SelectStatement) prepared;
 
-            QueryPager pager = selectStatement.getQuery(QueryOptions.create(consistencyLevel,
-                                                                            boundBBValues,
-                                                                            false,
-                                                                            pageSize,
-                                                                            null,
-                                                                            null,
-                                                                            ProtocolVersion.CURRENT,
-                                                                            selectStatement.keyspace()),
+            QueryPager pager = selectStatement.getQuery(QueryOptionsFactory.create(consistencyLevel,
+                                                                                   boundBBValues,
+                                                                                   false,
+                                                                                   pageSize,
+                                                                                   null,
+                                                                                   null,
+                                                                                   ProtocolVersion.CURRENT,
+                                                                                   selectStatement.keyspace()),
                                                         FBUtilities.nowInSeconds())
                                               .getPager(null, ProtocolVersion.CURRENT);
 

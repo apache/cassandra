@@ -18,15 +18,16 @@
 */
 package org.apache.cassandra.db.marshal;
 
-import static org.junit.Assert.assertEquals;
-
 import java.nio.ByteBuffer;
 
+import org.junit.Test;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.UUIDGen;
-import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 public class JsonConversionTest
 {
@@ -311,7 +312,7 @@ public class JsonConversionTest
     {
         AbstractType<?> type = TypeParser.parse(typeString);
         Object jsonObject = JSON_OBJECT_MAPPER.readValue(json, Object.class);
-        ByteBuffer bb = type.fromJSONObject(jsonObject).bindAndGet(QueryOptions.DEFAULT);
+        ByteBuffer bb = type.fromJSONObject(jsonObject).bindAndGet(QueryOptionsFactory.DEFAULT);
         int position = bb.position();
 
         String output = type.toJSONString(bb, ProtocolVersion.CURRENT);

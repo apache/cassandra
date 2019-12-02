@@ -192,17 +192,17 @@ public class CustomNowInSecondsTest extends CQLTester
 
     private static QueryOptions queryOptions(int nowInSeconds)
     {
-        return QueryOptions.create(ConsistencyLevel.ONE,
-                                   Collections.emptyList(),
-                                   false,
-                                   Integer.MAX_VALUE,
-                                   null,
-                                   null,
-                                   ProtocolVersion.CURRENT,
-                                   null,
-                                   Long.MIN_VALUE,
-                                   nowInSeconds,
-                                   Integer.MAX_VALUE);
+        return QueryOptionsFactory.create(ConsistencyLevel.ONE,
+                                          Collections.emptyList(),
+                                          false,
+                                          Integer.MAX_VALUE,
+                                          null,
+                                          null,
+                                          ProtocolVersion.CURRENT,
+                                          null,
+                                          Long.MIN_VALUE,
+                                          nowInSeconds,
+                                          Integer.MAX_VALUE);
     }
 
     private static BatchQueryOptions batchQueryOptions(int nowInSeconds)

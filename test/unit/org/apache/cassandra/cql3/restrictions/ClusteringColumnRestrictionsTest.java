@@ -18,23 +18,27 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.SortedSet;
 
 import com.google.common.collect.Iterables;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.Term.MultiItemTerminal;
+import org.apache.cassandra.cql3.Tuples;
 import org.apache.cassandra.cql3.statements.Bound;
-
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.Arrays.asList;
@@ -56,11 +60,11 @@ public class ClusteringColumnRestrictionsTest
 
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
     }
@@ -79,11 +83,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, clustering_0);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, clustering_0);
     }
@@ -102,11 +106,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, clustering_0);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, clustering_0);
     }
@@ -128,13 +132,13 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(in);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), true, value2);
         assertStartBound(get(bounds, 2), true, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertEndBound(get(bounds, 0), true, value1);
         assertEndBound(get(bounds, 1), true, value2);
@@ -156,11 +160,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -168,11 +172,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -180,11 +184,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1);
 
@@ -192,11 +196,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
 
@@ -205,11 +209,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value2);
 
@@ -218,11 +222,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value2);
     }
@@ -242,11 +246,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
 
@@ -254,11 +258,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1);
 
@@ -266,11 +270,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -278,11 +282,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -291,11 +295,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
 
@@ -304,11 +308,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1);
     }
@@ -329,13 +333,13 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq).mergeWith(in);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value1);
         assertStartBound(get(bounds, 1), true, value1, value2);
         assertStartBound(get(bounds, 2), true, value1, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value1);
         assertEndBound(get(bounds, 1), true, value1, value2);
@@ -360,11 +364,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value3, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value3);
 
@@ -372,11 +376,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value3, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value3);
 
@@ -384,11 +388,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value3, value1);
 
@@ -396,11 +400,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value3, value1);
 
@@ -409,11 +413,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value3, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value3, value2);
 
@@ -422,11 +426,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value3, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value3, value2);
     }
@@ -445,11 +449,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2);
     }
@@ -469,12 +473,12 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(in);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
         assertStartBound(get(bounds, 1), true, value2, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2);
         assertEndBound(get(bounds, 1), true, value2, value3);
@@ -496,11 +500,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -508,11 +512,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -520,11 +524,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1);
 
@@ -532,11 +536,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
 
@@ -545,11 +549,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value2);
 
@@ -558,11 +562,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value2);
     }
@@ -583,11 +587,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
 
@@ -595,11 +599,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1);
 
@@ -607,11 +611,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -619,11 +623,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -632,11 +636,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
 
@@ -645,11 +649,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1);
     }
@@ -670,11 +674,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -683,11 +687,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -696,11 +700,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2);
 
@@ -709,11 +713,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
 
@@ -723,11 +727,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value2);
 
@@ -737,11 +741,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value2, value1);
     }
@@ -762,11 +766,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
 
@@ -775,11 +779,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2);
 
@@ -788,11 +792,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -801,11 +805,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -816,11 +820,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
 
@@ -830,11 +834,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value2, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2);
     }
@@ -856,12 +860,12 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyStart(get(bounds, 0));
         assertStartBound(get(bounds, 1), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
         assertEndBound(get(bounds, 1), true, value1);
@@ -871,12 +875,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyStart(get(bounds, 0));
         assertStartBound(get(bounds, 1), true, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
         assertEndBound(get(bounds, 1), true, value1);
@@ -886,12 +890,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2);
         assertEmptyEnd(get(bounds, 1));
@@ -901,12 +905,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
         assertEmptyEnd(get(bounds, 1));
@@ -917,12 +921,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), false, value2);
         assertStartBound(get(bounds, 1), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
         assertEndBound(get(bounds, 1), true, value1);
@@ -933,12 +937,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value2);
         assertStartBound(get(bounds, 1), false, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value2, value1);
         assertEndBound(get(bounds, 1), false, value1);
@@ -949,13 +953,13 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertStartBound(get(bounds, 0), true, value2);
         assertStartBound(get(bounds, 1), false, value2);
         assertStartBound(get(bounds, 2), true, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertEndBound(get(bounds, 0), true, value2, value1);
         assertEndBound(get(bounds, 1), false, value1);
@@ -979,12 +983,12 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
         assertEmptyEnd(get(bounds, 1));
@@ -994,12 +998,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2);
         assertEmptyEnd(get(bounds, 1));
@@ -1009,12 +1013,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyStart(get(bounds, 0));
         assertStartBound(get(bounds, 1), true, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
         assertEndBound(get(bounds, 1), true, value1);
@@ -1024,12 +1028,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyStart(get(bounds, 0));
         assertStartBound(get(bounds, 1), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
         assertEndBound(get(bounds, 1), true, value1);
@@ -1040,12 +1044,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
         assertEndBound(get(bounds, 1), false, value2);
@@ -1056,13 +1060,13 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), false, value1);
         assertStartBound(get(bounds, 2), true, value2, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2);
         assertEndBound(get(bounds, 1), false, value2);
@@ -1088,12 +1092,12 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
         assertStartBound(get(bounds, 1), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
         assertEmptyEnd(get(bounds, 1));
@@ -1105,12 +1109,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = restrictions.mergeWith(slice);
         restrictions = restrictions.mergeWith(eq);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
         assertStartBound(get(bounds, 1), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
         assertEndBound(get(bounds, 1), true, value1);
@@ -1122,14 +1126,14 @@ public class ClusteringColumnRestrictionsTest
         restrictions = restrictions.mergeWith(slice);
         restrictions = restrictions.mergeWith(in);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(4, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
         assertStartBound(get(bounds, 1), false, value1, value2);
         assertStartBound(get(bounds, 2), true, value2, value2);
         assertStartBound(get(bounds, 3), false, value2, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(4, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
         assertEndBound(get(bounds, 1), true, value1);
@@ -1141,11 +1145,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyEnd(get(bounds, 0));
 
@@ -1154,12 +1158,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
         assertStartBound(get(bounds, 1), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
         assertEmptyEnd(get(bounds, 1));
@@ -1169,12 +1173,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyStart(get(bounds, 0));
         assertStartBound(get(bounds, 1), true, value1, value2, value3, value4);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
         assertEndBound(get(bounds, 1), true, value1, value2);
@@ -1184,12 +1188,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyStart(get(bounds, 0));
         assertStartBound(get(bounds, 1), false, value1, value2, value3, value4);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
         assertEndBound(get(bounds, 1), true, value1, value2);
@@ -1200,12 +1204,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
         assertStartBound(get(bounds, 1), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
         assertEndBound(get(bounds, 1), false, value2, value3);
@@ -1216,13 +1220,13 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
         assertStartBound(get(bounds, 1), false, value1, value2);
         assertStartBound(get(bounds, 2), true, value4, value3, value2, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
         assertEndBound(get(bounds, 1), false, value4, value3);
@@ -1248,7 +1252,7 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(4, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), true, value1, value2, value3);
@@ -1256,7 +1260,7 @@ public class ClusteringColumnRestrictionsTest
         assertStartBound(get(bounds, 3), false, value1);
 
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(4, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
         assertEndBound(get(bounds, 1), false, value1, value2, value3, value4);
@@ -1270,13 +1274,13 @@ public class ClusteringColumnRestrictionsTest
         restrictions = restrictions.mergeWith(slice);
         restrictions = restrictions.mergeWith(eq);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), true, value1, value2, value3);
         assertStartBound(get(bounds, 2), false, value1, value2, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(3, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
         assertEndBound(get(bounds, 1), false, value1, value2, value3, value4);
@@ -1287,12 +1291,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2);
         assertEmptyEnd(get(bounds, 1));
@@ -1302,14 +1306,14 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(4, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), true, value1, value2, value3);
         assertStartBound(get(bounds, 2), false, value1, value2, value3);
         assertStartBound(get(bounds, 3), false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(4, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
         assertEndBound(get(bounds, 1), true, value1, value2, value3, value4);
@@ -1321,14 +1325,14 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(4, bounds.size());
         assertEmptyStart(get(bounds, 0));
         assertStartBound(get(bounds, 1), true, value1, value2);
         assertStartBound(get(bounds, 2), true, value1, value2, value3, value4);
         assertStartBound(get(bounds, 3), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(4, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
         assertEndBound(get(bounds, 1), false, value1, value2, value3);
@@ -1340,14 +1344,14 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(4, bounds.size());
         assertEmptyStart(get(bounds, 0));
         assertStartBound(get(bounds, 1), true, value1, value2);
         assertStartBound(get(bounds, 2), false, value1, value2, value3, value4);
         assertStartBound(get(bounds, 3), false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(4, bounds.size());
         assertEndBound(get(bounds, 0), false, value1);
         assertEndBound(get(bounds, 1), false, value1, value2, value3);
@@ -1360,7 +1364,7 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(5, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), true, value1, value2, value3);
@@ -1368,7 +1372,7 @@ public class ClusteringColumnRestrictionsTest
         assertStartBound(get(bounds, 3), false, value1);
         assertStartBound(get(bounds, 4), false, value2, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(5, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
         assertEndBound(get(bounds, 1), false, value1, value2, value3, value4);
@@ -1382,7 +1386,7 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(7, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
         assertStartBound(get(bounds, 1), true, value1, value2, value3);
@@ -1392,7 +1396,7 @@ public class ClusteringColumnRestrictionsTest
         assertStartBound(get(bounds, 5), true, value4, value3, value2, value1);
         assertStartBound(get(bounds, 6), false, value4, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(7, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value2);
         assertEndBound(get(bounds, 1), true, value1, value2, value3, value4);
@@ -1422,11 +1426,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiEq);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2, value3);
 
@@ -1437,11 +1441,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(singleEq2).mergeWith(multiEq);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2, value3, value4);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
 
@@ -1451,11 +1455,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiEq);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2, value3);
 
@@ -1466,11 +1470,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiEq).mergeWith(singleEq2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2, value3, value4);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
     }
@@ -1495,12 +1499,12 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiIN);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2, value3);
         assertStartBound(get(bounds, 1), true, value1, value4, value5);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2, value3);
         assertEndBound(get(bounds, 1), true, value1, value4, value5);
@@ -1511,11 +1515,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(multiIN).mergeWith(singleEq);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2, value3);
 
@@ -1526,12 +1530,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiIN).mergeWith(singleEq2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value5, value2, value3);
         assertStartBound(get(bounds, 1), true, value1, value5, value4, value5);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value5, value2, value3);
         assertEndBound(get(bounds, 1), true, value1, value5, value4, value5);
@@ -1558,11 +1562,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiSlice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1, value2, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1);
 
@@ -1573,11 +1577,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(multiSlice2).mergeWith(singleEq).mergeWith(multiSlice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1, value2, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), false, value1, value4);
 
@@ -1588,11 +1592,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(multiSlice2).mergeWith(singleEq).mergeWith(multiSlice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value4, value5);
     }
@@ -1616,11 +1620,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(singleSlice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1, value2, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2);
     }
@@ -1642,11 +1646,11 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(multiSlice);
 
-        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1, value2, value3, value4);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2);
 
@@ -1656,12 +1660,12 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(multiIN);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2, value3, value4);
         assertStartBound(get(bounds, 1), true, value1, value2, value4, value5);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(2, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
         assertEndBound(get(bounds, 1), true, value1, value2, value4, value5);
@@ -1672,11 +1676,11 @@ public class ClusteringColumnRestrictionsTest
         restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(multiEq2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2, value3, value4);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptionsFactory.DEFAULT);
         assertEquals(1, bounds.size());
         assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
     }

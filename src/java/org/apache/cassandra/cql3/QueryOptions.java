@@ -18,11 +18,17 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongFunction;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -44,9 +50,65 @@ public interface QueryOptions
     ProtocolVersion getProtocolVersion();
     QueryOptions prepare(List<ColumnSpecification> specs);
 
+    /**
+     * Tells whether or not this <code>QueryOptions</code> contains the column specifications for the bound variables.
+     * <p>The column specifications will be present only for prepared statements.</p>
+     * @return <code>true</code> this <code>QueryOptions</code> contains the column specifications for the bound
+     * variables, <code>false</code> otherwise.
+     */
+    boolean hasColumnSpecifications();
+
+    /**
+     * Returns the column specifications for the bound variables (<i>optional operation</i>).
+     *
+     * <p>The column specifications will be present only for prepared statements.</p>
+     *
+     * <p>Invoke the {@link #hasColumnSpecifications} method before invoking this method in order to ensure that this
+     * <code>QueryOptions</code> contains the column specifications.</p>
+     *
+     * @return the option names
+     * @throws UnsupportedOperationException If this <code>QueryOptions</code> does not contains the column
+     * specifications.
+     */
+    ImmutableList<ColumnSpecification> getColumnSpecifications();
+
+    /**
+     * Returns the term corresponding to column {@code columnName} in the JSON value of bind index {@code bindIndex}.
+     *
+     * This is functionally equivalent to:
+     *   {@code Json.parseJson(UTF8Type.instance.getSerializer().deserialize(getValues().get(bindIndex)), expectedReceivers).get(columnName)}
+     * but this caches the result of parsing the JSON, so that while this might be called for multiple columns on the same {@code bindIndex}
+     * value, the underlying JSON value is only parsed/processed once.
+     *
+     * Note: this is a bit more involved in CQL specifics than this class generally is, but as we need to cache this per-query and in an object
+     * that is available when we bind values, this is the easiest place to have this.
+     *
+     * @param bindIndex the index of the bind value that should be interpreted as a JSON value.
+     * @param columnName the name of the column we want the value of.
+     * @param expectedReceivers the columns expected in the JSON value at index {@code bindIndex}. This is only used when parsing the
+     * json initially and no check is done afterwards. So in practice, any call of this method on the same QueryOptions object and with the same
+     * {@code bindIndx} values should use the same value for this parameter, but this isn't validated in any way.
+     *
+     * @return the value correspong to column {@code columnName} in the (JSON) bind value at index {@code bindIndex}. This may return null if the
+     * JSON value has no value for this column.
+     */
+    Term getJsonColumnValue(int bindIndex, ColumnIdentifier columnName, Collection<ColumnMetadata> expectedReceivers) throws InvalidRequestException;
+
     default long calculateTimeout(ToLongFunction<TimeUnit> configuredTimeout, TimeUnit timeUnit)
     {
         return Math.min(timeUnit.convert(getTimeoutInMillis(), TimeUnit.MILLISECONDS),
                         configuredTimeout.applyAsLong(timeUnit));
+    }
+
+    default long getTimestampWithFallback(QueryState state)
+    {
+        long tstamp = getTimestamp();
+        return tstamp != Long.MIN_VALUE ? tstamp : state.getTimestamp();
+    }
+
+    default int getNowInSecondsWithFallback(QueryState state)
+    {
+        int nowInSeconds = getNowInSeconds();
+        return nowInSeconds != Integer.MIN_VALUE ? nowInSeconds : state.getNowInSeconds();
     }
 }
