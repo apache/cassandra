@@ -1,4 +1,6 @@
 3.0.20
+ * Bump generations and document changes to system_distributed and system_traces in 3.0, 3.11
+   (CASSANDRA-15441)
  * Fix system_traces creation timestamp; optimise system keyspace upgrades (CASSANDRA-15398)
  * Fix various data directory prefix matching issues (CASSANDRA-13974)
  * Minimize clustering values in metadata collector (CASSANDRA-15400)
