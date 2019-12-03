@@ -46,6 +46,7 @@ import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.MonotonicClock;
 
 import static com.google.common.collect.Iterables.all;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -147,7 +148,12 @@ public abstract class AbstractReadExecutor
                 traceState.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
 
             if (null == message)
-                message = readCommand.createMessage(false);
+            {
+                // create the message using the resolved timeout in querystate; if absent, fallback to using the configured timeout
+                message = readCommand.createMessageBuilder(false)
+                                     .withQueryState(queryState)
+                                     .build();
+            }
 
             MessagingService.instance().sendWithCallback(message, endpoint, handler);
         }

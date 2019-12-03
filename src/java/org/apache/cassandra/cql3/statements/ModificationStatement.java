@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.ToLongFunction;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -224,6 +225,12 @@ public abstract class ModificationStatement implements CQLStatement
             state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getCounterWriteRpcTimeout, TimeUnit.NANOSECONDS));
         }
         else if (hasConditions())
+        {
+            ToLongFunction<TimeUnit> max = tu -> Math.max(DatabaseDescriptor.getCasContentionTimeout(tu),
+                                                          DatabaseDescriptor.getWriteRpcTimeout(tu));
+            state.setTimeoutInNanos(options.calculateTimeout(max, TimeUnit.NANOSECONDS));
+        }
+        else
         {
             state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getWriteRpcTimeout, TimeUnit.NANOSECONDS));
         }

@@ -291,7 +291,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     /**
      * Cheap Quorum backup.  If we failed to reach quorum with our initial (full) nodes, reach out to other nodes.
      */
-    public void maybeTryAdditionalReplicas(IMutation mutation, StorageProxy.WritePerformer writePerformer, String localDC)
+    public void maybeTryAdditionalReplicas(IMutation mutation, StorageProxy.WritePerformer writePerformer, String localDC, QueryState queryState)
     {
         EndpointsForToken uncontacted = replicaPlan.liveUncontacted();
         if (uncontacted.isEmpty())
@@ -317,7 +317,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
                 writePerformer.apply(mutation, replicaPlan.withContact(uncontacted),
                                      (AbstractWriteResponseHandler<IMutation>) this,
-                                     localDC);
+                                     localDC,
+                                     queryState);
             }
         }
         catch (InterruptedException ex)

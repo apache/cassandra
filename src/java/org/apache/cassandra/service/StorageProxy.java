@@ -126,6 +126,7 @@ import org.apache.cassandra.net.ForwardingInfo;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
@@ -203,10 +204,10 @@ public class StorageProxy implements StorageProxyMBean
         HintsService.instance.registerMBean();
         HintedHandOffManager.instance.registerMBean();
 
-        standardWritePerformer = (mutation, targets, responseHandler, localDataCenter) ->
+        standardWritePerformer = (mutation, targets, responseHandler, localDataCenter, queryState) ->
         {
             assert mutation instanceof Mutation;
-            sendToHintedReplicas((Mutation) mutation, targets, responseHandler, localDataCenter, Stage.MUTATION);
+            sendToHintedReplicas((Mutation) mutation, targets, responseHandler, localDataCenter, Stage.MUTATION, queryState);
         };
 
         /*
@@ -215,19 +216,19 @@ public class StorageProxy implements StorageProxyMBean
          * but on the latter case, the verb handler already run on the COUNTER_MUTATION stage, so we must not execute the
          * underlying on the stage otherwise we risk a deadlock. Hence two different performer.
          */
-        counterWritePerformer = (mutation, targets, responseHandler, localDataCenter) ->
+        counterWritePerformer = (mutation, targets, responseHandler, localDataCenter, queryState) ->
         {
             EndpointsForToken selected = targets.contacts().withoutSelf();
             Replicas.temporaryAssertFull(selected); // TODO CASSANDRA-14548
-            counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter).run();
+            counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter, queryState).run();
         };
 
-        counterWriteOnCoordinatorPerformer = (mutation, targets, responseHandler, localDataCenter) ->
+        counterWriteOnCoordinatorPerformer = (mutation, targets, responseHandler, localDataCenter, queryState) ->
         {
             EndpointsForToken selected = targets.contacts().withoutSelf();
             Replicas.temporaryAssertFull(selected); // TODO CASSANDRA-14548
             Stage.COUNTER_MUTATION.executor()
-                                  .execute(counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter));
+                                  .execute(counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter, queryState));
         };
 
         for(ConsistencyLevel level : ConsistencyLevel.values())
@@ -484,7 +485,7 @@ public class StorageProxy implements StorageProxyMBean
             if (Iterables.size(missingMRC) > 0)
             {
                 Tracing.trace("Repairing replicas that missed the most recent commit");
-                sendCommit(mostRecent, missingMRC);
+                sendCommit(mostRecent, missingMRC, queryState);
                 // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
                 // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
                 // adding the ability to have commitPaxos block, which is exactly CASSANDRA-5442 will do. So once we have that
@@ -502,9 +503,9 @@ public class StorageProxy implements StorageProxyMBean
     /**
      * Unlike commitPaxos, this does not wait for replies
      */
-    private static void sendCommit(Commit commit, Iterable<InetAddressAndPort> replicas)
+    private static void sendCommit(Commit commit, Iterable<InetAddressAndPort> replicas, QueryState queryState)
     {
-        Message<Commit> message = Message.out(PAXOS_COMMIT_REQ, commit);
+        Message<Commit> message = Message.builder(PAXOS_COMMIT_REQ, commit).withQueryState(queryState).build();
         for (InetAddressAndPort target : replicas)
             MessagingService.instance().send(message, target);
     }
@@ -517,7 +518,7 @@ public class StorageProxy implements StorageProxyMBean
                                                        replicaPlan.requiredParticipants(),
                                                        replicaPlan.consistencyLevel(),
                                                        queryState);
-        Message<Commit> message = Message.out(PAXOS_PREPARE_REQ, toPrepare);
+        Message<Commit> message = Message.builder(PAXOS_PREPARE_REQ, toPrepare).withQueryState(queryState).build();
         for (Replica replica: replicaPlan.contacts())
         {
             if (replica.isSelf())
@@ -550,7 +551,7 @@ public class StorageProxy implements StorageProxyMBean
                                                        !timeoutIfPartial,
                                                        replicaPlan.consistencyLevel(),
                                                        queryState);
-        Message<Commit> message = Message.out(PAXOS_PROPOSE_REQ, proposal);
+        Message<Commit> message = Message.builder(PAXOS_PROPOSE_REQ, proposal).withQueryState(queryState).build();
         for (Replica replica : replicaPlan.contacts())
         {
             if (replica.isSelf())
@@ -600,7 +601,10 @@ public class StorageProxy implements StorageProxyMBean
             responseHandler.setSupportsBackPressure(false);
         }
 
-        Message<Commit> message = Message.outWithFlag(PAXOS_COMMIT_REQ, proposal, MessageFlag.CALL_BACK_ON_FAILURE);
+        Message<Commit> message = Message.builder(PAXOS_COMMIT_REQ, proposal)
+                                         .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
+                                         .withQueryState(queryState)
+                                         .build();
         for (Replica replica : replicaPlan.liveAndDown())
         {
             InetAddressAndPort destination = replica.endpoint();
@@ -678,7 +682,7 @@ public class StorageProxy implements StorageProxyMBean
      *
      * @param mutations the mutations to be applied across the replicas
      * @param consistencyLevel the consistency level for the operation
-     * @param queryStartNanoTime the value of System.nanoTime() when the query started to be processed
+     * @param queryState the value of System.nanoTime() when the query started to be processed
      */
     public static void mutate(List<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, QueryState queryState)
     throws UnavailableException, OverloadedException, WriteTimeoutException, WriteFailureException
@@ -705,7 +709,7 @@ public class StorageProxy implements StorageProxyMBean
             for (int i = 0 ; i < mutations.size() ; ++i)
             {
                 if (!(mutations.get(i) instanceof CounterMutation)) // at the moment, only non-counter writes support cheap quorums
-                    responseHandlers.get(i).maybeTryAdditionalReplicas(mutations.get(i), standardWritePerformer, localDataCenter);
+                    responseHandlers.get(i).maybeTryAdditionalReplicas(mutations.get(i), standardWritePerformer, localDataCenter, queryState);
             }
 
             // wait for writes.  throws TimeoutException if necessary
@@ -810,7 +814,7 @@ public class StorageProxy implements StorageProxyMBean
      * @param mutations the mutations to be applied across the replicas
      * @param writeCommitLog if commitlog should be written
      * @param baseComplete time from epoch in ms that the local base mutation was(or will be) completed
-     * @param queryStartNanoTime the value of System.nanoTime() when the query started to be processed // todo: YIFAN
+     * @param queryState the value of System.nanoTime() when the query started to be processed // todo: YIFAN
      */
     public static void mutateMV(ByteBuffer dataKey, Collection<Mutation> mutations, boolean writeCommitLog, AtomicLong baseComplete, QueryState queryState)
     throws UnavailableException, OverloadedException, WriteTimeoutException
@@ -1004,7 +1008,7 @@ public class StorageProxy implements StorageProxyMBean
             syncWriteToBatchlog(mutations, replicaPlan, batchUUID, queryState);
 
             // now actually perform the writes and wait for them to complete
-            syncWriteBatchedMutations(wrappers, Stage.MUTATION);
+            syncWriteBatchedMutations(wrappers, Stage.MUTATION, queryState);
         }
         catch (UnavailableException e)
         {
@@ -1068,7 +1072,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                          queryState);
 
         Batch batch = Batch.createLocal(uuid, FBUtilities.timestampMicros(), mutations);
-        Message<Batch> message = Message.out(BATCH_STORE_REQ, batch);
+        Message<Batch> message = Message.builder(BATCH_STORE_REQ, batch).withQueryState(queryState).build();
         for (Replica replica : replicaPlan.liveAndDown())
         {
             logger.trace("Sending batchlog store request {} to {} for {} mutations", batch.id, replica, batch.size());
@@ -1105,7 +1109,7 @@ public class StorageProxy implements StorageProxyMBean
 
             try
             {
-                sendToHintedReplicas(wrapper.mutation, replicas, wrapper.handler, localDataCenter, stage);
+                sendToHintedReplicas(wrapper.mutation, replicas, wrapper.handler, localDataCenter, stage, QueryState.forInternalCalls());
             }
             catch (OverloadedException | WriteTimeoutException e)
             {
@@ -1114,7 +1118,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static void syncWriteBatchedMutations(List<WriteResponseHandlerWrapper> wrappers, Stage stage)
+    private static void syncWriteBatchedMutations(List<WriteResponseHandlerWrapper> wrappers, Stage stage, QueryState queryState)
     throws WriteTimeoutException, OverloadedException
     {
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
@@ -1123,7 +1127,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             EndpointsForToken sendTo = wrapper.handler.replicaPlan.liveAndDown();
             Replicas.temporaryAssertFull(sendTo); // TODO: CASSANDRA-14549
-            sendToHintedReplicas(wrapper.mutation, wrapper.handler.replicaPlan.withContact(sendTo), wrapper.handler, localDataCenter, stage);
+            sendToHintedReplicas(wrapper.mutation, wrapper.handler.replicaPlan.withContact(sendTo), wrapper.handler, localDataCenter, stage, queryState);
         }
 
         for (WriteResponseHandlerWrapper wrapper : wrappers)
@@ -1161,7 +1165,7 @@ public class StorageProxy implements StorageProxyMBean
         ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
         AbstractWriteResponseHandler<IMutation> responseHandler = rs.getWriteResponseHandler(replicaPlan, callback, writeType, queryState);
 
-        performer.apply(mutation, replicaPlan, responseHandler, localDataCenter);
+        performer.apply(mutation, replicaPlan, responseHandler, localDataCenter, queryState);
         return responseHandler;
     }
 
@@ -1245,7 +1249,8 @@ public class StorageProxy implements StorageProxyMBean
                                             ReplicaPlan.ForTokenWrite plan,
                                             AbstractWriteResponseHandler<IMutation> responseHandler,
                                             String localDataCenter,
-                                            Stage stage)
+                                            Stage stage,
+                                            QueryState queryState)
     throws OverloadedException
     {
         // this dc replicas:
@@ -1276,7 +1281,12 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     // belongs on a different server
                     if (message == null)
-                        message = Message.outWithFlag(MUTATION_REQ, mutation, MessageFlag.CALL_BACK_ON_FAILURE);
+                    {
+                        message = Message.builder(MUTATION_REQ, mutation)
+                                         .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
+                                         .withQueryState(queryState)
+                                         .build();
+                    }
 
                     String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
 
@@ -1486,7 +1496,10 @@ public class StorageProxy implements StorageProxyMBean
                                                                                                  queryState);
 
             Tracing.trace("Enqueuing counter update to {}", replica);
-            Message message = Message.outWithFlag(Verb.COUNTER_MUTATION_REQ, cm, MessageFlag.CALL_BACK_ON_FAILURE);
+            Message<CounterMutation> message = Message.builder(Verb.COUNTER_MUTATION_REQ, cm)
+                                                      .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
+                                                      .withQueryState(queryState)
+                                                      .build();
             MessagingService.instance().sendWriteWithCallback(message, replica, responseHandler, false);
             return responseHandler;
         }
@@ -1554,7 +1567,8 @@ public class StorageProxy implements StorageProxyMBean
     private static Runnable counterWriteTask(final IMutation mutation,
                                              final ReplicaPlan.ForTokenWrite replicaPlan,
                                              final AbstractWriteResponseHandler<IMutation> responseHandler,
-                                             final String localDataCenter)
+                                             final String localDataCenter,
+                                             final QueryState queryState)
     {
         return new DroppableRunnable(Verb.COUNTER_MUTATION_REQ)
         {
@@ -1565,7 +1579,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 Mutation result = ((CounterMutation) mutation).applyCounterMutation();
                 responseHandler.onResponse(null);
-                sendToHintedReplicas(result, replicaPlan, responseHandler, localDataCenter, Stage.COUNTER_MUTATION);
+                sendToHintedReplicas(result, replicaPlan, responseHandler, localDataCenter, Stage.COUNTER_MUTATION, queryState);
             }
         };
     }
@@ -2262,7 +2276,7 @@ public class StorageProxy implements StorageProxyMBean
             latch.countDown();
         };
         // an empty message acts as a request to the SchemaVersionVerbHandler.
-        Message message = Message.out(Verb.SCHEMA_VERSION_REQ, noPayload);
+        Message<NoPayload> message = Message.out(Verb.SCHEMA_VERSION_REQ, noPayload);
         for (InetAddressAndPort endpoint : liveHosts)
             MessagingService.instance().sendWithCallback(message, endpoint, cb);
 
@@ -2431,7 +2445,7 @@ public class StorageProxy implements StorageProxyMBean
      * @throws UnavailableException If some of the hosts in the ring are down.
      * @throws TimeoutException
      */
-    public static void truncateBlocking(String keyspace, String cfname) throws UnavailableException, TimeoutException
+    public static void truncateBlocking(String keyspace, String cfname, QueryState queryState) throws UnavailableException, TimeoutException
     {
         logger.debug("Starting a blocking truncate operation on keyspace {}, CF {}", keyspace, cfname);
         if (isAnyStorageHostDown())
@@ -2451,7 +2465,9 @@ public class StorageProxy implements StorageProxyMBean
 
         // Send out the truncate calls and track the responses with the callbacks.
         Tracing.trace("Enqueuing truncate messages to hosts {}", allEndpoints);
-        Message<TruncateRequest> message = Message.out(TRUNCATE_REQ, new TruncateRequest(keyspace, cfname));
+        Message<TruncateRequest> message = Message.builder(TRUNCATE_REQ, new TruncateRequest(keyspace, cfname))
+                                                  .withQueryState(queryState)
+                                                  .build();
         for (InetAddressAndPort endpoint : allEndpoints)
             MessagingService.instance().sendWithCallback(message, endpoint, responseHandler);
 
@@ -2481,7 +2497,8 @@ public class StorageProxy implements StorageProxyMBean
         public void apply(IMutation mutation,
                           ReplicaPlan.ForTokenWrite targets,
                           AbstractWriteResponseHandler<IMutation> responseHandler,
-                          String localDataCenter) throws OverloadedException;
+                          String localDataCenter,
+                          QueryState queryState) throws OverloadedException;
     }
 
     /**

@@ -143,9 +143,8 @@ public class QueryState
      */
     public long getRemainingTimeoutWithFallback(ToLongFunction<TimeUnit> fallback, TimeUnit timeUnit)
     {
-        return hasResolvedTimeout()
-               ? timeUnit.convert(timeoutInNanos - getElapsedInNanos(), TimeUnit.NANOSECONDS)
-               : fallback.applyAsLong(timeUnit) - getElapsedInNanos();
+        long timeout = getTimeoutWithFallback(fallback, timeUnit);
+        return timeUnit.convert(timeout - getElapsedInNanos(), TimeUnit.NANOSECONDS);
     }
 
     public long getElapsedInNanos()

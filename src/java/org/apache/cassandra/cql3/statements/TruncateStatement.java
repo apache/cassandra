@@ -81,7 +81,7 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
             if (metaData.isVirtual())
                 throw new InvalidRequestException("Cannot truncate virtual tables");
 
-            StorageProxy.truncateBlocking(keyspace(), name());
+            StorageProxy.truncateBlocking(keyspace(), name(), state);
         }
         catch (UnavailableException | TimeoutException e)
         {

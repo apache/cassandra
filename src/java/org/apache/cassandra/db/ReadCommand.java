@@ -670,6 +670,17 @@ public abstract class ReadCommand extends AbstractReadQuery
              : Message.outWithFlag (verb(), this, MessageFlag.CALL_BACK_ON_FAILURE);
     }
 
+    /**
+     * Create a message builder for this command
+     */
+    public Message.Builder<ReadCommand> createMessageBuilder(boolean trackRepairedData)
+    {
+        Message.Builder<ReadCommand> builder = Message.builder(verb(), this).withFlag(MessageFlag.CALL_BACK_ON_FAILURE);
+        if (trackRepairedData)
+            builder.withFlag(MessageFlag.TRACK_REPAIRED_DATA);
+        return builder;
+    }
+
     public abstract Verb verb();
 
     protected abstract void appendCQLWhereClause(StringBuilder sb);

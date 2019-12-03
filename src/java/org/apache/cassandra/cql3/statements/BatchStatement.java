@@ -198,27 +198,11 @@ public class BatchStatement implements CQLStatement
         }
         else if (hasConditions()) // BATCH can contain CAS/normal DML statements
         {
-            boolean allConditional = true;
-            for (ModificationStatement statement : statements)
-            {
-                if (!statement.hasConditions())
-                {
-                    allConditional = false;
-                    break;
-                }
-            }
-            if (allConditional)
-            {
-                state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getCasContentionTimeout, TimeUnit.NANOSECONDS));
-            }
-            else // mixed with CAS and normal DML
-            {
-                ToLongFunction<TimeUnit> max = tu -> Math.max(DatabaseDescriptor.getCasContentionTimeout(tu),
-                                                              DatabaseDescriptor.getWriteRpcTimeout(tu));
-                state.setTimeoutInNanos(options.calculateTimeout(max, TimeUnit.NANOSECONDS));
-            }
+            ToLongFunction<TimeUnit> max = tu -> Math.max(DatabaseDescriptor.getCasContentionTimeout(tu),
+                                                          DatabaseDescriptor.getWriteRpcTimeout(tu));
+            state.setTimeoutInNanos(options.calculateTimeout(max, TimeUnit.NANOSECONDS));
         }
-        else // BATCH can only contain DML statment
+        else // BATCH only contains DML statment
         {
             state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getWriteRpcTimeout, TimeUnit.NANOSECONDS));
         }
