@@ -9,6 +9,8 @@
 Merged from 3.11:
  * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)
 Merged from 3.0:
+ * Bump generations and document changes to system_distributed and system_traces in 3.0, 3.11
+   (CASSANDRA-15441)
  * Fix system_traces creation timestamp; optimise system keyspace upgrades (CASSANDRA-15398)
  * Make sure index summary redistribution does not start when compactions are paused (CASSANDRA-15265)
 Merged from 2.2:
