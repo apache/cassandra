@@ -1,4 +1,5 @@
 4.0-alpha3
+ * Prevent read repair mutations from increasing read timeout (CASSANDRA-15442)
  * Document 4.0 system keyspace changes, bump generations (CASSANDRA-15454)
  * Make it possible to disable STCS-in-L0 during runtime (CASSANDRA-15445)
  * Removed obsolete OldNetworkTopologyStrategy (CASSANDRA-13990)

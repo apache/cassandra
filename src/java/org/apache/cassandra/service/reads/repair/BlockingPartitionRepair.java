@@ -161,11 +161,17 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
         }
     }
 
-    public boolean awaitRepairs(long timeout, TimeUnit timeoutUnit)
+    /**
+     * Wait for the repair to complete util a future time
+     * If the {@param timeoutAt} is a past time, the method returns immediately with the repair result.
+     * @param timeoutAt, future time
+     * @param timeUnit, the time unit of the future time
+     * @return true if repair is done; otherwise, false.
+     */
+    public boolean awaitRepairsUntil(long timeoutAt, TimeUnit timeUnit)
     {
-        long elapsed = System.nanoTime() - mutationsSentTime;
-        long remaining = timeoutUnit.toNanos(timeout) - elapsed;
-
+        long timeoutAtNanos = timeUnit.toNanos(timeoutAt);
+        long remaining = timeoutAtNanos - System.nanoTime();
         try
         {
             return latch.await(remaining, TimeUnit.NANOSECONDS);
@@ -190,7 +196,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
      */
     public void maybeSendAdditionalWrites(long timeout, TimeUnit timeoutUnit)
     {
-        if (awaitRepairs(timeout, timeoutUnit))
+        if (awaitRepairsUntil(timeout + timeoutUnit.convert(mutationsSentTime, TimeUnit.NANOSECONDS), timeoutUnit))
             return;
 
         E newCandidates = replicaPlan.uncontactedCandidates();

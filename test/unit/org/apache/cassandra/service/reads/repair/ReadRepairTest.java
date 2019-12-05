@@ -216,11 +216,11 @@ public class ReadRepairTest
         assertMutationEqual(resolved, handler.mutationsSent.get(target3.endpoint()));
 
         // check repairs stop blocking after receiving 2 acks
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target1.endpoint());
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target3.endpoint());
-        Assert.assertTrue(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertTrue(getCurrentRepairStatus(handler));
     }
 
     /**
@@ -304,13 +304,13 @@ public class ReadRepairTest
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2, replicas, replicas);
         handler.sendInitialRepairs();
 
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target1.endpoint());
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
 
         // here we should stop blocking, even though we've sent 3 repairs
         handler.ack(target2.endpoint());
-        Assert.assertTrue(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertTrue(getCurrentRepairStatus(handler));
 
     }
 
@@ -337,14 +337,19 @@ public class ReadRepairTest
         Assert.assertTrue(handler.mutationsSent.containsKey(remote1.endpoint()));
 
         Assert.assertEquals(1, handler.waitingOn());
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
 
         handler.ack(remote1.endpoint());
         Assert.assertEquals(1, handler.waitingOn());
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
 
         handler.ack(target1.endpoint());
         Assert.assertEquals(0, handler.waitingOn());
-        Assert.assertTrue(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertTrue(getCurrentRepairStatus(handler));
+    }
+
+    private boolean getCurrentRepairStatus(BlockingPartitionRepair handler)
+    {
+        return handler.awaitRepairsUntil(System.nanoTime(), TimeUnit.NANOSECONDS);
     }
 }

@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.util.concurrent.TimeUnit;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -29,6 +31,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.IInvokableInstance;
 
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.net.Verb.READ_REPAIR_RSP;
 import static org.junit.Assert.assertEquals;
 
 import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
@@ -123,6 +126,40 @@ public class DistributedReadWritePathTest extends DistributedTestBase
             // Verify that data got repaired to the third node
             assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"),
                        row(1, 1, 1));
+        }
+    }
+
+    @Test
+    public void readRepairTimeoutTest() throws Throwable
+    {
+        final long reducedReadTimeout = 3000L;
+        try (Cluster cluster = init(Cluster.create(3)))
+        {
+            cluster.forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setReadRpcTimeout(reducedReadTimeout)));
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'");
+            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
+            cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
+            assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
+            cluster.verbs(READ_REPAIR_RSP).to(1).drop();
+            final long start = System.currentTimeMillis();
+            try
+            {
+                cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.ALL);
+                Assert.fail("Read timeout expected but it did not occur");
+            }
+            catch (Exception ex)
+            {
+                // the containing exception class was loaded by another class loader. Comparing the message as a workaround to assert the exception
+                Assert.assertTrue(ex.getMessage().contains("org.apache.cassandra.exceptions.ReadTimeoutException"));
+                long actualTimeTaken = System.currentTimeMillis() - start;
+                long magicDelayAmount = 100L; // it might not be the best way to check if the time taken is around the timeout value.
+                // Due to the delays, the actual time taken from client perspective is slighly more than the timeout value
+                Assert.assertTrue(actualTimeTaken > reducedReadTimeout);
+                // But it should not exceed too much
+                Assert.assertTrue(actualTimeTaken < reducedReadTimeout + magicDelayAmount);
+                assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"),
+                           row(1, 1, 1)); // the partition happened when the repaired node sending back ack. The mutation should be in fact applied.
+            }
         }
     }
 
