@@ -24,7 +24,7 @@ BuildRoot:     %{_tmppath}/%{relname}root-%(%{__id_u} -n)
 BuildRequires: ant >= 1.9
 BuildRequires: ant-junit >= 1.9
 
-Requires:      jre >= 1.8.0
+Requires:      jre-headless >= 1.8.0
 Requires:      python(abi) >= 2.7
 Requires(pre): user(cassandra)
 Requires(pre): group(cassandra)
