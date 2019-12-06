@@ -86,6 +86,10 @@ public class Directories
 {
     private static final Logger logger = LoggerFactory.getLogger(Directories.class);
 
+    private static final String EPHEMERAL_SNAPSHOT_MARKER = "ephemeral.snapshot";
+    private static final String MANIFEST_JSON = "manifest.json";
+    private static final String SCHEMA_CQL = "schema.cql";
+
     public static final String BACKUPS_SUBDIR = "backups";
     public static final String SNAPSHOT_SUBDIR = "snapshots";
     public static final String TMP_SUBDIR = "tmp";
@@ -554,13 +558,13 @@ public class Directories
     public File getSnapshotManifestFile(String snapshotName)
     {
         File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
-        return new File(snapshotDir, "manifest.json");
+        return new File(snapshotDir, MANIFEST_JSON);
     }
 
     public File getSnapshotSchemaFile(String snapshotName)
     {
         File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
-        return new File(snapshotDir, "schema.cql");
+        return new File(snapshotDir, SCHEMA_CQL);
     }
 
     public File getNewEphemeralSnapshotMarkerFile(String snapshotName)
@@ -571,7 +575,7 @@ public class Directories
 
     private static File getEphemeralSnapshotMarkerFile(File snapshotDirectory)
     {
-        return new File(snapshotDirectory, "ephemeral.snapshot");
+        return new File(snapshotDirectory, EPHEMERAL_SNAPSHOT_MARKER);
     }
 
     public static File getBackupsDirectory(Descriptor desc)
@@ -813,6 +817,14 @@ public class Directories
                             return false;
 
                     case FINAL:
+                        switch (file.getName())
+                        {
+                            // if found snapshot metadata files, skip them
+                            case EPHEMERAL_SNAPSHOT_MARKER:
+                            case MANIFEST_JSON:
+                            case SCHEMA_CQL:
+                                return false;
+                        }
                         Pair<Descriptor, Component> pair = Descriptor.fromFilenameWithComponent(file);
 
                         // we are only interested in the SSTable files that belong to the specific ColumnFamily
