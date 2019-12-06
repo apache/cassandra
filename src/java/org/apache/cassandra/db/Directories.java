@@ -268,8 +268,8 @@ public class Directories
                         if (file.isDirectory())
                             return false;
 
-                        Descriptor desc = SSTable.tryDescriptorFromFilename(file);
-                        return desc != null && desc.ksname.equals(metadata.keyspace) && desc.cfname.equals(metadata.name);
+                        Descriptor desc = Descriptor.fromFilename(file);
+                        return desc.ksname.equals(metadata.keyspace) && desc.cfname.equals(metadata.name);
 
                     }
                 });
@@ -813,9 +813,7 @@ public class Directories
                             return false;
 
                     case FINAL:
-                        Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file);
-                        if (pair == null)
-                            return false;
+                        Pair<Descriptor, Component> pair = Descriptor.fromFilenameWithComponent(file);
 
                         // we are only interested in the SSTable files that belong to the specific ColumnFamily
                         if (!pair.left.ksname.equals(metadata.keyspace) || !pair.left.cfname.equals(metadata.name))
@@ -1084,9 +1082,8 @@ public class Directories
         public boolean isAcceptable(Path path)
         {
             File file = path.toFile();
-            Descriptor desc = SSTable.tryDescriptorFromFilename(file);
-            return desc != null
-                && desc.ksname.equals(metadata.keyspace)
+            Descriptor desc = Descriptor.fromFilename(file);
+            return desc.ksname.equals(metadata.keyspace)
                 && desc.cfname.equals(metadata.name)
                 && !toSkip.contains(file);
         }

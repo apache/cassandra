@@ -31,6 +31,7 @@ import com.google.common.io.Files;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
@@ -178,48 +179,6 @@ public abstract class SSTable
         for (Component component : components)
             ret.add(descriptor.filenameFor(component));
         return ret;
-    }
-
-    /**
-     * Parse a sstable filename into both a {@link Descriptor} and {@code Component} object.
-     *
-     * @param file the filename to parse.
-     * @return a pair of the {@code Descriptor} and {@code Component} corresponding to {@code file} if it corresponds to
-     * a valid and supported sstable filename, {@code null} otherwise. Note that components of an unknown type will be
-     * returned as CUSTOM ones.
-     */
-    public static Pair<Descriptor, Component> tryComponentFromFilename(File file)
-    {
-        try
-        {
-            return Descriptor.fromFilenameWithComponent(file);
-        }
-        catch (Throwable e)
-        {
-            return null;
-        }
-    }
-
-    /**
-     * Parse a sstable filename into a {@link Descriptor} object.
-     * <p>
-     * Note that this method ignores the component part of the filename; if this is not what you want, use
-     * {@link #tryComponentFromFilename} instead.
-     *
-     * @param file the filename to parse.
-     * @return the {@code Descriptor} corresponding to {@code file} if it corresponds to a valid and supported sstable
-     * filename, {@code null} otherwise.
-     */
-    public static Descriptor tryDescriptorFromFilename(File file)
-    {
-        try
-        {
-            return Descriptor.fromFilename(file);
-        }
-        catch (Throwable e)
-        {
-            return null;
-        }
     }
 
     /**

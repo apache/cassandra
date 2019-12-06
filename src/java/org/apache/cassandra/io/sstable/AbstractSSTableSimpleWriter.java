@@ -95,9 +95,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         {
             public boolean accept(File file)
             {
-                Descriptor desc = SSTable.tryDescriptorFromFilename(file);
-                if (desc == null)
-                    return false;
+                Descriptor desc = Descriptor.fromFilename(file);
 
                 if (desc.cfname.equals(columnFamily))
                     existing.add(desc);
