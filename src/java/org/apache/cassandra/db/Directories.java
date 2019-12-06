@@ -704,6 +704,19 @@ public class Directories
         return new SSTableLister(new File[]{directory}, metadata, onTxnErr);
     }
 
+    private static boolean isSnapshotMetadataFile(String name)
+    {
+        switch (name)
+        {
+            // if found snapshot metadata files, skip them
+            case EPHEMERAL_SNAPSHOT_MARKER:
+            case MANIFEST_JSON:
+            case SCHEMA_CQL:
+                return true;
+        }
+        return false;
+    }
+
     public static class SSTableLister
     {
         private final OnTxnErr onTxnErr;
@@ -817,14 +830,8 @@ public class Directories
                             return false;
 
                     case FINAL:
-                        switch (file.getName())
-                        {
-                            // if found snapshot metadata files, skip them
-                            case EPHEMERAL_SNAPSHOT_MARKER:
-                            case MANIFEST_JSON:
-                            case SCHEMA_CQL:
-                                return false;
-                        }
+                        if (isSnapshotMetadataFile(file.getName()))
+                            return false;
                         Pair<Descriptor, Component> pair = Descriptor.fromFilenameWithComponent(file);
 
                         // we are only interested in the SSTable files that belong to the specific ColumnFamily
@@ -1094,6 +1101,8 @@ public class Directories
         public boolean isAcceptable(Path path)
         {
             File file = path.toFile();
+            if (isSnapshotMetadataFile(file.getName()))
+                return false;
             Descriptor desc = Descriptor.fromFilename(file);
             return desc.ksname.equals(metadata.keyspace)
                 && desc.cfname.equals(metadata.name)
