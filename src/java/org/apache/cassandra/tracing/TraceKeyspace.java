@@ -20,7 +20,6 @@ package org.apache.cassandra.tracing;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Mutation;
@@ -53,12 +52,13 @@ public final class TraceKeyspace
      *                       will ever start; see the note below for why this is necessary; actual change in 3.0:
      *                       removed default ttl, reduced bloom filter fp chance from 0.1 to 0.01.
      * gen 1577836800000001: (pre-)adds coordinator_port column to sessions and source_port column to events in 3.0, 3.11, 4.0
+     * gen 1577836800000002: compression chunk length reduced to 16KiB, memtable_flush_period_in_ms now unset on all tables in 4.0
      *
      * * Until CASSANDRA-6016 (Oct 13, 2.0.2) and in all of 1.2, we used to create system_traces keyspace and
      *   tables in the same way that we created the purely local 'system' keyspace - using current time on node bounce
      *   (+1). For new definitions to take, we need to bump the generation further than that.
      */
-    public static final long GENERATION = 1577836800000001L;
+    public static final long GENERATION = 1577836800000002L;
 
     public static final String SESSIONS = "sessions";
     public static final String EVENTS = "events";
@@ -96,7 +96,6 @@ public final class TraceKeyspace
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.TRACE_KEYSPACE_NAME)
                                    .id(TableId.forSystemTable(SchemaConstants.TRACE_KEYSPACE_NAME, table))
                                    .gcGraceSeconds(0)
-                                   .memtableFlushPeriod((int) TimeUnit.HOURS.toMillis(1))
                                    .comment(description)
                                    .build();
     }

@@ -41,8 +41,9 @@ public final class AuthKeyspace
      * generation and document your change here.
      *
      * gen 0: original definition in 3.0
+     * gen 1: compression chunk length reduced to 16KiB, memtable_flush_period_in_ms now unset on all tables in 4.0
      */
-    public static final long GENERATION = 0;
+    public static final long GENERATION = 1;
 
     public static final String ROLES = "roles";
     public static final String ROLE_MEMBERS = "role_members";
@@ -89,12 +90,12 @@ public final class AuthKeyspace
               + "PRIMARY KEY(resource, role))");
 
     private static final TableMetadata NetworkPermissions =
-    parse(NETWORK_PERMISSIONS,
-          "user network permissions",
-          "CREATE TABLE %s ("
-          + "role text, "
-          + "dcs frozen<set<text>>, "
-          + "PRIMARY KEY(role))");
+        parse(NETWORK_PERMISSIONS,
+              "user network permissions",
+              "CREATE TABLE %s ("
+              + "role text, "
+              + "dcs frozen<set<text>>, "
+              + "PRIMARY KEY(role))");
 
     private static TableMetadata parse(String name, String description, String cql)
     {

@@ -76,8 +76,9 @@ public final class SystemDistributedKeyspace
      * gen 1: (pre-)add options column to parent_repair_history in 3.0, 3.11
      * gen 2: (pre-)add coordinator_port and participants_v2 columns to repair_history in 3.0, 3.11, 4.0
      * gen 3: gc_grace_seconds raised from 0 to 10 days in CASSANDRA-12954 in 3.11.0
+     * gen 4: compression chunk length reduced to 16KiB, memtable_flush_period_in_ms now unset on all tables in 4.0
      */
-    public static final long GENERATION = 3;
+    public static final long GENERATION = 4;
 
     public static final String REPAIR_HISTORY = "repair_history";
 
