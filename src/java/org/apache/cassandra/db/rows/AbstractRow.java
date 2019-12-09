@@ -184,8 +184,9 @@ public abstract class AbstractRow implements Row
                                                  ut.fieldType(fId).getString(cell.value()));
                         };
                     }
+                    transform = transform != null ? transform : cell -> "";
                     sb.append(StreamSupport.stream(complexData.spliterator(), false)
-                                           .map(transform != null ? transform : cell -> "")
+                                           .map(transform)
                                            .collect(Collectors.joining(", ", "{", "}")));
                 }
             }

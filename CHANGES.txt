@@ -13,6 +13,7 @@ Merged from 3.0:
  * Make sure index summary redistribution does not start when compactions are paused (CASSANDRA-15265)
  * Ensure legacy rows have primary key livenessinfo when they contain illegal cells (CASSANDRA-15365)
 Merged from 2.2:
+ * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
 
 

@@ -339,8 +339,6 @@ public abstract class Selection
             sb.append("\": ");
             if (buffer == null)
                 sb.append("null");
-            else if (!buffer.hasRemaining())
-                sb.append("\"\"");
             else
                 sb.append(spec.type.toJSONString(buffer, protocolVersion));
         }
