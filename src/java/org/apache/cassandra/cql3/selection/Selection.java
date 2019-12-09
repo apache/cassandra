@@ -444,7 +444,7 @@ public abstract class Selection
                 sb.append('"');
                 sb.append(Json.quoteAsJsonString(columnName));
                 sb.append("\": ");
-                if (buffer == null || !buffer.hasRemaining())
+                if (buffer == null)
                     sb.append("null");
                 else
                     sb.append(spec.type.toJSONString(buffer, protocolVersion));

@@ -1289,6 +1289,36 @@ JsonTest extends CQLTester
     }
 
     @Test
+     public void testInsertAndSelectJsonSyntaxWithEmptyAndNullValues() throws Throwable
+     {
+         createTable("create table %s(id INT, name TEXT, name_asc ASCII, bytes BLOB, PRIMARY KEY(id));");
+
+         // Test with empty values
+
+         execute("INSERT INTO %s JSON ?", "{\"id\": 0, \"bytes\": \"0x\", \"name\": \"\", \"name_asc\": \"\"}");
+         assertRows(execute("SELECT * FROM %s WHERE id=0"), row(0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "", ""));
+         assertRows(execute("SELECT JSON * FROM %s WHERE id = 0"),
+                    row("{\"id\": 0, \"bytes\": \"0x\", \"name\": \"\", \"name_asc\": \"\"}"));
+
+         execute("INSERT INTO %s(id, name, name_asc, bytes) VALUES (1, ?, ?, ?);", "", "", ByteBufferUtil.EMPTY_BYTE_BUFFER);
+         assertRows(execute("SELECT * FROM %s WHERE id=1"), row(1, ByteBufferUtil.EMPTY_BYTE_BUFFER, "", ""));
+         assertRows(execute("SELECT JSON * FROM %s WHERE id = 1"),
+                    row("{\"id\": 1, \"bytes\": \"0x\", \"name\": \"\", \"name_asc\": \"\"}"));
+
+         // Test with null values
+
+         execute("INSERT INTO %s JSON ?", "{\"id\": 2, \"bytes\": null, \"name\": null, \"name_asc\": null}");
+         assertRows(execute("SELECT * FROM %s WHERE id=2"), row(2, null, null, null));
+         assertRows(execute("SELECT JSON * FROM %s WHERE id = 2"),
+                    row("{\"id\": 2, \"bytes\": null, \"name\": null, \"name_asc\": null}"));
+
+         execute("INSERT INTO %s(id, name, name_asc, bytes) VALUES (3, ?, ?, ?);", null, null, null);
+         assertRows(execute("SELECT * FROM %s WHERE id=3"), row(3, null, null, null));
+         assertRows(execute("SELECT JSON * FROM %s WHERE id = 3"),
+                 row("{\"id\": 3, \"bytes\": null, \"name\": null, \"name_asc\": null}"));
+     }
+
+    @Test
     public void testJsonWithNaNAndInfinity() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, f1 float, f2 float, f3 float, d1 double, d2 double, d3 double)");
