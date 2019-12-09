@@ -123,6 +123,12 @@ public interface CompactionManagerMBean
     public int getCoreViewBuildThreads();
 
     /**
+     * Enable / disable STCS in L0
+     */
+    public boolean getDisableSTCSInL0();
+    public void setDisableSTCSInL0(boolean disabled);
+
+    /**
      * Allows user to resize maximum size of the view build thread pool.
      * @param number New maximum of view build threads
      */
