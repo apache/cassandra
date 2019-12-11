@@ -7,6 +7,7 @@
  * Make it possible to resize concurrent read / write thread pools at runtime (CASSANDRA-15277)
  * Close channels on error (CASSANDRA-15407)
 Merged from 3.11:
+ * Fix nodetool compactionstats showing extra pending task for TWCS - patch implemented (CASSANDRA-15409)
  * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)
 Merged from 3.0:
  * Avoid over-scanning data directories in LogFile.verify() (CASSANDRA-15364)
@@ -17,7 +18,6 @@ Merged from 3.0:
 Merged from 2.2:
  * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
-
 
 4.0-alpha2
  * Fix SASI non-literal string comparisons (range operators) (CASSANDRA-15169)
