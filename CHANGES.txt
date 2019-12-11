@@ -9,6 +9,7 @@
 Merged from 3.11:
  * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)
 Merged from 3.0:
+ * Avoid over-scanning data directories in LogFile.verify() (CASSANDRA-15364)
  * Bump generations and document changes to system_distributed and system_traces in 3.0, 3.11
    (CASSANDRA-15441)
  * Fix system_traces creation timestamp; optimise system keyspace upgrades (CASSANDRA-15398)
