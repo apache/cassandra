@@ -136,7 +136,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      **/
     void trackNew(SSTable table)
     {
-        txnFile.add(Type.ADD, table);
+        txnFile.add(table);
     }
 
     /**
@@ -144,7 +144,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      */
     void untrackNew(SSTable table)
     {
-        txnFile.remove(Type.ADD, table);
+        txnFile.remove(table);
     }
 
     /**

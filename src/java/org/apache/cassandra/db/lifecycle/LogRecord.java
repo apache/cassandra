@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
 import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -185,9 +184,9 @@ final class LogRecord
         return FileUtils.getCanonicalPath(baseFilename + Component.separator);
     }
 
-    public LogRecord withExistingFiles()
+    public LogRecord withExistingFiles(List<File> existingFiles)
     {
-        return make(type, getExistingFiles(), 0, absolutePath.get());
+        return make(type, existingFiles, 0, absolutePath.get());
     }
 
     public static LogRecord make(Type type, List<File> files, int minFiles, String absolutePath)
@@ -286,12 +285,6 @@ final class LogRecord
                              checksum);
     }
 
-    public List<File> getExistingFiles()
-    {
-        assert absolutePath.isPresent() : "Expected a path in order to get existing files";
-        return getExistingFiles(absolutePath.get());
-    }
-
     public static List<File> getExistingFiles(String absoluteFilePath)
     {
         Path path = Paths.get(absoluteFilePath);
@@ -301,34 +294,41 @@ final class LogRecord
     }
 
     /**
-     * absoluteFilePaths contains full file parts up to the component name
+     * absoluteFilePaths contains full file parts up to (but excluding) the component name
      *
-     * this method finds all files on disk beginning with any of the paths in absoluteFilePaths
+     * This method finds all files on disk beginning with any of the paths in absoluteFilePaths
+     *
      * @return a map from absoluteFilePath to actual file on disk.
      */
     public static Map<String, List<File>> getExistingFiles(Set<String> absoluteFilePaths)
     {
-        Set<File> uniqueDirectories = absoluteFilePaths.stream().map(path -> Paths.get(path).getParent().toFile()).collect(Collectors.toSet());
         Map<String, List<File>> fileMap = new HashMap<>();
+        Map<File, TreeSet<String>> dirToFileNamePrefix = new HashMap<>();
+        for (String absolutePath : absoluteFilePaths)
+        {
+            Path fullPath = Paths.get(absolutePath);
+            Path path = fullPath.getParent();
+            if (path != null)
+                dirToFileNamePrefix.computeIfAbsent(path.toFile(), (k) -> new TreeSet<>()).add(fullPath.getFileName().toString());
+        }
+
         FilenameFilter ff = (dir, name) -> {
-            Descriptor descriptor = null;
-            try
+            TreeSet<String> dirSet = dirToFileNamePrefix.get(dir);
+            // if the set contains a prefix of the current file name, the file name we have here should sort directly
+            // after the prefix in the tree set, which means we can use 'floor' to get the prefix (returns the largest
+            // of the smaller strings in the set). Also note that the prefixes always end with '-' which means we won't
+            // have "xy-1111-Data.db".startsWith("xy-11") below (we'd get "xy-1111-Data.db".startsWith("xy-11-"))
+            String baseName = dirSet.floor(name);
+            if (baseName != null && name.startsWith(baseName))
             {
-                descriptor = Descriptor.fromFilename(dir, name).left;
-            }
-            catch (Throwable t)
-            {// ignored - if we can't parse the filename, just skip the file
-            }
-
-            String absolutePath = descriptor != null ? absolutePath(descriptor.baseFilename()) : null;
-            if (absolutePath != null && absoluteFilePaths.contains(absolutePath))
+                String absolutePath = new File(dir, baseName).getPath();
                 fileMap.computeIfAbsent(absolutePath, k -> new ArrayList<>()).add(new File(dir, name));
-
+            }
             return false;
         };
 
         // populate the file map:
-        for (File f : uniqueDirectories)
+        for (File f : dirToFileNamePrefix.keySet())
             f.listFiles(ff);
 
         return fileMap;
