@@ -248,13 +248,13 @@ public class InstanceConfig implements IInstanceConfig
                                   ipAddress,
                                   ipAddress,
                                   ipAddress,
-                seedIp, String.format("%s/node%d/saved_caches", root, nodeNum),
+                                  seedIp,
+                                  String.format("%s/node%d/saved_caches", root, nodeNum),
                                   new String[] { String.format("%s/node%d/data", root, nodeNum) },
                                   String.format("%s/node%d/commitlog", root, nodeNum),
                                   String.format("%s/node%d/hints", root, nodeNum),
                                   String.format("%s/node%d/cdc", root, nodeNum),
-                                  token
-        );
+                                  token);
     }
 
     public InstanceConfig forVersion(Versions.Major major)
