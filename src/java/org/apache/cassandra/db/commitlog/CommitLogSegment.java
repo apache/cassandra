@@ -394,7 +394,7 @@ public abstract class CommitLogSegment
         }
         catch (IOException e)
         {
-            if (!CommitLog.instance.handleCommitError("Failed to sync CDC Index: " + desc.cdcIndexFileName(), e))
+            if (!CommitLogErrorHandler.handle("Failed to sync CDC Index: " + desc.cdcIndexFileName(), e))
                 throw new RuntimeException(e);
         }
     }

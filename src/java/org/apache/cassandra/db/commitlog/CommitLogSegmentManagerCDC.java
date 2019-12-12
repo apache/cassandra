@@ -295,7 +295,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             }
             catch (IOException ie)
             {
-                CommitLog.instance.handleCommitError("Failed CDC Size Calculation", ie);
+                CommitLogErrorHandler.handle("Failed CDC Size Calculation", ie);
             }
         }
 
