@@ -81,9 +81,14 @@ public class InstanceClassLoader extends URLClassLoader
         this.id = id;
     }
 
-    public int getGeneration()
+    public int getClusterGeneration()
     {
         return generation;
+    }
+
+    public int getInstanceId()
+    {
+        return id;
     }
 
     @Override

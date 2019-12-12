@@ -43,7 +43,6 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
@@ -497,7 +496,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             return;
         }
         InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
-        get(cl.getGeneration()).uncaughtException(thread, error);
+        get(cl.getInstanceId()).uncaughtException(thread, error);
     }
 
     protected interface Factory<I extends IInstance, C extends AbstractCluster<I>>
