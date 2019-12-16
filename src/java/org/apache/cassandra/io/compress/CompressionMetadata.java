@@ -269,8 +269,11 @@ public class CompressionMetadata
         for (SSTableReader.PartitionPositionBounds section : sections)
         {
             int startIndex = (int) (section.lowerPosition / parameters.chunkLength());
+
             int endIndex = (int) (section.upperPosition / parameters.chunkLength());
-            endIndex = section.upperPosition % parameters.chunkLength() == 0 ? endIndex - 1 : endIndex;
+            if (section.upperPosition % parameters.chunkLength() == 0)
+                endIndex--;
+
             for (int i = startIndex; i <= endIndex; i++)
             {
                 long offset = i * 8L;
@@ -295,18 +298,16 @@ public class CompressionMetadata
     public Chunk[] getChunksForSections(Collection<SSTableReader.PartitionPositionBounds> sections)
     {
         // use SortedSet to eliminate duplicates and sort by chunk offset
-        SortedSet<Chunk> offsets = new TreeSet<Chunk>(new Comparator<Chunk>()
-        {
-            public int compare(Chunk o1, Chunk o2)
-            {
-                return Longs.compare(o1.offset, o2.offset);
-            }
-        });
+        SortedSet<Chunk> offsets = new TreeSet<>((o1, o2) -> Longs.compare(o1.offset, o2.offset));
+
         for (SSTableReader.PartitionPositionBounds section : sections)
         {
             int startIndex = (int) (section.lowerPosition / parameters.chunkLength());
+
             int endIndex = (int) (section.upperPosition / parameters.chunkLength());
-            endIndex = section.upperPosition % parameters.chunkLength() == 0 ? endIndex - 1 : endIndex;
+            if (section.upperPosition % parameters.chunkLength() == 0)
+                endIndex--;
+
             for (int i = startIndex; i <= endIndex; i++)
             {
                 long offset = i * 8L;
@@ -317,6 +318,7 @@ public class CompressionMetadata
                 offsets.add(new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset - 4))); // "4" bytes reserved for checksum
             }
         }
+
         return offsets.toArray(new Chunk[offsets.size()]);
     }
 

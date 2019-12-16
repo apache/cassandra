@@ -27,7 +27,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -84,8 +83,7 @@ public class RepairTest extends DistributedTestBase
                         .with(GOSSIP)
         );
 
-        Cluster cluster = init(Cluster.build(3).withConfig(configModifier).start());
-        return cluster;
+        return init(Cluster.build(3).withConfig(configModifier).start());
     }
 
     private void repair(Cluster cluster, Map<String, String> options)
@@ -100,13 +98,12 @@ public class RepairTest extends DistributedTestBase
         }));
     }
 
-    void populate(Cluster cluster, boolean compression)
+    void populate(Cluster cluster, String compression)
     {
         try
         {
             cluster.schemaChange(withKeyspace("DROP TABLE IF EXISTS %s.test;"));
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.test (k text, c1 text, c2 text, PRIMARY KEY (k))") +
-                                 (compression == false ? " WITH compression = {'enabled' : false};" : ";"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.test (k text, c1 text, c2 text, PRIMARY KEY (k)) WITH compression = " + compression));
 
             insert(cluster,    0, 1000, 1, 2, 3);
             flush(cluster, 1);
@@ -126,7 +123,7 @@ public class RepairTest extends DistributedTestBase
 
     }
 
-    void simpleRepair(Cluster cluster, boolean sequential, boolean compression) throws IOException
+    void repair(Cluster cluster, boolean sequential, String compression)
     {
         populate(cluster, compression);
         repair(cluster, ImmutableMap.of("parallelism", sequential ? "sequential" : "parallel"));
@@ -146,15 +143,39 @@ public class RepairTest extends DistributedTestBase
             cluster.close();
     }
 
-    @Ignore("Test requires CASSANDRA-13938 to be merged")
-    public void testSimpleSequentialRepairDefaultCompression() throws IOException
+    @Test
+    public void testSequentialRepairWithDefaultCompression()
     {
-        simpleRepair(cluster, true, true);
+        repair(cluster, true, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}");
     }
 
     @Test
-    public void testSimpleSequentialRepairCompressionOff() throws IOException
+    public void testParallelRepairWithDefaultCompression()
     {
-        simpleRepair(cluster, true, false);
+        repair(cluster, false, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}");
+    }
+
+    @Test
+    public void testSequentialRepairWithMinCompressRatio()
+    {
+        repair(cluster, true, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor', 'min_compress_ratio': 4.0}");
+    }
+
+    @Test
+    public void testParallelRepairWithMinCompressRatio()
+    {
+        repair(cluster, false, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor', 'min_compress_ratio': 4.0}");
+    }
+
+    @Test
+    public void testSequentialRepairWithoutCompression()
+    {
+        repair(cluster, true, "{'enabled': false}");
+    }
+
+    @Test
+    public void testParallelRepairWithoutCompression()
+    {
+        repair(cluster, false, "{'enabled': false}");
     }
 }
