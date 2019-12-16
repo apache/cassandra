@@ -28,7 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
-import org.apache.cassandra.exceptions.CasWriteResultUnknownException;
+import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteFailureException;
@@ -140,11 +140,11 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
     {
         int receivedBlockFor = 3;
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
-        CasWriteResultUnknownException ex = new CasWriteResultUnknownException(consistencyLevel, receivedBlockFor, receivedBlockFor);
+        CasWriteUnknownResultException ex = new CasWriteUnknownResultException(consistencyLevel, receivedBlockFor, receivedBlockFor);
 
         ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(ex), ProtocolVersion.V5);
-        assertTrue(deserialized.error instanceof CasWriteResultUnknownException);
-        CasWriteResultUnknownException deserializedEx = (CasWriteResultUnknownException) deserialized.error;
+        assertTrue(deserialized.error instanceof CasWriteUnknownResultException);
+        CasWriteUnknownResultException deserializedEx = (CasWriteUnknownResultException) deserialized.error;
 
         assertEquals(consistencyLevel, deserializedEx.consistency);
         assertEquals(receivedBlockFor, deserializedEx.received);
@@ -158,11 +158,11 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
     {
         int receivedBlockFor = 3;
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
-        CasWriteResultUnknownException ex = new CasWriteResultUnknownException(consistencyLevel, receivedBlockFor, receivedBlockFor);
+        CasWriteUnknownResultException ex = new CasWriteUnknownResultException(consistencyLevel, receivedBlockFor, receivedBlockFor);
 
         ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(ex), ProtocolVersion.V4);
         assertTrue(deserialized.error instanceof WriteTimeoutException);
-        assertFalse(deserialized.error instanceof CasWriteResultUnknownException);
+        assertFalse(deserialized.error instanceof CasWriteUnknownResultException);
         WriteTimeoutException deserializedEx = (WriteTimeoutException) deserialized.error;
 
         assertEquals(consistencyLevel, deserializedEx.consistency);

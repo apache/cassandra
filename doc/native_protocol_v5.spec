@@ -1234,7 +1234,7 @@ Table of Contents
                              - "CDC": the failure occured when cdc_total_space_in_mb is
                                exceeded when doing a write to data tracked by cdc.
     0x1600    CDC_WRITE_FAILURE: // todo
-    0x1700    CAS_WRITE_RESULT_UNKNOWN: An exception occured due to contended Compare And Set write/update.
+    0x1700    CAS_WRITE_UNKNOWN: An exception occured due to contended Compare And Set write/update.
               The CAS operation was only partially completed and the operation may or may not get completed by
               the contending CAS write or SERIAL/LOCAL_SERIAL read. The rest of the ERROR message body will be
                 <cl><received><blockfor>

@@ -27,17 +27,15 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 public class CASClientRequestMetrics extends ClientRequestMetrics
 {
     public final Histogram contention;
-
     public final Counter unfinishedCommit;
-
-    public final Meter uncertainty; // rate of cas returning uncertainty
+    public final Meter unknownResult;
 
     public CASClientRequestMetrics(String scope) 
     {
         super(scope);
         contention = Metrics.histogram(factory.createMetricName("ContentionHistogram"), false);
         unfinishedCommit = Metrics.counter(factory.createMetricName("UnfinishedCommit"));
-        uncertainty = Metrics.meter(factory.createMetricName("Uncertainties"));
+        unknownResult = Metrics.meter(factory.createMetricName("UnknownResult"));
     }
 
     public void release()
@@ -45,6 +43,6 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
         super.release();
         Metrics.remove(factory.createMetricName("ContentionHistogram"));
         Metrics.remove(factory.createMetricName("UnfinishedCommit"));
-        Metrics.remove(factory.createMetricName("Uncertainties"));
+        Metrics.remove(factory.createMetricName("UnknownResult"));
     }
 }
