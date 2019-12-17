@@ -43,6 +43,7 @@ public interface IInstance extends IIsolatedExecutor
 
     int liveMemberCount();
 
+    int nodetool(String... commandAndArgs);
     void uncaughtException(Thread t, Throwable e);
 
     /**

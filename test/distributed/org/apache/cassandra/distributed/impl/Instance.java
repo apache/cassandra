@@ -57,6 +57,7 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
@@ -82,6 +83,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
 import org.apache.cassandra.streaming.async.StreamingInboundHandler;
+import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -261,8 +263,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 TraceState state = Tracing.instance.initializeFromMessage(header);
                 if (state != null) state.trace("{} message received from {}", header.verb, header.from);
                 header.verb.stage.execute(
-                    ThrowingRunnable.toRunnable(() -> messageIn.verb().handler().doVerb((Message<Object>) messageIn)),
-                    ExecutorLocals.create(state));
+                ThrowingRunnable.toRunnable(() -> messageIn.verb().handler().doVerb((Message<Object>) messageIn)),
+                ExecutorLocals.create(state));
             }
             catch (Throwable t)
             {
@@ -539,6 +541,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 return 0;
             return Gossiper.instance.getLiveMembers().size();
         }).call();
+    }
+
+    public int nodetool(String... commandAndArgs)
+    {
+        return sync(() -> new NodeTool(new InternalNodeProbeFactory()).execute(commandAndArgs)).call();
     }
 
     public long killAttempts()

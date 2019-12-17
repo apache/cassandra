@@ -44,13 +44,15 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Scanner;
 import java.util.SortedMap;
+import java.util.function.Consumer;
+
+import com.google.common.base.Joiner;
+import com.google.common.base.Throwables;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.nodetool.*;
 import org.apache.cassandra.utils.FBUtilities;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Throwables;
 import com.google.common.collect.Maps;
 
 import io.airlift.airline.Cli;
@@ -74,10 +76,22 @@ public class NodeTool
 
     private static final String HISTORYFILE = "nodetool.history";
 
+    private final INodeProbeFactory nodeProbeFactory;
+
     public static void main(String... args)
     {
-        List<Class<? extends Runnable>> commands = newArrayList(
-                Help.class,
+        System.exit(new NodeTool(new NodeProbeFactory()).execute(args));
+    }
+
+    public NodeTool(INodeProbeFactory nodeProbeFactory)
+    {
+        this.nodeProbeFactory = nodeProbeFactory;
+    }
+
+    public int execute(String... args)
+    {
+        List<Class<? extends Consumer<INodeProbeFactory>>> commands = newArrayList(
+                CassHelp.class,
                 Info.class,
                 Ring.class,
                 NetStats.class,
@@ -199,26 +213,26 @@ public class NodeTool
                 DisableOldProtocolVersions.class
         );
 
-        Cli.CliBuilder<Runnable> builder = Cli.builder("nodetool");
+        Cli.CliBuilder<Consumer<INodeProbeFactory>> builder = Cli.builder("nodetool");
 
         builder.withDescription("Manage your Cassandra cluster")
-                 .withDefaultCommand(Help.class)
+                 .withDefaultCommand(CassHelp.class)
                  .withCommands(commands);
 
         // bootstrap commands
         builder.withGroup("bootstrap")
                 .withDescription("Monitor/manage node's bootstrap process")
-                .withDefaultCommand(Help.class)
+                .withDefaultCommand(CassHelp.class)
                 .withCommand(BootstrapResume.class);
 
-        Cli<Runnable> parser = builder.build();
+        Cli<Consumer<INodeProbeFactory>> parser = builder.build();
 
         int status = 0;
         try
         {
-            Runnable parse = parser.parse(args);
+            Consumer<INodeProbeFactory> parse = parser.parse(args);
             printHistory(args);
-            parse.run();
+            parse.accept(nodeProbeFactory);
         } catch (IllegalArgumentException |
                 IllegalStateException |
                 ParseArgumentsMissingException |
@@ -237,7 +251,7 @@ public class NodeTool
             status = 2;
         }
 
-        System.exit(status);
+        return status;
     }
 
     private static void printHistory(String... args)
@@ -273,7 +287,15 @@ public class NodeTool
         System.err.println(getStackTraceAsString(e));
     }
 
-    public static abstract class NodeToolCmd implements Runnable
+    public static class CassHelp extends Help implements Consumer<INodeProbeFactory>
+    {
+        public void accept(INodeProbeFactory nodeProbeFactory)
+        {
+            run();
+        }
+    }
+
+    public static abstract class NodeToolCmd implements Consumer<INodeProbeFactory>
     {
 
         @Option(type = OptionType.GLOBAL, name = {"-h", "--host"}, description = "Node hostname or ip address")
@@ -291,10 +313,17 @@ public class NodeTool
         @Option(type = OptionType.GLOBAL, name = {"-pwf", "--password-file"}, description = "Path to the JMX password file")
         private String passwordFilePath = EMPTY;
 
-        @Option(type = OptionType.GLOBAL, name = { "-pp", "--print-port"}, description = "Operate in 4.0 mode with hosts disambiguated by port number", arity = 0)
+		@Option(type = OptionType.GLOBAL, name = { "-pp", "--print-port"}, description = "Operate in 4.0 mode with hosts disambiguated by port number", arity = 0)
         protected boolean printPort = false;
 
-        @Override
+        private INodeProbeFactory nodeProbeFactory;
+
+        public void accept(INodeProbeFactory nodeProbeFactory)
+        {
+            this.nodeProbeFactory = nodeProbeFactory;
+            run();
+        }
+
         public void run()
         {
             if (isNotEmpty(username)) {
@@ -365,9 +394,9 @@ public class NodeTool
             try
             {
                 if (username.isEmpty())
-                    nodeClient = new NodeProbe(host, parseInt(port));
+                    nodeClient = nodeProbeFactory.create(host, parseInt(port));
                 else
-                    nodeClient = new NodeProbe(host, parseInt(port), username, password);
+                    nodeClient = nodeProbeFactory.create(host, parseInt(port), username, password);
             } catch (IOException | SecurityException e)
             {
                 Throwable rootCause = Throwables.getRootCause(e);
