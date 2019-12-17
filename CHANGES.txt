@@ -21,6 +21,7 @@ Merged from 3.0:
 Merged from 2.2:
  * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
+ * In-JVM DTest: Support NodeTool in dtest (CASSANDRA-15429)
 
 4.0-alpha2
  * Fix SASI non-literal string comparisons (range operators) (CASSANDRA-15169)
