@@ -39,6 +39,7 @@ import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
@@ -71,6 +72,7 @@ public class InternalNodeProbe extends NodeProbe
         gcProxy = new GCInspector();
         gossProxy = Gossiper.instance;
         bmProxy = BatchlogManager.instance;
+        arsProxy = ActiveRepairService.instance;
         memProxy = ManagementFactory.getMemoryMXBean();
         runtimeProxy = ManagementFactory.getRuntimeMXBean();
     }
@@ -105,8 +107,8 @@ public class InternalNodeProbe extends NodeProbe
         return Keyspace.open(ks).getColumnFamilyStore(cf);
     }
 
-    @Override
     // The below methods are only used by the commands (i.e. Info, TableHistogram, TableStats, etc.) that display informations. Not useful for dtest, so disable it.
+    @Override
     public Object getCacheMetric(String cacheType, String metricName)
     {
         throw new UnsupportedOperationException();
@@ -143,7 +145,19 @@ public class InternalNodeProbe extends NodeProbe
     }
 
     @Override
+    public CassandraMetricsRegistry.JmxTimerMBean getMessagingQueueWaitMetrics(String verb)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public Object getCompactionMetric(String metricName)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object getClientMetric(String metricName)
     {
         throw new UnsupportedOperationException();
     }
