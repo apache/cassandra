@@ -22,10 +22,10 @@ import java.util.Iterator;
 import java.util.Objects;
 
 import com.google.common.base.Function;
-import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.ByteType;
@@ -129,13 +129,13 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
             cell.validate();
     }
 
-    public void digest(Hasher hasher)
+    public void digest(Digest digest)
     {
         if (!complexDeletion.isLive())
-            complexDeletion.digest(hasher);
+            complexDeletion.digest(digest);
 
         for (Cell cell : this)
-            cell.digest(hasher);
+            cell.digest(digest);
     }
 
     public boolean hasInvalidDeletions()

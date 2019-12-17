@@ -29,8 +29,6 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import com.google.common.hash.Hasher;
-import com.google.common.hash.Hashing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +36,6 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.utils.ApproximateTime;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.RTBoundCloser;
@@ -67,7 +64,6 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.HashingUtils;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
@@ -782,14 +778,14 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     private static class RepairedDataInfo
     {
-        private Hasher hasher;
+        private Digest hasher;
         private boolean isConclusive = true;
 
         ByteBuffer getDigest()
         {
             return hasher == null
                    ? ByteBufferUtil.EMPTY_BYTE_BUFFER
-                   : ByteBuffer.wrap(getHasher().hash().asBytes());
+                   : ByteBuffer.wrap(getHasher().digest());
         }
 
         boolean isConclusive()
@@ -804,7 +800,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         void trackPartitionKey(DecoratedKey key)
         {
-            HashingUtils.updateBytes(getHasher(), key.getKey().duplicate());
+            getHasher().update(key.getKey());
         }
 
         void trackDeletion(DeletionTime deletion)
@@ -822,10 +818,10 @@ public abstract class ReadCommand extends AbstractReadQuery
             row.digest(getHasher());
         }
 
-        private Hasher getHasher()
+        private Digest getHasher()
         {
             if (hasher == null)
-                hasher = Hashing.crc32c().newHasher();
+                hasher = Digest.forRepairedDataTracking();
 
             return hasher;
         }

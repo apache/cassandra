@@ -17,21 +17,18 @@
 package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
-import java.util.AbstractCollection;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import com.google.common.collect.Iterables;
-import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.HashingUtils;
 
 /**
  * Base abstract class for {@code Row} implementations.
@@ -61,16 +58,16 @@ public abstract class AbstractRow implements Row
         return clustering() == Clustering.STATIC_CLUSTERING;
     }
 
-    public void digest(Hasher hasher)
+    public void digest(Digest digest)
     {
-        HashingUtils.updateWithByte(hasher, kind().ordinal());
-        clustering().digest(hasher);
+        digest.updateWithByte(kind().ordinal());
+        clustering().digest(digest);
 
-        deletion().digest(hasher);
-        primaryKeyLivenessInfo().digest(hasher);
+        deletion().digest(digest);
+        primaryKeyLivenessInfo().digest(digest);
 
         for (ColumnData cd : this)
-            cd.digest(hasher);
+            cd.digest(digest);
     }
 
     public void validateData(TableMetadata metadata)

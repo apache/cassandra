@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 import com.google.common.collect.Maps;
-import com.google.common.hash.Hasher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,7 +47,6 @@ import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.HashingUtils;
 
 import static java.lang.String.format;
 
@@ -354,8 +352,7 @@ public final class SchemaKeyspace
      */
     static UUID calculateSchemaDigest()
     {
-        Hasher hasher = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-
+        Digest digest = Digest.forSchema();
         for (String table : ALL)
         {
             // Due to CASSANDRA-11050 we want to exclude DROPPED_COLUMNS for schema digest computation. We can and
@@ -372,12 +369,12 @@ public final class SchemaKeyspace
                     try (RowIterator partition = schema.next())
                     {
                         if (!isSystemKeyspaceSchemaPartition(partition.partitionKey()))
-                            RowIterators.digest(partition, hasher);
+                            RowIterators.digest(partition, digest);
                     }
                 }
             }
         }
-        return UUID.nameUUIDFromBytes(hasher.hash().asBytes());
+        return UUID.nameUUIDFromBytes(digest.digest());
     }
 
     /**

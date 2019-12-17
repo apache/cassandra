@@ -21,7 +21,6 @@ import java.io.*;
 import java.nio.ByteBuffer;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.*;
@@ -34,7 +33,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HashingUtils;
 
 public abstract class ReadResponse
 {
@@ -124,9 +122,9 @@ public abstract class ReadResponse
 
     protected static ByteBuffer makeDigest(UnfilteredPartitionIterator iterator, ReadCommand command)
     {
-        Hasher hasher = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-        UnfilteredPartitionIterators.digest(iterator, hasher, command.digestVersion());
-        return ByteBuffer.wrap(hasher.hash().asBytes());
+        Digest digest = Digest.forReadResponse();
+        UnfilteredPartitionIterators.digest(iterator, digest, command.digestVersion());
+        return ByteBuffer.wrap(digest.digest());
     }
 
     private static class DigestResponse extends ReadResponse

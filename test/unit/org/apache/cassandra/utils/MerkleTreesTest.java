@@ -38,16 +38,12 @@ import org.apache.cassandra.utils.MerkleTree.RowHash;
 import org.apache.cassandra.utils.MerkleTree.TreeRange;
 import org.apache.cassandra.utils.MerkleTrees.TreeRangeIterator;
 
+import static org.apache.cassandra.utils.MerkleTreeTest.digest;
 import static org.junit.Assert.*;
 
 public class MerkleTreesTest
 {
     private static final byte[] DUMMY = digest("dummy");
-
-    private static byte[] digest(String string)
-    {
-        return HashingUtils.newMessageDigest("SHA-256").digest(string.getBytes());
-    }
 
     /**
      * If a test assumes that the tree is 8 units wide, then it should set this value

@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 
-import com.google.common.hash.Hasher;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -263,8 +262,8 @@ public class CounterCellTest
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
         ByteBuffer col = ByteBufferUtil.bytes("val");
 
-        Hasher hasher1 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-        Hasher hasher2 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+        Digest digest1 = Digest.forReadResponse();
+        Digest digest2 = Digest.forReadResponse();
 
         CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 2, 2);
         state.writeRemote(CounterId.fromInt(1), 4L, 4L);
@@ -277,10 +276,10 @@ public class CounterCellTest
         ColumnMetadata cDef = cfs.metadata().getColumn(col);
         Cell cleared = BufferCell.live(cDef, 5, CounterContext.instance().clearAllLocal(state.context));
 
-        original.digest(hasher1);
-        cleared.digest(hasher2);
+        original.digest(digest1);
+        cleared.digest(digest2);
 
-        Assert.assertEquals(hasher1.hash(), hasher2.hash());
+        assertArrayEquals(digest1.digest(), digest2.digest());
     }
 
     @Test
@@ -297,9 +296,9 @@ public class CounterCellTest
         builder.addCell(emptyCell);
         Row row = builder.build();
 
-        Hasher hasher = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-        row.digest(hasher);
-        assertNotNull(hasher.hash());
+        Digest digest = Digest.forReadResponse();
+        row.digest(digest);
+        assertNotNull(digest.digest());
     }
 
 }
