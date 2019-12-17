@@ -43,6 +43,8 @@ public interface IInstance extends IIsolatedExecutor
 
     int liveMemberCount();
 
+    int nodetool(String... commandAndArgs);
+
     // these methods are not for external use, but for simplicity we leave them public and on the normal IInstance interface
     void startup(ICluster cluster);
     void receiveMessage(IMessage message);
