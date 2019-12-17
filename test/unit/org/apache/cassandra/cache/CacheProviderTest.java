@@ -23,14 +23,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.google.common.hash.Hasher;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.github.benmanes.caffeine.cache.Weigher;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -45,8 +44,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.HashingUtils;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
@@ -105,11 +104,11 @@ public class CacheProviderTest
     private void assertDigests(IRowCacheEntry one, CachedBTreePartition two)
     {
         assertTrue(one instanceof CachedBTreePartition);
-        Hasher h1 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-        Hasher h2 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-        UnfilteredRowIterators.digest(((CachedBTreePartition) one).unfilteredIterator(), h1, MessagingService.current_version);
-        UnfilteredRowIterators.digest(((CachedBTreePartition) two).unfilteredIterator(), h2, MessagingService.current_version);
-        Assert.assertEquals(h1.hash(), h2.hash());
+        Digest d1 = Digest.forReadResponse();
+        Digest d2 = Digest.forReadResponse();
+        UnfilteredRowIterators.digest(((CachedBTreePartition) one).unfilteredIterator(), d1, MessagingService.current_version);
+        UnfilteredRowIterators.digest(((CachedBTreePartition) two).unfilteredIterator(), d2, MessagingService.current_version);
+        assertArrayEquals(d1.digest(), d2.digest());
     }
 
     private void concurrentCase(final CachedBTreePartition partition, final ICache<MeasureableString, IRowCacheEntry> cache) throws InterruptedException

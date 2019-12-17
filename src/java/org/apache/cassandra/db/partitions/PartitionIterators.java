@@ -20,7 +20,6 @@ package org.apache.cassandra.db.partitions;
 import java.util.*;
 
 import org.apache.cassandra.db.EmptyIterators;
-import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.utils.AbstractIterator;

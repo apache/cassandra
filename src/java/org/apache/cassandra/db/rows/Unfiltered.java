@@ -17,8 +17,7 @@
  */
 package org.apache.cassandra.db.rows;
 
-import com.google.common.hash.Hasher;
-
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.Clusterable;
 
@@ -39,11 +38,11 @@ public interface Unfiltered extends Clusterable
     public Kind kind();
 
     /**
-     * Digest the atom using the provided {@link Hasher}.
+     * Digest the atom using the provided {@link Digest}.
      *
-     * @param hasher the {@see Hasher} to use.
+     * @param digest the {@see Digest} to use.
      */
-    public void digest(Hasher hasher);
+    public void digest(Digest digest);
 
     /**
      * Validate the data of this atom.

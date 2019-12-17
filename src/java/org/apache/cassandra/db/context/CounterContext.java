@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.hash.Hasher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -168,7 +167,7 @@ public class CounterContext
         return state.context;
     }
 
-    private static int headerLength(ByteBuffer context)
+    public static int headerLength(ByteBuffer context)
     {
         return HEADER_SIZE_LENGTH + Math.abs(context.getShort(context.position())) * HEADER_ELT_LENGTH;
     }
@@ -681,23 +680,6 @@ public class CounterContext
     {
         if ((context.remaining() - headerLength(context)) % STEP_LENGTH != 0)
             throw new MarshalException("Invalid size for a counter context");
-    }
-
-    /**
-     * Update a {@link Hasher} with the content of a context.
-     * Note that this skips the header entirely since the header information
-     * has local meaning only, while digests are meant for comparison across
-     * nodes. This means in particular that we always have:
-     *  updateDigest(ctx) == updateDigest(clearAllLocal(ctx))
-     */
-    public void updateDigest(Hasher hasher, ByteBuffer context)
-    {
-        // context can be empty due to the optimization from CASSANDRA-10657
-        if (!context.hasRemaining())
-            return;
-        ByteBuffer dup = context.duplicate();
-        dup.position(context.position() + headerLength(context));
-        HashingUtils.updateBytes(hasher, dup);
     }
 
     /**

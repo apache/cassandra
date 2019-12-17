@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,8 +26,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionsTest;
@@ -61,6 +58,7 @@ import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -197,8 +195,8 @@ public class ValidatorTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         UUID repairSessionId = UUIDGen.getTimeUUID();
         final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
-                                               cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
-                                                                                                                sstable.last.getToken())));
+                                                     cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
+                                                                                                               sstable.last.getToken())));
 
         InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
 
@@ -369,45 +367,6 @@ public class ValidatorTest
         List<Range<Token>> right = splitHelper(new Range<>(midpoint, range.right), depth - 1);
         left.addAll(right);
         return left;
-    }
-
-    @Test
-    public void testCountingHasher()
-    {
-        Hasher [] hashers = new Hasher[] {new Validator.CountingHasher(), Validator.CountingHasher.hashFunctions[0].newHasher(), Validator.CountingHasher.hashFunctions[1].newHasher() };
-        byte [] random = UUIDGen.getTimeUUIDBytes();
-
-        // call all overloaded methods:
-        for (Hasher hasher : hashers)
-        {
-            hasher.putByte((byte) 33)
-                  .putBytes(random)
-                  .putBytes(ByteBuffer.wrap(random))
-                  .putBytes(random, 0, 3)
-                  .putChar('a')
-                  .putBoolean(false)
-                  .putDouble(3.3)
-                  .putInt(77)
-                  .putFloat(99)
-                  .putLong(101)
-                  .putShort((short) 23);
-        }
-
-        long len = Byte.BYTES
-                   + random.length * 2 // both the byte[] and the ByteBuffer
-                   + 3 // 3 bytes from the random byte[]
-                   + Character.BYTES
-                   + Byte.BYTES
-                   + Double.BYTES
-                   + Integer.BYTES
-                   + Float.BYTES
-                   + Long.BYTES
-                   + Short.BYTES;
-
-        byte [] h = hashers[0].hash().asBytes();
-        assertTrue(Arrays.equals(hashers[1].hash().asBytes(), Arrays.copyOfRange(h, 0, 16)));
-        assertTrue(Arrays.equals(hashers[2].hash().asBytes(), Arrays.copyOfRange(h, 16, 32)));
-        assertEquals(len, ((Validator.CountingHasher)hashers[0]).getCount());
     }
 
     private CompletableFuture<Message> registerOutgoingMessageSink()

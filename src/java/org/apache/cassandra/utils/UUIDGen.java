@@ -403,13 +403,33 @@ public class UUIDGen
         long pid = NativeLibrary.getProcessID();
         if (pid < 0)
             pid = new Random(System.currentTimeMillis()).nextLong();
-        HashingUtils.updateWithLong(hasher, pid);
+        updateWithLong(hasher, pid);
 
         ClassLoader loader = UUIDGen.class.getClassLoader();
         int loaderId = loader != null ? System.identityHashCode(loader) : 0;
-        HashingUtils.updateWithInt(hasher, loaderId);
+        updateWithInt(hasher, loaderId);
 
         return hasher.hash().asBytes();
+    }
+
+    private static void updateWithInt(Hasher hasher, int val)
+    {
+        hasher.putByte((byte) ((val >>> 24) & 0xFF));
+        hasher.putByte((byte) ((val >>> 16) & 0xFF));
+        hasher.putByte((byte) ((val >>>  8) & 0xFF));
+        hasher.putByte((byte) ((val >>> 0) & 0xFF));
+    }
+
+    public static void updateWithLong(Hasher hasher, long val)
+    {
+        hasher.putByte((byte) ((val >>> 56) & 0xFF));
+        hasher.putByte((byte) ((val >>> 48) & 0xFF));
+        hasher.putByte((byte) ((val >>> 40) & 0xFF));
+        hasher.putByte((byte) ((val >>> 32) & 0xFF));
+        hasher.putByte((byte) ((val >>> 24) & 0xFF));
+        hasher.putByte((byte) ((val >>> 16) & 0xFF));
+        hasher.putByte((byte) ((val >>>  8) & 0xFF));
+        hasher.putByte((byte)  ((val >>> 0) & 0xFF));
     }
 
     /**
