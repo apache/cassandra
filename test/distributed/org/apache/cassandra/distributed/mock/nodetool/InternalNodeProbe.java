@@ -26,6 +26,7 @@ import java.util.Map;
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.batchlog.BatchlogManager;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.Keyspace;
@@ -33,6 +34,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -86,7 +88,12 @@ public class InternalNodeProbe extends NodeProbe
         return new EndpointSnitchInfo();
     }
 
-    @Override
+	@Override
+    public DynamicEndpointSnitchMBean getDynamicEndpointSnitchInfoProxy()
+    {
+        return (DynamicEndpointSnitchMBean) DatabaseDescriptor.createEndpointSnitch(true, DatabaseDescriptor.getRawConfig().endpoint_snitch);
+    }
+
     public CacheServiceMBean getCacheServiceMBean()
     {
         return cacheService;
