@@ -86,7 +86,7 @@ public class NetStats extends NodeToolCmd
         {
             System.out.printf("Read Repair Statistics:%nAttempted: %d%nMismatch (Blocking): %d%nMismatch (Background): %d%n", probe.getReadRepairAttempted(), probe.getReadRepairRepairedBlocking(), probe.getReadRepairRepairedBackground());
 
-            MessagingServiceMBean ms = probe.msProxy;
+            MessagingServiceMBean ms = probe.getMessagingServiceProxy();
             System.out.printf("%-25s", "Pool Name");
             System.out.printf("%10s", "Active");
             System.out.printf("%10s", "Pending");
