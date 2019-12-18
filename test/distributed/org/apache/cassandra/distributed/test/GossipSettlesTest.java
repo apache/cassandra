@@ -31,14 +31,11 @@ public class GossipSettlesTest extends DistributedTestBase
 {
 
     @Test
-    public void test()
+    public void testGossipSettles() throws IOException
     {
-        try (Cluster cluster = Cluster.create(3, config -> config.with(GOSSIP).with(NETWORK)))
+        // Use withSubnet(1) to prove seed provider is set correctly - without the fix to pass a seed provider, this test fails
+        try (Cluster cluster = Cluster.build(3).withConfig(config -> config.with(GOSSIP).with(NETWORK)).withSubnet(1).start())
         {
-        }
-        catch (IOException e)
-        {
-            e.printStackTrace();
         }
     }
 
