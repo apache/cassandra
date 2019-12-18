@@ -630,6 +630,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             long token = Long.MIN_VALUE + 1, increment = 2 * (Long.MAX_VALUE / nodeCount);
 
             String ipPrefix = "127.0." + subnet + ".";
+            String seedIp = ipPrefix + "1";
 
             NetworkTopology networkTopology = NetworkTopology.build(ipPrefix, 7012, nodeIdTopology);
 
@@ -637,7 +638,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             {
                 int nodeNum = i + 1;
                 String ipAddress = ipPrefix + nodeNum;
-                InstanceConfig config = InstanceConfig.generate(i + 1, ipAddress, networkTopology, root, String.valueOf(token));
+                InstanceConfig config = InstanceConfig.generate(i + 1, ipAddress, networkTopology, root, String.valueOf(token), seedIp);
                 if (configUpdater != null)
                     configUpdater.accept(config);
                 configs.add(config);
