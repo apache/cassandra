@@ -60,13 +60,18 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
     {
     }
 
+    protected void setReverseOrder(boolean isReverseOrder)
+    {
+        this.isReverseOrder = isReverseOrder;
+    }
+
     @Override
     @SuppressWarnings("resource")
     protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
     {
         onNewPartition(partition.partitionKey());
 
-        isReverseOrder = partition.isReverseOrder();
+        setReverseOrder(partition.isReverseOrder());
         UnfilteredRowIterator purged = Transformation.apply(partition, this);
         if (purged.isEmpty())
         {

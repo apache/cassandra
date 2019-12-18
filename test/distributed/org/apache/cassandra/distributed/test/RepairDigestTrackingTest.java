@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -110,6 +111,59 @@ public class RepairDigestTrackingTest extends DistributedTestBase implements Ser
             );
 
             Assert.assertEquals("confirmed count should differ by 1 after range read", ccBefore + 1, ccAfter);
+        }
+    }
+
+    @Test
+    public void testPurgeableTombstonesAreIgnored() throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.create(2)))
+        {
+
+            cluster.get(1).runOnInstance(() -> {
+                StorageProxy.instance.enableRepairedDataTrackingForRangeReads();
+            });
+
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl2 (k INT, c INT, v1 INT, v2 INT, PRIMARY KEY (k,c)) WITH gc_grace_seconds=0");
+            // on node1 only insert some tombstones, then flush
+            for (int i = 0; i < 10; i++)
+            {
+                cluster.get(1).executeInternal("DELETE v1 FROM " + KEYSPACE + ".tbl2 USING TIMESTAMP 0 WHERE k=? and c=? ", i, i);
+            }
+            cluster.get(1).runOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl2").forceBlockingFlush());
+
+            // insert data on both nodes and flush
+            for (int i = 0; i < 10; i++)
+            {
+                cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl2 (k, c, v2) VALUES (?, ?, ?) USING TIMESTAMP 1",
+                                               ConsistencyLevel.ALL,
+                                               i, i, i);
+            }
+            cluster.get(1).runOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl2").forceBlockingFlush());
+            cluster.get(2).runOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl2").forceBlockingFlush());
+
+            // nothing is repaired yet
+            cluster.get(1).runOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl2").getLiveSSTables().forEach(this::assertNotRepaired));
+            cluster.get(2).runOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl2").getLiveSSTables().forEach(this::assertNotRepaired));
+            // mark everything repaired
+            cluster.get(1).runOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl2").getLiveSSTables().forEach(this::markRepaired));
+            cluster.get(2).runOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl2").getLiveSSTables().forEach(this::markRepaired));
+            cluster.get(1).runOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl2").getLiveSSTables().forEach(this::assertRepaired));
+            cluster.get(2).runOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl2").getLiveSSTables().forEach(this::assertRepaired));
+
+            // now overwrite on node2 only to generate digest mismatches, but don't flush so the repaired dataset is not affected
+            for (int i = 0; i < 10; i++)
+            {
+                cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl2 (k, c, v2) VALUES (?, ?, ?) USING TIMESTAMP 2", i, i, i * 2);
+            }
+
+            long ccBefore = cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl2").metric.confirmedRepairedInconsistencies.table.getCount());
+            // Unfortunately we need to sleep here to ensure that nowInSec > the local deletion time of the tombstones
+            TimeUnit.SECONDS.sleep(2);
+            cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl2", ConsistencyLevel.ALL);
+            long ccAfter = cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl2").metric.confirmedRepairedInconsistencies.table.getCount());
+
+            Assert.assertEquals("No repaired data inconsistencies should be detected", ccBefore, ccAfter);
         }
     }
 
