@@ -90,7 +90,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     // for data queries, coordinators may request information on the repaired data used in constructing the response
     private boolean trackRepairedStatus = false;
-    // tracker for repaired data, initialized to singelton null object
+    // tracker for repaired data, initialized to singleton null object
     private static final RepairedDataInfo NULL_REPAIRED_DATA_INFO = new RepairedDataInfo()
     {
         void trackPartitionKey(DecoratedKey key){}
@@ -724,7 +724,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     }
 
     private static UnfilteredPartitionIterator withRepairedDataInfo(final UnfilteredPartitionIterator iterator,
-                                                               final RepairedDataInfo repairedDataInfo)
+                                                                    final RepairedDataInfo repairedDataInfo)
     {
         class WithRepairedDataTracking extends Transformation<UnfilteredRowIterator>
         {
@@ -744,6 +744,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             protected DecoratedKey applyToPartitionKey(DecoratedKey key)
             {
+                repairedDataInfo.onNewPartition(iterator);
                 repairedDataInfo.trackPartitionKey(key);
                 return key;
             }
@@ -762,7 +763,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
             protected Row applyToStatic(Row row)
             {
-                repairedDataInfo.trackRow(row);
+                repairedDataInfo.trackStaticRow(row);
                 return row;
             }
 
@@ -771,21 +772,48 @@ public abstract class ReadCommand extends AbstractReadQuery
                 repairedDataInfo.trackRow(row);
                 return row;
             }
-        }
 
+            protected void onPartitionClose()
+            {
+                repairedDataInfo.onPartitionClose();
+            }
+        }
         return Transformation.apply(iterator, new WithTracking());
     }
 
     private static class RepairedDataInfo
     {
-        private Digest hasher;
+        // Keeps a digest of the partition currently being processed. Since we won't know
+        // whether a partition will be fully purged from a read result until it's been
+        // consumed, we buffer this per-partition digest and add it to the final digest
+        // when the partition is closed (if it wasn't fully purged).
+        private Digest perPartitionDigest;
+        private Digest perCommandDigest;
         private boolean isConclusive = true;
+
+        // Doesn't actually purge from the underlying iterators, but excludes from the digest
+        // the purger can't be initialized until we've iterated all the sstables for the query
+        // as it requires the oldest repaired tombstone
+        private RepairedDataPurger purger;
+        private boolean isFullyPurged = true;
 
         ByteBuffer getDigest()
         {
-            return hasher == null
+            return perCommandDigest == null
                    ? ByteBufferUtil.EMPTY_BYTE_BUFFER
-                   : ByteBuffer.wrap(getHasher().digest());
+                   : ByteBuffer.wrap(perCommandDigest.digest());
+        }
+
+        protected void onNewPartition(UnfilteredRowIterator partition)
+        {
+            assert purger != null;
+            purger.setCurrentKey(partition.partitionKey());
+            purger.setIsReverseOrder(partition.isReverseOrder());
+        }
+
+        protected void setPurger(RepairedDataPurger purger)
+        {
+            this.purger = purger;
         }
 
         boolean isConclusive()
@@ -800,30 +828,128 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         void trackPartitionKey(DecoratedKey key)
         {
-            getHasher().update(key.getKey());
+            getPerPartitionDigest().update(key.getKey());
         }
 
         void trackDeletion(DeletionTime deletion)
         {
-            deletion.digest(getHasher());
+            assert purger != null;
+            DeletionTime purged = purger.applyToDeletion(deletion);
+            if (!purged.isLive())
+                isFullyPurged = false;
+
+            purged.digest(getPerPartitionDigest());
         }
 
         void trackRangeTombstoneMarker(RangeTombstoneMarker marker)
         {
-            marker.digest(getHasher());
+            assert purger != null;
+            RangeTombstoneMarker purged = purger.applyToMarker(marker);
+            if (purged != null)
+            {
+                isFullyPurged = false;
+                purged.digest(getPerPartitionDigest());
+            }
+        }
+
+        void trackStaticRow(Row row)
+        {
+            assert purger != null;
+            Row purged = purger.applyToRow(row);
+            if (!purged.isEmpty())
+            {
+                isFullyPurged = false;
+                purged.digest(getPerPartitionDigest());
+            }
         }
 
         void trackRow(Row row)
         {
-            row.digest(getHasher());
+            assert purger != null;
+            Row purged = purger.applyToRow(row);
+            if (purged != null)
+            {
+                isFullyPurged = false;
+                purged.digest(getPerPartitionDigest());
+            }
         }
 
-        private Digest getHasher()
+        private Digest getPerPartitionDigest()
         {
-            if (hasher == null)
-                hasher = Digest.forRepairedDataTracking();
+            if (perPartitionDigest == null)
+                perPartitionDigest = Digest.forRepairedDataTracking();
 
-            return hasher;
+            return perPartitionDigest;
+        }
+
+        private void onPartitionClose()
+        {
+            if (perPartitionDigest != null)
+            {
+                // If the partition wasn't completely emptied by the purger,
+                // calculate the digest for the partition and use it to
+                // update the overall digest
+                if (!isFullyPurged)
+                {
+                    if (perCommandDigest == null)
+                        perCommandDigest = Digest.forRepairedDataTracking();
+
+                    byte[] partitionDigest = perPartitionDigest.digest();
+                    perCommandDigest.update(partitionDigest, 0, partitionDigest.length);
+                    isFullyPurged = true;
+                }
+
+                perPartitionDigest = null;
+            }
+        }
+    }
+
+    /**
+     * Although PurgeFunction extends Transformation, this is never applied to an iterator.
+     * Instead, it is used by RepairedDataInfo during the generation of a repaired data
+     * digest to exclude data which will actually be purged later on in the read pipeline.
+     */
+    private static class RepairedDataPurger extends PurgeFunction
+    {
+        RepairedDataPurger(ColumnFamilyStore cfs,
+                           int nowInSec,
+                           int oldestUnrepairedTombstone)
+        {
+            super(nowInSec,
+                  cfs.gcBefore(nowInSec),
+                  oldestUnrepairedTombstone,
+                  cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones(),
+                  cfs.metadata.get().enforceStrictLiveness());
+        }
+
+        protected LongPredicate getPurgeEvaluator()
+        {
+            return (time) -> true;
+        }
+
+        void setCurrentKey(DecoratedKey key)
+        {
+            super.onNewPartition(key);
+        }
+
+        void setIsReverseOrder(boolean isReverseOrder)
+        {
+            super.setReverseOrder(isReverseOrder);
+        }
+
+        public DeletionTime applyToDeletion(DeletionTime deletionTime)
+        {
+            return super.applyToDeletion(deletionTime);
+        }
+
+        public Row applyToRow(Row row)
+        {
+            return super.applyToRow(row);
+        }
+
+        public RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
+        {
+            return super.applyToMarker(marker);
         }
     }
 
@@ -912,12 +1038,14 @@ public abstract class ReadCommand extends AbstractReadQuery
                 unrepairedIters.add(iter);
         }
 
-        List<T> finalizeIterators()
+        List<T> finalizeIterators(ColumnFamilyStore cfs, int nowInSec, int oldestUnrepairedTombstone)
         {
             if (repairedIters.isEmpty())
                 return unrepairedIters;
 
             // merge the repaired data before returning, wrapping in a digest generator
+            RepairedDataPurger purger = new RepairedDataPurger(cfs, nowInSec, oldestUnrepairedTombstone);
+            repairedDataInfo.setPurger(purger);
             unrepairedIters.add(repairedMerger.apply(repairedIters, repairedDataInfo));
             return unrepairedIters;
         }

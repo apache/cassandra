@@ -1,4 +1,5 @@
 4.0-alpha3
+ * Exclude purgeable tombstones from repaired data tracking (CASSANDRA-15462)
  * Exclude legacy counter shards from repaired data tracking (CASSANDRA-15461)
  * Make it easier to add trace headers to messages (CASSANDRA-15499)
  * Fix and optimise partial compressed sstable streaming (CASSANDRA-13938)
