@@ -33,7 +33,7 @@ public class GossipSettlesTest extends DistributedTestBase
     @Test
     public void test()
     {
-        try (Cluster cluster = Cluster.create(3, config -> config.with(GOSSIP).with(NETWORK)))
+        try (Cluster cluster = Cluster.build(3).withConfig(config -> config.with(GOSSIP).with(NETWORK)).withSubnet(1).start())
         {
         }
         catch (IOException e)
