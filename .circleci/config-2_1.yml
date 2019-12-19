@@ -34,6 +34,12 @@ j11_par_executor: &j11_par_executor
     #exec_resource_class: xlarge
   parallelism: 4
 
+j11_seq_executor: &j11_seq_executor
+  executor:
+    name: java11-executor
+    #exec_resource_class: xlarge
+  parallelism: 1 # sequential, single container tests: no parallelism benefits
+
 j8_with_dtests_jobs: &j8_with_dtests_jobs
   jobs:
     - j8_build
@@ -133,6 +139,9 @@ j11_with_dtests_jobs: &j11_with_dtests_jobs
     - j11_unit_tests:
         requires:
           - start_j11_unit_tests
+    - j11_jvm_dtests:
+        requires:
+          - j11_build
     # Java 11 dtests (on request)
     - start_j11_dtests:
         type: approval
@@ -263,6 +272,14 @@ jobs:
       - create_junit_containers
       - log_environment
       - run_parallel_junit_tests
+
+  j11_jvm_dtests:
+    <<: *j11_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_junit_tests:
+          target: test-jvm-dtest-forking
 
   j8_jvm_upgrade_dtests:
     <<: *j8_seq_executor

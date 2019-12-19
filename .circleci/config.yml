@@ -492,6 +492,49 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+  j11_jvm_dtests:
+    docker:
+    - image: spod/cassandra-testing-ubuntu1810-java11:20181210
+    resource_class: medium
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    parallelism: 1
+    steps:
+    - attach_workspace:
+        at: /home/cassandra
+    - run:
+        name: Run Unit Tests (test-jvm-dtest-forking)
+        command: |
+          export PATH=$JAVA_HOME/bin:$PATH
+          time mv ~/cassandra /tmp
+          cd /tmp/cassandra
+          ant test-jvm-dtest-forking
+        no_output_timeout: 15m
+    - store_test_results:
+        path: /tmp/cassandra/build/test/output/
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/output
+        destination: junitxml
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/logs
+        destination: logs
+    environment:
+    - ANT_HOME: /usr/share/ant
+    - LANG: en_US.UTF-8
+    - KEEP_TEST_DIR: true
+    - DEFAULT_DIR: /home/cassandra/cassandra-dtest
+    - PYTHONIOENCODING: utf-8
+    - PYTHONUNBUFFERED: true
+    - CASS_DRIVER_NO_EXTENSIONS: true
+    - CASS_DRIVER_NO_CYTHON: true
+    - CASSANDRA_SKIP_SYNC: true
+    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
+    - DTEST_BRANCH: master
+    - CCM_MAX_HEAP_SIZE: 1024M
+    - CCM_HEAP_NEWSIZE: 256M
+    - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+    - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+    - CASSANDRA_USE_JDK11: true
   j11_build:
     docker:
     - image: spod/cassandra-testing-ubuntu1810-java11:20181210
@@ -1169,6 +1212,9 @@ workflows:
     - j11_unit_tests:
         requires:
         - start_j11_unit_tests
+    - j11_jvm_dtests:
+        requires:
+        - j11_build
     - start_j11_dtests:
         type: approval
         requires:
