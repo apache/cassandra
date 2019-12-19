@@ -390,6 +390,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                     CassandraDaemon.getInstanceForTesting().initializeNativeTransport();
                     CassandraDaemon.getInstanceForTesting().startNativeTransport();
+                    StorageService.instance.setRpcReady(true);
                 }
 
                 if (!FBUtilities.getBroadcastAddressAndPort().equals(broadcastAddressAndPort()))
@@ -489,7 +490,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
 
-            error = parallelRun(error, executor, CassandraDaemon.getInstanceForTesting()::destroyNativeTransport);
+            error = parallelRun(error, executor,
+                    () -> StorageService.instance.setRpcReady(false),
+                    CassandraDaemon.getInstanceForTesting()::destroyNativeTransport);
 
             if (config.has(GOSSIP) || config.has(NETWORK))
             {
