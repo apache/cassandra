@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -35,7 +36,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class MessageForwardingTest extends DistributedTestBase
@@ -66,7 +66,7 @@ public class MessageForwardingTest extends DistributedTestBase
             // Wait for each of the futures to complete before checking the traces, don't care
             // about the result so
             //noinspection ResultOfMethodCallIgnored
-            inserts.map(IsolatedExecutor::waitOn).count();
+            inserts.map(IsolatedExecutor::waitOn).collect(Collectors.toList());
 
             cluster.stream("dc1").forEach(instance -> forwardFromCounts.put(instance.broadcastAddressAndPort().address, 0));
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddressAndPort().address, 0));
