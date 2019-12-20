@@ -29,8 +29,8 @@ Contents:
    getting_started/index
    new/index
    architecture/index
-   data_modeling/index
    cql/index
+   data_modeling/index
    configuration/index
    operating/index
    tools/index
