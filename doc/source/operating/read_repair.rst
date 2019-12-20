@@ -27,8 +27,8 @@ In read repair, cassandra sends digests request to all replica nodes not involve
 
 Types of read repair
 --------------------
+.. todo:: todo
 
-1. Foreground
-.. todo:: todo
-2. Background
-.. todo:: todo
+* Foreground
+
+* Background
