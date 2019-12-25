@@ -87,7 +87,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         boolean timedOut = false;
         for (BlockingPartitionRepair repair: repairs)
         {
-            if (!repair.awaitRepairsUntil(DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS) + queryStartNanoTime, NANOSECONDS))
+            if (!repair.awaitRepairsUntil(queryState.getTimeoutAtWithFallback(DatabaseDescriptor::getReadRpcTimeout, NANOSECONDS), NANOSECONDS))
             {
                 timedOut = true;
             }

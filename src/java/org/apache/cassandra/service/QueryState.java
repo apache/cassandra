@@ -124,10 +124,20 @@ public class QueryState
     {
          if (!hasResolvedTimeout())
          {
-             long timeout = fallback.applyAsLong(timeUnit);
+             long timeout = fallback.applyAsLong(TimeUnit.NANOSECONDS);
              setTimeoutInNanos(timeout);
          }
          return timeUnit.convert(getTimeoutInNanos(), TimeUnit.NANOSECONDS);
+    }
+
+    public long getTimeoutAtWithFallback(ToLongFunction<TimeUnit> fallback, TimeUnit timeUnit)
+    {
+        if (!hasResolvedTimeout())
+        {
+            long timeout = fallback.applyAsLong(TimeUnit.NANOSECONDS);
+            setTimeoutInNanos(timeout);
+        }
+        return timeUnit.convert(getStartTimeNanos() + timeoutInNanos, TimeUnit.NANOSECONDS);
     }
 
     /**
