@@ -77,7 +77,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     {
         for (BlockingPartitionRepair repair: repairs)
         {
-            repair.maybeSendAdditionalWrites(cfs.additionalWriteLatencyNanos, TimeUnit.NANOSECONDS);
+            repair.maybeSendAdditionalWrites(cfs.additionalWriteLatencyNanos, TimeUnit.NANOSECONDS, queryState);
         }
     }
 
@@ -109,7 +109,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, P replicaPlan)
     {
         BlockingPartitionRepair<E, P> blockingRepair = new BlockingPartitionRepair<>(partitionKey, mutations, blockFor, replicaPlan);
-        blockingRepair.sendInitialRepairs();
+        blockingRepair.sendInitialRepairs(queryState);
         repairs.add(blockingRepair);
     }
 }

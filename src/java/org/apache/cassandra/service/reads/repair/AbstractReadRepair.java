@@ -113,7 +113,9 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
             Tracing.trace("Enqueuing {} data read to {}", type, to);
         }
         // if enabled, request additional info about repaired data from any full replicas
-        Message<ReadCommand> message = command.createMessage(command.isTrackingRepairedStatus() && to.isFull());
+        Message<ReadCommand> message = command.createMessageBuilder(command.isTrackingRepairedStatus() && to.isFull())
+                                              .withQueryState(queryState)
+                                              .build();
         MessagingService.instance().sendWithCallback(message, to.endpoint(), readCallback);
     }
 
