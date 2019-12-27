@@ -1398,7 +1398,11 @@ public class DatabaseDescriptor
         return (int) ByteUnit.KIBI_BYTES.toBytes(conf.column_index_cache_size_in_kb);
     }
 
-    @VisibleForTesting
+    public static int getColumnIndexCacheSizeInKB()
+    {
+        return conf.column_index_cache_size_in_kb;
+    }
+
     public static void setColumnIndexCacheSize(int val)
     {
         checkValidForByteConversion(val, "column_index_cache_size_in_kb", ByteUnit.KIBI_BYTES);

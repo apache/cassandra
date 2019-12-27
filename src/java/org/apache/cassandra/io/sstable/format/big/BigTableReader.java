@@ -244,7 +244,7 @@ public class BigTableReader extends SSTableReader
                 if (opSatisfied)
                 {
                     // read data position from index entry
-                    RowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in, in.getFilePointer());
+                    RowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in);
                     if (exactMatch && updateCacheAndStats)
                     {
                         assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
