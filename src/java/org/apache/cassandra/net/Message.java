@@ -512,12 +512,7 @@ public class Message<T>
 
         public Builder<T> withQueryState(QueryState queryState)
         {
-            long expiresAt = 0;
-            if (queryState.hasResolvedTimeout())
-            {
-                expiresAt = queryState.getStartTimeNanos() + queryState.getTimeoutInNanos();
-                expiresAt = expiresAt < 0 ? 0 : expiresAt;
-            }
+            long expiresAt = queryState.getTimeoutAtWithFallback(t -> verb.expiresAfterNanos(), NANOSECONDS);
             return withExpiresAt(expiresAt);
         }
 
