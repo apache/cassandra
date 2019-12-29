@@ -197,33 +197,35 @@ public final class JsonTransformer
 
             json.writeEndObject();
 
-            if (partition.hasNext() || partition.staticRow() != null)
+            json.writeFieldName("rows");
+            json.writeStartArray();
+            updatePosition();
+
+            if (partition.staticRow() != null)
             {
-                json.writeFieldName("rows");
-                json.writeStartArray();
-                updatePosition();
                 if (!partition.staticRow().isEmpty())
                     serializeRow(partition.staticRow());
-
-                Unfiltered unfiltered;
                 updatePosition();
-                while (partition.hasNext())
-                {
-                    unfiltered = partition.next();
-                    if (unfiltered instanceof Row)
-                    {
-                        serializeRow((Row) unfiltered);
-                    }
-                    else if (unfiltered instanceof RangeTombstoneMarker)
-                    {
-                        serializeTombstone((RangeTombstoneMarker) unfiltered);
-                    }
-                    updatePosition();
-                }
-                json.writeEndArray();
-
-                json.writeEndObject();
             }
+
+            Unfiltered unfiltered;
+            while (partition.hasNext())
+            {
+                unfiltered = partition.next();
+                if (unfiltered instanceof Row)
+                {
+                    serializeRow((Row) unfiltered);
+                }
+                else if (unfiltered instanceof RangeTombstoneMarker)
+                {
+                    serializeTombstone((RangeTombstoneMarker) unfiltered);
+                }
+                updatePosition();
+            }
+
+            json.writeEndArray();
+
+            json.writeEndObject();
         }
         catch (IOException e)
         {
