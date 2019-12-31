@@ -3,6 +3,7 @@
  * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)
  * Fix LegacyLayout to have same behavior as 2.x when handling unknown column names (CASSANDRA-15081)
 Merged from 3.0:
+ * Fix sstabledump's position key value when partitions have multiple rows (CASSANDRA-14721)
  * Avoid over-scanning data directories in LogFile.verify() (CASSANDRA-15364)
  * Bump generations and document changes to system_distributed and system_traces in 3.0, 3.11
    (CASSANDRA-15441)
