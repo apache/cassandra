@@ -13,6 +13,7 @@ Merged from 3.11:
  * Fix nodetool compactionstats showing extra pending task for TWCS - patch implemented (CASSANDRA-15409)
  * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)
 Merged from 3.0:
+ * Fix point-in-time recoevery ignoring timestamp of updates to static columns (CASSANDRA-15292)
  * GC logs are also put under $CASSANDRA_LOG_DIR (CASSANDRA-14306)
  * Fix sstabledump's position key value when partitions have multiple rows (CASSANDRA-14721)
  * Avoid over-scanning data directories in LogFile.verify() (CASSANDRA-15364)
