@@ -37,12 +37,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.SyncUtil;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -63,6 +66,8 @@ public final class FileUtils
     public static final Charset CHARSET = StandardCharsets.UTF_8;
 
     private static final Logger logger = LoggerFactory.getLogger(FileUtils.class);
+    private static final NoSpamLogger nospam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
     public static final long ONE_KB = 1024;
     public static final long ONE_MB = 1024 * ONE_KB;
     public static final long ONE_GB = 1024 * ONE_MB;
@@ -177,15 +182,26 @@ public final class FileUtils
 
     public static Throwable deleteWithConfirm(String filePath, boolean expect, Throwable accumulate)
     {
-        return deleteWithConfirm(new File(filePath), expect, accumulate);
+        return deleteWithConfirm(new File(filePath), expect, accumulate, null);
     }
 
     public static Throwable deleteWithConfirm(File file, boolean expect, Throwable accumulate)
+    {
+        return deleteWithConfirm(file, expect, accumulate, null);
+    }
+    
+    public static Throwable deleteWithConfirm(File file, boolean expect, Throwable accumulate, RateLimiter rateLimiter)
     {
         boolean exists = file.exists();
         assert exists || !expect : "attempted to delete non-existing file " + file.getName();
         try
         {
+            if (rateLimiter != null)
+            {
+                double throttled = rateLimiter.acquire();
+                if (throttled > 0.0)
+                    nospam1m.warn("Throttling file deletion: waited {} seconds to delete {}", throttled, file);
+            }
             if (exists)
                 Files.delete(file.toPath());
         }
@@ -210,7 +226,12 @@ public final class FileUtils
 
     public static void deleteWithConfirm(File file)
     {
-        maybeFail(deleteWithConfirm(file, true, null));
+        maybeFail(deleteWithConfirm(file, true, null, null));
+    }
+
+    public static void deleteWithConfirmWithThrottle(File file, RateLimiter rateLimiter)
+    {
+        maybeFail(deleteWithConfirm(file, true, null, rateLimiter));
     }
 
     public static void renameWithOutConfirm(String from, String to)
@@ -533,6 +554,25 @@ public final class FileUtils
             return val + " bytes";
         }
     }
+
+    /**
+     * Deletes all files and subdirectories under "dir".
+     * @param dir Directory to be deleted
+     * @throws FSWriteError if any part of the tree cannot be deleted
+     */
+    public static void deleteRecursiveWithThrottle(File dir, RateLimiter rateLimiter)
+    {
+        if (dir.isDirectory())
+        {
+            String[] children = dir.list();
+            for (String child : children)
+                deleteRecursiveWithThrottle(new File(dir, child), rateLimiter);
+        }
+
+        // The directory is now empty so now it can be smoked
+        deleteWithConfirmWithThrottle(dir, rateLimiter);
+    }
+
 
     /**
      * Deletes all files and subdirectories under "dir".
