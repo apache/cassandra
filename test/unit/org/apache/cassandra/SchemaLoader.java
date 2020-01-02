@@ -379,6 +379,16 @@ public class SchemaLoader
                       .compression(getCompressionParameters());
     }
 
+    public static CFMetaData staticCFMD(String ksName, String cfName)
+    {
+        return CFMetaData.Builder.create(ksName, cfName)
+                                 .addPartitionKey("key", AsciiType.instance)
+                                 .addClusteringColumn("cols", AsciiType.instance)
+                                 .addStaticColumn("val", AsciiType.instance)
+                                 .addRegularColumn("val2", AsciiType.instance)
+                                 .build();
+    }
+
 
     public static CFMetaData denseCFMD(String ksName, String cfName)
     {
