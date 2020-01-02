@@ -390,6 +390,15 @@ public class SchemaLoader
         return builder;
     }
 
+    public static TableMetadata.Builder staticCFMD(String ksName, String cfName)
+    {
+        return TableMetadata.builder(ksName, cfName)
+                                 .addPartitionKeyColumn("key", AsciiType.instance)
+                                 .addClusteringColumn("cols", AsciiType.instance)
+                                 .addStaticColumn("val", AsciiType.instance)
+                                 .addRegularColumn("val2", AsciiType.instance);
+    }
+
 
     public static TableMetadata.Builder denseCFMD(String ksName, String cfName)
     {
