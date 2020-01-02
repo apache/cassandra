@@ -86,6 +86,11 @@ calculate_heap_sizes()
     fi
 }
 
+# Sets the path where logback and GC logs are written.
+if [ "x$CASSANDRA_LOG_DIR" = "x" ] ; then
+    CASSANDRA_LOG_DIR="$CASSANDRA_HOME/logs"
+fi
+
 #GC log path has to be defined here because it needs to access CASSANDRA_HOME
 if [ $JAVA_VERSION -ge 11 ] ; then
     # See description of https://bugs.openjdk.java.net/browse/JDK-8046148 for details about the syntax
@@ -93,16 +98,16 @@ if [ $JAVA_VERSION -ge 11 ] ; then
     echo "$JVM_OPTS" | grep -q "^-[X]log:gc"
     if [ "$?" = "1" ] ; then # [X] to prevent ccm from replacing this line
         # only add -Xlog:gc if it's not mentioned in jvm-server.options file
-        mkdir -p ${CASSANDRA_HOME}/logs
-        JVM_OPTS="$JVM_OPTS -Xlog:gc=info,heap*=trace,age*=debug,safepoint=info,promotion*=trace:file=${CASSANDRA_HOME}/logs/gc.log:time,uptime,pid,tid,level:filecount=10,filesize=10485760"
+        mkdir -p ${CASSANDRA_LOG_DIR}
+        JVM_OPTS="$JVM_OPTS -Xlog:gc=info,heap*=trace,age*=debug,safepoint=info,promotion*=trace:file=${CASSANDRA_LOG_DIR}/gc.log:time,uptime,pid,tid,level:filecount=10,filesize=10485760"
     fi
 else
     # Java 8
     echo "$JVM_OPTS" | grep -q "^-[X]loggc"
     if [ "$?" = "1" ] ; then # [X] to prevent ccm from replacing this line
         # only add -Xlog:gc if it's not mentioned in jvm-server.options file
-        mkdir -p ${CASSANDRA_HOME}/logs
-        JVM_OPTS="$JVM_OPTS -Xloggc:${CASSANDRA_HOME}/logs/gc.log"
+        mkdir -p ${CASSANDRA_LOG_DIR}
+        JVM_OPTS="$JVM_OPTS -Xloggc:${CASSANDRA_LOG_DIR}/gc.log"
     fi
 fi
 
