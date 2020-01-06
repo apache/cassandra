@@ -59,6 +59,7 @@ import org.apache.cassandra.utils.btree.UpdateFunction;
 // TODO : should probably lower fan-factor for tests to make them more intensive
 public class LongBTreeTest
 {
+    private static final int ITERATIONS = 10000;
 
     private static final MetricRegistry metrics = new MetricRegistry();
     private static final Timer BTREE_TIMER = metrics.timer(MetricRegistry.name(BTree.class, "BTREE"));
@@ -76,7 +77,7 @@ public class LongBTreeTest
     public void testOversizedMiddleInsert()
     {
         TreeSet<Integer> canon = new TreeSet<>();
-        for (int i = 0 ; i < 10000000 ; i++)
+        for (int i = 0 ; i < ITERATIONS ; i++)
             canon.add(i);
         Object[] btree = BTree.build(Arrays.asList(Integer.MIN_VALUE, Integer.MAX_VALUE), ICMP, true, null);
         btree = BTree.update(btree, ICMP, canon, true);
@@ -89,31 +90,31 @@ public class LongBTreeTest
     @Test
     public void testIndividualInsertsSmallOverlappingRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(10000000, 50, 1, 1, true);
+        testInsertions(ITERATIONS, 50, 1, 1, true);
     }
 
     @Test
     public void testBatchesSmallOverlappingRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(10000000, 50, 1, 5, true);
+        testInsertions(ITERATIONS, 50, 1, 5, true);
     }
 
     @Test
     public void testIndividualInsertsMediumSparseRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(10000000, 500, 10, 1, true);
+        testInsertions(ITERATIONS, 500, 10, 1, true);
     }
 
     @Test
     public void testBatchesMediumSparseRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(10000000, 500, 10, 10, true);
+        testInsertions(ITERATIONS, 500, 10, 10, true);
     }
 
     @Test
     public void testLargeBatchesLargeRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(100000000, 5000, 3, 100, true);
+        testInsertions(ITERATIONS * 10, 5000, 3, 100, true);
     }
 
     @Test
