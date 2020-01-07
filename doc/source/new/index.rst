@@ -27,4 +27,6 @@ This section covers the new features in Apache Cassandra 4.0.
    auditlogging
    fqllogging
    transientreplication
+   streaming
+   messaging
    
