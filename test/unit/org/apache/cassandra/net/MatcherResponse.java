@@ -30,7 +30,6 @@ import java.util.function.Function;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
@@ -213,7 +212,7 @@ public class MatcherResponse
         if (!MessagingService.instance().inboundSink.allow(message))
             return;
 
-        StageManager.getStage(message.verb().stage).execute(() -> {
+        message.verb().stage.execute(() -> {
             try
             {
                 message.verb().handler().doVerb((Message<Object>)message);

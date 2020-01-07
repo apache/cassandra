@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
@@ -42,9 +43,11 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -57,6 +60,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 /**
@@ -100,6 +104,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     // mutated by user-facing API
     private final MessageFilters filters;
+    private volatile Thread.UncaughtExceptionHandler previousHandler = null;
 
     protected class Wrapper extends DelegatingInvokableInstance implements IUpgradeableInstance
     {
@@ -127,7 +132,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
         private IInvokableInstance newInstance(int generation)
         {
-            ClassLoader classLoader = new InstanceClassLoader(generation, version.classpath, sharedClassLoader);
+            ClassLoader classLoader = new InstanceClassLoader(generation, config.num, version.classpath, sharedClassLoader);
             return Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>)Instance::new, classLoader)
                                         .apply(config.forVersion(version.major), classLoader);
         }
@@ -169,6 +174,28 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             return future;
         }
 
+        public int liveMemberCount()
+        {
+            if (!isShutdown && delegate != null)
+                return delegate().liveMemberCount();
+
+            throw new IllegalStateException("Cannot get live member count on shutdown instance");
+        }
+
+        public int nodetool(String... commandAndArgs)
+        {
+            return delegate().nodetool(commandAndArgs);
+        }
+
+        public long killAttempts()
+        {
+            IInvokableInstance local = delegate;
+            // if shutdown cleared the delegate, then no longer know how many kill attempts happened, so return -1
+            if (local == null)
+                return -1;
+            return local.killAttempts();
+        }
+
         @Override
         public void receiveMessage(IMessage message)
         {
@@ -191,15 +218,26 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                 delegate = null;
             }
         }
+
+        public void uncaughtException(Thread thread, Throwable throwable)
+        {
+            IInvokableInstance delegate = this.delegate;
+            if (delegate != null)
+                delegate.uncaughtException(thread, throwable);
+            else
+                logger.error("uncaught exception in thread {}", thread, throwable);
+        }
     }
 
-    protected AbstractCluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader)
+    protected AbstractCluster(File root, Versions.Version version, List<InstanceConfig> configs,
+                              ClassLoader sharedClassLoader)
     {
         this.root = root;
         this.sharedClassLoader = sharedClassLoader;
         this.instances = new ArrayList<>();
         this.instanceMap = new HashMap<>();
         int generation = AbstractCluster.generation.incrementAndGet();
+
         for (InstanceConfig config : configs)
         {
             I instance = newInstanceWrapper(generation, version, config);
@@ -231,17 +269,36 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
     {
         return instances.size();
     }
+
     public Stream<I> stream() { return instances.stream(); }
+
+    public Stream<I> stream(String dcName)
+    {
+        return instances.stream().filter(i -> i.config().localDatacenter().equals(dcName));
+    }
+
+    public Stream<I> stream(String dcName, String rackName)
+    {
+        return instances.stream().filter(i -> i.config().localDatacenter().equals(dcName) &&
+                                              i.config().localRack().equals(rackName));
+    }
+
     public void forEach(IIsolatedExecutor.SerializableRunnable runnable) { forEach(i -> i.sync(runnable)); }
-    public void forEach(Consumer<? super I> consumer) { instances.forEach(consumer); }
-    public void parallelForEach(IIsolatedExecutor.SerializableConsumer<? super I> consumer, long timeout, TimeUnit units)
+    public void forEach(Consumer<? super I> consumer) { forEach(instances, consumer); }
+    public void forEach(List<I> instancesForOp, Consumer<? super I> consumer) { instancesForOp.forEach(consumer); }
+
+    public void parallelForEach(IIsolatedExecutor.SerializableConsumer<? super I> consumer, long timeout, TimeUnit unit)
+    {
+            parallelForEach(instances, consumer, timeout, unit);
+    }
+
+    public void parallelForEach(List<I> instances, IIsolatedExecutor.SerializableConsumer<? super I> consumer, long timeout, TimeUnit unit)
     {
         FBUtilities.waitOnFutures(instances.stream()
                                            .map(i -> i.async(consumer).apply(i))
                                            .collect(Collectors.toList()),
-                                  timeout, units);
+                                  timeout, unit);
     }
-
 
     public IMessageFilters filters() { return filters; }
     public MessageFilters.Builder verbs(Verb... verbs) { return filters.verbs(verbs); }
@@ -261,7 +318,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             {
                 // execute the schema change
                 coordinator(1).execute(query, ConsistencyLevel.ALL);
-                monitor.waitForAgreement();
+                monitor.waitForCompletion();
             }
         }).run();
     }
@@ -284,6 +341,66 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
     }
 
+    public abstract class ChangeMonitor implements AutoCloseable
+    {
+        final List<IListen.Cancel> cleanup;
+        final SimpleCondition completed;
+        private final long timeOut;
+        private final TimeUnit timeoutUnit;
+        volatile boolean changed;
+
+        public ChangeMonitor(long timeOut, TimeUnit timeoutUnit)
+        {
+            this.timeOut = timeOut;
+            this.timeoutUnit = timeoutUnit;
+            this.cleanup = new ArrayList<>(instances.size());
+            this.completed = new SimpleCondition();
+        }
+
+        protected void signal()
+        {
+            if (changed && isCompleted())
+                completed.signalAll();
+        }
+
+        @Override
+        public void close()
+        {
+            for (IListen.Cancel cancel : cleanup)
+                cancel.cancel();
+        }
+
+        public void waitForCompletion()
+        {
+            startPolling();
+            changed = true;
+            signal();
+            try
+            {
+                if (!completed.await(timeOut, timeoutUnit))
+                    throw new InterruptedException();
+            }
+            catch (InterruptedException e)
+            {
+                throw new IllegalStateException(getMonitorTimeoutMessage());
+            }
+        }
+
+        private void startPolling()
+        {
+            for (IInstance instance : instances)
+                cleanup.add(startPolling(instance));
+        }
+
+        protected abstract IListen.Cancel startPolling(IInstance instance);
+
+        protected abstract boolean isCompleted();
+
+        protected abstract String getMonitorTimeoutMessage();
+    }
+
+
+
     /**
      * Will wait for a schema change AND agreement that occurs after it is created
      * (and precedes the invocation to waitForAgreement)
@@ -294,45 +411,49 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
      *
      * This could perhaps be made a little more robust, but this should more than suffice.
      */
-    public class SchemaChangeMonitor implements AutoCloseable
+    public class SchemaChangeMonitor extends ChangeMonitor
     {
-        final List<IListen.Cancel> cleanup;
-        volatile boolean schemaHasChanged;
-        final SimpleCondition agreement = new SimpleCondition();
-
         public SchemaChangeMonitor()
         {
-            this.cleanup = new ArrayList<>(instances.size());
-            for (IInstance instance : instances)
-                cleanup.add(instance.listen().schema(this::signal));
+            super(70, TimeUnit.SECONDS);
         }
 
-        private void signal()
+        protected IListen.Cancel startPolling(IInstance instance)
         {
-            if (schemaHasChanged && 1 == instances.stream().map(IInstance::schemaVersion).distinct().count())
-                agreement.signalAll();
+            return instance.listen().schema(this::signal);
         }
 
-        @Override
-        public void close()
+        protected boolean isCompleted()
         {
-            for (IListen.Cancel cancel : cleanup)
-                cancel.cancel();
+            return 1 == instances.stream().map(IInstance::schemaVersion).distinct().count();
         }
 
-        public void waitForAgreement()
+        protected String getMonitorTimeoutMessage()
         {
-            schemaHasChanged = true;
-            signal();
-            try
-            {
-                if (!agreement.await(1L, TimeUnit.MINUTES))
-                    throw new InterruptedException();
-            }
-            catch (InterruptedException e)
-            {
-                throw new IllegalStateException("Schema agreement not reached");
-            }
+            return "Schema agreement not reached";
+        }
+    }
+
+    public class AllMembersAliveMonitor extends ChangeMonitor
+    {
+        public AllMembersAliveMonitor()
+        {
+            super(60, TimeUnit.SECONDS);
+        }
+
+        protected IListen.Cancel startPolling(IInstance instance)
+        {
+            return instance.listen().liveMembers(this::signal);
+        }
+
+        protected boolean isCompleted()
+        {
+            return instances.stream().allMatch(i -> !i.config().has(Feature.GOSSIP) || i.liveMemberCount() == instances.size());
+        }
+
+        protected String getMonitorTimeoutMessage()
+        {
+            return "Live member count did not converge across all instances";
         }
     }
 
@@ -343,7 +464,40 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     void startup()
     {
-        parallelForEach(I::startup, 0, null);
+        previousHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler(this::uncaughtExceptions);
+        try (AllMembersAliveMonitor monitor = new AllMembersAliveMonitor())
+        {
+            // Start any instances with auto_bootstrap enabled first, and in series to avoid issues
+            // with multiple nodes bootstrapping with consistent range movement enabled,
+            // and then start any instances with it disabled in parallel.
+            List<I> startSequentially = new ArrayList<>();
+            List<I> startParallel = new ArrayList<>();
+            for (I instance : instances)
+            {
+                if ((boolean) instance.config().get("auto_bootstrap"))
+                    startSequentially.add(instance);
+                else
+                    startParallel.add(instance);
+            }
+
+            forEach(startSequentially, I::startup);
+            parallelForEach(startParallel, I::startup, 0, null);
+            monitor.waitForCompletion();
+        }
+    }
+
+    private void uncaughtExceptions(Thread thread, Throwable error)
+    {
+        if (!(thread.getContextClassLoader() instanceof InstanceClassLoader))
+        {
+            Thread.UncaughtExceptionHandler handler = previousHandler;
+            if (null != handler)
+                handler.uncaughtException(thread, error);
+            return;
+        }
+        InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
+        get(cl.getGeneration()).uncaughtException(thread, error);
     }
 
     protected interface Factory<I extends IInstance, C extends AbstractCluster<I>>
@@ -353,21 +507,113 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     public static class Builder<I extends IInstance, C extends AbstractCluster<I>>
     {
-        private final int nodeCount;
         private final Factory<I, C> factory;
+        private int nodeCount;
         private int subnet;
+        private Map<Integer, Pair<String,String>> nodeIdTopology;
         private File root;
         private Versions.Version version;
         private Consumer<InstanceConfig> configUpdater;
-        public Builder(int nodeCount, Factory<I, C> factory)
+
+        public Builder(Factory<I, C> factory)
         {
-            this.nodeCount = nodeCount;
             this.factory = factory;
         }
 
         public Builder<I, C> withSubnet(int subnet)
         {
             this.subnet = subnet;
+            return this;
+        }
+
+        public Builder<I, C> withNodes(int nodeCount) {
+            this.nodeCount = nodeCount;
+            return this;
+        }
+
+        public Builder<I, C> withDCs(int dcCount)
+        {
+            return withRacks(dcCount, 1);
+        }
+
+        public Builder<I, C> withRacks(int dcCount, int racksPerDC)
+        {
+            if (nodeCount == 0)
+                throw new IllegalStateException("Node count will be calculated. Do not supply total node count in the builder");
+
+            int totalRacks = dcCount * racksPerDC;
+            int nodesPerRack = (nodeCount + totalRacks - 1) / totalRacks; // round up to next integer
+            return withRacks(dcCount, racksPerDC, nodesPerRack);
+        }
+
+        public Builder<I, C> withRacks(int dcCount, int racksPerDC, int nodesPerRack)
+        {
+            if (nodeIdTopology != null)
+                throw new IllegalStateException("Network topology already created. Call withDCs/withRacks once or before withDC/withRack calls");
+
+            nodeIdTopology = new HashMap<>();
+            int nodeId = 1;
+            for (int dc = 1; dc <= dcCount; dc++)
+            {
+                for (int rack = 1; rack <= racksPerDC; rack++)
+                {
+                    for (int rackNodeIdx = 0; rackNodeIdx < nodesPerRack; rackNodeIdx++)
+                        nodeIdTopology.put(nodeId++, Pair.create(dcName(dc), rackName(rack)));
+                }
+            }
+            // adjust the node count to match the allocatation
+            final int adjustedNodeCount = dcCount * racksPerDC * nodesPerRack;
+            if (adjustedNodeCount != nodeCount)
+            {
+                assert adjustedNodeCount > nodeCount : "withRacks should only ever increase the node count";
+                logger.info("Network topology of {} DCs with {} racks per DC and {} nodes per rack required increasing total nodes to {}",
+                            dcCount, racksPerDC, nodesPerRack, adjustedNodeCount);
+                nodeCount = adjustedNodeCount;
+            }
+            return this;
+        }
+
+        public Builder<I, C> withDC(String dcName, int nodeCount)
+        {
+            return withRack(dcName, rackName(1), nodeCount);
+        }
+
+        public Builder<I, C> withRack(String dcName, String rackName, int nodesInRack)
+        {
+            if (nodeIdTopology == null)
+            {
+                if (nodeCount > 0)
+                    throw new IllegalStateException("Node count must not be explicitly set, or allocated using withDCs/withRacks");
+
+                nodeIdTopology = new HashMap<>();
+            }
+            for (int nodeId = nodeCount + 1; nodeId <= nodeCount + nodesInRack; nodeId++)
+                nodeIdTopology.put(nodeId, Pair.create(dcName, rackName));
+
+            nodeCount += nodesInRack;
+            return this;
+        }
+
+        // Map of node ids to dc and rack - must be contiguous with an entry nodeId 1 to nodeCount
+        public Builder<I, C> withNodeIdTopology(Map<Integer,Pair<String,String>> nodeIdTopology)
+        {
+            if (nodeIdTopology.isEmpty())
+                throw new IllegalStateException("Topology is empty. It must have an entry for every nodeId.");
+
+            IntStream.rangeClosed(1, nodeIdTopology.size()).forEach(nodeId -> {
+                if (nodeIdTopology.get(nodeId) == null)
+                    throw new IllegalStateException("Topology is missing entry for nodeId " + nodeId);
+            });
+
+            if (nodeCount != nodeIdTopology.size())
+            {
+                nodeCount = nodeIdTopology.size();
+                logger.info("Adjusting node count to {} for supplied network topology", nodeCount);
+
+            }
+
+            this.nodeIdTopology = new HashMap<>(nodeIdTopology);
+
             return this;
         }
 
@@ -396,8 +642,17 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
             if (root == null)
                 root = Files.createTempDirectory("dtests").toFile();
+
             if (version == null)
                 version = Versions.CURRENT;
+
+            if (nodeCount <= 0)
+                throw new IllegalStateException("Cluster must have at least one node");
+
+            if (nodeIdTopology == null)
+                nodeIdTopology = IntStream.rangeClosed(1, nodeCount).boxed()
+                                          .collect(Collectors.toMap(nodeId -> nodeId,
+                                                                    nodeId -> Pair.create(dcName(0), rackName(0))));
 
             root.mkdirs();
             setupLogging(root);
@@ -406,17 +661,24 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
             List<InstanceConfig> configs = new ArrayList<>();
             long token = Long.MIN_VALUE + 1, increment = 2 * (Long.MAX_VALUE / nodeCount);
-            for (int i = 0; i < nodeCount; ++i)
+
+            String ipPrefix = "127.0." + subnet + ".";
+            String seedIp = ipPrefix + "1";
+
+            NetworkTopology networkTopology = NetworkTopology.build(ipPrefix, 7012, nodeIdTopology);
+
+            for (int i = 0 ; i < nodeCount ; ++i)
             {
-                InstanceConfig config = InstanceConfig.generate(i + 1, subnet, root, String.valueOf(token));
+                int nodeNum = i + 1;
+                String ipAddress = ipPrefix + nodeNum;
+                InstanceConfig config = InstanceConfig.generate(i + 1, ipAddress, networkTopology, root, String.valueOf(token), seedIp);
                 if (configUpdater != null)
                     configUpdater.accept(config);
                 configs.add(config);
                 token += increment;
             }
 
-            C cluster = factory.newCluster(root, version, configs, sharedClassLoader);
-            return cluster;
+            return factory.newCluster(root, version, configs, sharedClassLoader);
         }
 
         public C start() throws IOException
@@ -427,6 +689,15 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
     }
 
+    static String dcName(int index)
+    {
+        return "datacenter" + index;
+    }
+
+    static String rackName(int index)
+    {
+        return "rack" + index;
+    }
 
     private static void setupLogging(File root)
     {
@@ -434,11 +705,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         {
             String testConfPath = "test/conf/logback-dtest.xml";
             Path logConfPath = Paths.get(root.getPath(), "/logback-dtest.xml");
+
             if (!logConfPath.toFile().exists())
             {
                 Files.copy(new File(testConfPath).toPath(),
                            logConfPath);
             }
+
             System.setProperty("logback.configurationFile", "file://" + logConfPath);
         }
         catch (IOException e)
@@ -459,7 +732,10 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         instances.clear();
         instanceMap.clear();
         // Make sure to only delete directory when threads are stopped
-        FileUtils.deleteRecursive(root);
+        if (root.exists())
+            FileUtils.deleteRecursive(root);
+        Thread.setDefaultUncaughtExceptionHandler(previousHandler);
+        previousHandler = null;
 
         //withThreadLeakCheck(futures);
     }

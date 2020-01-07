@@ -484,6 +484,11 @@ public class Scrubber implements Closeable
                 throw new RuntimeException(e);
             }
         }
+
+        public boolean isGlobal()
+        {
+            return false;
+        }
     }
 
     @VisibleForTesting

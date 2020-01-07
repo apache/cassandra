@@ -24,7 +24,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
-import org.apache.cassandra.locator.SimpleSnitch;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -43,11 +42,14 @@ public class InstanceConfig implements IInstanceConfig
     public final int num;
     public int num() { return num; }
 
+    private final NetworkTopology networkTopology;
+    public NetworkTopology networkTopology() { return networkTopology; }
+
     public final UUID hostId;
     public UUID hostId() { return hostId; }
     private final Map<String, Object> params = new TreeMap<>();
 
-    private EnumSet featureFlags;
+    private final EnumSet featureFlags;
 
     private volatile InetAddressAndPort broadcastAddressAndPort;
 
@@ -56,23 +58,30 @@ public class InstanceConfig implements IInstanceConfig
     {
         if (broadcastAddressAndPort == null)
         {
-            try
-            {
-                broadcastAddressAndPort = InetAddressAndPort.getByNameOverrideDefaults(getString("broadcast_address"), getInt("storage_port"));
-            }
-            catch (UnknownHostException e)
-            {
-                throw new IllegalStateException(e);
-            }
+            broadcastAddressAndPort = getAddressAndPortFromConfig("broadcast_address", "storage_port");
         }
         return broadcastAddressAndPort;
     }
 
+    private InetAddressAndPort getAddressAndPortFromConfig(String addressProp, String portProp)
+    {
+        try
+        {
+            return InetAddressAndPort.getByNameOverrideDefaults(getString(addressProp), getInt(portProp));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private InstanceConfig(int num,
+                           NetworkTopology networkTopology,
                            String broadcast_address,
                            String listen_address,
                            String broadcast_rpc_address,
                            String rpc_address,
+                           String seedIp,
                            String saved_caches_directory,
                            String[] data_file_directories,
                            String commitlog_directory,
@@ -81,6 +90,7 @@ public class InstanceConfig implements IInstanceConfig
                            String initial_token)
     {
         this.num = num;
+        this.networkTopology = networkTopology;
         this.hostId = java.util.UUID.randomUUID();
         this    .set("broadcast_address", broadcast_address)
                 .set("listen_address", listen_address)
@@ -93,6 +103,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("cdc_raw_directory", cdc_raw_directory)
                 .set("initial_token", initial_token)
                 .set("partitioner", "org.apache.cassandra.dht.Murmur3Partitioner")
+                .set("start_native_transport", true)
                 .set("concurrent_writes", 2)
                 .set("concurrent_counter_writes", 2)
                 .set("concurrent_materialized_view_writes", 2)
@@ -102,11 +113,16 @@ public class InstanceConfig implements IInstanceConfig
                 .set("memtable_heap_space_in_mb", 10)
                 .set("commitlog_sync", "batch")
                 .set("storage_port", 7012)
-                .set("endpoint_snitch", SimpleSnitch.class.getName())
+                .set("endpoint_snitch", DistributedTestSnitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                        Collections.singletonMap("seeds", "127.0.0.1:7012")))
+                        Collections.singletonMap("seeds", seedIp + ":7012")))
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
+                .set("auto_bootstrap", false)
+                // capacities that are based on `totalMemory` that should be fixed size
+                .set("index_summary_capacity_in_mb", 50l)
+                .set("counter_cache_size_in_mb", 50l)
+                .set("key_cache_size_in_mb", 50l)
                 // legacy parameters
                 .forceSet("commitlog_sync_batch_window_in_ms", 1.0);
         this.featureFlags = EnumSet.noneOf(Feature.class);
@@ -115,14 +131,23 @@ public class InstanceConfig implements IInstanceConfig
     private InstanceConfig(InstanceConfig copy)
     {
         this.num = copy.num;
+        this.networkTopology = new NetworkTopology(copy.networkTopology);
         this.params.putAll(copy.params);
         this.hostId = copy.hostId;
         this.featureFlags = copy.featureFlags;
+        this.broadcastAddressAndPort = copy.broadcastAddressAndPort;
     }
 
     public InstanceConfig with(Feature featureFlag)
     {
         featureFlags.add(featureFlag);
+        return this;
+    }
+
+    public InstanceConfig with(Feature... flags)
+    {
+        for (Feature flag : flags)
+            featureFlags.add(flag);
         return this;
     }
 
@@ -194,11 +219,7 @@ public class InstanceConfig implements IInstanceConfig
         {
             valueField.set(writeToConfig, value);
         }
-        catch (IllegalAccessException e)
-        {
-            throw new IllegalStateException(e);
-        }
-        catch (IllegalArgumentException e)
+        catch (IllegalAccessException | IllegalArgumentException e)
         {
             throw new IllegalStateException(e);
         }
@@ -219,14 +240,15 @@ public class InstanceConfig implements IInstanceConfig
         return (String)params.get(name);
     }
 
-    public static InstanceConfig generate(int nodeNum, int subnet, File root, String token)
+    public static InstanceConfig generate(int nodeNum, String ipAddress, NetworkTopology networkTopology, File root, String token, String seedIp)
     {
-        String ipPrefix = "127.0." + subnet + ".";
         return new InstanceConfig(nodeNum,
-                                  ipPrefix + nodeNum,
-                                  ipPrefix + nodeNum,
-                                  ipPrefix + nodeNum,
-                                  ipPrefix + nodeNum,
+                                  networkTopology,
+                                  ipAddress,
+                                  ipAddress,
+                                  ipAddress,
+                                  ipAddress,
+                                  seedIp,
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
                                   new String[] { String.format("%s/node%d/data", root, nodeNum) },
                                   String.format("%s/node%d/commitlog", root, nodeNum),

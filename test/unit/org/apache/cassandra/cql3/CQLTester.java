@@ -47,6 +47,8 @@ import com.datastax.driver.core.ResultSet;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -200,6 +202,7 @@ public abstract class CQLTester
 
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        CommitLog.instance.start();
 
         // Cleanup first
         try
@@ -239,6 +242,7 @@ public abstract class CQLTester
     public static void cleanupAndLeaveDirs() throws IOException
     {
         // We need to stop and unmap all CLS instances prior to cleanup() or we'll get failures on Windows.
+        CommitLog.instance.start();
         CommitLog.instance.stopUnsafe(true);
         mkdirs();
         cleanup();
@@ -401,6 +405,8 @@ public abstract class CQLTester
             return;
 
         SystemKeyspace.finishStartup();
+        VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
+
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
 

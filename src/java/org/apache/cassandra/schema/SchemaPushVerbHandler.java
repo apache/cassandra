@@ -23,7 +23,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -45,6 +44,6 @@ public final class SchemaPushVerbHandler implements IVerbHandler<Collection<Muta
         logger.trace("Received schema push request from {}", message.from());
 
         SchemaAnnouncementDiagnostics.schemataMutationsReceived(message.from());
-        StageManager.getStage(Stage.MIGRATION).submit(() -> Schema.instance.mergeAndAnnounceVersion(message.payload));
+        Stage.MIGRATION.submit(() -> Schema.instance.mergeAndAnnounceVersion(message.payload));
     }
 }

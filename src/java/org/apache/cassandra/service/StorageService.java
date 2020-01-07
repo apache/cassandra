@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nullable;
@@ -61,7 +62,6 @@ import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -107,14 +107,17 @@ import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.tryFind;
 import static java.util.Arrays.asList;
+import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
+import static org.apache.cassandra.schema.MigrationManager.evolveSystemKeyspace;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -424,7 +427,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         MessagingService.instance().shutdown();
         // give it a second so that task accepted before the MessagingService shutdown gets submitted to the stage (to avoid RejectedExecutionException)
         Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-        StageManager.shutdownNow();
+        Stage.shutdownNow();
     }
 
     public boolean isInitialized()
@@ -682,7 +685,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 states.add(Pair.create(ApplicationState.STATUS, valueFactory.hibernate(true)));
                 Gossiper.instance.addLocalApplicationStates(states);
             }
-            doAuthSetup();
+            doAuthSetup(true);
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
@@ -794,6 +797,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             else
             {
                 checkForEndpointCollision(localHostId, SystemKeyspace.loadHostIds().keySet());
+                if (SystemKeyspace.bootstrapComplete())
+                {
+                    Preconditions.checkState(!Config.isClientMode());
+                    // tokens are only ever saved to system.local after bootstrap has completed and we're joining the ring,
+                    // or when token update operations (move, decom) are completed
+                    Collection<Token> savedTokens = SystemKeyspace.getSavedTokens();
+                    if (!savedTokens.isEmpty())
+                        appStates.put(ApplicationState.TOKENS, valueFactory.tokens(savedTokens));
+                }
             }
 
             // have to start the gossip service before we can see any info on other nodes.  this is necessary
@@ -982,9 +994,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
 
-        // if we don't have system_traces keyspace at this point, then create it manually
-        maybeAddOrUpdateKeyspace(TraceKeyspace.metadata());
-        maybeAddOrUpdateKeyspace(SystemDistributedKeyspace.metadata());
+        setUpDistributedSystemKeyspaces();
 
         if (!isSurveyMode)
         {
@@ -1012,6 +1022,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             else
                 logger.warn("Some data streaming failed. Use nodetool to check bootstrap state and resume. For more, see `nodetool help bootstrap`. {}", SystemKeyspace.getBootstrapState());
         }
+    }
+
+    @VisibleForTesting
+    public void ensureTraceKeyspace()
+    {
+        evolveSystemKeyspace(TraceKeyspace.metadata(), TraceKeyspace.GENERATION).ifPresent(MigrationManager::announce);
     }
 
     public static boolean isReplacingSameAddress()
@@ -1088,14 +1104,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setTokens(tokens);
 
         assert tokenMetadata.sortedTokens().size() > 0;
-        doAuthSetup();
+        doAuthSetup(false);
     }
 
-    private void doAuthSetup()
+    private void doAuthSetup(boolean setUpSchema)
     {
         if (!authSetupCalled.getAndSet(true))
         {
-            maybeAddOrUpdateKeyspace(AuthKeyspace.metadata());
+            if (setUpSchema)
+                evolveSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION).ifPresent(MigrationManager::announce);
 
             DatabaseDescriptor.getRoleManager().setup();
             DatabaseDescriptor.getAuthenticator().setup();
@@ -1111,59 +1128,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return authSetupComplete;
     }
 
-    private void maybeAddKeyspace(KeyspaceMetadata ksm)
+    private void setUpDistributedSystemKeyspaces()
     {
-        try
-        {
-            /*
-             * We use timestamp of 0, intentionally, so that varying timestamps wouldn't cause schema mismatches on
-             * newly added nodes.
-             *
-             * Having the initial/default timestamp as 0 also allows users to make and persist changes to replication
-             * of our replicated system keyspaces.
-             *
-             * In case that we need to make incompatible changes to those kesypaces/tables, we'd need to bump the timestamp
-             * on per-keyspace/per-table basis. So far we've never needed to.
-             */
-            MigrationManager.announceNewKeyspace(ksm, 0, false);
-        }
-        catch (AlreadyExistsException e)
-        {
-            logger.debug("Attempted to create new keyspace {}, but it already exists", ksm.name);
-        }
-    }
+        Collection<Mutation> changes = new ArrayList<>(3);
 
-    /**
-     * Ensure the schema of a pseudo-system keyspace (a distributed system keyspace: traces, auth and the so-called distributedKeyspace),
-     * is up to date with what we expected (creating it if it doesn't exist and updating tables that may have been upgraded).
-     */
-    private void maybeAddOrUpdateKeyspace(KeyspaceMetadata expected)
-    {
-        // Note that want to deal with the keyspace and its table a bit differently: for the keyspace definition
-        // itself, we want to create it if it doesn't exist yet, but if it does exist, we don't want to modify it,
-        // because user can modify the definition to change the replication factor (#6016) and we don't want to
-        // override it. For the tables however, we have to deal with the fact that new version can add new columns
-        // (#8162 being an example), so even if the table definition exists, we still need to force the "current"
-        // version of the schema, the one the node will be expecting.
+        evolveSystemKeyspace(            TraceKeyspace.metadata(),             TraceKeyspace.GENERATION).ifPresent(changes::add);
+        evolveSystemKeyspace(SystemDistributedKeyspace.metadata(), SystemDistributedKeyspace.GENERATION).ifPresent(changes::add);
+        evolveSystemKeyspace(             AuthKeyspace.metadata(),              AuthKeyspace.GENERATION).ifPresent(changes::add);
 
-        KeyspaceMetadata defined = Schema.instance.getKeyspaceMetadata(expected.name);
-        // If the keyspace doesn't exist, create it
-        if (defined == null)
-        {
-            maybeAddKeyspace(expected);
-            defined = Schema.instance.getKeyspaceMetadata(expected.name);
-        }
-
-        // While the keyspace exists, it might miss table or have outdated one
-        // There is also the potential for a race, as schema migrations add the bare
-        // keyspace into Schema.instance before adding its tables, so double check that
-        // all the expected tables are present
-        for (TableMetadata expectedTable : expected.tables)
-        {
-            TableMetadata definedTable = defined.tables.get(expectedTable.name).orElse(null);
-            if (definedTable == null || !definedTable.equals(expectedTable))
-                MigrationManager.forceAnnounceNewTable(expectedTable);
-        }
+        if (!changes.isEmpty())
+            MigrationManager.announce(changes);
     }
 
     public boolean isJoined()
@@ -1575,7 +1549,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 logger.warn("Error during bootstrap.", e);
             }
-        });
+        }, MoreExecutors.directExecutor());
         try
         {
             bootstrapStream.get();
@@ -1670,7 +1644,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.ERROR, 1, 1, message));
                     progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
                 }
-            });
+            }, MoreExecutors.directExecutor());
             return true;
         }
         else
@@ -1678,6 +1652,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Resuming bootstrap is requested, but the node is already bootstrapped.");
             return false;
         }
+    }
+
+    public Map<String,List<Integer>> getConcurrency(List<String> stageNames)
+    {
+        Stream<Stage> stageStream = stageNames.isEmpty() ? stream(Stage.values()) : stageNames.stream().map(Stage::fromPoolName);
+        return stageStream.collect(toMap(s -> s.jmxName,
+                                         s -> Arrays.asList(s.getCorePoolSize(), s.getMaximumPoolSize())));
+    }
+
+    public void setConcurrency(String threadPoolName, int newCorePoolSize, int newMaximumPoolSize)
+    {
+        Stage stage = Stage.fromPoolName(threadPoolName);
+        if (newCorePoolSize >= 0)
+            stage.setCorePoolSize(newCorePoolSize);
+        stage.setMaximumPoolSize(newMaximumPoolSize);
     }
 
     public boolean isBootstrapMode()
@@ -2949,7 +2938,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // We still want to send the notification
                 sendReplicationNotification(notifyEndpoint);
             }
-        });
+        }, MoreExecutors.directExecutor());
     }
 
     /**
@@ -4181,7 +4170,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     {
                         logger.info("failed to shutdown message service: {}", ioe);
                     }
-                    StageManager.shutdownNow();
+                    Stage.shutdownNow();
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.DECOMMISSIONED);
                     setMode(Mode.DECOMMISSIONED, true);
                     // let op be responsible for killing the process
@@ -4574,9 +4563,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     protected synchronized void drain(boolean isFinalShutdown) throws IOException, InterruptedException, ExecutionException
     {
-        ExecutorService counterMutationStage = StageManager.getStage(Stage.COUNTER_MUTATION);
-        ExecutorService viewMutationStage = StageManager.getStage(Stage.VIEW_MUTATION);
-        ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
+        ExecutorService counterMutationStage = Stage.COUNTER_MUTATION.executor();
+        ExecutorService viewMutationStage = Stage.VIEW_MUTATION.executor();
+        ExecutorService mutationStage = Stage.MUTATION.executor();
 
         if (mutationStage.isTerminated()
             && counterMutationStage.isTerminated()

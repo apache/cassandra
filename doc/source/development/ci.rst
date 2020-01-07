@@ -68,5 +68,5 @@ You should now find a new entry with the given name in your project list. Howeve
 
 Jobs are triggered by either changes in Git or are scheduled to execute periodically, e.g. on daily basis. Jenkins will use any available executor with the label "cassandra", once the job is to be run. Please make sure to make any executors available by selecting ``Build Executor Status`` -> ``Configure`` -> Add "``cassandra``" as label and save.
 
-
+Executors need to have "JDK 1.8 (latest)" installed. This is done under ``Manage Jenkins -> Global Tool Configuration -> JDK Installations…``. Executors also need to have the virtualenv package installed on their system.
 

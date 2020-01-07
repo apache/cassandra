@@ -37,7 +37,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -278,7 +277,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                     }
                 }
             };
-            return StageManager.getStage(Stage.MUTATION).submit(runnable, serializedSize);
+            return Stage.MUTATION.submit(runnable, serializedSize);
         }
     }
 

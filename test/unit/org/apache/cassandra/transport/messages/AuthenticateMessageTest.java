@@ -15,22 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.concurrent;
 
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
+package org.apache.cassandra.transport.messages;
 
-public class JMXConfigurableThreadPoolExecutor extends JMXEnabledThreadPoolExecutor implements JMXConfigurableThreadPoolExecutorMBean
+import org.junit.Assert;
+import org.junit.Test;
+
+import org.apache.cassandra.auth.PasswordAuthenticator;
+import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ProtocolVersion;
+
+public class AuthenticateMessageTest extends EncodeAndDecodeTestBase<AuthenticateMessage>
 {
-
-    public JMXConfigurableThreadPoolExecutor(int corePoolSize,
-                                             long keepAliveTime,
-                                             TimeUnit unit,
-                                             BlockingQueue<Runnable> workQueue,
-                                             NamedThreadFactory threadFactory,
-                                             String jmxPath)
+    @Test
+    public void testEncodeAndDecode()
     {
-        super(corePoolSize, keepAliveTime, unit, workQueue, threadFactory, jmxPath);
+        AuthenticateMessage origin = new AuthenticateMessage(PasswordAuthenticator.class.getName());
+        AuthenticateMessage newMessage = encodeThenDecode(origin, ProtocolVersion.V5);
+        Assert.assertEquals(origin.toString(), newMessage.toString());
     }
 
+    protected Message.Codec<AuthenticateMessage> getCodec()
+    {
+        return AuthenticateMessage.codec;
+    }
 }

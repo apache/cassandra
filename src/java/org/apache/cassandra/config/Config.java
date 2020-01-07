@@ -191,6 +191,8 @@ public class Config
     public int native_transport_frame_block_size_in_kb = 32;
     public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
     public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
+    @Deprecated
+    public Integer native_transport_max_negotiable_protocol_version = null;
 
 
     /**

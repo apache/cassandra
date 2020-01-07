@@ -40,7 +40,6 @@ import org.apache.cassandra.audit.FullQueryLoggerOptions;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.service.reads.AbstractReadExecutor;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
@@ -152,8 +151,8 @@ public class StorageProxy implements StorageProxyMBean
         {
             EndpointsForToken selected = targets.contacts().withoutSelf();
             Replicas.temporaryAssertFull(selected); // TODO CASSANDRA-14548
-            StageManager.getStage(Stage.COUNTER_MUTATION)
-                        .execute(counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter));
+            Stage.COUNTER_MUTATION.executor()
+                                  .execute(counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter));
         };
 
         for(ConsistencyLevel level : ConsistencyLevel.values())
@@ -446,7 +445,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             if (replica.isSelf())
             {
-                StageManager.getStage(PAXOS_PREPARE_REQ.stage).execute(() -> {
+                PAXOS_PREPARE_REQ.stage.execute(() -> {
                     try
                     {
                         callback.onResponse(message.responseWith(doPrepare(toPrepare)));
@@ -475,7 +474,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             if (replica.isSelf())
             {
-                StageManager.getStage(PAXOS_PROPOSE_REQ.stage).execute(() -> {
+                PAXOS_PROPOSE_REQ.stage.execute(() -> {
                     try
                     {
                         Message<Boolean> response = message.responseWith(doPropose(proposal));
@@ -564,7 +563,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static void commitPaxosLocal(Replica localReplica, final Message<Commit> message, final AbstractWriteResponseHandler<?> responseHandler)
     {
-        StageManager.getStage(PAXOS_COMMIT_REQ.stage).maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
+        PAXOS_COMMIT_REQ.stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
             public void runMayThrow()
             {
@@ -1284,16 +1283,17 @@ public class StorageProxy implements StorageProxyMBean
 
     /*
      * Send the message to the first replica of targets, and have it forward the message to others in its DC
-     *
-     * TODO: are targets shuffled? do we want them to be to spread out forwarding burden?
      */
     private static void sendMessagesToNonlocalDC(Message<? extends IMutation> message,
                                                  EndpointsForToken targets,
                                                  AbstractWriteResponseHandler<IMutation> handler)
     {
+        final Replica target;
+
         if (targets.size() > 1)
         {
-            EndpointsForToken forwardToReplicas = targets.subList(1, targets.size());
+            target = targets.get(ThreadLocalRandom.current().nextInt(0, targets.size()));
+            EndpointsForToken forwardToReplicas = targets.filter(r -> r != target, targets.size());
 
             for (Replica replica : forwardToReplicas)
             {
@@ -1307,14 +1307,18 @@ public class StorageProxy implements StorageProxyMBean
 
             message = message.withForwardTo(new ForwardingInfo(forwardToReplicas.endpointList(), messageIds));
         }
+        else
+        {
+            target = targets.get(0);
+        }
 
-        MessagingService.instance().sendWriteWithCallback(message, targets.get(0), handler, true);
-        logger.trace("Sending message to {}@{}", message.id(), targets.get(0));
+        MessagingService.instance().sendWriteWithCallback(message, target, handler, true);
+        logger.trace("Sending message to {}@{}", message.id(), target);
     }
 
     private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable)
     {
-        StageManager.getStage(stage).maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
+        stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
             public void runMayThrow()
             {
@@ -1338,7 +1342,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable, final RequestCallback<?> handler)
     {
-        StageManager.getStage(stage).maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
+        stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
             public void runMayThrow()
             {
@@ -2057,7 +2061,7 @@ public class StorageProxy implements StorageProxyMBean
 
             if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
             {
-                StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(rangeCommand, handler));
+                Stage.READ.execute(new LocalReadRunnable(rangeCommand, handler));
             }
             else
             {
@@ -2619,7 +2623,7 @@ public class StorageProxy implements StorageProxyMBean
         StorageMetrics.totalHintsInProgress.inc(runnable.targets.size());
         for (Replica target : runnable.targets)
             getHintsInProgressFor(target.endpoint()).incrementAndGet();
-        return (Future<Void>) StageManager.getStage(Stage.MUTATION).submit(runnable);
+        return (Future<Void>) Stage.MUTATION.submit(runnable);
     }
 
     public Long getRpcTimeout() { return DatabaseDescriptor.getRpcTimeout(MILLISECONDS); }

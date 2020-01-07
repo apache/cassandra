@@ -27,6 +27,7 @@ import org.junit.Test;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.junit.Assert;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -125,6 +126,226 @@ public class SASICQLTest extends CQLTester
         finally
         {
             DatabaseDescriptor.setEnableSASIIndexes(enableSASIIndexes);
+        }
+    }
+
+    /**
+     * Tests query condition '>' on string columns with is_literal=false.
+     */
+    @Test
+    public void testNonLiteralStringCompare() throws Throwable
+    {
+        for (String mode : new String[]{ "PREFIX", "CONTAINS", "SPARSE"})
+        {
+            for (boolean forceFlush : new boolean[]{ false, true })
+            {
+                try
+                {
+                    createTable("CREATE TABLE %s (pk int primary key, v text);");
+                    createIndex(String.format("CREATE CUSTOM INDEX ON %%s (v) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'is_literal': 'false', 'mode': '%s'};", mode));
+
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 0, "a");
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 1, "abc");
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 2, "ac");
+
+                    flush(forceFlush);
+
+                    Session session = sessionNet();
+                    SimpleStatement stmt = new SimpleStatement("SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE v = 'ab'");
+                    stmt.setFetchSize(5);
+                    List<Row> rs = session.execute(stmt).all();
+                    Assert.assertEquals(0, rs.size());
+
+                    try
+                        {
+                        sessionNet();
+                        stmt = new SimpleStatement("SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE v > 'ab'");
+                        stmt.setFetchSize(5);
+                        rs = session.execute(stmt).all();
+                        Assert.assertFalse("CONTAINS mode on non-literal string type should not support RANGE operators", "CONTAINS".equals(mode));
+                        Assert.assertEquals(2, rs.size());
+                        Assert.assertEquals(1, rs.get(0).getInt("pk"));
+                    }
+                    catch (InvalidQueryException ex)
+                    {
+                        if (!"CONTAINS".equals(mode))
+                            throw ex;
+                    }
+                }
+                catch (Throwable th)
+                {
+                    throw new AssertionError(String.format("Failure with mode:%s and flush:%s ", mode, forceFlush), th);
+                }
+
+            }
+        }
+    }
+
+    /**
+     * Tests query condition '>' on string columns with is_literal=true (default).
+     */
+    @Test
+    public void testStringCompare() throws Throwable
+    {
+        for (String mode : new String[]{ "PREFIX", "CONTAINS"})
+        {
+            for (boolean forceFlush : new boolean[]{ false, true })
+            {
+                try
+                {
+                    createTable("CREATE TABLE %s (pk int primary key, v text);");
+                    createIndex(String.format("CREATE CUSTOM INDEX ON %%s (v) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'mode': '%s'};", mode));
+
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 0, "a");
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 1, "abc");
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 2, "ac");
+
+                    flush(forceFlush);
+
+                    Session session = sessionNet();
+                    SimpleStatement stmt = new SimpleStatement("SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE v = 'ab'");
+                    stmt.setFetchSize(5);
+                    List<Row> rs = session.execute(stmt).all();
+                    Assert.assertEquals(0, rs.size());
+
+                    try
+                    {
+                        session = sessionNet();
+                        stmt = new SimpleStatement("SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE v > 'ab'");
+                        stmt.setFetchSize(5);
+                        rs = session.execute(stmt).all();
+                        throw new AssertionError("literal string type should not support RANGE operators");
+                    }
+                    catch (InvalidQueryException ex)
+                    {}
+                }
+                catch (Throwable th)
+                {
+                    throw new AssertionError(String.format("Failure with mode:%s and flush:%s ", mode, forceFlush), th);
+                }
+
+            }
+        }
+    }
+
+    /**
+     * Tests query condition like_prefix on string columns.
+     */
+    @Test
+    public void testStringLikePrefix() throws Throwable
+    {
+        for (String mode : new String[]{ "PREFIX", "CONTAINS"})
+        {
+            for (boolean forceFlush : new boolean[]{ false, true })
+            {
+                try
+                {
+                    createTable("CREATE TABLE %s (pk int primary key, v text);");
+                    createIndex(String.format("CREATE CUSTOM INDEX ON %%s (v) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'mode': '%s'};", mode));
+
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 0, "a");
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 1, "abc");
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 2, "ac");
+
+                    flush(forceFlush);
+
+                    Session session = sessionNet();
+                    SimpleStatement stmt = new SimpleStatement("SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE v LIKE 'ab%'");
+                    stmt.setFetchSize(5);
+                    List<Row> rs = session.execute(stmt).all();
+                    Assert.assertEquals(1, rs.size());
+                    Assert.assertEquals(1, rs.get(0).getInt("pk"));
+                }
+                catch (Throwable th)
+                {
+                    throw new AssertionError(String.format("Failure with mode:%s and flush:%s ", mode, forceFlush), th);
+                }
+
+            }
+        }
+    }
+
+    /**
+     * Tests query condition '>' on blob columns.
+     */
+    @Test
+    public void testBlobCompare() throws Throwable
+    {
+        for (String mode : new String[]{ "PREFIX", "CONTAINS", "SPARSE"})
+        {
+            for (boolean forceFlush : new boolean[]{ false, true })
+            {
+                try
+                {
+                    createTable("CREATE TABLE %s (pk int primary key, v blob);");
+                    createIndex(String.format("CREATE CUSTOM INDEX ON %%s (v) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'mode': '%s'};", mode));
+
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 0, 0x1234);
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 1, 0x12345678);
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 2, 0x12350000);
+
+                    flush(forceFlush);
+
+                    Session session = sessionNet();
+                    SimpleStatement stmt = new SimpleStatement("SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE v > 0x1234");
+                    stmt.setFetchSize(5);
+                    List<Row> rs = session.execute(stmt).all();
+                    Assert.assertFalse("CONTAINS mode on non-literal blob type should not support RANGE operators", "CONTAINS".equals(mode));
+                    Assert.assertEquals(2, rs.size());
+                    Assert.assertEquals(1, rs.get(0).getInt("pk"));
+                }
+                catch (InvalidQueryException ex)
+                {
+                    if (!"CONTAINS".equals(mode))
+                        throw ex;
+                }
+                catch (Throwable th)
+                {
+                    throw new AssertionError(String.format("Failure with mode:%s and flush:%s ", mode, forceFlush), th);
+                }
+
+            }
+        }
+    }
+
+    @Test
+    public void testIntCompare() throws Throwable
+    {
+        for (String mode : new String[]{ "PREFIX", "CONTAINS", "SPARSE"})
+        {
+            for (boolean forceFlush : new boolean[]{ false, true })
+            {
+                try
+                {
+                    createTable("CREATE TABLE %s (pk int primary key, v int);");
+
+                    createIndex(String.format("CREATE CUSTOM INDEX ON %%s (v) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'mode': '%s'};", mode));
+
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 0, 100);
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 1, 200);
+                    execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 2, 300);
+
+                    flush(forceFlush);
+
+                    Session session = sessionNet();
+                    SimpleStatement stmt = new SimpleStatement("SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE v > 200");
+                    stmt.setFetchSize(5);
+                    List<Row> rs = session.execute(stmt).all();
+                    Assert.assertFalse("CONTAINS mode on non-literal int type should not support RANGE operators", "CONTAINS".equals(mode));
+                    Assert.assertEquals(1, rs.size());
+                    Assert.assertEquals(2, rs.get(0).getInt("pk"));
+                }
+                catch (InvalidQueryException ex)
+                {
+                    if (!"CONTAINS".equals(mode))
+                        throw ex;
+                }
+                catch (Throwable th)
+                {
+                    throw new AssertionError(String.format("Failure with mode:%s and flush:%s ", mode, forceFlush), th);
+                }
+
+            }
         }
     }
 }

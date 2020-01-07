@@ -552,7 +552,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
                     public void onFailure(Throwable throwable)
                     {
                     }
-                });
+                }, MoreExecutors.directExecutor());
                 assertTrue(cdl.await(1, TimeUnit.MINUTES));
             }
         }
@@ -606,6 +606,11 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
             {
                 return new CompactionInfo(cfs.metadata(), OperationType.ANTICOMPACTION, 0, 1000, UUID.randomUUID(), compacting);
             }
+
+            public boolean isGlobal()
+            {
+                return false;
+            }
         };
         CompactionManager.instance.active.beginCompaction(holder);
         try
@@ -641,6 +646,11 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
             public CompactionInfo getCompactionInfo()
             {
                 return new CompactionInfo(cfs.metadata(), OperationType.ANTICOMPACTION, 0, 0, UUID.randomUUID(), cfs.getLiveSSTables());
+            }
+
+            public boolean isGlobal()
+            {
+                return false;
             }
         };
         try
@@ -680,6 +690,11 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
             public CompactionInfo getCompactionInfo()
             {
                 return new CompactionInfo(cfs.metadata(), OperationType.ANTICOMPACTION, 0, 0, UUID.randomUUID(), cfs.getLiveSSTables());
+            }
+
+            public boolean isGlobal()
+            {
+                return false;
             }
         };
         try

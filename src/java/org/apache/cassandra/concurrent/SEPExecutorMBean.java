@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.concurrent;
 
-public interface JMXConfigurableThreadPoolExecutorMBean extends JMXEnabledThreadPoolExecutorMBean
+public interface SEPExecutorMBean extends ResizableThreadPool
 {
-    void setCorePoolSize(int n);
-
-    int getCorePoolSize();
 }

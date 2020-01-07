@@ -67,7 +67,6 @@ public class ReplicationStrategyEndpointCacheTest
     public void testEndpointsWereCached() throws Exception
     {
         runEndpointsWereCachedTest(FakeSimpleStrategy.class, null);
-        runEndpointsWereCachedTest(FakeOldNetworkTopologyStrategy.class, null);
         runEndpointsWereCachedTest(FakeNetworkTopologyStrategy.class, new HashMap<String, String>());
     }
 
@@ -81,7 +80,6 @@ public class ReplicationStrategyEndpointCacheTest
     public void testCacheRespectsTokenChanges() throws Exception
     {
         runCacheRespectsTokenChangesTest(SimpleStrategy.class, null);
-        runCacheRespectsTokenChangesTest(OldNetworkTopologyStrategy.class, null);
         runCacheRespectsTokenChangesTest(NetworkTopologyStrategy.class, new HashMap<String, String>());
     }
 
@@ -123,23 +121,6 @@ public class ReplicationStrategyEndpointCacheTest
         private boolean called = false;
 
         public FakeSimpleStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
-        {
-            super(keyspaceName, tokenMetadata, snitch, configOptions);
-        }
-
-        public EndpointsForRange calculateNaturalReplicas(Token token, TokenMetadata metadata)
-        {
-            assert !called : "calculateNaturalReplicas was already called, result should have been cached";
-            called = true;
-            return super.calculateNaturalReplicas(token, metadata);
-        }
-    }
-
-    protected static class FakeOldNetworkTopologyStrategy extends OldNetworkTopologyStrategy
-    {
-        private boolean called = false;
-
-        public FakeOldNetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
         {
             super(keyspaceName, tokenMetadata, snitch, configOptions);
         }

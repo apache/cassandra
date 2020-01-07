@@ -400,6 +400,24 @@ public class PartitionUpdate extends AbstractBTreePartition
                 }
             }
         }
+
+        if (this.holder.staticRow != null)
+        {
+            for (ColumnData cd : this.holder.staticRow.columnData())
+            {
+                if (cd.column().isSimple())
+                {
+                    maxTimestamp = Math.max(maxTimestamp, ((Cell) cd).timestamp());
+                }
+                else
+                {
+                    ComplexColumnData complexData = (ComplexColumnData) cd;
+                    maxTimestamp = Math.max(maxTimestamp, complexData.complexDeletion().markedForDeleteAt());
+                    for (Cell cell : complexData)
+                        maxTimestamp = Math.max(maxTimestamp, cell.timestamp());
+                }
+            }
+        }
         return maxTimestamp;
     }
 

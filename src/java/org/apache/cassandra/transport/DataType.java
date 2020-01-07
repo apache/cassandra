@@ -160,12 +160,12 @@ public enum DataType
                 break;
             case UDT:
                 UserType udt = (UserType)value;
-                CBUtil.writeString(udt.keyspace, cb);
-                CBUtil.writeString(UTF8Type.instance.compose(udt.name), cb);
+                CBUtil.writeAsciiString(udt.keyspace, cb);
+                CBUtil.writeAsciiString(UTF8Type.instance.compose(udt.name), cb);
                 cb.writeShort(udt.size());
                 for (int i = 0; i < udt.size(); i++)
                 {
-                    CBUtil.writeString(udt.fieldName(i).toString(), cb);
+                    CBUtil.writeAsciiString(udt.fieldName(i).toString(), cb);
                     codec.writeOne(DataType.fromType(udt.fieldType(i), version), cb, version);
                 }
                 break;
@@ -200,12 +200,12 @@ public enum DataType
             case UDT:
                 UserType udt = (UserType)value;
                 int size = 0;
-                size += CBUtil.sizeOfString(udt.keyspace);
-                size += CBUtil.sizeOfString(UTF8Type.instance.compose(udt.name));
+                size += CBUtil.sizeOfAsciiString(udt.keyspace);
+                size += CBUtil.sizeOfAsciiString(UTF8Type.instance.compose(udt.name));
                 size += 2;
                 for (int i = 0; i < udt.size(); i++)
                 {
-                    size += CBUtil.sizeOfString(udt.fieldName(i).toString());
+                    size += CBUtil.sizeOfAsciiString(udt.fieldName(i).toString());
                     size += codec.oneSerializedSize(DataType.fromType(udt.fieldType(i), version), version);
                 }
                 return size;

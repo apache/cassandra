@@ -19,8 +19,6 @@ package org.apache.cassandra.net;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -36,7 +34,6 @@ import org.slf4j.LoggerFactory;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -499,7 +496,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
         isShuttingDown = true;
         logger.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
-        assert !StageManager.getStage(MUTATION).isShutdown();
+        assert !MUTATION.executor().isShutdown();
 
         if (shutdownGracefully)
         {

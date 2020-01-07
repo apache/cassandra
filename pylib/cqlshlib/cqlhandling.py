@@ -41,15 +41,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
 
     replication_strategies = (
         'SimpleStrategy',
-        'OldNetworkTopologyStrategy',
         'NetworkTopologyStrategy'
-    )
-
-    replication_factor_strategies = (
-        'SimpleStrategy',
-        'org.apache.cassandra.locator.SimpleStrategy',
-        'OldNetworkTopologyStrategy',
-        'org.apache.cassandra.locator.OldNetworkTopologyStrategy'
     )
 
     def __init__(self, *args, **kwargs):

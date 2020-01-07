@@ -133,6 +133,9 @@ public class CompactionManager implements CompactionManagerMBean
 
     public final ActiveCompactions active = new ActiveCompactions();
 
+    // used to temporarily pause non-strategy managed compactions (like index summary redistribution)
+    private final AtomicInteger globalCompactionPauseCount = new AtomicInteger(0);
+
     private final RateLimiter compactionRateLimiter = RateLimiter.create(Double.MAX_VALUE);
 
     public CompactionMetrics getMetrics()
@@ -657,12 +660,12 @@ public class CompactionManager implements CompactionManagerMBean
                     return true;
 
                 int diskIndex = diskBoundaries.getDiskIndex(sstable);
-                File diskLocation = diskBoundaries.directories.get(diskIndex).location;
                 PartitionPosition diskLast = diskBoundaries.positions.get(diskIndex);
 
                 // the location we get from directoryIndex is based on the first key in the sstable
                 // now we need to make sure the last key is less than the boundary as well:
-                return sstable.descriptor.directory.getAbsolutePath().startsWith(diskLocation.getAbsolutePath()) && sstable.last.compareTo(diskLast) <= 0;
+                Directories.DataDirectory dataDirectory = cfs.getDirectories().getDataDirectoryForFile(sstable.descriptor);
+                return diskBoundaries.directories.get(diskIndex).equals(dataDirectory) && sstable.last.compareTo(diskLast) <= 0;
             }
 
             @Override
@@ -2062,6 +2065,18 @@ public class CompactionManager implements CompactionManagerMBean
         validationExecutor.setMaximumPoolSize(number);
     }
 
+    public boolean getDisableSTCSInL0()
+    {
+        return DatabaseDescriptor.getDisableSTCSInL0();
+    }
+
+    public void setDisableSTCSInL0(boolean disabled)
+    {
+        if (disabled != DatabaseDescriptor.getDisableSTCSInL0())
+            logger.info("Changing STCS in L0 disabled from {} to {}", DatabaseDescriptor.getDisableSTCSInL0(), disabled);
+        DatabaseDescriptor.setDisableSTCSInL0(disabled);
+    }
+
     public int getCoreViewBuildThreads()
     {
         return viewBuildExecutor.getCorePoolSize();
@@ -2161,6 +2176,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
+
     public List<CompactionInfo> getSSTableTasks()
     {
         return active.getCompactions()
@@ -2170,5 +2186,27 @@ public class CompactionManager implements CompactionManagerMBean
                                      && task.getTaskType() != OperationType.KEY_CACHE_SAVE
                                      && task.getTaskType() != OperationType.ROW_CACHE_SAVE)
                      .collect(Collectors.toList());
+    }
+
+    /**
+     * Return whether "global" compactions should be paused, used by ColumnFamilyStore#runWithCompactionsDisabled
+     *
+     * a global compaction is one that includes several/all tables, currently only IndexSummaryBuilder
+     */
+    public boolean isGlobalCompactionPaused()
+    {
+        return globalCompactionPauseCount.get() > 0;
+    }
+
+    public CompactionPauser pauseGlobalCompaction()
+    {
+        CompactionPauser pauser = globalCompactionPauseCount::decrementAndGet;
+        globalCompactionPauseCount.incrementAndGet();
+        return pauser;
+    }
+
+    public interface CompactionPauser extends AutoCloseable
+    {
+        public void close();
     }
 }

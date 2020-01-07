@@ -63,7 +63,7 @@ public class PrepareMessage extends Message.Request
                     dest.writeInt(0x0);
                 else {
                     dest.writeInt(0x1);
-                    CBUtil.writeString(msg.keyspace, dest);
+                    CBUtil.writeAsciiString(msg.keyspace, dest);
                 }
             }
         }
@@ -79,7 +79,7 @@ public class PrepareMessage extends Message.Request
                 // If we have a keyspace, we'd write it out. Otherwise, we'd write nothing.
                 size += msg.keyspace == null
                     ? 0
-                    : CBUtil.sizeOfString(msg.keyspace);
+                    : CBUtil.sizeOfAsciiString(msg.keyspace);
             }
             return size;
         }

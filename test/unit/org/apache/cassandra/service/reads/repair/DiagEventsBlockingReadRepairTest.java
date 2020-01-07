@@ -100,11 +100,16 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         Assert.assertEquals(resolved.toString(), handler.updatesByEp.get(target3));
 
         // check repairs stop blocking after receiving 2 acks
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target1);
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target3);
-        Assert.assertTrue(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertTrue(getCurrentRepairStatus(handler));
+    }
+
+    private boolean getCurrentRepairStatus(BlockingPartitionRepair handler)
+    {
+        return handler.awaitRepairsUntil(System.nanoTime(), TimeUnit.NANOSECONDS);
     }
 
     public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, long queryStartNanoTime)

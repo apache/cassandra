@@ -63,4 +63,76 @@ public class BulkLoaderTest extends ToolsTester
         assertKeyspaceNotLoaded();
         assertServerNotLoaded();
     }
+
+    @Test
+    public void testBulkLoader_WithArgs1() throws Exception
+    {
+        try
+        {
+            runTool(0, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1", "--port", "9042", sstableDirName("legacy_sstables", "legacy_ma_simple"));
+            fail();
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e.getCause() instanceof BulkLoadException))
+                throw e;
+            if (!(e.getCause().getCause() instanceof NoHostAvailableException))
+                throw e;
+        }
+        assertNoUnexpectedThreadsStarted(null, new String[]{"globalEventExecutor-1-1", "globalEventExecutor-1-2"});
+        assertSchemaNotLoaded();
+        assertCLSMNotLoaded();
+        assertSystemKSNotLoaded();
+        assertKeyspaceNotLoaded();
+        assertServerNotLoaded();
+    }
+
+    @Test
+    public void testBulkLoader_WithArgs2() throws Exception
+    {
+        try
+        {
+            runTool(0, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1:9042", "--port", "9041", sstableDirName("legacy_sstables", "legacy_ma_simple"));
+            fail();
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e.getCause() instanceof BulkLoadException))
+                throw e;
+            if (!(e.getCause().getCause() instanceof NoHostAvailableException))
+                throw e;
+        }
+        assertNoUnexpectedThreadsStarted(null, new String[]{"globalEventExecutor-1-1", "globalEventExecutor-1-2"});
+        assertSchemaNotLoaded();
+        assertCLSMNotLoaded();
+        assertSystemKSNotLoaded();
+        assertKeyspaceNotLoaded();
+        assertServerNotLoaded();
+    }
+
+    @Test(expected = NoHostAvailableException.class)
+    public void testBulkLoader_WithArgs3() throws Throwable
+    {
+        try
+        {
+            runTool(1, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1", "--port", "9041", sstableDirName("legacy_sstables", "legacy_ma_simple"));
+        }
+        catch (RuntimeException e)
+        {
+            throw e.getCause().getCause();
+        }
+    }
+
+    @Test(expected = NoHostAvailableException.class)
+    public void testBulkLoader_WithArgs4() throws Throwable
+    {
+        try
+        {
+            runTool(1, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1:9041", sstableDirName("legacy_sstables", "legacy_ma_simple"));
+        }
+        catch (RuntimeException e)
+        {
+            throw e.getCause().getCause();
+        }
+    }
 }
