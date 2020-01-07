@@ -98,6 +98,8 @@ The ``replication`` property is mandatory and must at least contains the ``'clas
 :ref:`replication strategy <replication-strategy>` class to use. The rest of the sub-options depends on what replication
 strategy is used. By default, Cassandra support the following ``'class'``:
 
+.. _replication-strategy:
+
 ``SimpleStrategy``
 """"""""""""""""""
 
@@ -165,8 +167,8 @@ An example that excludes a datacenter while using ``replication_factor``::
     DESCRIBE KEYSPACE excalibur
         CREATE KEYSPACE excalibur WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '3'} AND durable_writes = true;
 
-If :ref:`transient replication <transient-replication>` has been enabled, transient replicas can be configured for both
-SimpleStrategy and NetworkTopologyStrategy by defining replication factors in the format ``'<total_replicas>/<transient_replicas>'``
+If transient replication has been enabled, transient replicas can be configured for both
+``SimpleStrategy`` and ``NetworkTopologyStrategy`` by defining replication factors in the format ``'<total_replicas>/<transient_replicas>'``
 
 For instance, this keyspace will have 3 replicas in DC1, 1 of which is transient, and 5 replicas in DC2, 2 of which are transient::
 
@@ -565,14 +567,14 @@ Examples of setting speculative retry are:
 
 ::
 
- ALTER TABLE users WITH speculative_retry = '10ms';
+  ALTER TABLE users WITH speculative_retry = '10ms';
  
  
 Or,
 
 ::
 
- ALTER TABLE users WITH speculative_retry = '99PERCENTILE';
+  ALTER TABLE users WITH speculative_retry = '99PERCENTILE';
 
 The problem with these settings is when a single host goes into an unavailable state this drags up the percentiles. This means if we 
 are set to use ``p99`` alone, we might not speculate when we intended to to because the value at the specified percentile has gone so high.
