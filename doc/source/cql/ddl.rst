@@ -33,7 +33,8 @@ Common definitions
 
 The names of the keyspaces and tables are defined by the following grammar:
 
-.. productionlist::
+::
+
    keyspace_name: `name`
    table_name: [ `keyspace_name` '.' ] `name`
    name: `unquoted_name` | `quoted_name`
@@ -52,12 +53,14 @@ part of. If is is not fully-qualified, the table is assumed to be in the *curren
 
 Further, the valid names for columns is simply defined as:
 
-.. productionlist::
+::
+
    column_name: `identifier`
 
 We also define the notion of statement options for use in the following section:
 
-.. productionlist::
+::
+
    options: `option` ( AND `option` )*
    option: `identifier` '=' ( `identifier` | `constant` | `map_literal` )
 
@@ -68,10 +71,13 @@ CREATE KEYSPACE
 
 A keyspace is created using a ``CREATE KEYSPACE`` statement:
 
-.. productionlist::
+::
+
    create_keyspace_statement: CREATE KEYSPACE [ IF NOT EXISTS ] `keyspace_name` WITH `options`
 
-For instance::
+For instance:
+
+::
 
     CREATE KEYSPACE excelsior
         WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};
@@ -140,7 +146,9 @@ existing datacenters or remove any even if they are no longer in the cluster.
 If you want to remove datacenters while still supplying ``replication_factor``,
 explicitly zero out the datacenter you want to have zero replicas.
 
-An example of auto-expanding datacenters with two datacenters: ``DC1`` and ``DC2``::
+An example of auto-expanding datacenters with two datacenters: ``DC1`` and ``DC2``:
+
+::
 
     CREATE KEYSPACE excalibur
         WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor' : 3}
@@ -149,7 +157,9 @@ An example of auto-expanding datacenters with two datacenters: ``DC1`` and ``DC2
         CREATE KEYSPACE excalibur WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '3', 'DC2': '3'} AND durable_writes = true;
 
 
-An example of auto-expanding and overriding a datacenter::
+An example of auto-expanding and overriding a datacenter:
+
+::
 
     CREATE KEYSPACE excalibur
         WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor' : 3, 'DC2': 2}
@@ -157,7 +167,9 @@ An example of auto-expanding and overriding a datacenter::
     DESCRIBE KEYSPACE excalibur
         CREATE KEYSPACE excalibur WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '3', 'DC2': '2'} AND durable_writes = true;
 
-An example that excludes a datacenter while using ``replication_factor``::
+An example that excludes a datacenter while using ``replication_factor``:
+
+::
 
     CREATE KEYSPACE excalibur
         WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor' : 3, 'DC2': 0} ;
@@ -168,7 +180,9 @@ An example that excludes a datacenter while using ``replication_factor``::
 If :ref:`transient replication <transient-replication>` has been enabled, transient replicas can be configured for both
 SimpleStrategy and NetworkTopologyStrategy by defining replication factors in the format ``'<total_replicas>/<transient_replicas>'``
 
-For instance, this keyspace will have 3 replicas in DC1, 1 of which is transient, and 5 replicas in DC2, 2 of which are transient::
+For instance, this keyspace will have 3 replicas in DC1, 1 of which is transient, and 5 replicas in DC2, 2 of which are transient:
+
+::
 
     CREATE KEYSPACE some_keysopace
                WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1' : '3/1'', 'DC2' : '5/2'};
@@ -183,7 +197,8 @@ of objects in CQL are bound to a keyspace (tables, user-defined types, functions
 default keyspace used when those objects are referred without a fully-qualified name (that is, without being prefixed a
 keyspace name). A ``USE`` statement simply takes the keyspace to use as current as argument:
 
-.. productionlist::
+::
+
    use_statement: USE `keyspace_name`
 
 .. _alter-keyspace-statement:
@@ -193,10 +208,13 @@ ALTER KEYSPACE
 
 An ``ALTER KEYSPACE`` statement allows to modify the options of a keyspace:
 
-.. productionlist::
+ ::
+ 
    alter_keyspace_statement: ALTER KEYSPACE `keyspace_name` WITH `options`
 
-For instance::
+For instance:
+
+::
 
     ALTER KEYSPACE Excelsior
         WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 4};
@@ -210,10 +228,13 @@ DROP KEYSPACE
 
 Dropping a keyspace can be done using the ``DROP KEYSPACE`` statement:
 
-.. productionlist::
+::
+
    drop_keyspace_statement: DROP KEYSPACE [ IF EXISTS ] `keyspace_name`
 
-For instance::
+For instance:
+
+::
 
     DROP KEYSPACE Excelsior;
 
@@ -230,7 +251,8 @@ CREATE TABLE
 
 Creating a new table uses the ``CREATE TABLE`` statement:
 
-.. productionlist::
+::
+
    create_table_statement: CREATE TABLE [ IF NOT EXISTS ] `table_name`
                          : '('
                          :     `column_definition`
@@ -247,7 +269,9 @@ Creating a new table uses the ``CREATE TABLE`` statement:
                    : | `options`
    clustering_order: `column_name` (ASC | DESC) ( ',' `column_name` (ASC | DESC) )*
 
-For instance::
+For instance:
+
+::
 
     CREATE TABLE monkeySpecies (
         species text PRIMARY KEY,
@@ -293,10 +317,12 @@ A :token:`column_definition` is primarily comprised of the name of the column de
 which restrict which values are accepted for that column. Additionally, a column definition can have the following
 modifiers:
 
-``STATIC``
+::
+
+ ``STATIC``
     it declares the column as being a :ref:`static column <static-columns>`.
 
-``PRIMARY KEY``
+ ``PRIMARY KEY``
     it declares the column as being the sole component of the :ref:`primary key <primary-key>` of the table.
 
 .. _static-columns:
@@ -304,7 +330,9 @@ modifiers:
 Static columns
 ``````````````
 Some columns can be declared as ``STATIC`` in a table definition. A column that is static will be “shared” by all the
-rows belonging to the same partition (having the same :ref:`partition key <partition-key>`). For instance::
+rows belonging to the same partition (having the same :ref:`partition key <partition-key>`). For instance:
+
+::
 
     CREATE TABLE t (
         pk int,
@@ -348,7 +376,9 @@ A CQL primary key is composed of 2 parts:
 
 - the :ref:`partition key <partition-key>` part. It is the first component of the primary key definition. It can be a
   single column or, using additional parenthesis, can be multiple columns. A table always have at least a partition key,
-  the smallest possible table definition is::
+  the smallest possible table definition is:
+  
+  ::
 
       CREATE TABLE t (k text PRIMARY KEY);
 
@@ -371,7 +401,9 @@ The partition key
 Within a table, CQL defines the notion of a *partition*. A partition is simply the set of rows that share the same value
 for their partition key. Note that if the partition key is composed of multiple columns, then rows belong to the same
 partition only they have the same values for all those partition key column. So for instance, given the following table
-definition and content::
+definition and content:
+
+::
 
     CREATE TABLE t (
         a int,
@@ -420,7 +452,9 @@ The clustering columns
 
 The clustering columns of a table defines the clustering order for the partition of that table. For a given
 :ref:`partition <partition-key>`, all the rows are physically ordered inside Cassandra by that clustering order. For
-instance, given::
+instance, given:
+
+::
 
     CREATE TABLE t (
         a int,
@@ -511,8 +545,6 @@ has 3 visible consequences:
 Other table options
 ```````````````````
 
-.. todo:: review (misses cdc if nothing else) and link to proper categories when appropriate (compaction for instance)
-
 A table supports the following options:
 
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
@@ -520,6 +552,8 @@ A table supports the following options:
 +================================+==========+=============+===========================================================+
 | ``comment``                    | *simple* | none        | A free-form, human-readable comment.                      |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``cdc``                        | *boolean*| false       | Create a Change Data Capture (CDC) log on the table.      |                 
+----------------+----------+-------------+----------------------------------------------------------------------------+
 | ``speculative_retry``          | *simple* | 99PERCENTILE| :ref:`Speculative retry options                           |
 |                                |          |             | <speculative-retry-options>`.                             |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
@@ -636,7 +670,9 @@ available:
 ========================= =============== =============================================================================
 
 
-For instance, to create a table with LZ4Compressor and a chunk_lenth_in_kb of 4KB::
+For instance, to create a table with LZ4Compressor and a chunk_lenth_in_kb of 4KB:
+
+::
 
    CREATE TABLE simple (
       id int,
@@ -666,7 +702,9 @@ sub-options are available:
 ======================== ========= ====================================================================================
 
 
-For instance, to create a table with both a key cache and 10 rows per partition::
+For instance, to create a table with both a key cache and 10 rows per partition:
+
+::
 
     CREATE TABLE simple (
     id int,
@@ -719,13 +757,16 @@ ALTER TABLE
 
 Altering an existing table uses the ``ALTER TABLE`` statement:
 
-.. productionlist::
+::
+
    alter_table_statement: ALTER TABLE `table_name` `alter_table_instruction`
    alter_table_instruction: ADD `column_name` `cql_type` ( ',' `column_name` `cql_type` )*
                           : | DROP `column_name` ( `column_name` )*
                           : | WITH `options`
 
-For instance::
+For instance:
+
+::
 
     ALTER TABLE addamsFamily ADD gravesite varchar;
 
@@ -764,7 +805,8 @@ DROP TABLE
 
 Dropping a table uses the ``DROP TABLE`` statement:
 
-.. productionlist::
+::
+
    drop_table_statement: DROP TABLE [ IF EXISTS ] `table_name`
 
 Dropping a table results in the immediate, irreversible removal of the table, including all data it contains.
@@ -779,7 +821,8 @@ TRUNCATE
 
 A table can be truncated using the ``TRUNCATE`` statement:
 
-.. productionlist::
+::
+
    truncate_statement: TRUNCATE [ TABLE ] `table_name`
 
 Note that ``TRUNCATE TABLE foo`` is allowed for consistency with other DDL statements but tables are the only object
