@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Added documentation for audit logging (CASSANDRA-15474)
  * Unset GREP_OPTIONS (CASSANDRA-14487)
  * Added streaming documentation (CASSANDRA-15477)
  * Update to Python driver 3.21 for cqlsh (CASSANDRA-14872)
