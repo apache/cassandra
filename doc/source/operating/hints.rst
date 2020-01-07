@@ -37,7 +37,7 @@ Consider that an update or mutation is to be made using the following configurat
 - Replication strategy: SimpleStrategy
 - Number of nodes in cluster: 5
 
-The update or mutation is sent to a node (node A) in the cluster, and is meant to be forwarded to three other nodes, the replica nodes B, C and D.  The node that receives the request is the proxy node and becomes the coordinator of the request.  Under normal operation the update gets sent to the three replica nodes and the coordinator receives the response from the three nodes satisfying the consistency level.  But suppose node B is down and unavailable.  The update is sent to nodes C and D and a response returned to the coordinator, again satisfying the consistency level of 2.   But that is not the end of the request. Because the replica mutation is meant for replica node B also, a hint is stored by the coordinator node in the local filesystem   indicating that the update or mutation is also to be replicated on node B.  The coordinator node waits for 3 hours by default (as set with max_hint_window_in_ms). If node B becomes available within 3 hours the coordinator sends the hint to node B and the hint is replayed on node B, eventually making all replicas consistent. Such a transfer of an update using hints is called a hinted handoff.  Hinted handoff is used to ensure that read and write operations are not failed and the consistency, availability and durability guarantees are not compromised.  We still need to satisfy the consistency level, because hints & hinted handoffs are not used to satisfy the write consistency level unless the consistency level is ANY.  If the replica node for which a hint is generated does not become available within 3 hours, or the max_hint_window_in_ms, the hint is deleted and a full or read repair becomes necessary.
+The update or mutation is sent to a node (node A) in the cluster, and is meant to be forwarded to three other nodes, the replica nodes B, C and D.  The node that receives the request is the proxy node and becomes the coordinator of the request.  Under normal operation the update gets sent to the three replica nodes and the coordinator receives the response from the three nodes satisfying the consistency level.  But suppose node B is down and unavailable.  The update is sent to nodes C and D and a response returned to the coordinator, again satisfying the consistency level of 2.   But that is not the end of the request. Because the replica mutation is meant for replica node B also, a hint is stored by the coordinator node in the local filesystem   indicating that the update or mutation is also to be replicated on node B.  The coordinator node waits for 3 hours by default (as set with ``max_hint_window_in_ms``). If node B becomes available within 3 hours the coordinator sends the hint to node B and the hint is replayed on node B, eventually making all replicas consistent. Such a transfer of an update using hints is called a hinted handoff.  Hinted handoff is used to ensure that read and write operations are not failed and the consistency, availability and durability guarantees are not compromised.  We still need to satisfy the consistency level, because hints & hinted handoffs are not used to satisfy the write consistency level unless the consistency level is ``ANY``.  If the replica node for which a hint is generated does not become available within 3 hours, or the ``max_hint_window_in_ms``, the hint is deleted and a full or read repair becomes necessary.
 
 Hints for Timed Out Write Requests
 ==================================
@@ -46,7 +46,7 @@ Hints are also stored for write requests that are timed out. The ``write_request
 
 ::
 
-write_request_timeout_in_ms: 2000
+  write_request_timeout_in_ms: 2000
 
 The coordinator waits for the configured amount of time for write requests to complete and throws a ``TimeOutException``.  The coordinator node also generates a hint for the timed out request. Lowest acceptable value for ``write_request_timeout_in_ms`` is 10 ms.
 
@@ -74,7 +74,7 @@ Table 1. Settings for Hints
 |                      |                                           |                 | 
 |                      |                                           |                 |
 |                      |                                           |                 |
-|                      |                                           |                 |                                                        
+|                      |                                           |                 |                                                   
 +----------------------+-------------------------------------------+-----------------+
 |hinted_handoff_       |A list of data centers that do not perform |                 |
 | disabled_datacenters | hinted handoffs even when hinted_handoff_ |                 | 
@@ -82,14 +82,14 @@ Table 1. Settings for Hints
 |                      | Example:                                  |                 |
 |                      | hinted_handoff_disabled_datacenters:      |                 |
 |                      |                 - DC1                     |                 |
-|                      |                 - DC2|                    |                 |                                                                                          
+|                      |                 - DC2|                    |                 |                                                   
 +----------------------+-------------------------------------------+-----------------+
 |max_hint_window_in_ms |Defines the maximum amount of time (ms)    |10800000 #3 hours|
 |                      |a node shall have hints generated after it |                 |
-|                      |has failed.                                |                 |                                                                         
+|                      |has failed.                                |                 |                                                   
 +----------------------+-------------------------------------------+-----------------+
-|hinted_handoff_       |Maximum throttle in KBs per second, per    |                 |
-| throttle_in_kb       | delivery thread. This will be reduced     | 1024            |
+|hinted_handoff        |Maximum throttle in KBs per second, per    |                 |
+|_throttle_in_kb       | delivery thread. This will be reduced     | 1024            |
 |                      | proportionally to the number of nodes in  |                 | 
 |                      | the cluster.                              |                 |
 |                      |(If there are two nodes in the cluster,    |                 |
@@ -99,8 +99,8 @@ Table 1. Settings for Hints
 |                      |for two nodes to be delivering hints       |                 |
 |                      |simultaneously.)                           |                 |
 +----------------------+-------------------------------------------+-----------------+
-|max_hints_delivery_   | Number of threads with which to deliver   |     2           |
-| threads              |hints; Consider increasing this number when|                 |
+|max_hints_delivery    | Number of threads with which to deliver   |     2           |
+|_threads              |hints; Consider increasing this number when|                 |
 |                      |  you have multi-dc deployments, since     |                 |
 |                      |  cross-dc handoff tends to be slower      |                 |
 +----------------------+-------------------------------------------+-----------------+
@@ -111,10 +111,10 @@ Table 1. Settings for Hints
 | ms                   | internal buffers to disk. Will *not*      |                 |
 |                      | trigger fsync.                            |                 |
 +----------------------+-------------------------------------------+-----------------+
-|max_hints_file_size_  |Maximum size for a single hints file, in   |   128           |
-| in_mb                |megabytes.                                 |                 |
+|max_hints_file_size   |Maximum size for a single hints file, in   |   128           |
+|_in_mb                |megabytes.                                 |                 |
 +----------------------+-------------------------------------------+-----------------+
-|hints_compression     |Compression to apply to the hint files.    |    LZ4          | 
+|hints_compression     |Compression to apply to the hint files.    |  LZ4Compress    | 
 |                      |  If omitted, hints files will be written  |                 |
 |                      |  uncompressed. LZ4, Snappy, and Deflate   |                 |
 |                      |  compressors are supported.               |                 |
@@ -149,9 +149,9 @@ Table 2. Nodetool Commands for Hints
 +----------------------------+-------------------------------------------+
 |Command                     | Description                               | 
 +----------------------------+-------------------------------------------+
-|nodetool disablehandoff     |Disables storing hinted handoffs           |                                                                       
+|nodetool disablehandoff     |Disables storing hinted handoffs           |                                                               
 +----------------------------+-------------------------------------------+
-|nodetool disablehintsfordc  |Disables hints for a data center           |                                                                                               
+|nodetool disablehintsfordc  |Disables hints for a data center           |                                                               
 +----------------------------+-------------------------------------------+
 |nodetool enablehandoff      |Re-enables future hints storing on the     |
 |                            | current node                              |                                              
@@ -164,9 +164,9 @@ Table 2. Nodetool Commands for Hints
 +----------------------------+-------------------------------------------+
 |nodetool handoffwindow      |Prints current hinted handoff window       |
 +----------------------------+-------------------------------------------+
-|nodetool pausehandoff       |Pauses hints delivery process              |                                                                     
+|nodetool pausehandoff       |Pauses hints delivery process              |                                                               
 +----------------------------+-------------------------------------------+
-|nodetool resumehandoff      |Resumes hints delivery process             |                                                                                              
+|nodetool resumehandoff      |Resumes hints delivery process             |                                                               
 +----------------------------+-------------------------------------------+
 |nodetool                    |Sets hinted handoff throttle in kb         |
 | sethintedhandoffthrottlekb | per second, per delivery thread           |                                                             
