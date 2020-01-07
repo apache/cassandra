@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Added bulk loading documentation (CASSANDRA-15480)
  * Updated overview documentation (CASSANDRA-15483)
  * Added CDC and speculative retry documentation to DDL section (CASSANDRA-15492)
  * Fix missing Keyspaces in cqlsh describe output (CASSANDRA-15576)

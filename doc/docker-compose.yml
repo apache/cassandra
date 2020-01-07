@@ -7,3 +7,5 @@ services:
     build: .
     volumes:
       - ..:/usr/src/code
+    environment:
+      - SKIP_NODETOOL # set this to skip nodetool build, saves a lot of time when debugging html
