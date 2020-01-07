@@ -169,7 +169,7 @@ Table 2. Nodetool Commands for Hints
 |nodetool resumehandoff      |Resumes hints delivery process             |                                                               
 +----------------------------+-------------------------------------------+
 |nodetool                    |Sets hinted handoff throttle in kb         |
-| sethintedhandoffthrottlekb |per second, per delivery thread            |                                                             
+|sethintedhandoffthrottlekb  |per second, per delivery thread            |                                                             
 +----------------------------+-------------------------------------------+
 |nodetool setmaxhintwindow   |Sets the specified max hint window in ms   | 
 +----------------------------+-------------------------------------------+
