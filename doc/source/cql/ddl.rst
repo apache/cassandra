@@ -98,6 +98,8 @@ The ``replication`` property is mandatory and must at least contains the ``'clas
 :ref:`replication strategy <replication-strategy>` class to use. The rest of the sub-options depends on what replication
 strategy is used. By default, Cassandra support the following ``'class'``:
 
+.. _replication-strategy:
+
 ``SimpleStrategy``
 """"""""""""""""""
 
@@ -165,8 +167,8 @@ An example that excludes a datacenter while using ``replication_factor``::
     DESCRIBE KEYSPACE excalibur
         CREATE KEYSPACE excalibur WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '3'} AND durable_writes = true;
 
-If :ref:`transient replication <transient-replication>` has been enabled, transient replicas can be configured for both
-SimpleStrategy and NetworkTopologyStrategy by defining replication factors in the format ``'<total_replicas>/<transient_replicas>'``
+If transient replication has been enabled, transient replicas can be configured for both
+``SimpleStrategy`` and ``NetworkTopologyStrategy`` by defining replication factors in the format ``'<total_replicas>/<transient_replicas>'``
 
 For instance, this keyspace will have 3 replicas in DC1, 1 of which is transient, and 5 replicas in DC2, 2 of which are transient::
 
@@ -519,9 +521,10 @@ A table supports the following options:
 | option                         | kind     | default     | description                                               |
 +================================+==========+=============+===========================================================+
 | ``comment``                    | *simple* | none        | A free-form, human-readable comment.                      |
-+--------------------------------+----------+-------------+-----------------------------------------------------------+
 | ``speculative_retry``          | *simple* | 99PERCENTILE| :ref:`Speculative retry options                           |
 |                                |          |             | <speculative-retry-options>`.                             |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``cdc``                        | *boolean*| false       | Create a Change Data Capture (CDC) log on the table.      |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
 | ``additional_write_policy``    | *simple* | 99PERCENTILE| :ref:`Speculative retry options                           |
 |                                |          |             | <speculative-retry-options>`.                             |
@@ -556,8 +559,32 @@ Speculative retry options
 By default, Cassandra read coordinators only query as many replicas as necessary to satisfy
 consistency levels: one for consistency level ``ONE``, a quorum for ``QUORUM``, and so on.
 ``speculative_retry`` determines when coordinators may query additional replicas, which is useful
-when replicas are slow or unresponsive.  ``additional_write_policy`` specifies the threshold at which
-a cheap quorum write will be upgraded to include transient replicas.  The following are legal values (case-insensitive):
+when replicas are slow or unresponsive.  Speculative retries are used to reduce the latency.  The speculative_retry option may be
+used to configure rapid read protection with which a coordinator sends more requests than needed to satisfy the Consistency level.
+
+Pre-4.0 speculative Retry Policy takes a single string as a parameter, this can be ``NONE``, ``ALWAYS``, ``99PERCENTILE`` (PERCENTILE), ``50MS`` (CUSTOM).
+
+Examples of setting speculative retry are:
+
+::
+
+  ALTER TABLE users WITH speculative_retry = '10ms';
+
+
+Or,
+
+::
+
+  ALTER TABLE users WITH speculative_retry = '99PERCENTILE';
+
+The problem with these settings is when a single host goes into an unavailable state this drags up the percentiles. This means if we
+are set to use ``p99`` alone, we might not speculate when we intended to to because the value at the specified percentile has gone so high.
+As a fix 4.0 adds  support for hybrid ``MIN()``, ``MAX()`` speculative retry policies (`CASSANDRA-14293
+<https://issues.apache.org/jira/browse/CASSANDRA-14293>`_). This means if the normal ``p99`` for the
+table is <50ms, we will still speculate at this value and not drag the tail latencies up... but if the ``p99th`` goes above what we know we
+should never exceed we use that instead.
+
+In 4.0 the values (case-insensitive) discussed in the following table are supported:
 
 ============================ ======================== =============================================================================
  Format                       Example                  Description
@@ -586,10 +613,37 @@ a cheap quorum write will be upgraded to include transient replicas.  The follow
  ``NEVER``                                            Coordinators never query additional replicas.
 ============================ =================== =============================================================================
 
+As of version 4.0 speculative retry allows more friendly params (`CASSANDRA-13876
+<https://issues.apache.org/jira/browse/CASSANDRA-13876>`_). The ``speculative_retry`` is more flexible with case. As an example a
+value does not have to be ``NONE``, and the following are supported alternatives.
+
+::
+
+  alter table users WITH speculative_retry = 'none';
+  alter table users WITH speculative_retry = 'None';
+
+The text component is case insensitive and for ``nPERCENTILE`` version 4.0 allows ``nP``, for instance ``99p``.
+In a hybrid value for speculative retry, one of the two values must be a fixed millisecond value and the other a percentile value.
+
+Some examples:
+
+::
+
+ min(99percentile,50ms)
+ max(99p,50MS)
+ MAX(99P,50ms)
+ MIN(99.9PERCENTILE,50ms)
+ max(90percentile,100MS)
+ MAX(100.0PERCENTILE,60ms)
+
+Two values of the same kind cannot be specified such as ``min(90percentile,99percentile)`` as it wouldn’t be a hybrid value.
 This setting does not affect reads with consistency level ``ALL`` because they already query all replicas.
 
 Note that frequently reading from additional replicas can hurt cluster performance.
 When in doubt, keep the default ``99PERCENTILE``.
+
+
+``additional_write_policy`` specifies the threshold at which a cheap quorum write will be upgraded to include transient replicas.
 
 .. _cql-compaction-options:
 
@@ -597,10 +651,10 @@ Compaction options
 ##################
 
 The ``compaction`` options must at least define the ``'class'`` sub-option, that defines the compaction strategy class
-to use. The default supported class are ``'SizeTieredCompactionStrategy'`` (:ref:`STCS <STCS>`),
+to use. The supported class are ``'SizeTieredCompactionStrategy'`` (:ref:`STCS <STCS>`),
 ``'LeveledCompactionStrategy'`` (:ref:`LCS <LCS>`) and ``'TimeWindowCompactionStrategy'`` (:ref:`TWCS <TWCS>`) (the
 ``'DateTieredCompactionStrategy'`` is also supported but is deprecated and ``'TimeWindowCompactionStrategy'`` should be
-preferred instead). Custom strategy can be provided by specifying the full class name as a :ref:`string constant
+preferred instead). The default is ``'SizeTieredCompactionStrategy'``. Custom strategy can be provided by specifying the full class name as a :ref:`string constant
 <constants>`.
 
 All default strategies support a number of :ref:`common options <compaction-options>`, as well as options specific to
@@ -612,27 +666,36 @@ the strategy chosen (see the section corresponding to your strategy for details:
 Compression options
 ###################
 
-The ``compression`` options define if and how the sstables of the table are compressed. The following sub-options are
+The ``compression`` options define if and how the sstables of the table are compressed. Compression is configured on a per-table
+basis as an optional argument to ``CREATE TABLE`` or ``ALTER TABLE``. The following sub-options are
 available:
 
 ========================= =============== =============================================================================
  Option                    Default         Description
 ========================= =============== =============================================================================
  ``class``                 LZ4Compressor   The compression algorithm to use. Default compressor are: LZ4Compressor,
-                                           SnappyCompressor and DeflateCompressor. Use ``'enabled' : false`` to disable
+                                           SnappyCompressor, DeflateCompressor and ZstdCompressor. Use ``'enabled' : false`` to disable
                                            compression. Custom compressor can be provided by specifying the full class
                                            name as a “string constant”:#constants.
- ``enabled``               true            Enable/disable sstable compression.
+
+ ``enabled``               true            Enable/disable sstable compression. If the ``enabled`` option is set to ``false`` no other
+                                           options must be specified.
+
  ``chunk_length_in_kb``    64              On disk SSTables are compressed by block (to allow random reads). This
                                            defines the size (in KB) of said block. Bigger values may improve the
                                            compression rate, but increases the minimum size of data to be read from disk
-                                           for a read
- ``crc_check_chance``      1.0             When compression is enabled, each compressed block includes a checksum of
-                                           that block for the purpose of detecting disk bitrot and avoiding the
-                                           propagation of corruption to other replica. This option defines the
-                                           probability with which those checksums are checked during read. By default
-                                           they are always checked. Set to 0 to disable checksum checking and to 0.5 for
-                                           instance to check them every other read   |
+                                           for a read. The default value is an optimal value for compressing tables. Chunk length must
+                                           be a power of 2 because so is assumed so when computing the chunk number from an uncompressed
+                                           file offset.  Block size may be adjusted based on read/write access patterns such as:
+
+                                             - How much data is typically requested at once
+                                             - Average size of rows in the table
+
+ ``crc_check_chance``      1.0             Determines how likely Cassandra is to verify the checksum on each compression chunk during
+                                           reads.
+
+  ``compression_level``    3               Compression level. It is only applicable for ``ZstdCompressor`` and accepts values between
+                                           ``-131072`` and ``22``.
 ========================= =============== =============================================================================
 
 
@@ -651,7 +714,8 @@ For instance, to create a table with LZ4Compressor and a chunk_lenth_in_kb of 4K
 Caching options
 ###############
 
-The ``caching`` options allows to configure both the *key cache* and the *row cache* for the table. The following
+Caching optimizes the use of cache memory of a table. The cached data is weighed by size and access frequency. The ``caching``
+options allows to configure both the *key cache* and the *row cache* for the table. The following
 sub-options are available:
 
 ======================== ========= ====================================================================================
