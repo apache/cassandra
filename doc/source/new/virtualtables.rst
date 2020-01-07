@@ -124,15 +124,15 @@ Table 1 : Virtual Tables in system_views
 | local_writes     |A table metric for local writes                    |
 |                  |including count, keyspace_name,                    | 
 |                  |max, median, per_second, and                       |
-|                  |table_name.                                        |                                                                         
+|                  |table_name.                                        |                                                                 |                  |                                                   |        
 +------------------+---------------------------------------------------+
 | caches           |Displays the general cache information including   |
 |                  |cache name, capacity_bytes, entry_count, hit_count,| 
 |                  |hit_ratio double, recent_hit_rate_per_second,      |
 |                  |recent_request_rate_per_second, request_count, and | 
-|                  |size_bytes.                                        |                                                                         
+|                  |size_bytes.                                        |                                                                 |                  |                                                   |        
 +------------------+---------------------------------------------------+
-| local_reads      |A table metric for  local reads information.       |                                                                   
+| local_reads      |A table metric for  local reads information.       |                                                                 |                  |                                                   |   
 +------------------+---------------------------------------------------+
 | sstable_tasks    |Lists currently running tasks such as compactions  |
 |                  |and upgrades on SSTables.                          |
@@ -140,14 +140,14 @@ Table 1 : Virtual Tables in system_views
 |internode_inbound |Lists information about the inbound                | 
 |                  |internode messaging.                               |                
 +------------------+---------------------------------------------------+
-| thread_pools     |Lists metrics for each thread pool.                |                                                                        
+| thread_pools     |Lists metrics for each thread pool.                |                                                                 |                  |                                                   |       
 +------------------+---------------------------------------------------+
-| settings         |Displays configuration settings in cassandra.yaml. |                                                                         
+| settings         |Displays configuration settings in cassandra.yaml. |                                                                 |                  |                                                   |
 +------------------+---------------------------------------------------+
-|max_partition_size|A table metric for maximum partition size.         |                                                                       
+|max_partition_size|A table metric for maximum partition size.         |                                                                 |                  |                                                   |
 +------------------+---------------------------------------------------+
 |internode_outbound|Lists information about the outbound internode     |
-|                  |  messaging.                                       |                                          
+|                  | messaging.                                        |                                          
 +------------------+---------------------------------------------------+
  
 We shall discuss some of the virtual tables in more detail next.
