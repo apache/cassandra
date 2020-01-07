@@ -146,8 +146,8 @@ Table 1 : Virtual Tables in system_views
 +------------------+---------------------------------------------------+
 |max_partition_size|A table metric for maximum partition size.         |                                                                       
 +------------------+---------------------------------------------------+
-|internode_outbound|Lists information about the outbound internode     |
-|                  |  messaging.                                       |                                          
+|internode_outbound|Information about the outbound internode messaging.|
+|                  |                                                   |                                          
 +------------------+---------------------------------------------------+
  
 We shall discuss some of the virtual tables in more detail next.
