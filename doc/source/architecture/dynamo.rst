@@ -73,7 +73,7 @@ Dynamo storage system architecture makes use of the following techniques:
 - Replica synchronization for handling permanent failures
 - Dynamo Ring Membership and Failure Detection
 
-We shall discuss each of these next.
+We shall discuss these next.
 
 Simple Interface for storing objects
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
