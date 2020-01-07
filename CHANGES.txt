@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Added documentation covering new Netty based internode messaging (CASSANDRA-15478)
  * Add documentation of hints (CASSANDRA-15491)
  * updateCoordinatorWriteLatencyTableMetric can produce misleading metrics (CASSANDRA-15569)
  * Added documentation for read repair and an example of full repair (CASSANDRA-15485)
