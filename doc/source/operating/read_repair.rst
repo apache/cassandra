@@ -16,7 +16,7 @@
 
 .. highlight:: none
 
-.. read_repair:
+.. _read-repair:
 
 Read repair
 ==============

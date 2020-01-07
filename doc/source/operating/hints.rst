@@ -16,6 +16,8 @@
 
 .. highlight:: none
 
+.. _hints:
+
 Hints
 =====
 
@@ -31,11 +33,11 @@ and do not guarantee eventual consistency like :ref:`anti-entropy repair
 
 Hints are useful because of how Apache Cassandra replicates data to provide
 fault tolerance, high availability and durability. Cassandra :ref:`partitions
-data across the cluster <token-range>` using consistent hashing, and then
-replicates keys to multiple nodes along the hash ring. To guarantee
-availability, all replicas of a key can accept mutations without consensus, but
-this means it is possible for some replicas to accept a mutation while others
-do not. When this happens an inconsistency is introduced.
+data across the cluster <consistent-hashing-token-ring>` using consistent
+hashing, and then replicates keys to multiple nodes along the hash ring. To
+guarantee availability, all replicas of a key can accept mutations without
+consensus, but this means it is possible for some replicas to accept a mutation
+while others do not. When this happens an inconsistency is introduced.
 
 Hints are one of the three ways, in addition to read-repair and
 full/incremental anti-entropy repair, that Cassandra implements the eventual
