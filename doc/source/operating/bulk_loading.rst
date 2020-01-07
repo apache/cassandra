@@ -255,6 +255,13 @@ List the files in the ``/catalogkeyspace/magazine`` directory and a ``schema.cql
  -rw-r--r--. 1 root root   92 Aug 19 04:13 na-1-big-TOC.txt
  -rw-r--r--. 1 root root  815 Aug 19 04:13 schema.cql
 
+Alternatively create symlinks to the snapshot folder instead of copying the data, something like:
+
+::
+
+mkdir keyspace_name
+ln -s _path_to_snapshot_folder keyspace_name/table_name
+
 If the ``magazine`` table was dropped run the DDL in the ``schema.cql`` to create the table.  Run the ``sstableloader`` with the following command.
 
 ::
@@ -297,7 +304,14 @@ The command usage is as follows.
 
 ::
 
- nodetool <options> -- <keyspace> <table> <directory> ...
+         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] import
+                [(-c | --no-invalidate-caches)] [(-e | --extended-verify)]
+                [(-l | --keep-level)] [(-q | --quick)] [(-r | --keep-repaired)]
+                [(-t | --no-tokens)] [(-v | --no-verify)] [--] <keyspace> <table>
+                <directory> ...
 
 The arguments ``keyspace``, ``table`` name and ``directory`` to import SSTables from are required.
 
