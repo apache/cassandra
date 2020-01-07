@@ -76,8 +76,8 @@ Table 1. Settings for Hints
 |                      |                                           |                 |
 |                      |                                           |                 |                                                   
 +----------------------+-------------------------------------------+-----------------+
-|hinted_handoff_       |A list of data centers that do not perform |                 |
-| disabled_datacenters | hinted handoffs even when hinted_handoff_ |                 | 
+|hinted_handoff        |A list of data centers that do not perform |                 |
+|_disabled_datacenters | hinted handoffs even when hinted_handoff_ |                 | 
 |                      | enabled is set to true.                   |                 |
 |                      | Example:                                  |                 |
 |                      | hinted_handoff_disabled_datacenters:      |                 |
@@ -99,7 +99,7 @@ Table 1. Settings for Hints
 |                      |for two nodes to be delivering hints       |                 |
 |                      |simultaneously.)                           |                 |
 +----------------------+-------------------------------------------+-----------------+
-|max_hints_delivery    | Number of threads with which to deliver   |     2           |
+|max_hints_delivery    |Number of threads with which to deliver    |     2           |
 |_threads              |hints; Consider increasing this number when|                 |
 |                      |  you have multi-dc deployments, since     |                 |
 |                      |  cross-dc handoff tends to be slower      |                 |
@@ -107,8 +107,8 @@ Table 1. Settings for Hints
 |hints_directory       |Directory where Cassandra stores hints.    |$CASSANDRA_HOME/ |
 |                      |                                           |data/hints       |
 +----------------------+-------------------------------------------+-----------------+
-|hints_flush_period_in_|How often hints should be flushed from the |  10000          |
-| ms                   | internal buffers to disk. Will *not*      |                 |
+|hints_flush_period_in |How often hints should be flushed from the |  10000          |
+|_ms                   | internal buffers to disk. Will *not*      |                 |
 |                      | trigger fsync.                            |                 |
 +----------------------+-------------------------------------------+-----------------+
 |max_hints_file_size   |Maximum size for a single hints file, in   |   128           |
