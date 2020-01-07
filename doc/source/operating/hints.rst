@@ -77,10 +77,10 @@ Table 1. Settings for Hints
 |                      |                                           |                 |                                                   
 +----------------------+-------------------------------------------+-----------------+
 |hinted_handoff        |A list of data centers that do not perform |                 |
-|_disabled_datacenters | hinted handoffs even when hinted_handoff_ |                 | 
-|                      | enabled is set to true.                   |                 |
-|                      | Example:                                  |                 |
-|                      | hinted_handoff_disabled_datacenters:      |                 |
+|_disabled_datacenters |hinted handoffs even when hinted_handoff_  |                 | 
+|                      |enabled is set to true.                    |                 |
+|                      |Example:                                   |                 |
+|                      |hinted_handoff_disabled_datacenters:       |                 |
 |                      |                 - DC1                     |                 |
 |                      |                 - DC2|                    |                 |                                                   
 +----------------------+-------------------------------------------+-----------------+
@@ -89,9 +89,9 @@ Table 1. Settings for Hints
 |                      |has failed.                                |                 |                                                   
 +----------------------+-------------------------------------------+-----------------+
 |hinted_handoff        |Maximum throttle in KBs per second, per    |                 |
-|_throttle_in_kb       | delivery thread. This will be reduced     | 1024            |
-|                      | proportionally to the number of nodes in  |                 | 
-|                      | the cluster.                              |                 |
+|_throttle_in_kb       |delivery thread. This will be reduced      | 1024            |
+|                      |proportionally to the number of nodes in   |                 | 
+|                      |the cluster.                               |                 |
 |                      |(If there are two nodes in the cluster,    |                 |
 |                      |each delivery thread will use the maximum  |                 |
 |                      |rate; if there are 3, each will throttle   |                 |
@@ -101,23 +101,23 @@ Table 1. Settings for Hints
 +----------------------+-------------------------------------------+-----------------+
 |max_hints_delivery    |Number of threads with which to deliver    |     2           |
 |_threads              |hints; Consider increasing this number when|                 |
-|                      |  you have multi-dc deployments, since     |                 |
-|                      |  cross-dc handoff tends to be slower      |                 |
+|                      |you have multi-dc deployments, since       |                 |
+|                      |cross-dc handoff tends to be slower        |                 |
 +----------------------+-------------------------------------------+-----------------+
 |hints_directory       |Directory where Cassandra stores hints.    |$CASSANDRA_HOME/ |
 |                      |                                           |data/hints       |
 +----------------------+-------------------------------------------+-----------------+
 |hints_flush_period_in |How often hints should be flushed from the |  10000          |
-|_ms                   | internal buffers to disk. Will *not*      |                 |
-|                      | trigger fsync.                            |                 |
+|_ms                   |internal buffers to disk. Will *not*       |                 |
+|                      |trigger fsync.                             |                 |
 +----------------------+-------------------------------------------+-----------------+
 |max_hints_file_size   |Maximum size for a single hints file, in   |   128           |
 |_in_mb                |megabytes.                                 |                 |
 +----------------------+-------------------------------------------+-----------------+
 |hints_compression     |Compression to apply to the hint files.    |  LZ4Compress    | 
-|                      |  If omitted, hints files will be written  |                 |
-|                      |  uncompressed. LZ4, Snappy, and Deflate   |                 |
-|                      |  compressors are supported.               |                 |
+|                      |If omitted, hints files will be written    |                 |
+|                      |uncompressed. LZ4, Snappy, and Deflate     |                 |
+|                      |compressors are supported.                 |                 |
 +----------------------+-------------------------------------------+-----------------+
  
 Changing Max Hint Window at Runtime
@@ -154,13 +154,13 @@ Table 2. Nodetool Commands for Hints
 |nodetool disablehintsfordc  |Disables hints for a data center           |                                                               
 +----------------------------+-------------------------------------------+
 |nodetool enablehandoff      |Re-enables future hints storing on the     |
-|                            | current node                              |                                              
+|                            |current node                               |                                              
 +----------------------------+-------------------------------------------+
 |nodetool enablehintsfordc   |Enables hints for a data center that was   |
-|                            |  previously disabled                      | 
+|                            |previously disabled                        | 
 +----------------------------+-------------------------------------------+
 |nodetool getmaxhintwindow   |Prints the max hint window in ms.          |
-|                            |  A new nodetool command in Cassandra 4.0. |
+|                            |A new nodetool command in Cassandra 4.0.   |
 +----------------------------+-------------------------------------------+
 |nodetool handoffwindow      |Prints current hinted handoff window       |
 +----------------------------+-------------------------------------------+
@@ -169,16 +169,16 @@ Table 2. Nodetool Commands for Hints
 |nodetool resumehandoff      |Resumes hints delivery process             |                                                               
 +----------------------------+-------------------------------------------+
 |nodetool                    |Sets hinted handoff throttle in kb         |
-| sethintedhandoffthrottlekb | per second, per delivery thread           |                                                             
+| sethintedhandoffthrottlekb |per second, per delivery thread            |                                                             
 +----------------------------+-------------------------------------------+
 |nodetool setmaxhintwindow   |Sets the specified max hint window in ms   | 
 +----------------------------+-------------------------------------------+
 |nodetool statushandoff      |Status of storing future hints on the      |
-|                            |  current node                             |
+|                            |current node                               |
 +----------------------------+-------------------------------------------+
 |nodetool truncatehints      |Truncates all hints on the local node, or  |
-|                            | truncates hints for the endpoint(s)       |
-|                            | specified.                                |
+|                            |truncates hints for the endpoint(s)        |
+|                            |specified.                                 |
 +----------------------------+-------------------------------------------+
 
 Hints is not an alternative to performing a full repair or read repair but is only a stopgap measure.
