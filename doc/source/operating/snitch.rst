@@ -16,6 +16,8 @@
 
 .. highlight:: none
 
+.. _snitch:
+
 Snitch
 ------
 

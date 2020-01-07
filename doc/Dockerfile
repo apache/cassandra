@@ -18,5 +18,5 @@ RUN wget -qO - https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public | a
 
 RUN apt-get clean
 
-CMD ant gen-doc \
+CMD CASSANDRA_USE_JDK11=true ant gen-doc \
     && echo "The locally built documentation can be found here:\n\n    build/html/index.html\n\n"
