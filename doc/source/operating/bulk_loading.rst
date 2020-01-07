@@ -259,8 +259,8 @@ Alternatively create symlinks to the snapshot folder instead of copying the data
 
 ::
 
-mkdir keyspace_name
-ln -s _path_to_snapshot_folder keyspace_name/table_name
+  mkdir keyspace_name
+  ln -s _path_to_snapshot_folder keyspace_name/table_name
 
 If the ``magazine`` table was dropped run the DDL in the ``schema.cql`` to create the table.  Run the ``sstableloader`` with the following command.
 
