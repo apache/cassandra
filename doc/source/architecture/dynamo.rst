@@ -29,6 +29,8 @@ Failure Detection
 
 .. todo:: todo
 
+.. _token-range:
+
 Token Ring/Ranges
 ^^^^^^^^^^^^^^^^^
 

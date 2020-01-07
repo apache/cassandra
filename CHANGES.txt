@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Add documentation of hints (CASSANDRA-15491)
  * updateCoordinatorWriteLatencyTableMetric can produce misleading metrics (CASSANDRA-15569)
  * Added documentation for read repair and an example of full repair (CASSANDRA-15485)
  * Make cqlsh and cqlshlib Python 2 & 3 compatible (CASSANDRA-10190)
