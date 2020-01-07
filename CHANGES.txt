@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Added documentation for Full Query Logging (CASSANDRA-15475)
  * Added documentation for backups (CASSANDRA-15479)
  * Documentation gives the wrong instruction to activate remote jmx (CASSANDRA-15535)
  * Improve the description of nodetool listsnapshots command (CASSANDRA-14587)
