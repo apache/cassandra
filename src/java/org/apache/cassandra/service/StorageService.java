@@ -4224,7 +4224,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         // Start with BatchLog replay, which may create hints but no writes since this is no longer a valid endpoint.
         Future<?> batchlogReplay = BatchlogManager.instance.startBatchlogReplay();
-        Future<StreamState> streamSuccess = streamRanges(rangesToStream);
 
         // Wait for batch log to complete before streaming hints.
         logger.debug("waiting for batch log processing.");
@@ -4232,13 +4231,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         setMode(Mode.LEAVING, "streaming hints to other nodes", true);
 
-        Future hintsSuccess = streamHints();
+        if(HintsService.instance.hasHints())
+        {
+            Future<StreamState> streamSuccess = streamRanges(rangesToStream);
+            Future hintsSuccess = streamHints();
 
-        // wait for the transfer runnables to signal the latch.
-        logger.debug("waiting for stream acks.");
-        streamSuccess.get();
-        hintsSuccess.get();
-        logger.debug("stream acks all received.");
+            // wait for the transfer runnables to signal the latch.
+            logger.debug("waiting for stream acks.");
+            streamSuccess.get();
+            hintsSuccess.get();
+            logger.debug("stream acks all received.");
+        } 
+        else
+        {
+            logger.debug("no hints on the node.");
+        }
+        
         leaveRing();
         onFinish.run();
     }

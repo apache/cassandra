@@ -393,4 +393,8 @@ public final class HintsService implements HintsServiceMBean
     {
         return isShutDown;
     }
-}
+    
+    public boolean hasHints()
+    {
+        return catalog.hasFiles();
+    }}
