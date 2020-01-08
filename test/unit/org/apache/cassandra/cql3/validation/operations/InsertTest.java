@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class InsertTest extends CQLTester
 {
@@ -208,6 +209,73 @@ public class InsertTest extends CQLTester
 
         assertInvalidMessage("Undefined column name valuex",
                              "INSERT INTO %s (partitionKey, clustering_1, clustering_2, valuex) VALUES (0, 0, 0, 2)");
+    }
+
+    /**
+     * Test for CASSANDRA-13917
+     */
+    @Test
+    public void testInsertWithCompactStaticFormat() throws Throwable
+    {
+        testWithCompactTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c int) WITH COMPACT STORAGE");
+
+        // if column1 is present, hidden column is called column2
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c int, column1 int) WITH COMPACT STORAGE");
+        execute("INSERT INTO %s (a, b, c, column1) VALUES (1, 1, 1, 1)");
+        assertInvalidMessage("Undefined column name column2",
+                             "INSERT INTO %s (a, b, c, column2) VALUES (1, 1, 1, 1)");
+
+        // if value is present, hidden column is called value1
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c int, value int) WITH COMPACT STORAGE");
+        execute("INSERT INTO %s (a, b, c, value) VALUES (1, 1, 1, 1)");
+        assertInvalidMessage("Undefined column name value1",
+                             "INSERT INTO %s (a, b, c, value1) VALUES (1, 1, 1, 1)");
+    }
+
+    /**
+     * Test for CASSANDRA-13917
+     */
+    @Test
+    public void testInsertWithCompactNonStaticFormat() throws Throwable
+    {
+        testWithCompactTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+        testWithCompactTable("CREATE TABLE %s (a int, b int, v int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+    }
+
+    private void testWithCompactTable(String tableQuery) throws Throwable
+    {
+        createTable(tableQuery);
+
+        // pass correct types to the hidden columns
+        assertInvalidMessage("Undefined column name column1",
+                             "INSERT INTO %s (a, b, column1) VALUES (?, ?, ?)",
+                             1, 1, 1, ByteBufferUtil.bytes('a'));
+        assertInvalidMessage("Undefined column name value",
+                             "INSERT INTO %s (a, b, value) VALUES (?, ?, ?)",
+                             1, 1, 1, ByteBufferUtil.bytes('a'));
+        assertInvalidMessage("Undefined column name column1",
+                             "INSERT INTO %s (a, b, column1, value) VALUES (?, ?, ?, ?)",
+                             1, 1, 1, ByteBufferUtil.bytes('a'), ByteBufferUtil.bytes('b'));
+        assertInvalidMessage("Undefined column name value",
+                             "INSERT INTO %s (a, b, value, column1) VALUES (?, ?, ?, ?)",
+                             1, 1, 1, ByteBufferUtil.bytes('a'), ByteBufferUtil.bytes('b'));
+
+        // pass incorrect types to the hidden columns
+        assertInvalidMessage("Undefined column name value",
+                             "INSERT INTO %s (a, b, value) VALUES (?, ?, ?)",
+                             1, 1, 1, 1);
+        assertInvalidMessage("Undefined column name column1",
+                             "INSERT INTO %s (a, b, column1) VALUES (?, ?, ?)",
+                             1, 1, 1, 1);
+        assertEmpty(execute("SELECT * FROM %s"));
+
+        // pass null to the hidden columns
+        assertInvalidMessage("Undefined column name value",
+                             "INSERT INTO %s (a, b, value) VALUES (?, ?, ?)",
+                             1, 1, null);
+        assertInvalidMessage("Undefined column name column1",
+                             "INSERT INTO %s (a, b, column1) VALUES (?, ?, ?)",
+                             1, 1, null);
     }
 
     @Test

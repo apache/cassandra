@@ -29,6 +29,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.commons.lang3.StringUtils.isEmpty;
 import static org.junit.Assert.assertTrue;
@@ -666,5 +667,61 @@ public class UpdateTest extends CQLTester
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(currentTable());
         return cfs.metric.allMemtablesLiveDataSize.getValue() == 0;
+    }
+
+    /**
+     * Test for CASSANDRA-13917
+     */
+    @Test
+    public void testUpdateWithCompactStaticFormat() throws Throwable
+    {
+        testWithCompactFormat("CREATE TABLE %s (a int PRIMARY KEY, b int, c int) WITH COMPACT STORAGE");
+
+        assertInvalidMessage("Undefined column name column1",
+                             "UPDATE %s SET b = 1 WHERE column1 = ?",
+                             ByteBufferUtil.bytes('a'));
+        assertInvalidMessage("Undefined column name value",
+                             "UPDATE %s SET b = 1 WHERE value = ?",
+                             ByteBufferUtil.bytes('a'));
+
+        // if column1 is present, hidden column is called column2
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c int, column1 int) WITH COMPACT STORAGE");
+        execute("INSERT INTO %s (a, b, c, column1) VALUES (1, 1, 1, 1)");
+        execute("UPDATE %s SET column1 = 6 WHERE a = 1");
+        assertInvalidMessage("Undefined column name column2", "UPDATE %s SET column2 = 6 WHERE a = 0");
+        assertInvalidMessage("Undefined column name value", "UPDATE %s SET value = 6 WHERE a = 0");
+
+        // if value is present, hidden column is called value1
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c int, value int) WITH COMPACT STORAGE");
+        execute("INSERT INTO %s (a, b, c, value) VALUES (1, 1, 1, 1)");
+        execute("UPDATE %s SET value = 6 WHERE a = 1");
+        assertInvalidMessage("Undefined column name column1", "UPDATE %s SET column1 = 6 WHERE a = 1");
+        assertInvalidMessage("Undefined column name value1", "UPDATE %s SET value1 = 6 WHERE a = 1");
+    }
+
+    /**
+     * Test for CASSANDRA-13917
+     */
+    @Test
+    public void testUpdateWithCompactNonStaticFormat() throws Throwable
+    {
+        testWithCompactFormat("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+        testWithCompactFormat("CREATE TABLE %s (a int, b int, v int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+    }
+
+    private void testWithCompactFormat(String tableQuery) throws Throwable
+    {
+        createTable(tableQuery);
+        // pass correct types to hidden columns
+        assertInvalidMessage("Undefined column name column1",
+                             "UPDATE %s SET column1 = ? WHERE a = 0",
+                             ByteBufferUtil.bytes('a'));
+        assertInvalidMessage("Undefined column name value",
+                             "UPDATE %s SET value = ? WHERE a = 0",
+                             ByteBufferUtil.bytes('a'));
+
+        // pass incorrect types to hidden columns
+        assertInvalidMessage("Undefined column name column1", "UPDATE %s SET column1 = 6 WHERE a = 0");
+        assertInvalidMessage("Undefined column name value", "UPDATE %s SET value = 6 WHERE a = 0");
     }
 }

@@ -669,6 +669,19 @@ public class CreateTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE b = ?", 4), row(2, 4));
     }
 
+    /**
+     * Test for CASSANDRA-13917
+     */
+    @Test
+    public void testCreateIndextWithCompactStaticFormat() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c int) WITH COMPACT STORAGE");
+        assertInvalidMessage("Undefined column name column1",
+                             "CREATE INDEX column1_index on %s (column1)");
+        assertInvalidMessage("Undefined column name value",
+                             "CREATE INDEX value_index on %s (value)");
+    }
+
     @Test
     // tests CASSANDRA-9565
     public void testDoubleWith() throws Throwable

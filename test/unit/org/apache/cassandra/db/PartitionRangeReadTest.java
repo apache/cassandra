@@ -127,12 +127,6 @@ public class PartitionRangeReadTest
             .add("val", "abcd")
             .build()
             .applyUnsafe();
-
-            new RowUpdateBuilder(cfs.metadata, 0, Integer.toString(i))
-            .clustering("column1")
-            .add("value", "")
-            .build()
-            .applyUnsafe();
         }
 
         assertEquals(10, Util.getAll(Util.cmd(cfs).build()).size());
