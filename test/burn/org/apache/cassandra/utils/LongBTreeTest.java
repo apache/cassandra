@@ -58,7 +58,7 @@ public class LongBTreeTest
 {
 
     private static final boolean DEBUG = false;
-    private static int perThreadTrees = 10000;
+    private static int perThreadTrees = 100;
     private static int minTreeSize = 4;
     private static int maxTreeSize = 10000;
     private static int threads = DEBUG ? 1 : Runtime.getRuntime().availableProcessors() * 8;
