@@ -100,7 +100,7 @@ public class MutationBench
         Schema.instance.load(ksm.withSwapped(ksm.tables.with(metadata)));
 
         mutation = (Mutation)UpdateBuilder.create(metadata, 1L).newRow(1L).add("commentid", 32L).makeMutation();
-        buffer = ByteBuffer.allocate((int) Mutation.serializer.serializedSize(mutation, MessagingService.current_version));
+        buffer = ByteBuffer.allocate(mutation.serializedSize(MessagingService.current_version));
         outputBuffer = new DataOutputBufferFixed(buffer);
         inputBuffer = new DataInputBuffer(buffer, false);
 

@@ -149,7 +149,7 @@ public final class Hint
         {
             long size = sizeof(hint.creationTime);
             size += sizeofUnsignedVInt(hint.gcgs);
-            size += Mutation.serializer.serializedSize(hint.mutation, version);
+            size += hint.mutation.serializedSize(version);
             return size;
         }
 

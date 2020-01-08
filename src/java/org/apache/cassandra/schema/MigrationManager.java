@@ -487,7 +487,7 @@ public class MigrationManager
         {
             int size = TypeSizes.sizeof(schema.size());
             for (Mutation mutation : schema)
-                size += Mutation.serializer.serializedSize(mutation, version);
+                size += mutation.serializedSize(version);
             return size;
         }
     }

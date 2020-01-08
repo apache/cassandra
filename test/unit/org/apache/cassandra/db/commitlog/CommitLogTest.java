@@ -69,9 +69,13 @@ import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import org.junit.After;
+
+import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.apache.cassandra.db.marshal.IntegerType;
@@ -420,7 +424,7 @@ public abstract class CommitLogTest
         max -= CommitLogSegment.ENTRY_OVERHEAD_SIZE; // log entry overhead
 
         // Note that the size of the value if vint encoded. So we first compute the ovehead of the mutation without the value and it's size
-        int mutationOverhead = (int)Mutation.serializer.serializedSize(rm, MessagingService.current_version) - (VIntCoding.computeVIntSize(allocSize) + allocSize);
+        int mutationOverhead = rm.serializedSize(MessagingService.current_version) - (VIntCoding.computeVIntSize(allocSize) + allocSize);
         max -= mutationOverhead;
 
         // Now, max is the max for both the value and it's size. But we want to know how much we can allocate, i.e. the size of the value.
@@ -447,7 +451,7 @@ public abstract class CommitLogTest
         CommitLog.instance.add(rm);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = MutationExceededMaxSizeException.class)
     public void testExceedRecordLimit() throws Exception
     {
         Keyspace ks = Keyspace.open(KEYSPACE1);
@@ -458,6 +462,47 @@ public abstract class CommitLogTest
                       .build();
         CommitLog.instance.add(rm);
         throw new AssertionError("mutation larger than limit was accepted");
+    }
+    @Test
+    public void testExceedRecordLimitWithMultiplePartitions() throws Exception
+    {
+        CommitLog.instance.resetUnsafe(true);
+        List<Mutation> mutations = new ArrayList<>();
+        Keyspace ks = Keyspace.open(KEYSPACE1);
+        char[] keyChars = new char[MutationExceededMaxSizeException.PARTITION_MESSAGE_LIMIT];
+        Arrays.fill(keyChars, 'k');
+        String key = new String(keyChars);
+
+        // large mutation
+        mutations.add(new RowUpdateBuilder(ks.getColumnFamilyStore(STANDARD1).metadata(), 0, key)
+                      .clustering("bytes")
+                      .add("val", ByteBuffer.allocate(1 + getMaxRecordDataSize()))
+                      .build());
+
+        // smaller mutation
+        mutations.add(new RowUpdateBuilder(ks.getColumnFamilyStore(STANDARD2).metadata(), 0, key)
+                      .clustering("bytes")
+                      .add("val", ByteBuffer.allocate(1 + getMaxRecordDataSize() - 1024))
+                      .build());
+
+        Mutation mutation = Mutation.merge(mutations);
+        try
+        {
+            CommitLog.instance.add(Mutation.merge(mutations));
+            throw new AssertionError("mutation larger than limit was accepted");
+        }
+        catch (MutationExceededMaxSizeException exception)
+        {
+            String message = exception.getMessage();
+
+            long mutationSize = mutation.serializedSize(MessagingService.current_version) + ENTRY_OVERHEAD_SIZE;
+            final String expectedMessagePrefix = String.format("Encountered an oversized mutation (%d/%d) for keyspace: %s.",
+                                                               mutationSize,
+                                                               DatabaseDescriptor.getMaxMutationSize(),
+                                                               KEYSPACE1);
+            assertTrue(message.startsWith(expectedMessagePrefix));
+            assertTrue(message.contains(String.format("%s.%s and 1 more.", STANDARD1, key)));
+        }
     }
 
     protected void testRecoveryWithBadSizeArgument(int size, int dataSize) throws Exception
@@ -655,7 +700,7 @@ public abstract class CommitLogTest
         {
             DatabaseDescriptor.setAutoSnapshot(false);
             Keyspace notDurableKs = Keyspace.open(KEYSPACE2);
-            Assert.assertFalse(notDurableKs.getMetadata().params.durableWrites);
+            assertFalse(notDurableKs.getMetadata().params.durableWrites);
 
             ColumnFamilyStore cfs = notDurableKs.getColumnFamilyStore("Standard1");
             new RowUpdateBuilder(cfs.metadata(), 0, "key1")
@@ -699,7 +744,7 @@ public abstract class CommitLogTest
 
         SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, CommitLogPosition.NONE, cfs.metadata());
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
-        Assert.assertFalse(activeSegments.isEmpty());
+        assertFalse(activeSegments.isEmpty());
 
         File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).listFiles((file, name) -> activeSegments.contains(name));
         replayer.replayFiles(files);
@@ -736,7 +781,7 @@ public abstract class CommitLogTest
 
         SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, commitLogPosition, cfs.metadata());
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
-        Assert.assertFalse(activeSegments.isEmpty());
+        assertFalse(activeSegments.isEmpty());
 
         File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).listFiles((file, name) -> activeSegments.contains(name));
         replayer.replayFiles(files);

@@ -90,7 +90,7 @@ public final class Batch
             size += sizeofUnsignedVInt(batch.decodedMutations.size());
             for (Mutation mutation : batch.decodedMutations)
             {
-                int mutationSize = (int) Mutation.serializer.serializedSize(mutation, version);
+                int mutationSize = mutation.serializedSize(version);
                 size += sizeofUnsignedVInt(mutationSize);
                 size += mutationSize;
             }
@@ -108,7 +108,7 @@ public final class Batch
             out.writeUnsignedVInt(batch.decodedMutations.size());
             for (Mutation mutation : batch.decodedMutations)
             {
-                out.writeUnsignedVInt(Mutation.serializer.serializedSize(mutation, version));
+                out.writeUnsignedVInt(mutation.serializedSize(version));
                 Mutation.serializer.serialize(mutation, out, version);
             }
         }

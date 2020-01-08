@@ -109,4 +109,9 @@ public final class VirtualMutation implements IMutation
     {
         // no-op
     }
+
+    public void validateSize(int version, int overhead)
+    {
+        // no-op
+    }
 }
