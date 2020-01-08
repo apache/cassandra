@@ -38,6 +38,9 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.net.MessagingService.VERSION_30;
+import static org.apache.cassandra.net.MessagingService.VERSION_3014;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 public class Mutation implements IMutation
@@ -117,6 +120,15 @@ public class Mutation implements IMutation
     public ImmutableCollection<PartitionUpdate> getPartitionUpdates()
     {
         return modifications.values();
+    }
+
+    public void validateSize(int version, int overhead)
+    {
+        long totalSize = serializedSize(version) + overhead;
+        if(totalSize > MAX_MUTATION_SIZE)
+        {
+            throw new MutationExceededMaxSizeException(this, version, totalSize);
+        }
     }
 
     public PartitionUpdate getPartitionUpdate(TableMetadata table)
@@ -255,6 +267,30 @@ public class Mutation implements IMutation
             buff.append("\n  ").append(StringUtils.join(modifications.values(), "\n  ")).append('\n');
         }
         return buff.append("])").toString();
+    }
+    private int serializedSize30;
+    private int serializedSize3014;
+    private int serializedSize40;
+
+    public int serializedSize(int version)
+    {
+        switch (version)
+        {
+            case VERSION_30:
+                if (serializedSize30 == 0)
+                    serializedSize30 = (int) serializer.serializedSize(this, VERSION_30);
+                return serializedSize30;
+            case VERSION_3014:
+                if (serializedSize3014 == 0)
+                    serializedSize3014 = (int) serializer.serializedSize(this, VERSION_3014);
+                return serializedSize3014;
+            case VERSION_40:
+                if (serializedSize40 == 0)
+                    serializedSize40 = (int) serializer.serializedSize(this, VERSION_40);
+                return serializedSize40;
+            default:
+                throw new IllegalStateException("Unknown serialization version: " + version);
+        }
     }
 
     /**

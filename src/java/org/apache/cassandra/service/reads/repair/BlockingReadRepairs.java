@@ -21,17 +21,19 @@ package org.apache.cassandra.service.reads.repair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.MutationExceededMaxSizeException;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
+
+import static org.apache.cassandra.db.IMutation.MAX_MUTATION_SIZE;
 
 public class BlockingReadRepairs
 {
@@ -51,43 +53,42 @@ public class BlockingReadRepairs
 
         DecoratedKey key = update.partitionKey();
         Mutation mutation = new Mutation(update);
-        Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
-        TableMetadata metadata = update.metadata();
-
         int messagingVersion = MessagingService.instance().versions.get(destination);
 
-        int    mutationSize = (int) Mutation.serializer.serializedSize(mutation, messagingVersion);
-        int maxMutationSize = DatabaseDescriptor.getMaxMutationSize();
-
-
-        if (mutationSize <= maxMutationSize)
+        try
         {
+            mutation.validateSize(messagingVersion, 0);
             return mutation;
         }
-        else if (DROP_OVERSIZED_READ_REPAIR_MUTATIONS)
+        catch (MutationExceededMaxSizeException e)
         {
-            logger.debug("Encountered an oversized ({}/{}) read repair mutation for table {}, key {}, node {}",
-                         mutationSize,
-                         maxMutationSize,
-                         metadata,
-                         metadata.partitionKeyType.getString(key.getKey()),
-                         destination);
-            return null;
-        }
-        else
-        {
-            logger.warn("Encountered an oversized ({}/{}) read repair mutation for table {}, key {}, node {}",
-                        mutationSize,
-                        maxMutationSize,
-                        metadata,
-                        metadata.partitionKeyType.getString(key.getKey()),
-                        destination);
+            Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
+            TableMetadata metadata = update.metadata();
 
-            if (!suppressException)
+            if (DROP_OVERSIZED_READ_REPAIR_MUTATIONS)
             {
-                int blockFor = consistency.blockFor(keyspace);
-                Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
-                throw new ReadTimeoutException(consistency, blockFor - 1, blockFor, true);
+                logger.debug("Encountered an oversized ({}/{}) read repair mutation for table {}, key {}, node {}",
+                             e.mutationSize,
+                             MAX_MUTATION_SIZE,
+                             metadata,
+                             metadata.partitionKeyType.getString(key.getKey()),
+                             destination);
+            }
+            else
+            {
+                logger.warn("Encountered an oversized ({}/{}) read repair mutation for table {}, key {}, node {}",
+                            e.mutationSize,
+                            MAX_MUTATION_SIZE,
+                            metadata,
+                            metadata.partitionKeyType.getString(key.getKey()),
+                            destination);
+
+                if (!suppressException)
+                {
+                    int blockFor = consistency.blockFor(keyspace);
+                    Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
+                    throw new ReadTimeoutException(consistency, blockFor - 1, blockFor, true);
+                }
             }
             return null;
         }
