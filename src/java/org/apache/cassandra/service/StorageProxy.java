@@ -315,7 +315,7 @@ public class StorageProxy implements StorageProxyMBean
                 ConsistencyLevel readConsistency = consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
 
                 FilteredPartition current;
-                try (RowIterator rowIter = readOne(readCommand, readConsistency))
+                try (RowIterator rowIter = readOne(readCommand, readConsistency, queryState))
                 {
                     current = FilteredPartition.create(rowIter);
                 }
@@ -1590,12 +1590,6 @@ public class StorageProxy implements StorageProxyMBean
             if (!SchemaConstants.isLocalSystemKeyspace(cmd.metadata().keyspace))
                 return false;
         return true;
-    }
-
-    public static RowIterator readOne(SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel)
-    throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
-    {
-        return readOne(command, consistencyLevel, null);
     }
 
     public static RowIterator readOne(SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, QueryState queryState)
