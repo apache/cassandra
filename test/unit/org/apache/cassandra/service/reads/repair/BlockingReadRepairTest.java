@@ -147,14 +147,14 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         Assert.assertTrue(handler.mutationsSent.isEmpty());
 
         // check that the correct mutations are sent
-        handler.sendInitialRepairs();
+        handler.sendInitialRepairs(QueryState.forInternalCalls());
         Assert.assertEquals(2, handler.mutationsSent.size());
         assertMutationEqual(repair1, handler.mutationsSent.get(target1));
         assertMutationEqual(repair2, handler.mutationsSent.get(target2));
 
         // check that a combined mutation is speculatively sent to the 3rd target
         handler.mutationsSent.clear();
-        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS);
+        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS, QueryState.forInternalCalls());
         Assert.assertEquals(1, handler.mutationsSent.size());
         assertMutationEqual(resolved, handler.mutationsSent.get(target3));
 
@@ -178,13 +178,13 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica2, mutation(cell1));
 
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2);
-        handler.sendInitialRepairs();
+        handler.sendInitialRepairs(QueryState.forInternalCalls());
         handler.ack(target1);
         handler.ack(target2);
 
         // both replicas have acked, we shouldn't send anything else out
         handler.mutationsSent.clear();
-        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS);
+        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS, QueryState.forInternalCalls());
         Assert.assertTrue(handler.mutationsSent.isEmpty());
     }
 
@@ -199,11 +199,11 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica2, mutation(cell1));
 
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2);
-        handler.sendInitialRepairs();
+        handler.sendInitialRepairs(QueryState.forInternalCalls());
 
         // we've already sent mutations to all candidates, so we shouldn't send any more
         handler.mutationsSent.clear();
-        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS);
+        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS, QueryState.forInternalCalls());
         Assert.assertTrue(handler.mutationsSent.isEmpty());
     }
 
@@ -221,13 +221,13 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
 
         // check that the correct initial mutations are sent out
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2, replicaPlan(replicas, EndpointsForRange.of(replica1, replica2)));
-        handler.sendInitialRepairs();
+        handler.sendInitialRepairs(QueryState.forInternalCalls());
         Assert.assertEquals(1, handler.mutationsSent.size());
         Assert.assertTrue(handler.mutationsSent.containsKey(target1));
 
         // check that speculative mutations aren't sent to target2
         handler.mutationsSent.clear();
-        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS);
+        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS, QueryState.forInternalCalls());
         Assert.assertEquals(1, handler.mutationsSent.size());
         Assert.assertTrue(handler.mutationsSent.containsKey(target3));
     }
@@ -242,7 +242,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         Assert.assertEquals(3, repairs.size());
 
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2);
-        handler.sendInitialRepairs();
+        handler.sendInitialRepairs(QueryState.forInternalCalls());
 
         Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target1);
@@ -269,7 +269,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         EndpointsForRange participants = EndpointsForRange.of(replica1, replica2, remote1, remote2);
         ReplicaPlan.ForRangeRead replicaPlan = replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, participants);
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2, replicaPlan);
-        handler.sendInitialRepairs();
+        handler.sendInitialRepairs(QueryState.forInternalCalls());
         Assert.assertEquals(2, handler.mutationsSent.size());
         Assert.assertTrue(handler.mutationsSent.containsKey(replica1.endpoint()));
         Assert.assertTrue(handler.mutationsSent.containsKey(remote1.endpoint()));

@@ -88,7 +88,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         Assert.assertTrue(handler.updatesByEp.isEmpty());
 
         // check that the correct mutations are sent
-        handler.sendInitialRepairs();
+        handler.sendInitialRepairs(QueryState.forInternalCalls());
         Assert.assertEquals(2, handler.updatesByEp.size());
 
         Assert.assertEquals(repair1.toString(), handler.updatesByEp.get(target1));
@@ -96,7 +96,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
 
         // check that a combined mutation is speculatively sent to the 3rd target
         handler.updatesByEp.clear();
-        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS);
+        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS, QueryState.forInternalCalls());
         Assert.assertEquals(1, handler.updatesByEp.size());
         Assert.assertEquals(resolved.toString(), handler.updatesByEp.get(target3));
 
