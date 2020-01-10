@@ -117,7 +117,7 @@ public class QueryState
 
     public boolean hasResolvedTimeout()
     {
-        return timeoutInNanos != Long.MIN_VALUE;
+        return timeoutInNanos != Long.MAX_VALUE;
     }
 
     public long getTimeoutWithFallback(ToLongFunction<TimeUnit> fallback, TimeUnit timeUnit)
