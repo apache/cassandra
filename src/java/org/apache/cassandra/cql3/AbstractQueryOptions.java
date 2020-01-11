@@ -168,7 +168,7 @@ public abstract class AbstractQueryOptions implements QueryOptions
     public Term getJsonColumnValue(int bindIndex, ColumnIdentifier columnName, Collection<ColumnMetadata> expectedReceivers) throws InvalidRequestException
     {
         if (jsonValuesCache == null)
-            jsonValuesCache = new ArrayList<>(Collections.<Map<ColumnIdentifier, Term>>nCopies(getValues().size(), null));
+            jsonValuesCache = new ArrayList<>(Collections.nCopies(getValues().size(), null));
 
         Map<ColumnIdentifier, Term> jsonValue = jsonValuesCache.get(bindIndex);
         if (jsonValue == null)

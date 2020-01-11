@@ -299,7 +299,7 @@ public class StorageProxy implements StorageProxyMBean
             consistencyForPaxos.validateForCas();
             consistencyForCommit.validateForCasCommit(keyspaceName);
 
-            long timeoutNanos = queryState.getTimeoutWithFallback(DatabaseDescriptor::getCasContentionTimeout, NANOSECONDS);
+            final long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
             while (queryState.getElapsedInNanos() < timeoutNanos)
             {
                 // for simplicity, we'll do a single liveness check at the start of each attempt
@@ -411,7 +411,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                 QueryState queryState)
     throws WriteTimeoutException, WriteFailureException
     {
-        long timeoutNanos = queryState.getTimeoutWithFallback(DatabaseDescriptor::getCasContentionTimeout, NANOSECONDS);
+        final long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
 
         PrepareCallback summary = null;
         int contentions = 0;
@@ -814,7 +814,7 @@ public class StorageProxy implements StorageProxyMBean
      * @param mutations the mutations to be applied across the replicas
      * @param writeCommitLog if commitlog should be written
      * @param baseComplete time from epoch in ms that the local base mutation was(or will be) completed
-     * @param queryState the value of System.nanoTime() when the query started to be processed // todo: YIFAN
+     * @param queryState state regarding the current query
      */
     public static void mutateMV(ByteBuffer dataKey, Collection<Mutation> mutations, boolean writeCommitLog, AtomicLong baseComplete, QueryState queryState)
     throws UnavailableException, OverloadedException, WriteTimeoutException
@@ -953,7 +953,7 @@ public class StorageProxy implements StorageProxyMBean
      * @param mutations the Mutations to be applied across the replicas
      * @param consistency_level the consistency level for the operation
      * @param requireQuorumForRemove at least a quorum of nodes will see update before deleting batchlog
-     * @param queryState the value of System.nanoTime() when the query started to be processed // todo: YIFAN
+     * @param queryState state regarding the current query
      */
     public static void mutateAtomically(Collection<Mutation> mutations,
                                         ConsistencyLevel consistency_level,
@@ -1146,7 +1146,7 @@ public class StorageProxy implements StorageProxyMBean
      * given the list of write endpoints (either standardWritePerformer for
      * standard writes or counterWritePerformer for counter writes).
      * @param callback an optional callback to be run if and when the write is
-     * @param queryState the value of System.nanoTime() when the query started to be processed // todo: YIFAN
+     * @param queryState state regarding the current query
      */
     public static AbstractWriteResponseHandler<IMutation> performWrite(IMutation mutation,
                                                                        ConsistencyLevel consistencyLevel,
@@ -1628,7 +1628,7 @@ public class StorageProxy implements StorageProxyMBean
     private static PartitionIterator readWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, QueryState queryState)
     throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
-        assert queryState.getClientState() != null; // todo: YIFAN
+        assert queryState.getClientState() != null;
         if (group.queries.size() > 1)
             throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one partition at a time");
 

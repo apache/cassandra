@@ -241,7 +241,7 @@ public class WriteResponseHandlerTest
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, QueryState queryState)
     {
         return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, targets, pending, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
-                                                                   null, WriteType.SIMPLE, queryState);
+                                                                   null, WriteType.SIMPLE, ideal, queryState);
     }
 
     private static Message createDummyMessage(int target)

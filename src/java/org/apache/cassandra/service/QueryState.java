@@ -21,6 +21,8 @@ import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongFunction;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -43,18 +45,18 @@ public class QueryState
         this(clientState, System.nanoTime());
     }
 
-    // todo: YIFAN
-    public QueryState(ClientState clientState, long startTimeNanos)
-    {
-        this.clientState = clientState;
-        this.startTimeNanos = startTimeNanos;
-    }
-
     public QueryState(ClientState clientState, long timestamp, int nowInSeconds)
     {
         this(clientState, System.nanoTime());
         this.timestamp = timestamp;
         this.nowInSeconds = nowInSeconds;
+    }
+
+    @VisibleForTesting
+    public QueryState(ClientState clientState, long startTimeNanos)
+    {
+        this.clientState = clientState;
+        this.startTimeNanos = startTimeNanos;
     }
 
     /**

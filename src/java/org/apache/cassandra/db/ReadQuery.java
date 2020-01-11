@@ -141,10 +141,7 @@ public interface ReadQuery
      * Executes the query at the provided consistency level.
      *
      * @param consistency the consistency level to achieve for the query.
-     *                    // todo: YIFAN
-     * @param queryState the {@code ClientState} for the query. In practice, this can be null unless
-     * {@code consistency} is a serial consistency.
-     *
+     * @param queryState state regarding the current query.
      * @return the result of the query.
      */
     public PartitionIterator execute(ConsistencyLevel consistency, QueryState queryState) throws RequestExecutionException;

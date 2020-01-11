@@ -94,6 +94,14 @@ public interface QueryOptions
      */
     Term getJsonColumnValue(int bindIndex, ColumnIdentifier columnName, Collection<ColumnMetadata> expectedReceivers) throws InvalidRequestException;
 
+    /**
+     * Calculate the actual timeout by comparing and getting the minimum value between
+     * the custom timeout {@link #getTimeoutInMillis()} and the one configured at {@link org.apache.cassandra.config.DatabaseDescriptor}
+     * Effectively, it caps the custom timeout at most to the configured one.
+     * @param configuredTimeout, function to get the configured timeout in the desired {@code timeUnit}
+     * @param timeUnit, desired timeUnit to convert the timeout value to.
+     * @return timeout value in the desired {@code timeUnit}
+     */
     default long calculateTimeout(ToLongFunction<TimeUnit> configuredTimeout, TimeUnit timeUnit)
     {
         return Math.min(timeUnit.convert(getTimeoutInMillis(), TimeUnit.MILLISECONDS),

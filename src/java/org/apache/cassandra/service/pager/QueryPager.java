@@ -90,9 +90,7 @@ public interface QueryPager
      *
      * @param pageSize the maximum number of elements to return in the next page.
      * @param consistency the consistency level to achieve for the query.
-     *                    // todo: YIFAN
-     * @param clientState the {@code ClientState} for the query. In practice, this can be null unless
-     * {@code consistency} is a serial consistency.
+     * @param queryState state regarding the current query.
      * @return the page of result.
      */
     public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, QueryState queryState) throws RequestValidationException, RequestExecutionException;
@@ -100,7 +98,7 @@ public interface QueryPager
     /**
      * Starts a new read operation.
      * <p>
-     * This must be called before {@link fetchPageInternal} and passed to it to protect the read.
+     * This must be called before {@link #fetchPageInternal} and passed to it to protect the read.
      * The returned object <b>must</b> be closed on all path and it is thus strongly advised to
      * use it in a try-with-ressource construction.
      *

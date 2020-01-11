@@ -271,7 +271,6 @@ public class QueryProcessor implements QueryHandler
         return getStatement(queryStr, clientState);
     }
 
-    // todo: YIFAN. Keep it
     public static UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
     {
         return process(query, cl, Collections.<ByteBuffer>emptyList());

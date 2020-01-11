@@ -71,11 +71,10 @@ public interface CQLStatement
     public void validate(ClientState state);
 
     /**
-     * // todo: YIFAN
      * Resolve the actual timeout value for this CQLStatement
-     * The mehtod is invoked only after the statement has been validated in QueryHanlder
-     * @param options
-     * @param state
+     * The mehtod should be invoked only after the statement has been validated in QueryHanlder
+     * @param options options specified by a client request for the query
+     * @param state state regarding the current query
      */
     public void resolveTimeout(QueryOptions options, QueryState state);
 
