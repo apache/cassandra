@@ -41,14 +41,14 @@ public abstract class AbstractQueryOptions implements QueryOptions
     protected final List<ByteBuffer> values;
     protected final boolean skipMetadata;
     protected final SpecificOptions specificOptions;
-    protected final int pageSize;
-    protected final PagingState state;
-    protected final ConsistencyLevel serialConsistency;
-    protected final long timestamp;
-    protected final String keyspace;
-    protected final int nowInSeconds;
-    protected final int timeoutInMillis; // defaults to Integer.MAX_VALUE, if the flag was not set.
     protected final ProtocolVersion protocolVersion;
+    protected int pageSize;
+    protected PagingState state;
+    protected ConsistencyLevel serialConsistency;
+    protected long timestamp;
+    protected String keyspace;
+    protected int nowInSeconds;
+    protected int timeoutInMillis; // defaults to Integer.MAX_VALUE, if the flag was not set.
 
     // A cache of bind values parsed as JSON, see getJsonColumnValue for details.
     private List<Map<ColumnIdentifier, Term>> jsonValuesCache;
@@ -59,14 +59,17 @@ public abstract class AbstractQueryOptions implements QueryOptions
         this.values = values;
         this.skipMetadata = skipMetadata;
         this.specificOptions = specificOptions;
-        this.pageSize = specificOptions.pageSize;
-        this.state = specificOptions.state;
-        this.serialConsistency = specificOptions.serialConsistency == null ? ConsistencyLevel.SERIAL : specificOptions.serialConsistency;
-        this.timestamp = specificOptions.timestamp;
-        this.keyspace = specificOptions.keyspace;
-        this.nowInSeconds = specificOptions.nowInSeconds;
-        this.timeoutInMillis = specificOptions.timeoutInMillis;
         this.protocolVersion = protocolVersion;
+        if (specificOptions != null)
+        {
+            this.pageSize = specificOptions.pageSize;
+            this.state = specificOptions.state;
+            this.serialConsistency = specificOptions.serialConsistency == null ? ConsistencyLevel.SERIAL : specificOptions.serialConsistency;
+            this.timestamp = specificOptions.timestamp;
+            this.keyspace = specificOptions.keyspace;
+            this.nowInSeconds = specificOptions.nowInSeconds;
+            this.timeoutInMillis = specificOptions.timeoutInMillis;
+        }
     }
 
     AbstractQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, ProtocolVersion protocolVersion)

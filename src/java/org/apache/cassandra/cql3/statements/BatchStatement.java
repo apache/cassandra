@@ -303,9 +303,8 @@ public class BatchStatement implements CQLStatement
     }
 
     private List<? extends IMutation> getMutations(BatchQueryOptions options,
-                                                   boolean local,
-                                                   long batchTimestamp,
-                                                   int nowInSeconds)
+                                                   QueryState queryState,
+                                                   boolean local)
     {
         Set<String> tablesWithZeroGcGs = null;
         BatchUpdatesCollector collector = new BatchUpdatesCollector(updatedColumns, updatedRows());
@@ -319,8 +318,7 @@ public class BatchStatement implements CQLStatement
                 tablesWithZeroGcGs.add(statement.metadata.toString());
             }
             QueryOptions statementOptions = options.forStatement(i);
-            long timestamp = attrs.getTimestamp(batchTimestamp, statementOptions);
-            statement.addUpdates(collector, statementOptions, local, timestamp, nowInSeconds);
+            statement.addUpdates(collector, statementOptions, queryState, local);
         }
 
         if (tablesWithZeroGcGs != null)
@@ -436,7 +434,7 @@ public class BatchStatement implements CQLStatement
         if (updatesVirtualTables)
             executeInternalWithoutCondition(queryState, options);
         else    
-            executeWithoutConditions(getMutations(options, false, timestamp, nowInSeconds), options.getConsistency(), queryState);
+            executeWithoutConditions(getMutations(options, queryState, false), options.getConsistency(), queryState);
 
         return new ResultMessage.Void();
     }
@@ -580,7 +578,7 @@ public class BatchStatement implements CQLStatement
         long timestamp = batchOptions.getTimestampWithFallback(queryState);
         int nowInSeconds = batchOptions.getNowInSecondsWithFallback(queryState);
 
-        for (IMutation mutation : getMutations(batchOptions, true, timestamp, nowInSeconds))
+        for (IMutation mutation : getMutations(batchOptions,  queryState, true))
             mutation.apply();
         return null;
     }

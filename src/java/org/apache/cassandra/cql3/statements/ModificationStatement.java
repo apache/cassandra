@@ -442,7 +442,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                            DataLimits limits,
                                                            boolean local,
                                                            ConsistencyLevel cl,
-                                                           int nowInSeconds)
+                                                           QueryState queryState)
     {
         if (!requiresRead())
             return null;
@@ -459,7 +459,7 @@ public abstract class ModificationStatement implements CQLStatement
         List<SinglePartitionReadCommand> commands = new ArrayList<>(partitionKeys.size());
         for (ByteBuffer key : partitionKeys)
             commands.add(SinglePartitionReadCommand.create(metadata(),
-                                                           nowInSeconds,
+                                                           queryState.getNowInSeconds(),
                                                            ColumnFilter.selection(this.requiresRead),
                                                            RowFilter.NONE,
                                                            limits,
@@ -477,7 +477,7 @@ public abstract class ModificationStatement implements CQLStatement
             }
         }
 
-        try (PartitionIterator iter = group.execute(cl, null))
+        try (PartitionIterator iter = group.execute(cl, queryState))
         {
             return asMaterializedMap(iter);
         }
@@ -531,11 +531,7 @@ public abstract class ModificationStatement implements CQLStatement
         else
             cl.validateForWrite(metadata.keyspace);
 
-        List<? extends IMutation> mutations =
-            getMutations(options,
-                         false,
-                         options.getTimestampWithFallback(queryState),
-                         options.getNowInSecondsWithFallback(queryState));
+        List<? extends IMutation> mutations = getMutations(options, queryState, false);
         if (!mutations.isEmpty())
             StorageProxy.mutateWithTriggers(mutations, cl, false, queryState);
 
@@ -691,9 +687,7 @@ public abstract class ModificationStatement implements CQLStatement
     public ResultMessage executeInternalWithoutCondition(QueryState queryState, QueryOptions options)
     throws RequestValidationException, RequestExecutionException
     {
-        long timestamp = options.getTimestampWithFallback(queryState);
-        int nowInSeconds = options.getNowInSecondsWithFallback(queryState);
-        for (IMutation mutation : getMutations(options, true, timestamp, nowInSeconds))
+        for (IMutation mutation : getMutations(options, queryState, true))
             mutation.apply();
         return null;
     }
@@ -736,25 +730,23 @@ public abstract class ModificationStatement implements CQLStatement
      *
      * @param options value for prepared statement markers
      * @param local if true, any requests (for collections) performed by getMutation should be done locally only.
-     * @param timestamp the current timestamp in microseconds to use if no timestamp is user provided.
+     * @param timestamp the current timestamp in microseconds to use if no timestamp is user provided. // todo: YIFAN - update doc
      *
      * @return list of the mutations
      */
     private List<? extends IMutation> getMutations(QueryOptions options,
-                                                         boolean local,
-                                                         long timestamp,
-                                                         int nowInSeconds)
+                                                   QueryState state,
+                                                   boolean local)
     {
         UpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, 1);
-        addUpdates(collector, options, local, timestamp, nowInSeconds);
+        addUpdates(collector, options, state, local);
         return collector.toMutations();
     }
 
     final void addUpdates(UpdatesCollector collector,
                           QueryOptions options,
-                          boolean local,
-                          long timestamp,
-                          int nowInSeconds)
+                          QueryState queryState,
+                          boolean local)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options);
 
@@ -769,10 +761,9 @@ public abstract class ModificationStatement implements CQLStatement
             UpdateParameters params = makeUpdateParameters(keys,
                                                            new ClusteringIndexSliceFilter(slices, false),
                                                            options,
+                                                           queryState,
                                                            DataLimits.NONE,
-                                                           local,
-                                                           timestamp,
-                                                           nowInSeconds);
+                                                           local);
             for (ByteBuffer key : keys)
             {
                 Validation.validateKey(metadata(), key);
@@ -792,7 +783,7 @@ public abstract class ModificationStatement implements CQLStatement
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            UpdateParameters params = makeUpdateParameters(keys, clusterings, options, local, timestamp, nowInSeconds);
+            UpdateParameters params = makeUpdateParameters(keys, clusterings, options, queryState, local);
 
             for (ByteBuffer key : keys)
             {
@@ -834,35 +825,31 @@ public abstract class ModificationStatement implements CQLStatement
     private UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
                                                   NavigableSet<Clustering> clusterings,
                                                   QueryOptions options,
-                                                  boolean local,
-                                                  long timestamp,
-                                                  int nowInSeconds)
+                                                  QueryState queryState,
+                                                  boolean local)
     {
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
             return makeUpdateParameters(keys,
                                         new ClusteringIndexSliceFilter(Slices.ALL, false),
                                         options,
+                                        queryState,
                                         DataLimits.cqlLimits(1),
-                                        local,
-                                        timestamp,
-                                        nowInSeconds);
+                                        local);
 
         return makeUpdateParameters(keys,
                                     new ClusteringIndexNamesFilter(clusterings, false),
                                     options,
+                                    queryState,
                                     DataLimits.NONE,
-                                    local,
-                                    timestamp,
-                                    nowInSeconds);
+                                    local);
     }
 
     private UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
                                                   ClusteringIndexFilter filter,
                                                   QueryOptions options,
+                                                  QueryState queryState,
                                                   DataLimits limits,
-                                                  boolean local,
-                                                  long timestamp,
-                                                  int nowInSeconds)
+                                                  boolean local)
     {
         // Some lists operation requires reading
         Map<DecoratedKey, Partition> lists =
@@ -871,13 +858,13 @@ public abstract class ModificationStatement implements CQLStatement
                               limits,
                               local,
                               options.getConsistency(),
-                              nowInSeconds);
+                              queryState);
 
         return new UpdateParameters(metadata(),
                                     updatedColumns(),
                                     options,
-                                    getTimestamp(timestamp, options),
-                                    nowInSeconds,
+                                    getTimestamp(options.getTimestampWithFallback(queryState), options),
+                                    options.getNowInSecondsWithFallback(queryState),
                                     getTimeToLive(options),
                                     lists);
     }
