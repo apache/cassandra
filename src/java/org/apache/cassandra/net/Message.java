@@ -513,6 +513,9 @@ public class Message<T>
             if (payload == null)
                 throw new IllegalArgumentException();
 
+            if (Tracing.isTracing() && !params.containsKey(ParamType.TRACE_SESSION))
+                Tracing.instance.addTraceHeaders(params);
+
             return new Message<>(new Header(hasId ? id : nextId(), verb, from, createdAtNanos, expiresAtNanos, flags, params), payload);
         }
     }
