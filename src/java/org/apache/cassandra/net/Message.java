@@ -461,6 +461,18 @@ public class Message<T>
             return this;
         }
 
+        /**
+         * A shortcut to add tracing params.
+         * Effectively, it is the same as calling {@link #withParam(ParamType, Object)} with tracing params
+         * If there is already tracing params, calling this method overrides any existing ones.
+         */
+        public Builder<T> withTracingParams()
+        {
+            if (Tracing.isTracing())
+                Tracing.instance.addTraceHeaders(params);
+            return this;
+        }
+
         public Builder<T> withoutParam(ParamType type)
         {
             params.remove(type);
