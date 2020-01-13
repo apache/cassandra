@@ -1,4 +1,5 @@
 4.0-alpha3
+ * Improve error when JVM 11 can't access required modules (CASSANDRA-15468)
  * Better handling of file deletion failures by DiskFailurePolicy (CASSANDRA-15143)
  * Prevent read repair mutations from increasing read timeout (CASSANDRA-15442)
  * Document 4.0 system keyspace changes, bump generations (CASSANDRA-15454)
