@@ -14,6 +14,10 @@
  * Add documentation for Java 11 support in Cassandra (CASSANDRA-15428)
  * Integrate SJK into nodetool (CASSANDRA-12197)
  * Ensure that empty clusterings with kind==CLUSTERING are Clustering.EMPTY (CASSANDRA-15498)
+ * The flag 'cross_node_timeout' has been set as true by default. This change
+   is done under the assumption that users have setup NTP on their clusters or
+   otherwise synchronize their clocks, and that clocks are mostly in sync, since
+   this is a requirement for general correctness of last write wins. (CASSANDRA-15216)
 Merged from 3.11:
  * Fix nodetool compactionstats showing extra pending task for TWCS - patch implemented (CASSANDRA-15409)
  * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)

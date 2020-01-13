@@ -108,7 +108,7 @@ public class Config
     public Integer streaming_connections_per_host = 1;
     public Integer streaming_keep_alive_period_in_secs = 300; //5 minutes
 
-    public boolean cross_node_timeout = false;
+    public boolean cross_node_timeout = true;
 
     public volatile long slow_query_log_timeout_in_ms = 500L;
 

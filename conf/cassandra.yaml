@@ -923,9 +923,9 @@ slow_query_log_timeout_in_ms: 500
 # under overload conditions we will waste that much extra time processing 
 # already-timed-out requests.
 #
-# Warning: before enabling this property make sure to ntp is installed
-# and the times are synchronized between the nodes.
-cross_node_timeout: false
+# Warning: It is generally assumed that users have setup NTP on their clusters, and that clocks are modestly in sync, 
+# since this is a requirement for general correctness of last write wins.
+#cross_node_timeout: true
 
 # Set keep-alive period for streaming
 # This node will send a keep-alive message periodically with this period.
