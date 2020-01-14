@@ -22,6 +22,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.IntFunction;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -29,7 +32,24 @@ import org.apache.cassandra.utils.Pair;
 
 public class NetworkTopology
 {
-    private final Map<InetAddressAndPort, Pair<String, String>> map;
+    private final Map<InetAddressAndPort, DcAndRack> map;
+
+    public static class DcAndRack
+    {
+        private final String dc;
+        private final String rack;
+
+        private DcAndRack(String dc, String rack)
+        {
+            this.dc = dc;
+            this.rack = rack;
+        }
+    }
+
+    public static DcAndRack dcAndRack(String dc, String rack)
+    {
+        return new DcAndRack(dc, rack);
+    }
 
     private NetworkTopology() {
         map = new HashMap<>();
@@ -41,7 +61,7 @@ public class NetworkTopology
         map = new HashMap<>(networkTopology.map);
     }
 
-    public static NetworkTopology build(String ipPrefix, int broadcastPort, Map<Integer, Pair<String, String>> nodeIdTopology)
+    public static NetworkTopology build(String ipPrefix, int broadcastPort, Map<Integer, DcAndRack> nodeIdTopology)
     {
         final NetworkTopology topology = new NetworkTopology();
 
@@ -51,7 +71,7 @@ public class NetworkTopology
 
             try
             {
-                Pair<String,String> dcAndRack = nodeIdTopology.get(nodeId);
+                DcAndRack dcAndRack = nodeIdTopology.get(nodeId);
                 if (dcAndRack == null)
                     throw new IllegalStateException("nodeId " + nodeId + "not found in instanceMap");
 
@@ -67,23 +87,51 @@ public class NetworkTopology
         return topology;
     }
 
-    public Pair<String, String> put(InetAddressAndPort key, Pair<String, String> value)
+    public DcAndRack put(InetAddressAndPort key, DcAndRack value)
     {
         return map.put(key, value);
     }
 
     public String localRack(InetAddressAndPort key)
     {
-        return map.get(key).right;
+        DcAndRack p  = map.get(key);
+        if (p == null)
+            return null;
+        return p.rack;
     }
 
     public String localDC(InetAddressAndPort key)
     {
-        return map.get(key).left;
+        DcAndRack p = map.get(key);
+        if (p == null)
+            return null;
+        return p.dc;
     }
 
     public boolean contains(InetAddressAndPort key)
     {
         return map.containsKey(key);
+    }
+
+    public String toString()
+    {
+        return "NetworkTopology{" + map + '}';
+    }
+
+
+    public static Map<Integer, NetworkTopology.DcAndRack> singleDcNetworkTopology(int nodeCount,
+                                                                                  String dc,
+                                                                                  String rack)
+    {
+        return networkTopology(nodeCount, (nodeid) -> NetworkTopology.dcAndRack(dc, rack));
+    }
+
+    public static Map<Integer, NetworkTopology.DcAndRack> networkTopology(int nodeCount,
+                                                                          IntFunction<DcAndRack> dcAndRackSupplier)
+    {
+
+        return IntStream.rangeClosed(1, nodeCount).boxed()
+                        .collect(Collectors.toMap(nodeId -> nodeId,
+                                                  dcAndRackSupplier::apply));
     }
 }
