@@ -214,6 +214,57 @@ public class DatabaseDescriptorTest
     }
 
     @Test
+    public void testExceptionsForInvalidConfigValues() {
+        try
+        {
+            DatabaseDescriptor.setColumnIndexCacheSize(-1);
+            fail("Should have received a ConfigurationException column_index_cache_size_in_kb = -1");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(2048, DatabaseDescriptor.getColumnIndexCacheSize());
+
+        try
+        {
+            DatabaseDescriptor.setColumnIndexCacheSize(2 * 1024 * 1024);
+            fail("Should have received a ConfigurationException column_index_cache_size_in_kb = 2GiB");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(2048, DatabaseDescriptor.getColumnIndexCacheSize());
+
+        try
+        {
+            DatabaseDescriptor.setColumnIndexSize(-1);
+            fail("Should have received a ConfigurationException column_index_size_in_kb = -1");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
+
+        try
+        {
+            DatabaseDescriptor.setColumnIndexSize(2 * 1024 * 1024);
+            fail("Should have received a ConfigurationException column_index_size_in_kb = 2GiB");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
+
+        try
+        {
+            DatabaseDescriptor.setBatchSizeWarnThresholdInKB(-1);
+            fail("Should have received a ConfigurationException batch_size_warn_threshold_in_kb = -1");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(5120, DatabaseDescriptor.getBatchSizeWarnThreshold());
+
+        try
+        {
+            DatabaseDescriptor.setBatchSizeWarnThresholdInKB(2 * 1024 * 1024);
+            fail("Should have received a ConfigurationException batch_size_warn_threshold_in_kb = 2GiB");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
+    }
+
+    @Test
     public void testLowestAcceptableTimeouts() throws ConfigurationException
     {
         Config testConfig = new Config();
