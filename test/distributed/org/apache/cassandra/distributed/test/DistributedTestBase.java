@@ -94,7 +94,7 @@ public class DistributedTestBase
         {
             Object[] expectedRow = expected[i];
             Object[] actualRow = actual[i];
-            Assert.assertTrue(rowsNotEqualErrorMessage(expected, actual),
+            Assert.assertTrue(rowsNotEqualErrorMessage(actual, expected),
                               Arrays.equals(expectedRow, actualRow));
         }
     }
