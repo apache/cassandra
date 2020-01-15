@@ -18,29 +18,39 @@
 
 package org.apache.cassandra.distributed.api;
 
-import org.apache.cassandra.net.MessagingService;
-
 public interface IMessageFilters
 {
     public interface Filter
     {
-        Filter restore();
-        Filter drop();
+        Filter off();
+        Filter on();
     }
 
     public interface Builder
     {
         Builder from(int ... nums);
         Builder to(int ... nums);
-        Filter ready();
+
+        /**
+         * Every message for which matcher returns `true` will be _dropped_ (assuming all
+         * other matchers in the chain will return `true` as well).
+         */
+        Builder messagesMatching(Matcher filter);
         Filter drop();
     }
 
-    Builder verbs(MessagingService.Verb... verbs);
+    public interface Matcher
+    {
+        boolean matches(int from, int to, IMessage message);
+    }
+
+    Builder verbs(int... verbs);
     Builder allVerbs();
     void reset();
 
-    // internal
-    boolean permit(IInstance from, IInstance to, int verb);
-
+    /**
+     * {@code true} value returned by the implementation implies that the message was
+     * not matched by any filters and therefore should be delivered.
+     */
+    boolean permit(int from, int to, IMessage msg);
 }
