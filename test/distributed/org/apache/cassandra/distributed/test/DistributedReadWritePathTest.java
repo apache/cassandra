@@ -29,6 +29,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.IInvokableInstance;
+import org.apache.cassandra.metrics.ReadRepairMetrics;
 
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_RSP;
@@ -166,22 +167,52 @@ public class DistributedReadWritePathTest extends DistributedTestBase
     @Test
     public void failingReadRepairTest() throws Throwable
     {
+        // This test makes a explicit assumption about which nodes are read from; that 1 and 2 will be "contacts", and that 3 will be ignored.
+        // This is a implementation detail of org.apache.cassandra.locator.ReplicaPlans#contactForRead and
+        // org.apache.cassandra.locator.AbstractReplicationStrategy.getNaturalReplicasForToken that may change
+        // in a future release; when that happens this test could start to fail but should only fail with the explicit
+        // check that detects this behavior has changed.
+        // see CASSANDRA-15507
         try (Cluster cluster = init(Cluster.create(3)))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'");
 
-            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
-            cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
+            // nodes 1 and 3 are identical
+            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1) USING TIMESTAMP 43");
+            cluster.get(3).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1) USING TIMESTAMP 43");
 
-            assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
+            // node 2 is different because of the timestamp; a repair is needed
+            cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1) USING TIMESTAMP 42");
 
-            cluster.verbs(READ_REPAIR_REQ).to(3).drop();
-            assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
-                                                     ConsistencyLevel.QUORUM),
-                       row(1, 1, 1));
+            // 2 is out of date so needs to be repaired.  This will make sure that the repair does not happen on the node
+            // which will trigger the coordinator to write to node 3
+            cluster.verbs(READ_REPAIR_REQ).to(2).drop();
 
-            // Data was not repaired
-            assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
+            // save the state of the counters so its known if the contacts list changed
+            long readRepairRequestsBefore = cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readRepairRequests.getCount());
+            long speculatedWriteBefore = cluster.get(1).callOnInstance(() -> ReadRepairMetrics.speculatedWrite.getCount());
+
+            Object[][] rows = cluster.coordinator(1)
+                       .execute("SELECT pk, ck, v, WRITETIME(v) FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.QUORUM);
+
+            // make sure to check counters first, so can detect if read repair executed as expected
+            long readRepairRequestsAfter = cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readRepairRequests.getCount());
+            long speculatedWriteAfter = cluster.get(1).callOnInstance(() -> ReadRepairMetrics.speculatedWrite.getCount());
+
+            // defensive checks to make sure the nodes selected are the ones expected
+            Assert.assertEquals("number of read repairs after query does not match expected; its possible the nodes involved with the query did not match expected", readRepairRequestsBefore + 1, readRepairRequestsAfter);
+            Assert.assertEquals("number of read repairs speculated writes after query does not match expected; its possible the nodes involved with the query did not match expected", speculatedWriteBefore + 1, speculatedWriteAfter);
+
+            // 1 has newer data than 2 so its write timestamp will be used for the result
+            assertRows(rows, row(1, 1, 1, 43L));
+
+            // cheack each node's local state
+            // 1 and 3 should match quorum response
+            assertRows(cluster.get(1).executeInternal("SELECT pk, ck, v, WRITETIME(v) FROM " + KEYSPACE + ".tbl WHERE pk = 1"), row(1, 1, 1, 43L));
+            assertRows(cluster.get(3).executeInternal("SELECT pk, ck, v, WRITETIME(v) FROM " + KEYSPACE + ".tbl WHERE pk = 1"), row(1, 1, 1, 43L));
+
+            // 2 was not repaired (message was dropped), so still has old data
+            assertRows(cluster.get(2).executeInternal("SELECT pk, ck, v, WRITETIME(v) FROM " + KEYSPACE + ".tbl WHERE pk = 1"), row(1, 1, 1, 42L));
         }
     }
 
