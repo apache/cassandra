@@ -61,6 +61,16 @@ with_dtests_jobs: &with_dtest_jobs
             - utests_stress:
                 requires:
                   - start_utests_stress
+            - start_jvm_upgrade_dtest:
+                type: approval
+                requires:
+                  - build
+            - dtest_jars_build:
+                requires:
+                  - start_jvm_upgrade_dtest
+            - j8_jvm_upgrade_dtests:
+                requires:
+                  - dtest_jars_build
             # Java 8 dtests (on request)
             - start_j8_dtests:
                 type: approval
@@ -127,6 +137,18 @@ jobs:
                 - cassandra
                 - .m2
 
+  dtest_jars_build:
+    executor: java8-executor
+    parallelism: 1
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - build_cassandra_dtest_jars
+      - persist_to_workspace:
+          root: /home/cassandra
+          paths:
+            - dtest_jars
+
   j8_unit_tests:
     <<: *j8_par_executor
     steps:
@@ -143,6 +165,14 @@ jobs:
           at: /home/cassandra
       - run_junit_tests:
           target: test-jvm-dtest-forking
+
+  j8_jvm_upgrade_dtests:
+    <<: *j8_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_junit_tests:
+          target: test-jvm-upgrade-dtest-forking
 
   utests_long:
     <<: *j8_seq_executor
@@ -277,6 +307,47 @@ commands:
           fi
         no_output_timeout: 15m
 
+  build_cassandra_dtest_jars:
+    steps:
+    - run:
+        name: Build Cassandra DTest jars
+        command: |
+          export PATH=$JAVA_HOME/bin:$PATH
+          cd ~/cassandra
+          git remote add apache git://github.com/apache/cassandra.git
+          for branch in cassandra-2.2 cassandra-3.0 cassandra-3.11 trunk; do
+            # check out the correct cassandra version:
+            git remote set-branches --add apache '$branch'
+            git fetch --depth 1 apache $branch
+            git checkout $branch
+            # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
+            for x in $(seq 1 3); do
+                ${ANT_HOME}/bin/ant clean jar dtest-jar
+                RETURN="$?"
+                if [ "${RETURN}" -eq "0" ]; then
+                    break
+                fi
+            done
+            # Exit, if we didn't build successfully
+            if [ "${RETURN}" -ne "0" ]; then
+                echo "Build failed with exit code: ${RETURN}"
+                exit ${RETURN}
+            fi
+          done
+          # and build the dtest-jar for the branch under test
+          git checkout origin/$CIRCLE_BRANCH
+          for x in $(seq 1 3); do
+              ${ANT_HOME}/bin/ant clean jar dtest-jar
+              RETURN="$?"
+              if [ "${RETURN}" -eq "0" ]; then
+                  break
+              fi
+          done
+          mkdir ~/dtest_jars
+          cp build/dtest*.jar ~/dtest_jars
+          ls -l ~/dtest_jars
+        no_output_timeout: 15m
+
   run_eclipse_warnings:
     steps:
     - run:
@@ -325,6 +396,9 @@ commands:
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
           cd /tmp/cassandra
+          if [ -d ~/dtest_jars ]; then
+            cp ~/dtest_jars/dtest* /tmp/cassandra/build/
+          fi
           ant clean <<parameters.target>>
         no_output_timeout: <<parameters.no_output_timeout>>
     - store_test_results:
