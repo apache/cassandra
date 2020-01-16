@@ -42,6 +42,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.Util.executeLocally;
 import static org.apache.cassandra.Util.throwAssert;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -336,6 +337,14 @@ public class CassandraIndexTest extends CQLTester
                         .updateExpression("SET v=2")
                         .postUpdateQueryExpression("v=2")
                         .run();
+    }
+
+    @Test
+    public void testIndexOnCompactTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY (k)) WITH COMPACT STORAGE;");
+        assertInvalidMessage("No column definition found for column value",
+                             "CREATE INDEX idx_value ON %s(value)");
     }
 
     @Test

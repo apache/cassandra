@@ -862,8 +862,8 @@ public abstract class ModificationStatement implements CQLStatement
             for (Pair<ColumnIdentifier.Raw, ColumnCondition.Raw> entry : conditions)
             {
                 ColumnIdentifier id = entry.left.prepare(metadata);
-                ColumnDefinition def = metadata.getColumnDefinition(id);
-                checkNotNull(metadata.getColumnDefinition(id), "Unknown identifier %s in IF conditions", id);
+                ColumnDefinition def = metadata.getColumnDefinitionForCQL(id);
+                checkNotNull(def, "Unknown identifier %s in IF conditions", id);
 
                 ColumnCondition condition = entry.right.prepare(keyspace(), def);
                 condition.collectMarkerSpecification(boundNames);
@@ -912,7 +912,7 @@ public abstract class ModificationStatement implements CQLStatement
         protected static ColumnDefinition getColumnDefinition(CFMetaData cfm, Raw rawId)
         {
             ColumnIdentifier id = rawId.prepare(cfm);
-            return checkNotNull(cfm.getColumnDefinition(id), "Unknown identifier %s", id);
+            return checkNotNull(cfm.getColumnDefinitionForCQL(id), "Unknown identifier %s", id);
         }
     }
 }
