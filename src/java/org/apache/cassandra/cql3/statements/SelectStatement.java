@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -1031,7 +1030,7 @@ public class SelectStatement implements CQLStatement
             for (ColumnIdentifier.Raw raw : parameters.orderings.keySet())
             {
                 ColumnIdentifier identifier = raw.prepare(cfm);
-                ColumnDefinition orderingColumn = cfm.getColumnDefinition(identifier);
+                ColumnDefinition orderingColumn = cfm.getColumnDefinitionForCQL(identifier);
                 idToSort.add(orderingIndexes.get(orderingColumn));
                 sorters.add(orderingColumn.type);
             }
@@ -1048,7 +1047,7 @@ public class SelectStatement implements CQLStatement
             for (ColumnIdentifier.Raw raw : parameters.orderings.keySet())
             {
                 ColumnIdentifier column = raw.prepare(cfm);
-                final ColumnDefinition def = cfm.getColumnDefinition(column);
+                final ColumnDefinition def = cfm.getColumnDefinitionForCQL(column);
                 if (def == null)
                     handleUnrecognizedOrderingColumn(column);
                 selection.addColumnForOrdering(def);
@@ -1065,7 +1064,7 @@ public class SelectStatement implements CQLStatement
                 ColumnIdentifier column = entry.getKey().prepare(cfm);
                 boolean reversed = entry.getValue();
 
-                ColumnDefinition def = cfm.getColumnDefinition(column);
+                ColumnDefinition def = cfm.getColumnDefinitionForCQL(column);
                 if (def == null)
                     handleUnrecognizedOrderingColumn(column);
 

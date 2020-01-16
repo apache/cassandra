@@ -1389,4 +1389,23 @@ public class ViewTest extends CQLTester
      {
          execute("CREATE MATERIALIZED VIEW myview AS SELECT a, b FROM \"\" WHERE b IS NOT NULL PRIMARY KEY (b, a)");
      }
+
+    @Test
+    public void viewOnCompactTableTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, v int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+        executeNet(protocolVersion, "USE " + keyspace());
+        try
+        {
+            createView("mv",
+                       "CREATE MATERIALIZED VIEW %s AS SELECT a, b, value FROM %%s WHERE b IS NOT NULL PRIMARY KEY (b, a)");
+            fail("Should have thrown an exception");
+        }
+        catch (Throwable t)
+        {
+            Assert.assertEquals("Unknown column name detected in CREATE MATERIALIZED VIEW statement : value",
+                                t.getMessage());
+        }
+    }
+
 }

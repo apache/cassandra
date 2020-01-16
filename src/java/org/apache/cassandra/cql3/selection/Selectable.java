@@ -77,7 +77,7 @@ public abstract class Selectable
         public Selector.Factory newSelectorFactory(CFMetaData cfm,
                                                    List<ColumnDefinition> defs) throws InvalidRequestException
         {
-            ColumnDefinition def = cfm.getColumnDefinition(id);
+            ColumnDefinition def = cfm.getColumnDefinitionForCQL(id);
             if (def == null)
                 throw new InvalidRequestException(String.format("Undefined name %s in selection clause", id));
             if (def.isPrimaryKeyColumn())

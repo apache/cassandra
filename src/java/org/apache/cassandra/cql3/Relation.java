@@ -263,7 +263,7 @@ public abstract class Relation {
                                                         ColumnIdentifier.Raw entity) throws InvalidRequestException
     {
         ColumnIdentifier identifier = entity.prepare(cfm);
-        ColumnDefinition def = cfm.getColumnDefinition(identifier);
+        ColumnDefinition def = cfm.getColumnDefinitionForCQL(identifier);
 
         if (def == null)
             throw new UnrecognizedEntityException(identifier, this);

@@ -392,7 +392,7 @@ public class RowUpdateBuilder
 
     private ColumnDefinition getDefinition(String name)
     {
-        return update.metadata().getColumnDefinition(new ColumnIdentifier(name, true));
+        return update.metadata().getColumnDefinitionForCQL(new ColumnIdentifier(name, true));
     }
 
     public UnfilteredRowIterator unfilteredIterator()

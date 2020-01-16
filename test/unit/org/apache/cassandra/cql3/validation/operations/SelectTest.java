@@ -3083,6 +3083,10 @@ public class SelectTest extends CQLTester
 
     private void testWithCompactFormat() throws Throwable
     {
+        assertInvalidMessage("Order by on unknown column value",
+                             "SELECT * FROM %s WHERE a IN (1,2,3) ORDER BY value ASC");
+        assertInvalidMessage("Order by on unknown column column1",
+                             "SELECT * FROM %s WHERE a IN (1,2,3) ORDER BY column1 ASC");
         assertInvalidMessage("Undefined name column1 in selection clause",
                              "SELECT column1 FROM %s");
         assertInvalidMessage("Undefined name value in selection clause",

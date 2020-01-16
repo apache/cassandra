@@ -234,24 +234,24 @@ public class InsertTest extends CQLTester
         // pass correct types to the hidden columns
         assertInvalidMessage("Unknown identifier column1",
                              "INSERT INTO %s (a, b, column1) VALUES (?, ?, ?)",
-                             1, 1, 1, ByteBufferUtil.bytes('a'));
+                             1, 1, ByteBufferUtil.bytes('a'));
         assertInvalidMessage("Unknown identifier value",
                              "INSERT INTO %s (a, b, value) VALUES (?, ?, ?)",
-                             1, 1, 1, ByteBufferUtil.bytes('a'));
+                             1, 1, ByteBufferUtil.bytes('a'));
         assertInvalidMessage("Unknown identifier column1",
                              "INSERT INTO %s (a, b, column1, value) VALUES (?, ?, ?, ?)",
-                             1, 1, 1, ByteBufferUtil.bytes('a'), ByteBufferUtil.bytes('b'));
+                             1, 1, ByteBufferUtil.bytes('a'), ByteBufferUtil.bytes('b'));
         assertInvalidMessage("Unknown identifier value",
                              "INSERT INTO %s (a, b, value, column1) VALUES (?, ?, ?, ?)",
-                             1, 1, 1, ByteBufferUtil.bytes('a'), ByteBufferUtil.bytes('b'));
+                             1, 1, ByteBufferUtil.bytes('a'), ByteBufferUtil.bytes('b'));
 
         // pass incorrect types to the hidden columns
         assertInvalidMessage("Unknown identifier value",
                              "INSERT INTO %s (a, b, value) VALUES (?, ?, ?)",
-                             1, 1, 1, 1);
+                             1, 1, 1);
         assertInvalidMessage("Unknown identifier column1",
                              "INSERT INTO %s (a, b, column1) VALUES (?, ?, ?)",
-                             1, 1, 1, 1);
+                             1, 1, 1);
         assertEmpty(execute("SELECT * FROM %s"));
 
         // pass null to the hidden columns
