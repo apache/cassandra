@@ -1313,6 +1313,7 @@
      encoding="utf-8">
      <classpath>
         <path refid="cassandra.classpath"/>
+        <pathelement location="${fqltool.build.classes}"/>
      </classpath>
      <compilerarg value="-XDignore.symbol.file"/>
      <src path="${test.unit.src}"/>
