@@ -257,18 +257,18 @@ public class QueryReplayer implements Closeable
 
         public void close()
         {
-            for (Session s : sessionCache.values())
-            {
-                try
+            sessionCache.entrySet().removeIf(entry -> {
+                try (Session s = entry.getValue())
                 {
-                    s.close();
                     s.getCluster().close();
+                    return true;
                 }
                 catch (Throwable t)
                 {
                     logger.error("Could not close connection", t);
+                    return false;
                 }
-            }
+            });
         }
     }
 }
