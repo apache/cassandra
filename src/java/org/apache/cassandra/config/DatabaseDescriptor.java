@@ -97,6 +97,10 @@ public class DatabaseDescriptor
      */
     private static final int MAX_NUM_TOKENS = 1536;
 
+    /**
+     * Constant value for 2 MiB
+     */
+    private static final int TWO_MEBI_BYTES = 2 * 1024 * 1024;
     private static Config conf;
 
     /**
@@ -498,39 +502,25 @@ public class DatabaseDescriptor
 
         checkForLowestAcceptedTimeouts(conf);
 
-        if (conf.native_transport_max_frame_size_in_mb <= 0)
-            throw new ConfigurationException("native_transport_max_frame_size_in_mb must be positive, but was "
+        if (conf.native_transport_max_frame_size_in_mb <= 0 || conf.native_transport_max_frame_size_in_mb >= 2048)
+            throw new ConfigurationException("native_transport_max_frame_size_in_mb must be positive value < 2KiB, but was "
                                              + conf.native_transport_max_frame_size_in_mb, false);
-        else if (conf.native_transport_max_frame_size_in_mb >= 2048)
-            throw new ConfigurationException("native_transport_max_frame_size_in_mb must be smaller than 2048, but was "
-                    + conf.native_transport_max_frame_size_in_mb, false);
 
-        if (conf.column_index_size_in_kb <= 0)
-            throw new ConfigurationException("column_index_size_in_kb must be positive, but was " + conf.column_index_size_in_kb, false);
-        else if (conf.column_index_size_in_kb >= 2 * 1024 * 1024)
-            throw new ConfigurationException("column_index_size_in_kb must be smaller than 2GiB, but was "
-                                             + conf.column_index_size_in_kb, false);
+        if (conf.column_index_size_in_kb <= 0 || conf.column_index_size_in_kb >= TWO_MEBI_BYTES)
+            throw new ConfigurationException("column_index_size_in_kb must be positive value < 2MiB " +
+                                             "but was " + conf.column_index_size_in_kb, false);
 
-        if (conf.column_index_cache_size_in_kb <= 0)
-            throw new ConfigurationException("column_index_cache_size_in_kb must be positive, but was "
-                                             + conf.column_index_cache_size_in_kb, false);
-        else if (conf.column_index_cache_size_in_kb >= 2 * 1024 * 1024)
-            throw new ConfigurationException("column_index_cache_size_in_kb must be smaller than 2GiB, but was "
-                                             + conf.column_index_cache_size_in_kb, false);
+        if (conf.column_index_cache_size_in_kb <= 0 || conf.column_index_cache_size_in_kb >= TWO_MEBI_BYTES)
+            throw new ConfigurationException("column_index_cache_size_in_kb must be positive value < 2 MiB, " +
+                                             "but was " + conf.column_index_cache_size_in_kb, false);
 
-        if (conf.batch_size_warn_threshold_in_kb <= 0)
-            throw new ConfigurationException("batch_size_warn_threshold_in_kb must be positive, but was "
-                                             + conf.batch_size_warn_threshold_in_kb, false);
-        else if (conf.native_transport_max_frame_size_in_mb >= 2 * 1024 * 1024)
-            throw new ConfigurationException("batch_size_warn_threshold_in_kb must be smaller than 2GiB, but was "
+        if (conf.batch_size_warn_threshold_in_kb <= 0 || conf.batch_size_warn_threshold_in_kb >= TWO_MEBI_BYTES)
+            throw new ConfigurationException("batch_size_warn_threshold_in_kb must be positive value < 2MiB but was "
                                              + conf.batch_size_warn_threshold_in_kb, false);
 
-        if (conf.native_transport_frame_block_size_in_kb <= 0)
-            throw new ConfigurationException("native_transport_frame_block_size_in_kb must be positive, but was "
-                                             + conf.native_transport_frame_block_size_in_kb, false);
-        else if (conf.native_transport_frame_block_size_in_kb >= 2 * 1024 * 1024)
-            throw new ConfigurationException("native_transport_frame_block_size_in_kb must be smaller than 2GiB, but was "
-                                             + conf.native_transport_frame_block_size_in_kb, false);
+        if (conf.native_transport_frame_block_size_in_kb <= 0 || conf.native_transport_frame_block_size_in_kb >= TWO_MEBI_BYTES)
+            throw new ConfigurationException("native_transport_frame_block_size_in_kb must be positive value < 2MiB, " +
+                                             "but was " + conf.native_transport_frame_block_size_in_kb, false);
 
         if (conf.native_transport_max_negotiable_protocol_version != null)
             logger.warn("The configuration option native_transport_max_negotiable_protocol_version has been deprecated " +
@@ -1403,11 +1393,9 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static void setColumnIndexSize(int val)
     {
-        if (val <= 0)
-            throw new ConfigurationException("Cannot set column_index_size_in_kb to " + val + " <= 0 KiB");
-        else if (val >= 2 * 1024 * 1024)
-            throw new ConfigurationException("A column_index_size_in_kb " + val + " KiB will cause integer overflow");
-
+        if (val <= 0 || val >= TWO_MEBI_BYTES)
+            throw new ConfigurationException("set column_index_size_in_kb value should be positive value < 2MiB " +
+                                             "but was " + val);
         conf.column_index_size_in_kb = val;
     }
 
@@ -1419,11 +1407,9 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static void setColumnIndexCacheSize(int val)
     {
-        if (val <= 0)
-            throw new ConfigurationException("Cannot set column_index_cache_size_in_kb to " + val + " <= 0 KiB");
-        else if (val >= 2 * 1024 * 1024)
-            throw new ConfigurationException("A column_index_cache_size_in_kb " + val +
-                                             " KiB will cause integer overflow");
+        if (val <= 0 || val >= TWO_MEBI_BYTES)
+            throw new ConfigurationException("column_index_cache_size_in_kb value should be positive value < 2MiB " +
+                                             "but was " + val);
 
         conf.column_index_cache_size_in_kb = val;
     }
@@ -1455,12 +1441,9 @@ public class DatabaseDescriptor
 
     public static void setBatchSizeWarnThresholdInKB(int threshold)
     {
-        if (threshold <= 0)
-            throw new ConfigurationException("Cannot set batch_size_warn_threshold_in_kb to " + threshold +
-                                             " <= 0 KiB");
-        else if (threshold >= 2 * 1024 * 1024)
-            throw new ConfigurationException("A batch_size_warn_threshold_in_kb " + threshold +
-                                             " kiB will cause integer overflow");
+        if (threshold <= 0 || threshold >= TWO_MEBI_BYTES)
+            throw new ConfigurationException("set batch_size_warn_threshold_in_kb value should be positive value < 2MiB " +
+                                             "but was " + threshold);
 
         conf.batch_size_warn_threshold_in_kb = threshold;
     }
