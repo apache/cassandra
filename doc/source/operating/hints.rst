@@ -19,51 +19,99 @@
 Hints
 =====
 
-Hints are a type of repair during a write operation. At times a write or an update cannot be replicated to all nodes satisfying the replication factor because a replica node is unavailable. Under such a condition the mutation (a write or update) is stored temporarily on the coordinator node in its filesystem. 
+Hints are a data repair technique applied during write operations. When
+replica nodes are unavailable to accept a mutation, either due to failure or
+more commonly routine maintenance, coordinators attempting to write to those
+replicas store temporary hints on their local filesystem for later application
+to the unavailable replica. Hints are an important way to help reduce the
+duration of data inconsistency between replicas as they replay quickly after
+unavailable nodes return to the ring, however they are best effort and do not
+guarantee eventual consistency like :ref:`anti-entropy repair <repair>` does.
 
-Hints are metadata associated with a mutation (a write or update) indicating that the mutation is not placed on a replica node (the target node) it is meant to be placed on because the node is temporarily unavailable, or is unresponsive.  Hints are used to implement the eventual consistency guarantee that all updates are eventually received by all replicas and all replicas are eventually made consistent.    When the replica node becomes available the hints are replayed on the node.
+Hints are needed because of how Apache Cassandra replicates data to provide
+fault tolerance, high availability and durability. Cassandra partitions data
+across the cluster using consistent hashing, and then replicates keys to
+multiple nodes along the hash ring. To guarantee availability, all replicas of
+a key can accept mutations without consensus, but this means it is possible for
+some replicas to accept a mutation while others do not. When this happens an
+inconsistency is introduced, and hints are one way Cassandra can fix the
+inconsistency.
 
-As a primer on how replicas are placed in a cluster, Apache Cassandra replicates data to provide fault tolerance, high availability and durability. Cassandra partitions data across the cluster using consistent hashing in which a hash function is used on the partition keys to generate consistently ordered hash values (or tokens).  An abstract ring represents the complete hash value range (token range) of the keys stored with each node in the cluster being assigned a certain subset range of hash values (range of tokens) it can store.  The list of nodes responsible for a particular key is called its preference list.  The preference list may include virtual nodes as a virtual node is also a node albeit an abstract node and not a physical node.  Virtual nodes may need to be skipped to create a preference list in which the first N (N being the replication factor) nodes taken clockwise in the consistent hashing ring are all distinct physical nodes. All nodes in a cluster know which node/s should be in the preference list for a given key.  The node that receives a request for a write operation (key/value data) forwards the request to the replica node that is in the preference list for the key.  The node becomes a coordinator node and coordinates the reads and writes.   
+Hints contain metadata associated with a mutation (insert or update) indicating
+that the coordinator has not confirmed the mutation has been successfully
+applied to a replica node (the target node). All hints crucially contain the
+mutation timestamp, which allow them to be safely applied in an idempotent
+manner, including in the presence of other concurrent mutations. Hints are one
+of the three ways, in addition to read-repair and full anti-entropy repair,
+Cassandra implements the eventual consistency guarantee that
+all updates are eventually received by all replicas and all replicas are
+eventually made consistent.
 
-Why are hints needed?
-=====================
 
-Hints reduce the inconsistency window caused by temporary node unavailability.
+Hinted Handoff
+--------------
 
-Consider that an update or mutation is to be made using the following configuration:
+Hinted handoff is the process by which Cassandra applies hints to unavailable
+nodes. Consider a mutation is to be made at ``Consistency Level``
+``LOCAL_QUORUM`` against a keyspace with ``Replication Factor`` of ``3``.
 
-- Consistency level : 2
-- Replication factor: 3
-- Replication strategy: SimpleStrategy
-- Number of nodes in cluster: 5
+Normally the client sends the mutation to a single coordinator, who then sends
+the mutation to all three replicas, and when two of the three replicas
+acknowledge the mutation the coordinator responds successfully to the client.
+If a replica node is unavailable, however, the coordinator stores a hint
+locally to the filesystem for later application. These local hints will be
+retained for up to ``max_hint_window_in_ms`` which defaults to ``3`` hours.
+After hint expiry the destination replica will be permanently out of sync until
+either read-repair or full anti-entropy repair propagates the mutation. If the
+unavailable node does return to the cluster before the expiry, the coordinator
+node applies any pending hinted mutations against the replica to ensure that
+eventual consistency is maintained. An example of hinted handoff:
 
-The update or mutation is sent to a node (node A) in the cluster, and is meant to be forwarded to three other nodes, the replica nodes B, C and D.  The node that receives the request is the proxy node and becomes the coordinator of the request.  Under normal operation the update gets sent to the three replica nodes and the coordinator receives the response from the three nodes satisfying the consistency level.  But suppose node B is down and unavailable.  The update is sent to nodes C and D and a response returned to the coordinator, again satisfying the consistency level of 2.   But that is not the end of the request. Because the replica mutation is meant for replica node B also, a hint is stored by the coordinator node in the local filesystem   indicating that the update or mutation is also to be replicated on node B.  The coordinator node waits for 3 hours by default (as set with ``max_hint_window_in_ms``). If node B becomes available within 3 hours the coordinator sends the hint to node B and the hint is replayed on node B, eventually making all replicas consistent. Such a transfer of an update using hints is called a hinted handoff.  Hinted handoff is used to ensure that read and write operations are not failed and the consistency, availability and durability guarantees are not compromised.  We still need to satisfy the consistency level, because hints & hinted handoffs are not used to satisfy the write consistency level unless the consistency level is ``ANY``.  If the replica node for which a hint is generated does not become available within 3 hours, or the ``max_hint_window_in_ms``, the hint is deleted and a full or read repair becomes necessary.
+.. figure:: images/hints.svg
+    :alt: Hinted Handoff Example
+
+    Hinted Handoff in Action
 
 Hints for Timed Out Write Requests
-==================================
+----------------------------------
 
-Hints are also stored for write requests that are timed out. The ``write_request_timeout_in_ms`` setting in ``cassandra.yaml`` configures the timeout for write requests.
+Hints are also stored for write requests that time out. The
+``write_request_timeout_in_ms`` setting in ``cassandra.yaml`` configures the
+timeout for write requests.
 
 ::
 
   write_request_timeout_in_ms: 2000
 
-The coordinator waits for the configured amount of time for write requests to complete and throws a ``TimeOutException``.  The coordinator node also generates a hint for the timed out request. Lowest acceptable value for ``write_request_timeout_in_ms`` is 10 ms.
+The coordinator waits for the configured amount of time for write requests to
+complete, at which point it will time out and generate a hint for the timed out
+request. The lowest acceptable value for ``write_request_timeout_in_ms`` is 10 ms.
 
-What data is stored in a hint?
-==============================
+Where are Hints Stored?
+-----------------------
 
-Hints are stored in flat files in the coordinator node’s ``$CASSANDRA_HOME/data/hints`` directory. A hint includes a hint id, the target replica node on which the mutation is meant to be stored, the serialized mutation (stored as a blob) that couldn’t be delivered to the replica node, and the Cassandra version used to serialize the mutation. By default hints are compressed using ``LZ4Compress``. Multiple hints are appended to the same hints file.
- 
-Replaying Hints
-===============
+Hints are stored in flat files in the coordinator node’s
+``$CASSANDRA_HOME/data/hints`` directory. A hint includes a hint id, the target
+replica node on which the mutation is meant to be stored, the serialized
+mutation (stored as a blob) that couldn’t be delivered to the replica node, and
+the Cassandra version used to serialize the mutation. By default hints are
+compressed using ``LZ4Compressor``. Multiple hints are appended to the same hints
+file.
 
-Hints are streamed in bulk, a segment at a time, to the target replica node and the target node replays them locally. After the target node has replayed a segment it deletes the segment and receives the next segment.
+Application of Hints
+--------------------
+
+Hints are streamed in bulk, a segment at a time, to the target replica node and
+the target node replays them locally. After the target node has replayed a
+segment it deletes the segment and receives the next segment. This continues
+until all hints are drained.
 
 Configuring Hints
-=================
+-----------------
 
-Hints are enabled by default. The ``cassandra.yaml`` configuration file provides several settings for configuring hints as discussed in Table 1.
+Hints are enabled by default as they are critical for data consistency. The
+``cassandra.yaml`` configuration file provides several settings for configuring
+hints as discussed in Table 1.
 
 Table 1. Settings for Hints
 
@@ -121,11 +169,13 @@ Table 1. Settings for Hints
 +----------------------+-------------------------------------------+-----------------+
  
 Changing Max Hint Window at Runtime
-===================================
+-----------------------------------
 
-Cassandra 4.0 has added support for changing ``max_hint_window_in_ms`` at runtime 
-(`CASSANDRA-11720
-<https://issues.apache.org/jira/browse/CASSANDRA-11720>`_). The ``max_hint_window_in_ms`` configuration property in ``cassandra.yaml`` may be modified at runtime followed by a rolling restart. The default value of ``max_hint_window_in_ms`` is 3 hours.
+Cassandra 4.0 adds support for changing ``max_hint_window_in_ms`` at runtime
+(`CASSANDRA-11720 <https://issues.apache.org/jira/browse/CASSANDRA-11720>`_).
+The ``max_hint_window_in_ms`` configuration property in ``cassandra.yaml`` may
+be modified at runtime followed by a rolling restart. The default value of
+``max_hint_window_in_ms`` is 3 hours.
 
 ::
 
@@ -181,4 +231,5 @@ Table 2. Nodetool Commands for Hints
 |                            |specified.                                 |
 +----------------------------+-------------------------------------------+
 
-Hints is not an alternative to performing a full repair or read repair but is only a stopgap measure.
+Hints, like read-repair, are not an alternative to performing full repair, but
+do help reduce the duration of inconsistency between replicas.
