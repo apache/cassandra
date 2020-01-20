@@ -182,7 +182,11 @@ be modified at runtime followed by a rolling restart. The default value of
 
   max_hint_window_in_ms: 10800000 # 3 hours
 
-The need to be able to modify ``max_hint_window_in_ms`` at runtime is explained with the following example.  A larger node (in terms of data it holds) goes down. And it will take slightly more than ``max_hint_window_in_ms`` to fix it. The disk space to store some additional hints id available.
+The need to be able to modify ``max_hint_window_in_ms`` at runtime is explained with the following examples.  
+
+You may want more time for hints to play as it's very common for hints playing at 1024 kbps to not complete before 3 hours. The ``hinted_handoff_throttle`` could be raised as well in addition to raising the window to ensure hints are delivered.
+
+It's actually somewhat rare for nodes to be down for more than three hours but if a large node (in terms of data it holds) goes down, the ``max_hint_window_in_ms`` could be raised to allow the node to return.   
 
 Added Histogram for Delay to deliver Hints
 ==========================================
