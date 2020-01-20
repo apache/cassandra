@@ -64,8 +64,10 @@ public class Upgrader
 
         this.strategyManager = cfs.getCompactionStrategyManager();
         long estimatedTotalKeys = Math.max(cfs.metadata().params.minIndexInterval, SSTableReader.getApproximateKeyCount(Arrays.asList(this.sstable)));
-        long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(Arrays.asList(this.sstable)) / strategyManager.getMaxSSTableBytes());
-        this.estimatedRows = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
+        long estimatedSSTables = Math.max(1, ((strategyManager.getMaxSSTableBytes() != 0)
+			? (SSTableReader.getTotalBytes(Arrays.asList(this.sstable)) / strategyManager.getMaxSSTableBytes())
+			: 0));
+        this.estimatedRows = (long) Math.ceil(((estimatedSSTables != 0) ? ((double) estimatedTotalKeys / estimatedSSTables) : 0));
     }
 
     private SSTableWriter createCompactionWriter(StatsMetadata metadata)

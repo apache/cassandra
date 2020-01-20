@@ -302,7 +302,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         for (List<SSTableReader> bucket : tasks)
         {
             if (bucket.size() >= cfs.getMinimumCompactionThreshold())
-                n += Math.ceil((double)bucket.size() / cfs.getMaximumCompactionThreshold());
+                n += Math.ceil(((cfs.getMaximumCompactionThreshold() != 0) ? ((double)bucket.size() / cfs.getMaximumCompactionThreshold()) : 0));
         }
         return n;
     }

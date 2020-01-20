@@ -75,7 +75,7 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
         this.maxSSTableSize = maxSSTableSize;
 
         long totalSize = getTotalWriteSize(nonExpiredSSTables, estimatedTotalKeys, cfs, txn.opType());
-        estimatedSSTables = Math.max(1, totalSize / maxSSTableSize);
+        estimatedSSTables = Math.max(1, ((maxSSTableSize != 0) ? (totalSize / maxSSTableSize) : 0));
     }
 
     /**
