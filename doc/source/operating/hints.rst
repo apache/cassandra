@@ -31,7 +31,7 @@ guarantee eventual consistency like :ref:`anti-entropy repair <repair>` does.
 Hints are needed because of how Apache Cassandra replicates data to provide
 fault tolerance, high availability and durability. Cassandra partitions data
 across the cluster using consistent hashing, and then replicates keys to
-multiple nodes along the hash ring. For more details, refer TokenRingRanges_. 
+multiple nodes along the hash ring. For more details, refer :ref:`TokenRingRanges`. 
 To guarantee availability, all replicas of
 a key can accept mutations without consensus, but this means it is possible for
 some replicas to accept a mutation while others do not. When this happens an
