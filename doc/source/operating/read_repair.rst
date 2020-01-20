@@ -19,4 +19,16 @@
 Read repair
 -----------
 
+Read repair improves consistency in a Cassandra cluster with every read request. 
+
+In a read, the coordinator node send a data request to one replica node and digest requests to other nodes for consistency level greater than one. If all nodes returns consistent data, coordinator returns it to the client.
+
+In read repair, cassandra sends digests request to all replica nodes not involved directly in read. Cassandra compares data received from all the replicas and writes the most recent version to out-of-date replicas. 
+
+Types of read repair
+--------------------
 .. todo:: todo
+
+* Foreground
+
+* Background
