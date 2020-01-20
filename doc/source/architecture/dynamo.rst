@@ -81,6 +81,8 @@ Simple Interface for storing objects
 Dynamo makes use of a simple interface to store and get key/value pairs. Two methods are made available to a user: ``put (key, context)`` and ``get (key)``. The ``put (key, context)`` operation stores object replicas on disk. The ``context`` is the object metadata such as object version and is stored with the object. The ``get (key)`` method returns a stored object replica for the key supplied. Any node in a Dynamo ring is eligible to receive the get/put operations. A load balancer may be used to route a client request to a node. A node that handles read or write operation is called a coordinator.
 For consistency among replicas Dynamo makes use of a consistency protocol, a quorum-like system that makes use of two configurable settings ``R`` and ``W``. ``R`` is the minimum number of nodes that must participate in a successful read operation and ``W`` is the minimum number of nodes that must participate in a successful write operation. Setting ``R+W`` to be greater than ``N`` (the total number of nodes) produces a quorum-like system. As the slowest of the ``R/W`` nodes determines the corresponding read/write latency each of ``R`` and ``W`` is typically less than ``N`` for better latency.
 
+.. _TokenRingRanges:
+
 Token Ring/Ranges
 ^^^^^^^^^^^^^^^^^
 
