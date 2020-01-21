@@ -231,10 +231,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             try (DataOutputBuffer out = new DataOutputBuffer(1024))
             {
+                int version = MessagingService.instance().versions.get(to);
                 InetAddressAndPort from = broadcastAddressAndPort();
                 Tracing.instance.traceOutgoingMessage(messageOut, to);
-                Message.serializer.serialize(messageOut, out, MessagingService.current_version);
-                deliver.accept(to, new MessageImpl(messageOut.verb().id, out.toByteArray(), messageOut.id(), MessagingService.current_version, from));
+                Message.serializer.serialize(messageOut, out, version);
+                deliver.accept(to, new MessageImpl(messageOut.verb().id, out.toByteArray(), messageOut.id(), version, from));
             }
             catch (IOException e)
             {
