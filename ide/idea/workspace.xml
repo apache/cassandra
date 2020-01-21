@@ -320,7 +320,6 @@
         <filter targetName="cql-test" isVisible="true" />
         <filter targetName="cql-test-some" isVisible="true" />
         <filter targetName="pig-test" isVisible="true" />
-        <filter targetName="test-all" isVisible="true" />
         <filter targetName="jacoco-init" isVisible="false" />
         <filter targetName="jacoco-report" isVisible="false" />
         <filter targetName="jacoco-cleanup" isVisible="true" />
