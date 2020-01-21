@@ -1559,10 +1559,6 @@
     </sequential>
   </target>
 
-  <target name="test-all"
-          depends="eclipse-warnings,test,long-test,test-compression,stress-test"
-          description="Run all tests except for those under test-burn" />
-
   <!-- Use JaCoCo ant extension without needing externally saved lib -->
   <target name="jacoco-init" depends="maven-ant-tasks-init">
     <artifact:dependencies pathId="jacocoant.classpath">
@@ -1798,7 +1794,7 @@
     <echo message="Mem size : ${mem.size}"/>
   </target>
 
-  <target name="test" depends="build-test,get-cores,get-mem,stress-build" description="Parallel Test Runner">
+  <target name="test" depends="eclipse-warnings,build-test,get-cores,get-mem" description="Parallel Test Runner">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UpgradeTest*.java" />
     </path>
