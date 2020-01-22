@@ -155,6 +155,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
             // use a separate verb here to avoid writing hints on timeouts
             Message<Mutation> message = Message.builder(READ_REPAIR_REQ, mutation)
                                                .withQueryState(queryState)
+                                               .withTracingParams()
                                                .build();
             sendRR(message, destination.endpoint());
             ColumnFamilyStore.metricsFor(tableId).readRepairRequests.mark();
@@ -239,6 +240,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
             Tracing.trace("Sending speculative read-repair-mutation to {}", replica);
             Message<Mutation> message = Message.builder(READ_REPAIR_REQ, mutation)
                                                .withQueryState(queryState)
+                                               .withTracingParams()
                                                .build();
             sendRR(message, replica.endpoint());
             ReadRepairDiagnostics.speculatedWrite(this, replica.endpoint(), mutation);

@@ -31,6 +31,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
@@ -81,8 +82,8 @@ public class QueryReplayerEndToEndTest extends DistributedTestBase
         return IntStream.range(0, n)
                         .boxed()
                         .map(i -> new FQLQuery.Single(KEYSPACE,
-                                                      QueryOptions.DEFAULT.getProtocolVersion().asInt(),
-                                                      QueryOptions.DEFAULT, queryStartTimeGenerator.incrementAndGet(),
+                                                      QueryOptionsFactory.DEFAULT.getProtocolVersion().asInt(),
+                                                      QueryOptionsFactory.DEFAULT, queryStartTimeGenerator.incrementAndGet(),
                                                       2222,
                                                       3333,
                                                       String.format("INSERT INTO %s.tbl (pk, ck, v) VALUES (1, %d, %d)", KEYSPACE, ckGenerator.incrementAndGet(), i),

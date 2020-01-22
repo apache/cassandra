@@ -675,7 +675,9 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public Message.Builder<ReadCommand> createMessageBuilder(boolean trackRepairedData)
     {
-        Message.Builder<ReadCommand> builder = Message.builder(verb(), this).withFlag(MessageFlag.CALL_BACK_ON_FAILURE);
+        Message.Builder<ReadCommand> builder = Message.builder(verb(), this)
+                                                      .withTracingParams()
+                                                      .withFlag(MessageFlag.CALL_BACK_ON_FAILURE);
         if (trackRepairedData)
             builder.withFlag(MessageFlag.TRACK_REPAIRED_DATA);
         return builder;

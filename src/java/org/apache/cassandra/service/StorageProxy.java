@@ -505,7 +505,10 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static void sendCommit(Commit commit, Iterable<InetAddressAndPort> replicas, QueryState queryState)
     {
-        Message<Commit> message = Message.builder(PAXOS_COMMIT_REQ, commit).withQueryState(queryState).build();
+        Message<Commit> message = Message.builder(PAXOS_COMMIT_REQ, commit)
+                                         .withQueryState(queryState)
+                                         .withTracingParams()
+                                         .build();
         for (InetAddressAndPort target : replicas)
             MessagingService.instance().send(message, target);
     }
@@ -518,7 +521,10 @@ public class StorageProxy implements StorageProxyMBean
                                                        replicaPlan.requiredParticipants(),
                                                        replicaPlan.consistencyLevel(),
                                                        queryState);
-        Message<Commit> message = Message.builder(PAXOS_PREPARE_REQ, toPrepare).withQueryState(queryState).build();
+        Message<Commit> message = Message.builder(PAXOS_PREPARE_REQ, toPrepare)
+                                         .withQueryState(queryState)
+                                         .withTracingParams()
+                                         .build();
         for (Replica replica: replicaPlan.contacts())
         {
             if (replica.isSelf())
@@ -551,7 +557,10 @@ public class StorageProxy implements StorageProxyMBean
                                                        !timeoutIfPartial,
                                                        replicaPlan.consistencyLevel(),
                                                        queryState);
-        Message<Commit> message = Message.builder(PAXOS_PROPOSE_REQ, proposal).withQueryState(queryState).build();
+        Message<Commit> message = Message.builder(PAXOS_PROPOSE_REQ, proposal)
+                                         .withQueryState(queryState)
+                                         .withTracingParams()
+                                         .build();
         for (Replica replica : replicaPlan.contacts())
         {
             if (replica.isSelf())
@@ -604,6 +613,7 @@ public class StorageProxy implements StorageProxyMBean
         Message<Commit> message = Message.builder(PAXOS_COMMIT_REQ, proposal)
                                          .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
                                          .withQueryState(queryState)
+                                         .withTracingParams()
                                          .build();
         for (Replica replica : replicaPlan.liveAndDown())
         {
@@ -1072,7 +1082,10 @@ public class StorageProxy implements StorageProxyMBean
                                                                          queryState);
 
         Batch batch = Batch.createLocal(uuid, FBUtilities.timestampMicros(), mutations);
-        Message<Batch> message = Message.builder(BATCH_STORE_REQ, batch).withQueryState(queryState).build();
+        Message<Batch> message = Message.builder(BATCH_STORE_REQ, batch)
+                                        .withQueryState(queryState)
+                                        .withTracingParams()
+                                        .build();
         for (Replica replica : replicaPlan.liveAndDown())
         {
             logger.trace("Sending batchlog store request {} to {} for {} mutations", batch.id, replica, batch.size());
@@ -1285,6 +1298,7 @@ public class StorageProxy implements StorageProxyMBean
                         message = Message.builder(MUTATION_REQ, mutation)
                                          .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
                                          .withQueryState(queryState)
+                                         .withTracingParams()
                                          .build();
                     }
 
@@ -1499,6 +1513,7 @@ public class StorageProxy implements StorageProxyMBean
             Message<CounterMutation> message = Message.builder(Verb.COUNTER_MUTATION_REQ, cm)
                                                       .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
                                                       .withQueryState(queryState)
+                                                      .withTracingParams()
                                                       .build();
             MessagingService.instance().sendWriteWithCallback(message, replica, responseHandler, false);
             return responseHandler;
@@ -2461,6 +2476,7 @@ public class StorageProxy implements StorageProxyMBean
         Tracing.trace("Enqueuing truncate messages to hosts {}", allEndpoints);
         Message<TruncateRequest> message = Message.builder(TRUNCATE_REQ, new TruncateRequest(keyspace, cfname))
                                                   .withQueryState(queryState)
+                                                  .withTracingParams()
                                                   .build();
         for (InetAddressAndPort endpoint : allEndpoints)
             MessagingService.instance().sendWithCallback(message, endpoint, responseHandler);
