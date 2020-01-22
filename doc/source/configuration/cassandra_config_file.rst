@@ -1909,7 +1909,7 @@ An interval of 0 disables any wait time, which is the behavior of former Cassand
 ---------------------------
 *This option is commented out by default.*
 
-This is not a default consistency level. It is introduced in Cassandra 4.0. You configure ideal_consistency_level in order to get an idea of how likely you could have achieved a higher write consistency level than the one you are currently using. This is different from the consistency level requested by each write which may be lower in order to facilitate availability. Tracks two additional metrics per keyspace indicating whether replication achieved the ideal consistency level for writes without timing out. If you configure it, you then have access to two additional keyspace metrics that indicate the fail count, and ideal consistency latency. The two keyspace merics are::
+This is not a default consistency level. It is introduced in Cassandra 4.0. You configure ideal_consistency_level in order to get an idea of how likely you could have achieved a higher write consistency level than the one you are currently using. This is different from the consistency level requested by each write which may be lower in order to facilitate availability. Tracks two additional metrics per keyspace indicating whether replication achieved the ideal consistency level for writes without timing out. If you configure it, you then have access to two additional keyspace metrics that indicate the fail count, and ideal consistency latency. The two keyspace merics are:
 
 - WriteFailedIdeaCL of type Counter. Number of writes that failed to achieve 
 the configured ideal consistency level or 0 if none is configured.
@@ -2018,7 +2018,7 @@ on internal state and temporal relationships across events, accessible by client
 *This option is commented out by default.*
 
 Use native transport TCP message coalescing. If on upgrade to 4.0 you found your throughput decreasing, and in
- particular you run an old kernel or have very fewer client connections, this option might be worth evaluating.
+particular you run an old kernel or have very fewer client connections, this option might be worth evaluating.
 
 *Default Value:* false
 
