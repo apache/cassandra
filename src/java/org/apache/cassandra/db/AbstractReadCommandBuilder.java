@@ -21,6 +21,8 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -161,9 +163,10 @@ public abstract class AbstractReadCommandBuilder
         throw new AssertionError();
     }
 
+    @VisibleForTesting
     public AbstractReadCommandBuilder filterOn(String column, Operator op, Object value)
     {
-        ColumnDefinition def = cfs.metadata.getColumnDefinition(ColumnIdentifier.getInterned(column, true));
+        ColumnDefinition def = cfs.metadata.getColumnDefinitionForCQL(ColumnIdentifier.getInterned(column, true));
         assert def != null;
 
         AbstractType<?> type = def.type;
