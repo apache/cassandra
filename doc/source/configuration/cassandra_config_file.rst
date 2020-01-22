@@ -710,7 +710,7 @@ Possible values are:
 ssd (for solid state disks, the default)
 spinning (for spinning disks)
 
-*Example Value:* ssd
+*Default Value:* ssd
 
 ``memtable_heap_space_in_mb``
 -----------------------------
@@ -973,7 +973,7 @@ routes  between the public and private networks such as EC2.
 Internode authentication backend, implementing IInternodeAuthenticator;
 used to allow/disallow connections from peer nodes.
 
-*Example Value:* org.apache.cassandra.auth.AllowAllInternodeAuthenticator
+*Default Value:* org.apache.cassandra.auth.AllowAllInternodeAuthenticator
 
 ``start_native_transport``
 --------------------------
@@ -1378,7 +1378,7 @@ which picks up the OS default and configure the net.ipv4.tcp_retries2 sysctl to 
 
 The maximum continuous period a connection may be unwritable in application space.
 
-*Example Value:* 30000
+*Default Value:* 30000
 
 ``internode_application_*_capacity_in_bytes``
 ---------------------------------------------
@@ -1399,7 +1399,7 @@ on all links to or from a single node in the cluster.
 The global limit is imposed on all messages exceeding the per-link limit, simultaneously with the per-endpoint limit,
 on all links to or from any node in the cluster. Defaults for these are derived from system memory settings.
 
-*Example Values*:: 
+*Default Values*:: 
       #internode_application_send_queue_capacity_in_bytes: 4194304                       #4MiB
       #internode_application_send_queue_reserve_endpoint_capacity_in_bytes: 134217728    #128MiB
       #internode_application_send_queue_reserve_global_capacity_in_bytes: 536870912      #512MiB
@@ -1807,7 +1807,7 @@ Maximum size of any value in SSTables. Safety measure to detect SSTable corrupti
 early. Any value size larger than this threshold will result into marking an SSTable
 as corrupted. This should be positive and less than 2048.
 
-*Example Value:* 256
+*Default Value:* 256
 
 
 **********************
@@ -1902,16 +1902,18 @@ time and queue contention while iterating the backlog of messages.
 An interval of 0 disables any wait time, which is the behavior of former Cassandra versions.
 
 
-*Example Value:* 200
+*Default Value:* 200
 
 ``ideal_consistency_level``
 ---------------------------
 *This option is commented out by default.*
 
-Track a metric per keyspace indicating whether replication achieved the ideal consistency
-level for writes without timing out. This is different from the consistency level requested by
-each write which may be lower in order to facilitate availability.
+This is not a default consistency level. It is introduced in Cassandra 4.0. You configure ideal_consistency_level in order to get an idea of how likely you could have achieved a higher write consistency level than the one you are currently using. This is different from the consistency level requested by each write which may be lower in order to facilitate availability. Tracks two additional metrics per keyspace indicating whether replication achieved the ideal consistency level for writes without timing out. If you configure it, you then have access to two additional keyspace metrics that indicate the fail count, and ideal consistency latency. The two keyspace merics are:
 
+WriteFailedIdeaCL of type Counter. Number of writes that failed to achieve 
+the configured ideal consistency level or 0 if none is configured.
+IdealCLWriteLatency of type	Latency. Coordinator latency of writes at the configured ideal consistency level.
+No values are recorded if ideal consistency level is not configured.
 
 *Example Value:* EACH_QUORUM
 
