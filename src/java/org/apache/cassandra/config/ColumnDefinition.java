@@ -594,7 +594,7 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
 
             private ColumnDefinition find(ByteBuffer id, CFMetaData cfm)
             {
-                ColumnDefinition def = cfm.getColumnDefinition(id);
+                ColumnDefinition def = cfm.getColumnDefinitionForCQL(id);
                 if (def == null)
                     throw new InvalidRequestException(String.format("Undefined column name %s", toString()));
                 return def;

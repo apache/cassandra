@@ -43,6 +43,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.Util.executeLocally;
 import static org.apache.cassandra.Util.throwAssert;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -363,6 +364,14 @@ public class CassandraIndexTest extends CQLTester
 
         assertEmpty(execute("SELECT * FROM %s WHERE s = ? AND token(k) < token(?)", "s0", "k0"));
         assertEmpty(execute("SELECT * FROM %s WHERE s = ? AND token(k) < token(?)", "s1", "k1"));
+    }
+
+    @Test
+    public void testIndexOnCompactTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY (k)) WITH COMPACT STORAGE;");
+        assertInvalidMessage("Undefined column name value",
+                             "CREATE INDEX idx_value ON %s(value)");
     }
 
     @Test

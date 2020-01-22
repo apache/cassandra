@@ -506,6 +506,9 @@ public class AlterTest extends CQLTester
 
         assertInvalidMessage("Cannot rename unknown column column1 in keyspace",
                              "ALTER TABLE %s RENAME column1 TO column2");
+
+        assertInvalidMessage("Cannot rename unknown column value in keyspace",
+                             "ALTER TABLE %s RENAME value TO value2");
     }
 
     /**

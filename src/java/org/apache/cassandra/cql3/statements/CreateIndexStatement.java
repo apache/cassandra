@@ -104,7 +104,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
         for (IndexTarget target : targets)
         {
-            ColumnDefinition cd = cfm.getColumnDefinition(target.column);
+            ColumnDefinition cd = cfm.getColumnDefinitionForCQL(target.column);
 
             if (cd == null)
                 throw new InvalidRequestException("No column definition found for column " + target.column);
