@@ -20,6 +20,8 @@
 //  Jenkins infrastructure related settings should be kept in
 //    https://github.com/apache/cassandra-builds/blob/master/jenkins-dsl/cassandra_job_dsl_seed.groovy
 //
+// Validate/lint this file using the following command
+// `curl -X POST  -F "jenkinsfile=<.jenkins/Jenkinsfile" https://builds.apache.org/pipeline-model-converter/validate`
 
 pipeline {
   agent any
@@ -259,6 +261,7 @@ pipeline {
               slackSend channel: '#cassandra-builds', message: "${currentBuild.fullDisplayName} completed: ${currentBuild.result}. See ${env.BUILD_URL}"
               emailext to: 'builds@cassandra.apache.org', subject: "Build complete: ${currentBuild.fullDisplayName} [${currentBuild.result}] ${env.GIT_COMMIT}", body: '${CHANGES}  ${JELLY_SCRIPT,template="text"}'
             }
+        }
       }
   }
 }
