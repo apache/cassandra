@@ -1911,11 +1911,8 @@ An interval of 0 disables any wait time, which is the behavior of former Cassand
 
 This is not a default consistency level. It is introduced in Cassandra 4.0. You configure ideal_consistency_level in order to get an idea of how likely you could have achieved a higher write consistency level than the one you are currently using. This is different from the consistency level requested by each write which may be lower in order to facilitate availability. Tracks two additional metrics per keyspace indicating whether replication achieved the ideal consistency level for writes without timing out. If you configure it, you then have access to two additional keyspace metrics that indicate the fail count, and ideal consistency latency. The two keyspace merics are:
 
-- WriteFailedIdeaCL of type Counter. Number of writes that failed to achieve 
-the configured ideal consistency level or 0 if none is configured.
-
-- IdealCLWriteLatency of type Latency. Coordinator latency of writes at the configured ideal consistency level.
-No values are recorded if ideal consistency level is not configured.
+- WriteFailedIdeaCL of type Counter. Number of writes that failed to achieve the configured ideal consistency level or 0 if none is       configured.
+- IdealCLWriteLatency of type Latency. Coordinator latency of writes at the configured ideal consistency level. No values are recorded   if ideal consistency level is not configured.
 
 *Example Value:* EACH_QUORUM
 
