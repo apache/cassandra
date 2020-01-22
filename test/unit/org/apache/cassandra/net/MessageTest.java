@@ -205,28 +205,9 @@ public class MessageTest
     }
 
     @Test
-    public void testBuilderNotChangeTraceHeaderWhenSessionAlreadyAdded()
-    {
-        try
-        {
-            UUID sessionId = Tracing.instance.newSession(TraceType.QUERY);
-            // A trace head is added in the builder, even if it is different from the current session id, the id is not changed
-            Message<NoPayload> msg =
-                Message.builder(Verb._TEST_1, noPayload)
-                       .withParam(ParamType.TRACE_SESSION, UUIDGen.getTimeUUID())
-                       .build();
-            assertNotEquals(sessionId, msg.header.traceSession());
-        }
-        finally
-        {
-            Tracing.instance.stopSession();
-        }
-    }
-
-    @Test
     public void testBuilderNotAddTraceHeaderWithNoTraceSession()
     {
-        Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).build();
+        Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().build();
         assertNull(msg.header.traceSession());
     }
 
@@ -235,7 +216,7 @@ public class MessageTest
         try
         {
             UUID sessionId = Tracing.instance.newSession(traceType);
-            Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).build();
+            Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().build();
             assertEquals(sessionId, msg.header.traceSession());
             assertEquals(traceType, msg.header.traceType());
         }
