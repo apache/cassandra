@@ -146,7 +146,7 @@ public class Versions
     public static Versions find()
     {
         logger.info("Looking for dtest jars in " + new File("build").getAbsolutePath());
-        final Pattern pattern = Pattern.compile("dtest-([0-9.]+)\\.jar");
+        final Pattern pattern = Pattern.compile("dtest-(?<fullversion>(\\d+)\\.(\\d+)(\\.\\d+)?(\\.\\d+)?)([~\\-]\\w[.\\w]*(?:\\-\\w[.\\w]*)*)?(\\+[.\\w]+)?\\.jar");
         final Map<Major, List<Version>> versions = new HashMap<>();
         for (Major major : Major.values())
             versions.put(major, new ArrayList<>());
@@ -156,7 +156,7 @@ public class Versions
             Matcher m = pattern.matcher(file.getName());
             if (!m.matches())
                 continue;
-            String version = m.group(1);
+            String version = m.group("fullversion");
             Major major = Major.fromFull(version);
             versions.get(major).add(new Version(major, version, new URL[] { toURL(file) }));
         }
