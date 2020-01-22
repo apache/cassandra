@@ -203,9 +203,8 @@ actually implements authentication, most of this functionality will be unavailab
 ----------------------
 
 Network authorization backend, implementing INetworkAuthorizer; used to restrict user
- access to certain DCs.
- Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllNetworkAuthorizer,
- CassandraNetworkAuthorizer}.
+access to certain DCs. Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllNetworkAuthorizer,
+CassandraNetworkAuthorizer}.
 
  - AllowAllNetworkAuthorizer allows access to any DC to any user - set it to disable authorization.
  - CassandraNetworkAuthorizer stores permissions in system_auth.network_permissions table. Please
@@ -1912,10 +1911,10 @@ An interval of 0 disables any wait time, which is the behavior of former Cassand
 
 This is not a default consistency level. It is introduced in Cassandra 4.0. You configure ideal_consistency_level in order to get an idea of how likely you could have achieved a higher write consistency level than the one you are currently using. This is different from the consistency level requested by each write which may be lower in order to facilitate availability. Tracks two additional metrics per keyspace indicating whether replication achieved the ideal consistency level for writes without timing out. If you configure it, you then have access to two additional keyspace metrics that indicate the fail count, and ideal consistency latency. The two keyspace merics are::
 
-WriteFailedIdeaCL of type Counter. Number of writes that failed to achieve 
+- WriteFailedIdeaCL of type Counter. Number of writes that failed to achieve 
 the configured ideal consistency level or 0 if none is configured.
 
-IdealCLWriteLatency of type	Latency. Coordinator latency of writes at the configured ideal consistency level.
+- IdealCLWriteLatency of type Latency. Coordinator latency of writes at the configured ideal consistency level.
 No values are recorded if ideal consistency level is not configured.
 
 *Example Value:* EACH_QUORUM
@@ -1979,7 +1978,7 @@ on audit_logging for full details about the various configuration options.
 *This option is commented out by default.*
 
 Default options for full query logging - these can be overridden from command line when executing
- nodetool enablefullquerylog
+nodetool enablefullquerylog
 
 *Default Value (complex option)*::
 
