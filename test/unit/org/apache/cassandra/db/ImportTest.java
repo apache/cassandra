@@ -308,7 +308,7 @@ public class ImportTest extends CQLTester
         getCurrentColumnFamilyStore().clearUnsafe();
         File backupdirCorrect = moveToBackupDir(correctSSTables);
 
-        File [] beforeImport = backupdir.listFiles();
+        Set<File> beforeImport = Sets.newHashSet(backupdir.listFiles());
         // first we moved out 2 sstables, one correct and one corrupt in to a single directory (backupdir)
         // then we moved out 1 sstable, a correct one (in backupdirCorrect).
         // now import should fail import on backupdir, but import the one in backupdirCorrect.
@@ -323,7 +323,7 @@ public class ImportTest extends CQLTester
             assertTrue("pk = "+pk, pk >= 100 && pk < 130);
         }
         assertEquals("Data dir should contain one file", 1, countFiles(getCurrentColumnFamilyStore().getDirectories().getDirectoryForNewSSTables()));
-        assertArrayEquals("backupdir contained 2 files before import, should still contain 2 after failing to import it", beforeImport, backupdir.listFiles());
+        assertEquals("backupdir contained 2 files before import, should still contain 2 after failing to import it", beforeImport, Sets.newHashSet(backupdir.listFiles()));
         assertEquals("backupdirCorrect contained 1 file before import, should be empty after import", 0, countFiles(backupdirCorrect));
     }
 
