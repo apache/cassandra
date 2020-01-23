@@ -729,8 +729,8 @@ public abstract class ModificationStatement implements CQLStatement
      * Convert statement into a list of mutations to apply on the server
      *
      * @param options value for prepared statement markers
+     * @param state the current query state
      * @param local if true, any requests (for collections) performed by getMutation should be done locally only.
-     * @param timestamp the current timestamp in microseconds to use if no timestamp is user provided. // todo: YIFAN - update doc
      *
      * @return list of the mutations
      */

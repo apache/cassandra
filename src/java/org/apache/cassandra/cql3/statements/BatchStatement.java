@@ -420,9 +420,6 @@ public class BatchStatement implements CQLStatement
 
     public ResultMessage execute(QueryState queryState, BatchQueryOptions options)
     {
-        long timestamp = options.getTimestampWithFallback(queryState);
-        int nowInSeconds = options.getNowInSecondsWithFallback(queryState);
-
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
         if (options.getSerialConsistency() == null)
@@ -575,9 +572,6 @@ public class BatchStatement implements CQLStatement
 
     private ResultMessage executeInternalWithoutCondition(QueryState queryState, BatchQueryOptions batchOptions)
     {
-        long timestamp = batchOptions.getTimestampWithFallback(queryState);
-        int nowInSeconds = batchOptions.getNowInSecondsWithFallback(queryState);
-
         for (IMutation mutation : getMutations(batchOptions,  queryState, true))
             mutation.apply();
         return null;

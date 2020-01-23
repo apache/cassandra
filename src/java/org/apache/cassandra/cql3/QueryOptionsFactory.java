@@ -361,7 +361,7 @@ public final class QueryOptionsFactory
                     flags.add(Flag.KEYSPACE);
                 if (options.getNowInSeconds() != Integer.MIN_VALUE)
                     flags.add(Flag.NOW_IN_SECONDS);
-                if (options.getTimeoutInMillis() != Integer.MIN_VALUE)
+                if (options.getTimeoutInMillis() != Integer.MAX_VALUE)
                     flags.add(Flag.TIMEOUT_IN_MILLIS);
             }
 

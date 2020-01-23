@@ -107,34 +107,38 @@ public class QueryState
         return nowInSeconds;
     }
 
-    public long getTimeoutInNanos()
-    {
-        return timeoutInNanos;
-    }
-
     public void setTimeoutInNanos(long timeoutInNanos)
     {
         this.timeoutInNanos = timeoutInNanos;
     }
 
-    public boolean hasResolvedTimeout()
-    {
-        return timeoutInNanos != Long.MAX_VALUE;
-    }
-
+    /**
+     * Return the timeout for the query.
+     * @param fallback, the function to provide the timeout in the desired {@link TimeUnit} as a fallback.
+     *                  It is ignored if there is resolved timeout value.
+     * @param timeUnit, the target time unit to convert the timeout value to.
+     * @return timeout
+     */
     public long getTimeoutWithFallback(ToLongFunction<TimeUnit> fallback, TimeUnit timeUnit)
     {
-         if (!hasResolvedTimeout())
+         if (timeoutInNanos == Long.MAX_VALUE)
          {
              long timeout = fallback.applyAsLong(TimeUnit.NANOSECONDS);
              setTimeoutInNanos(timeout);
          }
-         return timeUnit.convert(getTimeoutInNanos(), TimeUnit.NANOSECONDS);
+         return timeUnit.convert(timeoutInNanos, TimeUnit.NANOSECONDS);
     }
 
+    /**
+     * Calculate the future time the query should timeout, i.e. `queryStartTime + timeout`
+     * @param fallback, the function to provide the timeout in the desired {@link TimeUnit} as a fallback.
+     *                  It is ignored if there is resolved timeout value.
+     * @param timeUnit, the target time unit to convert the timeout value to.
+     * @return the future time
+     */
     public long getTimeoutAtWithFallback(ToLongFunction<TimeUnit> fallback, TimeUnit timeUnit)
     {
-        if (!hasResolvedTimeout())
+        if (timeoutInNanos == Long.MAX_VALUE)
         {
             long timeout = fallback.applyAsLong(TimeUnit.NANOSECONDS);
             setTimeoutInNanos(timeout);
@@ -148,8 +152,7 @@ public class QueryState
      * If there is no resolved timeout value, the calculation falls back to the {@param fallback}.
      *
      * @param fallback, the function to provide the timeout in the desired {@link TimeUnit} as a fallback.
-     *                  Note that the timeout value should have been resolved at {@link org.apache.cassandra.cql3.QueryProcessor} for each cql statement.
-     *                  The fallback exists mainly for safety.
+     *                  It is ignored if there is resolved timeout value.
      * @param timeUnit, the target time unit to convert the timeout value to.
      * @return the remaning timeout.
      */

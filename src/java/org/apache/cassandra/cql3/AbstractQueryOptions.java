@@ -34,7 +34,6 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.ProtocolVersion;
 
-// todo: YIFAN all methods are implemented, why abstract???
 public abstract class AbstractQueryOptions implements QueryOptions
 {
     protected final ConsistencyLevel consistency;

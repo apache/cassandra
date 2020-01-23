@@ -33,41 +33,89 @@ import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
- * Options for a query.
+ * Client-specified options for a query.
+ * Most of the getters are correspoding to the {@code query_options} as stated in the native_protocol specification
  */
 public interface QueryOptions
 {
+    /**
+     * @return the consistency level of the query
+     */
     ConsistencyLevel getConsistency();
+
+    /**
+     * @return the list of values that are used for bound variables in the query.
+     */
     List<ByteBuffer> getValues();
+
+    /**
+     * @return true if the SKIP_METADATA flag was set by client, otherwsie false.
+     */
     boolean skipMetadata();
+
+    /**
+     * @return the pageSize for this query. Will be {@code <= 0} if not relevant for the query.
+     */
     int getPageSize();
+
+    /**
+     * @return the paging state for this query, or null if not relevant.
+     */
     PagingState getPagingState();
+
+    /**
+     * @return serial consistency for conditional updates.
+     */
     ConsistencyLevel getSerialConsistency();
+
+    /**
+     * @return the client assigned timestamp in microseconds.
+     */
     long getTimestamp();
+
+    /**
+     * @return the keyspace that the query should be executed in.
+     */
     String getKeyspace();
+
+    /**
+     * @return the current time (now) in seconds for the query.
+     */
     int getNowInSeconds();
+
+    /**
+     * @return the optional custom timeout in milliseconds for the query, otherwise defaults to {@code Integer.MAX_VALUE}
+     */
     int getTimeoutInMillis();
+
+    /**
+     * @return the protocol version for the query.
+     */
     ProtocolVersion getProtocolVersion();
+
+    /**
+     * Prepare the values for the query when {@code Flag#NAMES_FOR_VALUES} is present
+     */
     QueryOptions prepare(List<ColumnSpecification> specs);
 
     /**
-     * Tells whether or not this <code>QueryOptions</code> contains the column specifications for the bound variables.
-     * <p>The column specifications will be present only for prepared statements.</p>
-     * @return <code>true</code> this <code>QueryOptions</code> contains the column specifications for the bound
-     * variables, <code>false</code> otherwise.
+     * Tells whether or not this {@link QueryOptions} contains the column specifications for the bound variables.
+     * The column specifications will be present only for prepared statements.
+     * @return {@code true} this {@link QueryOptions} contains the column specifications for the bound
+     * variables, {@code false} otherwise.
      */
     boolean hasColumnSpecifications();
 
     /**
      * Returns the column specifications for the bound variables (<i>optional operation</i>).
      *
-     * <p>The column specifications will be present only for prepared statements.</p>
+     * The column specifications will be present only for prepared statements.
      *
-     * <p>Invoke the {@link #hasColumnSpecifications} method before invoking this method in order to ensure that this
-     * <code>QueryOptions</code> contains the column specifications.</p>
+     * Invoke the {@link #hasColumnSpecifications} method before invoking this method in order to ensure that this
+     * {@link QueryOptions} contains the column specifications.
      *
      * @return the option names
-     * @throws UnsupportedOperationException If this <code>QueryOptions</code> does not contains the column
+     * @throws UnsupportedOperationException If this {@link QueryOptions} does not contains the column
      * specifications.
      */
     ImmutableList<ColumnSpecification> getColumnSpecifications();

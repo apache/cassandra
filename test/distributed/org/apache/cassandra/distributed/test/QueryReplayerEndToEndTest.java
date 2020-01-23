@@ -30,7 +30,6 @@ import java.util.stream.IntStream;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
