@@ -1,4 +1,5 @@
 3.0.21
+ * Memtable memory allocations may deadlock (CASSANDRA-15367)
  * Run evictFromMembership in GossipStage (CASSANDRA-15592)
 Merged from 2.2:
  * Disable JMX rebinding (CASSANDRA-15653)
