@@ -14,3 +14,13 @@
 <     #exec_resource_class: xlarge
 ---
 >     exec_resource_class: xlarge
+35,36c35,36
+<     #exec_resource_class: xlarge
+<   parallelism: 2
+---
+>     exec_resource_class: xlarge
+>   parallelism: 4
+41c41
+<     #exec_resource_class: xlarge
+---
+>     exec_resource_class: xlarge
