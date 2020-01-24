@@ -676,16 +676,6 @@ workflows:
   build_and_run_tests:
     jobs:
     - build
-    - start_jvm_upgrade_dtest:
-        type: approval
-        requires:
-        - build
-    - dtest_jars_build:
-        requires:
-        - start_jvm_upgrade_dtest
-    - j8_jvm_upgrade_dtests:
-        requires:
-        - dtest_jars_build
     - j8_unit_tests:
         requires:
         - build
@@ -706,6 +696,16 @@ workflows:
     - utests_compression:
         requires:
         - start_utests_compression
+    - start_jvm_upgrade_dtest:
+        type: approval
+        requires:
+        - build
+    - dtest_jars_build:
+        requires:
+        - start_jvm_upgrade_dtest
+    - j8_jvm_upgrade_dtests:
+        requires:
+        - dtest_jars_build
     - start_j8_dtests:
         type: approval
         requires:
