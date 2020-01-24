@@ -240,6 +240,37 @@ public class OpOrder
             }
         }
 
+        public boolean isFinished()
+        {
+            return next.prev == null;
+        }
+
+        public boolean isOldestLiveGroup()
+        {
+            return prev == null;
+        }
+
+        public void await()
+        {
+            while (!isFinished())
+            {
+                WaitQueue.Signal signal = waiting.register();
+                if (isFinished())
+                {
+                    signal.cancel();
+                    return;
+                }
+                else
+                    signal.awaitUninterruptibly();
+            }
+            assert running == FINISHED;
+        }
+
+        public OpOrder.Group prev()
+        {
+            return prev;
+        }
+
         /**
          * called once we know all operations started against this Ordered have completed,
          * however we do not know if operations against its ancestors have completed, or
@@ -390,35 +421,14 @@ public class OpOrder
         }
 
         /**
-         * @return true if all operations started prior to barrier.issue() have completed
-         */
-        public boolean allPriorOpsAreFinished()
-        {
-            Group current = orderOnOrBefore;
-            if (current == null)
-                throw new IllegalStateException("This barrier needs to have issue() called on it before prior operations can complete");
-            if (current.next.prev == null)
-                return true;
-            return false;
-        }
-
-        /**
          * wait for all operations started prior to issuing the barrier to complete
          */
         public void await()
         {
-            while (!allPriorOpsAreFinished())
-            {
-                WaitQueue.Signal signal = register();
-                if (allPriorOpsAreFinished())
-                {
-                    signal.cancel();
-                    return;
-                }
-                else
-                    signal.awaitUninterruptibly();
-            }
-            assert orderOnOrBefore.running == FINISHED;
+            Group current = orderOnOrBefore;
+            if (current == null)
+                throw new IllegalStateException("This barrier needs to have issue() called on it before prior operations can complete");
+            current.await();
         }
 
         /**
