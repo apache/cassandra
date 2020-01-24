@@ -357,36 +357,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j8_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently\
-          \ executed on every circle container\n# so the goal here is to get the circleci\
-          \ script to return the tests *this* container will run\n# which we do via\
-          \ the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env/bin/activate\n\
-          export PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\n\
-          echo \"***Collected DTests (j8_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py\
-          \ --use-vnodes --skip-resource-intensive-tests --dtest-print-tests-only\
-          \ --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_raw --cassandra-dir=../cassandra\n\
-          if [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_with_vnodes_raw /tmp/all_dtest_tests_j8_with_vnodes\n\
-          else\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_raw > /tmp/all_dtest_tests_j8_with_vnodes\
-          \ || { echo \"Filter did not match any tests! Exiting build.\"; exit 0;\
-          \ }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname\
-          \ /tmp/all_dtest_tests_j8_with_vnodes > /tmp/split_dtest_tests_j8_with_vnodes.txt\n\
-          cat /tmp/split_dtest_tests_j8_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n\
-          cat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j8_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_with_vnodes_raw /tmp/all_dtest_tests_j8_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_raw > /tmp/all_dtest_tests_j8_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_with_vnodes > /tmp/split_dtest_tests_j8_with_vnodes.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j8_with_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\"\ncat\
-          \ /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n\nsource ~/env/bin/activate\n\
-          export PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\n\
-          java -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env:\
-          \ $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need\
-          \ the \"set -o pipefail\" here so that the exit code that circleci will\
-          \ actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat\
-          \ /tmp/split_dtest_tests_j8_with_vnodes_final.txt`\nset -o pipefail && cd\
-          \ ~/cassandra-dtest && pytest --use-vnodes --num-tokens=32 --skip-resource-intensive-tests\
-          \ --log-level=\"INFO\" --junit-xml=/tmp/results/dtests/pytest_result_j8_with_vnodes.xml\
-          \ -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS\
-          \ 2>&1 | tee /tmp/dtest/stdout.txt\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n\nsource ~/env/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_with_vnodes_final.txt`\nset -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=32 --skip-resource-intensive-tests --log-level=\"INFO\" --junit-xml=/tmp/results/dtests/pytest_result_j8_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -440,37 +415,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j8_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently\
-          \ executed on every circle container\n# so the goal here is to get the circleci\
-          \ script to return the tests *this* container will run\n# which we do via\
-          \ the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env/bin/activate\n\
-          export PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\n\
-          echo \"***Collected DTests (j8_without_vnodes)***\"\nset -eo pipefail &&\
-          \ ./run_dtests.py --skip-resource-intensive-tests --dtest-print-tests-only\
-          \ --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_raw\
-          \ --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_without_vnodes_raw\
-          \ /tmp/all_dtest_tests_j8_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_raw\
-          \ > /tmp/all_dtest_tests_j8_without_vnodes || { echo \"Filter did not match\
-          \ any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci\
-          \ tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_without_vnodes\
-          \ > /tmp/split_dtest_tests_j8_without_vnodes.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes.txt\
-          \ | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n\
-          cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j8_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_without_vnodes_raw /tmp/all_dtest_tests_j8_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_raw > /tmp/all_dtest_tests_j8_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_without_vnodes > /tmp/split_dtest_tests_j8_without_vnodes.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j8_without_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\"\n\
-          cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n\nsource ~/env/bin/activate\n\
-          export PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\n\
-          java -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env:\
-          \ $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need\
-          \ the \"set -o pipefail\" here so that the exit code that circleci will\
-          \ actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat\
-          \ /tmp/split_dtest_tests_j8_without_vnodes_final.txt`\nset -o pipefail &&\
-          \ cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level=\"\
-          INFO\" --junit-xml=/tmp/results/dtests/pytest_result_j8_without_vnodes.xml\
-          \ -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS\
-          \ 2>&1 | tee /tmp/dtest/stdout.txt\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n\nsource ~/env/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt`\nset -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level=\"INFO\" --junit-xml=/tmp/results/dtests/pytest_result_j8_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
