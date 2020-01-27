@@ -68,10 +68,9 @@ with_dtests_jobs: &with_dtest_jobs
                   - start_utests_compression
             - start_jvm_upgrade_dtest:
                 type: approval
-                requires:
-                  - build
             - j8_dtest_jars_build:
                 requires:
+                  - build
                   - start_jvm_upgrade_dtest
             - j8_jvm_upgrade_dtests:
                 requires:
