@@ -15,27 +15,40 @@
 .. limitations under the License.
 
 Dynamo
-------
+======
 
-Apache Cassandra is to a great extent inspired by Amazon’s Dynamo database architecture. Dynamo was developed by Amazon to meet its requirements for a scalable, reliable and highly available storage system. With the large scale (several petabyte) of storage used by web based applications it became imperative to design a new kind of database model as the relational database model did not meet the requirements of web scale applications. Dynamo was developed for these new design objectives:
+Apache Cassandra relies on a number of techniques from Amazon's `Dynamo
+<http://courses.cse.tamu.edu/caverlee/csce438/readings/dynamo-paper.pdf>`_
+highly available distributed storage key-value system. In particular, Cassandra
+relies on Dynamo style:
 
-- Scaling out rather than scaling up
-- Simple Key-oriented queries
-- Flexible schema
-- Online load balancing and cluster growth
-- CAP-aware
+- Dataset partitioning using consistent hashing
+- Full multi-master replication using versioned data
+- Distributed cluster membership and failure detection via a gossip protocol
+- Incremental scale-out on commodity hardware rather than scale-up
 
-Dynamo Software Components
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Cassandra was designed this way to meet large scale (PiB+) storage requirements
+applications demanded. In particular, as applications began to require full
+global replication and always available low-latency reads and writes, it became
+imperative to design a new kind of database model as the relational database
+systems of the time struggled to meet the new requirements of global scale
+applications.
 
-Each storage node in Dynamo has three main software components:
+Dynamo Style Replication and Clustering
+---------------------------------------
+
+Each node in Dynamo has three main components:
 
 1. Request coordination
 2. Ring membership and failure detection using a gossip based protocol
-3. A persistence engine
+3. A storage engine
 
-Key Value Storage
-^^^^^^^^^^^^^^^^^
+Cassandra primarily draws from the first two clustering components,
+rthe storage engines to a Log Structured Merge Tree (`LSM <http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.44.2782&rep=rep1&type=pdf>`_)
+storage engine more similar to The main component of the Dynamo key-value store that Cassandra uses are the
+
+Partitioned wide-column Storage
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Dynamo is a simple primary-key only storage system in which scalability and availability are achieved by partitioning and replicating data using hashing. Object versioning is used to achieve consistency.  With multiple replicas consistency among replicas during updates becomes important and it is achieved by using a quorum-like technique and replica synchronization. Dynamo makes use of a gossip based distributed failure detection and membership protocol.  Dynamo is decentralized requiring almost no user initiated administration for tasks such as adding/removing storage nodes; no partitioning or redistribution needs to be performed by an administrator.  
   
