@@ -21,8 +21,6 @@
 # bash code here; finds a suitable python interpreter and execs this file.
 # this implementation of cqlsh is compatible with both Python 3 and Python 2.7.
 # prefer unqualified "python" if suitable:
-python -c 'import sys; sys.exit(not (0x020700b0 < sys.hexversion))' 2>/dev/null \
-    && exec python "$0" "$@"
 for pyver in 3 2.7; do
     which python$pyver > /dev/null 2>&1 && exec python$pyver "$0" "$@"
 done
@@ -39,7 +37,6 @@ import getpass
 import optparse
 import os
 import platform
-import six
 import sys
 import traceback
 import warnings
@@ -147,6 +144,8 @@ for lib in third_parties:
     lib_zip = find_zip(lib)
     if lib_zip:
         sys.path.insert(0, lib_zip)
+
+import six
 
 warnings.filterwarnings("ignore", r".*blist.*")
 try:

@@ -525,7 +525,7 @@ def format_simple_collection(val, cqltype, lbracket, rbracket, encoding,
 @formatter_for('list')
 def format_value_list(val, cqltype, encoding, colormap, date_time_format, float_precision, nullval,
                       decimal_sep, thousands_sep, boolean_styles, **_):
-    return format_simple_collection(sorted(val), cqltype, '[', ']', encoding, colormap,
+    return format_simple_collection(val, cqltype, '[', ']', encoding, colormap,
                                     date_time_format, float_precision, nullval,
                                     decimal_sep, thousands_sep, boolean_styles)
 
