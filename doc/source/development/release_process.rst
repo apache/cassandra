@@ -66,8 +66,8 @@ Create Release Artifacts
 
 Any committer can perform the following steps to create and call a vote on a proposed release.
 
-Check that no open jira tickets are urgent and currently being worked on.
-Also check with a PMC that there's security vulnerabilities currently being worked on in private.
+Check that there are no open urgent jira tickets currently being worked on. Also check with a PMC that there's security vulnerabilities currently being worked on in private.'
+Current project habit is to check the timing for a new release on the dev mailing lists.
 
 Perform the Release
 -------------------
@@ -88,27 +88,7 @@ Run the following commands to generate and upload release artifacts, to a nexus 
 
 If successful, take note of the email text output which can be used in the next section "Call for a Vote".
 
-The ``prepare_release.sh`` script does not yet generate and upload the rpm distribution packages.
-To generate and upload them do::
-
-    cd ~/git/cassandra-build
-    docker build -f docker/centos7-image.docker docker/
-    docker run --rm -v `pwd`/dist:/dist `docker images -f label=org.cassandra.buildenv=centos -q` /home/build/build-rpms.sh <version>-tentative
-    rpmsign --addsign dist/*.rpm
-
-For more information on the above steps see the `cassandra-builds documentation <https://github.com/apache/cassandra-builds>`_.
-The next step is to copy and commit these binaries to staging svnpubsub::
-
-    # FIXME the following commands is wrong while people.apache.org is still used instead of svnpubsub and dist.apache.org
-    cd ~/git
-    svn co https://dist.apache.org/repos/dist/dev/cassandra cassandra-dist-dev
-    mkdir cassandra-dist-dev/<version>
-    cp cassandra-build/dist/*.rpm cassandra-dist-dev/<version>/
-
-    svn add cassandra-dist-dev/<version>
-    svn ci cassandra-dist-dev/<version>
-
-After committing the binaries to staging, increment the version number in Cassandra on the `cassandra-<version-branch>`
+After validating the uploaded artifacts in staging, increment the version number in Cassandra on the `cassandra-<version-branch>`
 
     cd ~/git/cassandra/
     git checkout cassandra-<version-branch>
