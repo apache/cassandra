@@ -219,6 +219,7 @@ jobs:
           source ~/env/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --upgrade -r ~/cassandra-dtest/requirements.txt
+          pip3 uninstall -y cqlsh
           pip3 freeze
     - run:
         name: Determine Tests to Run (j11_with_vnodes)
@@ -277,6 +278,7 @@ jobs:
           source ~/env/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --upgrade -r ~/cassandra-dtest/requirements.txt
+          pip3 uninstall -y cqlsh
           pip3 freeze
     - run:
         name: Determine Tests to Run (j8_without_vnodes)
@@ -334,6 +336,7 @@ jobs:
           source ~/env/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --upgrade -r ~/cassandra-dtest/requirements.txt
+          pip3 uninstall -y cqlsh
           pip3 freeze
     - run:
         name: Determine Tests to Run (j8_upgradetests_without_vnodes)
@@ -731,6 +734,7 @@ jobs:
           source ~/env/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --upgrade -r ~/cassandra-dtest/requirements.txt
+          pip3 uninstall -y cqlsh
           pip3 freeze
     - run:
         name: Determine Tests to Run (j8_with_vnodes)
@@ -1066,6 +1070,7 @@ jobs:
           source ~/env/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --upgrade -r ~/cassandra-dtest/requirements.txt
+          pip3 uninstall -y cqlsh
           pip3 freeze
     - run:
         name: Determine Tests to Run (j11_without_vnodes)
