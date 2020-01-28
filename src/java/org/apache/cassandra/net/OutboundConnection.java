@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -1722,6 +1723,13 @@ public class OutboundConnection
         releaseCapacity(1, amount);
     }
 
+    @VisibleForTesting
+    void unsafeReleaseCapacity(long count, long amount)
+    {
+        releaseCapacity(count, amount);
+    }
+
+    @VisibleForTesting
     Limit unsafeGetEndpointReserveLimits()
     {
         return reserveCapacityInBytes.endpoint;

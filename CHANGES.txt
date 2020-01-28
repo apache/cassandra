@@ -1,5 +1,6 @@
 4.0-alpha4
  * Improve the algorithmic token allocation in case racks = RF (CASSANDRA-15600)
+ * Fix ConnectionTest.testAcquireReleaseOutbound (CASSANDRA-15308)
  * Include finalized pending sstables in preview repair (CASSANDRA-15553)
  * Reverted to the original behavior of CLUSTERING ORDER on CREATE TABLE (CASSANDRA-15271)
  * Correct inaccurate logging message (CASSANDRA-15549)
