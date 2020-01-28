@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.locator;
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
@@ -241,7 +241,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         // we maintain a map of key -> index in our list; this lets us share with subLists (or between Builder and snapshots)
         // since we only need to corroborate that the list index we find is within the bounds of our list
         // (if not, it's a shared map, and the key only occurs in one of our ancestors)
-        private final ObjectIntOpenHashMap<K> map;
+        private final ObjectIntHashMap<K> map;
         private Set<K> keySet;
         private Set<Entry<K, Replica>> entrySet;
 
@@ -285,7 +285,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             // 8*0.65 => RF=5; 16*0.65 ==> RF=10
             // use list capacity if empty, otherwise use actual list size
             this.toKey = toKey;
-            this.map = new ObjectIntOpenHashMap<>(list.size == 0 ? list.contents.length : list.size, 0.65f);
+            this.map = new ObjectIntHashMap<>(list.size == 0 ? list.contents.length : list.size, 0.65f);
             this.list = list;
             for (int i = list.begin ; i < list.begin + list.size ; ++i)
             {
@@ -294,7 +294,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             }
         }
 
-        public ReplicaMap(ReplicaList list, Function<Replica, K> toKey, ObjectIntOpenHashMap<K> map)
+        public ReplicaMap(ReplicaList list, Function<Replica, K> toKey, ObjectIntHashMap<K> map)
         {
             this.toKey = toKey;
             this.list = list;

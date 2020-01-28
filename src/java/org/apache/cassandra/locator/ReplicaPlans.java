@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.locator;
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.annotations.VisibleForTesting;
@@ -406,7 +406,7 @@ public class ReplicaPlans
              * soft-ensure that we reach QUORUM in all DCs we are able to, by writing to every node;
              * even if we don't wait for ACK, we have in both cases sent sufficient messages.
               */
-            ObjectIntOpenHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
+            ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
             addToCountPerDc(requiredPerDc, live.natural().filter(Replica::isFull), -1);
             addToCountPerDc(requiredPerDc, live.pending(), -1);
 
@@ -462,7 +462,7 @@ public class ReplicaPlans
                 }
                 else
                 {
-                    ObjectIntOpenHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
+                    ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
                     addToCountPerDc(requiredPerDc, contacts.snapshot(), -1);
                     IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
                     for (Replica replica : filter(live.all(), r -> !contacts.contains(r)))
@@ -530,7 +530,7 @@ public class ReplicaPlans
     private static <E extends Endpoints<E>> E contactForEachQuorumRead(Keyspace keyspace, E candidates)
     {
         assert keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy;
-        ObjectIntOpenHashMap<String> perDc = eachQuorumForRead(keyspace);
+        ObjectIntHashMap<String> perDc = eachQuorumForRead(keyspace);
 
         final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         return candidates.filter(replica -> {

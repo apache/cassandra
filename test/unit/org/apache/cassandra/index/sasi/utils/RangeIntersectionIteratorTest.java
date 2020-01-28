@@ -27,7 +27,7 @@ import org.apache.cassandra.index.sasi.utils.RangeIntersectionIterator.LookupInt
 import org.apache.cassandra.index.sasi.utils.RangeIntersectionIterator.BounceIntersectionIterator;
 import org.apache.cassandra.io.util.FileUtils;
 
-import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 
 import org.junit.Assert;
@@ -387,7 +387,7 @@ public class RangeIntersectionIteratorTest
             for (int i = 0; i < ranges.length; i++)
             {
                 int rangeSize = random.nextInt(16, 512);
-                LongSet range = new LongOpenHashSet(rangeSize);
+                LongSet range = new LongHashSet(rangeSize);
 
                 for (int j = 0; j < rangeSize; j++)
                     range.add(random.nextLong(0, 100));

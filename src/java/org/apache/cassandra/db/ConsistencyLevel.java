@@ -18,7 +18,7 @@
 package org.apache.cassandra.db;
 
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -98,18 +98,18 @@ public enum ConsistencyLevel
         return localQuorumFor(keyspace, DatabaseDescriptor.getLocalDataCenter());
     }
 
-    public static ObjectIntOpenHashMap<String> eachQuorumForRead(Keyspace keyspace)
+    public static ObjectIntHashMap<String> eachQuorumForRead(Keyspace keyspace)
     {
         NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
-        ObjectIntOpenHashMap<String> perDc = new ObjectIntOpenHashMap<>(((strategy.getDatacenters().size() + 1) * 4) / 3);
+        ObjectIntHashMap<String> perDc = new ObjectIntHashMap<>(((strategy.getDatacenters().size() + 1) * 4) / 3);
         for (String dc : strategy.getDatacenters())
             perDc.put(dc, ConsistencyLevel.localQuorumFor(keyspace, dc));
         return perDc;
     }
 
-    public static ObjectIntOpenHashMap<String> eachQuorumForWrite(Keyspace keyspace, Endpoints<?> pendingWithDown)
+    public static ObjectIntHashMap<String> eachQuorumForWrite(Keyspace keyspace, Endpoints<?> pendingWithDown)
     {
-        ObjectIntOpenHashMap<String> perDc = eachQuorumForRead(keyspace);
+        ObjectIntHashMap<String> perDc = eachQuorumForRead(keyspace);
         addToCountPerDc(perDc, pendingWithDown, 1);
         return perDc;
     }

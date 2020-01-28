@@ -26,7 +26,7 @@ import java.util.function.Consumer;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
@@ -361,7 +361,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
             fullDiffRepair = repairs[repairs.length - 1].build();
 
         Map<Replica, Mutation> mutations = Maps.newHashMapWithExpectedSize(writePlan.contacts().size());
-        ObjectIntOpenHashMap<InetAddressAndPort> sourceIds = new ObjectIntOpenHashMap<>(((repairs.length + 1) * 4) / 3);
+        ObjectIntHashMap<InetAddressAndPort> sourceIds = new ObjectIntHashMap<>(((repairs.length + 1) * 4) / 3);
         for (int i = 0 ; i < readPlan.contacts().size() ; ++i)
             sourceIds.put(readPlan.contacts().get(i).endpoint(), 1 + i);
 

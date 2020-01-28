@@ -1113,7 +1113,7 @@ public class SASIIndexTest
         }
         while (updates.get() < writeCount);
 
-        // to make sure that after all of the right are done we can read all "count" worth of rows
+        // to make sure that after all of the writes are done we can read all "count" worth of rows
         Set<DecoratedKey> rows = getPaged(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                                                       buildExpression(age, Operator.EQ, Int32Type.instance.decompose(26)));
 

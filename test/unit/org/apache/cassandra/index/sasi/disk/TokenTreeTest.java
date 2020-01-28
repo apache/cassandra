@@ -47,7 +47,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
-import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.hppc.cursors.LongCursor;
 import com.google.common.base.Function;
@@ -56,18 +56,26 @@ public class TokenTreeTest
 {
     private static final Function<Long, DecoratedKey> KEY_CONVERTER = new KeyConverter();
 
+    static LongSet singleOffset = new LongHashSet();
+    static LongSet bigSingleOffset = new LongHashSet();
+    static LongSet shortPackableCollision = new LongHashSet();
+    static LongSet intPackableCollision = new LongHashSet();
+    static LongSet multiCollision =  new LongHashSet();
+    static LongSet unpackableCollision = new LongHashSet();
+
     @BeforeClass
     public static void setupDD()
     {
         DatabaseDescriptor.daemonInitialization();
+        singleOffset.add(1);
+        bigSingleOffset.add(2147521562L);
+        shortPackableCollision.add(2L); shortPackableCollision.add(3L);
+        intPackableCollision.add(6L); intPackableCollision.add(((long) Short.MAX_VALUE) + 1);
+        multiCollision.add(3L); multiCollision.add(4L); multiCollision.add(5L);
+        unpackableCollision.add(((long) Short.MAX_VALUE) + 1); unpackableCollision.add(((long) Short.MAX_VALUE) + 2);
     }
 
-    static LongSet singleOffset = new LongOpenHashSet() {{ add(1); }};
-    static LongSet bigSingleOffset = new LongOpenHashSet() {{ add(2147521562L); }};
-    static LongSet shortPackableCollision = new LongOpenHashSet() {{ add(2L); add(3L); }}; // can pack two shorts
-    static LongSet intPackableCollision = new LongOpenHashSet() {{ add(6L); add(((long) Short.MAX_VALUE) + 1); }}; // can pack int & short
-    static LongSet multiCollision =  new LongOpenHashSet() {{ add(3L); add(4L); add(5L); }}; // can't pack
-    static LongSet unpackableCollision = new LongOpenHashSet() {{ add(((long) Short.MAX_VALUE) + 1); add(((long) Short.MAX_VALUE) + 2); }}; // can't pack
+
 
     final static SortedMap<Long, LongSet> simpleTokenMap = new TreeMap<Long, LongSet>()
     {{
@@ -422,7 +430,6 @@ public class TokenTreeTest
 
             LongSet found = result.getOffsets();
             Assert.assertEquals(entry.getValue(), found);
-
         }
     }
 
@@ -609,7 +616,7 @@ public class TokenTreeTest
 
     private static LongSet convert(long... values)
     {
-        LongSet result = new LongOpenHashSet(values.length);
+        LongSet result = new LongHashSet(values.length);
         for (long v : values)
             result.add(v);
 
@@ -640,7 +647,7 @@ public class TokenTreeTest
         {{
                 for (long i = minToken; i <= maxToken; i++)
                 {
-                    LongSet offsetSet = new LongOpenHashSet();
+                    LongSet offsetSet = new LongHashSet();
                     offsetSet.add(i);
                     put(i, offsetSet);
                 }
