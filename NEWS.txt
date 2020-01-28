@@ -223,6 +223,10 @@ Upgrading
       their clusters or otherwise synchronize their clocks, and that clocks are
       mostly in sync, since this is a requirement for general correctness of
       last write wins.
+    - CASSANDRA-15257 removed the joda time dependency.  Any time formats
+      passed will now need to conform to java.time.format.DateTimeFormatter.
+      Most notably, days and months must be two digits, and years exceeding
+      four digits need to be prefixed with a plus or minus sign.
 
 
 Materialized Views
