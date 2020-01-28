@@ -767,36 +767,46 @@ public class ConnectionTest
     public void testAcquireReleaseOutbound() throws Throwable
     {
         test((inbound, outbound, endpoint) -> {
-            ExecutorService executor = Executors.newFixedThreadPool(100);
             int acquireStep = 123;
-            Assert.assertTrue(outbound.unsafeAcquireCapacity(100 * 10000, 100 * 10000 * acquireStep));
+            int concurrency = 100;
+            int attempts = 10000;
             AtomicLong acquisitionFailures = new AtomicLong();
-            for (int i = 0; i < 100; i++)
+            Runnable acquirer = () -> {
+                for (int j = 0; j < attempts; j++)
+                {
+                    if (!outbound.unsafeAcquireCapacity(acquireStep))
+                        acquisitionFailures.incrementAndGet();
+                }
+            };
+            Runnable releaser = () -> {
+                for (int j = 0; j < attempts; j++)
+                    outbound.unsafeReleaseCapacity(acquireStep);
+            };
+            try
             {
-                executor.submit(() -> {
-                    for (int j = 0; j < 10000; j++)
-                    {
-                        if (!outbound.unsafeAcquireCapacity(acquireStep))
-                            acquisitionFailures.incrementAndGet();
-                    }
+                ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+                int maxCount = concurrency * attempts;
+                // Reserve the capacity for this round
+                Assert.assertTrue(outbound.unsafeAcquireCapacity(maxCount, maxCount * acquireStep));
+                // Start N acquirer and releaser to contend for capcaity
+                for (int i = 0; i < concurrency; i++)
+                    executor.submit(acquirer);
+                for (int i = 0; i < concurrency; i++)
+                    executor.submit(releaser);
 
-                });
+                executor.shutdown();
+                executor.awaitTermination(10, TimeUnit.SECONDS);
+
+                // We can release more than we acquire, which certainly should not happen in
+                // real life, but since it's a test just for acquisition and release, it is fine
+                Assert.assertEquals(maxCount * acquireStep - (acquisitionFailures.get() * acquireStep), outbound.pendingBytes());
             }
-
-            for (int i = 0; i < 100; i++)
-            {
-                executor.submit(() -> {
-                    for (int j = 0; j < 10000; j++)
-                        outbound.unsafeReleaseCapacity(acquireStep);
-                });
+            finally
+            {   // release the acquired capacity from this round
+                while (outbound.pendingBytes() > 0) {
+                    outbound.unsafeReleaseCapacity(acquireStep);
+                }
             }
-
-            executor.shutdown();
-            executor.awaitTermination(10, TimeUnit.SECONDS);
-
-            // We can release more than we acquire, which certainly should not happen in
-            // real life, but since it's a test just for acquisition and release, it is fine
-            Assert.assertEquals(100 * 10000 * acquireStep - (acquisitionFailures.get() * acquireStep), outbound.pendingBytes());
         });
     }
 
