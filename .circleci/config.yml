@@ -165,7 +165,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 2
+    parallelism: 1
     steps:
     - attach_workspace:
         at: /home/cassandra

@@ -10,7 +10,9 @@
 ---
 >     exec_resource_class: xlarge
 >   parallelism: 100
-29c29
+29,30c29,30
 <     #exec_resource_class: xlarge
+<   parallelism: 1
 ---
 >     exec_resource_class: xlarge
+>   parallelism: 2
