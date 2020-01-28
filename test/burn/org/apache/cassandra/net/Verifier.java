@@ -31,9 +31,11 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.carrotsearch.hppc.LongObjectOpenHashMap;
+import com.carrotsearch.hppc.LongObjectHashMap;
+import com.carrotsearch.hppc.predicates.LongObjectPredicate;
+import com.carrotsearch.hppc.procedures.LongObjectProcedure;
+import com.carrotsearch.hppc.procedures.LongProcedure;
 import org.apache.cassandra.net.Verifier.ExpiredMessageEvent.ExpirationType;
-import org.apache.cassandra.utils.ApproximateTime;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static java.util.concurrent.TimeUnit.*;
@@ -559,7 +561,7 @@ public class Verifier
         }
     }
 
-    private final LongObjectOpenHashMap<MessageState> messages = new LongObjectOpenHashMap<>();
+    private final LongObjectHashMap<MessageState> messages = new LongObjectHashMap<>();
 
     // messages start here, but may enter in a haphazard (non-sequential) fashion;
     // ENQUEUE_START, ENQUEUE_END both take place here, with the latter imposing bounds on the out-of-order appearance of messages.
@@ -667,7 +669,7 @@ public class Verifier
                             // TODO: even 2s or 5s are unreasonable periods of time without _any_ movement on a message waiting to arrive
                             //       this seems to happen regularly on MacOS, but we should confirm this does not happen on Linux
                             fail("Unreasonably long period spent waiting for sync (%dms)", NANOSECONDS.toMillis(now - lastEventAt));
-                            messages.forEach((k, v) -> {
+                            messages.<LongObjectProcedure<MessageState>>forEach((k, v) -> {
                                 failinfo("%s", v);
                                 controller.fail(v.message.serializedSize(v.messagingVersion == 0 ? current_version : v.messagingVersion));
                             });
@@ -1232,14 +1234,14 @@ public class Verifier
         }
     }
 
-    private static MessageState remove(long messageId, Queue<MessageState> queue, LongObjectOpenHashMap<MessageState> lookup)
+    private static MessageState remove(long messageId, Queue<MessageState> queue, LongObjectHashMap<MessageState> lookup)
     {
         MessageState m = lookup.remove(messageId);
         queue.remove(m);
         return m;
     }
 
-    private static void clearFirst(int count, Queue<MessageState> queue, LongObjectOpenHashMap<MessageState> lookup)
+    private static void clearFirst(int count, Queue<MessageState> queue, LongObjectHashMap<MessageState> lookup)
     {
         if (count > 0)
         {
@@ -1249,7 +1251,7 @@ public class Verifier
         }
     }
 
-    private static void clear(Queue<MessageState> queue, LongObjectOpenHashMap<MessageState> lookup)
+    private static void clear(Queue<MessageState> queue, LongObjectHashMap<MessageState> lookup)
     {
         if (!queue.isEmpty())
             clearFirst(queue.size(), queue, lookup);
