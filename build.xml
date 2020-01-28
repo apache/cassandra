@@ -330,7 +330,7 @@
         <sequential>
           <artifact:mvn mavenVersion="${maven.version}" fork="true" failonerror="true">
             <jvmarg value="-Xmx512m"/>
-            <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.4:sign-and-deploy-file" />
+            <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file" />
             <arg value="-DretryFailedDeploymentCount=5" />
             <arg value="-Durl=${maven-repository-url}" />
             <arg value="-DrepositoryId=${maven-repository-id}" />
@@ -338,7 +338,25 @@
             <arg value="-Dfile=@{file}" />
             <arg value="-Dclassifier=@{classifier}" />
             <arg value="-Dpackaging=@{packaging}" />
-            <arg value="-Papache-release" />
+          </artifact:mvn>
+        </sequential>
+      </macrodef>
+
+      <macrodef name="sign-dist">
+        <attribute name="file"/>
+        <sequential>
+          <echo message="gpg signing @{file}" />
+          <artifact:mvn mavenVersion="${maven.version}" fork="true" failonerror="true">
+            <jvmarg value="-Xmx512m"/>
+            <arg value="-q" />
+            <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file" />
+            <arg value="-Dfile=@{file}" />
+            <arg value="-DgroupId=org.apache.cassandra" />
+            <arg value="-DartifactId=cassandra-parent" />
+            <arg value="-Dversion=${version}" />
+            <!-- intentionally dummy out the deploy step -->
+            <arg value="-Durl=file:///tmp/" />
+            <arg value="-DrepositoryId=tmp" />
           </artifact:mvn>
         </sequential>
       </macrodef>
@@ -361,6 +379,9 @@
                     name="Apache Cassandra"
                     inceptionYear="2009"
                     description="The Apache Cassandra Project develops a highly scalable second-generation distributed database, bringing together Dynamo's fully distributed design and Bigtable's ColumnFamily-based data model.">
+
+        <!-- Inherit from the ASF template pom file, ref http://maven.apache.org/pom/asf/ -->
+        <parent groupId="org.apache" artifactId="apache" version="22"/>
         <license name="The Apache Software License, Version 2.0" url="https://www.apache.org/licenses/LICENSE-2.0.txt"/>
         <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
         <dependencyManagement>
@@ -665,16 +686,6 @@
         <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" version="1.3.0.581.1" />
         <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
 
-      </artifact:pom>
-      <artifact:pom id="dist-pom"
-                    artifactId="apache-cassandra"
-                    packaging="pom"
-                    url="https://cassandra.apache.org"
-                    name="Apache Cassandra">
-        <parent groupId="org.apache.cassandra"
-                artifactId="cassandra-parent"
-                version="${version}"/>
-        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
       </artifact:pom>
     </target>
 
@@ -1087,8 +1098,6 @@
             <include name="*.jar" />
         </fileset>
       </copy>
-      <artifact:writepom pomRefId="dist-pom"
-            file="${build.dir}/${final.name}-dist.pom"/>
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
 
@@ -1140,23 +1149,22 @@
           <exclude name="bin/*.bat" />
         </tarfileset>
       </tar>
+
+      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha256" algorithm="SHA-256">
+        <fileset dir="${build.dir}">
+          <include name="${final.name}-bin.tar.gz" />
+          <include name="${final.name}-src.tar.gz" />
+        </fileset>
+      </checksum>
+      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha512" algorithm="SHA-512">
+        <fileset dir="${build.dir}">
+          <include name="${final.name}-bin.tar.gz" />
+          <include name="${final.name}-src.tar.gz" />
+        </fileset>
+      </checksum>
     </target>
 
-    <target name="release" depends="eclipse-warnings,artifacts,rat-init"
-            description="Create and QC release artifacts">
-      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha256"
-                algorithm="SHA-256">
-        <fileset dir="${build.dir}">
-          <include name="*.tar.gz" />
-        </fileset>
-      </checksum>
-      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha512"
-                algorithm="SHA-512">
-        <fileset dir="${build.dir}">
-          <include name="*.tar.gz" />
-        </fileset>
-      </checksum>
-
+    <target name="rat" depends="rat-init" description="License checks on artifacts">
       <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
                   reportFile="${build.dir}/${final.name}-bin.rat.txt">
         <tarfileset>
@@ -1165,7 +1173,6 @@
           </gzipresource>
         </tarfileset>
       </rat:report>
-
       <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
                   reportFile="${build.dir}/${final.name}-src.rat.txt">
         <tarfileset>
@@ -2093,26 +2100,13 @@
 
   <!-- Publish artifacts to Maven repositories -->
   <target name="mvn-install"
-          depends="maven-declare-dependencies,artifacts,jar,sources-jar,javadoc-jar"
+          depends="maven-declare-dependencies,jar,sources-jar,javadoc-jar"
           description="Installs the artifacts in the Maven Local Repository">
 
     <!-- the parent -->
     <install pomFile="${build.dir}/${final.name}-parent.pom"
              file="${build.dir}/${final.name}-parent.pom"
              packaging="pom"/>
-
-    <!-- the distribution -->
-    <install pomFile="${build.dir}/${final.name}-dist.pom"
-             file="${build.dir}/${final.name}-dist.pom"
-             packaging="pom"/>
-    <install pomFile="${build.dir}/${final.name}-dist.pom"
-             file="${build.dir}/${final.name}-bin.tar.gz"
-             packaging="tar.gz"
-             classifier="bin"/>
-    <install pomFile="${build.dir}/${final.name}-dist.pom"
-             file="${build.dir}/${final.name}-src.tar.gz"
-             packaging="tar.gz"
-             classifier="src"/>
 
     <!-- the cassandra-thrift jar -->
     <install pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
@@ -2145,19 +2139,6 @@
             file="${build.dir}/${final.name}-parent.pom"
             packaging="pom"/>
 
-    <!-- the distribution -->
-    <deploy pomFile="${build.dir}/${final.name}-dist.pom"
-            file="${build.dir}/${final.name}-dist.pom"
-            packaging="pom"/>
-    <deploy pomFile="${build.dir}/${final.name}-dist.pom"
-            file="${build.dir}/${final.name}-bin.tar.gz"
-            packaging="tar.gz"
-            classifier="bin"/>
-    <deploy pomFile="${build.dir}/${final.name}-dist.pom"
-            file="${build.dir}/${final.name}-src.tar.gz"
-            packaging="tar.gz"
-            classifier="src"/>
-
     <!-- the cassandra-thrift jar -->
     <deploy pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
             file="${build.dir}/${ant.project.name}-thrift-${version}.jar"/>
@@ -2177,6 +2158,11 @@
     <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
+
+    <!-- the distribution -->
+    <sign-dist file="${build.dir}/${final.name}-bin.tar.gz" />
+    <sign-dist file="${build.dir}/${final.name}-src.tar.gz" />
+
   </target>
 
 </project>
