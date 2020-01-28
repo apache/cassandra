@@ -46,6 +46,12 @@ j11_par_executor: &j11_par_executor
     #exec_resource_class: xlarge
   parallelism: 4
 
+j11_small_par_executor: &j11_small_par_executor
+  executor:
+    name: java11-executor
+    #exec_resource_class: xlarge
+  parallelism: 2
+
 j8_with_dtests_jobs: &j8_with_dtests_jobs
   jobs:
     - j8_build
@@ -144,6 +150,9 @@ j11_with_dtests_jobs: &j11_with_dtests_jobs
     - j11_unit_tests:
         requires:
           - start_j11_unit_tests
+    - j11_jvm_dtests:
+        requires:
+          - j11_build
     # Java 11 dtests (on request)
     - start_j11_dtests:
         type: approval
@@ -260,6 +269,18 @@ jobs:
 
   j8_jvm_dtests:
     <<: *j8_small_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers:
+          classlistprefix: distributed
+          extra_filters: "| grep -v upgrade"
+      - log_environment
+      - run_parallel_junit_tests:
+          classlistprefix: distributed
+
+  j11_jvm_dtests:
+    <<: *j11_small_par_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
