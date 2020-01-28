@@ -711,7 +711,7 @@ Merged from 2.1:
  * Support seek() in EncryptedFileSegmentInputStream (CASSANDRA-11957)
  * SSTable tools mishandling LocalPartitioner (CASSANDRA-12002)
  * When SEPWorker assigned work, set thread name to match pool (CASSANDRA-11966)
- * Add cross-DC latency metrics (CASSANDRA-11596)
+ * Add cross-DC latency metrics (CASSANDRA-11569)
  * Allow terms in selection clause (CASSANDRA-10783)
  * Add bind variables to trace (CASSANDRA-11719)
  * Switch counter shards' clock to timestamps (CASSANDRA-9811)
