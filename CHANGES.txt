@@ -16,6 +16,7 @@
  * Make sure index summary redistribution does not start when compactions are paused (CASSANDRA-15265)
  * Ensure legacy rows have primary key livenessinfo when they contain illegal cells (CASSANDRA-15365)
  * Fix race condition when setting bootstrap flags (CASSANDRA-14878)
+ * Fix NativeLibrary.tryOpenDirectory callers for Windows (CASSANDRA-15426)
 Merged from 2.2
  * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
