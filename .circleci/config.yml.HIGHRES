@@ -11,7 +11,48 @@ jobs:
     - attach_workspace:
         at: /home/cassandra
     - run:
-        name: Run Unit Tests (test-jvm-upgrade-dtest-forking)
+        name: Determine distributed Tests to Run
+        command: |
+          # reminder: this code (along with all the steps) is independently executed on every circle container
+          # so the goal here is to get the circleci script to return the tests *this* container will run
+          # which we do via the `circleci` cli tool.
+
+          rm -fr ~/cassandra-dtest/upgrade_tests
+          echo "***java tests***"
+
+          # get all of our unit test filenames
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" > /tmp/all_java_unit_tests.txt
+
+          # split up the unit tests into groups based on the number of containers we have
+          set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
+          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | sed "s;^/home/cassandra/cassandra/test/distributed/;;g" | grep "Test\.java$" | grep upgrade > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+          echo "** /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt"
+          cat /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+        no_output_timeout: 15m
+    - run:
+        name: Log Environment Information
+        command: |
+          echo '*** id ***'
+          id
+          echo '*** cat /proc/cpuinfo ***'
+          cat /proc/cpuinfo
+          echo '*** free -m ***'
+          free -m
+          echo '*** df -m ***'
+          df -m
+          echo '*** ifconfig -a ***'
+          ifconfig -a
+          echo '*** uname -a ***'
+          uname -a
+          echo '*** mount ***'
+          mount
+          echo '*** env ***'
+          env
+          echo '*** java ***'
+          which java
+          java -version
+    - run:
+        name: Run Unit Tests (testclasslist)
         command: |
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
@@ -19,7 +60,7 @@ jobs:
           if [ -d ~/dtest_jars ]; then
             cp ~/dtest_jars/dtest* /tmp/cassandra/build/
           fi
-          ant clean test-jvm-upgrade-dtest-forking
+          ant testclasslist -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -295,7 +336,7 @@ jobs:
     - attach_workspace:
         at: /home/cassandra
     - run:
-        name: Determine Unit Tests to Run
+        name: Determine unit Tests to Run
         command: |
           # reminder: this code (along with all the steps) is independently executed on every circle container
           # so the goal here is to get the circleci script to return the tests *this* container will run
@@ -309,7 +350,7 @@ jobs:
 
           # split up the unit tests into groups based on the number of containers we have
           set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
-          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | cut -c 37-1000000 | grep "Test\.java$" > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | sed "s;^/home/cassandra/cassandra/test/unit/;;g" | grep "Test\.java$"  > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
           echo "** /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt"
           cat /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
         no_output_timeout: 15m
@@ -341,6 +382,9 @@ jobs:
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
           cd /tmp/cassandra
+          if [ -d ~/dtest_jars ]; then
+            cp ~/dtest_jars/dtest* /tmp/cassandra/build/
+          fi
           ant testclasslist -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
         no_output_timeout: 15m
     - store_test_results:
@@ -437,7 +481,48 @@ jobs:
     - attach_workspace:
         at: /home/cassandra
     - run:
-        name: Run Unit Tests (test-jvm-dtest-forking)
+        name: Determine distributed Tests to Run
+        command: |
+          # reminder: this code (along with all the steps) is independently executed on every circle container
+          # so the goal here is to get the circleci script to return the tests *this* container will run
+          # which we do via the `circleci` cli tool.
+
+          rm -fr ~/cassandra-dtest/upgrade_tests
+          echo "***java tests***"
+
+          # get all of our unit test filenames
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" > /tmp/all_java_unit_tests.txt
+
+          # split up the unit tests into groups based on the number of containers we have
+          set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
+          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | sed "s;^/home/cassandra/cassandra/test/distributed/;;g" | grep "Test\.java$" | grep -v upgrade > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+          echo "** /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt"
+          cat /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+        no_output_timeout: 15m
+    - run:
+        name: Log Environment Information
+        command: |
+          echo '*** id ***'
+          id
+          echo '*** cat /proc/cpuinfo ***'
+          cat /proc/cpuinfo
+          echo '*** free -m ***'
+          free -m
+          echo '*** df -m ***'
+          df -m
+          echo '*** ifconfig -a ***'
+          ifconfig -a
+          echo '*** uname -a ***'
+          uname -a
+          echo '*** mount ***'
+          mount
+          echo '*** env ***'
+          env
+          echo '*** java ***'
+          which java
+          java -version
+    - run:
+        name: Run Unit Tests (testclasslist)
         command: |
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
@@ -445,7 +530,7 @@ jobs:
           if [ -d ~/dtest_jars ]; then
             cp ~/dtest_jars/dtest* /tmp/cassandra/build/
           fi
-          ant clean test-jvm-dtest-forking
+          ant testclasslist -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -529,7 +614,7 @@ jobs:
     - attach_workspace:
         at: /home/cassandra
     - run:
-        name: Determine Unit Tests to Run
+        name: Determine unit Tests to Run
         command: |
           # reminder: this code (along with all the steps) is independently executed on every circle container
           # so the goal here is to get the circleci script to return the tests *this* container will run
@@ -543,7 +628,7 @@ jobs:
 
           # split up the unit tests into groups based on the number of containers we have
           set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
-          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | cut -c 37-1000000 | grep "Test\.java$" > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | sed "s;^/home/cassandra/cassandra/test/unit/;;g" | grep "Test\.java$"  > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
           echo "** /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt"
           cat /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
         no_output_timeout: 15m
@@ -575,6 +660,9 @@ jobs:
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
           cd /tmp/cassandra
+          if [ -d ~/dtest_jars ]; then
+            cp ~/dtest_jars/dtest* /tmp/cassandra/build/
+          fi
           ant testclasslist-compression -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
         no_output_timeout: 15m
     - store_test_results:
@@ -602,7 +690,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 512M
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-  dtest_jars_build:
+  j8_dtest_jars_build:
     docker:
     - image: spod/cassandra-testing-ubuntu1810-java11-w-dependencies:20190306
     resource_class: medium
@@ -676,16 +764,6 @@ workflows:
   build_and_run_tests:
     jobs:
     - build
-    - start_jvm_upgrade_dtest:
-        type: approval
-        requires:
-        - build
-    - dtest_jars_build:
-        requires:
-        - start_jvm_upgrade_dtest
-    - j8_jvm_upgrade_dtests:
-        requires:
-        - dtest_jars_build
     - j8_unit_tests:
         requires:
         - build
@@ -706,6 +784,15 @@ workflows:
     - utests_compression:
         requires:
         - start_utests_compression
+    - start_jvm_upgrade_dtest:
+        type: approval
+    - j8_dtest_jars_build:
+        requires:
+        - build
+        - start_jvm_upgrade_dtest
+    - j8_jvm_upgrade_dtests:
+        requires:
+        - j8_dtest_jars_build
     - start_j8_dtests:
         type: approval
         requires:

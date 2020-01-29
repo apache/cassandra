@@ -23,6 +23,18 @@ j8_par_executor: &j8_par_executor
     #exec_resource_class: xlarge
   parallelism: 4
 
+j8_small_par_executor: &j8_small_par_executor
+  executor:
+    name: java8-executor
+    #exec_resource_class: xlarge
+  parallelism: 1
+
+j8_medium_par_executor: &j8_medium_par_executor
+  executor:
+    name: java8-executor
+    #exec_resource_class: xlarge
+  parallelism: 1
+
 j8_seq_executor: &j8_seq_executor
   executor:
     name: java8-executor
@@ -56,14 +68,13 @@ with_dtests_jobs: &with_dtest_jobs
                   - start_utests_compression
             - start_jvm_upgrade_dtest:
                 type: approval
+            - j8_dtest_jars_build:
                 requires:
                   - build
-            - dtest_jars_build:
-                requires:
                   - start_jvm_upgrade_dtest
             - j8_jvm_upgrade_dtests:
                 requires:
-                  - dtest_jars_build
+                  - j8_dtest_jars_build
             # Java 8 dtests (on request)
             - start_j8_dtests:
                 type: approval
@@ -130,7 +141,7 @@ jobs:
                 - cassandra
                 - .m2
 
-  dtest_jars_build:
+  j8_dtest_jars_build:
     executor: java8-executor
     parallelism: 1
     steps:
@@ -156,16 +167,24 @@ jobs:
     steps:
       - attach_workspace:
           at: /home/cassandra
-      - run_junit_tests:
-          target: test-jvm-dtest-forking
+      - create_junit_containers:
+          classlistprefix: distributed
+          extra_filters: "| grep -v upgrade"
+      - log_environment
+      - run_parallel_junit_tests:
+          classlistprefix: distributed
 
   j8_jvm_upgrade_dtests:
     <<: *j8_seq_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
-      - run_junit_tests:
-          target: test-jvm-upgrade-dtest-forking
+      - create_junit_containers:
+          classlistprefix: distributed
+          extra_filters: "| grep upgrade"
+      - log_environment
+      - run_parallel_junit_tests:
+          classlistprefix: distributed
 
   utests_long:
     <<: *j8_seq_executor
@@ -343,9 +362,16 @@ commands:
           ant eclipse-warnings
 
   create_junit_containers:
+    parameters:
+      classlistprefix:
+        type: string
+        default: unit
+      extra_filters:
+        type: string
+        default: ""
     steps:
     - run:
-        name: Determine Unit Tests to Run
+        name: Determine <<parameters.classlistprefix>> Tests to Run
         command: |
           # reminder: this code (along with all the steps) is independently executed on every circle container
           # so the goal here is to get the circleci script to return the tests *this* container will run
@@ -355,11 +381,11 @@ commands:
           echo "***java tests***"
 
           # get all of our unit test filenames
-          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/unit/**/*.java" > /tmp/all_java_unit_tests.txt
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/<<parameters.classlistprefix>>/**/*.java" > /tmp/all_java_unit_tests.txt
 
           # split up the unit tests into groups based on the number of containers we have
           set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
-          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | cut -c 37-1000000 | grep "Test\.java$" > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | sed "s;^/home/cassandra/cassandra/test/<<parameters.classlistprefix>>/;;g" | grep "Test\.java$" <<parameters.extra_filters>> > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
           echo "** /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt"
           cat /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
 
@@ -403,6 +429,9 @@ commands:
       no_output_timeout:
         type: string
         default: 15m
+      classlistprefix:
+        type: string
+        default: unit
     steps:
     - run:
         name: Run Unit Tests (<<parameters.target>>)
@@ -412,7 +441,10 @@ commands:
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
           cd /tmp/cassandra
-          ant <<parameters.target>> -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
+          if [ -d ~/dtest_jars ]; then
+            cp ~/dtest_jars/dtest* /tmp/cassandra/build/
+          fi
+          ant <<parameters.target>> -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=<<parameters.classlistprefix>>
         no_output_timeout: <<parameters.no_output_timeout>>
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
