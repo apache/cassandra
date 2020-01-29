@@ -34,6 +34,7 @@ import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SyncUtil;
 
@@ -161,7 +162,7 @@ final class HintsCatalog
                 FileUtils.handleFSErrorAndPropagate(e);
             }
         }
-        else
+        else if (!FBUtilities.isWindows)
         {
             logger.error("Unable to open directory {}", hintsDirectory.getAbsolutePath());
             FileUtils.handleFSErrorAndPropagate(new FSWriteError(new IOException(String.format("Unable to open hint directory %s", hintsDirectory.getAbsolutePath())), hintsDirectory.getAbsolutePath()));
