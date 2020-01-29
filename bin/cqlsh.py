@@ -412,24 +412,6 @@ def insert_driver_hooks():
     # Return cassandra.cqltypes.EMPTY instead of None for empty values
     cassandra.cqltypes.CassandraType.support_empty_values = True
 
-#
-#class FrozenType(cassandra.cqltypes._ParameterizedType):
-#    """
-#    Needed until the bundled python driver adds FrozenType.
-#    """
-#    typename = "frozen"
-#    num_subtypes = 1
-#
-#    @classmethod
-#    def deserialize_safe(cls, byts, protocol_version):
-#        subtype, = cls.subtypes
-#        return subtype.from_binary(byts)
-#
-#    @classmethod
-#    def serialize_safe(cls, val, protocol_version):
-#        subtype, = cls.subtypes
-#        return subtype.to_binary(val, protocol_version)
-#
 
 class Shell(cmd.Cmd):
     custom_prompt = os.getenv('CQLSH_PROMPT', '')
@@ -781,7 +763,7 @@ class Shell(cmd.Cmd):
         partition_key_columns.sort(key=lambda t: t[0])
         clustering_columns.sort(key=lambda t: t[0])
 
-        table.partition_key  = map(lambda t: t[1], partition_key_columns)
+        table.partition_key = map(lambda t: t[1], partition_key_columns)
         table.clustering_key = map(lambda t: t[1], clustering_columns)
 
     def get_keyspaces(self):
@@ -933,14 +915,14 @@ class Shell(cmd.Cmd):
                 else:
                     readline.parse_and_bind(self.completekey + ": complete")
         # start coverage collection if requested, unless in subshell
-        if self.coverage == True and not self.is_subshell:
+        if self.coverage is True and not self.is_subshell:
             # check for coveragerc file, write it if missing
             if os.path.exists(HISTORY_DIR):
                 self.coveragerc_path = os.path.join(HISTORY_DIR, '.coveragerc')
                 covdata_path = os.path.join(HISTORY_DIR, '.coverage')
                 if not os.path.isfile(self.coveragerc_path):
                     with open(self.coveragerc_path, 'w') as f:
-                        f.writelines(["[run]\n", 
+                        f.writelines(["[run]\n",
                                       "concurrency = multiprocessing\n",
                                       "data_file = {}\n".format(covdata_path),
                                       "parallel = true\n"]

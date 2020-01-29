@@ -93,9 +93,7 @@ class Py36SaferScanner(SaferScannerBase):
         s.flags = flags
         for phrase, action in lexicon:
             gid = s.opengroup()
-            p.append(re.sre_parse.SubPattern(s, [
-                (SUBPATTERN, (gid, 0, 0, re.sre_parse.parse(phrase, flags))),
-                ]))
+            p.append(re.sre_parse.SubPattern(s, [(SUBPATTERN, (gid, 0, 0, re.sre_parse.parse(phrase, flags))), ]))
             s.closegroup(gid, p[-1])
         p = re.sre_parse.SubPattern(s, [(BRANCH, (None, p))])
         self.p = p

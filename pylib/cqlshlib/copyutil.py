@@ -1906,7 +1906,6 @@ class ImportConversion(object):
         select_query = 'SELECT * FROM %s.%s WHERE %s' % (protect_name(parent.ks),
                                                          protect_name(parent.table),
                                                          where_clause)
-        #return parent.session.prepare(select_query)
         return parent.session.prepare(ImportConversion.text_wrapper(select_query))
 
     @staticmethod
@@ -2509,19 +2508,13 @@ class ImportProcess(ChildProcess):
         for row in batch['rows']:
             where_clause = []
             set_clause = []
+
             for i, value in enumerate(row):
                 if i in conv.primary_key_indexes:
                     where_clause.append(ImportConversion.text_wrapper("{}={}").format(self.valid_columns[i], value))
-                    #if six.PY2:
-                    #    where_clause.append("{}={}".format(unicode(self.valid_columns[i], encoding='utf-8'), unicode(value, encoding='utf-8')))
-                    #else:
-                    #    where_clause.append("{}={}".format(self.valid_columns[i], value))
                 else:
                     set_clause.append(ImportConversion.text_wrapper("{}={}+{}").format(self.valid_columns[i], self.valid_columns[i], value))
-                    #if six.PY2:
-                    #    set_clause.append("{}={}+{}".format(unicode(self.valid_columns[i], encoding='utf-8'), unicode(self.valid_columns[i], encoding='utf-8'), value))
-                    #else:
-                    #    set_clause.append("{}={}+{}".format(self.valid_columns[i], self.valid_columns[i], value))
+
             full_query_text = query % (ImportConversion.text_wrapper(',').join(set_clause), ImportConversion.text_wrapper(' AND ').join(where_clause))
             statement.add(self.text_wrapper(full_query_text))
         return statement
@@ -2690,7 +2683,7 @@ class ImportProcess(ChildProcess):
         chunk['imported'] += len(rows)
         if chunk['imported'] == chunk['num_rows_sent']:
             self.outmsg.send(ImportProcessResult(chunk['num_rows_sent']))
-    
+
     def text_wrapper(self, text):
         return text.encode(encoding='utf-8') if (six.PY2 and isinstance(text, six.text_type)) else text
 
