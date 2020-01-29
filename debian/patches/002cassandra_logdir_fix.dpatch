@@ -20,12 +20,12 @@ diff -urNad '--exclude=CVS' '--exclude=.svn' '--exclude=.git' '--exclude=.arch' 
 diff -urNad '--exclude=CVS' '--exclude=.svn' '--exclude=.git' '--exclude=.arch' '--exclude=.hg' '--exclude=_darcs' '--exclude=.bzr' cassandra~/conf/cassandra-env.sh cassandra/conf/cassandra-env.sh
 --- cassandra~/conf/cassandra-env.sh	2019-06-27 09:35:32.000000000 -0500
 +++ cassandra/conf/cassandra-env.sh	2019-06-27 09:42:25.747715490 -0500
-@@ -122,7 +122,7 @@
- esac
- 
+@@ -123,7 +123,7 @@ esac
+
+ # Sets the path where logback and GC logs are written.
+ if [ "x$CASSANDRA_LOG_DIR" = "x" ] ; then
+-    CASSANDRA_LOG_DIR="$CASSANDRA_HOME/logs"
++    CASSANDRA_LOG_DIR="/var/log/cassandra/"
+ fi
+
  #GC log path has to be defined here because it needs to access CASSANDRA_HOME
--JVM_OPTS="$JVM_OPTS -Xloggc:${CASSANDRA_HOME}/logs/gc.log"
-+JVM_OPTS="$JVM_OPTS -Xloggc:/var/log/cassandra/gc.log"
- 
- # Here we create the arguments that will get passed to the jvm when
- # starting cassandra.
