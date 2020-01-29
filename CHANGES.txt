@@ -25,7 +25,7 @@ Merged from 2.2:
  * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
  * In-JVM DTest: Support NodeTool in dtest (CASSANDRA-15429)
-
+ * Fix NativeLibrary.tryOpenDirectory callers for Windows (CASSANDRA-15426)
 3.11.5
  * Fix SASI non-literal string comparisons (range operators) (CASSANDRA-15169)
  * Make sure user defined compaction transactions are always closed (CASSANDRA-15123)
