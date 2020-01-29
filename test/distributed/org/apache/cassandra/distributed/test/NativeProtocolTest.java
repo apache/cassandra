@@ -56,4 +56,23 @@ public class NativeProtocolTest extends DistributedTestBase
             cluster.close();
         }
     }
+
+    @Test
+    public void withCounters() throws Throwable
+    {
+        try (Cluster dtCluster = init(Cluster.create(3,
+                config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))))
+        {
+            final com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+            Session session = cluster.connect();
+            session.execute("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck counter, PRIMARY KEY (pk));");
+            session.execute("UPDATE " + KEYSPACE + ".tbl set ck = ck + 10 where pk = 1;");
+            Statement select = new SimpleStatement("select * from " + KEYSPACE + ".tbl;").setConsistencyLevel(ConsistencyLevel.ALL);
+            final ResultSet resultSet = session.execute(select);
+            assertRows(resultSet, row(1, 10L));
+            Assert.assertEquals(3, cluster.getMetadata().getAllHosts().size());
+            session.close();
+            cluster.close();
+        }
+    }
 }
