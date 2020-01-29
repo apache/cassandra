@@ -2098,7 +2098,7 @@
   </target>
 
 
-  <!-- Publish artifacts to Maven repositories -->
+  <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"
           depends="maven-declare-dependencies,jar,sources-jar,javadoc-jar"
           description="Installs the artifacts in the Maven Local Repository">
@@ -2129,8 +2129,9 @@
              classifier="javadoc"/>
   </target>
 
+  <!-- Publish artifacts to remote Maven repository -->
   <target name="publish"
-          depends="mvn-install"
+          depends="mvn-install,artifacts"
           if="release"
           description="Publishes the artifacts to the Maven repository">
 
