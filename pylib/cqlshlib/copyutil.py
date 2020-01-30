@@ -708,18 +708,19 @@ class ExportTask(CopyTask):
             """
             ret = (prev, curr)
             if begin_token:
-                if ret[1] < begin_token:
+                if curr < begin_token:
                     return None
-                elif ret[0] < begin_token:
-                    ret = (begin_token, ret[1])
+                elif (prev is None) or (prev < begin_token):
+                    ret = (begin_token, curr)
 
             if end_token:
-                if ret[0] > end_token:
+                if (ret[0] is not None) and (ret[0] > end_token):
                     return None
-                elif ret[1] > end_token:
+                elif (curr is not None) and (curr > end_token):
                     ret = (ret[0], end_token)
 
             return ret
+
 
         def make_range_data(replicas=None):
             hosts = []
