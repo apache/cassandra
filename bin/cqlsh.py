@@ -21,6 +21,8 @@
 # bash code here; finds a suitable python interpreter and execs this file.
 # this implementation of cqlsh is compatible with both Python 3 and Python 2.7.
 # prefer unqualified "python" if suitable:
+python -c 'import sys; sys.exit(not (0x020700b0 < sys.hexversion))' 2>/dev/null \
+    && exec python "$0" "$@"
 for pyver in 3 2.7; do
     which python$pyver > /dev/null 2>&1 && exec python$pyver "$0" "$@"
 done
@@ -45,15 +47,7 @@ from contextlib import contextmanager
 from glob import glob
 from uuid import UUID
 
-try:
-    # Python 3 modules
-    import configparser
-    from io import StringIO
-except ImportError:
-    import ConfigParser as configparser
-    import StringIO
-
-if sys.version_info[0] != 3 and (sys.version_info[0] == 2 and sys.version_info[1] != 7):
+if sys.version_info.major != 3 and (sys.version_info.major == 2 and sys.version_info.minor != 7):
     sys.exit("\nCQL Shell supports only Python 3 or Python 2.7\n")
 
 # see CASSANDRA-10428
@@ -146,6 +140,11 @@ for lib in third_parties:
         sys.path.insert(0, lib_zip)
 
 import six
+
+from six.moves import configparser
+from six import StringIO
+from six.moves import input
+from six import ensure_text, ensure_str
 
 warnings.filterwarnings("ignore", r".*blist.*")
 try:
@@ -620,7 +619,7 @@ class Shell(cmd.Cmd):
         result, = self.session.execute("select * from system.local where key = 'local'")
         vers = {
             'build': result['release_version'],
-            'protocol': self.conn.protocol_version,
+            'protocol': result['native_protocol_version'],
             'cql': result['cql_version'],
         }
         self.connection_versions = vers
@@ -670,7 +669,7 @@ class Shell(cmd.Cmd):
         try:
             user_type = ks_meta.user_types[typename]
         except KeyError:
-            raise UserTypeNotFound("User type '{}' not found".format(typename))
+            raise UserTypeNotFound("User type {!r} not found".format(typename))
 
         return list(zip(user_type.field_names, user_type.field_types))
 
@@ -729,7 +728,7 @@ class Shell(cmd.Cmd):
     def fetch_virtual_tables(self, keyspace_name):
         tables = []
 
-        result = self.session.execute("SELECT * FROM system_virtual_schema.tables WHERE keyspace_name = '{}';".format(keyspace_name))
+        result = self.session.execute("SELECT * FROM system_virtual_schema.tables WHERE keyspace_name = {!r};".format(keyspace_name))
         for row in result:
             name = row['table_name']
             table = TableMetadata(keyspace_name, name)
@@ -740,7 +739,7 @@ class Shell(cmd.Cmd):
 
     # TODO remove after virtual tables are added to connection metadata
     def fetch_virtual_columns(self, table):
-        result = self.session.execute("SELECT * FROM system_virtual_schema.columns WHERE keyspace_name = '{}' AND table_name = '{}';".format(table.keyspace_name, table.name))
+        result = self.session.execute("SELECT * FROM system_virtual_schema.columns WHERE keyspace_name = {!r} AND table_name = {!r};".format(table.keyspace_name, table.name))
 
         partition_key_columns = []
         clustering_columns = []
@@ -781,7 +780,7 @@ class Shell(cmd.Cmd):
             if ksname == 'system_auth' and tablename in ['roles', 'role_permissions']:
                 self.get_fake_auth_table_meta(ksname, tablename)
             else:
-                raise ColumnFamilyNotFound("Column family '{}' not found".format(tablename))
+                raise ColumnFamilyNotFound("Column family {!r} not found".format(tablename))
         else:
             return ksmeta.tables[tablename]
 
@@ -802,7 +801,7 @@ class Shell(cmd.Cmd):
             table_meta.columns['resource'] = ColumnMetadata(table_meta, 'resource', cassandra.cqltypes.UTF8Type)
             table_meta.columns['permission'] = ColumnMetadata(table_meta, 'permission', cassandra.cqltypes.UTF8Type)
         else:
-            raise ColumnFamilyNotFound("Column family '{}' not found".format(tablename))
+            raise ColumnFamilyNotFound("Column family {!r} not found".format(tablename))
 
     def get_index_meta(self, ksname, idxname):
         if ksname is None:
@@ -810,7 +809,7 @@ class Shell(cmd.Cmd):
         ksmeta = self.get_keyspace_meta(ksname)
 
         if idxname not in ksmeta.indexes:
-            raise IndexNotFound("Index '{}' not found".format(idxname))
+            raise IndexNotFound("Index {!r} not found".format(idxname))
 
         return ksmeta.indexes[idxname]
 
@@ -820,7 +819,7 @@ class Shell(cmd.Cmd):
         ksmeta = self.get_keyspace_meta(ksname)
 
         if viewname not in ksmeta.views:
-            raise MaterializedViewNotFound("Materialized view '{}' not found".format(viewname))
+            raise MaterializedViewNotFound("Materialized view {!r} not found".format(viewname))
         return ksmeta.views[viewname]
 
     def get_object_meta(self, ks, name):
@@ -828,7 +827,7 @@ class Shell(cmd.Cmd):
             if ks and ks in self.conn.metadata.keyspaces:
                 return self.conn.metadata.keyspaces[ks]
             elif self.current_keyspace is None:
-                raise ObjectNotFound("'{}' not found in keyspaces".format(ks))
+                raise ObjectNotFound("{!r} not found in keyspaces".format(ks))
             else:
                 name = ks
                 ks = self.current_keyspace
@@ -845,7 +844,7 @@ class Shell(cmd.Cmd):
         elif name in ksmeta.views:
             return ksmeta.views[name]
 
-        raise ObjectNotFound("'{}' not found in keyspace '{}'".format(name, ks))
+        raise ObjectNotFound("{!r} not found in keyspace {!r}".format(name, ks))
 
     def get_usertypes_meta(self):
         data = self.session.execute("select * from system.schema_usertypes")
@@ -861,15 +860,6 @@ class Shell(cmd.Cmd):
         return [trigger.name
                 for table in list(self.get_keyspace_meta(ksname).tables.values())
                 for trigger in list(table.triggers.values())]
-
-    def _input(self, prompt):
-        """Call Python 3 input() or Python 2 raw_input()"""
-        lastcmd = None
-        if six.PY3:
-            lastcmd = input(prompt)
-        elif six.PY2:
-            lastcmd = raw_input(prompt).decode(self.encoding)
-        return lastcmd
 
     def reset_statement(self):
         self.reset_prompt()
@@ -915,7 +905,7 @@ class Shell(cmd.Cmd):
                 else:
                     readline.parse_and_bind(self.completekey + ": complete")
         # start coverage collection if requested, unless in subshell
-        if self.coverage is True and not self.is_subshell:
+        if self.coverage and not self.is_subshell:
             # check for coveragerc file, write it if missing
             if os.path.exists(HISTORY_DIR):
                 self.coveragerc_path = os.path.join(HISTORY_DIR, '.coveragerc')
@@ -941,7 +931,7 @@ class Shell(cmd.Cmd):
 
     def get_input_line(self, prompt=''):
         if self.tty:
-            self.lastcmd = self._input(prompt)
+            self.lastcmd = input(prompt)
             line = self.lastcmd + '\n'
         else:
             self.lastcmd = self.stdin.readline()
@@ -949,8 +939,7 @@ class Shell(cmd.Cmd):
             if not len(line):
                 raise EOFError
         self.lineno += 1
-        if six.PY2 and isinstance(line, str):
-            line = unicode(line, encoding='utf-8')
+        line = ensure_text(line)
         return line
 
     def use_stdin_reader(self, until='', prompt=''):
@@ -1090,8 +1079,7 @@ class Shell(cmd.Cmd):
         self.tracing_enabled = tracing_was_enabled
 
     def perform_statement(self, statement):
-        if six.PY2:
-            statement = statement.encode(encoding='utf-8')
+        statement = ensure_str(statement)
 
         stmt = SimpleStatement(statement, consistency_level=self.consistency_level, serial_consistency_level=self.serial_consistency_level, fetch_size=self.page_size if self.use_paging else None)
         success, future = self.perform_simple_statement(stmt)
@@ -1127,7 +1115,7 @@ class Shell(cmd.Cmd):
             try:
                 return self.get_view_meta(ks, name)
             except MaterializedViewNotFound:
-                raise ObjectNotFound("'{}' not found in keyspace '{}'".format(name, ks))
+                raise ObjectNotFound("{!r} not found in keyspace {!r}".format(name, ks))
 
     def parse_for_update_meta(self, query_string):
         try:
@@ -1147,9 +1135,7 @@ class Shell(cmd.Cmd):
         try:
             result = future.result()
         except CQL_ERRORS as err:
-            err_msg = err.message if hasattr(err, 'message') else str(err)
-            if six.PY2:
-                err_msg = err_msg.decode(encoding='utf-8')
+            err_msg = ensure_text(err.message if hasattr(err, 'message') else str(err))
             self.printerr(str(err.__class__.__name__) + ": " + err_msg)
         except Exception:
             import traceback
@@ -1446,7 +1432,7 @@ class Shell(cmd.Cmd):
         ksmeta = self.get_keyspace_meta(ksname)
         functions = [f for f in list(ksmeta.functions.values()) if f.name == functionname]
         if len(functions) == 0:
-            raise FunctionNotFound("User defined function '{}' not found".format(functionname))
+            raise FunctionNotFound("User defined function {!r} not found".format(functionname))
         print("\n\n".join(func.export_as_string() for func in functions))
         print('')
 
@@ -1471,7 +1457,7 @@ class Shell(cmd.Cmd):
         ksmeta = self.get_keyspace_meta(ksname)
         aggregates = [f for f in list(ksmeta.aggregates.values()) if f.name == aggregatename]
         if len(aggregates) == 0:
-            raise FunctionNotFound("User defined aggregate '{}' not found".format(aggregatename))
+            raise FunctionNotFound("User defined aggregate {!r} not found".format(aggregatename))
         print("\n\n".join(aggr.export_as_string() for aggr in aggregates))
         print('')
 
@@ -1497,7 +1483,7 @@ class Shell(cmd.Cmd):
         try:
             usertype = ksmeta.user_types[typename]
         except KeyError:
-            raise UserTypeNotFound("User type '{}' not found".format(typename))
+            raise UserTypeNotFound("User type {!r} not found".format(typename))
         print(usertype.export_as_string())
 
     def _columnize_unicode(self, name_list, quote=False):
@@ -2208,8 +2194,7 @@ class Shell(cmd.Cmd):
             text = "{}".format(text)
 
         to_write = self.applycolor(text, color) + ('\n' if newline else '')
-        if six.PY2:
-            to_write = to_write.encode('utf8')
+        to_write = ensure_str(to_write)
         out.write(to_write)
 
     def flush_output(self):

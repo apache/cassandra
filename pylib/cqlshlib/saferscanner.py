@@ -65,25 +65,6 @@ class Py2SaferScanner(SaferScannerBase):
         self.p = p
         self.scanner = re.sre_compile.compile(p)
 
-
-class Py35SaferScanner(SaferScannerBase):
-
-    def __init__(self, lexicon, flags=0):
-        self.lexicon = lexicon
-        p = []
-        s = re.sre_parse.Pattern()
-        s.flags = flags
-        for phrase, action in lexicon:
-            gid = s.opengroup()
-            p.append(re.sre_parse.SubPattern(s, [
-                (SUBPATTERN, (gid, self.subpat(phrase, flags))),
-            ]))
-            s.closegroup(gid, p[-1])
-        p = re.sre_parse.SubPattern(s, [(BRANCH, (None, p))])
-        self.p = p
-        self.scanner = re.sre_compile.compile(p)
-
-
 class Py36SaferScanner(SaferScannerBase):
 
     def __init__(self, lexicon, flags=0):

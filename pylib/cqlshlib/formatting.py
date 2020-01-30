@@ -23,8 +23,9 @@ import math
 import os
 import re
 import sys
-import six
 import platform
+
+from six import ensure_text
 
 from collections import defaultdict
 
@@ -207,10 +208,7 @@ class CqlType(object):
 
 
 def format_value_default(val, colormap, **_):
-    val = str(val)
-    if six.PY2 and not isinstance(val, six.text_type):
-        # make sure value is unicode in Python 2
-        val = unicode(val, encoding='utf-8')
+    val = ensure_text(str(val))
     escapedval = val.replace('\\', '\\\\')
     bval = controlchars_re.sub(_show_control_chars, escapedval)
     return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap)
@@ -244,10 +242,7 @@ def formatter_for(typname):
 
 @formatter_for('bytearray')
 def format_value_blob(val, colormap, **_):
-    bval = '0x' + binascii.hexlify(val) if six.PY2 else '0x' + str(binascii.hexlify(val))[2:-1]
-    if six.PY2 and not isinstance(bval, six.text_type):
-        # make sure value is unicode in Python 2
-        bval = unicode(bval, encoding='utf-8')
+    bval = ensure_text('0x') + ensure_text(binascii.hexlify(val))
     return colorme(bval, colormap, 'blob')
 
 
@@ -256,7 +251,7 @@ formatter_for('blob')(format_value_blob)
 
 
 def format_python_formatted_type(val, colormap, color, quote=False):
-    bval = unicode(str(val), encoding='utf8') if six.PY2 else str(val)
+    bval = ensure_text(str(val))
     if quote:
         bval = "'%s'" % bval
     return colorme(bval, colormap, color)
@@ -326,8 +321,7 @@ formatter_for('double')(format_floating_point_type)
 def format_integer_type(val, colormap, thousands_sep=None, **_):
     # base-10 only for now; support others?
     bval = format_integer_with_thousands_sep(val, thousands_sep) if thousands_sep else str(val)
-    if six.PY2 and not isinstance(bval, six.text_type):
-        bval = unicode(bval, encoding='utf8')
+    bval = ensure_text(bval)
     return colorme(bval, colormap, 'int')
 
 
@@ -362,7 +356,7 @@ def format_value_timestamp(val, colormap, date_time_format, quote=False, **_):
         if date_time_format.milliseconds_only:
             bval = round_microseconds(bval)
     else:
-        bval = unicode(val, encoding='utf-8') if six.PY2 and not isinstance(val, six.text_type) else str(val)
+        bval = ensure_text(str(val))
 
     if quote:
         bval = "'%s'" % bval
@@ -541,7 +535,7 @@ def format_value_tuple(val, cqltype, encoding, colormap, date_time_format, float
 @formatter_for('set')
 def format_value_set(val, cqltype, encoding, colormap, date_time_format, float_precision, nullval,
                      decimal_sep, thousands_sep, boolean_styles, **_):
-    return format_simple_collection(sorted(val), cqltype, '{', '}', encoding, colormap,
+    return format_simple_collection(val, cqltype, '{', '}', encoding, colormap,
                                     date_time_format, float_precision, nullval,
                                     decimal_sep, thousands_sep, boolean_styles)
 
