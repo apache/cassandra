@@ -34,7 +34,7 @@ Cassandra 4.0 has a binary full query log based on Chronicle Queue that can be c
 
 Objective
 ^^^^^^^^^^ 
-Full Query Logging logs all requests to the CQL interface. The full query logs could be used for debugging, performance benchmarking, testing and auditing CQL queries. The audit logs also include CQL requests but full query logging is dedicated to CQL requests only with features such as FQL replay and FQL compare that are not available in audit logging.  
+Full Query Logging logs all requests to the CQL interface. The full query logs could be used for debugging, performance benchmarking, testing and auditing CQL queries. The audit logs also include CQL requests but full query logging is dedicated to CQL requests only with features such as FQL Replay and FQL Compare that are not available in audit logging.  
 
 Full Query Logger
 ^^^^^^^^^^^^^^^^^^ 
