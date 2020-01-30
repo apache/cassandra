@@ -34,11 +34,11 @@ Cassandra 4.0 has a binary full query log based on Chronicle Queue that can be c
 
 Objective
 ^^^^^^^^^^ 
-Full Query Logging logs all requests to the CQL interface. The full query logs could be used for debugging, performance benchmarking,  testing and auditing CQL queries. The audit logs also include CQL requests but full query logging is dedicated to CQL requests only with features such as FQL replay and FQL compare that are not available in audit logging. Audit logging is for auditing the database activity and may be improved to add auditing of other database activity beside authorization and CQL in future versions. 
+Full Query Logging logs all requests to the CQL interface. The full query logs could be used for debugging, performance benchmarking,  testing and auditing CQL queries. The audit logs also include CQL requests but full query logging is dedicated to CQL requests only with features such as FQL replay and FQL compare that are not available in audit logging.  
 
 Full Query Logger
 ^^^^^^^^^^^^^^^^^^ 
-The Full Query Logger is a logger that logs entire query contents after the query finishes (or times out). Queries are logged in one of two modes: single query or batch of queries. The log for an invocation of a batch of queries includes the following attributes:
+The Full Query Logger is a logger that logs entire query contents after the query finishes. FQL only logs the queries that successfully complete. The other queries (e.g. timed out, failed) are not to be logged. Queries are logged in one of two modes: single query or batch of queries. The log for an invocation of a batch of queries includes the following attributes:
 
 ::
 
@@ -49,7 +49,7 @@ The Full Query Logger is a logger that logs entire query contents after the quer
  queryState - Timestamp state associated with the query invocation
  batchTimeMillis - Approximate time in milliseconds since the epoch since the batch was invoked
 
-Bin log is a  quick and dirty binary log that is kind of a NIH version of binary logging with a traditional logging framework. It's goal is good enough performance, predictable footprint, simplicity in terms of implementation and configuration and most importantly minimal impact on producers of log records. Performance safety is accomplished by feeding items to the binary log using a weighted queue and dropping records if the binary log falls sufficiently far behind. Simplicity and good enough performance is achieved by using a single log writing thread as well as Chronicle Queue to handle writing the log, making it available for readers, as well as log rolling.
+Full query logging is backed up by ``BinLog``. BinLog is a quick and dirty binary log. Its goal is good enough performance, predictable footprint, simplicity in terms of implementation and configuration and most importantly minimal impact on producers of log records. Performance safety is accomplished by feeding items to the binary log using a weighted queue and dropping records if the binary log falls sufficiently far behind. Simplicity and good enough performance is achieved by using a single log writing thread as well as Chronicle Queue to handle writing the log, making it available for readers, as well as log rolling.
 
 Weighted queue is a wrapper around any blocking queue that turns it into a blocking weighted queue. The queue will weigh each element being added and removed. Adding to the queue is blocked if adding would violate the weight bound. If an element weighs in at larger than the capacity of the queue then exactly one such element will be allowed into the queue at a time. If the weight of an object changes after it is added it could create issues. Checking weight should be cheap so memorize expensive to compute weights. If weight throws that can also result in leaked permits so it's always a good idea to memorize weight so it doesn't throw. In the interests of not writing unit tests for methods no one uses there is a lot of ``UnsupportedOperationException``. If you need them then add them and add proper unit tests to ``WeightedQueueTest``. "Good" tests. 100% coverage including exception paths and resource leaks.
 
