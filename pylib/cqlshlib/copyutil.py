@@ -2220,7 +2220,8 @@ class ImportConversion(object):
                 val = serialize(i, row[i])
                 length = len(val)
                 pk_values.append(struct.pack(">H%dsB" % length, length, val, 0))
-            return ensure_str(b"".join(pk_values))
+
+            return b"".join(pk_values)
 
         if len(partition_key_indexes) == 1:
             return serialize_row_single
