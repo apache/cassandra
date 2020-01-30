@@ -65,6 +65,7 @@ class Py2SaferScanner(SaferScannerBase):
         self.p = p
         self.scanner = re.sre_compile.compile(p)
 
+
 class Py36SaferScanner(SaferScannerBase):
 
     def __init__(self, lexicon, flags=0):
