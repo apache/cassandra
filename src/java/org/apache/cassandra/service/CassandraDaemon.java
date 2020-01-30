@@ -202,6 +202,8 @@ public class CassandraDaemon
 
         NativeLibrary.tryMlockall();
 
+        CommitLog.instance.start();
+
         try
         {
             startupChecks.verify();

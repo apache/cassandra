@@ -24,11 +24,12 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public class SimpleDateSerializerTest
 {
-    private static final long millisPerDay = 1000 * 60 * 60 * 24;
+    private static final long millisPerDay = ChronoUnit.DAYS.getDuration().toMillis();
 
     private String dates[] = new String[]
     {
@@ -38,7 +39,7 @@ public class SimpleDateSerializerTest
             "-0001-01-02",
             "-5877521-01-02",
             "2014-01-01",
-            "5881580-01-10",
+            "+5881580-01-10", // See java.time.format.SignStyle.EXCEEDS_PAD
             "1920-12-01",
             "1582-10-19"
     };

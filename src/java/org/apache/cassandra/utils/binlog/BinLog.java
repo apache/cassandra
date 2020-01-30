@@ -53,6 +53,9 @@ public class BinLog implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(BinLog.class);
 
+    public static final String VERSION = "version";
+    public static final String TYPE = "type";
+
     private ChronicleQueue queue;
     private ExcerptAppender appender;
     @VisibleForTesting
@@ -63,7 +66,19 @@ public class BinLog implements Runnable
     private static final ReleaseableWriteMarshallable NO_OP = new ReleaseableWriteMarshallable()
     {
         @Override
-        public void writeMarshallable(WireOut wire)
+        protected long version()
+        {
+            return 0;
+        }
+
+        @Override
+        protected String type()
+        {
+            return "no-op";
+        }
+
+        @Override
+        public void writeMarshallablePayload(WireOut wire)
         {
         }
 
@@ -229,6 +244,21 @@ public class BinLog implements Runnable
 
     public abstract static class ReleaseableWriteMarshallable implements WriteMarshallable
     {
+        @Override
+        public final void writeMarshallable(WireOut wire)
+        {
+            wire.write(VERSION).int16(version());
+            wire.write(TYPE).text(type());
+
+            writeMarshallablePayload(wire);
+        }
+
+        protected abstract long version();
+
+        protected abstract String type();
+
+        protected abstract void writeMarshallablePayload(WireOut wire);
+
         public abstract void release();
     }
 }

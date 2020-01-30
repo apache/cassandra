@@ -19,6 +19,7 @@ package org.apache.cassandra.dht;
 
 import java.util.Collections;
 
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -42,6 +43,7 @@ public class StreamStateStoreTest
     public static void initDD()
     {
         DatabaseDescriptor.daemonInitialization();
+        CommitLog.instance.start();
     }
 
     @Test

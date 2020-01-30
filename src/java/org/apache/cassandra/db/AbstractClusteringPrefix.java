@@ -20,10 +20,6 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import com.google.common.hash.Hasher;
-
-import org.apache.cassandra.utils.HashingUtils;
-
 public abstract class AbstractClusteringPrefix implements ClusteringPrefix
 {
     public ClusteringPrefix clustering()
@@ -42,15 +38,15 @@ public abstract class AbstractClusteringPrefix implements ClusteringPrefix
         return size;
     }
 
-    public void digest(Hasher hasher)
+    public void digest(Digest digest)
     {
         for (int i = 0; i < size(); i++)
         {
             ByteBuffer bb = get(i);
             if (bb != null)
-                HashingUtils.updateBytes(hasher, bb.duplicate());
+                digest.update(bb);
         }
-        HashingUtils.updateWithByte(hasher, kind().ordinal());
+        digest.updateWithByte(kind().ordinal());
     }
 
     @Override

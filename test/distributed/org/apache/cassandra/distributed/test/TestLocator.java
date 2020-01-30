@@ -39,14 +39,18 @@ public class TestLocator
     public static void main(String[] args) throws Throwable
     {
         String outputFileName = defaultOutputFileName;
-        if (args.length == 1)
+        if (args.length >= 1)
         {
             outputFileName = args[0];
         }
+        String testPackage = TestLocator.testPackage;
+        if (args.length == 2)
+            testPackage = args[1];
         try (FileWriter fileWriter = new FileWriter(outputFileName);
              PrintWriter printWriter = new PrintWriter(fileWriter))
         {
             printWriter.println("#!/bin/bash");
+            printWriter.println("ret=0");
             for (Class testClass : locateClasses(testPackage))
             {
                 for (Method method : testClass.getMethods())
@@ -57,8 +61,10 @@ public class TestLocator
                     printWriter.println(String.format(testCommandFormat,
                                                       testClass.getName(),
                                                       method.getName()));
+                    printWriter.println("if [ $? -ne 0 ]; then ret=1; fi");
                 }
             }
+            printWriter.println("exit $ret");
         }
     }
 

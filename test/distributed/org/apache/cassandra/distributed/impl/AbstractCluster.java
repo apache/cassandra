@@ -43,7 +43,6 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
@@ -180,6 +179,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                 return delegate().liveMemberCount();
 
             throw new IllegalStateException("Cannot get live member count on shutdown instance");
+        }
+
+        public int nodetool(String... commandAndArgs)
+        {
+            return delegate().nodetool(commandAndArgs);
         }
 
         public long killAttempts()
@@ -492,7 +496,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             return;
         }
         InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
-        get(cl.getGeneration()).uncaughtException(thread, error);
+        get(cl.getInstanceId()).uncaughtException(thread, error);
     }
 
     protected interface Factory<I extends IInstance, C extends AbstractCluster<I>>
@@ -658,6 +662,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             long token = Long.MIN_VALUE + 1, increment = 2 * (Long.MAX_VALUE / nodeCount);
 
             String ipPrefix = "127.0." + subnet + ".";
+            String seedIp = ipPrefix + "1";
 
             NetworkTopology networkTopology = NetworkTopology.build(ipPrefix, 7012, nodeIdTopology);
 
@@ -665,7 +670,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             {
                 int nodeNum = i + 1;
                 String ipAddress = ipPrefix + nodeNum;
-                InstanceConfig config = InstanceConfig.generate(i + 1, ipAddress, networkTopology, root, String.valueOf(token));
+                InstanceConfig config = InstanceConfig.generate(i + 1, ipAddress, networkTopology, root, String.valueOf(token), seedIp);
                 if (configUpdater != null)
                     configUpdater.accept(config);
                 configs.add(config);

@@ -21,12 +21,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import com.google.common.hash.Hasher;
-
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HashingUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
@@ -56,10 +54,10 @@ public abstract class CellPath
         return size;
     }
 
-    public void digest(Hasher hasher)
+    public void digest(Digest digest)
     {
         for (int i = 0; i < size(); i++)
-            HashingUtils.updateBytes(hasher, get(i).duplicate());
+            digest.update(get(i));
     }
 
     public abstract CellPath copy(AbstractAllocator allocator);

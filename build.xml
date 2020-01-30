@@ -63,6 +63,9 @@
     <property name="test.microbench.src" value="${test.dir}/microbench"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="test.compression_algo" value="LZ4"/>
+    <property name="test.distributed.listfile" value="ant-jvm-dtest-list"/>
+    <property name="test.distributed.upgrade.listfile" value="ant-jvm-dtest-upgrade-list"/>
+    <property name="test.distributed.upgrade.package" value="org.apache.cassandra.distributed.upgrade"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
 
@@ -182,6 +185,7 @@
         <string>--add-exports java.sql/java.sql=ALL-UNNAMED</string>
 
         <string>--add-opens java.base/java.lang.module=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.net=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.loader=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.ref=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.reflect=ALL-UNNAMED</string>
@@ -245,7 +249,7 @@
     <sequential>
       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-        bottom="Copyright &amp;copy; 2009-2019 The Apache Software Foundation"
+        bottom="Copyright &amp;copy; 2009-2020 The Apache Software Foundation"
         useexternalfile="yes" encoding="UTF-8"
         maxmemory="256m">
         <filesets/>
@@ -449,7 +453,7 @@
         <sequential>
           <artifact:mvn mavenVersion="${maven.version}" fork="true" failonerror="true">
             <jvmarg value="-Xmx512m"/>
-            <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.4:sign-and-deploy-file" />
+            <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file" />
             <arg value="-DretryFailedDeploymentCount=5" />
             <arg value="-Durl=${maven-repository-url}" />
             <arg value="-DrepositoryId=${maven-repository-id}" />
@@ -457,7 +461,25 @@
             <arg value="-Dfile=@{file}" />
             <arg value="-Dclassifier=@{classifier}" />
             <arg value="-Dpackaging=@{packaging}" />
-            <arg value="-Papache-release" />
+          </artifact:mvn>
+        </sequential>
+      </macrodef>
+
+      <macrodef name="sign-dist">
+        <attribute name="file"/>
+        <sequential>
+          <echo message="gpg signing @{file}" />
+          <artifact:mvn mavenVersion="${maven.version}" fork="true" failonerror="true">
+            <jvmarg value="-Xmx512m"/>
+            <arg value="-q" />
+            <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file" />
+            <arg value="-Dfile=@{file}" />
+            <arg value="-DgroupId=org.apache.cassandra" />
+            <arg value="-DartifactId=cassandra-parent" />
+            <arg value="-Dversion=${version}" />
+            <!-- intentionally dummy out the deploy step -->
+            <arg value="-Durl=file:///tmp/" />
+            <arg value="-DrepositoryId=tmp" />
           </artifact:mvn>
         </sequential>
       </macrodef>
@@ -480,6 +502,9 @@
                     name="Apache Cassandra"
                     inceptionYear="2009"
                     description="The Apache Cassandra Project develops a highly scalable second-generation distributed database, bringing together Dynamo's fully distributed design and Bigtable's ColumnFamily-based data model.">
+
+        <!-- Inherit from the ASF template pom file, ref http://maven.apache.org/pom/asf/ -->
+        <parent groupId="org.apache" artifactId="apache" version="22"/>
         <license name="The Apache Software License, Version 2.0" url="https://www.apache.org/licenses/LICENSE-2.0.txt"/>
         <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
         <dependencyManagement>
@@ -573,7 +598,6 @@
           <dependency groupId="org.fusesource" artifactId="sigar" version="1.6.4">
             <exclusion groupId="log4j" artifactId="log4j"/>
           </dependency>
-          <dependency groupId="joda-time" artifactId="joda-time" version="2.4" />
           <dependency groupId="com.carrotsearch" artifactId="hppc" version="0.5.4" />
           <dependency groupId="de.jflex" artifactId="jflex" version="1.6.0" />
           <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" version="1.3.0.581.1" />
@@ -583,6 +607,15 @@
           <dependency groupId="org.ow2.asm" artifactId="asm" version="${asm.version}" />
           <dependency groupId="org.ow2.asm" artifactId="asm-tree" version="${asm.version}" />
           <dependency groupId="org.ow2.asm" artifactId="asm-commons" version="${asm.version}" />
+          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-cli" version="0.14"/>
+          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-core" version="0.14"/>
+          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-stacktrace" version="0.14"/>
+          <dependency groupId="org.gridkit.jvmtool" artifactId="mxdump" version="0.14"/>
+          <dependency groupId="org.gridkit.lab" artifactId="jvm-attach-api" version="1.5"/>
+          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-json" version="0.14"/>
+
+          <dependency groupId="com.beust" artifactId="jcommander" version="1.30"/>
+
         </dependencyManagement>
         <developer id="adelapena" name="Andres de la Peña"/>
         <developer id="alakshman" name="Avinash Lakshman"/>
@@ -653,6 +686,13 @@
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess"/>
         <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
         <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.7" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-cli" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-core" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-stacktrace" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="mxdump" />
+        <dependency groupId="org.gridkit.lab" artifactId="jvm-attach-api" />
+        <dependency groupId="com.beust" artifactId="jcommander" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-json"/>
       </artifact:pom>
       <!-- this build-deps-pom-sources "artifact" is the same as build-deps-pom but only with those
            artifacts that have "-source.jar" files -->
@@ -690,7 +730,6 @@
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"/>
-        <dependency groupId="joda-time" artifactId="joda-time"/>
       </artifact:pom>
 
       <!-- now the pom's for artifacts being deployed to Maven Central -->
@@ -756,7 +795,6 @@
         <dependency groupId="net.openhft" artifactId="chronicle-bytes" version="${chronicle-bytes.version}"/>
         <dependency groupId="net.openhft" artifactId="chronicle-wire" version="${chronicle-wire.version}"/>
         <dependency groupId="net.openhft" artifactId="chronicle-threads" version="${chronicle-threads.version}"/>
-        <dependency groupId="joda-time" artifactId="joda-time"/>
         <dependency groupId="org.fusesource" artifactId="sigar"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
@@ -764,17 +802,14 @@
         <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" />
         <dependency groupId="org.jctools" artifactId="jctools-core"/>
         <dependency groupId="org.ow2.asm" artifactId="asm" />
-        <dependency groupId="com.carrotsearch" artifactId="hppc" version="0.5.4" />
-      </artifact:pom>
-      <artifact:pom id="dist-pom"
-                    artifactId="apache-cassandra"
-                    packaging="pom"
-                    url="https://cassandra.apache.org"
-                    name="Apache Cassandra">
-        <parent groupId="org.apache.cassandra"
-                artifactId="cassandra-parent"
-                version="${version}"/>
-        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
+        <dependency groupId="com.carrotsearch" artifactId="hppc" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-cli" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-core" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-stacktrace" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="mxdump" />
+        <dependency groupId="org.gridkit.lab" artifactId="jvm-attach-api" />
+        <dependency groupId="com.beust" artifactId="jcommander" />
+        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-json"/>
       </artifact:pom>
     </target>
 
@@ -1156,8 +1191,6 @@
             <include name="*.jar" />
         </fileset>
       </copy>
-      <artifact:writepom pomRefId="dist-pom"
-            file="${build.dir}/${final.name}-dist.pom"/>
     </target>
 
     <!-- creates release tarballs -->
@@ -1214,23 +1247,22 @@
           <exclude name="bin/*.bat" />
         </tarfileset>
       </tar>
+
+      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha256" algorithm="SHA-256">
+        <fileset dir="${build.dir}">
+          <include name="${final.name}-bin.tar.gz" />
+          <include name="${final.name}-src.tar.gz" />
+        </fileset>
+      </checksum>
+      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha512" algorithm="SHA-512">
+        <fileset dir="${build.dir}">
+          <include name="${final.name}-bin.tar.gz" />
+          <include name="${final.name}-src.tar.gz" />
+        </fileset>
+      </checksum>
     </target>
 
-    <target name="release" depends="eclipse-warnings,artifacts,rat-init"
-            description="Create and QC release artifacts">
-      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha256"
-                algorithm="SHA-256">
-        <fileset dir="${build.dir}">
-          <include name="*.tar.gz" />
-        </fileset>
-      </checksum>
-      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha512"
-                algorithm="SHA-512">
-        <fileset dir="${build.dir}">
-          <include name="*.tar.gz" />
-        </fileset>
-      </checksum>
-
+    <target name="rat" depends="rat-init" description="License checks on artifacts">
       <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
                   reportFile="${build.dir}/${final.name}-bin.rat.txt">
         <tarfileset>
@@ -1239,7 +1271,6 @@
           </gzipresource>
         </tarfileset>
       </rat:report>
-
       <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
                   reportFile="${build.dir}/${final.name}-src.rat.txt">
         <tarfileset>
@@ -1287,6 +1318,7 @@
      encoding="utf-8">
      <classpath>
         <path refid="cassandra.classpath"/>
+        <pathelement location="${fqltool.build.classes}"/>
      </classpath>
      <compilerarg value="-XDignore.symbol.file"/>
      <src path="${test.unit.src}"/>
@@ -1656,10 +1688,6 @@
     </sequential>
   </target>
 
-  <target name="test-all"
-          depends="eclipse-warnings,test,long-test,test-compression,stress-test,fqltool-test"
-          description="Run all tests except for those under test-burn" />
-
   <!-- Use JaCoCo ant extension without needing externally saved lib -->
   <target name="jacoco-init" depends="maven-ant-tasks-init">
     <artifact:dependencies pathId="jacocoant.classpath">
@@ -1892,7 +1920,7 @@
     <echo message="Mem size : ${mem.size}"/>
   </target>
 
-  <target name="test" depends="build-test,get-cores,get-mem" description="Parallel Test Runner">
+  <target name="test" depends="eclipse-warnings,build-test,get-cores,get-mem" description="Parallel Test Runner">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UpgradeTest*.java" />
     </path>
@@ -1969,6 +1997,39 @@
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+    </testmacro>
+  </target>
+
+  <!-- In-JVM upgrade dtests -->
+  <target name="list-jvm-upgrade-dtests" depends="build-test">
+    <java classname="org.apache.cassandra.distributed.test.TestLocator" fork="no">
+          <classpath>
+              <path refid="cassandra.classpath" />
+              <pathelement location="${test.classes}"/>
+              <pathelement location="${test.conf}"/>
+              <fileset dir="${test.lib}">
+                  <include name="**/*.jar" />
+              </fileset>
+          </classpath>
+          <arg value="${test.distributed.upgrade.listfile}"/>
+          <arg value="${test.distributed.upgrade.package}"/>
+    </java>
+  </target>
+
+  <target name="test-jvm-upgrade-dtest-forking" depends="list-jvm-upgrade-dtests" description="Execute In-JVM 'distributed' upgrade tests" >
+    <chmod file="${test.distributed.upgrade.listfile}" perm="+x"/>
+    <exec executable="./${test.distributed.upgrade.listfile}" failonerror="true"/>
+    <delete file="${test.distributed.upgrade.listfile}"/>
+  </target>
+
+  <target name="test-jvm-upgrade-dtest" depends="build-test" description="Execute in-jvm dtests">
+    <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true" filter="**/upgrade/*Test.java">
+      <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
+      <jvmarg value="-Dcassandra.skip_sync=true" />
+      <jvmarg value="-XX:MaxMetaspaceSize=512M"/>
     </testmacro>
   </target>
 
@@ -2183,28 +2244,15 @@
   </target>
 
 
-  <!-- Publish artifacts to Maven repositories -->
+  <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"
-          depends="maven-declare-dependencies,artifacts,jar,sources-jar,javadoc-jar"
+          depends="maven-declare-dependencies,jar,sources-jar,javadoc-jar"
           description="Installs the artifacts in the Maven Local Repository">
 
     <!-- the parent -->
     <install pomFile="${build.dir}/${final.name}-parent.pom"
              file="${build.dir}/${final.name}-parent.pom"
              packaging="pom"/>
-
-    <!-- the distribution -->
-    <install pomFile="${build.dir}/${final.name}-dist.pom"
-             file="${build.dir}/${final.name}-dist.pom"
-             packaging="pom"/>
-    <install pomFile="${build.dir}/${final.name}-dist.pom"
-             file="${build.dir}/${final.name}-bin.tar.gz"
-             packaging="tar.gz"
-             classifier="bin"/>
-    <install pomFile="${build.dir}/${final.name}-dist.pom"
-             file="${build.dir}/${final.name}-src.tar.gz"
-             packaging="tar.gz"
-             classifier="src"/>
 
     <!-- the cassandra-all jar -->
     <install pomFile="${build.dir}/${final.name}.pom"
@@ -2217,27 +2265,15 @@
              classifier="javadoc"/>
   </target>
 
+  <!-- Publish artifacts to remote Maven repository -->
   <target name="publish"
-          depends="mvn-install"
+          depends="mvn-install,artifacts"
           description="Publishes the artifacts to the Maven repository">
 
     <!-- the parent -->
     <deploy pomFile="${build.dir}/${final.name}-parent.pom"
             file="${build.dir}/${final.name}-parent.pom"
             packaging="pom"/>
-
-    <!-- the distribution -->
-    <deploy pomFile="${build.dir}/${final.name}-dist.pom"
-            file="${build.dir}/${final.name}-dist.pom"
-            packaging="pom"/>
-    <deploy pomFile="${build.dir}/${final.name}-dist.pom"
-            file="${build.dir}/${final.name}-bin.tar.gz"
-            packaging="tar.gz"
-            classifier="bin"/>
-    <deploy pomFile="${build.dir}/${final.name}-dist.pom"
-            file="${build.dir}/${final.name}-src.tar.gz"
-            packaging="tar.gz"
-            classifier="src"/>
 
     <!-- the cassandra-all jar -->
     <deploy pomFile="${build.dir}/${final.name}.pom"
@@ -2248,6 +2284,11 @@
     <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
+
+    <!-- the distribution -->
+    <sign-dist file="${build.dir}/${final.name}-bin.tar.gz" />
+    <sign-dist file="${build.dir}/${final.name}-src.tar.gz" />
+
   </target>
 
 </project>

@@ -923,9 +923,9 @@ slow_query_log_timeout_in_ms: 500
 # under overload conditions we will waste that much extra time processing 
 # already-timed-out requests.
 #
-# Warning: before enabling this property make sure to ntp is installed
-# and the times are synchronized between the nodes.
-cross_node_timeout: false
+# Warning: It is generally assumed that users have setup NTP on their clusters, and that clocks are modestly in sync, 
+# since this is a requirement for general correctness of last write wins.
+#cross_node_timeout: true
 
 # Set keep-alive period for streaming
 # This node will send a keep-alive message periodically with this period.
@@ -1258,11 +1258,6 @@ back_pressure_strategy:
 # level for writes without timing out. This is different from the consistency level requested by
 # each write which may be lower in order to facilitate availability.
 # ideal_consistency_level: EACH_QUORUM
-
-# Path to write full query log data to when the full query log is enabled
-# The full query log will recrusively delete the contents of this path at
-# times. Don't place links in this directory to other parts of the filesystem.
-#full_query_log_dir: /tmp/cassandrafullquerylog
 
 # Automatically upgrade sstables after upgrade - if there is no ordinary compaction to do, the
 # oldest non-upgraded sstable will get upgraded to the latest version
