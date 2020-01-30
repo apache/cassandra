@@ -721,7 +721,6 @@ class ExportTask(CopyTask):
 
             return ret
 
-
         def make_range_data(replicas=None):
             hosts = []
             if replicas:
