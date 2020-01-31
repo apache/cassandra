@@ -18,12 +18,16 @@
 
 package org.apache.cassandra.distributed.api;
 
+import java.io.Serializable;
+
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
- * A cross-version interface for delivering internode messages via message sinks
+ * A cross-version interface for delivering internode messages via message sinks.
+ *
+ * Message implementations should be serializable so we could load into instances.
  */
-public interface IMessage
+public interface IMessage extends Serializable
 {
     int verb();
     byte[] bytes();
