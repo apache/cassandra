@@ -150,7 +150,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         assertEquals(receivedBlockFor, deserializedEx.received);
         assertEquals(receivedBlockFor, deserializedEx.blockFor);
         assertEquals(ex.getMessage(), deserializedEx.getMessage());
-        assertTrue(deserializedEx.getMessage().contains("Cas operation result is unknown"));
+        assertTrue(deserializedEx.getMessage().contains("CAS operation result is unknown"));
     }
 
     @Test
