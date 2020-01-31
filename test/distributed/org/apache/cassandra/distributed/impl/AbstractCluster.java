@@ -39,7 +39,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +47,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -55,7 +55,6 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
@@ -281,8 +280,18 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                                   timeout, unit);
     }
 
-    public IMessageFilters filters() { return filters; }
-    public MessageFilters.Builder verbs(MessagingService.Verb ... verbs) { return filters.verbs(verbs); }
+    public IMessageFilters filters()
+    {
+        return filters;
+    }
+
+    public MessageFilters.Builder verbs(MessagingService.Verb... verbs)
+    {
+        int[] ids = new int[verbs.length];
+        for (int i = 0; i < verbs.length; ++i)
+            ids[i] = verbs[i].ordinal();
+        return filters.verbs(ids);
+    }
 
     public void disableAutoCompaction(String keyspace)
     {

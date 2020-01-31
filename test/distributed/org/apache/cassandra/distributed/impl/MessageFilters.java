@@ -19,32 +19,23 @@
 package org.apache.cassandra.distributed.impl;
 
 import java.util.Arrays;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.function.BiConsumer;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.distributed.api.ICluster;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessagingService;
 
 public class MessageFilters implements IMessageFilters
 {
-    private final Set<Filter> filters = new CopyOnWriteArraySet<>();
+    private final List<Filter> filters = new CopyOnWriteArrayList<>();
 
-    public boolean permit(IInstance from, IInstance to, int verb)
+    public boolean permit(int from, int to, IMessage msg)
     {
-        if (from == null || to == null)
-            return false; // cannot deliver
-        int fromNum = from.config().num();
-        int toNum = to.config().num();
-
         for (Filter filter : filters)
-            if (filter.matches(fromNum, toNum, verb))
+        {
+            if (filter.matches(from, to, msg))
                 return false;
-
+        }
         return true;
     }
 
@@ -53,8 +44,9 @@ public class MessageFilters implements IMessageFilters
         final int[] from;
         final int[] to;
         final int[] verbs;
+        final Matcher matcher;
 
-        Filter(int[] from, int[] to, int[] verbs)
+        Filter(int[] from, int[] to, int[] verbs, Matcher matcher)
         {
             if (from != null)
             {
@@ -74,13 +66,14 @@ public class MessageFilters implements IMessageFilters
             this.from = from;
             this.to = to;
             this.verbs = verbs;
+            this.matcher = matcher;
         }
 
         public int hashCode()
         {
             return (from == null ? 0 : Arrays.hashCode(from))
-                    + (to == null ? 0 : Arrays.hashCode(to))
-                    + (verbs == null ? 0 : Arrays.hashCode(verbs));
+                   + (to == null ? 0 : Arrays.hashCode(to))
+                   + (verbs == null ? 0 : Arrays.hashCode(verbs));
         }
 
         public boolean equals(Object that)
@@ -91,27 +84,28 @@ public class MessageFilters implements IMessageFilters
         public boolean equals(Filter that)
         {
             return Arrays.equals(from, that.from)
-                    && Arrays.equals(to, that.to)
-                    && Arrays.equals(verbs, that.verbs);
+                   && Arrays.equals(to, that.to)
+                   && Arrays.equals(verbs, that.verbs);
         }
 
-        public boolean matches(int from, int to, int verb)
-        {
-            return (this.from == null || Arrays.binarySearch(this.from, from) >= 0)
-                    && (this.to == null || Arrays.binarySearch(this.to, to) >= 0)
-                    && (this.verbs == null || Arrays.binarySearch(this.verbs, verb) >= 0);
-        }
-
-        public Filter restore()
+        public Filter off()
         {
             filters.remove(this);
             return this;
         }
 
-        public Filter drop()
+        public Filter on()
         {
             filters.add(this);
             return this;
+        }
+
+        public boolean matches(int from, int to, IMessage msg)
+        {
+            return (this.from == null || Arrays.binarySearch(this.from, from) >= 0)
+                   && (this.to == null || Arrays.binarySearch(this.to, to) >= 0)
+                   && (this.verbs == null || Arrays.binarySearch(this.verbs, msg.verb()) >= 0)
+                   && (this.matcher == null || this.matcher.matches(from, to, msg));
         }
     }
 
@@ -120,42 +114,41 @@ public class MessageFilters implements IMessageFilters
         int[] from;
         int[] to;
         int[] verbs;
+        Matcher matcher;
 
         private Builder(int[] verbs)
         {
             this.verbs = verbs;
         }
 
-        public Builder from(int ... nums)
+        public Builder from(int... nums)
         {
             from = nums;
             return this;
         }
 
-        public Builder to(int ... nums)
+        public Builder to(int... nums)
         {
             to = nums;
             return this;
         }
 
-        public Filter ready()
+        public IMessageFilters.Builder messagesMatching(Matcher matcher)
         {
-            return new Filter(from, to, verbs);
+            this.matcher = matcher;
+            return this;
         }
 
         public Filter drop()
         {
-            return ready().drop();
+            return new Filter(from, to, verbs, matcher).on();
         }
     }
 
-    @Override
-    public Builder verbs(MessagingService.Verb... verbs)
+
+    public Builder verbs(int... verbs)
     {
-        int[] ids = new int[verbs.length];
-        for (int i = 0 ; i < verbs.length ; ++i)
-            ids[i] = verbs[i].ordinal();
-        return new Builder(ids);
+        return new Builder(verbs);
     }
 
     @Override
@@ -169,5 +162,4 @@ public class MessageFilters implements IMessageFilters
     {
         filters.clear();
     }
-
 }
