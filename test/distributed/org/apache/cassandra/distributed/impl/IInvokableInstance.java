@@ -26,7 +26,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import org.apache.cassandra.distributed.api.IInstance;
-import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 
 /**
  * This version is only supported for a Cluster running the same code as the test environment, and permits

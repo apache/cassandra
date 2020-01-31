@@ -29,7 +29,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
-import java.util.function.BiPredicate;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.cassandra.batchlog.BatchlogManager;
@@ -96,8 +97,8 @@ import org.apache.cassandra.utils.memory.BufferPool;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
-import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
@@ -200,17 +201,29 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         BiConsumer<InetAddressAndPort, IMessage> deliverToInstance = (to, message) -> cluster.get(to).receiveMessage(message);
         BiConsumer<InetAddressAndPort, IMessage> deliverToInstanceIfNotFiltered = (to, message) -> {
-            if (cluster.filters().permit(this, cluster.get(to), message.verb()))
+            if (permitMessage(cluster, to, message))
                 deliverToInstance.accept(to, message);
         };
 
-        MessagingService.instance().outboundSink.add(new MessageDeliverySink(deliverToInstanceIfNotFiltered));
+        MessagingService.instance().outboundSink.add((message, to) -> {
+            deliverToInstanceIfNotFiltered.accept(to, serializeMessage(message.from(), to, message));
+            return false;
+        });
     }
 
     // unnecessary if registerMockMessaging used
     private void registerFilter(ICluster cluster)
     {
-        MessagingService.instance().outboundSink.add((message, to) -> cluster.filters().permit(this, cluster.get(to), message.verb().id));
+        MessagingService.instance().outboundSink.add((message, to) -> {
+            return permitMessage(cluster, to, serializeMessage(message.from(), to, message));
+        });
+    }
+
+    private boolean permitMessage(ICluster cluster, InetAddressAndPort to, IMessage message)
+    {
+        int fromNum = cluster.get(message.from()).config().num();
+        int toNum = cluster.get(to).config().num();
+        return cluster.filters().permit(fromNum, toNum, message);
     }
 
     public void uncaughtException(Thread thread, Throwable throwable)
@@ -218,30 +231,30 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(CassandraDaemon::uncaughtException).accept(thread, throwable);
     }
 
-    private class MessageDeliverySink implements BiPredicate<Message<?>, InetAddressAndPort>
+    private static IMessage serializeMessage(InetAddressAndPort from, InetAddressAndPort to, Message<?> messageOut)
     {
-        private final BiConsumer<InetAddressAndPort, IMessage> deliver;
-        MessageDeliverySink(BiConsumer<InetAddressAndPort, IMessage> deliver)
+        try (DataOutputBuffer out = new DataOutputBuffer(1024))
         {
-            this.deliver = deliver;
+            int version = MessagingService.instance().versions.get(to);
+            Message.serializer.serialize(messageOut, out, version);
+            return new MessageImpl(messageOut.verb().id, out.toByteArray(), messageOut.id(), version, from);
         }
-
-        @Override
-        public boolean test(Message<?> messageOut, InetAddressAndPort to)
+        catch (IOException e)
         {
-            try (DataOutputBuffer out = new DataOutputBuffer(1024))
-            {
-                int version = MessagingService.instance().versions.get(to);
-                InetAddressAndPort from = broadcastAddressAndPort();
-                Tracing.instance.traceOutgoingMessage(messageOut, to);
-                Message.serializer.serialize(messageOut, out, version);
-                deliver.accept(to, new MessageImpl(messageOut.verb().id, out.toByteArray(), messageOut.id(), version, from));
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-            return false;
+            throw new RuntimeException(e);
+        }
+    }
+
+    @VisibleForTesting
+    public static Message<?> deserializeMessage(IMessage message)
+    {
+        try (DataInputBuffer in = new DataInputBuffer(message.bytes()))
+        {
+            return Message.serializer.deserialize(in, message.from(), message.version());
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Can not deserialize message " + message, t);
         }
     }
 
@@ -249,28 +262,20 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public void receiveMessage(IMessage message)
     {
         sync(() -> {
-            try (DataInputBuffer in = new DataInputBuffer(message.bytes()))
+            if (message.version() > MessagingService.current_version)
             {
-                if (message.version() > MessagingService.current_version)
-                {
-                    throw new IllegalStateException(String.format("Node%d received message version %d but current version is %d",
-                                                                  this.config.num(),
-                                                                  message.version(),
-                                                                  MessagingService.current_version));
-                }
+                throw new IllegalStateException(String.format("Node%d received message version %d but current version is %d",
+                                                              this.config.num(),
+                                                              message.version(),
+                                                              MessagingService.current_version));
+            }
 
-                Message<?> messageIn = Message.serializer.deserialize(in, message.from(), message.version());
-                Message.Header header = messageIn.header;
-                TraceState state = Tracing.instance.initializeFromMessage(header);
-                if (state != null) state.trace("{} message received from {}", header.verb, header.from);
-                header.verb.stage.execute(
-                ThrowingRunnable.toRunnable(() -> messageIn.verb().handler().doVerb((Message<Object>) messageIn)),
-                ExecutorLocals.create(state));
-            }
-            catch (Throwable t)
-            {
-                throw new RuntimeException("Exception occurred on node " + broadcastAddressAndPort(), t);
-            }
+            Message<?> messageIn = deserializeMessage(message);
+            Message.Header header = messageIn.header;
+            TraceState state = Tracing.instance.initializeFromMessage(header);
+            if (state != null) state.trace("{} message received from {}", header.verb, header.from);
+            header.verb.stage.execute(ThrowingRunnable.toRunnable(() -> messageIn.verb().handler().doVerb((Message<Object>) messageIn)),
+                                      ExecutorLocals.create(state));
         }).run();
     }
 
