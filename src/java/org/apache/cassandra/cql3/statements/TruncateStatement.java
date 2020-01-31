@@ -17,23 +17,31 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.TruncateException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class TruncateStatement extends QualifiedStatement implements CQLStatement
 {
@@ -57,7 +65,12 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
         Schema.instance.validateTable(keyspace(), name());
     }
 
-    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws InvalidRequestException, TruncateException
+    public void resolveTimeout(QueryOptions options, QueryState state)
+    {
+        state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getTruncateRpcTimeout, TimeUnit.NANOSECONDS));
+    }
+
+    public ResultMessage execute(QueryState state, QueryOptions options) throws InvalidRequestException, TruncateException
     {
         try
         {
@@ -68,7 +81,7 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
             if (metaData.isVirtual())
                 throw new InvalidRequestException("Cannot truncate virtual tables");
 
-            StorageProxy.truncateBlocking(keyspace(), name());
+            StorageProxy.truncateBlocking(keyspace(), name(), state);
         }
         catch (UnavailableException | TimeoutException e)
         {

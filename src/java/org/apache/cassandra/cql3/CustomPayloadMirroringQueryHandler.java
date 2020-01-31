@@ -38,10 +38,9 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
     public ResultMessage process(String query,
                                  QueryState state,
                                  QueryOptions options,
-                                 Map<String, ByteBuffer> customPayload,
-                                 long queryStartNanoTime)
+                                 Map<String, ByteBuffer> customPayload)
     {
-        ResultMessage result = queryProcessor.process(query, state, options, customPayload, queryStartNanoTime);
+        ResultMessage result = queryProcessor.process(query, state, options, customPayload);
         result.setCustomPayload(customPayload);
         return result;
     }
@@ -61,10 +60,9 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
     public ResultMessage processPrepared(CQLStatement statement,
                                          QueryState state,
                                          QueryOptions options,
-                                         Map<String, ByteBuffer> customPayload,
-                                         long queryStartNanoTime)
+                                         Map<String, ByteBuffer> customPayload)
     {
-        ResultMessage result = queryProcessor.processPrepared(statement, state, options, customPayload, queryStartNanoTime);
+        ResultMessage result = queryProcessor.processPrepared(statement, state, options, customPayload);
         result.setCustomPayload(customPayload);
         return result;
     }
@@ -72,10 +70,9 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
     public ResultMessage processBatch(BatchStatement statement,
                                       QueryState state,
                                       BatchQueryOptions options,
-                                      Map<String, ByteBuffer> customPayload,
-                                      long queryStartNanoTime)
+                                      Map<String, ByteBuffer> customPayload)
     {
-        ResultMessage result = queryProcessor.processBatch(statement, state, options, customPayload, queryStartNanoTime);
+        ResultMessage result = queryProcessor.processBatch(statement, state, options, customPayload);
         result.setCustomPayload(customPayload);
         return result;
     }

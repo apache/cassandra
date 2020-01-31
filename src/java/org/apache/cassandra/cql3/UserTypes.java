@@ -162,7 +162,7 @@ public abstract class UserTypes
             }
 
             DelayedValue value = new DelayedValue(((UserType)receiver.type), values);
-            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
+            return allTerminal ? value.bind(QueryOptionsFactory.DEFAULT) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException

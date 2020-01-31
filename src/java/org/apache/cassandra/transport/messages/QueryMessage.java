@@ -24,6 +24,7 @@ import org.apache.cassandra.audit.AuditLogEntry;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -46,7 +47,7 @@ public class QueryMessage extends Message.Request
         public QueryMessage decode(ByteBuf body, ProtocolVersion version)
         {
             String query = CBUtil.readLongString(body);
-            return new QueryMessage(query, QueryOptions.codec.decode(body, version));
+            return new QueryMessage(query, QueryOptionsFactory.codec.decode(body, version));
         }
 
         public void encode(QueryMessage msg, ByteBuf dest, ProtocolVersion version)
@@ -55,7 +56,7 @@ public class QueryMessage extends Message.Request
             if (version == ProtocolVersion.V1)
                 CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
             else
-                QueryOptions.codec.encode(msg.options, dest, version);
+                QueryOptionsFactory.codec.encode(msg.options, dest, version);
         }
 
         public int encodedSize(QueryMessage msg, ProtocolVersion version)
@@ -68,7 +69,7 @@ public class QueryMessage extends Message.Request
             }
             else
             {
-                size += QueryOptions.codec.encodedSize(msg.options, version);
+                size += QueryOptionsFactory.codec.encodedSize(msg.options, version);
             }
             return size;
         }
@@ -91,7 +92,7 @@ public class QueryMessage extends Message.Request
     }
 
     @Override
-    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Message.Response execute(QueryState state, boolean traceRequest)
     {
         AuditLogManager auditLogManager = AuditLogManager.getInstance();
 
@@ -105,7 +106,7 @@ public class QueryMessage extends Message.Request
 
             long queryStartTime = auditLogManager.isLoggingEnabled() ? System.currentTimeMillis() : 0L;
 
-            Message.Response response = ClientState.getCQLQueryHandler().process(query, state, options, getCustomPayload(), queryStartNanoTime);
+            Message.Response response = ClientState.getCQLQueryHandler().process(query, state, options, getCustomPayload());
 
             if (auditLogManager.isLoggingEnabled())
                 logSuccess(state, queryStartTime);

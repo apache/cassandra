@@ -18,22 +18,41 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
-
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.WhereClause;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.RawSelector;
@@ -41,10 +60,27 @@ import org.apache.cassandra.cql3.selection.ResultSetBuilder;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.selection.Selection;
 import org.apache.cassandra.cql3.selection.Selection.Selectors;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.PartitionRangeReadQuery;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.ReadQuery;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.SinglePartitionReadQuery;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.aggregation.AggregationSpecification;
 import org.apache.cassandra.db.aggregation.GroupMaker;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -55,8 +91,15 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.index.IndexRegistry;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
@@ -67,8 +110,6 @@ import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
@@ -180,7 +221,7 @@ public class SelectStatement implements CQLStatement
      */
     public ColumnFilter queriedColumns()
     {
-        return selection.newSelectors(QueryOptions.DEFAULT).getColumnFilter();
+        return selection.newSelectors(QueryOptionsFactory.DEFAULT).getColumnFilter();
     }
 
     // Creates a simple select based on the given selection.
@@ -227,14 +268,25 @@ public class SelectStatement implements CQLStatement
         // Nothing to do, all validation has been done by RawStatement.prepare()
     }
 
-    public ResultMessage.Rows execute(QueryState state, QueryOptions options, long queryStartNanoTime)
+    public void resolveTimeout(QueryOptions options, QueryState state)
+    {
+        // ReadQuery's consistency level could be set to Serial/LocalSerial to trigger 'paxos' read.
+        // In this case, the extra rounds to repair any in-progress proposal is added.
+        // The read timeout value, either for a single row or range, should consider those extra rounds.
+        if (isPartitionRangeQuery())
+            state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getRangeRpcTimeout, TimeUnit.NANOSECONDS));
+        else
+            state.setTimeoutInNanos(options.calculateTimeout(DatabaseDescriptor::getReadRpcTimeout, TimeUnit.NANOSECONDS));
+    }
+
+    public ResultMessage.Rows execute(QueryState state, QueryOptions options)
     {
         ConsistencyLevel cl = options.getConsistency();
         checkNotNull(cl, "Invalid empty consistency level");
 
         cl.validateForRead(keyspace());
 
-        int nowInSec = options.getNowInSeconds(state);
+        int nowInSec = options.getNowInSecondsWithFallback(state);
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
         int pageSize = options.getPageSize();
@@ -243,17 +295,17 @@ public class SelectStatement implements CQLStatement
         ReadQuery query = getQuery(options, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, pageSize);
 
         if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
-            return execute(query, options, state, selectors, nowInSec, userLimit, queryStartNanoTime);
+            return execute(query, options, state, selectors, nowInSec, userLimit);
 
         QueryPager pager = getPager(query, options);
 
-        return execute(Pager.forDistributedQuery(pager, cl, state.getClientState()),
+        return execute(Pager.forDistributedQuery(pager, cl),
                        options,
+                       state,
                        selectors,
                        pageSize,
                        nowInSec,
-                       userLimit,
-                       queryStartNanoTime);
+                       userLimit);
     }
 
     public ReadQuery getQuery(QueryOptions options, int nowInSec) throws RequestValidationException
@@ -274,14 +326,17 @@ public class SelectStatement implements CQLStatement
                               int perPartitionLimit,
                               int pageSize)
     {
-        boolean isPartitionRangeQuery = restrictions.isKeyRange() || restrictions.usesSecondaryIndexing();
-
         DataLimits limit = getDataLimits(userLimit, perPartitionLimit, pageSize);
 
-        if (isPartitionRangeQuery)
+        if (isPartitionRangeQuery())
             return getRangeCommand(options, columnFilter, limit, nowInSec);
 
         return getSliceCommands(options, columnFilter, limit, nowInSec);
+    }
+
+    private boolean isPartitionRangeQuery()
+    {
+        return restrictions.isKeyRange() || restrictions.usesSecondaryIndexing();
     }
 
     private ResultMessage.Rows execute(ReadQuery query,
@@ -289,9 +344,9 @@ public class SelectStatement implements CQLStatement
                                        QueryState state,
                                        Selectors selectors,
                                        int nowInSec,
-                                       int userLimit, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
+                                       int userLimit) throws RequestValidationException, RequestExecutionException
     {
-        try (PartitionIterator data = query.execute(options.getConsistency(), state.getClientState(), queryStartNanoTime))
+        try (PartitionIterator data = query.execute(options.getConsistency(), state))
         {
             return processResults(data, options, selectors, nowInSec, userLimit);
         }
@@ -318,9 +373,9 @@ public class SelectStatement implements CQLStatement
             return new InternalPager(pager, executionController);
         }
 
-        public static Pager forDistributedQuery(QueryPager pager, ConsistencyLevel consistency, ClientState clientState)
+        public static Pager forDistributedQuery(QueryPager pager, ConsistencyLevel consistency)
         {
-            return new NormalPager(pager, consistency, clientState);
+            return new NormalPager(pager, consistency);
         }
 
         public boolean isExhausted()
@@ -333,23 +388,21 @@ public class SelectStatement implements CQLStatement
             return pager.state();
         }
 
-        public abstract PartitionIterator fetchPage(int pageSize, long queryStartNanoTime);
+        public abstract PartitionIterator fetchPage(int pageSize, QueryState state);
 
         public static class NormalPager extends Pager
         {
             private final ConsistencyLevel consistency;
-            private final ClientState clientState;
 
-            private NormalPager(QueryPager pager, ConsistencyLevel consistency, ClientState clientState)
+            private NormalPager(QueryPager pager, ConsistencyLevel consistency)
             {
                 super(pager);
                 this.consistency = consistency;
-                this.clientState = clientState;
             }
 
-            public PartitionIterator fetchPage(int pageSize, long queryStartNanoTime)
+            public PartitionIterator fetchPage(int pageSize, QueryState state)
             {
-                return pager.fetchPage(pageSize, consistency, clientState, queryStartNanoTime);
+                return pager.fetchPage(pageSize, consistency, state);
             }
         }
 
@@ -363,7 +416,7 @@ public class SelectStatement implements CQLStatement
                 this.executionController = executionController;
             }
 
-            public PartitionIterator fetchPage(int pageSize, long queryStartNanoTime)
+            public PartitionIterator fetchPage(int pageSize, QueryState state)
             {
                 return pager.fetchPageInternal(pageSize, executionController);
             }
@@ -372,11 +425,11 @@ public class SelectStatement implements CQLStatement
 
     private ResultMessage.Rows execute(Pager pager,
                                        QueryOptions options,
+                                       QueryState state,
                                        Selectors selectors,
                                        int pageSize,
                                        int nowInSec,
-                                       int userLimit,
-                                       long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
+                                       int userLimit) throws RequestValidationException, RequestExecutionException
     {
         if (aggregationSpec != null)
         {
@@ -397,7 +450,7 @@ public class SelectStatement implements CQLStatement
                   + " you must either remove the ORDER BY or the IN and sort client side, or disable paging for this query");
 
         ResultMessage.Rows msg;
-        try (PartitionIterator page = pager.fetchPage(pageSize, queryStartNanoTime))
+        try (PartitionIterator page = pager.fetchPage(pageSize, state))
         {
             msg = processResults(page, options, selectors, nowInSec, userLimit);
         }
@@ -428,10 +481,10 @@ public class SelectStatement implements CQLStatement
 
     public ResultMessage.Rows executeLocally(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
-        return executeInternal(state, options, options.getNowInSeconds(state), System.nanoTime());
+        return executeInternal(state, options, options.getNowInSecondsWithFallback(state));
     }
 
-    public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options, int nowInSec, long queryStartNanoTime) throws RequestExecutionException, RequestValidationException
+    public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options, int nowInSec) throws RequestExecutionException, RequestValidationException
     {
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
@@ -454,11 +507,11 @@ public class SelectStatement implements CQLStatement
 
             return execute(Pager.forInternalQuery(pager, executionController),
                            options,
+                           state,
                            selectors,
                            pageSize,
                            nowInSec,
-                           userLimit,
-                           queryStartNanoTime);
+                           userLimit);
         }
     }
 
@@ -474,7 +527,7 @@ public class SelectStatement implements CQLStatement
 
     public ResultSet process(PartitionIterator partitions, int nowInSec) throws InvalidRequestException
     {
-        QueryOptions options = QueryOptions.DEFAULT;
+        QueryOptions options = QueryOptionsFactory.DEFAULT;
         Selectors selectors = selection.newSelectors(options);
         return process(partitions, options, selectors, nowInSec, getLimit(options));
     }
@@ -537,7 +590,7 @@ public class SelectStatement implements CQLStatement
      */
     public Slices clusteringIndexFilterAsSlices()
     {
-        QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
+        QueryOptions options = QueryOptionsFactory.forInternalCalls(Collections.emptyList());
         ColumnFilter columnFilter = selection.newSelectors(options).getColumnFilter();
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
         if (filter instanceof ClusteringIndexSliceFilter)
@@ -555,7 +608,7 @@ public class SelectStatement implements CQLStatement
      */
     public SinglePartitionReadCommand internalReadForView(DecoratedKey key, int nowInSec)
     {
-        QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
+        QueryOptions options = QueryOptionsFactory.forInternalCalls(Collections.emptyList());
         ColumnFilter columnFilter = selection.newSelectors(options).getColumnFilter();
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
         RowFilter rowFilter = getRowFilter(options);
@@ -567,7 +620,7 @@ public class SelectStatement implements CQLStatement
      */
     public RowFilter rowFilterForInternalCalls()
     {
-        return getRowFilter(QueryOptions.forInternalCalls(Collections.emptyList()));
+        return getRowFilter(QueryOptionsFactory.forInternalCalls(Collections.emptyList()));
     }
 
     private ReadQuery getRangeCommand(QueryOptions options, ColumnFilter columnFilter, DataLimits limit, int nowInSec)

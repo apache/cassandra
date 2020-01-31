@@ -49,6 +49,7 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
 
 import static org.apache.cassandra.net.Verb.*;
@@ -138,7 +139,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
         MessagingService.instance().sendWithCallback(message, endpoint, this);
     }
 
-    public void sendInitialRepairs()
+    public void sendInitialRepairs(QueryState queryState)
     {
         mutationsSentTime = System.nanoTime();
         Replicas.assertFull(pendingRepairs.keySet());
@@ -152,7 +153,11 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
 
             Tracing.trace("Sending read-repair-mutation to {}", destination);
             // use a separate verb here to avoid writing hints on timeouts
-            sendRR(Message.out(READ_REPAIR_REQ, mutation), destination.endpoint());
+            Message<Mutation> message = Message.builder(READ_REPAIR_REQ, mutation)
+                                               .withQueryState(queryState)
+                                               .withTracingParams()
+                                               .build();
+            sendRR(message, destination.endpoint());
             ColumnFamilyStore.metricsFor(tableId).readRepairRequests.mark();
 
             if (!shouldBlockOn.test(destination.endpoint()))
@@ -194,7 +199,7 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
      * out, so long as we receive the same number of acks as repair mutations transmitted. This prevents
      * misbehaving nodes from killing a quorum read, while continuing to guarantee monotonic quorum reads
      */
-    public void maybeSendAdditionalWrites(long timeout, TimeUnit timeoutUnit)
+    public void maybeSendAdditionalWrites(long timeout, TimeUnit timeoutUnit, QueryState queryState)
     {
         if (awaitRepairsUntil(timeout + timeoutUnit.convert(mutationsSentTime, TimeUnit.NANOSECONDS), timeoutUnit))
             return;
@@ -233,7 +238,11 @@ public class BlockingPartitionRepair<E extends Endpoints<E>, P extends ReplicaPl
             }
 
             Tracing.trace("Sending speculative read-repair-mutation to {}", replica);
-            sendRR(Message.out(READ_REPAIR_REQ, mutation), replica.endpoint());
+            Message<Mutation> message = Message.builder(READ_REPAIR_REQ, mutation)
+                                               .withQueryState(queryState)
+                                               .withTracingParams()
+                                               .build();
+            sendRR(message, replica.endpoint());
             ReadRepairDiagnostics.speculatedWrite(this, replica.endpoint(), mutation);
         }
     }

@@ -21,10 +21,9 @@ package org.apache.cassandra.service.reads.repair;
 import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
-
-import com.codahale.metrics.Meter;
 import com.google.common.base.Predicates;
 
+import com.codahale.metrics.Meter;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -40,6 +39,7 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.DigestResolver;
@@ -52,7 +52,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         implements ReadRepair<E, P>
 {
     protected final ReadCommand command;
-    protected final long queryStartNanoTime;
+    protected final QueryState queryState;
     protected final ReplicaPlan.Shared<E, P> replicaPlan;
     protected final ColumnFamilyStore cfs;
 
@@ -74,10 +74,10 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 
     public AbstractReadRepair(ReadCommand command,
                               ReplicaPlan.Shared<E, P> replicaPlan,
-                              long queryStartNanoTime)
+                              QueryState queryState)
     {
         this.command = command;
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.queryState = queryState;
         this.replicaPlan = replicaPlan;
         this.cfs = Keyspace.openAndGetStore(command.metadata());
     }
@@ -113,7 +113,9 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
             Tracing.trace("Enqueuing {} data read to {}", type, to);
         }
         // if enabled, request additional info about repaired data from any full replicas
-        Message<ReadCommand> message = command.createMessage(command.isTrackingRepairedStatus() && to.isFull());
+        Message<ReadCommand> message = command.createMessageBuilder(command.isTrackingRepairedStatus() && to.isFull())
+                                              .withQueryState(queryState)
+                                              .build();
         MessagingService.instance().sendWithCallback(message, to.endpoint(), readCallback);
     }
 
@@ -125,8 +127,8 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         getRepairMeter().mark();
 
         // Do a full data read to resolve the correct response (and repair node that need be)
-        DataResolver<E, P> resolver = new DataResolver<>(command, replicaPlan, this, queryStartNanoTime);
-        ReadCallback<E, P> readCallback = new ReadCallback<>(resolver, command, replicaPlan, queryStartNanoTime);
+        DataResolver<E, P> resolver = new DataResolver<>(command, replicaPlan, this, queryState);
+        ReadCallback<E, P> readCallback = new ReadCallback<>(resolver, command, replicaPlan, queryState);
 
         digestRepair = new DigestRepair(resolver, readCallback, resultConsumer);
 
@@ -167,7 +169,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         if (repair == null)
             return;
 
-        if (shouldSpeculate() && !repair.readCallback.await(cfs.sampleReadLatencyNanos, NANOSECONDS))
+        if (shouldSpeculate() && !repair.readCallback.await(cfs.sampleReadLatencyNanos))
         {
             Replica uncontacted = replicaPlan().firstUncontactedCandidate(Predicates.alwaysTrue());
             if (uncontacted == null)

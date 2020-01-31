@@ -24,23 +24,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-
-import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
@@ -62,8 +61,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     = AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
-    private final long queryStartNanoTime;
     private volatile boolean supportsBackPressure = true;
+    private final QueryState queryState;
 
     /**
       * Delegate to another WriteResponseHandler or possibly this one to track if the ideal consistency level was reached.
@@ -75,18 +74,17 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     /**
      * @param callback           A callback to be called when the write is successful.
-     * @param queryStartNanoTime
      */
     protected AbstractWriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan,
                                            Runnable callback,
                                            WriteType writeType,
-                                           long queryStartNanoTime)
+                                           QueryState queryState)
     {
         this.replicaPlan = replicaPlan;
         this.callback = callback;
         this.writeType = writeType;
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.queryState = queryState;
     }
 
     public void get() throws WriteTimeoutException, WriteFailureException
@@ -123,10 +121,9 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     public final long currentTimeoutNanos()
     {
-        long requestTimeout = writeType == WriteType.COUNTER
-                              ? DatabaseDescriptor.getCounterWriteRpcTimeout(NANOSECONDS)
-                              : DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS);
-        return requestTimeout - (System.nanoTime() - queryStartNanoTime);
+        return writeType == WriteType.COUNTER
+               ? queryState.getRemainingTimeoutWithFallback(DatabaseDescriptor::getCounterWriteRpcTimeout, NANOSECONDS)
+               : queryState.getRemainingTimeoutWithFallback(DatabaseDescriptor::getWriteRpcTimeout, NANOSECONDS);
     }
 
     /**
@@ -286,7 +283,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             }
             else
             {
-                replicaPlan.keyspace().metric.idealCLWriteLatency.addNano(System.nanoTime() - queryStartNanoTime);
+                replicaPlan.keyspace().metric.idealCLWriteLatency.addNano(queryState.getElapsedInNanos());
             }
         }
     }
@@ -294,7 +291,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     /**
      * Cheap Quorum backup.  If we failed to reach quorum with our initial (full) nodes, reach out to other nodes.
      */
-    public void maybeTryAdditionalReplicas(IMutation mutation, StorageProxy.WritePerformer writePerformer, String localDC)
+    public void maybeTryAdditionalReplicas(IMutation mutation, StorageProxy.WritePerformer writePerformer, String localDC, QueryState queryState)
     {
         EndpointsForToken uncontacted = replicaPlan.liveUncontacted();
         if (uncontacted.isEmpty())
@@ -320,7 +317,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
                 writePerformer.apply(mutation, replicaPlan.withContact(uncontacted),
                                      (AbstractWriteResponseHandler<IMutation>) this,
-                                     localDC);
+                                     localDC,
+                                     queryState);
             }
         }
         catch (InterruptedException ex)

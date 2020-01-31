@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.BatchQueryOptions;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.statements.BatchStatement;
@@ -69,7 +70,7 @@ public class BatchMessage extends Message.Request
                     throw new ProtocolException("Invalid query kind in BATCH messages. Must be 0 or 1 but got " + kind);
                 variables.add(CBUtil.readValueList(body, version));
             }
-            QueryOptions options = QueryOptions.codec.decode(body, version);
+            QueryOptions options = QueryOptionsFactory.codec.decode(body, version);
 
             return new BatchMessage(toType(type), queryOrIds, variables, options);
         }
@@ -96,7 +97,7 @@ public class BatchMessage extends Message.Request
             if (version.isSmallerThan(ProtocolVersion.V3))
                 CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
             else
-                QueryOptions.codec.encode(msg.options, dest, version);
+                QueryOptionsFactory.codec.encode(msg.options, dest, version);
         }
 
         public int encodedSize(BatchMessage msg, ProtocolVersion version)
@@ -113,7 +114,7 @@ public class BatchMessage extends Message.Request
             }
             size += version.isSmallerThan(ProtocolVersion.V3)
                   ? CBUtil.sizeOfConsistencyLevel(msg.options.getConsistency())
-                  : QueryOptions.codec.encodedSize(msg.options, version);
+                  : QueryOptionsFactory.codec.encodedSize(msg.options, version);
             return size;
         }
 
@@ -163,7 +164,7 @@ public class BatchMessage extends Message.Request
     }
 
     @Override
-    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Message.Response execute(QueryState state, boolean traceRequest)
     {
         AuditLogManager auditLogManager = AuditLogManager.getInstance();
 
@@ -218,7 +219,7 @@ public class BatchMessage extends Message.Request
             BatchStatement batch = new BatchStatement(batchType, VariableSpecifications.empty(), statements, Attributes.none());
 
             long fqlTime = auditLogManager.isLoggingEnabled() ? System.currentTimeMillis() : 0;
-            Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);
+            Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload());
 
             if (auditLogManager.isLoggingEnabled())
                 auditLogManager.logBatch(batchType, queryOrIdList, values, prepared, options, state, fqlTime);

@@ -71,13 +71,20 @@ public interface CQLStatement
     public void validate(ClientState state);
 
     /**
+     * Resolve the actual timeout value for this CQLStatement
+     * The mehtod should be invoked only after the statement has been validated in QueryHanlder
+     * @param options options specified by a client request for the query
+     * @param state state regarding the current query
+     */
+    public void resolveTimeout(QueryOptions options, QueryState state);
+
+    /**
      * Execute the statement and return the resulting result or null if there is no result.
      *
      * @param state the current query state
      * @param options options for this query (consistency, variables, pageSize, ...)
-     * @param queryStartNanoTime the timestamp returned by System.nanoTime() when this statement was received
      */
-    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime);
+    public ResultMessage execute(QueryState state, QueryOptions options);
 
     /**
      * Variant of execute used for internal query against the system tables, and thus only query the local node.

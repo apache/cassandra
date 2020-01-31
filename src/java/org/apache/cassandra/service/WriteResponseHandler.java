@@ -19,12 +19,12 @@ package org.apache.cassandra.service;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.net.Message;
 
 /**
  * Handles blocking writes for ONE, ANY, TWO, THREE, QUORUM, and ALL consistency levels.
@@ -40,15 +40,15 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
     public WriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan,
                                 Runnable callback,
                                 WriteType writeType,
-                                long queryStartNanoTime)
+                                QueryState queryState)
     {
-        super(replicaPlan, callback, writeType, queryStartNanoTime);
+        super(replicaPlan, callback, writeType, queryState);
         responses = blockFor();
     }
 
-    public WriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan, WriteType writeType, long queryStartNanoTime)
+    public WriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan, WriteType writeType, QueryState queryState)
     {
-        this(replicaPlan, null, writeType, queryStartNanoTime);
+        this(replicaPlan, null, writeType, queryState);
     }
 
     public void onResponse(Message<T> m)

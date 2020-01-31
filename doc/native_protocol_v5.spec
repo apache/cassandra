@@ -329,10 +329,10 @@ Table of Contents
 4.1.4. QUERY
 
   Performs a CQL query. The body of the message must be:
-    <query><query_parameters>
+    <query><query_options>
   where <query> is a [long string] representing the query and
-  <query_parameters> must be
-    <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>][<keyspace>][<now_in_seconds>]
+  <query_options> must be
+    <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>][<keyspace>][<now_in_seconds>][<timeout_in_millis>]
   where:
     - <consistency> is the [consistency] level for the operation.
     - <flags> is a [int] whose bits define the options for this query and
@@ -383,6 +383,10 @@ Table of Contents
                 the query. Affects TTL cell liveness in read queries and local deletion
                 time for tombstones and TTL cells in update requests. It's intended
                 for testing purposes and is optional.
+        0x0200: With timeout in milliseconds. If set, <timeout_in_millis> must be present.
+                <timeout_in_millis> in an [int] representing the client-specified timeout for
+                the query. The timeout cannot exceed the configured corresponding operation
+                timeout effectively.
 
   Note that the consistency is ignored by some queries (USE, CREATE, ALTER,
   TRUNCATE, ...).
@@ -412,7 +416,7 @@ Table of Contents
 4.1.6. EXECUTE
 
   Executes a prepared query. The body of the message must be:
-  <id><result_metadata_id><query_parameters>
+  <id><result_metadata_id><query_options>
   where
     - <id> is the prepared query ID. It's the [short bytes] returned as a
       response to a PREPARE message.
@@ -420,7 +424,7 @@ Table of Contents
       along with response to PREPARE message. If a RESULT/Rows message reports
       changed resultset metadata with the Metadata_changed flag, the reported new
       resultset metadata must be used in subsequent executions.
-    - <query_parameters> has the exact same definition as in QUERY (see Section 4.1.4).
+    - <query_options> has the exact same definition as in QUERY (see Section 4.1.4).
 
 
 4.1.7. BATCH
@@ -428,68 +432,64 @@ Table of Contents
   Allows executing a list of queries (prepared or not) as a batch (note that
   only DML statements are accepted in a batch). The body of the message must
   be:
-    <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>][<keyspace>][<now_in_seconds>]
+    <type><n><query_1>...<query_n><query_options>
   where:
     - <type> is a [byte] indicating the type of batch to use:
-        - If <type> == 0, the batch will be "logged". This is equivalent to a
-          normal CQL3 batch statement.
-        - If <type> == 1, the batch will be "unlogged".
-        - If <type> == 2, the batch will be a "counter" batch (and non-counter
-          statements will be rejected).
-    - <flags> is a [int] whose bits define the options for this query and
-      in particular influence what the remainder of the message contains. It is similar
-      to the <flags> from QUERY and EXECUTE methods, except that the 4 rightmost
-      bits must always be 0 as their corresponding options do not make sense for
-      Batch. A flag is set if the bit corresponding to its `mask` is set. Supported
-      flags are, given their mask:
-        0x0010: With serial consistency. If set, <serial_consistency> should be
-                present. <serial_consistency> is the [consistency] level for the
-                serial phase of conditional updates. That consistency can only be
-                either SERIAL or LOCAL_SERIAL and if not present, it defaults to
-                SERIAL. This option will be ignored for anything else other than a
-                conditional update/insert.
-        0x0020: With default timestamp. If set, <timestamp> should be present.
-                <timestamp> is a [long] representing the default timestamp for the query
-                in microseconds. This will replace the server side assigned
-                timestamp as default timestamp. Note that a timestamp in the query itself
-                will still override this timestamp. This is entirely optional.
-        0x0040: With names for values. If set, then all values for all <query_i> must be
-                preceded by a [string] <name_i> that have the same meaning as in QUERY
-                requests [IMPORTANT NOTE: this feature does not work and should not be
-                used. It is specified in a way that makes it impossible for the server
-                to implement. This will be fixed in a future version of the native
-                protocol. See https://issues.apache.org/jira/browse/CASSANDRA-10246 for
-                more details].
-        0x0080: With keyspace. If set, <keyspace> must be present. <keyspace> is a
-                [string] indicating the keyspace that the query should be executed in.
-                It supercedes the keyspace that the connection is bound to, if any.
-        0x0100: With now in seconds. If set, <now_in_seconds> must be present.
-                <now_in_seconds> is an [int] representing the current time (now) for
-                the query. Affects TTL cell liveness in read queries and local deletion
-                time for tombstones and TTL cells in update requests. It's intended
-                for testing purposes and is optional.
+      - If <type> == 0, the batch will be "logged". This is equivalent to a
+        normal CQL3 batch statement.
+      - If <type> == 1, the batch will be "unlogged".
+      - If <type> == 2, the batch will be a "counter" batch (and non-counter
+        statements will be rejected).
     - <n> is a [short] indicating the number of following queries.
     - <query_1>...<query_n> are the queries to execute. A <query_i> must be of the
       form:
         <kind><string_or_id><n>[<name_1>]<value_1>...[<name_n>]<value_n>
       where:
-       - <kind> is a [byte] indicating whether the following query is a prepared
-         one or not. <kind> value must be either 0 or 1.
-       - <string_or_id> depends on the value of <kind>. If <kind> == 0, it should be
-         a [long string] query string (as in QUERY, the query string might contain
-         bind markers). Otherwise (that is, if <kind> == 1), it should be a
-         [short bytes] representing a prepared query ID.
-       - <n> is a [short] indicating the number (possibly 0) of following values.
-       - <name_i> is the optional name of the following <value_i>. It must be present
-         if and only if the 0x40 flag is provided for the batch.
-       - <value_i> is the [value] to use for bound variable i (of bound variable <name_i>
-         if the 0x40 flag is used).
-    - <consistency> is the [consistency] level for the operation.
-    - <serial_consistency> is only present if the 0x10 flag is set. In that case,
-      <serial_consistency> is the [consistency] level for the serial phase of
-      conditional updates. That consitency can only be either SERIAL or
-      LOCAL_SERIAL and if not present will defaults to SERIAL. This option will
-      be ignored for anything else other than a conditional update/insert.
+        - <kind> is a [byte] indicating whether the following query is a prepared
+          one or not. <kind> value must be either 0 or 1.
+        - <string_or_id> depends on the value of <kind>. If <kind> == 0, it should be
+          a [long string] query string (as in QUERY, the query string might contain
+          bind markers). Otherwise (that is, if <kind> == 1), it should be a
+          [short bytes] representing a prepared query ID.
+        - <n> is a [short] indicating the number (possibly 0) of following values.
+        - <name_i> is the optional name of the following <value_i>. It must be present
+          if and only if the 0x40 flag is provided for the batch.
+        - <value_i> is the [value] to use for bound variable i (of bound variable <name_i>
+          if the 0x40 flag is used).
+    - <query_options> has the exact same definition as in QUERY (see Section 4.1.4), but only
+      supports a subset of the flags for Batch.
+        - <flags> is a [int] whose bits define the options for this query and
+          in particular influence what the remainder of the message contains. It is similar
+          to the <flags> from QUERY and EXECUTE methods, except that the 4 rightmost
+          bits must always be 0 as their corresponding options do not make sense for
+          Batch. A flag is set if the bit corresponding to its `mask` is set. Supported
+          flags are, given their mask:
+            0x0010: With serial consistency. If set, <serial_consistency> should be
+                    present. <serial_consistency> is the [consistency] level for the
+                    serial phase of conditional updates. That consistency can only be
+                    either SERIAL or LOCAL_SERIAL and if not present, it defaults to
+                    SERIAL. This option will be ignored for anything else other than a
+                    conditional update/insert.
+            0x0020: With default timestamp. If set, <timestamp> should be present.
+                    <timestamp> is a [long] representing the default timestamp for the query
+                    in microseconds. This will replace the server side assigned
+                    timestamp as default timestamp. Note that a timestamp in the query itself
+                    will still override this timestamp. This is entirely optional.
+            0x0040: With names for values. If set, then all values for all <query_i> must be
+                    preceded by a [string] <name_i> that have the same meaning as in QUERY
+                    requests [IMPORTANT NOTE: this feature does not work and should not be
+                    used. It is specified in a way that makes it impossible for the server
+                    to implement. This will be fixed in a future version of the native
+                    protocol. See https://issues.apache.org/jira/browse/CASSANDRA-10246 for
+                    more details].
+            0x0080: With keyspace. If set, <keyspace> must be present. <keyspace> is a
+                    [string] indicating the keyspace that the query should be executed in.
+                    It supercedes the keyspace that the connection is bound to, if any.
+            0x0100: With now in seconds. If set, <now_in_seconds> must be present.
+                    <now_in_seconds> is an [int] representing the current time (now) for
+                    the query. Affects TTL cell liveness in read queries and local deletion
+                    time for tombstones and TTL cells in update requests. It's intended
+                    for testing purposes and is optional.
 
   The server will respond with a RESULT message.
 

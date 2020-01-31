@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.transport;
 
-import java.util.ArrayList;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -32,26 +32,49 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.*;
-import io.netty.handler.codec.MessageToMessageDecoder;
-import io.netty.handler.codec.MessageToMessageEncoder;
-
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelConfig;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.EventLoop;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty.handler.codec.MessageToMessageEncoder;
 import org.apache.cassandra.concurrent.LocalAwareExecutorService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.transport.messages.*;
-import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.messages.AuthChallenge;
+import org.apache.cassandra.transport.messages.AuthResponse;
+import org.apache.cassandra.transport.messages.AuthSuccess;
+import org.apache.cassandra.transport.messages.AuthenticateMessage;
+import org.apache.cassandra.transport.messages.BatchMessage;
+import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.transport.messages.EventMessage;
+import org.apache.cassandra.transport.messages.ExecuteMessage;
+import org.apache.cassandra.transport.messages.OptionsMessage;
+import org.apache.cassandra.transport.messages.PrepareMessage;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.ReadyMessage;
+import org.apache.cassandra.transport.messages.RegisterMessage;
+import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.messages.StartupMessage;
+import org.apache.cassandra.transport.messages.SupportedMessage;
+import org.apache.cassandra.transport.messages.UnsupportedMessageCodec;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -225,9 +248,9 @@ public abstract class Message
             return false;
         }
 
-        protected abstract Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest);
+        protected abstract Response execute(QueryState queryState, boolean traceRequest);
 
-        final Response execute(QueryState queryState, long queryStartNanoTime)
+        final Response execute(QueryState queryState)
         {
             boolean shouldTrace = false;
             UUID tracingSessionId = null;
@@ -250,7 +273,7 @@ public abstract class Message
             Response response;
             try
             {
-                response = execute(queryState, queryStartNanoTime, shouldTrace);
+                response = execute(queryState, shouldTrace);
             }
             finally
             {
@@ -709,8 +732,6 @@ public abstract class Message
         {
             final Response response;
             final ServerConnection connection;
-            long queryStartNanoTime = System.nanoTime();
-
             try
             {
                 assert request.connection() instanceof ServerConnection;
@@ -718,11 +739,13 @@ public abstract class Message
                 if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
                     ClientWarn.instance.captureWarnings();
 
-                QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
+                connection.validateNewMessage(request.type, connection.getVersion());
 
                 logger.trace("Received: {}, v={}", request, connection.getVersion());
                 connection.requests.inc();
-                response = request.execute(qstate, queryStartNanoTime);
+
+                QueryState qstate = new QueryState(connection.getClientState());
+                response = request.execute(qstate);
                 response.setStreamId(request.getStreamId());
                 response.setWarnings(ClientWarn.instance.getWarnings());
                 response.attach(connection);

@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
 import com.google.common.primitives.Longs;
 
 import com.datastax.driver.core.BatchStatement;
@@ -123,7 +124,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         {
             SimpleStatement ss = new SimpleStatement(query, values.toArray());
             ss.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
-            ss.setDefaultTimestamp(queryOptions.getTimestamp(queryState));
+            ss.setDefaultTimestamp(queryOptions.getTimestampWithFallback(queryState));
             return ss;
         }
 
@@ -196,7 +197,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
             for (Single query : queries)
                 bs.add(query.toStatement());
             bs.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
-            bs.setDefaultTimestamp(queryOptions.getTimestamp(queryState));
+            bs.setDefaultTimestamp(queryOptions.getTimestampWithFallback(queryState));
             return bs;
         }
 

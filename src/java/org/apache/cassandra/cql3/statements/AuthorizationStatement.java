@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -27,8 +30,6 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
 
 public abstract class AuthorizationStatement extends CQLStatement.Raw implements CQLStatement
 {
@@ -37,7 +38,12 @@ public abstract class AuthorizationStatement extends CQLStatement.Raw implements
         return this;
     }
 
-    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
+    public void resolveTimeout(QueryOptions options, QueryState state)
+    {
+        // no-op; the statements are internal read statements that query system tables. @see IRoleManager impls
+    }
+
+    public ResultMessage execute(QueryState state, QueryOptions options)
     throws RequestValidationException, RequestExecutionException
     {
         return execute(state.getClientState());

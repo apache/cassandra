@@ -38,6 +38,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.FBUtilities;
@@ -507,6 +508,12 @@ public class Message<T>
         {
             this.expiresAtNanos = expiresAtNanos;
             return this;
+        }
+
+        public Builder<T> withQueryState(QueryState queryState)
+        {
+            long expiresAt = queryState.getTimeoutAtWithFallback(t -> verb.expiresAfterNanos(), NANOSECONDS);
+            return withExpiresAt(expiresAt);
         }
 
         public Builder<T> withId(long id)

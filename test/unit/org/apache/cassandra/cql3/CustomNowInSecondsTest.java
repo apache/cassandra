@@ -153,7 +153,7 @@ public class CustomNowInSecondsTest extends CQLTester
             new BatchStatement(BatchStatement.Type.UNLOGGED, VariableSpecifications.empty(), statements, Attributes.none());
 
         // execute an BATCH message with now set to [now + 1 day], with ttl = 1, making its effective ttl = 1 day + 1.
-        QueryProcessor.instance.processBatch(batch, qs, batchQueryOptions(now + day), Collections.emptyMap(), System.nanoTime());
+        QueryProcessor.instance.processBatch(batch, qs, batchQueryOptions(now + day), Collections.emptyMap());
 
         // verify that despite TTL having passed at now + 1 the rows are still there.
         assertEquals(2, executeSelect(format("SELECT * FROM %s.%s", ks, tbl), now + 1, false).size());
@@ -182,26 +182,27 @@ public class CustomNowInSecondsTest extends CQLTester
         if (prepared)
         {
             CQLStatement statement = QueryProcessor.parseStatement(query, cs);
-            return QueryProcessor.instance.processPrepared(statement, qs, queryOptions(nowInSeconds), Collections.emptyMap(), System.nanoTime());
+            return QueryProcessor.instance.processPrepared(statement, qs, queryOptions(nowInSeconds), Collections.emptyMap());
         }
         else
         {
-            return QueryProcessor.instance.process(query, qs, queryOptions(nowInSeconds), Collections.emptyMap(), System.nanoTime());
+            return QueryProcessor.instance.process(query, qs, queryOptions(nowInSeconds), Collections.emptyMap());
         }
     }
 
     private static QueryOptions queryOptions(int nowInSeconds)
     {
-        return QueryOptions.create(ConsistencyLevel.ONE,
-                                   Collections.emptyList(),
-                                   false,
-                                   Integer.MAX_VALUE,
-                                   null,
-                                   null,
-                                   ProtocolVersion.CURRENT,
-                                   null,
-                                   Long.MIN_VALUE,
-                                   nowInSeconds);
+        return QueryOptionsFactory.create(ConsistencyLevel.ONE,
+                                          Collections.emptyList(),
+                                          false,
+                                          Integer.MAX_VALUE,
+                                          null,
+                                          null,
+                                          ProtocolVersion.CURRENT,
+                                          null,
+                                          Long.MIN_VALUE,
+                                          nowInSeconds,
+                                          Integer.MAX_VALUE);
     }
 
     private static BatchQueryOptions batchQueryOptions(int nowInSeconds)

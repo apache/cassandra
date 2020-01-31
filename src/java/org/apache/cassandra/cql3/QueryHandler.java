@@ -33,8 +33,7 @@ public interface QueryHandler
     ResultMessage process(String query,
                           QueryState state,
                           QueryOptions options,
-                          Map<String, ByteBuffer> customPayload,
-                          long queryStartNanoTime) throws RequestExecutionException, RequestValidationException;
+                          Map<String, ByteBuffer> customPayload) throws RequestExecutionException, RequestValidationException;
 
     ResultMessage.Prepared prepare(String query,
                                    ClientState clientState,
@@ -45,14 +44,12 @@ public interface QueryHandler
     ResultMessage processPrepared(CQLStatement statement,
                                   QueryState state,
                                   QueryOptions options,
-                                  Map<String, ByteBuffer> customPayload,
-                                  long queryStartNanoTime) throws RequestExecutionException, RequestValidationException;
+                                  Map<String, ByteBuffer> customPayload) throws RequestExecutionException, RequestValidationException;
 
     ResultMessage processBatch(BatchStatement statement,
                                QueryState state,
                                BatchQueryOptions options,
-                               Map<String, ByteBuffer> customPayload,
-                               long queryStartNanoTime) throws RequestExecutionException, RequestValidationException;
+                               Map<String, ByteBuffer> customPayload) throws RequestExecutionException, RequestValidationException;
 
     public static class Prepared
     {

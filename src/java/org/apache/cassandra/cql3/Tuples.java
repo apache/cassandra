@@ -86,7 +86,7 @@ public class Tuples
                 values.add(value);
             }
             DelayedValue value = new DelayedValue(getTupleType(receiver.type), values);
-            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
+            return allTerminal ? value.bind(QueryOptionsFactory.DEFAULT) : value;
         }
 
         public Term prepare(String keyspace, List<? extends ColumnSpecification> receivers) throws InvalidRequestException
@@ -107,7 +107,7 @@ public class Tuples
                 types.add(receivers.get(i).type);
             }
             DelayedValue value = new DelayedValue(new TupleType(types), values);
-            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
+            return allTerminal ? value.bind(QueryOptionsFactory.DEFAULT) : value;
         }
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)

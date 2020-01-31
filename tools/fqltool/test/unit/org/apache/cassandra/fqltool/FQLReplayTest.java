@@ -43,7 +43,7 @@ import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.audit.FullQueryLogger;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.fqltool.commands.Compare;
 import org.apache.cassandra.fqltool.commands.Replay;
@@ -171,7 +171,7 @@ public class FQLReplayTest
 
         ResultHandler.ComparableResultSet res = createResultSet(10, 10, true);
         ResultStore rs = new ResultStore(Collections.singletonList(tmpDir), queryDir);
-        FQLQuery query = new FQLQuery.Single("abc", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 12345, 11111, 22, "select * from abc", Collections.emptyList());
+        FQLQuery query = new FQLQuery.Single("abc", QueryOptionsFactory.DEFAULT.getProtocolVersion().asInt(), QueryOptionsFactory.DEFAULT, 12345, 11111, 22, "select * from abc", Collections.emptyList());
         try
         {
             rs.storeColumnDefinitions(query, Collections.singletonList(res.getColumnDefinitions()));
@@ -330,7 +330,7 @@ public class FQLReplayTest
         ResultHandler.ComparableResultSet res2 = createResultSet(10, 10, false);
         ResultHandler.ComparableResultSet res3 = createResultSet(10, 10, false);
         List<ResultHandler.ComparableResultSet> toCompare = Lists.newArrayList(res, res2, res3);
-        FQLQuery query = new FQLQuery.Single("abcabc", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 1111, 2222, 3333, "select * from xyz", Collections.emptyList());
+        FQLQuery query = new FQLQuery.Single("abcabc", QueryOptionsFactory.DEFAULT.getProtocolVersion().asInt(), QueryOptionsFactory.DEFAULT, 1111, 2222, 3333, "select * from xyz", Collections.emptyList());
         try (ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir))
         {
             rh.handleResults(query, toCompare);
@@ -356,7 +356,7 @@ public class FQLReplayTest
         ResultHandler.ComparableResultSet res2 = createResultSet(10, 5, false);
         ResultHandler.ComparableResultSet res3 = createResultSet(10, 10, false);
         List<ResultHandler.ComparableResultSet> toCompare = Lists.newArrayList(res, res2, res3);
-        FQLQuery query = new FQLQuery.Single("aaa", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 123123, 11111, 22222, "select * from abcabc", Collections.emptyList());
+        FQLQuery query = new FQLQuery.Single("aaa", QueryOptionsFactory.DEFAULT.getProtocolVersion().asInt(), QueryOptionsFactory.DEFAULT, 123123, 11111, 22222, "select * from abcabc", Collections.emptyList());
         try (ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir))
         {
             rh.handleResults(query, toCompare);
@@ -389,7 +389,7 @@ public class FQLReplayTest
             FQLQuery q = i % 2 == 0
                          ? new FQLQuery.Single("abc"+i,
                                              3,
-                                             QueryOptions.forInternalCalls(values),
+                                             QueryOptionsFactory.forInternalCalls(values),
                                              i * 1000,
                                              12345,
                                              54321,
@@ -397,7 +397,7 @@ public class FQLReplayTest
                                              values)
                          : new FQLQuery.Batch("abc"+i,
                                               3,
-                                              QueryOptions.forInternalCalls(values),
+                                              QueryOptionsFactory.forInternalCalls(values),
                                               i * 1000,
                                               i * 54321,
                                               i * 12345,
@@ -440,7 +440,7 @@ public class FQLReplayTest
             results.set(3, StoredResultSet.failed("testing abc"));
             FQLQuery q = new FQLQuery.Single("abc"+i,
                                              3,
-                                             QueryOptions.forInternalCalls(values),
+                                             QueryOptionsFactory.forInternalCalls(values),
                                              i * 1000,
                                              i * 12345,
                                              i * 54321,
@@ -460,33 +460,33 @@ public class FQLReplayTest
     @Test
     public void testCompare()
     {
-        FQLQuery q1 = new FQLQuery.Single("abc", 0, QueryOptions.DEFAULT, 123, 111, 222, "aaaa", Collections.emptyList());
-        FQLQuery q2 = new FQLQuery.Single("abc", 0, QueryOptions.DEFAULT, 123, 111, 222,"aaaa", Collections.emptyList());
+        FQLQuery q1 = new FQLQuery.Single("abc", 0, QueryOptionsFactory.DEFAULT, 123, 111, 222, "aaaa", Collections.emptyList());
+        FQLQuery q2 = new FQLQuery.Single("abc", 0, QueryOptionsFactory.DEFAULT, 123, 111, 222,"aaaa", Collections.emptyList());
 
         assertEquals(0, q1.compareTo(q2));
         assertEquals(0, q2.compareTo(q1));
 
-        FQLQuery q3 = new FQLQuery.Batch("abc", 0, QueryOptions.DEFAULT, 123, 111, 222, com.datastax.driver.core.BatchStatement.Type.UNLOGGED, Collections.emptyList(), Collections.emptyList());
+        FQLQuery q3 = new FQLQuery.Batch("abc", 0, QueryOptionsFactory.DEFAULT, 123, 111, 222, com.datastax.driver.core.BatchStatement.Type.UNLOGGED, Collections.emptyList(), Collections.emptyList());
         // single queries before batch queries
         assertTrue(q1.compareTo(q3) < 0);
         assertTrue(q3.compareTo(q1) > 0);
 
         // check that smaller query time
-        FQLQuery q4 = new FQLQuery.Single("abc", 0, QueryOptions.DEFAULT, 124, 111, 222, "aaaa", Collections.emptyList());
+        FQLQuery q4 = new FQLQuery.Single("abc", 0, QueryOptionsFactory.DEFAULT, 124, 111, 222, "aaaa", Collections.emptyList());
         assertTrue(q1.compareTo(q4) < 0);
         assertTrue(q4.compareTo(q1) > 0);
 
-        FQLQuery q5 = new FQLQuery.Batch("abc", 0, QueryOptions.DEFAULT, 124, 111, 222, com.datastax.driver.core.BatchStatement.Type.UNLOGGED, Collections.emptyList(), Collections.emptyList());
+        FQLQuery q5 = new FQLQuery.Batch("abc", 0, QueryOptionsFactory.DEFAULT, 124, 111, 222, com.datastax.driver.core.BatchStatement.Type.UNLOGGED, Collections.emptyList(), Collections.emptyList());
         assertTrue(q1.compareTo(q5) < 0);
         assertTrue(q5.compareTo(q1) > 0);
 
-        FQLQuery q6 = new FQLQuery.Single("abc", 0, QueryOptions.DEFAULT, 123, 111, 222, "aaaa", Collections.singletonList(ByteBufferUtil.bytes(10)));
-        FQLQuery q7 = new FQLQuery.Single("abc", 0, QueryOptions.DEFAULT, 123, 111, 222, "aaaa", Collections.emptyList());
+        FQLQuery q6 = new FQLQuery.Single("abc", 0, QueryOptionsFactory.DEFAULT, 123, 111, 222, "aaaa", Collections.singletonList(ByteBufferUtil.bytes(10)));
+        FQLQuery q7 = new FQLQuery.Single("abc", 0, QueryOptionsFactory.DEFAULT, 123, 111, 222, "aaaa", Collections.emptyList());
         assertTrue(q6.compareTo(q7) > 0);
         assertTrue(q7.compareTo(q6) < 0);
 
-        FQLQuery q8 = new FQLQuery.Single("abc", 0, QueryOptions.DEFAULT, 123, 111, 222, "aaaa", Collections.singletonList(ByteBufferUtil.bytes("a")));
-        FQLQuery q9 = new FQLQuery.Single("abc", 0, QueryOptions.DEFAULT, 123, 111, 222, "aaaa", Collections.singletonList(ByteBufferUtil.bytes("b")));
+        FQLQuery q8 = new FQLQuery.Single("abc", 0, QueryOptionsFactory.DEFAULT, 123, 111, 222, "aaaa", Collections.singletonList(ByteBufferUtil.bytes("a")));
+        FQLQuery q9 = new FQLQuery.Single("abc", 0, QueryOptionsFactory.DEFAULT, 123, 111, 222, "aaaa", Collections.singletonList(ByteBufferUtil.bytes("b")));
         assertTrue(q8.compareTo(q9) < 0);
         assertTrue(q9.compareTo(q8) > 0);
     }
@@ -498,8 +498,8 @@ public class FQLReplayTest
         for (int i = 0; i < 10; i++)
             values.add(ByteBufferUtil.bytes(i));
         FQLQuery.Single single = new FQLQuery.Single("xyz",
-                                                     QueryOptions.DEFAULT.getProtocolVersion().asInt(),
-                                                     QueryOptions.forInternalCalls(values),
+                                                     QueryOptionsFactory.DEFAULT.getProtocolVersion().asInt(),
+                                                     QueryOptionsFactory.forInternalCalls(values),
                                                      1234,
                                                      12345,
                                                      54321,
@@ -510,7 +510,7 @@ public class FQLReplayTest
         assertTrue(stmt instanceof SimpleStatement);
         SimpleStatement simpleStmt = (SimpleStatement)stmt;
         assertEquals("select * from aaa",simpleStmt.getQueryString(CodecRegistry.DEFAULT_INSTANCE));
-        assertArrayEquals(values.toArray(), simpleStmt.getValues(com.datastax.driver.core.ProtocolVersion.fromInt(QueryOptions.DEFAULT.getProtocolVersion().asInt()), CodecRegistry.DEFAULT_INSTANCE));
+        assertArrayEquals(values.toArray(), simpleStmt.getValues(com.datastax.driver.core.ProtocolVersion.fromInt(QueryOptionsFactory.DEFAULT.getProtocolVersion().asInt()), CodecRegistry.DEFAULT_INSTANCE));
     }
 
 
@@ -529,8 +529,8 @@ public class FQLReplayTest
         }
 
         FQLQuery.Batch batch = new FQLQuery.Batch("xyz",
-                                                   QueryOptions.DEFAULT.getProtocolVersion().asInt(),
-                                                   QueryOptions.DEFAULT,
+                                                   QueryOptionsFactory.DEFAULT.getProtocolVersion().asInt(),
+                                                   QueryOptionsFactory.DEFAULT,
                                                    1234,
                                                    12345,
                                                    54321,
@@ -677,8 +677,8 @@ public class FQLReplayTest
         SimpleStatement simpleStmt1 = (SimpleStatement)statement1;
         SimpleStatement simpleStmt2 = (SimpleStatement)statement2;
         assertEquals(simpleStmt1.getQueryString(CodecRegistry.DEFAULT_INSTANCE), simpleStmt2.getQueryString(CodecRegistry.DEFAULT_INSTANCE));
-        assertArrayEquals(simpleStmt1.getValues(com.datastax.driver.core.ProtocolVersion.fromInt(QueryOptions.DEFAULT.getProtocolVersion().asInt()), CodecRegistry.DEFAULT_INSTANCE),
-                          simpleStmt2.getValues(com.datastax.driver.core.ProtocolVersion.fromInt(QueryOptions.DEFAULT.getProtocolVersion().asInt()), CodecRegistry.DEFAULT_INSTANCE));
+        assertArrayEquals(simpleStmt1.getValues(com.datastax.driver.core.ProtocolVersion.fromInt(QueryOptionsFactory.DEFAULT.getProtocolVersion().asInt()), CodecRegistry.DEFAULT_INSTANCE),
+                          simpleStmt2.getValues(com.datastax.driver.core.ProtocolVersion.fromInt(QueryOptionsFactory.DEFAULT.getProtocolVersion().asInt()), CodecRegistry.DEFAULT_INSTANCE));
 
     }
 
@@ -697,7 +697,7 @@ public class FQLReplayTest
                 {
                     String query = "abcdefghijklm " + i;
                     QueryState qs = r.nextBoolean() ? queryState() : queryState("querykeyspace");
-                    FullQueryLogger.Query  q = new FullQueryLogger.Query(query, QueryOptions.DEFAULT, qs, timestamp);
+                    FullQueryLogger.Query  q = new FullQueryLogger.Query(query, QueryOptionsFactory.DEFAULT, qs, timestamp);
                     appender.writeDocument(q);
                     q.release();
                 }
@@ -714,7 +714,7 @@ public class FQLReplayTest
                     FullQueryLogger.Batch batch = new FullQueryLogger.Batch(BatchStatement.Type.UNLOGGED,
                                                                             queries,
                                                                             values,
-                                                                            QueryOptions.DEFAULT,
+                                                                            QueryOptionsFactory.DEFAULT,
                                                                             queryState("someks"),
                                                                             timestamp);
                     appender.writeDocument(batch);

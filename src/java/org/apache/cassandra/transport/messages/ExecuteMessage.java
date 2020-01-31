@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
@@ -50,7 +51,7 @@ public class ExecuteMessage extends Message.Request
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                 resultMetadataId = MD5Digest.wrap(CBUtil.readBytes(body));
 
-            return new ExecuteMessage(statementId, resultMetadataId, QueryOptions.codec.decode(body, version));
+            return new ExecuteMessage(statementId, resultMetadataId, QueryOptionsFactory.codec.decode(body, version));
         }
 
         public void encode(ExecuteMessage msg, ByteBuf dest, ProtocolVersion version)
@@ -67,7 +68,7 @@ public class ExecuteMessage extends Message.Request
             }
             else
             {
-                QueryOptions.codec.encode(msg.options, dest, version);
+                QueryOptionsFactory.codec.encode(msg.options, dest, version);
             }
         }
 
@@ -86,7 +87,7 @@ public class ExecuteMessage extends Message.Request
             }
             else
             {
-                size += QueryOptions.codec.encodedSize(msg.options, version);
+                size += QueryOptionsFactory.codec.encodedSize(msg.options, version);
             }
             return size;
         }
@@ -111,7 +112,7 @@ public class ExecuteMessage extends Message.Request
     }
 
     @Override
-    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Message.Response execute(QueryState state, boolean traceRequest)
     {
         AuditLogManager auditLogManager = AuditLogManager.getInstance();
 
@@ -133,11 +134,11 @@ public class ExecuteMessage extends Message.Request
 
             // Some custom QueryHandlers are interested by the bound names. We provide them this information
             // by wrapping the QueryOptions.
-            QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.statement.getBindVariables());
+            QueryOptions queryOptions = QueryOptionsFactory.addColumnSpecifications(options, prepared.statement.getBindVariables());
 
             long requestStartTime = auditLogManager.isLoggingEnabled() ? System.currentTimeMillis() : 0L;
 
-            Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
+            Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload());
 
             if (auditLogManager.isLoggingEnabled())
                 logSuccess(state, prepared, requestStartTime);

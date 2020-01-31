@@ -27,8 +27,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
@@ -49,7 +53,12 @@ abstract class AlterSchemaStatement implements CQLStatement, SchemaTransformatio
         // no-op; validation is performed while executing the statement, in apply()
     }
 
-    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
+    public void resolveTimeout(QueryOptions options, QueryState state)
+    {
+        // no-op; there is no timeout applicable here
+    }
+
+    public ResultMessage execute(QueryState state, QueryOptions options)
     {
         return execute(state, false);
     }

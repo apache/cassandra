@@ -20,10 +20,14 @@ package org.apache.cassandra.service;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.transport.*;
-import org.apache.cassandra.transport.messages.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
+import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.transport.SimpleClient;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
@@ -76,13 +80,13 @@ public class ProtocolBetaVersionTest extends CQLTester
                 QueryMessage query = new QueryMessage(String.format("INSERT INTO %s.%s (pk, v) VALUES (%s, %s)",
                                                                     KEYSPACE,
                                                                     currentTable(),
-                                                                    i, i), QueryOptions.DEFAULT);
+                                                                    i, i), QueryOptionsFactory.DEFAULT);
                 client.execute(query);
             }
 
             QueryMessage query = new QueryMessage(String.format("SELECT * FROM %s.%s",
                                                                 KEYSPACE,
-                                                                currentTable()), QueryOptions.DEFAULT);
+                                                                currentTable()), QueryOptionsFactory.DEFAULT);
             ResultMessage.Rows resp = (ResultMessage.Rows) client.execute(query);
             assertEquals(10, resp.result.size());
         }

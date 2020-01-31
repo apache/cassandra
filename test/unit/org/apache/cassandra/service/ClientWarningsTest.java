@@ -18,13 +18,12 @@
 package org.apache.cassandra.service;
 
 import org.apache.commons.lang3.StringUtils;
-
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryOptionsFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.transport.Message;
@@ -53,11 +52,11 @@ public class ClientWarningsTest extends CQLTester
         {
             client.connect(false, false);
 
-            QueryMessage query = new QueryMessage(createBatchStatement2(1), QueryOptions.DEFAULT);
+            QueryMessage query = new QueryMessage(createBatchStatement2(1), QueryOptionsFactory.DEFAULT);
             Message.Response resp = client.execute(query);
             assertNull(resp.getWarnings());
 
-            query = new QueryMessage(createBatchStatement2(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
+            query = new QueryMessage(createBatchStatement2(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptionsFactory.DEFAULT);
             resp = client.execute(query);
             assertEquals(1, resp.getWarnings().size());
         }
@@ -72,11 +71,11 @@ public class ClientWarningsTest extends CQLTester
         {
             client.connect(false, false);
 
-            QueryMessage query = new QueryMessage(createBatchStatement2(DatabaseDescriptor.getBatchSizeWarnThreshold() / 2 + 1), QueryOptions.DEFAULT);
+            QueryMessage query = new QueryMessage(createBatchStatement2(DatabaseDescriptor.getBatchSizeWarnThreshold() / 2 + 1), QueryOptionsFactory.DEFAULT);
             Message.Response resp = client.execute(query);
             assertEquals(1, resp.getWarnings().size());
 
-            query = new QueryMessage(createBatchStatement(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
+            query = new QueryMessage(createBatchStatement(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptionsFactory.DEFAULT);
             resp = client.execute(query);
             assertNull(resp.getWarnings());
         }
@@ -97,7 +96,7 @@ public class ClientWarningsTest extends CQLTester
                 QueryMessage query = new QueryMessage(String.format("INSERT INTO %s.%s (pk, ck, v) VALUES (1, %s, 1)",
                                                                     KEYSPACE,
                                                                     currentTable(),
-                                                                    i), QueryOptions.DEFAULT);
+                                                                    i), QueryOptionsFactory.DEFAULT);
                 client.execute(query);
             }
             ColumnFamilyStore store = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
@@ -108,7 +107,7 @@ public class ClientWarningsTest extends CQLTester
                 QueryMessage query = new QueryMessage(String.format("DELETE v FROM %s.%s WHERE pk = 1 AND ck = %s",
                                                                     KEYSPACE,
                                                                     currentTable(),
-                                                                    i), QueryOptions.DEFAULT);
+                                                                    i), QueryOptionsFactory.DEFAULT);
                 client.execute(query);
             }
             store.forceBlockingFlush();
@@ -116,7 +115,7 @@ public class ClientWarningsTest extends CQLTester
             {
                 QueryMessage query = new QueryMessage(String.format("SELECT * FROM %s.%s WHERE pk = 1",
                                                                     KEYSPACE,
-                                                                    currentTable()), QueryOptions.DEFAULT);
+                                                                    currentTable()), QueryOptionsFactory.DEFAULT);
                 Message.Response resp = client.execute(query);
                 assertEquals(1, resp.getWarnings().size());
             }
@@ -132,7 +131,7 @@ public class ClientWarningsTest extends CQLTester
         {
             client.connect(false, false);
 
-            QueryMessage query = new QueryMessage(createBatchStatement(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
+            QueryMessage query = new QueryMessage(createBatchStatement(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptionsFactory.DEFAULT);
             Message.Response resp = client.execute(query);
             assertNull(resp.getWarnings());
         }

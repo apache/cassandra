@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.service.reads;
 
-import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,10 +38,14 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.reads.repair.NoopReadRepair;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 
 public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
@@ -60,18 +61,18 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
     private boolean partitionsFetched; // whether we've seen any new partitions since iteration start or last moreContents() call
 
-    private final long queryStartNanoTime;
+    private final QueryState queryState;
 
     public ShortReadPartitionsProtection(ReadCommand command, Replica source,
                                          DataLimits.Counter singleResultCounter,
                                          DataLimits.Counter mergedResultCounter,
-                                         long queryStartNanoTime)
+                                         QueryState queryState)
     {
         this.command = command;
         this.source = source;
         this.singleResultCounter = singleResultCounter;
         this.mergedResultCounter = mergedResultCounter;
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.queryState = queryState;
     }
 
     @Override
@@ -177,8 +178,8 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
     private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
     UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
     {
-        DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);
-        ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryStartNanoTime);
+        DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryState);
+        ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryState);
 
         if (source.isSelf())
         {

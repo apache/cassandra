@@ -20,18 +20,43 @@ package org.apache.cassandra.cql3;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.statements.SelectStatement;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -62,11 +87,11 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     @VisibleForTesting
     public static UntypedResultSet create(SelectStatement select,
                                           ConsistencyLevel cl,
-                                          ClientState clientState,
+                                          QueryState queryState,
                                           QueryPager pager,
                                           int pageSize)
     {
-        return new FromDistributedPager(select, cl, clientState, pager, pageSize);
+        return new FromDistributedPager(select, cl, queryState, pager, pageSize);
     }
 
     public boolean isEmpty()
@@ -227,19 +252,19 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     {
         private final SelectStatement select;
         private final ConsistencyLevel cl;
-        private final ClientState clientState;
+        private final QueryState queryState;
         private final QueryPager pager;
         private final int pageSize;
         private final List<ColumnSpecification> metadata;
 
         private FromDistributedPager(SelectStatement select,
                                      ConsistencyLevel cl,
-                                     ClientState clientState,
+                                     QueryState queryState,
                                      QueryPager pager, int pageSize)
         {
             this.select = select;
             this.cl = cl;
-            this.clientState = clientState;
+            this.queryState = queryState;
             this.pager = pager;
             this.pageSize = pageSize;
             this.metadata = select.getResultMetadata().requestNames();
@@ -269,7 +294,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                         if (pager.isExhausted())
                             return endOfData();
 
-                        try (PartitionIterator iter = pager.fetchPage(pageSize, cl, clientState, System.nanoTime()))
+                        try (PartitionIterator iter = pager.fetchPage(pageSize, cl, queryState))
                         {
                             currentPage = select.process(iter, nowInSec).rows.iterator();
                         }

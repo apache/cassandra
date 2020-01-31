@@ -4779,7 +4779,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         try
         {
-            StorageProxy.truncateBlocking(keyspace, table);
+            StorageProxy.truncateBlocking(keyspace, table, QueryState.forInternalCalls());
         }
         catch (UnavailableException e)
         {

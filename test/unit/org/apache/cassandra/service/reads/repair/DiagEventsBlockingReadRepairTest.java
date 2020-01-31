@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Lists;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -44,7 +43,9 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepairEvent.ReadRepairEventType;
 
@@ -87,7 +88,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         Assert.assertTrue(handler.updatesByEp.isEmpty());
 
         // check that the correct mutations are sent
-        handler.sendInitialRepairs();
+        handler.sendInitialRepairs(QueryState.forInternalCalls());
         Assert.assertEquals(2, handler.updatesByEp.size());
 
         Assert.assertEquals(repair1.toString(), handler.updatesByEp.get(target1));
@@ -95,7 +96,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
 
         // check that a combined mutation is speculatively sent to the 3rd target
         handler.updatesByEp.clear();
-        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS);
+        handler.maybeSendAdditionalWrites(0, TimeUnit.NANOSECONDS, QueryState.forInternalCalls());
         Assert.assertEquals(1, handler.updatesByEp.size());
         Assert.assertEquals(resolved.toString(), handler.updatesByEp.get(target3));
 
@@ -112,9 +113,9 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         return handler.awaitRepairsUntil(System.nanoTime(), TimeUnit.NANOSECONDS);
     }
 
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, long queryStartNanoTime)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, QueryState queryState)
     {
-        return new DiagnosticBlockingRepairHandler(command, replicaPlan, queryStartNanoTime);
+        return new DiagnosticBlockingRepairHandler(command, replicaPlan, queryState);
     }
 
     private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, ReplicaPlan.ForRead<?> replicaPlan)
@@ -133,9 +134,9 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         private Set<InetAddressAndPort> recipients = Collections.emptySet();
         private ReadCallback readCallback = null;
 
-        DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, long queryStartNanoTime)
+        DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, QueryState queryState)
         {
-            super(command, replicaPlan, queryStartNanoTime);
+            super(command, replicaPlan, queryState);
             DiagnosticEventService.instance().subscribe(ReadRepairEvent.class, this::onRepairEvent);
         }
 
