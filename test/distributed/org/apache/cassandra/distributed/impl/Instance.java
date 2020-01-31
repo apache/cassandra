@@ -194,7 +194,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         BiConsumer<InetAddressAndPort, IMessage> deliverToInstance = (to, message) -> cluster.get(to).receiveMessage(message);
         BiConsumer<InetAddressAndPort, IMessage> deliverToInstanceIfNotFiltered = (to, message) -> {
-            if (cluster.filters().permit(this, cluster.get(to), message.verb()))
+            int fromNum = config().num();
+            int toNum = cluster.get(to).config().num();
+
+            if (cluster.filters().permit(fromNum, toNum, message))
                 deliverToInstance.accept(to, message);
         };
 
@@ -222,7 +225,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 // Port is not passed in, so take a best guess at the destination port from this instance
                 IInstance to = cluster.get(InetAddressAndPort.getByAddressOverrideDefaults(toAddress, instance.config().broadcastAddressAndPort().port));
-                return cluster.filters().permit(instance, to, message.verb.ordinal());
+                int fromNum = config().num();
+                int toNum = to.config().num();
+                return cluster.filters().permit(fromNum, toNum, serializeMessage(message, id, broadcastAddressAndPort(), to.broadcastAddressAndPort()));
             }
 
             public boolean allowIncomingMessage(MessageIn message, int id)
@@ -232,10 +237,30 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         });
     }
 
+    public static IMessage serializeMessage(MessageOut messageOut, int id, InetAddressAndPort from, InetAddressAndPort to)
+    {
+        try (DataOutputBuffer out = new DataOutputBuffer(1024))
+        {
+            int version = MessagingService.instance().getVersion(to.address);
+
+            out.writeInt(MessagingService.PROTOCOL_MAGIC);
+            out.writeInt(id);
+            long timestamp = System.currentTimeMillis();
+            out.writeInt((int) timestamp);
+            messageOut.serialize(out, version);
+            return new Message(messageOut.verb.ordinal(), out.toByteArray(), id, version, from);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     private class MessageDeliverySink implements IMessageSink
     {
         private final BiConsumer<InetAddressAndPort, IMessage> deliver;
         private final Function<InetAddress, InetAddressAndPort> lookupAddressAndPort;
+
         MessageDeliverySink(BiConsumer<InetAddressAndPort, IMessage> deliver, Function<InetAddress, InetAddressAndPort> lookupAddressAndPort)
         {
             this.deliver = deliver;
@@ -244,46 +269,35 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         public boolean allowOutgoingMessage(MessageOut messageOut, int id, InetAddress to)
         {
-            try (DataOutputBuffer out = new DataOutputBuffer(1024))
-            {
-                InetAddressAndPort from = broadcastAddressAndPort();
-                assert from.equals(lookupAddressAndPort.apply(messageOut.from));
-                InetAddressAndPort toFull = lookupAddressAndPort.apply(to);
-                int version = MessagingService.instance().getVersion(to);
 
-                // Tracing logic - similar to org.apache.cassandra.net.OutboundTcpConnection.writeConnected
-                byte[] sessionBytes = (byte[]) messageOut.parameters.get(Tracing.TRACE_HEADER);
-                if (sessionBytes != null)
+            InetAddressAndPort from = broadcastAddressAndPort();
+            assert from.equals(lookupAddressAndPort.apply(messageOut.from));
+
+            // Tracing logic - similar to org.apache.cassandra.net.OutboundTcpConnection.writeConnected
+            byte[] sessionBytes = (byte[]) messageOut.parameters.get(Tracing.TRACE_HEADER);
+            if (sessionBytes != null)
+            {
+                UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
+                TraceState state = Tracing.instance.get(sessionId);
+                String message = String.format("Sending %s message to %s", messageOut.verb, to);
+                // session may have already finished; see CASSANDRA-5668
+                if (state == null)
                 {
-                    UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
-                    TraceState state = Tracing.instance.get(sessionId);
-                    String message = String.format("Sending %s message to %s", messageOut.verb, toFull.address);
-                    // session may have already finished; see CASSANDRA-5668
-                    if (state == null)
-                    {
-                        byte[] traceTypeBytes = (byte[]) messageOut.parameters.get(Tracing.TRACE_TYPE);
-                        Tracing.TraceType traceType = traceTypeBytes == null ? Tracing.TraceType.QUERY : Tracing.TraceType.deserialize(traceTypeBytes[0]);
-                        Tracing.instance.trace(ByteBuffer.wrap(sessionBytes), message, traceType.getTTL());
-                    }
-                    else
-                    {
-                        state.trace(message);
-                        if (messageOut.verb == MessagingService.Verb.REQUEST_RESPONSE)
-                            Tracing.instance.doneWithNonLocalSession(state);
-                    }
+                    byte[] traceTypeBytes = (byte[]) messageOut.parameters.get(Tracing.TRACE_TYPE);
+                    Tracing.TraceType traceType = traceTypeBytes == null ? Tracing.TraceType.QUERY : Tracing.TraceType.deserialize(traceTypeBytes[0]);
+                    Tracing.instance.trace(ByteBuffer.wrap(sessionBytes), message, traceType.getTTL());
                 }
+                else
+                {
+                    state.trace(message);
+                    if (messageOut.verb == MessagingService.Verb.REQUEST_RESPONSE)
+                        Tracing.instance.doneWithNonLocalSession(state);
+                }
+            }
 
-                out.writeInt(MessagingService.PROTOCOL_MAGIC);
-                out.writeInt(id);
-                long timestamp = System.currentTimeMillis();
-                out.writeInt((int) timestamp);
-                messageOut.serialize(out, version);
-                deliver.accept(toFull, new Message(messageOut.verb.ordinal(), out.toByteArray(), id, version, from));
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            InetAddressAndPort toFull = lookupAddressAndPort.apply(to);
+            deliver.accept(toFull, serializeMessage(messageOut, id, from, toFull));
+
             return false;
         }
 
@@ -294,37 +308,49 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
+    public static MessageIn<Object> deserializeMessage(IMessage imessage)
+    {
+        // Based on org.apache.cassandra.net.IncomingTcpConnection.receiveMessage
+        try (DataInputBuffer input = new DataInputBuffer(imessage.bytes()))
+        {
+            int version = imessage.version();
+            if (version > MessagingService.current_version)
+            {
+                throw new IllegalStateException(String.format("Received message version %d but current version is %d",
+                                                              version,
+                                                              MessagingService.current_version));
+            }
+
+            MessagingService.validateMagic(input.readInt());
+            int id;
+            if (version < MessagingService.VERSION_20)
+                id = Integer.parseInt(input.readUTF());
+            else
+                id = input.readInt();
+            long currentTime = ApproximateTime.currentTimeMillis();
+            return MessageIn.read(input, version, id, MessageIn.readConstructionTime(imessage.from().address, input, currentTime));
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException(t);
+        }
+    }
+
     public void receiveMessage(IMessage imessage)
     {
         sync(() -> {
             // Based on org.apache.cassandra.net.IncomingTcpConnection.receiveMessage
-            try (DataInputBuffer input = new DataInputBuffer(imessage.bytes()))
+            try
             {
-                int version = imessage.version();
-                if (version > MessagingService.current_version)
-                {
-                    throw new IllegalStateException(String.format("Node%d received message version %d but current version is %d",
-                                                                  this.config.num(),
-                                                                  version,
-                                                                  MessagingService.current_version));
-                }
-
-                MessagingService.validateMagic(input.readInt());
-                int id;
-                if (version < MessagingService.VERSION_20)
-                    id = Integer.parseInt(input.readUTF());
-                else
-                    id = input.readInt();
-                long currentTime = ApproximateTime.currentTimeMillis();
-                MessageIn message = MessageIn.read(input, version, id, MessageIn.readConstructionTime(imessage.from().address, input, currentTime));
+                MessageIn message = deserializeMessage(imessage);
                 if (message == null)
                 {
                     // callback expired; nothing to do
                     return;
                 }
-                if (version <= MessagingService.current_version)
+                if (message.version <= MessagingService.current_version)
                 {
-                    MessagingService.instance().receive(message, id);
+                    MessagingService.instance().receive(message, imessage.id());
                 }
                 // else ignore message
             }
