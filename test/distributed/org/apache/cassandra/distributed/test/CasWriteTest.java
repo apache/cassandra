@@ -19,18 +19,18 @@
 package org.apache.cassandra.distributed.test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -39,7 +39,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +50,6 @@ import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
 import org.hamcrest.BaseMatcher;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Description;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -153,39 +151,76 @@ public class CasWriteTest extends DistributedTestBase
     @Test
     public void casWriteResultUnknownTest() throws InterruptedException
     {
-        int curPk = 1;
-        ExecutorService es = Executors.newFixedThreadPool(3);
+        testWithContention(100,
+                           Arrays.asList(1, 3),
+                           c -> {
+                               c.filters().reset();
+                               c.verbs(Verb.PAXOS_PREPARE_REQ).from(1).to(3).drop();
+                           },
+                           failure -> failure.get() != null &&
+                                      failure.get()
+                                             .getMessage()
+                                             .contains(CasWriteUnknownResultException.class.getCanonicalName()),
+                           "Expecting cause to be CasWriteUncertainException");
+    }
+
+    @Test
+    public void casWriteContentionTimeoutTest() throws InterruptedException
+    {
+        testWithContention(101,
+                           Arrays.asList(1, 3),
+                           c -> {
+                               c.filters().reset();
+                               c.verbs(Verb.PAXOS_PREPARE_REQ).from(1).to(3).drop();
+                               c.verbs(Verb.PAXOS_PROPOSE_REQ).from(1).to(2).drop();
+                           },
+                           failure ->
+                               failure.get() != null &&
+                               failure.get()
+                                      .getMessage()
+                                      .contains(CasWriteTimeoutException.class.getCanonicalName()),
+                           "Expecting cause to be CasWriteTimeoutException");
+    }
+
+    private void testWithContention(int testUid,
+                                    List<Integer> contendingNodes,
+                                    Consumer<Cluster> setupForEachRound,
+                                    Function<AtomicReference<Throwable>, Boolean> expectedException,
+                                    String assertHintMessage) throws InterruptedException
+    {
+        assert contendingNodes.size() == 2;
+        AtomicInteger curPk = new AtomicInteger(1);
+        ExecutorService es = Executors.newFixedThreadPool(2);
         AtomicReference<Throwable> failure = new AtomicReference<>();
-        while (failure.get() == null || !(failure.get().getMessage().contains(CasWriteUnknownResultException.class.getCanonicalName())))
+        Supplier<Boolean> hasExpectedException = () -> expectedException.apply(failure);
+        while (!hasExpectedException.get())
         {
-            cluster.filters().reset();
-            cluster.verbs(Verb.PAXOS_PREPARE_REQ).from(3).to(1).drop();
+            failure.set(null);
+            setupForEachRound.accept(cluster);
 
             List<Future<?>> futures = new ArrayList<>();
-            for (int i = 1; i < 3; i++)
-            {
-                int finalCurPk = curPk;
-                String query = mkCasInsertQuery((a) -> finalCurPk, i);
-                int nodeid = i % 2 == 0 ? 1 : 3;
+            contendingNodes.forEach(nodeId -> {
+                String query = mkCasInsertQuery((a) -> curPk.get(), testUid, nodeId);
                 futures.add(es.submit(() -> {
                     try
                     {
-                        cluster.coordinator(nodeid).execute(query, ConsistencyLevel.QUORUM);
+                        Thread.sleep(nodeId); // add a little delay for starting the contending threads
+                        cluster.coordinator(nodeId).execute(query, ConsistencyLevel.QUORUM);
                     }
                     catch (Throwable t)
                     {
                         failure.set(t);
                     }
                 }));
-            }
+            });
 
             FBUtilities.waitOnFutures(futures);
-            curPk++;
+            curPk.incrementAndGet();
         }
 
         es.shutdownNow();
         es.awaitTermination(1, TimeUnit.MINUTES);
-        Assert.assertTrue("Expecting cause to be CasWriteUncertainException", failure.get().getMessage().contains(CasWriteUnknownResultException.class.getCanonicalName()));
+        Assert.assertTrue(assertHintMessage, hasExpectedException.get());
     }
 
     private void expectCasWriteTimeout()
@@ -212,12 +247,12 @@ public class CasWriteTest extends DistributedTestBase
     // every invokation returns a query with an unique pk
     private String mkUniqueCasInsertQuery(int v)
     {
-        return mkCasInsertQuery(AtomicInteger::getAndIncrement, v);
+        return mkCasInsertQuery(AtomicInteger::getAndIncrement, 1, v);
     }
 
-    private String mkCasInsertQuery(Function<AtomicInteger, Integer> pkFunc, int v)
+    private String mkCasInsertQuery(Function<AtomicInteger, Integer> pkFunc, int ck, int v)
     {
-        String query = String.format("INSERT INTO %s.tbl (pk, ck, v) VALUES (%d, 1, %d) IF NOT EXISTS", KEYSPACE, pkFunc.apply(pkGen), v);
+        String query = String.format("INSERT INTO %s.tbl (pk, ck, v) VALUES (%d, %d, %d) IF NOT EXISTS", KEYSPACE, pkFunc.apply(pkGen), ck, v);
         logger.info("Generated query: " + query);
         return query;
     }
