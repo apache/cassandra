@@ -84,12 +84,12 @@ public class ErrorMessage extends Message.Response
                 case READ_FAILURE:
                     {
                         ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
-                        int received = body.readInt();
-                        int blockFor = body.readInt();
+                        final int received = body.readInt();
+                        final int blockFor = body.readInt();
                         // The number of failures is also present in protocol v5, but used instead to specify the size of the failure map
-                        int failure = body.readInt();
+                        final int failure = body.readInt();
 
-                        Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new ConcurrentHashMap<>();
+                        final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new ConcurrentHashMap<>();
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
                             for (int i = 0; i < failure; i++)
@@ -102,12 +102,12 @@ public class ErrorMessage extends Message.Response
 
                         if (code == ExceptionCode.WRITE_FAILURE)
                         {
-                            WriteType writeType = Enum.valueOf(WriteType.class, CBUtil.readString(body));
+                            final WriteType writeType = Enum.valueOf(WriteType.class, CBUtil.readString(body));
                             te = new WriteFailureException(cl, received, blockFor, writeType, failureReasonByEndpoint);
                         }
                         else
                         {
-                            byte dataPresent = body.readByte();
+                            final byte dataPresent = body.readByte();
                             te = new ReadFailureException(cl, received, blockFor, dataPresent != 0, failureReasonByEndpoint);
                         }
                     }
@@ -116,14 +116,14 @@ public class ErrorMessage extends Message.Response
                 case READ_TIMEOUT:
                     {
                         ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
-                        int received = body.readInt();
-                        int blockFor = body.readInt();
+                        final int received = body.readInt();
+                        final int blockFor = body.readInt();
                         if (code == ExceptionCode.WRITE_TIMEOUT)
                         {
-                            WriteType writeType = Enum.valueOf(WriteType.class, CBUtil.readString(body));
+                            final WriteType writeType = Enum.valueOf(WriteType.class, CBUtil.readString(body));
                             if (version.isGreaterOrEqualTo(ProtocolVersion.V5) && writeType == WriteType.CAS)
                             {
-                                int contentions = body.readShort();
+                                final int contentions = body.readShort();
                                 te = new CasWriteTimeoutException(writeType, cl, received, blockFor, contentions);
                             }
                             else
@@ -133,7 +133,7 @@ public class ErrorMessage extends Message.Response
                         }
                         else
                         {
-                            byte dataPresent = body.readByte();
+                            final byte dataPresent = body.readByte();
                             te = new ReadTimeoutException(cl, received, blockFor, dataPresent != 0);
                         }
                     }
@@ -363,12 +363,12 @@ public class ErrorMessage extends Message.Response
                 case WRITE_TIMEOUT:
                     if (msg.error instanceof CasWriteTimeoutException)
                     {
-                        CasWriteTimeoutException cwte = (CasWriteTimeoutException) msg.error;
+                        final CasWriteTimeoutException cwte = (CasWriteTimeoutException) msg.error;
                         return new WriteTimeoutException(WriteType.CAS, cwte.consistency, cwte.received, cwte.blockFor);
                     }
                     break;
                 case CAS_WRITE_UNKNOWN:
-                    CasWriteUnknownResultException cwue = (CasWriteUnknownResultException) msg.error;
+                    final CasWriteUnknownResultException cwue = (CasWriteUnknownResultException) msg.error;
                     return new WriteTimeoutException(WriteType.CAS, cwue.consistency, cwue.received, cwue.blockFor);
             }
         }
