@@ -15,96 +15,127 @@
 .. limitations under the License.
 
 Dynamo
-------
+======
 
-Apache Cassandra is to a great extent inspired by Amazon’s Dynamo database architecture. Dynamo was developed by Amazon to meet its requirements for a scalable, reliable and highly available storage system. With the large scale (several petabyte) of storage used by web based applications it became imperative to design a new kind of database model as the relational database model did not meet the requirements of web scale applications. Dynamo was developed for these new design objectives:
+Apache Cassandra relies on a number of techniques from Amazon's `Dynamo
+<http://courses.cse.tamu.edu/caverlee/csce438/readings/dynamo-paper.pdf>`_
+highly available distributed storage key-value system. In particular, Cassandra
+relies on Dynamo style:
 
-- Scaling out rather than scaling up
-- Simple Key-oriented queries
-- Flexible schema
-- Online load balancing and cluster growth
-- CAP-aware
+- Dataset partitioning using consistent hashing
+- Full multi-master replication using versioned data
+- Distributed cluster membership and failure detection via a gossip protocol
+- Incremental scale-out on commodity hardware rather than scale-up
 
-Dynamo Software Components
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Cassandra was designed this way to meet large scale (PiB+) storage requirements
+that applications demanded. In particular, as applications began to require full
+global replication and always available low-latency reads and writes, it became
+imperative to design a new kind of database model as the relational database
+systems of the time struggled to meet the new requirements of global scale
+applications.
 
-Each storage node in Dynamo has three main software components:
+Dynamo Style Replication and Clustering
+---------------------------------------
 
-1. Request coordination
+Each node in Dynamo has three main components:
+
+1. Request coordination based on the Staged Event-Driven Architecture (`SEDA <https://www.mdw.la/papers/seda-sosp01.pdf>`_).
 2. Ring membership and failure detection using a gossip based protocol
-3. A persistence engine
+3. A storage engine
 
-Key Value Storage
-^^^^^^^^^^^^^^^^^
+Cassandra primarily draws from the first two clustering components,
+while using a storage engine based on a Log Structured Merge Tree
+(`LSM <http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.44.2782&rep=rep1&type=pdf>`_).
 
-Dynamo is a simple primary-key only storage system in which scalability and availability are achieved by partitioning and replicating data using hashing. Object versioning is used to achieve consistency.  With multiple replicas consistency among replicas during updates becomes important and it is achieved by using a quorum-like technique and replica synchronization. Dynamo makes use of a gossip based distributed failure detection and membership protocol.  Dynamo is decentralized requiring almost no user initiated administration for tasks such as adding/removing storage nodes; no partitioning or redistribution needs to be performed by an administrator.  
-  
-Incremental Scale Out
-^^^^^^^^^^^^^^^^^^^^^
+Partitioned Wide-Column Storage
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Dynamo scales out to meet the requirements of growth in data set size and request rates. Scaling out means adding additional storage nodes. In contrast scaling up implies adding more capacity to the existing database. 
+Cassandra achieves horizontal scalability by `partitioning <https://en.wikipedia.org/wiki/Partition_(database)>`_
+all data stored in the system using a hash function. Each partition is replicated
+to multiple physical nodes, often across failure domains such as racks and even
+datacenters. As every replica can independently accept mutations to every key
+that it owns, every key must be versioned. Unlike in the original Dynamo paper
+where deterministic versions and vector clocks were used to reconcile concurrent
+updates to a key, Cassandra uses a simpler last write wins model where every
+mutation is timestamped (including deletes) and then the latest version of data
+is the "winning" value. Formally speaking, Cassandra uses a Last-Write-Wins Element-Set
+conflict-free replicated data type, a.k.a a `LWW-Element-Set CRDT
+<https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#LWW-Element-Set_(Last-Write-Wins-Element-Set)>`_
+to resolve conflicting mutations on replica sets.
 
-Dynamo storage system is based on some  requirements and assumptions, which are discussed next.
+ .. _consistent-hashing-token-ring:
 
+Consistent Hashing using a Token Ring
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Simple Query Model
-^^^^^^^^^^^^^^^^^^
+Cassandra partitions data over storage nodes using a special form of hashing
+called `consistent hashing <https://en.wikipedia.org/wiki/Consistent_hashing>`_.
+In naive data hashing, you typically allocate keys to buckets by taking a hash
+of the key modulo the number of buckets. For example, if you want to distribute
+data to 100 nodes using naive hashing you might assign every node to a bucket
+between 0 and 100, hash the input key modulo 100, and store the data on the
+associated bucket. In this naive scheme, however, adding a single node might
+invalidate almost all of the mappings.
 
-Dynamo makes use of simple read and write operations on data items identified by a unique primary key and stored as binary blobs. Relational schema is not needed as operations spanning multiple data items are not used.
+Cassandra instead maps every node to one or more tokens on a continuous hash
+ring, and defines ownership by hashing a key onto the ring and then "walking"
+the ring in one direction, similar to the `Chord
+<https://pdos.csail.mit.edu/papers/chord:sigcomm01/chord_sigcomm.pdf>`_
+algorithm. The main difference of consistent hashing to naive data hashing is
+that when the number of nodes (buckets) to hash into changes, consistent
+hashing only has to move a small fraction of the keys.
 
-Transactions
-^^^^^^^^^^^^
+For example, if we have an eight node cluster with evenly spaced tokens, and
+a replication factor (RF) of 3, then to find the owning nodes for a key we
+first hash that key to generate a token (which is just the hash of the key),
+and then we "walk" the ring in a clockwise fashion until we encounter three
+distinct nodes, at which point we have found all the replicas of that key.
+This example of an eight node cluster with `RF=3` can be visualized as follows:
 
-A transaction is a single logical operation on a data. As ACID (Atomicity, Consistency, Isolation and Durability properties in transactions) guarantees lead to reduced availability Dynamo compromises on “C" (consistency) to achieve high availability. Isolation guarantees are not provided by Dynamo and only single key updates are made. 
+.. figure:: images/ring.svg
+   :scale: 75 %
+   :alt: Dynamo Ring
 
-Efficiency
-^^^^^^^^^^
+You can see that in a Dynamo like system, ranges of keys, also known as `token
+ranges`, map to the same physical set of nodes. In this example, all keys that
+fall in the token range excluding token 1 and including token 2 (`range(t1, t2]`)
+are stored on nodes 2, 3 and 4.
 
-Efficiency in terms of reduced latencies and high throughput is the highest priority and Dynamo makes use of service level agreements (SLAs) to achieve high efficiency.
-Other Design principles include symmetry in cluster nodes, decentralization and heterogeneity in infrastructure. 
-Distributed Storage System Architecture  
+Multiple Tokens per Physical Node (a.k.a. `vnodes`)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Dynamo storage system architecture makes use of the following techniques:
+Simple single token consistent hashing works well if you have many physical
+nodes to spread data over, but with evenly spaced tokens and a small number of
+nodes, incremental scaling (adding just a few nodes of capacity) is difficult
+because there are no token selections for new nodes that can leave the ring
+balanced. In the previous example there is no way to add a ninth token without
+causing imbalance. Cassandra seeks to avoid token imbalance because uneven token
+ranges mean uneven request load.
 
-- Simple Interface for storing objects
-- Partitioning based on consistent hashing
-- Replication
-- Data Versioning
-- Replica synchronization for handling permanent failures
-- Dynamo Ring Membership and Failure Detection
+The Dynamo system advocates for the use of "virtual nodes" to solve this
+imbalance problem. Virtual nodes solve the problem by assigning multiple
+tokens in the token ring to each physical node. By allowing a single physical
+node to take multiple positions in the ring, we can make small clusters look
+larger and therefore even with a single physical node addition we can make it
+look like we added many more nodes, effectively taking many smaller pieces of
+data from more ring neighbors when we add even a single node.
 
-We shall discuss these next.
+In Cassandra this is called assigning multiple tokens per endpoint, and it
+leads to the `Token Map` where Cassandra keeps track of what ring positions
+map to which physical endpoints. For example, in the following figure we can
+represent an eight node cluster using only four physical nodes by assigning two
+tokens to every node:
 
-Simple Interface for storing objects
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. figure:: images/vnodes.svg
+   :scale: 75 %
+   :alt: Virtual Tokens Ring
 
-Dynamo makes use of a simple interface to store and get key/value pairs. Two methods are made available to a user: ``put (key, context)`` and ``get (key)``. The ``put (key, context)`` operation stores object replicas on disk. The ``context`` is the object metadata such as object version and is stored with the object. The ``get (key)`` method returns a stored object replica for the key supplied. Any node in a Dynamo ring is eligible to receive the get/put operations. A load balancer may be used to route a client request to a node. A node that handles read or write operation is called a coordinator.
-For consistency among replicas Dynamo makes use of a consistency protocol, a quorum-like system that makes use of two configurable settings ``R`` and ``W``. ``R`` is the minimum number of nodes that must participate in a successful read operation and ``W`` is the minimum number of nodes that must participate in a successful write operation. Setting ``R+W`` to be greater than ``N`` (the total number of nodes) produces a quorum-like system. As the slowest of the ``R/W`` nodes determines the corresponding read/write latency each of ``R`` and ``W`` is typically less than ``N`` for better latency.
-
-.. _TokenRingRanges:
-
-Token Ring/Ranges
-^^^^^^^^^^^^^^^^^
-
-Dynamo dynamically partitions data over the storage nodes making use of a variant of consistent hashing to distribute the load. Hashing is a technique used to map data. Given a key a hash function generates a hash value (or simply a hash) that is stored in a hash table. The main benefit of using a data structure such as a hash table is rapid lookup of a value for a given key. A hash function has a set of keys that it could take as input, called its domain. And each hash function has an output range. In consistent hashing the output range of a hash function is represented as a fixed circular space or "ring" such that the largest hash value wraps around to the smallest hash value. Each node in the ring is randomly assigned a “position” or single “token” that in effect represents a range of hash values in the ring. Each node in the cluster is responsible for a range of data based on its hash value.  The hash value range each node manages increases in a clockwise direction.  A four node cluster with hash value range (hash values are arbitrary to illustrate consistent hashing and not necessarily generated by a hash function) assigned to each node is illustrated in Figure 1.
-
-.. figure:: Figure_1_dynamo.jpg
-   
-
-Figure 1. Hash Values in a Four-Node Cluster
-
-As a new data item is added to be stored in a cluster first its hash value or position in the ring is calculated. The calculated position is compared with the position of each node clockwise in the ring to find and select the first node whose position is greater than the position of the data item.  A node in the cluster is selected to store the data item based on whether the hash value is within the hash value range the node is responsible for. The data item is stored on the selected node. The benefit of using consistent hashing is that nodes may be added/removed without affecting all the nodes; only the immediate neighboring nodes are affected.
-The basic consistent hashing algorithm has some limitations:
-
-1. It leads to non-uniform data and load distribution
-2. It does not take into consideration the heterogeneity in node performance
-
-To overcome these limitations Dynamo makes use of a variant of consistent hashing in which virtual nodes (or vnodes) are used to distribute data across the nodes at a finer granularity.  Using virtual nodes each node gets assigned multiple "positions" or "tokens" in the ring.  The difference between using virtual nodes and not using virtual nodes is illustrated in Figure 2. The first ring does not make use of virtual nodes and each node in the ring is assigned a single position or token. Each node contains copies of data from other nodes in addition to data assigned to it based on its position in the ring. Without vnodes each node is assigned only a single contiguous partition range within the cluster. With vnodes each node is able to be assigned a large number of partition ranges within the cluster.  Even distribution of data is achieved by randomly selecting vnodes within a cluster, which makes them non-contiguous. 
-
-.. figure:: Figure_2_dynamo.jpg
-   
-
-Figure 2. Rings with and without Virtual Nodes
+Note that in Cassandra `2.x`, the only token allocation algorithm available was
+picking random tokens, which meant that to keep balance the default number of
+tokens per node had to be quite high, at `256`. This had the effect of coupling
+more nodes together, increasing the liklihood of outage. That is why in `3.x`
+the new deterministic token allocator was added which intelligently picks tokens
+such that the ring is optimally balanced.
 
 Vnodes provide the following benefits:
 
@@ -115,7 +146,6 @@ While vnodes have advantages they also could be disadvantageous in the following
 
 1. Cluster-wide operations are affected. As the number of nodes are increased so are the number of repairs that need to be performed, increasing the repair cycle time.
 2. Performance of operations that span token ranges could be affected.
-
 
 .. _replication-strategy:
 
@@ -186,6 +216,49 @@ configuration, operational practices, and availability requirements.
 
 It is anticipated that 4.next will support monotonic reads with transient replication as well as LWT, logged batches, and
 counters.
+ 
+Incremental Scale Out
+^^^^^^^^^^^^^^^^^^^^^
+
+Dynamo scales out to meet the requirements of growth in data set size and request rates. Scaling out means adding additional storage nodes. In contrast scaling up implies adding more capacity to the existing database. 
+
+Dynamo storage system is based on some  requirements and assumptions, which are discussed next.
+
+
+Simple Query Model
+^^^^^^^^^^^^^^^^^^
+
+Dynamo makes use of simple read and write operations on data items identified by a unique primary key and stored as binary blobs. Relational schema is not needed as operations spanning multiple data items are not used.
+
+Transactions
+^^^^^^^^^^^^
+
+A transaction is a single logical operation on a data. As ACID (Atomicity, Consistency, Isolation and Durability properties in transactions) guarantees lead to reduced availability Dynamo compromises on “C" (consistency) to achieve high availability. Isolation guarantees are not provided by Dynamo and only single key updates are made. 
+
+Efficiency
+^^^^^^^^^^
+
+Efficiency in terms of reduced latencies and high throughput is the highest priority and Dynamo makes use of service level agreements (SLAs) to achieve high efficiency.
+Other Design principles include symmetry in cluster nodes, decentralization and heterogeneity in infrastructure. 
+Distributed Storage System Architecture  
+
+Dynamo storage system architecture makes use of the following techniques:
+
+- Simple Interface for storing objects
+- Partitioning based on consistent hashing
+- Replication
+- Data Versioning
+- Replica synchronization for handling permanent failures
+- Dynamo Ring Membership and Failure Detection
+
+We shall discuss these next.
+
+Simple Interface for storing objects
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Dynamo makes use of a simple interface to store and get key/value pairs. Two methods are made available to a user: ``put (key, context)`` and ``get (key)``. The ``put (key, context)`` operation stores object replicas on disk. The ``context`` is the object metadata such as object version and is stored with the object. The ``get (key)`` method returns a stored object replica for the key supplied. Any node in a Dynamo ring is eligible to receive the get/put operations. A load balancer may be used to route a client request to a node. A node that handles read or write operation is called a coordinator.
+For consistency among replicas Dynamo makes use of a consistency protocol, a quorum-like system that makes use of two configurable settings ``R`` and ``W``. ``R`` is the minimum number of nodes that must participate in a successful read operation and ``W`` is the minimum number of nodes that must participate in a successful write operation. Setting ``R+W`` to be greater than ``N`` (the total number of nodes) produces a quorum-like system. As the slowest of the ``R/W`` nodes determines the corresponding read/write latency each of ``R`` and ``W`` is typically less than ``N`` for better latency.
+
 
 .. _gossip:
 
