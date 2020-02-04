@@ -338,9 +338,9 @@ public class NodeTool
             try
             {
                 if (username.isEmpty())
-                    nodeClient = new NodeProbe(host, parseInt(port));
+                    nodeClient = nodeProbeFactory.create(host, parseInt(port));
                 else
-                    nodeClient = new NodeProbe(host, parseInt(port), username, password);
+                    nodeClient = nodeProbeFactory.create(host, parseInt(port), username, password);
             } catch (IOException | SecurityException e)
             {
                 Throwable rootCause = Throwables.getRootCause(e);
