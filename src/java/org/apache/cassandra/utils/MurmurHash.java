@@ -18,6 +18,9 @@
 package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
+import java.util.BitSet;
+
+import com.google.common.primitives.Longs;
 
 /**
  * This is a very fast, non-cryptographic hash suitable for general hash-based
@@ -146,7 +149,7 @@ public class MurmurHash
         return h64;
     }
 
-    protected static long getblock(ByteBuffer key, int offset, int index)
+    protected static long getBlock(ByteBuffer key, int offset, int index)
     {
         int i_8 = index << 3;
         int blockOffset = offset + i_8;
@@ -187,8 +190,8 @@ public class MurmurHash
 
         for(int i = 0; i < nblocks; i++)
         {
-            long k1 = getblock(key, offset, i*2+0);
-            long k2 = getblock(key, offset, i*2+1);
+            long k1 = getBlock(key, offset, i * 2 + 0);
+            long k2 = getBlock(key, offset, i * 2 + 1);
 
             k1 *= c1; k1 = rotl64(k1,31); k1 *= c2; h1 ^= k1;
 
@@ -246,6 +249,110 @@ public class MurmurHash
 
         result[0] = h1;
         result[1] = h2;
+    }
+
+    protected static long invRotl64(long v, int n)
+    {
+        return ((v >>> n) | (v << (64 - n)));
+    }
+
+    protected static long invRShiftXor(long value, int shift)
+    {
+        long output = 0;
+        long i = 0;
+        while (i * shift < 64)
+        {
+            long c = (0xffffffffffffffffL << (64 - shift)) >>> (shift * i);
+            long partOutput = value & c;
+            value ^= partOutput >>> shift;
+            output |= partOutput;
+            i += 1;
+        }
+        return output;
+    }
+
+    protected static long invFmix(long k)
+    {
+        k = invRShiftXor(k, 33);
+        k *= 0x9cb4b2f8129337dbL;
+        k = invRShiftXor(k, 33);
+        k *= 0x4f74430c22a54005L;
+        k = invRShiftXor(k, 33);
+        return k;
+    }
+
+    /**
+     * This gives a correct reversal of the tail byte flip which is needed if want a non mod16==0 byte hash inv or to
+     * target a hash for a given schema.
+     */
+    public static long invTailReverse(long num)
+    {
+        byte[] v = Longs.toByteArray(Long.reverseBytes(num));
+        for (int i = 0; i < 8; i++)
+        {
+            if (v[i] < 0 && i < 7)
+            {
+                BitSet bits = BitSet.valueOf(v);
+                bits.flip(8 * (i + 1), 64);
+                v = bits.toByteArray();
+            }
+        }
+        return Longs.fromByteArray(v);
+    }
+
+    public static long[] inv_hash3_x64_128(long[] result)
+    {
+        long c1 = 0xa98409e882ce4d7dL;
+        long c2 = 0xa81e14edd9de2c7fL;
+
+        long k1 = 0;
+        long k2 = 0;
+        long h1 = result[0];
+        long h2 = result[1];
+
+        //----------
+        // reverse finalization
+        h2 -= h1;
+        h1 -= h2;
+
+        h1 = invFmix(h1);
+        h2 = invFmix(h2);
+
+        h2 -= h1;
+        h1 -= h2;
+
+        h1 ^= 16;
+        h2 ^= 16;
+
+        //----------
+        // reverse body
+        h2 -= 0x38495ab5;
+        h2 *= 0xcccccccccccccccdL;
+        h2 -= h1;
+        h2 = invRotl64(h2, 31);
+        k2 = h2;
+        h2 = 0;
+
+        k2 *= c1;
+        k2 = invRotl64(k2, 33);
+        k2 *= c2;
+
+        h1 -= 0x52dce729;
+        h1 *= 0xcccccccccccccccdL;
+        //h1 -= h2;
+        h1 = invRotl64(h1, 27);
+
+        k1 = h1;
+
+        k1 *= c2;
+        k1 = invRotl64(k1, 31);
+        k1 *= c1;
+
+        // note that while this works for body block reversing the tail reverse requires `invTailReverse`
+        k1 = Long.reverseBytes(k1);
+        k2 = Long.reverseBytes(k2);
+
+        return new long[] {k1, k2};
     }
 
 }
