@@ -49,7 +49,7 @@ The Full Query Logger is a logger that logs entire query contents after the quer
  queryState - Timestamp state associated with the query invocation
  batchTimeMillis - Approximate time in milliseconds since the epoch since the batch was invoked
  
- The log for single CQL query includes the following attributes:
+The log for single CQL query includes the following attributes:
 
 ::
 
