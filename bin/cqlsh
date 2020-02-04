@@ -19,6 +19,12 @@
 
 # parse arguments
 PARAMS=""
+
+# Use the Python that is specified in the env
+if [ -n "$CQLSH_PYTHON" ]; then
+  USER_SPECIFIED_PYTHON="$CQLSH_PYTHON"
+fi
+
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--python)
