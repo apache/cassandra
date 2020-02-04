@@ -78,7 +78,7 @@ public class DistributedTestBase
 
     protected static <C extends AbstractCluster<?>> C init(C cluster)
     {
-        return init(cluster, Math.min(3, cluster.size()));
+        return init(cluster, cluster.size());
     }
 
     protected static <C extends AbstractCluster<?>> C init(C cluster, int replicationFactor)
