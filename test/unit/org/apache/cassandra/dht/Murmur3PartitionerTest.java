@@ -17,7 +17,12 @@
  */
 package org.apache.cassandra.dht;
 
+import java.nio.ByteBuffer;
+
 import org.junit.Test;
+
+import static org.quicktheories.QuickTheory.qt;
+import static org.quicktheories.generators.SourceDSL.longs;
 
 public class Murmur3PartitionerTest extends PartitionerTestCase
 {
@@ -61,6 +66,16 @@ public class Murmur3PartitionerTest extends PartitionerTestCase
     {
         Murmur3Partitioner.LongToken left = new Murmur3Partitioner.LongToken(Long.MAX_VALUE - 100);
         assertSplit(left, tok("a"), 16);
+    }
+
+    @Test
+    public void testLongTokenInverse()
+    {
+        qt().forAll(longs().between(Long.MIN_VALUE + 1, Long.MAX_VALUE))
+            .check(token -> {
+                ByteBuffer key = Murmur3Partitioner.LongToken.keyForToken(new Murmur3Partitioner.LongToken(token));
+                return Murmur3Partitioner.instance.getToken(key).token == token;
+            });
     }
 }
 
