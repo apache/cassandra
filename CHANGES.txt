@@ -1,4 +1,5 @@
 4.0-alpha3
+ * Separate exceptions for CAS write timeout exceptions caused by contention and unkown result (CASSANDRA-15350)
  * Fix in-jvm dtest java 11 compatibility (CASSANDRA-15463)
  * Remove joda time dependency (CASSANDRA-15257)
  * Exclude purgeable tombstones from repaired data tracking (CASSANDRA-15462)
