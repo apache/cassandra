@@ -259,9 +259,7 @@ have nodetool && have cqlsh &&
         elif [[ $COMP_CWORD -eq 3 ]] ; then
             case "${COMP_WORDS[1]}" in
                 cleanup|compact|flush|garbagecollect|getcompactionthreshold|getendpoints|getreplicas|getsstables|import|profileload|rebuild_index|refresh|relocatesstables|repair|scrub|setcompactionthreshold|statusautocompaction|tablehistograms|toppartitions|verify)
-
                     show_cfs ${prev} ${cur}
-
                     return 0
                     ;;
                 upgradesstables)
