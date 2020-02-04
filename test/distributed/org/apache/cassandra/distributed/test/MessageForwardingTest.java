@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -44,6 +45,7 @@ public class MessageForwardingTest extends DistributedTestBase
     {
         String originalTraceTimeout = TracingUtil.setWaitForTracingEventTimeoutSecs("1");
         final int numInserts = 100;
+        Map<InetAddress,Integer> forwardFromCounts = new HashMap<>();
         Map<InetAddress,Integer> commitCounts = new HashMap<>();
 
         try (Cluster cluster = init(Cluster.build()
@@ -64,8 +66,9 @@ public class MessageForwardingTest extends DistributedTestBase
             // Wait for each of the futures to complete before checking the traces, don't care
             // about the result so
             //noinspection ResultOfMethodCallIgnored
-            inserts.map(IsolatedExecutor::waitOn).count();
+            inserts.map(IsolatedExecutor::waitOn).collect(Collectors.toList());
 
+            cluster.stream("dc1").forEach(instance -> forwardFromCounts.put(instance.broadcastAddressAndPort().address, 0));
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddressAndPort().address, 0));
             List<TracingUtil.TraceEntry> traces = TracingUtil.getTrace(cluster, sessionId, ConsistencyLevel.ALL);
             traces.forEach(traceEntry -> {
@@ -73,7 +76,15 @@ public class MessageForwardingTest extends DistributedTestBase
                 {
                     commitCounts.compute(traceEntry.source, (k, v) -> (v != null ? v : 0) + 1);
                 }
+                else if (traceEntry.activity.contains("Enqueuing forwarded write to "))
+                {
+                    forwardFromCounts.compute(traceEntry.source, (k, v) -> (v != null ? v : 0) + 1);
+                }
             });
+
+            // Check that each node in dc1 was the forwarder at least once.  There is a (1/3)^numInserts chance
+            // that the same node will be picked, but the odds of that are ~2e-48.
+            forwardFromCounts.forEach((source, count) -> Assert.assertTrue(source + " should have been randomized to forward messages", count > 0));
 
             // Check that each node received the forwarded messages once (and only once)
             commitCounts.forEach((source, count) ->

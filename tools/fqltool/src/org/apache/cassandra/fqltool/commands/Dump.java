@@ -31,6 +31,7 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import io.netty.buffer.Unpooled;
 import net.openhft.chronicle.bytes.Bytes;
+import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
@@ -42,6 +43,7 @@ import net.openhft.chronicle.wire.WireIn;
 import org.apache.cassandra.audit.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.binlog.BinLog;
 
 /**
  * Dump the contents of a list of paths containing full query logs
@@ -73,11 +75,20 @@ public class Dump implements Runnable
         {
             sb.setLength(0);
 
-            int version = wireIn.read(FullQueryLogger.VERSION).int16();
-            if (version != FullQueryLogger.CURRENT_VERSION)
-                throw new UnsupportedOperationException("Full query log of unexpected version " + version + " encountered");
+            int version = wireIn.read(BinLog.VERSION).int16();
+            if (version > FullQueryLogger.CURRENT_VERSION)
+            {
+                throw new IORuntimeException("Unsupported record version [" + version
+                                             + "] - highest supported version is [" + FullQueryLogger.CURRENT_VERSION + ']');
+            }
 
-            String type = wireIn.read(FullQueryLogger.TYPE).text();
+            String type = wireIn.read(BinLog.TYPE).text();
+            if (!FullQueryLogger.SINGLE_QUERY.equals((type)) && !FullQueryLogger.BATCH.equals((type)))
+            {
+                throw new IORuntimeException("Unsupported record type field [" + type
+                                             + "] - supported record types are [" + FullQueryLogger.SINGLE_QUERY + ", " + FullQueryLogger.BATCH + ']');
+            }
+
             sb.append("Type: ")
               .append(type)
               .append(System.lineSeparator());
@@ -117,7 +128,7 @@ public class Dump implements Runnable
                     break;
 
                 default:
-                    throw new UnsupportedOperationException("Log entry of unsupported type " + type);
+                    throw new IORuntimeException("Log entry of unsupported type " + type);
             }
 
             System.out.print(sb.toString());

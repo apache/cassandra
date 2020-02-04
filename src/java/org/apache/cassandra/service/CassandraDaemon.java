@@ -26,7 +26,6 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
@@ -63,6 +62,7 @@ import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
@@ -203,6 +203,8 @@ public class CassandraDaemon
 
         NativeLibrary.tryMlockall();
 
+        CommitLog.instance.start();
+
         try
         {
             startupChecks.verify();
@@ -225,33 +227,7 @@ public class CassandraDaemon
         // This should be the first write to SystemKeyspace (CASSANDRA-11742)
         SystemKeyspace.persistLocalMetadata();
 
-        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
-        {
-            public void uncaughtException(Thread t, Throwable e)
-            {
-                StorageMetrics.uncaughtExceptions.inc();
-                logger.error("Exception in thread " + t, e);
-                Tracing.trace("Exception in thread {}", t, e);
-                for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
-                {
-                    JVMStabilityInspector.inspectThrowable(e2);
-
-                    if (e2 instanceof FSError)
-                    {
-                        if (e2 != e) // make sure FSError gets logged exactly once.
-                            logger.error("Exception in thread " + t, e2);
-                        FileUtils.handleFSError((FSError) e2);
-                    }
-
-                    if (e2 instanceof CorruptSSTableException)
-                    {
-                        if (e2 != e)
-                            logger.error("Exception in thread " + t, e2);
-                        FileUtils.handleCorruptSSTable((CorruptSSTableException) e2);
-                    }
-                }
-            }
-        });
+        Thread.setDefaultUncaughtExceptionHandler(CassandraDaemon::uncaughtException);
 
         SystemKeyspaceMigrator40.migrate();
 
@@ -270,6 +246,8 @@ public class CassandraDaemon
         }
 
         setupVirtualKeyspaces();
+
+        SSTableHeaderFix.fixNonFrozenUDTIfUpgradeFrom30();
 
         // clean up debris in the rest of the keyspaces
         for (String keyspaceName : Schema.instance.getKeyspaces())
@@ -458,6 +436,32 @@ public class CassandraDaemon
     {
         // Native transport
         nativeTransportService = new NativeTransportService();
+    }
+
+    @VisibleForTesting
+    public static void uncaughtException(Thread t, Throwable e)
+    {
+        StorageMetrics.uncaughtExceptions.inc();
+        logger.error("Exception in thread " + t, e);
+        Tracing.trace("Exception in thread {}", t, e);
+        for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
+        {
+            JVMStabilityInspector.inspectThrowable(e2);
+
+            if (e2 instanceof FSError)
+            {
+                if (e2 != e) // make sure FSError gets logged exactly once.
+                    logger.error("Exception in thread " + t, e2);
+                FileUtils.handleFSError((FSError) e2);
+            }
+
+            if (e2 instanceof CorruptSSTableException)
+            {
+                if (e2 != e)
+                    logger.error("Exception in thread " + t, e2);
+                FileUtils.handleCorruptSSTable((CorruptSSTableException) e2);
+            }
+        }
     }
 
     /*

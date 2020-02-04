@@ -81,6 +81,7 @@ public class InstanceConfig implements IInstanceConfig
                            String listen_address,
                            String broadcast_rpc_address,
                            String rpc_address,
+                           String seedIp,
                            String saved_caches_directory,
                            String[] data_file_directories,
                            String commitlog_directory,
@@ -114,7 +115,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("storage_port", 7012)
                 .set("endpoint_snitch", DistributedTestSnitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                        Collections.singletonMap("seeds", "127.0.0.1:7012")))
+                        Collections.singletonMap("seeds", seedIp + ":7012")))
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
                 .set("auto_bootstrap", false)
@@ -239,7 +240,7 @@ public class InstanceConfig implements IInstanceConfig
         return (String)params.get(name);
     }
 
-    public static InstanceConfig generate(int nodeNum, String ipAddress, NetworkTopology networkTopology, File root, String token)
+    public static InstanceConfig generate(int nodeNum, String ipAddress, NetworkTopology networkTopology, File root, String token, String seedIp)
     {
         return new InstanceConfig(nodeNum,
                                   networkTopology,
@@ -247,6 +248,7 @@ public class InstanceConfig implements IInstanceConfig
                                   ipAddress,
                                   ipAddress,
                                   ipAddress,
+                                  seedIp,
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
                                   new String[] { String.format("%s/node%d/data", root, nodeNum) },
                                   String.format("%s/node%d/commitlog", root, nodeNum),

@@ -81,6 +81,16 @@ public class InstanceClassLoader extends URLClassLoader
         this.id = id;
     }
 
+    public int getClusterGeneration()
+    {
+        return generation;
+    }
+
+    public int getInstanceId()
+    {
+        return id;
+    }
+
     @Override
     public Class<?> loadClass(String name) throws ClassNotFoundException
     {

@@ -29,6 +29,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import com.datastax.driver.core.ResultSet;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.RowUtil;
@@ -67,6 +68,7 @@ public class DistributedTestBase
         System.setProperty("org.apache.cassandra.disable_mbean_registration", "true");
         nativeLibraryWorkaround();
         processReaperWorkaround();
+        DatabaseDescriptor.clientInitialization();
     }
 
     static String withKeyspace(String replaceIn)
@@ -87,14 +89,14 @@ public class DistributedTestBase
 
     public static void assertRows(Object[][] actual, Object[]... expected)
     {
-        Assert.assertEquals(rowsNotEqualErrorMessage(expected, actual),
+        Assert.assertEquals(rowsNotEqualErrorMessage(actual, expected),
                             expected.length, actual.length);
 
         for (int i = 0; i < expected.length; i++)
         {
             Object[] expectedRow = expected[i];
             Object[] actualRow = actual[i];
-            Assert.assertTrue(rowsNotEqualErrorMessage(expected, actual),
+            Assert.assertTrue(rowsNotEqualErrorMessage(actual, expected),
                               Arrays.equals(expectedRow, actualRow));
         }
     }

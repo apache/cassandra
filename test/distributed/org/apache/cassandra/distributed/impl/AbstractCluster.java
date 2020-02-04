@@ -39,15 +39,14 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -55,7 +54,6 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
@@ -104,6 +102,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     // mutated by user-facing API
     private final MessageFilters filters;
+    private volatile Thread.UncaughtExceptionHandler previousHandler = null;
 
     protected class Wrapper extends DelegatingInvokableInstance implements IUpgradeableInstance
     {
@@ -181,6 +180,20 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             throw new IllegalStateException("Cannot get live member count on shutdown instance");
         }
 
+        public int nodetool(String... commandAndArgs)
+        {
+            return delegate().nodetool(commandAndArgs);
+        }
+
+        public long killAttempts()
+        {
+            IInvokableInstance local = delegate;
+            // if shutdown cleared the delegate, then no longer know how many kill attempts happened, so return -1
+            if (local == null)
+                return -1;
+            return local.killAttempts();
+        }
+
         @Override
         public void receiveMessage(IMessage message)
         {
@@ -202,6 +215,15 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                 delegate.shutdown();
                 delegate = null;
             }
+        }
+
+        public void uncaughtException(Thread thread, Throwable throwable)
+        {
+            IInvokableInstance delegate = this.delegate;
+            if (delegate != null)
+                delegate.uncaughtException(thread, throwable);
+            else
+                logger.error("uncaught exception in thread {}", thread, throwable);
         }
     }
 
@@ -276,8 +298,18 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                                   timeout, unit);
     }
 
-    public IMessageFilters filters() { return filters; }
-    public MessageFilters.Builder verbs(Verb... verbs) { return filters.verbs(verbs); }
+    public IMessageFilters filters()
+    {
+        return filters;
+    }
+
+    public MessageFilters.Builder verbs(Verb... verbs)
+    {
+        int[] ids = new int[verbs.length];
+        for (int i = 0; i < verbs.length; ++i)
+            ids[i] = verbs[i].id;
+        return filters.verbs(ids);
+    }
 
     public void disableAutoCompaction(String keyspace)
     {
@@ -440,6 +472,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     void startup()
     {
+        previousHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler(this::uncaughtExceptions);
         try (AllMembersAliveMonitor monitor = new AllMembersAliveMonitor())
         {
             // Start any instances with auto_bootstrap enabled first, and in series to avoid issues
@@ -459,6 +493,19 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             parallelForEach(startParallel, I::startup, 0, null);
             monitor.waitForCompletion();
         }
+    }
+
+    private void uncaughtExceptions(Thread thread, Throwable error)
+    {
+        if (!(thread.getContextClassLoader() instanceof InstanceClassLoader))
+        {
+            Thread.UncaughtExceptionHandler handler = previousHandler;
+            if (null != handler)
+                handler.uncaughtException(thread, error);
+            return;
+        }
+        InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
+        get(cl.getInstanceId()).uncaughtException(thread, error);
     }
 
     protected interface Factory<I extends IInstance, C extends AbstractCluster<I>>
@@ -624,6 +671,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             long token = Long.MIN_VALUE + 1, increment = 2 * (Long.MAX_VALUE / nodeCount);
 
             String ipPrefix = "127.0." + subnet + ".";
+            String seedIp = ipPrefix + "1";
 
             NetworkTopology networkTopology = NetworkTopology.build(ipPrefix, 7012, nodeIdTopology);
 
@@ -631,7 +679,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             {
                 int nodeNum = i + 1;
                 String ipAddress = ipPrefix + nodeNum;
-                InstanceConfig config = InstanceConfig.generate(i + 1, ipAddress, networkTopology, root, String.valueOf(token));
+                InstanceConfig config = InstanceConfig.generate(i + 1, ipAddress, networkTopology, root, String.valueOf(token), seedIp);
                 if (configUpdater != null)
                     configUpdater.accept(config);
                 configs.add(config);
@@ -692,7 +740,10 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         instances.clear();
         instanceMap.clear();
         // Make sure to only delete directory when threads are stopped
-        FileUtils.deleteRecursive(root);
+        if (root.exists())
+            FileUtils.deleteRecursive(root);
+        Thread.setDefaultUncaughtExceptionHandler(previousHandler);
+        previousHandler = null;
 
         //withThreadLeakCheck(futures);
     }
