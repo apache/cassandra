@@ -57,7 +57,7 @@ public class ChecksummingTransformerTest
     @Test
     public void roundTripSafetyProperty()
     {
-        qt().withExamples(500)
+        qt().withExamples(35)
             .forAll(inputs(),
                     compressors(),
                     checksumTypes(),
@@ -79,7 +79,7 @@ public class ChecksummingTransformerTest
     @Test
     public void corruptionCausesFailure()
     {
-        qt().withExamples(500)
+        qt().withExamples(35)
             .forAll(inputWithCorruptablePosition(),
                     integers().between(0, Byte.MAX_VALUE).map(Integer::byteValue),
                     compressors(),
