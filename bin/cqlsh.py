@@ -819,7 +819,7 @@ class Shell(cmd.Cmd):
         ksmeta = self.get_keyspace_meta(ksname)
 
         if viewname not in ksmeta.views:
-            raise MaterializedViewNotFound("Materialized view {} not found".format(viewname))
+            raise MaterializedViewNotFound("Materialized view '{}' not found".format(viewname))
         return ksmeta.views[viewname]
 
     def get_object_meta(self, ks, name):

@@ -44,7 +44,7 @@ from select import select
 from uuid import UUID
 from .util import profile_on, profile_off
 
-from six import ensure_str
+from six import ensure_str, ensure_text
 from six.moves import configparser
 from six.moves import range
 from six.moves.queue import Queue
@@ -2506,10 +2506,11 @@ class ImportProcess(ChildProcess):
             set_clause = []
             for i, value in enumerate(row):
                 if i in conv.primary_key_indexes:
-                    where_clause.append(ensure_str("{}={}").format(self.valid_columns[i], value))
+                    where_clause.append(ensure_text("{}={}").format(self.valid_columns[i], ensure_text(value)))
                 else:
-                    set_clause.append(ensure_str("{}={}+{}").format(self.valid_columns[i], self.valid_columns[i], value))
-            full_query_text = query % (ensure_str(',').join(set_clause), ensure_str(' AND ').join(where_clause))
+                    set_clause.append(ensure_text("{}={}+{}").format(self.valid_columns[i], self.valid_columns[i], ensure_text(value)))
+
+            full_query_text = query % (ensure_text(',').join(set_clause), ensure_text(' AND ').join(where_clause))
             statement.add(ensure_str(full_query_text))
         return statement
 
