@@ -1317,7 +1317,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 512M
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    - CQLSH_PYTHON: /usr/bin/python2
+    - CQLSH_PYTHON: /usr/bin/python2.7
   j8_cqlsh-dtests-py3-with-vnodes:
     docker:
     - image: spod/cassandra-testing-ubuntu1810-java11-w-dependencies:20190306
