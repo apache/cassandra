@@ -81,21 +81,6 @@ public class CassandraStreamManager implements TableStreamManager
         return new CassandraStreamReceiver(cfs, session, totalStreams);
     }
 
-    private static Predicate<SSTableReader> getPreviewPredicate(PreviewKind kind)
-    {
-        switch (kind)
-        {
-            case ALL:
-                return Predicates.alwaysTrue();
-            case UNREPAIRED:
-                return Predicates.not(SSTableReader::isRepaired);
-            case REPAIRED:
-                return SSTableReader::isRepaired;
-            default:
-                throw new IllegalArgumentException("Unsupported kind: " + kind);
-        }
-    }
-
     @Override
     public Collection<OutgoingStream> createOutgoingStreams(StreamSession session, RangesAtEndpoint replicas, UUID pendingRepair, PreviewKind previewKind)
     {
@@ -111,7 +96,7 @@ public class CassandraStreamManager implements TableStreamManager
                 Predicate<SSTableReader> predicate;
                 if (previewKind.isPreview())
                 {
-                    predicate = getPreviewPredicate(previewKind);
+                    predicate = previewKind.predicate();
                 }
                 else if (pendingRepair == ActiveRepairService.NO_PENDING_REPAIR)
                 {

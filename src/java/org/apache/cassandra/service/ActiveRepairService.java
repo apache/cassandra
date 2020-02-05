@@ -70,7 +70,6 @@ import org.apache.cassandra.repair.consistent.CoordinatorSessions;
 import org.apache.cassandra.repair.consistent.LocalSessions;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
@@ -230,6 +229,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         // register listeners
         registerOnFdAndGossip(session);
 
+        if (session.previewKind == PreviewKind.REPAIRED)
+            LocalSessions.registerListener(session);
+
         // remove session at completion
         session.addListener(new Runnable()
         {
@@ -239,6 +241,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             public void run()
             {
                 sessions.remove(session.getId());
+                LocalSessions.unregisterListener(session);
             }
         }, MoreExecutors.directExecutor());
         session.start(executor);

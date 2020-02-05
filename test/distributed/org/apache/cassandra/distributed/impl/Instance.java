@@ -401,6 +401,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 if (!FBUtilities.getBroadcastAddressAndPort().equals(broadcastAddressAndPort()))
                     throw new IllegalStateException();
+
+                ActiveRepairService.instance.start();
             }
             catch (Throwable t)
             {
