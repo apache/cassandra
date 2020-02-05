@@ -1,5 +1,5 @@
 3.0.21
- * 
+ * Run evictFromMembership in GossipStage (CASSANDRA-15592)
 
 3.0.20
  * Run in-jvm upgrade dtests in circleci (CASSANDRA-15506)
