@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.StatusLogger;
 
 public class GCInspector implements NotificationListener, GCInspectorMXBean
@@ -147,7 +148,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                 gcStates.put(gc.getName(), new GCState(gc, assumeGCIsPartiallyConcurrent(gc), assumeGCIsOldGen(gc)));
             }
 
-            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
+            MBeanWrapper.instance.registerMBean(this, new ObjectName(MBEAN_NAME));
         }
         catch (Exception e)
         {
