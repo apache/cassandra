@@ -45,7 +45,8 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
@@ -54,10 +55,10 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
-import org.apache.cassandra.distributed.impl.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.impl.InstanceKiller;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
@@ -73,9 +74,9 @@ import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.StorageService;
 
 @RunWith(Parameterized.class)
-public class FailingRepairTest extends DistributedTestBase implements Serializable
+public class FailingRepairTest extends TestBaseImpl implements Serializable
 {
-    private static Cluster CLUSTER;
+    private static ICluster<IInvokableInstance> CLUSTER;
 
     private final Verb messageType;
     private final RepairParallelism parallelism;
@@ -136,15 +137,16 @@ public class FailingRepairTest extends DistributedTestBase implements Serializab
     {
         // streaming requires networking ATM
         // streaming also requires gossip or isn't setup properly
-        CLUSTER = init(Cluster.build(2)
-                    .withConfig(c -> c.with(Feature.NETWORK)
-                                      .with(Feature.GOSSIP)
-                                      .set("disk_failure_policy", "die"))
-                    .start());
+        CLUSTER = init(Cluster.build()
+                              .withNodes(2)
+                              .withConfig(c -> c.with(Feature.NETWORK)
+                                             .with(Feature.GOSSIP)
+                                             .set("disk_failure_policy", "die"))
+                              .start());
     }
 
     @AfterClass
-    public static void teardownCluster()
+    public static void teardownCluster() throws Exception
     {
         if (CLUSTER != null)
             CLUSTER.close();
@@ -154,7 +156,7 @@ public class FailingRepairTest extends DistributedTestBase implements Serializab
     public void cleanupState()
     {
         for (int i = 1; i <= CLUSTER.size(); i++)
-            CLUSTER.get(i).runOnInstance(() -> InstanceKiller.clear());
+            CLUSTER.get(i).runOnInstance(InstanceKiller::clear);
     }
 
     @Test(timeout = 10 * 60 * 1000)

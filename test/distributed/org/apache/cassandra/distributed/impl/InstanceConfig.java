@@ -18,16 +18,9 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.IInstanceConfig;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.SimpleSeedProvider;
-
 import java.io.File;
 import java.lang.reflect.Field;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,6 +28,14 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.Function;
+
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.Versions;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.SimpleSeedProvider;
 
 public class InstanceConfig implements IInstanceConfig
 {
@@ -53,28 +54,6 @@ public class InstanceConfig implements IInstanceConfig
     private final EnumSet featureFlags;
 
     private volatile InetAddressAndPort broadcastAddressAndPort;
-
-    @Override
-    public InetAddressAndPort broadcastAddressAndPort()
-    {
-        if (broadcastAddressAndPort == null)
-        {
-            broadcastAddressAndPort = getAddressAndPortFromConfig("broadcast_address", "storage_port");
-        }
-        return broadcastAddressAndPort;
-    }
-
-    private InetAddressAndPort getAddressAndPortFromConfig(String addressProp, String portProp)
-    {
-        try
-        {
-            return InetAddressAndPort.getByNameOverrideDefaults(getString(addressProp), getInt(portProp));
-        }
-        catch (UnknownHostException e)
-        {
-            throw new IllegalStateException(e);
-        }
-    }
 
     private InstanceConfig(int num,
                            NetworkTopology networkTopology,
@@ -117,7 +96,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("storage_port", 7012)
                 .set("endpoint_snitch", DistributedTestSnitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                        Collections.singletonMap("seeds", seedIp + ":7012")))
+                                                             Collections.singletonMap("seeds", seedIp + ":7012")))
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
                 .set("auto_bootstrap", false)
@@ -138,6 +117,44 @@ public class InstanceConfig implements IInstanceConfig
         this.hostId = copy.hostId;
         this.featureFlags = copy.featureFlags;
         this.broadcastAddressAndPort = copy.broadcastAddressAndPort;
+    }
+
+
+    @Override
+    public InetSocketAddress broadcastAddress()
+    {
+        return DistributedTestSnitch.fromCassandraInetAddressAndPort(getBroadcastAddressAndPort());
+    }
+
+    protected InetAddressAndPort getBroadcastAddressAndPort()
+    {
+        if (broadcastAddressAndPort == null)
+        {
+            broadcastAddressAndPort = getAddressAndPortFromConfig("broadcast_address", "storage_port");
+        }
+        return broadcastAddressAndPort;
+    }
+
+    private InetAddressAndPort getAddressAndPortFromConfig(String addressProp, String portProp)
+    {
+        try
+        {
+            return InetAddressAndPort.getByNameOverrideDefaults(getString(addressProp), getInt(portProp));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    public String localRack()
+    {
+        return networkTopology().localRack(broadcastAddress());
+    }
+
+    public String localDatacenter()
+    {
+        return networkTopology().localDC(broadcastAddress());
     }
 
     public InstanceConfig with(Feature featureFlag)
@@ -163,8 +180,6 @@ public class InstanceConfig implements IInstanceConfig
         if (value == null)
             value = NULL;
 
-        // test value
-        propagate(new Config(), fieldName, value, false);
         params.put(fieldName, value);
         return this;
     }
@@ -179,16 +194,10 @@ public class InstanceConfig implements IInstanceConfig
         return this;
     }
 
-    public void propagateIfSet(Object writeToConfig, String fieldName)
-    {
-        if (params.containsKey(fieldName))
-            propagate(writeToConfig, fieldName, params.get(fieldName), true);
-    }
-
-    public void propagate(Object writeToConfig)
+    public void propagate(Object writeToConfig, Map<Class<?>, Function<Object, Object>> mapping)
     {
         for (Map.Entry<String, Object> e : params.entrySet())
-            propagate(writeToConfig, e.getKey(), e.getValue(), true);
+            propagate(writeToConfig, e.getKey(), e.getValue(), mapping);
     }
 
     public void validate()
@@ -197,10 +206,13 @@ public class InstanceConfig implements IInstanceConfig
             throw new IllegalArgumentException("In-JVM dtests do not support vnodes as of now.");
     }
 
-    private void propagate(Object writeToConfig, String fieldName, Object value, boolean ignoreMissing)
+    private void propagate(Object writeToConfig, String fieldName, Object value, Map<Class<?>, Function<Object, Object>> mapping)
     {
         if (value == NULL)
             value = null;
+
+        if (mapping != null && mapping.containsKey(value.getClass()))
+            value = mapping.get(value.getClass()).apply(value);
 
         Class<?> configClass = writeToConfig.getClass();
         Field valueField;
@@ -210,9 +222,7 @@ public class InstanceConfig implements IInstanceConfig
         }
         catch (NoSuchFieldException e)
         {
-            if (!ignoreMissing)
-                throw new IllegalStateException(e);
-            return;
+            throw new IllegalStateException(e);
         }
 
         if (valueField.getType().isEnum() && value instanceof String)

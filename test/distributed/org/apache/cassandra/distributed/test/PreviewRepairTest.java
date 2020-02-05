@@ -34,23 +34,23 @@ import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.shared.RepairResult;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 
@@ -60,7 +60,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class PreviewRepairTest extends DistributedTestBase
+public class PreviewRepairTest extends TestBaseImpl
 {
     /**
      * makes sure that the repaired sstables are not matching on the two
@@ -93,9 +93,9 @@ public class PreviewRepairTest extends DistributedTestBase
                 cfs.enableAutoCompaction();
                 FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
             });
-            Pair<Boolean, Boolean> rs = cluster.get(1).callOnInstance(repair(options(true)));
-            assertTrue(rs.left); // preview repair should succeed
-            assertFalse(rs.right); // and we should see no mismatches
+            RepairResult rs = cluster.get(1).callOnInstance(repair(options(true)));
+            assertTrue(rs.success); // preview repair should succeed
+            assertFalse(rs.wasInconsistent); // and we should see no mismatches
         }
     }
 
@@ -133,14 +133,14 @@ public class PreviewRepairTest extends DistributedTestBase
             // this pauses the validation request sent from node1 to node2 until we have run a full inc repair below
             cluster.filters().outbound().verbs(Verb.VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
 
-            Future<Pair<Boolean, Boolean>> rsFuture = es.submit(() -> cluster.get(1).callOnInstance(repair(options(true))));
+            Future<RepairResult> rsFuture = es.submit(() -> cluster.get(1).callOnInstance(repair(options(true))));
             Thread.sleep(1000);
             // this needs to finish before the preview repair is unpaused on node2
             cluster.get(1).callOnInstance(repair(options(false)));
             continuePreviewRepair.signalAll();
-            Pair<Boolean, Boolean> rs = rsFuture.get();
-            assertFalse(rs.left); // preview repair should have failed
-            assertFalse(rs.right); // and no mismatches should have been reported
+            RepairResult rs = rsFuture.get();
+            assertFalse(rs.success); // preview repair should have failed
+            assertFalse(rs.wasInconsistent); // and no mismatches should have been reported
         }
         finally
         {
@@ -162,7 +162,7 @@ public class PreviewRepairTest extends DistributedTestBase
 
             insert(cluster.coordinator(1), 0, 100);
             cluster.forEach((node) -> node.flush(KEYSPACE));
-            assertTrue(cluster.get(1).callOnInstance(repair(options(false))).left);
+            assertTrue(cluster.get(1).callOnInstance(repair(options(false))).success);
 
             insert(cluster.coordinator(1), 100, 100);
             cluster.forEach((node) -> node.flush(KEYSPACE));
@@ -181,15 +181,15 @@ public class PreviewRepairTest extends DistributedTestBase
             });
 
             assertEquals(2, localRanges.size());
-            Future<Pair<Boolean, Boolean>> repairStatusFuture = es.submit(() -> cluster.get(1).callOnInstance(repair(options(true, localRanges.get(0)))));
+            Future<RepairResult> repairStatusFuture = es.submit(() -> cluster.get(1).callOnInstance(repair(options(true, localRanges.get(0)))));
             Thread.sleep(1000); // wait for node1 to start validation compaction
             // this needs to finish before the preview repair is unpaused on node2
-            assertTrue(cluster.get(1).callOnInstance(repair(options(false, localRanges.get(1)))).left);
+            assertTrue(cluster.get(1).callOnInstance(repair(options(false, localRanges.get(1)))).success);
 
             continuePreviewRepair.signalAll();
-            Pair<Boolean, Boolean> rs = repairStatusFuture.get();
-            assertTrue(rs.left); // repair should succeed
-            assertFalse(rs.right); // and no mismatches
+            RepairResult rs = repairStatusFuture.get();
+            assertTrue(rs.success); // repair should succeed
+            assertFalse(rs.wasInconsistent); // and no mismatches
         }
         finally
         {
@@ -231,7 +231,7 @@ public class PreviewRepairTest extends DistributedTestBase
     /**
      * returns a pair with [repair success, was inconsistent]
      */
-    private static IIsolatedExecutor.SerializableCallable<Pair<Boolean, Boolean>> repair(Map<String, String> options)
+    private static IIsolatedExecutor.SerializableCallable<RepairResult> repair(Map<String, String> options)
     {
         return () -> {
             SimpleCondition await = new SimpleCondition();
@@ -258,7 +258,7 @@ public class PreviewRepairTest extends DistributedTestBase
             {
                 throw new RuntimeException(e);
             }
-            return Pair.create(success.get(), wasInconsistent.get());
+            return new RepairResult(success.get(), wasInconsistent.get());
         };
     }
 

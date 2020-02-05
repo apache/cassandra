@@ -25,7 +25,9 @@ import java.util.function.Predicate;
 import org.junit.runners.BlockJUnit4ClassRunner;
 import org.junit.runners.model.InitializationError;
 
-import org.apache.cassandra.distributed.impl.Versions;
+import org.apache.cassandra.distributed.impl.AbstractCluster;
+import org.apache.cassandra.distributed.shared.Versions;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  *
@@ -66,7 +68,7 @@ public class CassandraIsolatedJunit4ClassRunner extends BlockJUnit4ClassRunner
     {
         public CassandraIsolatedClassLoader()
         {
-            super(Versions.CURRENT.classpath);
+            super(AbstractCluster.CURRENT_VERSION.classpath);
         }
 
         @Override

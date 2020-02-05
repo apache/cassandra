@@ -31,7 +31,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.NodeToolResult;
-import org.apache.cassandra.distributed.impl.MessageFilters;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairParallelism;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairType;
 import org.apache.cassandra.gms.FailureDetector;

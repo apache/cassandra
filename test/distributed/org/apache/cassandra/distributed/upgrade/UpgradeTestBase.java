@@ -24,18 +24,25 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.cassandra.db.MutableDeletionInfo;
 import org.apache.cassandra.distributed.UpgradeableCluster;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.impl.Instance;
-import org.apache.cassandra.distributed.impl.Versions;
-import org.apache.cassandra.distributed.impl.Versions.Version;
-import org.apache.cassandra.distributed.test.DistributedTestBase;
 
-import static org.apache.cassandra.distributed.impl.Versions.Major;
-import static org.apache.cassandra.distributed.impl.Versions.find;
+import org.apache.cassandra.distributed.shared.Builder;
+import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.distributed.shared.Versions;
+import static org.apache.cassandra.distributed.shared.Versions.Version;
+import static org.apache.cassandra.distributed.shared.Versions.Major;
+import static org.apache.cassandra.distributed.shared.Versions.find;
 
 public class UpgradeTestBase extends DistributedTestBase
 {
+    public <I extends IInstance, C extends ICluster> Builder<I, C> builder()
+    {
+        return (Builder<I, C>) UpgradeableCluster.build();
+    }
+
     public static interface RunOnCluster
     {
         public void run(UpgradeableCluster cluster) throws Throwable;
