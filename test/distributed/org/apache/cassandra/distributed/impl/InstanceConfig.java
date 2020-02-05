@@ -22,6 +22,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 
@@ -92,7 +93,8 @@ public class InstanceConfig implements IInstanceConfig
         this.num = num;
         this.networkTopology = networkTopology;
         this.hostId = java.util.UUID.randomUUID();
-        this    .set("broadcast_address", broadcast_address)
+        this    .set("num_tokens", 1)
+                .set("broadcast_address", broadcast_address)
                 .set("listen_address", listen_address)
                 .set("broadcast_rpc_address", broadcast_rpc_address)
                 .set("rpc_address", rpc_address)
@@ -187,6 +189,12 @@ public class InstanceConfig implements IInstanceConfig
     {
         for (Map.Entry<String, Object> e : params.entrySet())
             propagate(writeToConfig, e.getKey(), e.getValue(), true);
+    }
+
+    public void validate()
+    {
+        if (((int) get("num_tokens")) > 1)
+            throw new IllegalArgumentException("In-JVM dtests do not support vnodes as of now.");
     }
 
     private void propagate(Object writeToConfig, String fieldName, Object value, boolean ignoreMissing)

@@ -90,26 +90,23 @@ public class LeaveAndBootstrapTest
         IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
-        ArrayList<Token> endpointTokens = new ArrayList<Token>();
-        ArrayList<Token> keyTokens = new ArrayList<Token>();
+        ArrayList<Token> endpointTokens = new ArrayList<>();
+        ArrayList<Token> keyTokens = new ArrayList<>();
         List<InetAddressAndPort> hosts = new ArrayList<>();
-        List<UUID> hostIds = new ArrayList<UUID>();
+        List<UUID> hostIds = new ArrayList<>();
 
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
 
-        Map<Token, List<InetAddressAndPort>> expectedEndpoints = new HashMap<Token, List<InetAddressAndPort>>();
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
+        Map<Token, List<InetAddressAndPort>> expectedEndpoints = new HashMap<>();
+        for (Token token : keyTokens)
         {
-            for (Token token : keyTokens)
+            List<InetAddressAndPort> endpoints = new ArrayList<>();
+            Iterator<Token> tokenIter = TokenMetadata.ringIterator(tmd.sortedTokens(), token, false);
+            while (tokenIter.hasNext())
             {
-                List<InetAddressAndPort> endpoints = new ArrayList<>();
-                Iterator<Token> tokenIter = TokenMetadata.ringIterator(tmd.sortedTokens(), token, false);
-                while (tokenIter.hasNext())
-                {
-                    endpoints.add(tmd.getEndpoint(tokenIter.next()));
-                }
-                expectedEndpoints.put(token, endpoints);
+                endpoints.add(tmd.getEndpoint(tokenIter.next()));
             }
+            expectedEndpoints.put(token, endpoints);
         }
 
         // Third node leaves
@@ -117,8 +114,8 @@ public class LeaveAndBootstrapTest
                     ApplicationState.STATUS_WITH_PORT,
                     valueFactory.leaving(Collections.singleton(endpointTokens.get(LEAVING_NODE))));
         ss.onChange(hosts.get(LEAVING_NODE),
-                ApplicationState.STATUS,
-                valueFactory.leaving(Collections.singleton(endpointTokens.get(LEAVING_NODE))));
+                    ApplicationState.STATUS,
+                    valueFactory.leaving(Collections.singleton(endpointTokens.get(LEAVING_NODE))));
         assertTrue(tmd.isLeaving(hosts.get(LEAVING_NODE)));
 
         Thread.sleep(100); // because there is a tight race between submit and blockUntilFinished
