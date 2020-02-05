@@ -1926,6 +1926,26 @@ workflows:
     - j8_cqlsh-dtests-py3-no-vnodes:
         requires:
         - start_j8_cqlsh_tests-no-vnodes
+    - start_j11_cqlsh_tests-with-vnodes:
+        type: approval
+        requires:
+        - j8_build
+    - j11_cqlsh-dtests-py2-with-vnodes:
+        requires:
+        - start_j11_cqlsh_tests-with-vnodes
+    - j11_cqlsh-dtests-py3-with-vnodes:
+        requires:
+        - start_j11_cqlsh_tests-with-vnodes
+    - start_j11_cqlsh_tests-no-vnodes:
+        type: approval
+        requires:
+        - j8_build
+    - j11_cqlsh-dtests-py2-no-vnodes:
+        requires:
+        - start_j11_cqlsh_tests-no-vnodes
+    - j11_cqlsh-dtests-py3-no-vnodes:
+        requires:
+        - start_j11_cqlsh_tests-no-vnodes
 
   java11_build_and_run_tests:
     jobs:
