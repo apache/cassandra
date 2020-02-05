@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -106,6 +107,7 @@ import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
 public class LocalSessions
 {
     private static final Logger logger = LoggerFactory.getLogger(LocalSessions.class);
+    private static final Set<Listener> listeners = new CopyOnWriteArraySet<>();
 
     /**
      * Amount of time a session can go without any activity before we start checking the status of other
@@ -441,7 +443,7 @@ public class LocalSessions
         return new LocalSession(builder);
     }
 
-    protected LocalSession getSession(UUID sessionID)
+    public LocalSession getSession(UUID sessionID)
     {
         return sessions.get(sessionID);
     }
@@ -520,6 +522,8 @@ public class LocalSessions
             {
                 sessionCompleted(session);
             }
+            for (Listener listener : listeners)
+                listener.onIRStateChange(session);
         }
     }
 
@@ -777,7 +781,7 @@ public class LocalSessions
         LocalSession session = getSession(sessionID);
         if (session == null)
         {
-            logger.warn("Received status response message for unknown session {}", sessionID);
+            logger.warn("Received status request message for unknown session {}", sessionID);
             sendMessage(from, Message.out(STATUS_RSP, new StatusResponse(sessionID, FAILED)));
         }
         else
@@ -867,5 +871,20 @@ public class LocalSessions
         {
             throw new IllegalStateException("Cannot get final repaired at value for in progress session: " + session);
         }
+    }
+
+    public static void registerListener(Listener listener)
+    {
+        listeners.add(listener);
+    }
+
+    public static void unregisterListener(Listener listener)
+    {
+        listeners.remove(listener);
+    }
+
+    public interface Listener
+    {
+        void onIRStateChange(LocalSession session);
     }
 }
