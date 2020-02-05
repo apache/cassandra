@@ -50,14 +50,14 @@ done
 # get a version string for a Python interpreter
 get_python_version() {
 	interpreter=$1
-	version=$(which $interpreter > /dev/null 2>&1 && $interpreter -c "import os; print('{}.{}'.format(os.sys.version_info.major, os.sys.version_info.minor))")
+	version=$(command -v "$interpreter" > /dev/null 2>&1 && $interpreter -c "import os; print('{}.{}'.format(os.sys.version_info.major, os.sys.version_info.minor))")
 	echo "$version"
 }
 
 # test whether a version string matches one of the supported versions for cqlsh
 is_supported_version() {
 	version=$1
-	if [ "$version" = "3.6" -o "$version" = "2.7" ]; then
+	if [ "$version" = "3.6" ] || [ "$version" = "2.7" ]; then
 		echo "supported"
 	else
 		echo "unsupported"
@@ -67,10 +67,11 @@ is_supported_version() {
 run_if_supported_version() {
 	interpreter="$1"
 	params="$2"
-	version=$(get_python_version $interpreter)
+	version=$(get_python_version "$interpreter")
 	if [ -n "$version" ]; then
-		if [ "$(is_supported_version $version)" = "supported" ]; then
-			exec $interpreter "`$interpreter -c "import os; print(os.path.dirname(os.path.realpath('$0')))"`/cqlsh.py" $params
+		if [ "$(is_supported_version "$version")" = "supported" ]; then
+		  # shellcheck disable=SC2086
+			exec "$interpreter" "$($interpreter -c "import os; print(os.path.dirname(os.path.realpath('$0')))")/cqlsh.py" $params
 			exit
 		fi
 	fi
