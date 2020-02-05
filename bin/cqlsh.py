@@ -827,7 +827,7 @@ class Shell(cmd.Cmd):
             if ks and ks in self.conn.metadata.keyspaces:
                 return self.conn.metadata.keyspaces[ks]
             elif self.current_keyspace is None:
-                raise ObjectNotFound("{} not found in keyspaces".format(ks))
+                raise ObjectNotFound("'{}' not found in keyspaces".format(ks))
             else:
                 name = ks
                 ks = self.current_keyspace
@@ -844,7 +844,7 @@ class Shell(cmd.Cmd):
         elif name in ksmeta.views:
             return ksmeta.views[name]
 
-        raise ObjectNotFound("{} not found in keyspace {}".format(name, ks))
+        raise ObjectNotFound("'{}' not found in keyspace '{}'".format(name, ks))
 
     def get_usertypes_meta(self):
         data = self.session.execute("select * from system.schema_usertypes")
@@ -1115,7 +1115,7 @@ class Shell(cmd.Cmd):
             try:
                 return self.get_view_meta(ks, name)
             except MaterializedViewNotFound:
-                raise ObjectNotFound("{} not found in keyspace {}".format(name, ks))
+                raise ObjectNotFound("'{}' not found in keyspace '{}'".format(name, ks))
 
     def parse_for_update_meta(self, query_string):
         try:
