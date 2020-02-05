@@ -32,6 +32,7 @@ public class NodeToolTest extends DistributedTestBase
         try (Cluster cluster = init(Cluster.create(1)))
         {
             assertEquals(0, cluster.get(1).nodetool("help"));
+            assertEquals(0, cluster.get(1).nodetool("flush"));
             assertEquals(1, cluster.get(1).nodetool("not_a_legal_command"));
         }
     }
