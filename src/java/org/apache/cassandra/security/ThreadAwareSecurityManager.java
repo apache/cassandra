@@ -110,7 +110,11 @@ public final class ThreadAwareSecurityManager extends SecurityManager
 
                 switch (codesource.getLocation().getProtocol())
                 {
-                    case "file":
+                    case "jar":   // One-JAR or Uno-Jar source
+                        if (!codesource.getLocation().getPath().startsWith("file:")) {
+                            return perms;
+                        } // else fall through and add AllPermission()
+                    case "file":  // Standard file system source
                         // All JARs and class files reside on the file system - we can safely
                         // assume that these classes are "good".
                         perms.add(new AllPermission());
@@ -133,7 +137,9 @@ public final class ThreadAwareSecurityManager extends SecurityManager
 
                 switch (codesource.getLocation().getProtocol())
                 {
-                    case "file":
+                    case "jar":   // One-JAR or Uno-Jar source
+                        return codesource.getLocation().getPath().startsWith("file:");
+                    case "file":  // Standard file system source
                         // All JARs and class files reside on the file system - we can safely
                         // assume that these classes are "good".
                         return true;
