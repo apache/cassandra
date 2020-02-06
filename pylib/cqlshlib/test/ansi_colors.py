@@ -22,7 +22,6 @@ import six
 LIGHT = 0o10
 
 
-#ansi_CSI = '\033['
 ansi_CSI = '\x1b['
 ansi_seq = re.compile(re.escape(ansi_CSI) + r'(?P<params>[\x20-\x3f]*)(?P<final>[\x40-\x7e])')
 ansi_cmd_SGR = 'm'  # set graphics rendition

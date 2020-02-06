@@ -139,12 +139,12 @@ for lib in third_parties:
     if lib_zip:
         sys.path.insert(0, lib_zip)
 
+# We cannot import six until we add its location to sys.path so the Python
+# interpreter can find it. Do not move this to the top.
 import six
 
-from six.moves import configparser
-from six import StringIO
-from six.moves import input
-from six import ensure_text, ensure_str
+from six.moves import configparser, input
+from six import StringIO, ensure_text, ensure_str
 
 warnings.filterwarnings("ignore", r".*blist.*")
 try:
