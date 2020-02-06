@@ -1392,6 +1392,8 @@
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
           <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg line="${java11-jvmargs}"/>
+	<!-- disable shrinks in quicktheories CASSANDRA-15554 -->
+        <jvmarg value="-DQT_SHRINKS=0"/>
         <optjvmargs/>
         <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
         <!--
