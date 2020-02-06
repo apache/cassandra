@@ -86,10 +86,10 @@ public class ChecksummingTransformerTest
                     integers().between(0, Byte.MAX_VALUE).map(Integer::byteValue),
                     compressors(),
                     checksumTypes())
-            .checkAssert(this::roundTripWithCorruption);
+            .checkAssert(ChecksummingTransformerTest::roundTripWithCorruption);
     }
 
-    private void roundTripWithCorruption(Pair<ReusableBuffer, Integer> inputAndCorruptablePosition,
+    static void roundTripWithCorruption(Pair<ReusableBuffer, Integer> inputAndCorruptablePosition,
                                          byte corruptionValue,
                                          Compressor compressor,
                                          ChecksumType checksum)
