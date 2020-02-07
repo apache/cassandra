@@ -36,8 +36,12 @@ import org.apache.cassandra.utils.Pair;
 /**
  * When we use LZ4 with "fast" functions its unsafe in the case the stream is corrupt; for networking checksuming is
  * after lz4 decompresses (see CASSANDRA-15299) which means that lz4 can crash the process.
+ *
+ * This test is stand alone for the reason that this test is known to cause the JVM to crash.  Given the way we run tests
+ * in CI this will kill the runner which means the file will be marked as failed; if this test was embedded into another
+ * test file then all the other tests would be ignored if this crashes.
  */
-public class ChecksummingWithCorruptedLZ4DoesNotCrash
+public class ChecksummingWithCorruptedLZ4DoesNotCrashTest
 {
     @BeforeClass
     public static void init()
