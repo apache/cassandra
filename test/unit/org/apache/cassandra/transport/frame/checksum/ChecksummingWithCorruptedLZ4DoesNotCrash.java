@@ -33,7 +33,11 @@ import org.apache.cassandra.transport.frame.compress.LZ4Compressor;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.Pair;
 
-public class ChecksummingWithLz4CrashesJvmTest
+/**
+ * When we use LZ4 with "fast" functions its unsafe in the case the stream is corrupt; for networking checksuming is
+ * after lz4 decompresses (see CASSANDRA-15299) which means that lz4 can crash the process.
+ */
+public class ChecksummingWithCorruptedLZ4DoesNotCrash
 {
     @BeforeClass
     public static void init()
@@ -43,7 +47,7 @@ public class ChecksummingWithLz4CrashesJvmTest
     }
 
     @Test
-    public void thisWillCrashTheJvm() throws IOException
+    public void shouldNotCrash() throws IOException
     {
         // We found lz4 caused the JVM to crash, so used the input (bytes and byteToCorrupt) to the test which crashed
         // to reproduce.
@@ -56,11 +60,10 @@ public class ChecksummingWithLz4CrashesJvmTest
         byte[] failure = ByteBufUtil.decodeHexDump(failureHex);
         ReusableBuffer buffer = new ReusableBuffer(failure);
         int byteToCorrupt = 52997;
-        // why are these values chosen?  Because they are the ones that fail! Why do they fail? Need CASSANDRA-15313
-        // to figure out why
+        // corrupting these values causes the exception.
         byte[] corruptionValues = new byte[] { 21, 57, 79, (byte) 179 };
         // 5k was chosen as the largest number of iterations seen needed to crash.
-        for (int i = 0; i < 50_000 ; i++) {
+        for (int i = 0; i < 5_000 ; i++) {
             for (byte corruptionValue : corruptionValues) {
                 try {
                     ChecksummingTransformerTest.roundTripWithCorruption(Pair.create(buffer, byteToCorrupt), corruptionValue, LZ4Compressor.INSTANCE, ChecksumType.ADLER32);
