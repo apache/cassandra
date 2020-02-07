@@ -366,6 +366,34 @@ public class Server implements CassandraDaemon.Server
             }
         }
 
+        public static long getGlobalLimit()
+        {
+            return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes();
+        }
+
+        public static void setGlobalLimit(long newLimit)
+        {
+            DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(newLimit);
+            long existingLimit = globalRequestPayloadInFlight.setLimit(DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes());
+
+            logger.info("Changed native_max_transport_requests_in_bytes from {} to {}", existingLimit, newLimit);
+        }
+
+        public static long getEndpointLimit()
+        {
+            return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp();
+        }
+
+        public static void setEndpointLimit(long newLimit)
+        {
+            long existingLimit = DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp();
+            DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(newLimit); // ensure new trackers get the new limit
+            for (EndpointPayloadTracker tracker : requestPayloadInFlightPerEndpoint.values())
+                existingLimit = tracker.endpointAndGlobalPayloadsInFlight.endpoint().setLimit(newLimit);
+
+            logger.info("Changed native_max_transport_requests_in_bytes_per_ip from {} to {}", existingLimit, newLimit);
+        }
+
         private boolean acquire()
         {
             return 0 < refCount.updateAndGet(i -> i < 0 ? i : i + 1);
