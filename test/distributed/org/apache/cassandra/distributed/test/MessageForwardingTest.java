@@ -31,13 +31,13 @@ import java.util.stream.Stream;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
-public class MessageForwardingTest extends DistributedTestBase
+public class MessageForwardingTest extends TestBaseImpl
 {
     @Test
     public void mutationsForwardedToAllReplicasTest()
@@ -53,12 +53,12 @@ public class MessageForwardingTest extends DistributedTestBase
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck))");
 
-            cluster.forEach(instance -> commitCounts.put(instance.broadcastAddressAndPort().address, 0));
+            cluster.forEach(instance -> commitCounts.put(instance.broadcastAddress().getAddress(), 0));
             final UUID sessionId = UUIDGen.getTimeUUID();
             Stream<Future<Object[][]>> inserts = IntStream.range(0, numInserts).mapToObj((idx) ->
                 cluster.coordinator(1).asyncExecuteWithTracing(sessionId,
                                                          "INSERT INTO " + KEYSPACE + ".tbl(pk,ck,v) VALUES (1, 1, 'x')",
-                                                         ConsistencyLevel.ALL)
+                                                               ConsistencyLevel.ALL)
             );
 
             // Wait for each of the futures to complete before checking the traces, don't care
@@ -66,7 +66,7 @@ public class MessageForwardingTest extends DistributedTestBase
             //noinspection ResultOfMethodCallIgnored
             inserts.map(IsolatedExecutor::waitOn).count();
 
-            cluster.forEach(instance -> commitCounts.put(instance.broadcastAddressAndPort().address, 0));
+            cluster.forEach(instance -> commitCounts.put(instance.broadcastAddress().getAddress(), 0));
             List<TracingUtil.TraceEntry> traces = TracingUtil.getTrace(cluster, sessionId, ConsistencyLevel.ALL);
             traces.forEach(traceEntry -> {
                 if (traceEntry.activity.contains("Appending to commitlog"))

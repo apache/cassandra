@@ -163,6 +163,13 @@ public class NodeProbe implements AutoCloseable
         connect();
     }
 
+    protected NodeProbe()
+    {
+        // this constructor is only used for extensions to rewrite their own connect method
+        this.host = "";
+        this.port = 0;
+    }
+
     /**
      * Create a connection to the JMX agent and setup the M[X]Bean proxies.
      *
@@ -761,6 +768,15 @@ public class NodeProbe implements AutoCloseable
     public StorageProxyMBean getSpProxy()
     {
         return spProxy;
+    }
+
+    public StorageServiceMBean getStorageService() {
+        return ssProxy;
+    }
+
+    public GossiperMBean getGossProxy()
+    {
+        return gossProxy;
     }
 
     public String getEndpoint()

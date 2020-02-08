@@ -394,6 +394,8 @@
 	         <exclusion groupId="commons-logging" artifactId="commons-logging"/>
           </dependency>
           <dependency groupId="junit" artifactId="junit" version="4.6" />
+          <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.1" />
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
           </dependency>
@@ -506,6 +508,8 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <dependency groupId="junit" artifactId="junit"/>
+        <dependency groupId="org.mockito" artifactId="mockito-core" />
+        <dependency groupId="org.apache.cassandra" artifactId="dtest-api" />
         <dependency groupId="org.apache.rat" artifactId="apache-rat"/>
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core"/>
       	<dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster"/>
@@ -530,6 +534,7 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <dependency groupId="junit" artifactId="junit"/>
+        <dependency groupId="org.mockito" artifactId="mockito-core" />
         <dependency groupId="org.apache.pig" artifactId="pig">
           <exclusion groupId="xmlenc" artifactId="xmlenc"/>
           <exclusion groupId="tomcat" artifactId="jasper-runtime"/>

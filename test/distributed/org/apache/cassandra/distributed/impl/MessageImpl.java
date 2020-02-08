@@ -18,19 +18,21 @@
 
 package org.apache.cassandra.distributed.impl;
 
+import java.net.InetSocketAddress;
+
 import org.apache.cassandra.distributed.api.IMessage;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 
 // a container for simplifying the method signature for per-instance message handling/delivery
-public class Message implements IMessage
+public class MessageImpl implements IMessage
 {
-    private final int verb;
-    private final byte[] bytes;
-    private final int id;
-    private final int version;
-    private final InetAddressAndPort from;
+    public final int verb;
+    public final byte[] bytes;
+    public final long id;
+    public final int version;
+    public final InetSocketAddress from;
 
-    public Message(int verb, byte[] bytes, int id, int version, InetAddressAndPort from)
+    public MessageImpl(int verb, byte[] bytes, long id, int version, InetSocketAddress from)
     {
         this.verb = verb;
         this.bytes = bytes;
@@ -39,32 +41,27 @@ public class Message implements IMessage
         this.from = from;
     }
 
-    @Override
     public int verb()
     {
         return verb;
     }
 
-    @Override
     public byte[] bytes()
     {
         return bytes;
     }
 
-    @Override
     public int id()
     {
-        return id;
+        return (int) id;
     }
 
-    @Override
     public int version()
     {
         return version;
     }
 
-    @Override
-    public InetAddressAndPort from()
+    public InetSocketAddress from()
     {
         return from;
     }

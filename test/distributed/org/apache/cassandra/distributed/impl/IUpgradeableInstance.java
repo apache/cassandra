@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.impl;
 
 import org.apache.cassandra.distributed.api.IInstance;
+import org.apache.cassandra.distributed.shared.Versions;
 
 // this lives outside the api package so that we do not have to worry about inter-version compatibility
 public interface IUpgradeableInstance extends IInstance
