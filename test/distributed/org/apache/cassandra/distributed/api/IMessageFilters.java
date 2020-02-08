@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.distributed.api;
 
+import java.util.function.Predicate;
+
 public interface IMessageFilters
 {
     public interface Filter
@@ -42,6 +44,10 @@ public interface IMessageFilters
     public interface Matcher
     {
         boolean matches(int from, int to, IMessage message);
+
+        static Matcher of(Predicate<IMessage> fn) {
+            return (from, to, m) -> fn.test(m);
+        }
     }
 
     Builder verbs(int... verbs);

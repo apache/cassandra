@@ -495,6 +495,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
     }
 
+    public boolean hasParentRepairSession(UUID parentSessionId)
+    {
+        return parentRepairSessions.get(parentSessionId) != null;
+    }
+
     public ParentRepairSession getParentRepairSession(UUID parentSessionId)
     {
         ParentRepairSession session = parentRepairSessions.get(parentSessionId);

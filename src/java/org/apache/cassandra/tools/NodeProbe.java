@@ -920,6 +920,10 @@ public class NodeProbe implements AutoCloseable
         return spProxy;
     }
 
+    public StorageServiceMBean getStorageService() {
+        return ssProxy;
+    }
+
     public GossiperMBean getGossProxy()
     {
         return gossProxy;

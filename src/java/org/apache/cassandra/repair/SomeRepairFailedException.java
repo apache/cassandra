@@ -16,27 +16,16 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.mock.nodetool;
+package org.apache.cassandra.repair;
 
-import java.io.IOException;
-
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.INodeProbeFactory;
-
-public class InternalNodeProbeFactory implements INodeProbeFactory
+/**
+ * This is a special exception which states "I know something failed but I don't have access to the failure". This
+ * is mostly used to make sure the error notifications are clean and the history table has a meaningful exception.
+ *
+ * The expected behavior is that when this is thrown, this error should be ignored from history table and not used
+ * for notifications
+ */
+public class SomeRepairFailedException extends RuntimeException
 {
-    private final boolean withNotifications;
-
-    public InternalNodeProbeFactory(boolean withNotifications)
-    {
-        this.withNotifications = withNotifications;
-    }
-
-    public NodeProbe create(String host, int port) throws IOException {
-        return new InternalNodeProbe(withNotifications);
-    }
-
-    public NodeProbe create(String host, int port, String username, String password) throws IOException {
-        return new InternalNodeProbe(withNotifications);
-    }
+    public static final SomeRepairFailedException INSTANCE = new SomeRepairFailedException();
 }
