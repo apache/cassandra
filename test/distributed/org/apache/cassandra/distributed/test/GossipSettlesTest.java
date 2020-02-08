@@ -18,23 +18,25 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.io.IOException;
-
 import org.junit.Test;
 
-import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ICluster;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class GossipSettlesTest extends DistributedTestBase
+// TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
+public class GossipSettlesTest extends TestBaseImpl
 {
 
     @Test
-    public void testGossipSettles() throws IOException
+    public void testGossipSettles() throws Throwable
     {
-        // Use withSubnet(1) to prove seed provider is set correctly - without the fix to pass a seed provider, this test fails
-        try (Cluster cluster = Cluster.build(3).withConfig(config -> config.with(GOSSIP).with(NETWORK)).withSubnet(1).start())
+        /* Use withSubnet(1) to prove seed provider is set correctly - without the fix to pass a seed provider, this test fails */
+        try (ICluster cluster = builder().withNodes(3)
+                                         .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                         .withSubnet(1)
+                                         .start())
         {
         }
     }
