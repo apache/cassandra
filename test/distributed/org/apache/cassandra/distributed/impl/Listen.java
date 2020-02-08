@@ -24,7 +24,6 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.function.Supplier;
 
 import org.apache.cassandra.distributed.api.IListen;
-import org.apache.cassandra.gms.Gossiper;
 
 public class Listen implements IListen
 {

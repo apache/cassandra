@@ -18,29 +18,46 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.net.InetSocketAddress;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.impl.Instance;
-import org.apache.cassandra.distributed.impl.MessageFilters;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 
-public class MessageFiltersTest extends DistributedTestBase
+public class MessageFiltersTest extends TestBaseImpl
 {
+
     @Test
-    public void simpleFiltersTest() throws Throwable
+    public void simpleInboundFiltersTest()
+    {
+        simpleFiltersTest(true);
+    }
+
+    @Test
+    public void simpleOutboundFiltersTest()
+    {
+        simpleFiltersTest(false);
+    }
+
+    private interface Permit
+    {
+        boolean test(int from, int to, IMessage msg);
+    }
+
+    private static void simpleFiltersTest(boolean inbound)
     {
         int VERB1 = MessagingService.Verb.READ.ordinal();
         int VERB2 = MessagingService.Verb.REQUEST_RESPONSE.ordinal();
@@ -52,61 +69,62 @@ public class MessageFiltersTest extends DistributedTestBase
         String MSG2 = "msg2";
 
         MessageFilters filters = new MessageFilters();
-        MessageFilters.Filter filter = filters.allVerbs().from(1).drop();
+        Permit permit = inbound ? filters::permitInbound : filters::permitOutbound;
 
-        Assert.assertFalse(filters.permit(i1, i2, msg(VERB1, MSG1)));
-        Assert.assertFalse(filters.permit(i1, i2, msg(VERB2, MSG1)));
-        Assert.assertFalse(filters.permit(i1, i2, msg(VERB3, MSG1)));
-        Assert.assertTrue(filters.permit(i2, i1, msg(VERB1, MSG1)));
+        IMessageFilters.Filter filter = filters.allVerbs().inbound(inbound).from(1).drop();
+        Assert.assertFalse(permit.test(i1, i2, msg(VERB1, MSG1)));
+        Assert.assertFalse(permit.test(i1, i2, msg(VERB2, MSG1)));
+        Assert.assertFalse(permit.test(i1, i2, msg(VERB3, MSG1)));
+        Assert.assertTrue(permit.test(i2, i1, msg(VERB1, MSG1)));
         filter.off();
-        Assert.assertTrue(filters.permit(i1, i2, msg(VERB1, MSG1)));
+        Assert.assertTrue(permit.test(i1, i2, msg(VERB1, MSG1)));
         filters.reset();
 
-        filters.verbs(VERB1).from(1).to(2).drop();
-        Assert.assertFalse(filters.permit(i1, i2, msg(VERB1, MSG1)));
-        Assert.assertTrue(filters.permit(i1, i2, msg(VERB2, MSG1)));
-        Assert.assertTrue(filters.permit(i2, i1, msg(VERB1, MSG1)));
-        Assert.assertTrue(filters.permit(i2, i3, msg(VERB2, MSG1)));
+        filters.verbs(VERB1).inbound(inbound).from(1).to(2).drop();
+        Assert.assertFalse(permit.test(i1, i2, msg(VERB1, MSG1)));
+        Assert.assertTrue(permit.test(i1, i2, msg(VERB2, MSG1)));
+        Assert.assertTrue(permit.test(i2, i1, msg(VERB1, MSG1)));
+        Assert.assertTrue(permit.test(i2, i3, msg(VERB2, MSG1)));
 
         filters.reset();
         AtomicInteger counter = new AtomicInteger();
-        filters.verbs(VERB1).from(1).to(2).messagesMatching((from, to, msg) -> {
+        filters.verbs(VERB1).inbound(inbound).from(1).to(2).messagesMatching((from, to, msg) -> {
             counter.incrementAndGet();
             return Arrays.equals(msg.bytes(), MSG1.getBytes());
         }).drop();
-        Assert.assertFalse(filters.permit(i1, i2, msg(VERB1, MSG1)));
+        Assert.assertFalse(permit.test(i1, i2, msg(VERB1, MSG1)));
         Assert.assertEquals(counter.get(), 1);
-        Assert.assertTrue(filters.permit(i1, i2, msg(VERB1, MSG2)));
+        Assert.assertTrue(permit.test(i1, i2, msg(VERB1, MSG2)));
         Assert.assertEquals(counter.get(), 2);
 
         // filter chain gets interrupted because a higher level filter returns no match
-        Assert.assertTrue(filters.permit(i2, i1, msg(VERB1, MSG1)));
+        Assert.assertTrue(permit.test(i2, i1, msg(VERB1, MSG1)));
         Assert.assertEquals(counter.get(), 2);
-        Assert.assertTrue(filters.permit(i2, i1, msg(VERB2, MSG1)));
+        Assert.assertTrue(permit.test(i2, i1, msg(VERB2, MSG1)));
         Assert.assertEquals(counter.get(), 2);
         filters.reset();
 
-        filters.allVerbs().from(3, 2).to(2, 1).drop();
-        Assert.assertFalse(filters.permit(i3, i1, msg(VERB1, MSG1)));
-        Assert.assertFalse(filters.permit(i3, i2, msg(VERB1, MSG1)));
-        Assert.assertFalse(filters.permit(i2, i1, msg(VERB1, MSG1)));
-        Assert.assertTrue(filters.permit(i2, i3, msg(VERB1, MSG1)));
-        Assert.assertTrue(filters.permit(i1, i2, msg(VERB1, MSG1)));
-        Assert.assertTrue(filters.permit(i1, i3, msg(VERB1, MSG1)));
+        filters.allVerbs().inbound(inbound).from(3, 2).to(2, 1).drop();
+        Assert.assertFalse(permit.test(i3, i1, msg(VERB1, MSG1)));
+        Assert.assertFalse(permit.test(i3, i2, msg(VERB1, MSG1)));
+        Assert.assertFalse(permit.test(i2, i1, msg(VERB1, MSG1)));
+        Assert.assertTrue(permit.test(i2, i3, msg(VERB1, MSG1)));
+        Assert.assertTrue(permit.test(i1, i2, msg(VERB1, MSG1)));
+        Assert.assertTrue(permit.test(i1, i3, msg(VERB1, MSG1)));
         filters.reset();
 
         counter.set(0);
-        filters.allVerbs().from(1).to(2).messagesMatching((from, to, msg) -> {
+        filters.allVerbs().inbound(inbound).from(1).to(2).messagesMatching((from, to, msg) -> {
             counter.incrementAndGet();
             return false;
         }).drop();
-        Assert.assertTrue(filters.permit(i1, i2, msg(VERB1, MSG1)));
-        Assert.assertTrue(filters.permit(i1, i3, msg(VERB1, MSG1)));
-        Assert.assertTrue(filters.permit(i1, i2, msg(VERB1, MSG1)));
+        Assert.assertTrue(permit.test(i1, i2, msg(VERB1, MSG1)));
+        Assert.assertTrue(permit.test(i1, i3, msg(VERB1, MSG1)));
+        Assert.assertTrue(permit.test(i1, i2, msg(VERB1, MSG1)));
         Assert.assertEquals(2, counter.get());
     }
 
-    IMessage msg(int verb, String msg)
+    private static IMessage msg(int verb, String msg)
     {
         return new IMessage()
         {
@@ -114,7 +132,7 @@ public class MessageFiltersTest extends DistributedTestBase
             public byte[] bytes() { return msg.getBytes(); }
             public int id() { return 0; }
             public int version() { return 0;  }
-            public InetAddressAndPort from() { return null; }
+            public InetSocketAddress from() { return null; }
         };
     }
 
@@ -161,8 +179,8 @@ public class MessageFiltersTest extends DistributedTestBase
 
             AtomicInteger counter = new AtomicInteger();
 
-            Set<Integer> verbs = new HashSet<>(Arrays.asList(MessagingService.Verb.RANGE_SLICE.ordinal(),
-                                                             MessagingService.Verb.MUTATION.ordinal()));
+            Set<Integer> verbs = Sets.newHashSet(Arrays.asList(MessagingService.Verb.RANGE_SLICE.ordinal(),
+                                                               MessagingService.Verb.MUTATION.ordinal()));
 
             // Reads and writes are going to time out in both directions
             IMessageFilters.Filter filter = cluster.filters()
