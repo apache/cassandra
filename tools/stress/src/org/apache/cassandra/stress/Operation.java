@@ -19,6 +19,7 @@
 package org.apache.cassandra.stress;
 
 import java.io.IOException;
+import java.util.NoSuchElementException;
 
 import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.SettingsLog;
@@ -75,6 +76,10 @@ public abstract class Operation
             {
                 success = run.run();
                 break;
+            }
+            catch (NoSuchElementException e) {
+                // Pass thru iterator exhaustion exception
+                throw e;
             }
             catch (Exception e)
             {

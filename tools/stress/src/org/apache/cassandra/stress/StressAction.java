@@ -24,6 +24,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
+import java.util.NoSuchElementException;
 
 import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
@@ -472,7 +473,10 @@ public class StressAction implements Runnable
                                 throw new IllegalStateException();
                         }
                     }
-                    catch (Exception e)
+                    catch (NoSuchElementException e)
+                    {
+                        // Silently reiterate when iterator is exhausted
+                    } catch (Exception e)
                     {
                         if (output == null)
                             System.err.println(e.getMessage());
