@@ -745,7 +745,6 @@ public class ReadCommandTest
     @Test
     public void purgeGCableTombstonesBeforeCalculatingDigest() throws Exception
     {
-        KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(KEYSPACE);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF8);
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
@@ -798,7 +797,7 @@ public class ReadCommandTest
         //Tombstones are now purgable, so won't be in the read results and produce different digests
         for (DecoratedKey key : keys)
         {
-            ReadCommand cmd = Util.cmd(cfs, key).withNowInSeconds(nowInSec + 1).build();
+            ReadCommand cmd = Util.cmd(cfs, key).withNowInSeconds(nowInSec + 60).build();
             cmd.trackRepairedStatus();
             Partition partition = Util.getOnlyPartitionUnfiltered(cmd);
             assertFalse(partition.isEmpty());
