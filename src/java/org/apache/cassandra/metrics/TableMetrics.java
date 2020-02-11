@@ -31,6 +31,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
+
+import com.codahale.metrics.Timer;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
@@ -52,9 +57,6 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.RatioGauge;
-import com.codahale.metrics.Timer;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
 
 /**
  * Metrics for {@link ColumnFamilyStore}.
@@ -232,6 +234,13 @@ public class TableMetrics
     // replicas marking the repair session as committed at slightly different times and so some consider it to
     // be part of the repaired set whilst others do not.
     public final TableMeter unconfirmedRepairedInconsistencies;
+
+    // Tracks the amount overreading of repaired data replicas perform in order to produce digests
+    // at query time. For each query, on a full data read following an initial digest mismatch, the replicas
+    // may read extra repaired data, up to the DataLimit of the command, so that the coordinator can compare
+    // the repaired data on each replica. These are tracked on each replica.
+    public final TableHistogram repairedDataTrackingOverreadRows;
+    public final TableTimer repairedDataTrackingOverreadTime;
 
     public final static LatencyMetrics globalReadLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Read");
     public final static LatencyMetrics globalWriteLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Write");
@@ -945,6 +954,9 @@ public class TableMetrics
 
         confirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesConfirmed", cfs.keyspace.metric.confirmedRepairedInconsistencies);
         unconfirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesUnconfirmed", cfs.keyspace.metric.unconfirmedRepairedInconsistencies);
+
+        repairedDataTrackingOverreadRows = createTableHistogram("RepairedDataTrackingOverreadRows", cfs.keyspace.metric.repairedDataTrackingOverreadRows, false);
+        repairedDataTrackingOverreadTime = createTableTimer("RepairedDataTrackingOverreadTime", cfs.keyspace.metric.repairedDataTrackingOverreadTime);
 
         unleveledSSTables = createTableGauge("UnleveledSSTables", cfs::getUnleveledSSTables, () -> {
             // global gauge

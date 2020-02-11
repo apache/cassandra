@@ -142,6 +142,15 @@ public class KeyspaceMetrics
      */
     public final Meter unconfirmedRepairedInconsistencies;
 
+    /**
+     * Tracks the amount overreading of repaired data replicas perform in order to produce digests
+     * at query time. For each query, on a full data read following an initial digest mismatch, the replicas
+     * may read extra repaired data, up to the DataLimit of the command, so that the coordinator can compare
+     * the repaired data on each replica. These are tracked on each replica.
+     */
+    public final Histogram repairedDataTrackingOverreadRows;
+    public final Timer repairedDataTrackingOverreadTime;
+
     public final MetricNameFactory factory;
     private Keyspace keyspace;
 
@@ -305,6 +314,9 @@ public class KeyspaceMetrics
 
         confirmedRepairedInconsistencies = Metrics.meter(factory.createMetricName("RepairedDataInconsistenciesConfirmed"));
         unconfirmedRepairedInconsistencies = Metrics.meter(factory.createMetricName("RepairedDataInconsistenciesUnconfirmed"));
+
+        repairedDataTrackingOverreadRows = Metrics.histogram(factory.createMetricName("RepairedOverreadRows"), false);
+        repairedDataTrackingOverreadTime = Metrics.timer(factory.createMetricName("RepairedOverreadTime"));
     }
 
     /**

@@ -23,6 +23,8 @@ import java.io.OutputStream;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -41,6 +43,8 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.Row;
@@ -61,6 +65,7 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
@@ -94,6 +99,7 @@ public class ReadCommandTest
     private static final String CF6 = "Standard6";
     private static final String CF7 = "Counter7";
     private static final String CF8 = "Standard8";
+    private static final String CF9 = "Standard9";
 
     private static final InetAddressAndPort REPAIR_COORDINATOR;
     static {
@@ -178,6 +184,12 @@ public class ReadCommandTest
                      .addRegularColumn("b", AsciiType.instance)
                      .addRegularColumn("c", SetType.getInstance(AsciiType.instance, true));
 
+        TableMetadata.Builder metadata9 =
+        TableMetadata.builder(KEYSPACE, CF9)
+                     .addPartitionKeyColumn("key", Int32Type.instance)
+                     .addClusteringColumn("col", ReversedType.getInstance(Int32Type.instance))
+                     .addRegularColumn("a", AsciiType.instance);
+
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
@@ -188,7 +200,8 @@ public class ReadCommandTest
                                     metadata5,
                                     metadata6,
                                     metadata7,
-                                    metadata8);
+                                    metadata8,
+                                    metadata9);
 
         LocalSessionAccessor.startup();
     }
@@ -823,14 +836,113 @@ public class ReadCommandTest
         }
     }
 
+    @Test
+    public void testRepairedDataOverreadMetrics()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF9);
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+        cfs.metadata().withSwapped(cfs.metadata().params.unbuild()
+                                                        .caching(CachingParams.CACHE_NOTHING)
+                                                        .build());
+        // Insert and repair
+        insert(cfs, IntStream.range(0, 10), () -> IntStream.range(0, 10));
+        cfs.forceBlockingFlush();
+        cfs.getLiveSSTables().forEach(sstable -> mutateRepaired(cfs, sstable, 111, null));
+        // Insert and leave unrepaired
+        insert(cfs, IntStream.range(0, 10), () -> IntStream.range(10, 20));
+
+        // Single partition reads
+        int limit = 5;
+        ReadCommand cmd = Util.cmd(cfs, ByteBufferUtil.bytes(0)).withLimit(limit).build();
+        assertEquals(0, getAndResetOverreadCount(cfs));
+
+        // No overreads if not tracking
+        readAndCheckRowCount(Collections.singletonList(Util.getOnlyPartition(cmd)), limit);
+        assertEquals(0, getAndResetOverreadCount(cfs));
+
+        // Overread up to (limit - 1) if tracking is enabled
+        cmd = cmd.copy();
+        cmd.trackRepairedStatus();
+        readAndCheckRowCount(Collections.singletonList(Util.getOnlyPartition(cmd)), limit);
+        // overread count is always < limit as the first read is counted during merging (and so is expected)
+        assertEquals(limit - 1, getAndResetOverreadCount(cfs));
+
+        // if limit already requires reading all repaired data, no overreads should be recorded
+        limit = 20;
+        cmd = Util.cmd(cfs, ByteBufferUtil.bytes(0)).withLimit(limit).build();
+        readAndCheckRowCount(Collections.singletonList(Util.getOnlyPartition(cmd)), limit);
+        assertEquals(0, getAndResetOverreadCount(cfs));
+
+        // Range reads
+        limit = 5;
+        cmd = Util.cmd(cfs).withLimit(limit).build();
+        assertEquals(0, getAndResetOverreadCount(cfs));
+        // No overreads if not tracking
+        readAndCheckRowCount(Util.getAll(cmd), limit);
+        assertEquals(0, getAndResetOverreadCount(cfs));
+
+        // Overread up to (limit - 1) if tracking is enabled
+        cmd = cmd.copy();
+        cmd.trackRepairedStatus();
+        readAndCheckRowCount(Util.getAll(cmd), limit);
+        assertEquals(limit - 1, getAndResetOverreadCount(cfs));
+
+        // if limit already requires reading all repaired data, no overreads should be recorded
+        limit = 100;
+        cmd = Util.cmd(cfs).withLimit(limit).build();
+        readAndCheckRowCount(Util.getAll(cmd), limit);
+        assertEquals(0, getAndResetOverreadCount(cfs));
+    }
+
     private void setGCGrace(ColumnFamilyStore cfs, int gcGrace)
     {
         TableParams newParams = cfs.metadata().params.unbuild().gcGraceSeconds(gcGrace).build();
         KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(cfs.metadata().keyspace);
         Schema.instance.load(
-            keyspaceMetadata.withSwapped(
-                keyspaceMetadata.tables.withSwapped(
-                    cfs.metadata().withSwapped(newParams))));
+        keyspaceMetadata.withSwapped(
+        keyspaceMetadata.tables.withSwapped(
+        cfs.metadata().withSwapped(newParams))));
+    }
+
+    private long getAndResetOverreadCount(ColumnFamilyStore cfs)
+    {
+        // always clear the histogram after reading to make comparisons & asserts easier
+        long rows = cfs.metric.repairedDataTrackingOverreadRows.cf.getSnapshot().getMax();
+        ((ClearableHistogram)cfs.metric.repairedDataTrackingOverreadRows.cf).clear();
+        return rows;
+    }
+
+    private void readAndCheckRowCount(Iterable<FilteredPartition> partitions, int expected)
+    {
+        int count = 0;
+        for (Partition partition : partitions)
+        {
+            assertFalse(partition.isEmpty());
+            try (UnfilteredRowIterator iter = partition.unfilteredIterator())
+            {
+                while (iter.hasNext())
+                {
+                    iter.next();
+                    count++;
+                }
+            }
+        }
+        assertEquals(expected, count);
+    }
+
+    private void insert(ColumnFamilyStore cfs, IntStream partitionIds, Supplier<IntStream> rowIds)
+    {
+        partitionIds.mapToObj(ByteBufferUtil::bytes)
+                    .forEach( pk ->
+                        rowIds.get().forEach( c ->
+                            new RowUpdateBuilder(cfs.metadata(), 0, pk)
+                                .clustering(c)
+                                .add("a", ByteBufferUtil.bytes("abcd"))
+                                .build()
+                                .apply()
+
+                    ));
     }
 
     private void assertDigestsDiffer(ByteBuffer b0, ByteBuffer b1)

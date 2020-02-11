@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.LongPredicate;
+import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
@@ -62,12 +63,12 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
 
 /**
  * General interface for storage-engine read commands (common to both range and
@@ -91,17 +92,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     // for data queries, coordinators may request information on the repaired data used in constructing the response
     private boolean trackRepairedStatus = false;
     // tracker for repaired data, initialized to singleton null object
-    private static final RepairedDataInfo NULL_REPAIRED_DATA_INFO = new RepairedDataInfo()
-    {
-        void trackPartitionKey(DecoratedKey key){}
-        void trackDeletion(DeletionTime deletion){}
-        void trackRangeTombstoneMarker(RangeTombstoneMarker marker){}
-        void trackRow(Row row){}
-        boolean isConclusive(){ return true; }
-        ByteBuffer getDigest(){ return ByteBufferUtil.EMPTY_BYTE_BUFFER; }
-    };
-
-    private RepairedDataInfo repairedDataInfo = NULL_REPAIRED_DATA_INFO;
+    private RepairedDataInfo repairedDataInfo = RepairedDataInfo.NULL_REPAIRED_DATA_INFO;
 
     int oldestUnrepairedTombstone = Integer.MAX_VALUE;
 
@@ -450,7 +441,13 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
 
         if (isTrackingRepairedStatus())
-            repairedDataInfo = new RepairedDataInfo();
+        {
+            final DataLimits.Counter repairedReadCount = limits().newCounter(nowInSec(),
+                                                                             false,
+                                                                             selectsFullPartition(),
+                                                                             metadata().enforceStrictLiveness()).onlyCount();
+            repairedDataInfo = new RepairedDataInfo(repairedReadCount);
+        }
 
         UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
         iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
@@ -475,7 +472,22 @@ public abstract class ReadCommand extends AbstractReadQuery
 
             // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
             // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
-            iterator = limits().filter(iterator, nowInSec(), selectsFullPartition());
+            // If tracking repaired data, the counter is needed for overreading repaired data, otherwise we can
+            // optimise the case where this.limit = DataLimits.NONE which skips an unnecessary transform
+            if (isTrackingRepairedStatus())
+            {
+                DataLimits.Counter limit =
+                    limits().newCounter(nowInSec(), false, selectsFullPartition(), metadata().enforceStrictLiveness());
+                iterator = limit.applyTo(iterator);
+                // ensure that a consistent amount of repaired data is read on each replica. This causes silent
+                // overreading from the repaired data set, up to limits(). The extra data is not visible to
+                // the caller, only iterated to produce the repaired data digest.
+                iterator = repairedDataInfo.extend(iterator, limit);
+            }
+            else
+            {
+                iterator = limits().filter(iterator, nowInSec(), selectsFullPartition());
+            }
 
             // because of the above, we need to append an aritifical end bound if the source iterator was stopped short by a counter.
             return RTBoundCloser.close(iterator);
@@ -723,254 +735,37 @@ public abstract class ReadCommand extends AbstractReadQuery
         return toCQLString();
     }
 
-    private static UnfilteredPartitionIterator withRepairedDataInfo(final UnfilteredPartitionIterator iterator,
-                                                                    final RepairedDataInfo repairedDataInfo)
-    {
-        class WithRepairedDataTracking extends Transformation<UnfilteredRowIterator>
-        {
-            protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
-            {
-                return withRepairedDataInfo(partition, repairedDataInfo);
-            }
-        }
-
-        return Transformation.apply(iterator, new WithRepairedDataTracking());
-    }
-
-    private static UnfilteredRowIterator withRepairedDataInfo(final UnfilteredRowIterator iterator,
-                                                              final RepairedDataInfo repairedDataInfo)
-    {
-        class WithTracking extends Transformation
-        {
-            protected DecoratedKey applyToPartitionKey(DecoratedKey key)
-            {
-                repairedDataInfo.onNewPartition(iterator);
-                repairedDataInfo.trackPartitionKey(key);
-                return key;
-            }
-
-            protected DeletionTime applyToDeletion(DeletionTime deletionTime)
-            {
-                repairedDataInfo.trackDeletion(deletionTime);
-                return deletionTime;
-            }
-
-            protected RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
-            {
-                repairedDataInfo.trackRangeTombstoneMarker(marker);
-                return marker;
-            }
-
-            protected Row applyToStatic(Row row)
-            {
-                repairedDataInfo.trackStaticRow(row);
-                return row;
-            }
-
-            protected Row applyToRow(Row row)
-            {
-                repairedDataInfo.trackRow(row);
-                return row;
-            }
-
-            protected void onPartitionClose()
-            {
-                repairedDataInfo.onPartitionClose();
-            }
-        }
-        return Transformation.apply(iterator, new WithTracking());
-    }
-
-    private static class RepairedDataInfo
-    {
-        // Keeps a digest of the partition currently being processed. Since we won't know
-        // whether a partition will be fully purged from a read result until it's been
-        // consumed, we buffer this per-partition digest and add it to the final digest
-        // when the partition is closed (if it wasn't fully purged).
-        private Digest perPartitionDigest;
-        private Digest perCommandDigest;
-        private boolean isConclusive = true;
-
-        // Doesn't actually purge from the underlying iterators, but excludes from the digest
-        // the purger can't be initialized until we've iterated all the sstables for the query
-        // as it requires the oldest repaired tombstone
-        private RepairedDataPurger purger;
-        private boolean isFullyPurged = true;
-
-        ByteBuffer getDigest()
-        {
-            return perCommandDigest == null
-                   ? ByteBufferUtil.EMPTY_BYTE_BUFFER
-                   : ByteBuffer.wrap(perCommandDigest.digest());
-        }
-
-        protected void onNewPartition(UnfilteredRowIterator partition)
-        {
-            assert purger != null;
-            purger.setCurrentKey(partition.partitionKey());
-            purger.setIsReverseOrder(partition.isReverseOrder());
-        }
-
-        protected void setPurger(RepairedDataPurger purger)
-        {
-            this.purger = purger;
-        }
-
-        boolean isConclusive()
-        {
-            return isConclusive;
-        }
-
-        void markInconclusive()
-        {
-            isConclusive = false;
-        }
-
-        void trackPartitionKey(DecoratedKey key)
-        {
-            getPerPartitionDigest().update(key.getKey());
-        }
-
-        void trackDeletion(DeletionTime deletion)
-        {
-            assert purger != null;
-            DeletionTime purged = purger.applyToDeletion(deletion);
-            if (!purged.isLive())
-                isFullyPurged = false;
-
-            purged.digest(getPerPartitionDigest());
-        }
-
-        void trackRangeTombstoneMarker(RangeTombstoneMarker marker)
-        {
-            assert purger != null;
-            RangeTombstoneMarker purged = purger.applyToMarker(marker);
-            if (purged != null)
-            {
-                isFullyPurged = false;
-                purged.digest(getPerPartitionDigest());
-            }
-        }
-
-        void trackStaticRow(Row row)
-        {
-            assert purger != null;
-            Row purged = purger.applyToRow(row);
-            if (!purged.isEmpty())
-            {
-                isFullyPurged = false;
-                purged.digest(getPerPartitionDigest());
-            }
-        }
-
-        void trackRow(Row row)
-        {
-            assert purger != null;
-            Row purged = purger.applyToRow(row);
-            if (purged != null)
-            {
-                isFullyPurged = false;
-                purged.digest(getPerPartitionDigest());
-            }
-        }
-
-        private Digest getPerPartitionDigest()
-        {
-            if (perPartitionDigest == null)
-                perPartitionDigest = Digest.forRepairedDataTracking();
-
-            return perPartitionDigest;
-        }
-
-        private void onPartitionClose()
-        {
-            if (perPartitionDigest != null)
-            {
-                // If the partition wasn't completely emptied by the purger,
-                // calculate the digest for the partition and use it to
-                // update the overall digest
-                if (!isFullyPurged)
-                {
-                    if (perCommandDigest == null)
-                        perCommandDigest = Digest.forRepairedDataTracking();
-
-                    byte[] partitionDigest = perPartitionDigest.digest();
-                    perCommandDigest.update(partitionDigest, 0, partitionDigest.length);
-                    isFullyPurged = true;
-                }
-
-                perPartitionDigest = null;
-            }
-        }
-    }
-
-    /**
-     * Although PurgeFunction extends Transformation, this is never applied to an iterator.
-     * Instead, it is used by RepairedDataInfo during the generation of a repaired data
-     * digest to exclude data which will actually be purged later on in the read pipeline.
-     */
-    private static class RepairedDataPurger extends PurgeFunction
-    {
-        RepairedDataPurger(ColumnFamilyStore cfs,
-                           int nowInSec,
-                           int oldestUnrepairedTombstone)
-        {
-            super(nowInSec,
-                  cfs.gcBefore(nowInSec),
-                  oldestUnrepairedTombstone,
-                  cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones(),
-                  cfs.metadata.get().enforceStrictLiveness());
-        }
-
-        protected LongPredicate getPurgeEvaluator()
-        {
-            return (time) -> true;
-        }
-
-        void setCurrentKey(DecoratedKey key)
-        {
-            super.onNewPartition(key);
-        }
-
-        void setIsReverseOrder(boolean isReverseOrder)
-        {
-            super.setReverseOrder(isReverseOrder);
-        }
-
-        public DeletionTime applyToDeletion(DeletionTime deletionTime)
-        {
-            return super.applyToDeletion(deletionTime);
-        }
-
-        public Row applyToRow(Row row)
-        {
-            return super.applyToRow(row);
-        }
-
-        public RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
-        {
-            return super.applyToMarker(marker);
-        }
-    }
-
     @SuppressWarnings("resource") // resultant iterators are closed by their callers
     InputCollector<UnfilteredRowIterator> iteratorsForPartition(ColumnFamilyStore.ViewFragment view)
     {
-        BiFunction<List<UnfilteredRowIterator>, RepairedDataInfo, UnfilteredRowIterator> merge =
-            (unfilteredRowIterators, repairedDataInfo) ->
-                withRepairedDataInfo(UnfilteredRowIterators.merge(unfilteredRowIterators), repairedDataInfo);
+        final BiFunction<List<UnfilteredRowIterator>, RepairedDataInfo, UnfilteredRowIterator> merge =
+            (unfilteredRowIterators, repairedDataInfo) -> {
+                UnfilteredRowIterator repaired = UnfilteredRowIterators.merge(unfilteredRowIterators);
+                return repairedDataInfo.withRepairedDataInfo(repaired);
+            };
 
-        return new InputCollector<>(view, repairedDataInfo, merge, isTrackingRepairedStatus());
+        // For single partition reads, after reading up to the command's DataLimit nothing extra is required.
+        // The merged & repaired row iterator will be consumed until it's exhausted or the RepairedDataInfo's
+        // internal counter is satisfied
+        final Function<UnfilteredRowIterator, UnfilteredPartitionIterator> postLimitPartitions =
+            (rows) -> EmptyIterators.unfilteredPartition(metadata());
+        return new InputCollector<>(view, repairedDataInfo, merge, postLimitPartitions, isTrackingRepairedStatus());
     }
 
     @SuppressWarnings("resource") // resultant iterators are closed by their callers
     InputCollector<UnfilteredPartitionIterator> iteratorsForRange(ColumnFamilyStore.ViewFragment view)
     {
-        BiFunction<List<UnfilteredPartitionIterator>, RepairedDataInfo, UnfilteredPartitionIterator> merge =
-            (unfilteredPartitionIterators, repairedDataInfo) ->
-                withRepairedDataInfo(UnfilteredPartitionIterators.merge(unfilteredPartitionIterators, UnfilteredPartitionIterators.MergeListener.NOOP), repairedDataInfo);
+        final BiFunction<List<UnfilteredPartitionIterator>, RepairedDataInfo, UnfilteredPartitionIterator> merge =
+            (unfilteredPartitionIterators, repairedDataInfo) -> {
+                UnfilteredPartitionIterator repaired = UnfilteredPartitionIterators.merge(unfilteredPartitionIterators,
+                                                                                          NOOP);
+                return repairedDataInfo.withRepairedDataInfo(repaired);
+            };
 
-        return new InputCollector<>(view, repairedDataInfo, merge, isTrackingRepairedStatus());
+        // Uses identity function to provide additional partitions to be consumed after the command's
+        // DataLimits are satisfied. The input to the function will be the iterator of merged, repaired partitions
+        // which we'll keep reading until the RepairedDataInfo's internal counter is satisfied.
+        return new InputCollector<>(view, repairedDataInfo, merge, Function.identity(), isTrackingRepairedStatus());
     }
 
     /**
@@ -988,12 +783,14 @@ public abstract class ReadCommand extends AbstractReadQuery
         private final boolean isTrackingRepairedStatus;
         Set<SSTableReader> repairedSSTables;
         BiFunction<List<T>, RepairedDataInfo, T> repairedMerger;
+        Function<T, UnfilteredPartitionIterator> postLimitAdditionalPartitions;
         List<T> repairedIters;
         List<T> unrepairedIters;
 
         InputCollector(ColumnFamilyStore.ViewFragment view,
                        RepairedDataInfo repairedDataInfo,
                        BiFunction<List<T>, RepairedDataInfo, T> repairedMerger,
+                       Function<T, UnfilteredPartitionIterator> postLimitAdditionalPartitions,
                        boolean isTrackingRepairedStatus)
         {
             this.repairedDataInfo = repairedDataInfo;
@@ -1023,6 +820,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 unrepairedIters = new ArrayList<>((view.sstables.size() - repairedSSTables.size()) + Iterables.size(view.memtables) + 1);
             }
             this.repairedMerger = repairedMerger;
+            this.postLimitAdditionalPartitions = postLimitAdditionalPartitions;
         }
 
         void addMemtableIterator(T iter)
@@ -1038,15 +836,17 @@ public abstract class ReadCommand extends AbstractReadQuery
                 unrepairedIters.add(iter);
         }
 
+        @SuppressWarnings("resource") // the returned iterators are closed by the caller
         List<T> finalizeIterators(ColumnFamilyStore cfs, int nowInSec, int oldestUnrepairedTombstone)
         {
             if (repairedIters.isEmpty())
                 return unrepairedIters;
 
             // merge the repaired data before returning, wrapping in a digest generator
-            RepairedDataPurger purger = new RepairedDataPurger(cfs, nowInSec, oldestUnrepairedTombstone);
-            repairedDataInfo.setPurger(purger);
-            unrepairedIters.add(repairedMerger.apply(repairedIters, repairedDataInfo));
+            repairedDataInfo.prepare(cfs, nowInSec, oldestUnrepairedTombstone);
+            T repairedIter = repairedMerger.apply(repairedIters, repairedDataInfo);
+            repairedDataInfo.finalize(postLimitAdditionalPartitions.apply(repairedIter));
+            unrepairedIters.add(repairedIter);
             return unrepairedIters;
         }
 
