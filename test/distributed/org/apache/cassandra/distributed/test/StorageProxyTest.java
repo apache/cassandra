@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -62,7 +61,6 @@ public class StorageProxyTest extends DistributedTestBase implements Serializabl
     @Test
     public void mutateUpdatesWriteLatency() throws IOException
     {
-        // i don't know how to write this as a "unit" test...
         CLUSTER.get(1).runOnInstance(() -> {
             ColumnFamilyStore table = Keyspace.open("system").getColumnFamilyStore("peers");
             TableMetadata tableMeta = table.metadata();
@@ -89,7 +87,6 @@ public class StorageProxyTest extends DistributedTestBase implements Serializabl
     @Test
     public void mutlipleMutateUpdatesWriteLatencyOnce() throws IOException
     {
-        // i don't know how to write this as a "unit" test...
         CLUSTER.get(1).runOnInstance(() -> {
             ColumnFamilyStore table = Keyspace.open("system").getColumnFamilyStore("peers");
             TableMetadata tableMeta = table.metadata();
@@ -117,7 +114,6 @@ public class StorageProxyTest extends DistributedTestBase implements Serializabl
     @Test
     public void mutlipleMutateFailInMiddleDoesNotUpdateUnaffectedTables() throws IOException
     {
-        // i don't know how to write this as a "unit" test...
         CLUSTER.get(1).runOnInstance(() -> {
             ColumnFamilyStore peers = Keyspace.open("system").getColumnFamilyStore("peers");
             ColumnFamilyStore local = Keyspace.open("system").getColumnFamilyStore("local");
@@ -127,7 +123,6 @@ public class StorageProxyTest extends DistributedTestBase implements Serializabl
             PartitionUpdate localUpdate = PartitionUpdate.emptyUpdate(local.metadata(), peers.getPartitioner().decorateKey(ByteBuffer.wrap(new byte[0])));
             PartitionUpdate paxosUpdate = PartitionUpdate.emptyUpdate(paxos.metadata(), peers.getPartitioner().decorateKey(ByteBuffer.wrap(new byte[0])));
 
-            AtomicBoolean paxosHit = new AtomicBoolean();
             List<IMutation> mutations = new ArrayList<>();
             mutations.add(new Mutation(peersUpdate));
             mutations.add(new Mutation(localUpdate) {
