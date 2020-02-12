@@ -34,6 +34,7 @@ import org.junit.Test;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.junit.Assert;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
@@ -167,6 +168,16 @@ public class StreamTransferTaskTest
         for (Ref<SSTableReader> ref : refs)
         {
             assertEquals(1, ref.globalCount());
+        }
+
+        //wait for stream to abort asynchronously
+        int tries = 10;
+        while (ScheduledExecutors.nonPeriodicTasks.getActiveCount() > 0)
+        {
+            if(tries < 1)
+                throw new RuntimeException("test did not complete in time");
+            Thread.sleep(10);
+            tries--;
         }
 
         //simulate finish transfer
