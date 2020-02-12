@@ -56,7 +56,17 @@ Function CalculateHeapSizes
 {
     # Check if swapping is enabled on the host and warn if so - reference CASSANDRA-7316
 
-    $osInfo = Get-WmiObject -class "Win32_computersystem"
+    # Get-WmiObject is removed from Powershell 6+.
+    # https://docs.microsoft.com/en-us/powershell/scripting/whats-new/breaking-changes-ps6
+    # Use Get-CimInstance instead and fall back to deprecated way for Powershell < 3.0
+    try
+    {
+        $osInfo = Get-CimInstance Win32_ComputerSystem
+    }
+    catch
+    {
+        $osInfo = Get-WmiObject -class "Win32_computersystem"
+    }
     $autoPage = $osInfo.AutomaticManagedPageFile
 
     if ($autoPage)
@@ -73,7 +83,14 @@ Function CalculateHeapSizes
     }
     else
     {
-        $pageFileInfo = Get-WmiObject -class "Win32_PageFileSetting" -EnableAllPrivileges
+        try
+        {
+            $pageFileInfo = Get-CimInstance Win32_PageFileSetting
+        }
+        catch
+        {
+            $pageFileInfo = Get-WmiObject -class "Win32_PageFileSetting" -EnableAllPrivileges
+        }
         $pageFileCount = $PageFileInfo.Count
         if ($pageFileInfo)
         {
@@ -139,10 +156,17 @@ Function CalculateHeapSizes
         exit 1
     }
 
-    $memObject = Get-WMIObject -class win32_physicalmemory
-    if ($memObject -eq $null)
+    try
     {
-        echo "WARNING!  Could not determine system memory.  Defaulting to 2G heap, 512M newgen.  Manually override in conf\jvm.options for different heap values."
+        $memObject = Get-CimInstance Win32_PhysicalMemory
+    }
+    catch
+    {
+        $memObject = Get-WMIObject -class win32_physicalmemory
+    }
+    if ($null -eq $memObject)
+    {
+        echo "WARNING!  Could not determine system memory.  Defaulting to 2G heap, 512M newgen.  Manually override in conf\jvm-server.options for different heap values."
         $env:MAX_HEAP_SIZE = "2048M"
         $env:HEAP_NEWSIZE = "512M"
         return
@@ -151,7 +175,14 @@ Function CalculateHeapSizes
     $memory = ($memObject | Measure-Object Capacity -Sum).sum
     $memoryMB = [Math]::Truncate($memory / (1024*1024))
 
-    $cpu = gwmi Win32_ComputerSystem | Select-Object NumberOfLogicalProcessors
+    try
+    {
+        $cpu = Get-CimInstance Win32_ComputerSystem | Select-Object NumberOfLogicalProcessors
+    }
+    catch
+    {
+        $cpu = Get-WmiObject Win32_ComputerSystem | Select-Object NumberOfLogicalProcessors
+    }
     $systemCores = $cpu.NumberOfLogicalProcessors
 
     # set max heap size based on the following
@@ -206,53 +237,35 @@ Function ParseJVMInfo
     $pinfo.RedirectStandardError = $true
     $pinfo.RedirectStandardOutput = $true
     $pinfo.UseShellExecute = $false
-    $pinfo.Arguments = "-d64 -version"
+    $pinfo.Arguments = "-version"
     $p = New-Object System.Diagnostics.Process
     $p.StartInfo = $pinfo
     $p.Start() | Out-Null
     $p.WaitForExit()
     $stderr = $p.StandardError.ReadToEnd()
 
-    $env:JVM_ARCH = "64-bit"
-
-    if ($stderr.Contains("Error"))
+    $script:jvmVersion = Get-Command $env:JAVA_BIN | Select-Object -ExpandProperty Version
+    # Deal with -b (build) versions
+    if ($script:jvmVersion.Major -lt 8 -or ($script:jvmVersion.Major -eq 8 -and $script:jvmVersion.Build -lt 151))
     {
-        # 32-bit JVM. re-run w/out -d64
-        echo "Failed 64-bit check. Re-running to get version from 32-bit"
-        $pinfo.Arguments = "-version"
-        $p = New-Object System.Diagnostics.Process
-        $p.StartInfo = $pinfo
-        $p.Start() | Out-Null
-        $p.WaitForExit()
-        $stderr = $p.StandardError.ReadToEnd()
-        $env:JVM_ARCH = "32-bit"
+        echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer). Java $script:jvmVersion not supported."
+        exit
     }
-
-    $sa = $stderr.Split("""")
-    $env:JVM_VERSION = $sa[1]
 
     if ($stderr.Contains("OpenJDK"))
     {
         $env:JVM_VENDOR = "OpenJDK"
+        $env:JVM_ARCH = ($stderr -split '\r?\n')[2].Split()[1]
     }
     elseif ($stderr.Contains("Java(TM)"))
     {
         $env:JVM_VENDOR = "Oracle"
+        $env:JVM_ARCH = ($stderr -split '\r?\n')[2].Split()[2]
     }
     else
     {
-        $JVM_VENDOR = "other"
+        $env:JVM_VENDOR = "other"
     }
-
-    $pa = $sa[1].Split("_")
-    $subVersion = $pa[1]
-    # Deal with -b (build) versions
-    if ($subVersion -contains '-')
-    {
-        $patchAndBuild = $subVersion.Split("-")
-        $subVersion = $patchAndBuild[0]
-    }
-    $env:JVM_PATCH_VERSION = $subVersion
 }
 
 #-----------------------------------------------------------------------------
@@ -282,6 +295,61 @@ Function SetCassandraEnvironment
     SetCassandraMain
     BuildClassPath
 
+    ParseJVMInfo
+
+    # Read user-defined JVM options from jvm-server.options file
+    $content = Get-Content "$env:CASSANDRA_CONF\jvm-server.options"
+    if ($script:jvmVersion.Major -ge 11)
+    {
+        $content += Get-Content "$env:CASSANDRA_CONF\jvm11-server.options"
+    }
+    else
+    {
+        $content += Get-Content "$env:CASSANDRA_CONF\jvm8-server.options"
+    }
+    for ($i = 0; $i -lt $content.Count; $i++)
+    {
+        $line = $content[$i]
+        if ($line.StartsWith("-"))
+        {
+            $env:JVM_OPTS = "$env:JVM_OPTS $line"
+        }
+    }
+
+    # Sets the path where logback and GC logs are written.
+    if (-not (Test-Path Env:\CASSANDRA_LOG_DIR))
+    {
+        $env:CASSANDRA_LOG_DIR="$env:CASSANDRA_HOME/logs"
+    }
+
+    #GC log path has to be defined here since it needs to find CASSANDRA_HOME
+    if ($script:jvmVersion.Major -ge 11 )
+    {
+        # See description of https://bugs.openjdk.java.net/browse/JDK-8046148 for details about the syntax
+        # The following is the equivalent to -XX:+PrintGCDetails -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=10M
+        if ($env:JVM_OPTS -notmatch "^-[X]log:gc") # [X] to prevent ccm from replacing this line
+        {
+            New-Item -Path "$env:CASSANDRA_LOG_DIR" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
+            # only add -Xlog:gc if it's not mentioned in jvm-server.options file
+            $env:JVM_OPTS="$env:JVM_OPTS ""-Xlog:gc=info,heap*=trace,age*=debug,safepoint=info,promotion*=trace:file=\""$env:CASSANDRA_LOG_DIR/gc.log\"":time,uptime,pid,tid,level:filecount=10,filesize=10485760"""
+        }
+    }
+    else
+    {
+        # Java 8
+        if ($env:JVM_OPTS -notmatch "^-[X]loggc") # [X] to prevent ccm from replacing this line
+        {
+            New-Item -Path "$env:CASSANDRA_LOG_DIR" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
+            # only add -Xlog:gc if it's not mentioned in jvm-server.options file
+            $env:JVM_OPTS="$env:JVM_OPTS ""-Xloggc:""$env:CASSANDRA_HOME/logs/gc.log"""""
+        }
+    }
+
+    $defined_xmn = $env:JVM_OPTS -like '*Xmn*'
+    $defined_xmx = $env:JVM_OPTS -like '*Xmx*'
+    $defined_xms = $env:JVM_OPTS -like '*Xms*'
+    $using_cms = $env:JVM_OPTS -like '*UseConcMarkSweepGC*'
+
     # Override these to set the amount of memory to allocate to the JVM at
     # start-up. For production use you may wish to adjust this for your
     # environment. MAX_HEAP_SIZE is the total amount of memory dedicated
@@ -297,32 +365,12 @@ Function SetCassandraEnvironment
     # times. If in doubt, and if you do not particularly want to tweak, go
     # 100 MB per physical CPU core.
 
-    #GC log path has to be defined here since it needs to find CASSANDRA_HOME
-    $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:""$env:CASSANDRA_HOME/logs/gc.log"""
-
-    # Read user-defined JVM options from jvm.options file
-    $content = Get-Content "$env:CASSANDRA_CONF\jvm.options"
-    for ($i = 0; $i -lt $content.Count; $i++)
-    {
-        $line = $content[$i]
-        if ($line.StartsWith("-"))
-        {
-            $env:JVM_OPTS = "$env:JVM_OPTS $line"
-        }
-    }
-
-    $defined_xmn = $env:JVM_OPTS -like '*Xmn*'
-    $defined_xmx = $env:JVM_OPTS -like '*Xmx*'
-    $defined_xms = $env:JVM_OPTS -like '*Xms*'
-    $using_cms = $env:JVM_OPTS -like '*UseConcMarkSweepGC*'
-
     #$env:MAX_HEAP_SIZE="4096M"
     #$env:HEAP_NEWSIZE="800M"
+
     CalculateHeapSizes
 
-    ParseJVMInfo
-
-    # We only set -Xms and -Xmx if they were not defined on jvm.options file
+    # We only set -Xms and -Xmx if they were not defined on jvm-server.options file
     # If defined, both Xmx and Xms should be defined together.
     if (($defined_xmx -eq $false) -and ($defined_xms -eq $false))
     {
@@ -331,16 +379,16 @@ Function SetCassandraEnvironment
     }
     elseif (($defined_xmx -eq $false) -or ($defined_xms -eq $false))
     {
-        echo "Please set or unset -Xmx and -Xms flags in pairs on jvm.options file."
+        echo "Please set or unset -Xmx and -Xms flags in pairs on jvm-server.options file."
         exit
     }
 
-    # We only set -Xmn flag if it was not defined in jvm.options file
+    # We only set -Xmn flag if it was not defined in jvm-server.options file
     # and if the CMS GC is being used
     # If defined, both Xmn and Xmx should be defined together.
     if (($defined_xmn -eq $true) -and ($defined_xmx -eq $false))
     {
-        echo "Please set or unset -Xmx and -Xmn flags in pairs on jvm.options file."
+        echo "Please set or unset -Xmx and -Xmn flags in pairs on jvm-server.options file."
         exit
     }
     elseif (($defined_xmn -eq $false) -and ($using_cms -eq $true))
@@ -398,13 +446,6 @@ Function SetCassandraEnvironment
 
     # print an heap histogram on OutOfMemoryError
     # $env:JVM_OPTS="$env:JVM_OPTS -Dcassandra.printHeapHistogramOnOutOfMemoryError=true"
-
-    $env:JAVA_VERSION=11
-    if ($env:JVM_VERSION.CompareTo("1.8.0") -eq -1 -or [convert]::ToInt32($env:JVM_PATCH_VERSION) -lt 151)
-    {
-        echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer). Java $env:JVM_VERSION is not supported."
-        exit
-    }
 
     # Specifies the default port over which Cassandra will be available for
     # JMX connections.
