@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Limit the dependencies used by UDFs/UDAs (CASSANDRA-14737)
  * Make native_transport_max_concurrent_requests_in_bytes updatable (CASSANDRA-15519)
  * Cleanup and improvements to IndexInfo/ColumnIndex (CASSANDRA-15469)
  * Potential Overflow in DatabaseDescriptor Functions That Convert Between KB/MB & Bytes (CASSANDRA-15470)
