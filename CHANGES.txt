@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Improve the description of nodetool listsnapshots command (CASSANDRA-14587)
  * allow embedded cassandra launched from a one-jar or uno-jar (CASSANDRA-15494)
  * Update hppc library to version 0.8.1 (CASSANDRA-12995)
  * Limit the dependencies used by UDFs/UDAs (CASSANDRA-14737)
