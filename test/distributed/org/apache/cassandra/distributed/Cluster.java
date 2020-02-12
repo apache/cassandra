@@ -60,7 +60,7 @@ public class Cluster extends AbstractCluster<IInvokableInstance> implements IClu
         return build(nodeCount).withConfig(configUpdater).start();
     }
 
-    public static Cluster create(int nodeCount) throws IOException
+    public static Cluster create(int nodeCount) throws Throwable
     {
         return build(nodeCount).start();
     }
