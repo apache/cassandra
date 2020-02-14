@@ -30,22 +30,23 @@ Objective
 
 A virtual table could have several uses including:
 
-- Expose JMX data/metrics through CQL
+- Expose metrics through CQL
 - Expose YAML configuration information
-- Expose other MBean data
  
 How  are Virtual Tables different from regular tables?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Virtual tables and virtual keyspaces are quite different from regular tables and keyspaces respectively such as:
 
-- Virtual tables are read-only 
+- Virtual tables are read-only, but it is likely to change
 - Virtual tables are not replicated
+- Virtual tables are local only and non distributed
 - Virtual tables have no associated SSTables
 - Consistency level of the queries sent virtual tables are ignored
-- Virtual tables are managed by Cassandra and a user cannot run  DDL to create new virtual tables or DML to modify existing virtual tables
+- Virtual tables are managed by Cassandra and a user cannot run  DDL to create new virtual tables or DML to modify existing virtual       tables
 - Virtual tables are created in special keyspaces and not just any keyspace
-- All existing virtual tables use LocalPartitioner
+- All existing virtual tables use LocalPartitioner. Since a virtual table is not replicated the partitioner sorts in order of partition   keys instead of by their hash.
+- Making advanced queries with ALLOW FILTERING and aggregation functions may be used with virtual tables even though in normal tables we   dont recommend it
 
 Virtual Keyspaces
 ^^^^^^^^^^^^^^^^^
@@ -58,25 +59,14 @@ Apache Cassandra 4.0 has added two new keyspaces for virtual tables: ``system_vi
  system_schema  system       system_distributed  system_virtual_schema
  system_auth      system_traces       system_views
 
-The ``system_virtual_schema keyspace`` contains schema information on virtual tables. The ``system_views`` keyspace contains the actual virtual tables. The virtual keyspaces metadata is not exposed through ``DESCRIBE`` statement, which returns an error message:
-
-::
-
- cqlsh> DESCRIBE KEYSPACE system_views
- 'NoneType' object has no attribute 'export_for_schema'
- cqlsh> DESCRIBE KEYSPACE system_virtual_schema;
- 'NoneType' object has no attribute 'export_for_schema'
- cqlsh>
+The ``system_virtual_schema keyspace`` contains schema information on virtual tables. The ``system_views`` keyspace contains the actual virtual tables. 
 
 Virtual Table Limitations
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Virtual tables and virtual keyspaces have some limitations such as:
+Virtual tables and virtual keyspaces have some limitations initially though some of these could change such as:
 
-- Cannot alter virtual keyspaces
-- Cannot drop virtual keyspaces
-- Cannot alter virtual tables
-- Cannot drop virtual tables
+- Cannot alter or drop virtual keyspaces or tables
 - Cannot truncate virtual tables
 - Expiring columns are not supported by virtual tables
 - Conditional updates are not supported by virtual tables
@@ -97,17 +87,17 @@ Virtual tables and virtual keyspaces have some limitations such as:
 Listing and Describing Virtual Tables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Virtual tables in a virtual keyspace may however be listed with ``DESC TABLES``.  The ``system_views`` virtual keyspace tables include the following:
+Virtual tables in a virtual keyspace may be listed with ``DESC TABLES``.  The ``system_views`` virtual keyspace tables include the following:
 
 ::
 
  cqlsh> USE system_views;
  cqlsh:system_views> DESC TABLES;
-   clients    internode_inbound
- disk_usage       sstable_tasks        caches           
+ coordinator_scans   clients             tombstones_scanned  internode_inbound
+ disk_usage          sstable_tasks       live_scanned        caches           
  local_writes        max_partition_size  local_reads       
  coordinator_writes  internode_outbound  thread_pools      
- local_scans         coordinator_reads   settings 
+ local_scans         coordinator_reads   settings  
 
 Some of the salient virtual tables in system_views virtual keyspace are described in Table 1.
 
@@ -155,7 +145,7 @@ We shall discuss some of the virtual tables in more detail next.
 Clients Virtual Table
 *********************
 
-The ``clients`` virtual table lists all active connections (connected clients) including their ip address, port, connection stage, driver name, driver version, hostname, protocol version, request count, ssl enabled, ssl protocol and user name. A query on the ``clients`` table returns the following details.
+The ``clients`` virtual table lists all active connections (connected clients) including their ip address, port, connection stage, driver name, driver version, hostname, protocol version, request count, ssl enabled, ssl protocol and user name.  
 
 ::
 
@@ -166,6 +156,13 @@ The ``clients`` virtual table lists all active connections (connected clients) i
   127.0.0.1 | 50630 |            ready |        null |           null | localhost |                4 |            70 |             null |       False |         null | anonymous
 
  (2 rows)
+
+Some examples of how ``clients`` can be used are:
+
+- To find applications using old incompatible versions of   drivers before upgrading and with nodetool   enableoldprotocolversions and nodetool   disableoldprotocolversions during upgrades.
+- To identify clients sending too many requests.
+- To find if SSL is enabled during the migration to and from   ssl.
+
 
 The virtual tables may be described with ``DESCRIBE`` statement. The DDL listed however cannot be run to create a virtual table. As an example describe the ``system_views.clients`` virtual table.
 
@@ -207,9 +204,7 @@ The ``caches`` virtual table lists information about the  caches. The four cache
 
 Settings Virtual Table
 **********************
-The ``settings table`` is rather useful and lists all the configuration settings from the ``cassandra.yaml``.  The encryption options are overridden to hide the sensitive truststore information or passwords.  The configuration settings however cannot be set using DML  on the 
-virtual table presently. A total of 224 settings get listed presently. 
-
+The ``settings table`` is rather useful and lists all the current configuration settings from the ``cassandra.yaml``.  The encryption options are overridden to hide the sensitive truststore information or passwords.  The configuration settings however cannot be set using DML  on the virtual table presently. 
 ::
 
  cqlsh:system_views> SELECT * FROM system_views.settings;
@@ -328,9 +323,8 @@ virtual table presently. A total of 224 settings get listed presently.
  false
                                                   file_cache_size_in_mb |                                                                                                                                           
  251
-                                             full_query_logging_options | 
- FullQueryLoggerOptions{log_dir='', archive_command='', roll_cycle='HOURLY', block=true, 
- max_queue_weight=268435456, max_log_size=17179869184}
+                                             ...
+                                             ...
                                                  gc_log_threshold_in_ms |                                                                                                                                           
  200
                                                 gc_warn_threshold_in_ms |                                                                                                                                          
@@ -357,20 +351,8 @@ virtual table presently. A total of 224 settings get listed presently.
  200
                                                    inter_dc_tcp_nodelay |                                                                                                                                         
  false
-                  internode_application_receive_queue_capacity_in_bytes |                                                                                                                                       
- 4194304
-  internode_application_receive_queue_reserve_endpoint_capacity_in_bytes |                                                                                                                                     
- 134217728
-  internode_application_receive_queue_reserve_global_capacity_in_bytes |                                                                                                                                     
- 536870912
-                  internode_application_send_queue_capacity_in_bytes |                                                                                                                                       
- 4194304
- internode_application_send_queue_reserve_endpoint_capacity_in_bytes |                                                                                                                                     
-  134217728
-
- 
-  internode_application_send_queue_reserve_global_capacity_in_bytes |                                                             
-  536870912
+                  ...
+                  ...
                                            internode_authenticator |                                                                  
  null
                                              internode_compression |                                                                    
@@ -437,6 +419,9 @@ virtual table presently. A total of 224 settings get listed presently.
  (224 rows)
 
 
+The ``settings`` table can be really useful if yaml file has been changed since startup and dont know running configuration, or to find if they have been modified via jmx/nodetool or virtual tables.
+
+
 Thread Pools Virtual Table
 **************************
 
@@ -493,7 +478,7 @@ The ``internode_inbound``  virtual table is for the internode inbound messaging.
 SSTables Tasks Virtual Table
 ****************************
 
-As no sstable tasks are running initially the ``system_views.sstable_tasks`` table lists 0 rows.
+The ``sstable_tasks`` could be used to get information about running tasks. It lists following columns.   
 
 ::
 
@@ -501,86 +486,31 @@ As no sstable tasks are running initially the ``system_views.sstable_tasks`` tab
  keyspace_name | table_name | task_id | kind | progress | total | unit
  ---------------+------------+---------+------+----------+-------+------
 
- (0 rows)
+ 
+As an example a query of ``total-progress`` gives the remaining time for a task.
+
+Other Virtual Tables
+********************
+
+Some examples of using other virtual tables are as follows.
+
+::
+
+  cqlsh> SELECT * FROM disk_usage WHERE mebibytes > 1 ALLOW FILTERING;
+
+  keyspace_name | table_name | mebibytes
+  ---------------+------------+-----------
+     keyspace1 |  standard1 |       288
+    tlp_stress |   keyvalue |      3211
+
+  cqlsh> SELECT * FROM local_read_latency WHERE per_second > 1 ALLOW FILTERING;
+
+  keyspace_name | table_name | p50th_ms | p99th_ms | count    | max_ms  | per_second
+  ---------------+------------+----------+----------+----------+---------+------------
+    tlp_stress |   keyvalue |    0.043 |    0.152 | 49785158 | 186.563 |  11418.356
+ 
 
 The system_virtual_schema keyspace
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``system_virtual_schema`` keyspace has three tables: ``keyspaces``,  ``columns`` and  ``tables`` for the virtual keyspace definitions, virtual table definitions, and virtual column definitions  respectively. The three definition table may be listed with ``DESCRIBE TABLES``.
-
-::
-
- cqlsh:system_views> USE system_virtual_schema;
- cqlsh:system_virtual_schema> DESC TABLES;
- keyspaces  columns  tables
-
-Describe the ``keyspaces`` table to list its definition.
-
-::
-
- cqlsh:system_virtual_schema> DESC system_virtual_schema.keyspaces;
- CREATE TABLE system_virtual_schema.keyspaces (
-    keyspace_name text PRIMARY KEY
- ) WITH compaction = {'class': 'None'}
-    AND compression = {};
-
-Describe the ``tables`` table to list its definition.
-
-::
-
- cqlsh:system_virtual_schema> DESC system_virtual_schema.tables;
- CREATE TABLE system_virtual_schema.tables (
-    comment text,
-    keyspace_name text,
-    table_name text,
-    PRIMARY KEY (keyspace_name, table_name)
- ) WITH CLUSTERING ORDER BY (table_name ASC)
-    AND compaction = {'class': 'None'}
-    AND compression = {};
-
-Describe the ``columns`` table to list its definition.
-
-::
-
- cqlsh:system_virtual_schema> DESC system_virtual_schema.columns;
- CREATE TABLE system_virtual_schema.columns (
-    clustering_order text,
-    column_name text,
-    column_name_bytes blob,
-    keyspace_name text,
-    kind text,
-    position int,
-    table_name text,
-    type text,
-    PRIMARY KEY (keyspace_name, table_name, column_name)
- ) WITH CLUSTERING ORDER BY (table_name ASC, column_name ASC)
-    AND compaction = {'class': 'None'}
-    AND compression = {};
-
-Run a ``SELECT`` statement on the ``keyspaces`` table to list the two keyspaces ``system_views`` and ``system_virtual_schema``.
-
-::
-
- cqlsh:system_virtual_schema> SELECT * FROM system_virtual_schema.keyspaces;
- keyspace_name
- -----------------------
-          system_views
- system_virtual_schema
-
-Similarly the tables in the ``system_virtual_schema.tables`` table may be listed; truncated output is as follows:
-
-::
-
- cqlsh:system_virtual_schema> SELECT * FROM system_virtual_schema.tables;
- keyspace_name         | table_name         | comment
- -----------------------+--------------------+------------------------------
-          system_views |             caches |                system caches
-          system_views |            clients |  currently connected clients
-          system_views |           settings |             current settings
- ...
- ...
- system_virtual_schema |            columns |   virtual column definitions
- system_virtual_schema |          keyspaces | virtual keyspace definitions
- system_virtual_schema |             tables |    virtual table definitions
-
- (20 rows)     
+The ``system_virtual_schema`` keyspace has three tables: ``keyspaces``,  ``columns`` and  ``tables`` for the virtual keyspace definitions, virtual table definitions, and virtual column definitions  respectively. It is used by Cassandra internally and a user would not need to access it directly. 
