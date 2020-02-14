@@ -1,5 +1,5 @@
 2.2.17
- * 
+ * Allow EXTRA_CLASSPATH to work on tar/source installations (CASSANDRA-15567)
 
 2.2.16
  * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
