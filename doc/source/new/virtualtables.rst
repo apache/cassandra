@@ -216,12 +216,8 @@ The ``settings table`` is rather useful and lists all the current configuration 
  /home/ec2-user/cassandra/logs/audit/                                                                                                       
                                           audit_logging_options_enabled |                                                                                                                                         
  false
-                              audit_logging_options_excluded_categories |                                                                                                                                              
-                               audit_logging_options_excluded_keyspaces |                                                                                                    
- system,system_schema,system_virtual_schema
-                                   audit_logging_options_excluded_users |                                                                                                                                              
-                              audit_logging_options_included_categories |                                                                                                                                              
-                               audit_logging_options_included_keyspaces |                                                                                                                                              
+                              ...
+                              ...
                                    audit_logging_options_included_users |                                                                                                                                              
                                            audit_logging_options_logger |                                                                                                                                
  BinAuditLogger
@@ -237,8 +233,8 @@ The ``settings table`` is rather useful and lists all the current configuration 
  false
                                                   back_pressure_enabled |                                                                                                                                         
  false
-                                                 back_pressure_strategy |                                                           
- org.apache.cassandra.net.RateBasedBackPressure{high_ratio=0.9, factor=5, flow=FAST}
+                                                ...
+                                                ...
                                                       broadcast_address |                                                                                                                                          
  null
                                                   broadcast_rpc_address |                                                                                                                                          
@@ -253,10 +249,8 @@ The ``settings table`` is rather useful and lists all the current configuration 
  stop
                                                   commitlog_compression |                                                                                                                                          
  null
-                                                    commitlog_directory |                                                                                                       
- /home/ec2-user/cassandra/data/commitlog
-                              commitlog_max_compression_buffers_in_pool |                                                                                                                                             
- 3
+                                                    ...
+                                                    ...
                                           commitlog_periodic_queue_size |                                                                                                                                            
  -1
                                            commitlog_segment_size_in_mb |                                                                                                                                            
@@ -271,8 +265,8 @@ The ``settings table`` is rather useful and lists all the current configuration 
  10000
                                             commitlog_total_space_in_mb |                                                                                                                                          
  2556
-                        compaction_large_partition_warning_threshold_mb |                                                                                                                                           
- 100
+                        ...
+                        ...
                                        compaction_throughput_mb_per_sec |                                                                                                                                            
  16
                                                   concurrent_compactors |                                                                                                                                             
@@ -297,8 +291,8 @@ The ``settings table`` is rather useful and lists all the current configuration 
  2000
                                                      cross_node_timeout |                                                                                                                                         
  false
-                                                  data_file_directories |                                                                                                          
- [/home/ec2-user/cassandra/data/data]
+                                                 ...
+                                                 ...
                                               diagnostic_events_enabled |                                                                                                                                         
  false
                                                        disk_access_mode |                                                                                                                                          
@@ -347,10 +341,7 @@ The ``settings table`` is rather useful and lists all the current configuration 
  false
                                                           initial_token |                                                                                                                                          
  null
-                   inter_dc_stream_throughput_outbound_megabits_per_sec |                                                                                                                                           
- 200
-                                                   inter_dc_tcp_nodelay |                                                                                                                                         
- false
+                  ...
                   ...
                   ...
                                            internode_authenticator |                                                                  
@@ -371,17 +362,8 @@ The ``settings table`` is rather useful and lists all the current configuration 
  heap_buffers
                                     min_free_space_per_drive_in_mb |                                                                    
  50
-                            native_transport_allow_older_protocols |                                                                  
- true
-                          native_transport_flush_in_batches_legacy |                                                                 
- false
-                           native_transport_frame_block_size_in_kb |                                                                    32
-                               native_transport_idle_timeout_in_ms |                                                                     0
-                       native_transport_max_concurrent_connections |                                                                    -1
-                native_transport_max_concurrent_connections_per_ip |                                                                    -1
-                 native_transport_max_concurrent_requests_in_bytes |                                                             105277030
-          native_transport_max_concurrent_requests_in_bytes_per_ip |                                                              26319257
-                             native_transport_max_frame_size_in_mb |                                                                   256
+                           ...
+                           ...
                                       native_transport_max_threads |                                                                   128
                                              native_transport_port |                                                                  9042
                                          native_transport_port_ssl |                                                                  null
@@ -396,9 +378,8 @@ The ``settings table`` is rather useful and lists all the current configuration 
                                           repair_command_pool_size |                                                            2147483647
                                      repair_session_max_tree_depth |                                                                    20
                                         repair_session_space_in_mb |                                                                    62
-                repaired_data_tracking_for_partition_reads_enabled |                                                                 false
-                    repaired_data_tracking_for_range_reads_enabled |                                                                 false
-                       report_unconfirmed_repaired_data_mismatches |                                                                 false
+                ...
+                ...
                                              request_timeout_in_ms |                                                                 10000
                                                       role_manager |                                                  CassandraRoleManager
                                                        rpc_address |                                                             localhost
@@ -412,11 +393,8 @@ The ``settings table`` is rather useful and lists all the current configuration 
                                             start_native_transport |                                                                  true
                                                       storage_port |                                                                  7000
                                             stream_entire_sstables |                                                                  true
-               transparent_data_encryption_options_chunk_length_kb |                                                                    64
-                        transparent_data_encryption_options_cipher |                                                  AES/CBC/PKCS5Padding
-                       transparent_data_encryption_options_enabled |                                                                 false
-                     transparent_data_encryption_options_iv_length |                                                                    
- 16
+               ...
+               ...
  (224 rows)
 
 
