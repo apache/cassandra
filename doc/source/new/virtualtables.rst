@@ -387,7 +387,8 @@ The ``settings table`` is rather useful and lists all the current configuration 
                                          native_transport_port_ssl |                                                                  null
                                                 network_authorizer |                                             AllowAllNetworkAuthorizer
                                                         num_tokens |                                                                   256
-                                                       partitioner |                           org.apache.cassandra.dht.Murmur3Partitioner
+                                                       ...
+                                                       ...
                                  prepared_statements_cache_size_mb |                                                                  null
                                        range_request_timeout_in_ms |                                                                 10000
                                         read_request_timeout_in_ms |                                                                  5000
@@ -402,8 +403,8 @@ The ``settings table`` is rather useful and lists all the current configuration 
                                                       role_manager |                                                  CassandraRoleManager
                                                        rpc_address |                                                             localhost
                                                      rpc_interface |                                                                  null
-                                            saved_caches_directory |                            /home/ec2-user/cassandra/data/saved_caches
-                                                     seed_provider | org.apache.cassandra.locator.SimpleSeedProvider{seeds=127.0.0.1:7000}
+                                            ...
+                                            ...
                                server_encryption_options_algorithm |                                                                  null
                                 server_encryption_options_protocol |                                                                   TLS
                                       slow_query_log_timeout_in_ms |                                                                   500
