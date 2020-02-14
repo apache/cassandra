@@ -415,7 +415,7 @@ jobs:
       - create_venv
       - create_dtest_containers:
           file_tag: j8_with_vnodes
-          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k \"not cql\"'"
+          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql'"
       - run_dtests:
           file_tag: j8_with_vnodes
           pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
@@ -430,7 +430,7 @@ jobs:
     - create_venv
     - create_dtest_containers:
         file_tag: j11_with_vnodes
-        run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k \"not cql\"'"
+        run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql'"
     - run_dtests:
         file_tag: j11_with_vnodes
         pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
@@ -444,7 +444,7 @@ jobs:
       - create_venv
       - create_dtest_containers:
           file_tag: j8_without_vnodes
-          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k \"not cql\"'"
+          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k not cql'"
       - run_dtests:
           file_tag: j8_without_vnodes
           pytest_extra_args: '--skip-resource-intensive-tests'
@@ -459,7 +459,7 @@ jobs:
     - create_venv
     - create_dtest_containers:
         file_tag: j11_without_vnodes
-        run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k \"not cql\"'"
+        run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k not cql'"
     - run_dtests:
         file_tag: j11_without_vnodes
         pytest_extra_args: '--skip-resource-intensive-tests'
