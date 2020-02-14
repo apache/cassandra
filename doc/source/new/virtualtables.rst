@@ -82,7 +82,7 @@ Virtual tables and virtual keyspaces have some limitations initially though some
 - Cannot include a virtual table statement in a logged batch
 - Mutations for virtual and regular tables cannot exist in the same batch
 - Conditional BATCH statements cannot include mutations for virtual tables
-- Cannot create aggregates in virtual keyspaces
+- Cannot create aggregates in virtual keyspaces; but may run aggregate functions on select
 
 Listing and Describing Virtual Tables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
