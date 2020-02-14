@@ -209,192 +209,41 @@ The ``settings table`` is rather useful and lists all the current configuration 
 
  cqlsh:system_views> SELECT * FROM system_views.settings;
 
- name                                                                   | value
- -----------------------------------------------------------------------+-------------------- 
-   allocate_tokens_for_keyspace                                         |        null                                                                                          
-   audit_logging_options_audit_logs_dir                                 |  
- /home/ec2-user/cassandra/logs/audit/                                                                                                       
-                                          audit_logging_options_enabled |                                                                                                                                         
- false
-                              ...
-                              ...
-                                   audit_logging_options_included_users |                                                                                                                                              
-                                           audit_logging_options_logger |                                                                                                                                
- BinAuditLogger
-                                                          authenticator |                                                                                                                         
- AllowAllAuthenticator
-                                                             authorizer |                                                                                                                            
- AllowAllAuthorizer
-                                                         auto_bootstrap |                                                                                                                                          
- true
-                                                          auto_snapshot |                                                                                                                                          
- true
-                                              automatic_sstable_upgrade |                                                                                                                                         
- false
-                                                  back_pressure_enabled |                                                                                                                                         
- false
-                                                ...
-                                                ...
-                                                      broadcast_address |                                                                                                                                          
- null
-                                                  broadcast_rpc_address |                                                                                                                                          
- null
-                                                           cluster_name |                                                                                                                                  
- Test Cluster
-                                          column_index_cache_size_in_kb |                                                                                                                                             
- 2
-                                                column_index_size_in_kb |                                                                                                                                            
- 64
-                                                  commit_failure_policy |                                                                                                                                          
- stop
-                                                  commitlog_compression |                                                                                                                                          
- null
-                                                    ...
-                                                    ...
-                                          commitlog_periodic_queue_size |                                                                                                                                            
- -1
-                                           commitlog_segment_size_in_mb |                                                                                                                                            
- 32
-                                                         commitlog_sync |                                                                                                                                      
- periodic
-                                      commitlog_sync_batch_window_in_ms |                                                                                                                                           
- NaN
-                                      commitlog_sync_group_window_in_ms |                                                                                                                                           
- NaN
-                                            commitlog_sync_period_in_ms |                                                                                                                                         
- 10000
-                                            commitlog_total_space_in_mb |                                                                                                                                          
- 2556
-                        ...
-                        ...
-                                       compaction_throughput_mb_per_sec |                                                                                                                                            
- 16
-                                                  concurrent_compactors |                                                                                                                                             
- 2
-                                              concurrent_counter_writes |                                                                                                                                            
- 32
-                                  concurrent_materialized_view_builders |                                                                                                                                             
- 1
-                                    concurrent_materialized_view_writes |                                                                                                                                            
- 32
-                                                       concurrent_reads |                                                                                                                                            
- 32
-                                                  concurrent_replicates |                                                                                                                                          
- null
-                                                 concurrent_validations |                                                                                                                                    
- 2147483647
-                                                      concurrent_writes |                                                                                                                                            
- 32
-                                      credentials_update_interval_in_ms |                                                                                                                                            
- -1
-                                             credentials_validity_in_ms |                                                                                                                                          
- 2000
-                                                     cross_node_timeout |                                                                                                                                         
- false
-                                                 ...
-                                                 ...
-                                              diagnostic_events_enabled |                                                                                                                                         
- false
-                                                       disk_access_mode |                                                                                                                                          
- mmap
-                                                    disk_failure_policy |                                                                                                                                          
- stop
-                                              enable_materialized_views |                                                                                                                                         
- false
-                                                    enable_sasi_indexes |                                                                                                                                         
- false
-                                 enable_scripted_user_defined_functions |                                                                                                                                         
- false
-                                           enable_transient_replication |                                                                                                                                         
- false
-                                          enable_user_defined_functions |                                                                                                                                         
- false
-                                  enable_user_defined_functions_threads |                                                                                                                                          
- true
-                                                        endpoint_snitch |                                                                                                                                  
- SimpleSnitch
-                                                    file_cache_round_up |                                                                                                                                         
- false
-                                                  file_cache_size_in_mb |                                                                                                                                           
- 251
-                                             ...
-                                             ...
-                                                 gc_log_threshold_in_ms |                                                                                                                                           
- 200
-                                                gc_warn_threshold_in_ms |                                                                                                                                          
- 1000
-                                    hinted_handoff_disabled_datacenters |                                                                                                                                            
- []
-                                                 hinted_handoff_enabled |                                                                                                                                          
- true
-                                          hinted_handoff_throttle_in_kb |                                                                                                                                          
- 1024
-                                                      hints_compression |                                                                                                                                          
- null
-                                                        hints_directory |                                                                                                           
- /home/ec2-user/cassandra/data/hints
-                                               hints_flush_period_in_ms |                                                                                                                                         
- 10000
-                                                ideal_consistency_level |                                                                                                                                          
- null
-                                                    incremental_backups |                                                                                                                                         
- false
-                                                          initial_token |                                                                                                                                          
- null
-                  ...
-                  ...
-                  ...
-                                           internode_authenticator |                                                                  
- null
-                                             internode_compression |                                                                    
- dc
-                                                    listen_address |                                                             
- localhost
-                                                  listen_interface |                                                                  
- null
-                                       listen_on_broadcast_address |                                                                 
- false
-                         max_concurrent_automatic_sstable_upgrades |                                                                     
- 1
-                                             max_hint_window_in_ms |                                                              
- 10800000
-                                          memtable_allocation_type |                                                          
- heap_buffers
-                                    min_free_space_per_drive_in_mb |                                                                    
- 50
-                           ...
-                           ...
-                                      native_transport_max_threads |                                                                   128
-                                             native_transport_port |                                                                  9042
-                                         native_transport_port_ssl |                                                                  null
-                                                network_authorizer |                                             AllowAllNetworkAuthorizer
-                                                        num_tokens |                                                                   256
-                                                       ...
-                                                       ...
-                                 prepared_statements_cache_size_mb |                                                                  null
-                                       range_request_timeout_in_ms |                                                                 10000
-                                        read_request_timeout_in_ms |                                                                  5000
-                                 repair_command_pool_full_strategy |                                                                 queue
-                                          repair_command_pool_size |                                                            2147483647
-                                     repair_session_max_tree_depth |                                                                    20
-                                        repair_session_space_in_mb |                                                                    62
-                ...
-                ...
-                                             request_timeout_in_ms |                                                                 10000
-                                                      role_manager |                                                  CassandraRoleManager
-                                                       rpc_address |                                                             localhost
-                                                     rpc_interface |                                                                  null
-                                            ...
-                                            ...
-                               server_encryption_options_algorithm |                                                                  null
-                                server_encryption_options_protocol |                                                                   TLS
-                                      slow_query_log_timeout_in_ms |                                                                   500
-                                                  ssl_storage_port |                                                                  7001
-                                            start_native_transport |                                                                  true
-                                                      storage_port |                                                                  7000
-                                            stream_entire_sstables |                                                                  true
-               ...
-               ...
+ name                                 | value
+ -------------------------------------+-------------------- 
+   allocate_tokens_for_keyspace       | null                                                                                          
+                            ...
+   audit_logging_options_enabled      | false
+                            ...
+                            ...
+   auto_snapshot                      | true
+   automatic_sstable_upgrade          | false
+                            ...
+   cluster_name                       | Test Cluster
+                            ...
+   enable_transient_replication       | false
+                            ...
+   hinted_handoff_enabled             | true
+                                         
+   hints_directory                    | /home/ec2-user/cassandra/data/hints
+                            ...
+   incremental_backups                | false
+   initial_token                      | null
+                            ...
+                            ...
+                            ...
+                            ...
+   rpc_address                        | localhost
+                            ...
+                            ...
+                            ...
+                            ...
+  ssl_storage_port                    | 7001
+  start_native_transport              | true
+  storage_port                        | 7000
+  stream_entire_sstables              | true
+                            ...
+                            ...
  (224 rows)
 
 
