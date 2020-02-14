@@ -45,8 +45,8 @@ Virtual tables and virtual keyspaces are quite different from regular tables and
 - Consistency level of the queries sent virtual tables are ignored
 - Virtual tables are managed by Cassandra and a user cannot run  DDL to create new virtual tables or DML to modify existing virtual       tables
 - Virtual tables are created in special keyspaces and not just any keyspace
-- All existing virtual tables use LocalPartitioner. Since a virtual table is not replicated the partitioner sorts in order of partition   keys instead of by their hash.
-- Making advanced queries with ALLOW FILTERING and aggregation functions may be used with virtual tables even though in normal tables we   dont recommend it
+- All existing virtual tables use ``LocalPartitioner``. Since a virtual table is not replicated the partitioner sorts in order of     partition   keys instead of by their hash.
+- Making advanced queries with ``ALLOW FILTERING`` and aggregation functions may be used with virtual tables even though in normal  tables we   dont recommend it
 
 Virtual Keyspaces
 ^^^^^^^^^^^^^^^^^
@@ -99,7 +99,7 @@ Virtual tables in a virtual keyspace may be listed with ``DESC TABLES``.  The ``
  coordinator_writes  internode_outbound  thread_pools      
  local_scans         coordinator_reads   settings  
 
-Some of the salient virtual tables in system_views virtual keyspace are described in Table 1.
+Some of the salient virtual tables in ``system_views`` virtual keyspace are described in Table 1.
 
 Table 1 : Virtual Tables in system_views
 
@@ -159,7 +159,7 @@ The ``clients`` virtual table lists all active connections (connected clients) i
 
 Some examples of how ``clients`` can be used are:
 
-- To find applications using old incompatible versions of   drivers before upgrading and with nodetool   enableoldprotocolversions and nodetool   disableoldprotocolversions during upgrades.
+- To find applications using old incompatible versions of   drivers before upgrading and with ``nodetool enableoldprotocolversions`` and  ``nodetool disableoldprotocolversions`` during upgrades.
 - To identify clients sending too many requests.
 - To find if SSL is enabled during the migration to and from   ssl.
 
