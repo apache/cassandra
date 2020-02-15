@@ -51,8 +51,8 @@ public class TableMetricTables
 {
     private final static String KEYSPACE_NAME = "keyspace_name";
     private final static String TABLE_NAME = "table_name";
-    private final static String P50 = "50th";
-    private final static String P99 = "99th";
+    private final static String P50 = "p50th";
+    private final static String P99 = "p99th";
     private final static String MAX = "max";
     private final static String RATE = "per_second";
     private final static double BYTES_TO_MIB = 1.0 / (1024 * 1024);
