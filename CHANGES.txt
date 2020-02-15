@@ -1,3 +1,6 @@
+2.2.17
+ * 
+
 2.2.16
  * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
