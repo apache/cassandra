@@ -1,3 +1,6 @@
+3.0.21
+ * 
+
 3.0.20
  * Run in-jvm upgrade dtests in circleci (CASSANDRA-15506)
  * Include updates to static column in mutation size calculations (CASSANDRA-15293)
