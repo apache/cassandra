@@ -109,7 +109,7 @@ Function HandleInstallation
 
     if (-Not (Test-Path $PATH_PRUNSRV\prunsrv.exe))
     {
-        Write-Warning "Cannot find $PATH_PRUNSRV\prunsrv.exe.  Please download package from http://www.apache.org/dist/commons/daemon/binaries/windows/ to install as a service."
+        Write-Warning "Cannot find $PATH_PRUNSRV\prunsrv.exe.  Please download package from https://downloads.apache.org/commons/daemon/binaries/windows/ to install as a service."
         Break
     }
 
