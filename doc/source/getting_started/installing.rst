@@ -63,13 +63,13 @@ Installation from Debian packages
 
 ::
 
-    echo "deb http://www.apache.org/dist/cassandra/debian 36x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
+    echo "deb https://downloads.apache.org/cassandra/debian 36x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
 
 - Add the Apache Cassandra repository keys:
 
 ::
 
-    curl https://www.apache.org/dist/cassandra/KEYS | sudo apt-key add -
+    curl https://downloads.apache.org/cassandra/KEYS | sudo apt-key add -
 
 - Update the repositories:
 
@@ -90,7 +90,7 @@ Then add the public key A278B781FE4B2BDA as follows:
     sudo apt-key adv --keyserver pool.sks-keyservers.net --recv-key A278B781FE4B2BDA
 
 and repeat ``sudo apt-get update``. The actual key may be different, you get it from the error message itself. For a
-full list of Apache contributors public keys, you can refer to `this link <https://www.apache.org/dist/cassandra/KEYS>`__.
+full list of Apache contributors public keys, you can refer to `this link <https://downloads.apache.org/cassandra/KEYS>`__.
 
 - Install Cassandra:
 
