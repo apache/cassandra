@@ -200,7 +200,7 @@ Edit and commit ``build.xml`` so the base.version property points to the next ve
 Wait for Artifacts to Sync
 --------------------------
 
-Wait for the artifacts to sync at http://www.apache.org/dist/cassandra/
+Wait for the artifacts to sync at https://downloads.apache.org/cassandra/
 
 Send Release Announcement
 -------------------------
