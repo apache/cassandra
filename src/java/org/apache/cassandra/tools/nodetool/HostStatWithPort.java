@@ -20,25 +20,28 @@ package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-public class HostStatWithPort
+public class HostStatWithPort extends HostStat
 {
-    public final InetAddressAndPort endpoint;
-    public final boolean resolveIp;
-    public final Float owns;
-    public final String token;
+    public final InetAddressAndPort endpointWithPort;
 
     public HostStatWithPort(String token, InetAddressAndPort endpoint, boolean resolveIp, Float owns)
     {
-        this.token = token;
-        this.endpoint = endpoint;
-        this.resolveIp = resolveIp;
-        this.owns = owns;
+        super(token, endpoint.address, resolveIp, owns);
+        this.endpointWithPort = endpoint;
     }
 
     public String ipOrDns()
     {
+        return ipOrDns(true);
+    }
+
+    public String ipOrDns(boolean withPort)
+    {
+        if (!withPort)
+            return super.ipOrDns();
+
         return resolveIp ?
-               endpoint.address.getHostName() + ":" + endpoint.port :
-               endpoint.toString();
+               endpointWithPort.address.getHostName() + ':' + endpointWithPort.port :
+               endpointWithPort.toString();
     }
 }
