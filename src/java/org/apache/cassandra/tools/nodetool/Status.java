@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.DecimalFormat;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -67,118 +68,72 @@ public class Status extends NodeToolCmd
         epSnitchInfo = probe.getEndpointSnitchInfoProxy();
 
         StringBuilder errors = new StringBuilder();
-        TableBuilder tableBuilder = new TableBuilder("  ");
+        TableBuilder.SharedTable sharedTable = new TableBuilder.SharedTable("  ");
 
-        if (printPort)
+        Map<String, Float> ownerships = null;
+        boolean hasEffectiveOwns = false;
+        try
         {
-            Map<String, Float> ownerships = null;
-            boolean hasEffectiveOwns = false;
-            try
-            {
-                ownerships = probe.effectiveOwnershipWithPort(keyspace);
-                hasEffectiveOwns = true;
-            }
-            catch (IllegalStateException e)
-            {
-                ownerships = probe.getOwnershipWithPort();
-                errors.append("Note: ").append(e.getMessage()).append("%n");
-            }
-            catch (IllegalArgumentException ex)
-            {
-                System.out.printf("%nError: %s%n", ex.getMessage());
-                System.exit(1);
-            }
-
-            SortedMap<String, SetHostStatWithPort> dcs = NodeTool.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships);
-
-            // More tokens than nodes (aka vnodes)?
-            if (dcs.size() < tokensToEndpoints.size())
-                isTokenPerNode = false;
-
-            // Datacenters
-            for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())
-            {
-                String dcHeader = String.format("Datacenter: %s%n", dc.getKey());
-                System.out.print(dcHeader);
-                for (int i = 0; i < (dcHeader.length() - 1); i++) System.out.print('=');
-                System.out.println();
-
-                // Legend
-                System.out.println("Status=Up/Down");
-                System.out.println("|/ State=Normal/Leaving/Joining/Moving");
-
-                addNodesHeader(hasEffectiveOwns, tableBuilder);
-
-                ArrayListMultimap<InetAddressAndPort, HostStatWithPort> hostToTokens = ArrayListMultimap.create();
-                for (HostStatWithPort stat : dc.getValue())
-                    hostToTokens.put(stat.endpoint, stat);
-
-                for (InetAddressAndPort endpoint : hostToTokens.keySet())
-                {
-                    Float owns = ownerships.get(endpoint.toString());
-                    List<HostStatWithPort> tokens = hostToTokens.get(endpoint);
-                    addNodeWithPort(endpoint.toString(), owns, tokens, hasEffectiveOwns, tableBuilder);
-                }
-            }
-
-            tableBuilder.printTo(System.out);
-            System.out.printf("%n" + errors);
+            ownerships = probe.effectiveOwnershipWithPort(keyspace);
+            hasEffectiveOwns = true;
         }
-        else
+        catch (IllegalStateException e)
         {
-            Map<InetAddress, Float> ownerships = null;
-            boolean hasEffectiveOwns = false;
-            try
-            {
-                ownerships = probe.effectiveOwnership(keyspace);
-                hasEffectiveOwns = true;
-            }
-            catch (IllegalStateException e)
-            {
-                ownerships = probe.getOwnership();
-                errors.append("Note: ").append(e.getMessage()).append("%n");
-            }
-            catch (IllegalArgumentException ex)
-            {
-                System.out.printf("%nError: %s%n", ex.getMessage());
-                System.exit(1);
-            }
-
-            SortedMap<String, SetHostStat> dcs = NodeTool.getOwnershipByDc(probe, resolveIp, tokensToEndpoints, ownerships);
-
-            // More tokens than nodes (aka vnodes)?
-            if (dcs.values().size() < tokensToEndpoints.keySet().size())
-                isTokenPerNode = false;
-
-            // Datacenters
-            for (Map.Entry<String, SetHostStat> dc : dcs.entrySet())
-            {
-                String dcHeader = String.format("Datacenter: %s%n", dc.getKey());
-                System.out.print(dcHeader);
-                for (int i = 0; i < (dcHeader.length() - 1); i++) System.out.print('=');
-                System.out.println();
-
-                // Legend
-                System.out.println("Status=Up/Down");
-                System.out.println("|/ State=Normal/Leaving/Joining/Moving");
-
-                addNodesHeader(hasEffectiveOwns, tableBuilder);
-
-                ArrayListMultimap<InetAddress, HostStat> hostToTokens = ArrayListMultimap.create();
-                for (HostStat stat : dc.getValue())
-                    hostToTokens.put(stat.endpoint, stat);
-
-                for (InetAddress endpoint : hostToTokens.keySet())
-                {
-                    Float owns = ownerships.get(endpoint);
-                    List<HostStat> tokens = hostToTokens.get(endpoint);
-                    addNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, tableBuilder);
-                }
-            }
-
-            tableBuilder.printTo(System.out);
-            System.out.printf("%n" + errors);
+            ownerships = probe.getOwnershipWithPort();
+            errors.append("Note: ").append(e.getMessage()).append("%n");
         }
+        catch (IllegalArgumentException ex)
+        {
+            System.out.printf("%nError: %s%n", ex.getMessage());
+            System.exit(1);
+        }
+
+        SortedMap<String, SetHostStatWithPort> dcs = NodeTool.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships);
+
+        // More tokens than nodes (aka vnodes)?
+        if (dcs.size() < tokensToEndpoints.size())
+            isTokenPerNode = false;
+
+        // Datacenters
+        for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())
+        {
+            TableBuilder tableBuilder = sharedTable.next();
+            addNodesHeader(hasEffectiveOwns, tableBuilder);
+
+            ArrayListMultimap<String, HostStatWithPort> hostToTokens = ArrayListMultimap.create();
+            for (HostStatWithPort stat : dc.getValue())
+                hostToTokens.put(stat.ipOrDns(printPort), stat);
+
+            for (String endpoint : hostToTokens.keySet())
+            {
+                Float owns = ownerships.get(endpoint);
+                List<HostStatWithPort> tokens = hostToTokens.get(endpoint);
+                addNode(endpoint, owns, tokens.get(0).ipOrDns(printPort), tokens.get(0).token, tokens.size(),
+                        hasEffectiveOwns, tableBuilder);
+            }
+        }
+
+        Iterator<TableBuilder> results = sharedTable.complete().iterator();
+        boolean first = true;
+        for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())
+        {
+            if (!first) {
+                System.out.println();
+            }
+            first = false;
+            String dcHeader = String.format("Datacenter: %s%n", dc.getKey());
+            System.out.print(dcHeader);
+            for (int i = 0; i < (dcHeader.length() - 1); i++) System.out.print('=');
+            System.out.println();
+
+            // Legend
+            System.out.println("Status=Up/Down");
+            System.out.println("|/ State=Normal/Leaving/Joining/Moving");
+            TableBuilder dcTable = results.next();
+            dcTable.printTo(System.out);
+        }
+
+        System.out.printf("%n" + errors);
     }
 
     private void addNodesHeader(boolean hasEffectiveOwns, TableBuilder tableBuilder)
@@ -226,15 +181,4 @@ public class Status extends NodeToolCmd
         }
     }
 
-    private void addNode(String endpoint, Float owns, List<HostStat> tokens, boolean hasEffectiveOwns,
-                         TableBuilder tableBuilder)
-    {
-        addNode(endpoint, owns, tokens.get(0).ipOrDns(), tokens.get(0).token, tokens.size(), hasEffectiveOwns, tableBuilder);
-    }
-
-    private void addNodeWithPort(String endpoint, Float owns, List<HostStatWithPort> tokens, boolean hasEffectiveOwns,
-                                 TableBuilder tableBuilder)
-    {
-        addNode(endpoint, owns, tokens.get(0).ipOrDns(), tokens.get(0).token, tokens.size(), hasEffectiveOwns, tableBuilder);
-    }
 }
