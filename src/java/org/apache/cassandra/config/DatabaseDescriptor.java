@@ -1108,13 +1108,15 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException("Missing directive: partitioner", false);
         }
+        String partitionerName = conf.partitioner;
         try
         {
-            partitioner = FBUtilities.newPartitioner(System.getProperty(Config.PROPERTY_PREFIX + "partitioner", conf.partitioner));
+            partitionerName = System.getProperty(Config.PROPERTY_PREFIX + "partitioner", conf.partitioner);
+            partitioner = FBUtilities.newPartitioner(partitionerName);
         }
         catch (Exception e)
         {
-            throw new ConfigurationException("Invalid partitioner class " + conf.partitioner, false);
+            throw new ConfigurationException("Invalid partitioner class " + partitionerName, e);
         }
 
         paritionerName = partitioner.getClass().getCanonicalName();
