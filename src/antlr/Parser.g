@@ -924,26 +924,31 @@ alterKeyspaceStatement returns [AlterKeyspaceStatement.Raw stmt]
 
 /**
  * ALTER TABLE <table> ALTER <column> TYPE <newtype>;
- * ALTER TABLE <table> ADD <column> <newtype>; | ALTER TABLE <table> ADD (<column> <newtype>,<column1> <newtype1>..... <column n> <newtype n>)
- * ALTER TABLE <table> DROP <column>; | ALTER TABLE <table> DROP ( <column>,<column1>.....<column n>)
- * ALTER TABLE <table> RENAME <column> TO <column>;
- * ALTER TABLE <table> WITH <property> = <value>;
+ * ALTER TABLE [ IF EXISTS ] <table> ADD [ IF NOT EXISTS ] <column> <newtype>;
+ * ALTER TABLE [ IF EXISTS ] <table> ADD [ IF NOT EXISTS ] (<column> <newtype>,<column1> <newtype1>..... <column n> <newtype n>);
+ * ALTER TABLE [ IF EXISTS ] <table> DROP [ IF EXISTS ] <column>;
+ * ALTER TABLE [ IF EXISTS ] <table> DROP [ IF EXISTS ] ( <column>,<column1>.....<column n>);
+ * ALTER TABLE [ IF EXISTS ] <table> RENAME [ IF EXISTS ] <column> TO <column>;
+ * ALTER TABLE [ IF EXISTS ] <table> WITH <property> = <value>;
  */
 alterTableStatement returns [AlterTableStatement.Raw stmt]
-    : K_ALTER K_COLUMNFAMILY cf=columnFamilyName { $stmt = new AlterTableStatement.Raw(cf); }
+    : K_ALTER K_COLUMNFAMILY ifTableExists=ifExistsClause cf=columnFamilyName { $stmt = new AlterTableStatement.Raw(cf, ifTableExists); }
       (
         K_ALTER id=cident K_TYPE v=comparatorType { $stmt.alter(id, v); }
 
-      | K_ADD  (        id=schema_cident  v=comparatorType  b=isStaticColumn { $stmt.add(id,  v,  b);  }
-               | ('('  id1=schema_cident v1=comparatorType b1=isStaticColumn { $stmt.add(id1, v1, b1); }
-                 ( ',' idn=schema_cident vn=comparatorType bn=isStaticColumn { $stmt.add(idn, vn, bn); } )* ')') )
+      | K_ADD ifColumnNotExists=ifNotExistsClause { $stmt.setIfColumnNotExists(ifColumnNotExists); }
+         (        id=schema_cident  v=comparatorType  b=isStaticColumn { $stmt.add(id,  v,  b);  }
+         | ('('  id1=schema_cident v1=comparatorType b1=isStaticColumn { $stmt.add(id1, v1, b1); }
+           ( ',' idn=schema_cident vn=comparatorType bn=isStaticColumn { $stmt.add(idn, vn, bn); } )* ')') )
 
-      | K_DROP (        id=schema_cident { $stmt.drop(id);  }
-               | ('('  id1=schema_cident { $stmt.drop(id1); }
-                 ( ',' idn=schema_cident { $stmt.drop(idn); } )* ')') )
-               ( K_USING K_TIMESTAMP t=INTEGER { $stmt.timestamp(Long.parseLong(Constants.Literal.integer($t.text).getText())); } )?
+      | K_DROP ifColumnExists=ifExistsClause { $stmt.setIfColumnExists(ifColumnExists); }
+         (        id=schema_cident { $stmt.drop(id);  }
+         | ('('  id1=schema_cident { $stmt.drop(id1); }
+           ( ',' idn=schema_cident { $stmt.drop(idn); } )* ')') )
+         ( K_USING K_TIMESTAMP t=INTEGER { $stmt.timestamp(Long.parseLong(Constants.Literal.integer($t.text).getText())); } )?
 
-      | K_RENAME id1=schema_cident K_TO toId1=schema_cident { $stmt.rename(id1, toId1); }
+      | K_RENAME ifColumnExists=ifExistsClause { $stmt.setIfColumnExists(ifColumnExists); }
+         id1=schema_cident K_TO toId1=schema_cident { $stmt.rename(id1, toId1); }
          ( K_AND idn=schema_cident K_TO toIdn=schema_cident { $stmt.rename(idn, toIdn); } )*
 
       | K_WITH properties[$stmt.attrs] { $stmt.attrs(); }
@@ -952,7 +957,15 @@ alterTableStatement returns [AlterTableStatement.Raw stmt]
 
 isStaticColumn returns [boolean isStaticColumn]
     @init { boolean isStatic = false; }
-    : (K_STATIC { isStatic=true; })? { $isStaticColumn = isStatic; }
+    : (K_STATIC { isStatic = true; })? { $isStaticColumn = isStatic; }
+    ;
+
+ifExistsClause returns [boolean ifExists]
+    : (K_IF K_EXISTS { ifExists = true; })?
+    ;
+
+ifNotExistsClause returns [boolean ifNotExists]
+    : (K_IF K_NOT K_EXISTS { ifNotExists = true; })?
     ;
 
 alterMaterializedViewStatement returns [AlterViewStatement.Raw stmt]
