@@ -51,7 +51,7 @@ Virtual tables and virtual keyspaces are quite different from regular tables and
 Virtual Keyspaces
 ^^^^^^^^^^^^^^^^^
 
-Apache Cassandra 4.0 has added two new keyspaces for virtual tables: ``system_virtual_schema`` and ``system_views``. Run the following command to list the keyspaces.
+Apache Cassandra 4.0 has added two new keyspaces for virtual tables: ``system_virtual_schema`` and ``system_views``. Run the following command to list the keyspaces:
 
 ::
 
@@ -76,12 +76,12 @@ Virtual tables and virtual keyspaces have some limitations initially though some
 - Cannot create functions in virtual keyspaces
 - Cannot create types in virtual keyspaces
 - Materialized views are not supported on virtual tables
-- Virtual tables don't support DELETE statements
-- Cannot CREATE TRIGGER against a virtual table
-- Conditional BATCH statements cannot include mutations for virtual tables
+- Virtual tables don't support ``DELETE`` statements
+- Cannot ``CREATE TRIGGER`` against a virtual table
+- Conditional ``BATCH`` statements cannot include mutations for virtual tables
 - Cannot include a virtual table statement in a logged batch
 - Mutations for virtual and regular tables cannot exist in the same batch
-- Conditional BATCH statements cannot include mutations for virtual tables
+- Conditional ``BATCH`` statements cannot include mutations for virtual tables
 - Cannot create aggregates in virtual keyspaces; but may run aggregate functions on select
 
 Listing and Describing Virtual Tables
@@ -145,7 +145,7 @@ We shall discuss some of the virtual tables in more detail next.
 Clients Virtual Table
 *********************
 
-The ``clients`` virtual table lists all active connections (connected clients) including their ip address, port, connection stage, driver name, driver version, hostname, protocol version, request count, ssl enabled, ssl protocol and user name.  
+The ``clients`` virtual table lists all active connections (connected clients) including their ip address, port, connection stage, driver name, driver version, hostname, protocol version, request count, ssl enabled, ssl protocol and user name:  
 
 ::
 
@@ -164,7 +164,7 @@ Some examples of how ``clients`` can be used are:
 - To find if SSL is enabled during the migration to and from   ssl.
 
 
-The virtual tables may be described with ``DESCRIBE`` statement. The DDL listed however cannot be run to create a virtual table. As an example describe the ``system_views.clients`` virtual table.
+The virtual tables may be described with ``DESCRIBE`` statement. The DDL listed however cannot be run to create a virtual table. As an example describe the ``system_views.clients`` virtual table:
 
 ::
 
@@ -188,7 +188,7 @@ The virtual tables may be described with ``DESCRIBE`` statement. The DDL listed 
 
 Caches Virtual Table
 ********************
-The ``caches`` virtual table lists information about the  caches. The four caches presently created are chunks, counters, keys and rows. A query on the ``caches`` virtual table returns the following details.
+The ``caches`` virtual table lists information about the  caches. The four caches presently created are chunks, counters, keys and rows. A query on the ``caches`` virtual table returns the following details:
 
 ::
 
@@ -204,7 +204,7 @@ The ``caches`` virtual table lists information about the  caches. The four cache
 
 Settings Virtual Table
 **********************
-The ``settings table`` is rather useful and lists all the current configuration settings from the ``cassandra.yaml``.  The encryption options are overridden to hide the sensitive truststore information or passwords.  The configuration settings however cannot be set using DML  on the virtual table presently. 
+The ``settings table`` is rather useful and lists all the current configuration settings from the ``cassandra.yaml``.  The encryption options are overridden to hide the sensitive truststore information or passwords.  The configuration settings however cannot be set using DML  on the virtual table presently:
 ::
 
  cqlsh:system_views> SELECT * FROM system_views.settings;
@@ -238,7 +238,7 @@ The ``settings`` table can be really useful if yaml file has been changed since 
 Thread Pools Virtual Table
 **************************
 
-The ``thread_pools`` table lists information about all thread pools. Thread pool information includes active tasks, active tasks limit, blocked tasks, blocked tasks all time,  completed tasks, and pending tasks. A query on the ``thread_pools`` returns following details.
+The ``thread_pools`` table lists information about all thread pools. Thread pool information includes active tasks, active tasks limit, blocked tasks, blocked tasks all time,  completed tasks, and pending tasks. A query on the ``thread_pools`` returns following details:
 
 ::
 
@@ -276,7 +276,7 @@ The ``thread_pools`` table lists information about all thread pools. Thread pool
 Internode Inbound Messaging Virtual Table
 *****************************************
 
-The ``internode_inbound``  virtual table is for the internode inbound messaging. Initially no internode inbound messaging may get listed. In addition to the address, port, datacenter and rack information includes  corrupt frames recovered, corrupt frames unrecovered, error bytes, error count, expired bytes, expired count, processed bytes, processed count, received bytes, received count, scheduled bytes, scheduled count, throttled count, throttled nanos, using bytes, using reserve bytes. A query on the ``internode_inbound`` returns following details.
+The ``internode_inbound``  virtual table is for the internode inbound messaging. Initially no internode inbound messaging may get listed. In addition to the address, port, datacenter and rack information includes  corrupt frames recovered, corrupt frames unrecovered, error bytes, error count, expired bytes, expired count, processed bytes, processed count, received bytes, received count, scheduled bytes, scheduled count, throttled count, throttled nanos, using bytes, using reserve bytes. A query on the ``internode_inbound`` returns following details:
 
 ::
 
@@ -291,7 +291,7 @@ The ``internode_inbound``  virtual table is for the internode inbound messaging.
 SSTables Tasks Virtual Table
 ****************************
 
-The ``sstable_tasks`` could be used to get information about running tasks. It lists following columns.   
+The ``sstable_tasks`` could be used to get information about running tasks. It lists following columns:   
 
 ::
 
@@ -320,7 +320,7 @@ Find tables with most disk usage:
      keyspace1 |  standard1 |       288
     tlp_stress |   keyvalue |      3211
 
-A query to measure read performance.
+A query to measure read performance:
 
 ::
 
