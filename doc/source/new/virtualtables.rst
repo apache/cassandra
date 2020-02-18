@@ -204,7 +204,7 @@ The ``caches`` virtual table lists information about the  caches. The four cache
 
 Settings Virtual Table
 **********************
-The ``settings table`` is rather useful and lists all the current configuration settings from the ``cassandra.yaml``.  The encryption options are overridden to hide the sensitive truststore information or passwords.  The configuration settings however cannot be set using DML  on the virtual table presently:
+The ``settings`` table  is rather useful and lists all the current configuration settings from the ``cassandra.yaml``.  The encryption options are overridden to hide the sensitive truststore information or passwords.  The configuration settings however cannot be set using DML  on the virtual table presently:
 ::
 
  cqlsh:system_views> SELECT * FROM system_views.settings;
