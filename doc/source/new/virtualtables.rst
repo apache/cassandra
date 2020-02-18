@@ -295,17 +295,21 @@ The ``sstable_tasks`` could be used to get information about running tasks. It l
 
 ::
 
- cqlsh:system_views> SELECT * FROM system_views.sstable_tasks;
- keyspace_name | table_name | task_id | kind | progress | total | unit
- ---------------+------------+---------+------+----------+-------+------
+  cqlsh:system_views> SELECT * FROM sstable_tasks;
+  keyspace_name | table_name | task_id                              | kind       | progress | total    | unit
+  ---------------+------------+--------------------------------------+------------+----------+----------+-------
+         basic |      wide2 | c3909740-cdf7-11e9-a8ed-0f03de2d9ae1 | compaction | 60418761 | 70882110 | bytes
+         basic |      wide2 | c7556770-cdf7-11e9-a8ed-0f03de2d9ae1 | compaction |  2995623 | 40314679 | bytes
 
  
-As an example a query of ``total-progress`` gives the remaining time for a task.
+As another example, a query ``SELECT (total-progress) FROM sstable_tasks;`` gives the remaining time for a task.
 
 Other Virtual Tables
 ********************
 
 Some examples of using other virtual tables are as follows.
+
+Find tables with most disk usage:
 
 ::
 
@@ -316,7 +320,11 @@ Some examples of using other virtual tables are as follows.
      keyspace1 |  standard1 |       288
     tlp_stress |   keyvalue |      3211
 
-  cqlsh> SELECT * FROM local_read_latency WHERE per_second > 1 ALLOW FILTERING;
+A query to measure read performance.
+
+::
+
+  cqlsh> SELECT * FROM  local_read_latency WHERE per_second > 1 ALLOW FILTERING;
 
   keyspace_name | table_name | p50th_ms | p99th_ms | count    | max_ms  | per_second
   ---------------+------------+----------+----------+----------+---------+------------
