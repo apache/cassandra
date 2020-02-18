@@ -619,7 +619,7 @@ class Shell(cmd.Cmd):
         result, = self.session.execute("select * from system.local where key = 'local'")
         vers = {
             'build': result['release_version'],
-            'protocol': result['native_protocol_version'],
+            'protocol': self.conn.protocol_version,
             'cql': result['cql_version'],
         }
         self.connection_versions = vers
@@ -628,7 +628,7 @@ class Shell(cmd.Cmd):
         # TODO remove after virtual tables are added to connection metadata
         if self.virtual_keyspaces is None:
             self.init_virtual_keyspaces_meta()
-        return list(map(str, list(self.conn.metadata.keyspaces.keys())))
+        return list(map(str, list(self.conn.metadata.keyspaces.keys()) + list(self.virtual_keyspaces.keys())))
 
     def get_columnfamily_names(self, ksname=None):
         if ksname is None:

@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Fix missing Keyspaces in cqlsh describe output (CASSANDRA-15576)
  * Fix multi DC nodetool status output (CASSANDRA-15305)
  * Added documentation covering new Netty based internode messaging (CASSANDRA-15478)
  * Add documentation of hints (CASSANDRA-15491)
