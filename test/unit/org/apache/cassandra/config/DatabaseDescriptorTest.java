@@ -237,6 +237,7 @@ public class DatabaseDescriptorTest
         {
             System.setProperty(key, "ThisDoesNotExist");
             Config testConfig = DatabaseDescriptor.loadConfig();
+            testConfig.partitioner = "Murmur3Partitioner";
 
             try
             {
