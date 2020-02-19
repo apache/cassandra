@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Update to Python driver 3.21 for cqlsh (CASSANDRA-14872)
  * Added bulk loading documentation (CASSANDRA-15480)
  * Updated overview documentation (CASSANDRA-15483)
  * Added CDC and speculative retry documentation to DDL section (CASSANDRA-15492)
