@@ -26,7 +26,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 
+import com.google.common.base.Throwables;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -202,6 +204,66 @@ public class DatabaseDescriptorTest
         testConfig.rpc_interface = null;
         DatabaseDescriptor.applyAddressConfig(testConfig);
 
+    }
+
+    @Test
+    public void testInvalidPartition() throws Exception
+    {
+        Config testConfig = DatabaseDescriptor.loadConfig();
+        testConfig.partitioner = "ThisDoesNotExist";
+
+        try
+        {
+            DatabaseDescriptor.applyPartitioner(testConfig);
+            Assert.fail("Partition does not exist, so should fail");
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.assertEquals("Invalid partitioner class ThisDoesNotExist", e.getMessage());
+            Throwable cause = Throwables.getRootCause(e);
+            Assert.assertNotNull("Unable to find root cause why partitioner was rejected", cause);
+            // this is a bit implementation specific, so free to change; mostly here to make sure reason isn't lost
+            Assert.assertEquals(ClassNotFoundException.class, cause.getClass());
+            Assert.assertEquals("org.apache.cassandra.dht.ThisDoesNotExist", cause.getMessage());
+        }
+    }
+
+    @Test
+    public void testInvalidPartitionPropertyOverride() throws Exception
+    {
+        String key = Config.PROPERTY_PREFIX + "partitioner";
+        String previous = System.getProperty(key);
+        try
+        {
+            System.setProperty(key, "ThisDoesNotExist");
+            Config testConfig = DatabaseDescriptor.loadConfig();
+
+            try
+            {
+                DatabaseDescriptor.applyPartitioner(testConfig);
+                Assert.fail("Partition does not exist, so should fail");
+            }
+            catch (ConfigurationException e)
+            {
+                Assert.assertEquals("Invalid partitioner class ThisDoesNotExist", e.getMessage());
+                Throwable cause = Throwables.getRootCause(e);
+                Assert.assertNotNull("Unable to find root cause why partitioner was rejected", cause);
+                // this is a bit implementation specific, so free to change; mostly here to make sure reason isn't lost
+                Assert.assertEquals(ClassNotFoundException.class, cause.getClass());
+                Assert.assertEquals("org.apache.cassandra.dht.ThisDoesNotExist", cause.getMessage());
+            }
+        }
+        finally
+        {
+            if (previous == null)
+            {
+                System.getProperties().remove(key);
+            }
+            else
+            {
+                System.setProperty(key, previous);
+            }
+        }
     }
     
     @Test

@@ -1103,20 +1103,25 @@ public class DatabaseDescriptor
     // definitely not safe for tools + clients - implicitly instantiates schema
     public static void applyPartitioner()
     {
+        applyPartitioner(conf);
+    }
+
+    public static void applyPartitioner(Config conf)
+    {
         /* Hashing strategy */
         if (conf.partitioner == null)
         {
             throw new ConfigurationException("Missing directive: partitioner", false);
         }
-        String partitionerName = conf.partitioner;
+        String name = conf.partitioner;
         try
         {
-            partitionerName = System.getProperty(Config.PROPERTY_PREFIX + "partitioner", conf.partitioner);
-            partitioner = FBUtilities.newPartitioner(partitionerName);
+            name = System.getProperty(Config.PROPERTY_PREFIX + "partitioner", conf.partitioner);
+            partitioner = FBUtilities.newPartitioner(name);
         }
         catch (Exception e)
         {
-            throw new ConfigurationException("Invalid partitioner class " + partitionerName, e);
+            throw new ConfigurationException("Invalid partitioner class " + name, e);
         }
 
         paritionerName = partitioner.getClass().getCanonicalName();
