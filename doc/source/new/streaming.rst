@@ -30,7 +30,7 @@ Streaming based on Netty
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 Streaming in Cassandra 4.0 is based on Non-blocking Input/Output (NIO) with Netty (`CASSANDRA-12229
-<https://issues.apache.org/jira/browse/CASSANDRA-12229>`_). It replaces the single-threaded (or sequential), synchronous, blocking model of streaming messages and transfer of files. Netty supports non-blocking, asynchronous, multi-threaded streaming with which multiple connections are opened simultaneously.  Non-blocking implies that threads are not blocked as they don’t wait for a response for a sent request. A response could be returned in a different thread. With asynchronous, connections and threads are decoupled and do not have a 1:1 relation. Several more connections than threads may be opened.   Netty version 4.1.28 is used.
+<https://issues.apache.org/jira/browse/CASSANDRA-12229>`_). It replaces the single-threaded (or sequential), synchronous, blocking model of streaming messages and transfer of files. Netty supports non-blocking, asynchronous, multi-threaded streaming with which multiple connections are opened simultaneously.  Non-blocking implies that threads are not blocked as they don’t wait for a response for a sent request. A response could be returned in a different thread. With asynchronous, connections and threads are decoupled and do not have a 1:1 relation. Several more connections than threads may be opened.    
 
 Zero Copy Streaming
 ^^^^^^^^^^^^^^^^^^^^ 
@@ -138,18 +138,16 @@ Unique nodes for Streaming in Multi-DC deployment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Range Streamer picks unique nodes to stream data from when number of replicas in each DC is three or more (`CASSANDRA-4650
-<https://issues.apache.org/jira/browse/CASSANDRA-4650>`_). When N>=3 in a DC, there are two options for streaming a range. Consider an example of 4 nodes in one datacenter and replication factor of 3. If a node goes down, it needs to recover 3 ranges of data. With current code, two nodes could get selected as it orders the node by proximity. We ideally will want to select 3 nodes for streaming the data. This is done by selecting unique nodes for each range.
+<https://issues.apache.org/jira/browse/CASSANDRA-4650>`_). What the optimization does is to even out the streaming load across the cluster. Without the optimization, some node can be picked up to stream more data than others. This patch allows to select dedicated node to stream only one range.
 
 This will increase the performance of bootstrapping a node and will also put less pressure on nodes serving the data. This does not affect if N < 3 in each DC as then it streams data from only 2 nodes.
 
-Stream Types 
+Stream Operation Types 
 ^^^^^^^^^^^^^ 
 
 It is important to know the type or purpose of a certain stream. Version 4.0 (`CASSANDRA-13064
 <https://issues.apache.org/jira/browse/CASSANDRA-13064>`_) adds an ``enum`` to distinguish between the different types  of streams.  Stream types are available both in a stream request and a stream task. The different stream types are:
 
-- StreamingTransferTest
-- LegacyStreamingTest
 - Restore replica count
 - Unbootstrap
 - Relocation
