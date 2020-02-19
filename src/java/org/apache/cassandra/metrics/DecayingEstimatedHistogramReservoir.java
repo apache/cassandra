@@ -65,7 +65,7 @@ import static java.lang.Math.min;
  *
  * Each bucket represents values from (previous bucket offset, current offset].
  *
- * To reduce contention each logical bucket is striped accross a configurable number of stripes (default: 4). Threads are
+ * To reduce contention each logical bucket is striped accross a configurable number of stripes (default: 2). Threads are
  * assigned to specific stripes. In addition, logical buckets are distributed across the physical storage to reduce conention
  * when logically adjacent buckets are updated. See CASSANDRA-15213.
  *
