@@ -30,6 +30,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -769,13 +770,19 @@ public class ConnectionTest
         // In each test round, K capacity is reserved upfront.
         // Two groups of threads each release/acquire for K capacity in total accordingly,
         //   i.e. if only let the release threads to run, at the end, the reserved capacity is 0 (K - K).
-        // During the test, we expect N acquire attempts (for M capacity) to fail.
+        // During the test, we expect N (N <= maxFailures) acquire attempts (for M capacity) to fail.
         // The reserved capacity (pendingBytes) at the end of the round should equal to K - N * M,
         //   which you can find in the assertion.
         test((inbound, outbound, endpoint) -> {
-            int acquireStep = 123;
+            // max capacity equals to permit-free sendQueueCapcity + the minimun of endpoint and global reserve
+            double maxSendQueueCapacity = outbound.settings().applicationSendQueueCapacityInBytes +
+                                          Double.min(outbound.settings().applicationSendQueueReserveEndpointCapacityInBytes,
+                                                     outbound.settings().applicationSendQueueReserveGlobalCapacityInBytes.limit());
             int concurrency = 100;
             int attempts = 10000;
+            int maxCount = concurrency * attempts;
+            int maxFailures = maxCount - 10000;
+            long acquireStep = Math.round(maxSendQueueCapacity / (maxCount + maxCount - maxFailures)); // initial acquire count + acquirer threads acquire count
             AtomicLong acquisitionFailures = new AtomicLong();
             Runnable acquirer = () -> {
                 for (int j = 0; j < attempts; j++)
@@ -788,30 +795,53 @@ public class ConnectionTest
                 for (int j = 0; j < attempts; j++)
                     outbound.unsafeReleaseCapacity(acquireStep);
             };
+
+            // Start N acquirer and releaser to contend for capcaity
+            List<Runnable> invokeOrder = new ArrayList<>();
+            for (int i = 0 ; i < concurrency ; ++i)
+                invokeOrder.add(acquirer);
+            for (int i = 0 ; i < concurrency ; ++i)
+                invokeOrder.add(releaser);
+            // randomize their start order
+            randomize(invokeOrder);
+
             try
             {
-                ExecutorService executor = Executors.newFixedThreadPool(concurrency);
-                int maxCount = concurrency * attempts;
                 // Reserve enough capacity upfront to ensure the releaser threads cannot release all reserved capacity.
                 // i.e. the pendingBytes is always positive during the test.
                 Assert.assertTrue(outbound.unsafeAcquireCapacity(maxCount, maxCount * acquireStep));
-                // Start N acquirer and releaser to contend for capcaity
-                for (int i = 0; i < concurrency; i++)
-                    executor.submit(acquirer);
-                for (int i = 0; i < concurrency; i++)
-                    executor.submit(releaser);
+                ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+
+                invokeOrder.forEach(executor::submit);
 
                 executor.shutdown();
                 executor.awaitTermination(10, TimeUnit.SECONDS);
 
                 Assert.assertEquals(maxCount * acquireStep - (acquisitionFailures.get() * acquireStep), outbound.pendingBytes());
                 Assert.assertEquals(maxCount - acquisitionFailures.get(), outbound.pendingCount());
+                Assert.assertTrue(acquisitionFailures.get() <= maxFailures);
             }
             finally
             {   // release the acquired capacity from this round
                 outbound.unsafeReleaseCapacity(outbound.pendingCount(), outbound.pendingBytes());
             }
         });
+    }
+
+    private static <V> void randomize(List<V> list)
+    {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        switch (random.nextInt(3))
+        {
+            case 0:
+                Collections.shuffle(list, random);
+                break;
+            case 1:
+                Collections.reverse(list);
+                break;
+            case 2:
+                // leave as is
+        }
     }
 
     private void connect(OutboundConnection outbound) throws Throwable
