@@ -226,15 +226,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     public void run()
     {
         try {
-            // Why is this before setup/start when its publishing the start event?  For backwards compatability
-            // One of the first things we did before was publish this before validating, so publish early to keep
-            // that the same.
-            String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, parentSession, keyspace,
-                                           options);
-            logger.info(message);
-            Tracing.traceRepair(message);
-            fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
-
             Pair<Context, String> setup = setup();
             if (setup.right != null)
             {
@@ -287,6 +278,15 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         {
             traceState = null;
         }
+
+        // Why is this before start when its publishing the start event?  For backwards compatability
+        // Before we finish validating we actually trigger this, so kept publishing early even though its not
+        // correct...
+        String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, parentSession, keyspace,
+                                       options);
+        logger.info(message);
+        Tracing.traceRepair(message);
+        fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
 
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
         final List<CommonRange> commonRanges = new ArrayList<>();
