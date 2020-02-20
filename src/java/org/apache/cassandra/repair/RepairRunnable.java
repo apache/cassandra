@@ -184,7 +184,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         if (reason == null)
             reason = "Some repair failed";
-        String completionMessage = String.format("Repair command #%d finished with error", cmd);
+        final String completionMessage = String.format("Repair command #%d finished with error", cmd);
 
         // Note we rely on the first message being the reason for the failure
         // when inspecting this state from RepairRunner.queryForCompletedRepair
@@ -196,17 +196,16 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     private void complete(String msg)
     {
-        long durationMillis = System.currentTimeMillis() - creationTimeMillis;
+        final long durationMillis = System.currentTimeMillis() - creationTimeMillis;
         if (msg == null) {
-            String duration = DurationFormatUtils.formatDurationWords(durationMillis,true, true);
+            final String duration = DurationFormatUtils.formatDurationWords(durationMillis, true, true);
             msg = String.format("Repair command #%d finished in %s", cmd, duration);
         }
 
         fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, msg));
 
-        if (ActiveRepairService.instance.hasParentRepairSession(parentSession))
-            ActiveRepairService.instance.removeParentRepairSession(parentSession);
-        Context ctx = context;
+        ActiveRepairService.instance.removeParentRepairSessionIfPresent(parentSession);
+        final Context ctx = context;
         if (options.isTraced() && ctx != null && ctx.traceState != null)
         {
             for (ProgressListener listener : listeners)
@@ -258,8 +257,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         ActiveRepairService.instance.recordRepairStatus(cmd, ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
 
-        String[] columnFamilies = options.getColumnFamilies().toArray(new String[options.getColumnFamilies().size()]);
-        Iterable<ColumnFamilyStore> validColumnFamilies = storageService.getValidColumnFamilies(false, false, keyspace, columnFamilies);
+        final String[] columnFamilies = options.getColumnFamilies().toArray(new String[options.getColumnFamilies().size()]);
+        final Iterable<ColumnFamilyStore> validColumnFamilies = storageService.getValidColumnFamilies(false, false, keyspace, columnFamilies);
         progressCounter.incrementAndGet();
 
         if (Iterables.isEmpty(validColumnFamilies))
@@ -290,17 +289,17 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
 
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
-        List<CommonRange> commonRanges = new ArrayList<>();
+        final List<CommonRange> commonRanges = new ArrayList<>();
 
         //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
         //calculation multiple times
-        Iterable<Range<Token>> keyspaceLocalRanges = storageService.getLocalReplicas(keyspace).ranges();
+        final Iterable<Range<Token>> keyspaceLocalRanges = storageService.getLocalReplicas(keyspace).ranges();
 
         for (Range<Token> range : options.getRanges())
         {
-            EndpointsForRange neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range,
-                                                                           options.getDataCenters(),
-                                                                           options.getHosts());
+            final EndpointsForRange neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range,
+                                                                                 options.getDataCenters(),
+                                                                                 options.getHosts());
 
             addRangeToNeighbors(commonRanges, range, neighbors);
             allNeighbors.addAll(neighbors.endpoints());
@@ -309,11 +308,11 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         progressCounter.incrementAndGet();
 
         // Validate columnfamilies
-        List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>();
+        final List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>();
         Iterables.addAll(columnFamilyStores, validColumnFamilies);
         progressCounter.incrementAndGet();
 
-        String[] cfnames = new String[columnFamilyStores.size()];
+        final String[] cfnames = new String[columnFamilyStores.size()];
         for (int i = 0; i < columnFamilyStores.size(); i++)
         {
             cfnames[i] = columnFamilyStores.get(i).name;
