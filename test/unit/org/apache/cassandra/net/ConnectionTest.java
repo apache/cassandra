@@ -766,6 +766,12 @@ public class ConnectionTest
     @Test
     public void testAcquireReleaseOutbound() throws Throwable
     {
+        // In each test round, K capacity is reserved upfront.
+        // Two groups of threads each release/acquire for K capacity in total accordingly,
+        //   i.e. if only let the release threads to run, at the end, the reserved capacity is 0 (K - K).
+        // During the test, we expect N acquire attempts (for M capacity) to fail.
+        // The reserved capacity (pendingBytes) at the end of the round should equal to K - N * M,
+        //   which you can find in the assertion.
         test((inbound, outbound, endpoint) -> {
             int acquireStep = 123;
             int concurrency = 100;
@@ -786,7 +792,8 @@ public class ConnectionTest
             {
                 ExecutorService executor = Executors.newFixedThreadPool(concurrency);
                 int maxCount = concurrency * attempts;
-                // Reserve the capacity for this round
+                // Reserve enough capacity upfront to ensure the releaser threads cannot release all reserved capacity.
+                // i.e. the pendingBytes is always positive during the test.
                 Assert.assertTrue(outbound.unsafeAcquireCapacity(maxCount, maxCount * acquireStep));
                 // Start N acquirer and releaser to contend for capcaity
                 for (int i = 0; i < concurrency; i++)
@@ -797,15 +804,12 @@ public class ConnectionTest
                 executor.shutdown();
                 executor.awaitTermination(10, TimeUnit.SECONDS);
 
-                // We can release more than we acquire, which certainly should not happen in
-                // real life, but since it's a test just for acquisition and release, it is fine
                 Assert.assertEquals(maxCount * acquireStep - (acquisitionFailures.get() * acquireStep), outbound.pendingBytes());
+                Assert.assertEquals(maxCount - acquisitionFailures.get(), outbound.pendingCount());
             }
             finally
             {   // release the acquired capacity from this round
-                while (outbound.pendingBytes() > 0) {
-                    outbound.unsafeReleaseCapacity(acquireStep);
-                }
+                outbound.unsafeReleaseCapacity(outbound.pendingCount(), outbound.pendingBytes());
             }
         });
     }
