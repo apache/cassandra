@@ -29,6 +29,7 @@ import java.security.Permission;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -82,6 +83,7 @@ public abstract class ToolsTester
                               .collect(Collectors.toSet());
 
         Set<String> current = Arrays.stream(threads.getThreadInfo(threads.getAllThreadIds()))
+                                    .filter(Objects::nonNull)
                                     .map(ThreadInfo::getThreadName)
                                     .collect(Collectors.toSet());
 
