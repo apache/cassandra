@@ -1,5 +1,6 @@
 3.11.7
- * 
+Merged from 3.0:
+ * Run evictFromMembership in GossipStage (CASSANDRA-15592)
 
 
 3.11.6
