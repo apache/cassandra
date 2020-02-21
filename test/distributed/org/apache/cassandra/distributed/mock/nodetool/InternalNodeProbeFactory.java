@@ -25,11 +25,18 @@ import org.apache.cassandra.tools.INodeProbeFactory;
 
 public class InternalNodeProbeFactory implements INodeProbeFactory
 {
+    private final boolean withNotifications;
+
+    public InternalNodeProbeFactory(boolean withNotifications)
+    {
+        this.withNotifications = withNotifications;
+    }
+
     public NodeProbe create(String host, int port) throws IOException {
-        return new InternalNodeProbe();
+        return new InternalNodeProbe(withNotifications);
     }
 
     public NodeProbe create(String host, int port, String username, String password) throws IOException {
-        return new InternalNodeProbe();
+        return new InternalNodeProbe(withNotifications);
     }
 }
