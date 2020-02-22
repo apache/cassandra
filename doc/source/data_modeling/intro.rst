@@ -14,7 +14,7 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-Data Modeling
+Introduction
 =============
 
 Apache Cassandra stores data in tables, with each table consisting of rows and columns. CQL (Cassandra Query Language) is used to query the data stored in a table. Apache Cassandra data model is based around and optimized for querying. The CQL (Cassandra Query Language)   model is the Cassandra’s data model.  Cassandra does not support relational data modeling, which is typical of relational databases.
