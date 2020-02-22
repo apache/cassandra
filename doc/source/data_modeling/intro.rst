@@ -116,13 +116,13 @@ Examples of Data Modeling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 As an example, a ``magazine`` data set consists of data for magazines with attributes such as magazine id, magazine name, publication frequency, publication date, and publisher.  A basic query (Q1) for magazine data is to list all the magazine names including their publication frequency. As not all data attributes are needed for Q1 the data model would only consist of ``id`` ( for partition key), magazine name and publication frequency as shown in Figure 1.
 
-.. figure:: Figure_1_data_model.jpg
+.. figure:: images/Figure_1_data_model.jpg
 
 Figure 1. Data Model for Q1
 
 Another query (Q2)  is to list all the magazine names by publisher.  For Q2 the data model would consist of an additional attribute ``publisher`` for the partition key. The ``id`` would become the clustering key for sorting within a partition.   Data model for Q2 is illustrated in Figure 2.
 
-.. figure:: Figure_2_data_model.jpg
+.. figure:: images/Figure_2_data_model.jpg
 
 Figure 2. Data Model for Q2
 
