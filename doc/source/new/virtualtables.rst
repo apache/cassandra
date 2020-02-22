@@ -302,7 +302,12 @@ The ``sstable_tasks`` could be used to get information about running tasks. It l
          basic |      wide2 | c7556770-cdf7-11e9-a8ed-0f03de2d9ae1 | compaction |  2995623 | 40314679 | bytes
 
  
-As another example, a query ``SELECT (total-progress) FROM sstable_tasks;`` gives the remaining time for a task.
+As another example, to find how much time is remaining for SSTable tasks, use the following query:
+
+::
+
+  SELECT total - progress AS remaining
+  FROM system_views.sstable_tasks;
 
 Other Virtual Tables
 ********************
@@ -320,7 +325,7 @@ Find tables with most disk usage:
      keyspace1 |  standard1 |       288
     tlp_stress |   keyvalue |      3211
 
-A query to measure read performance:
+Find queries on table/s with greatest read latency:
 
 ::
 
