@@ -780,9 +780,10 @@ public class ConnectionTest
                                                      outbound.settings().applicationSendQueueReserveGlobalCapacityInBytes.limit());
             int concurrency = 100;
             int attempts = 10000;
-            int maxCount = concurrency * attempts;
-            int maxFailures = maxCount - 10000;
-            long acquireStep = Math.round(maxSendQueueCapacity / (maxCount + maxCount - maxFailures)); // initial acquire count + acquirer threads acquire count
+            int acquireCount = concurrency * attempts;
+            long acquireStep = Math.round(maxSendQueueCapacity * 1.2 / acquireCount / 2); // It is guranteed to acquire (~20%) more
+            // The total overly acquired amount divides the amount acquired in each step. Get the ceil value so not to miss the acquire that just exceeds.
+            long maxFailures = (long) Math.ceil((acquireCount * acquireStep * 2 - maxSendQueueCapacity) / acquireStep); // The result must be in the range of lone
             AtomicLong acquisitionFailures = new AtomicLong();
             Runnable acquirer = () -> {
                 for (int j = 0; j < attempts; j++)
@@ -809,7 +810,7 @@ public class ConnectionTest
             {
                 // Reserve enough capacity upfront to ensure the releaser threads cannot release all reserved capacity.
                 // i.e. the pendingBytes is always positive during the test.
-                Assert.assertTrue(outbound.unsafeAcquireCapacity(maxCount, maxCount * acquireStep));
+                Assert.assertTrue(outbound.unsafeAcquireCapacity(acquireCount, acquireCount * acquireStep));
                 ExecutorService executor = Executors.newFixedThreadPool(concurrency);
 
                 invokeOrder.forEach(executor::submit);
@@ -817,8 +818,8 @@ public class ConnectionTest
                 executor.shutdown();
                 executor.awaitTermination(10, TimeUnit.SECONDS);
 
-                Assert.assertEquals(maxCount * acquireStep - (acquisitionFailures.get() * acquireStep), outbound.pendingBytes());
-                Assert.assertEquals(maxCount - acquisitionFailures.get(), outbound.pendingCount());
+                Assert.assertEquals(acquireCount * acquireStep - (acquisitionFailures.get() * acquireStep), outbound.pendingBytes());
+                Assert.assertEquals(acquireCount - acquisitionFailures.get(), outbound.pendingCount());
                 Assert.assertTrue(acquisitionFailures.get() <= maxFailures);
             }
             finally
