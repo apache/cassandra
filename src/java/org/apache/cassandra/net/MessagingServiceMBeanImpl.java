@@ -19,6 +19,7 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -258,33 +259,19 @@ public class MessagingServiceMBeanImpl implements MessagingServiceMBean
     @Override
     public Map<String, Double> getBackPressurePerHost()
     {
-        Map<String, Double> map = new HashMap<>(channelManagers.size());
-        for (Map.Entry<InetAddressAndPort, OutboundConnections> entry : channelManagers.entrySet())
-            map.put(entry.getKey().toString(false), entry.getValue().getBackPressureState().getBackPressureRateLimit());
-
-        return map;
-    }
-
-    @Override
-    public Map<String, Double> getBackPressurePerHostWithPort()
-    {
-        Map<String, Double> map = new HashMap<>(channelManagers.size());
-        for (Map.Entry<InetAddressAndPort, OutboundConnections> entry : channelManagers.entrySet())
-            map.put(entry.getKey().toString(false), entry.getValue().getBackPressureState().getBackPressureRateLimit());
-
-        return map;
+        throw new UnsupportedOperationException("This feature has been removed");
     }
 
     @Override
     public void setBackPressureEnabled(boolean enabled)
     {
-        DatabaseDescriptor.setBackPressureEnabled(enabled);
+        throw new UnsupportedOperationException("This feature has been removed");
     }
 
     @Override
     public boolean isBackPressureEnabled()
     {
-        return DatabaseDescriptor.backPressureEnabled();
+        return false;
     }
 
     @Override

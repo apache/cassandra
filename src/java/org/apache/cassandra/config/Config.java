@@ -412,7 +412,9 @@ public class Config
      */
     public UserFunctionTimeoutPolicy user_function_timeout_policy = UserFunctionTimeoutPolicy.die;
 
+    @Deprecated
     public volatile boolean back_pressure_enabled = false;
+    @Deprecated
     public volatile ParameterizedClass back_pressure_strategy;
 
     public volatile int concurrent_validations;

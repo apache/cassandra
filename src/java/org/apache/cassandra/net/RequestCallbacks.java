@@ -167,9 +167,6 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         InternodeOutboundMetrics.totalExpiredCallbacks.mark();
         messagingService.markExpiredCallback(info.peer);
 
-        if (info.callback.supportsBackPressure())
-            messagingService.updateBackPressureOnReceive(info.peer, info.callback, true);
-
         if (info.invokeOnFailure())
             INTERNAL_RESPONSE.submit(() -> info.callback.onFailure(info.peer, RequestFailureReason.TIMEOUT));
 
