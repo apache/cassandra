@@ -242,9 +242,6 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     final ResourceLimits.Limit outboundGlobalReserveLimit =
         new ResourceLimits.Concurrent(DatabaseDescriptor.getInternodeApplicationSendQueueReserveGlobalCapacityInBytes());
 
-    // back-pressure implementation
-    private final BackPressureStrategy backPressure = DatabaseDescriptor.getBackPressureStrategy();
-
     private volatile boolean isShuttingDown;
 
     @VisibleForTesting
@@ -271,7 +268,6 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public void sendWithCallback(Message message, InetAddressAndPort to, RequestCallback cb, ConnectionType specifyConnection)
     {
         callbacks.addWithExpiration(cb, message, to);
-        updateBackPressureOnSend(to, cb, message);
         if (cb.invokeOnFailure() && !message.callBackOnFailure())
             message = message.withCallBackOnFailure();
         send(message, to, specifyConnection);
@@ -292,7 +288,6 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     {
         assert message.callBackOnFailure();
         callbacks.addWithExpiration(handler, message, to, handler.consistencyLevel(), allowHints);
-        updateBackPressureOnSend(to.endpoint(), handler, message);
         send(message, to.endpoint(), null);
     }
 
@@ -341,74 +336,6 @@ public final class MessagingService extends MessagingServiceMBeanImpl
                 channelManagers.remove(to, connections);
             }
         }
-    }
-
-    /**
-     * Updates the back-pressure state on sending to the given host if enabled and the given message callback supports it.
-     *
-     * @param host The replica host the back-pressure state refers to.
-     * @param callback The message callback.
-     * @param message The actual message.
-     */
-    void updateBackPressureOnSend(InetAddressAndPort host, RequestCallback callback, Message<?> message)
-    {
-        if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
-        {
-            BackPressureState backPressureState = getBackPressureState(host);
-            if (backPressureState != null)
-                backPressureState.onMessageSent(message);
-        }
-    }
-
-    /**
-     * Updates the back-pressure state on reception from the given host if enabled and the given message callback supports it.
-     *
-     * @param host The replica host the back-pressure state refers to.
-     * @param callback The message callback.
-     * @param timeout True if updated following a timeout, false otherwise.
-     */
-    void updateBackPressureOnReceive(InetAddressAndPort host, RequestCallback callback, boolean timeout)
-    {
-        if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
-        {
-            BackPressureState backPressureState = getBackPressureState(host);
-            if (backPressureState == null)
-                return;
-            if (!timeout)
-                backPressureState.onResponseReceived();
-            else
-                backPressureState.onResponseTimeout();
-        }
-    }
-
-    /**
-     * Applies back-pressure for the given hosts, according to the configured strategy.
-     *
-     * If the local host is present, it is removed from the pool, as back-pressure is only applied
-     * to remote hosts.
-     *
-     * @param hosts The hosts to apply back-pressure to.
-     * @param timeoutInNanos The max back-pressure timeout.
-     */
-    public void applyBackPressure(Iterable<InetAddressAndPort> hosts, long timeoutInNanos)
-    {
-        if (DatabaseDescriptor.backPressureEnabled())
-        {
-            Set<BackPressureState> states = new HashSet<>();
-            for (InetAddressAndPort host : hosts)
-            {
-                if (host.equals(FBUtilities.getBroadcastAddressAndPort()))
-                    continue;
-                states.add(getOutbound(host).getBackPressureState());
-            }
-            //noinspection unchecked
-            backPressure.apply(states, timeoutInNanos, NANOSECONDS);
-        }
-    }
-
-    BackPressureState getBackPressureState(InetAddressAndPort host)
-    {
-        return getOutbound(host).getBackPressureState();
     }
 
     void markExpiredCallback(InetAddressAndPort addr)
@@ -552,7 +479,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     {
         OutboundConnections connections = channelManagers.get(to);
         if (connections == null)
-            connections = OutboundConnections.tryRegister(channelManagers, to, new OutboundConnectionSettings(to).withDefaults(ConnectionCategory.MESSAGING), backPressure.newState(to));
+            connections = OutboundConnections.tryRegister(channelManagers, to, new OutboundConnectionSettings(to).withDefaults(ConnectionCategory.MESSAGING));
         return connections;
     }
 

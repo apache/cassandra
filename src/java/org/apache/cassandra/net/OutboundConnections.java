@@ -53,7 +53,6 @@ public class OutboundConnections
 
     private final SimpleCondition metricsReady = new SimpleCondition();
     private volatile InternodeOutboundMetrics metrics;
-    private final BackPressureState backPressureState;
     private final ResourceLimits.Limit reserveCapacity;
 
     private OutboundConnectionSettings template;
@@ -61,9 +60,8 @@ public class OutboundConnections
     public final OutboundConnection large;
     public final OutboundConnection urgent;
 
-    private OutboundConnections(OutboundConnectionSettings template, BackPressureState backPressureState)
+    private OutboundConnections(OutboundConnectionSettings template)
     {
-        this.backPressureState = backPressureState;
         this.template = template = template.withDefaultReserveLimits();
         reserveCapacity = new ResourceLimits.Concurrent(template.applicationSendQueueReserveEndpointCapacityInBytes);
         ResourceLimits.EndpointAndGlobal reserveCapacityInBytes = new ResourceLimits.EndpointAndGlobal(reserveCapacity, template.applicationSendQueueReserveGlobalCapacityInBytes);
@@ -80,12 +78,12 @@ public class OutboundConnections
         connectionFor(msg, type).enqueue(msg);
     }
 
-    static <K> OutboundConnections tryRegister(ConcurrentMap<K, OutboundConnections> in, K key, OutboundConnectionSettings settings, BackPressureState backPressureState)
+    static <K> OutboundConnections tryRegister(ConcurrentMap<K, OutboundConnections> in, K key, OutboundConnectionSettings settings)
     {
         OutboundConnections connections = in.get(key);
         if (connections == null)
         {
-            connections = new OutboundConnections(settings, backPressureState);
+            connections = new OutboundConnections(settings);
             OutboundConnections existing = in.putIfAbsent(key, connections);
 
             if (existing == null)
@@ -101,11 +99,6 @@ public class OutboundConnections
             }
         }
         return connections;
-    }
-
-    BackPressureState getBackPressureState()
-    {
-        return backPressureState;
     }
 
     /**
@@ -313,9 +306,9 @@ public class OutboundConnections
     }
 
     @VisibleForTesting
-    static OutboundConnections unsafeCreate(OutboundConnectionSettings template, BackPressureState backPressureState)
+    static OutboundConnections unsafeCreate(OutboundConnectionSettings template)
     {
-        OutboundConnections connections = new OutboundConnections(template, backPressureState);
+        OutboundConnections connections = new OutboundConnections(template);
         connections.metricsReady.signalAll();
         return connections;
     }
