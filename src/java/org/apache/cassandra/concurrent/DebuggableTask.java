@@ -23,7 +23,14 @@ package org.apache.cassandra.concurrent;
  */
 public interface DebuggableTask
 {
-    public long approxStartNanos();
+    /**
+     * MonotonicClock.approxTime (or MonotonicClock.preciseTime) this task was created
+     */
+    public long approxTimeOfCreation();
+    /**
+     * MonotonicClock.approxTime (or MonotonicClock.preciseTime) this task was started
+     */
+    public long approxTimeOfStart();
 
     /**
      * String describing the task, this can be general thing or something very specific like the query string depending
@@ -56,10 +63,16 @@ public interface DebuggableTask
             return task != null;
         }
 
-        public long approxStartNanos()
+        public long approxTimeOfCreation()
         {
             assert hasTask();
-            return task.approxStartNanos();
+            return task.approxTimeOfCreation();
+        }
+
+        public long approxTimeOfStart()
+        {
+            assert hasTask();
+            return task.approxTimeOfStart();
         }
 
         public String debug()

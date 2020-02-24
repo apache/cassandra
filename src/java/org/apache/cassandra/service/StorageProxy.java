@@ -1883,7 +1883,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             try
             {
-                command.setMonitoringTime(approxCreationTimeNanos, false, verb.expiresAfterNanos(), DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));
+                command.setMonitoringTime(approxTimeOfCreation, false, verb.expiresAfterNanos(), DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));
 
                 ReadResponse response;
                 try (ReadExecutionController executionController = command.executionController();
@@ -1898,11 +1898,11 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 else
                 {
-                    MessagingService.instance().metrics.recordSelfDroppedMessage(verb, MonotonicClock.approxTime.now() - approxCreationTimeNanos, NANOSECONDS);
+                    MessagingService.instance().metrics.recordSelfDroppedMessage(verb, MonotonicClock.approxTime.now() - approxTimeOfCreation, NANOSECONDS);
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.UNKNOWN);
                 }
 
-                MessagingService.instance().latencySubscribers.add(FBUtilities.getBroadcastAddressAndPort(), MonotonicClock.approxTime.now() - approxCreationTimeNanos, NANOSECONDS);
+                MessagingService.instance().latencySubscribers.add(FBUtilities.getBroadcastAddressAndPort(), MonotonicClock.approxTime.now() - approxTimeOfCreation, NANOSECONDS);
             }
             catch (Throwable t)
             {
@@ -1919,9 +1919,14 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
 
-        public long approxStartNanos()
+        public long approxTimeOfCreation()
         {
-            return approxStartNanos == 0 ? MonotonicClock.approxTime.now() : approxStartNanos;
+            return approxTimeOfCreation;
+        }
+
+        public long approxTimeOfStart()
+        {
+            return approxTimeOfStart;
         }
 
         public String debug()
@@ -2590,23 +2595,23 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static abstract class DroppableRunnable implements Runnable
     {
-        final long approxCreationTimeNanos;
-        long approxStartNanos;
+        final long approxTimeOfCreation;
+        long approxTimeOfStart;
         final Verb verb;
 
         public DroppableRunnable(Verb verb)
         {
-            this.approxCreationTimeNanos = MonotonicClock.approxTime.now();
+            this.approxTimeOfCreation = MonotonicClock.approxTime.now();
             this.verb = verb;
         }
 
         public final void run()
         {
-            approxStartNanos = MonotonicClock.approxTime.now();
-            long expirationTimeNanos = verb.expiresAtNanos(approxCreationTimeNanos);
-            if (approxStartNanos > expirationTimeNanos)
+            approxTimeOfStart = MonotonicClock.approxTime.now();
+            long expirationTimeNanos = verb.expiresAtNanos(approxTimeOfCreation);
+            if (approxTimeOfStart > expirationTimeNanos)
             {
-                long timeTakenNanos = approxStartNanos - approxCreationTimeNanos;
+                long timeTakenNanos = approxTimeOfStart - approxTimeOfCreation;
                 MessagingService.instance().metrics.recordSelfDroppedMessage(verb, timeTakenNanos, NANOSECONDS);
                 return;
             }
@@ -2629,8 +2634,8 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static abstract class LocalMutationRunnable implements Runnable, DebuggableTask
     {
-        private final long approxCreationTimeNanos = MonotonicClock.approxTime.now();
-        private long approxStartNanos;
+        private final long approxTimeOfCreation = MonotonicClock.approxTime.now();
+        private long approxTimeOfStart;
         private final Replica localReplica;
 
         LocalMutationRunnable(Replica localReplica)
@@ -2641,11 +2646,11 @@ public class StorageProxy implements StorageProxyMBean
         public final void run()
         {
             final Verb verb = verb();
-            approxStartNanos = MonotonicClock.approxTime.now();
-            long expirationTimeNanos = verb.expiresAtNanos(approxCreationTimeNanos);
-            if (approxStartNanos > expirationTimeNanos)
+            approxTimeOfStart = MonotonicClock.approxTime.now();
+            long expirationTimeNanos = verb.expiresAtNanos(approxTimeOfCreation);
+            if (approxTimeOfStart > expirationTimeNanos)
             {
-                long timeTakenNanos = approxStartNanos - approxCreationTimeNanos;
+                long timeTakenNanos = approxTimeOfStart - approxTimeOfCreation;
                 MessagingService.instance().metrics.recordSelfDroppedMessage(Verb.MUTATION_REQ, timeTakenNanos, NANOSECONDS);
 
                 HintRunnable runnable = new HintRunnable(EndpointsForToken.of(localReplica.range().right, localReplica))
@@ -2669,9 +2674,14 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
 
-        public long approxStartNanos()
+        public long approxTimeOfCreation()
         {
-            return approxStartNanos == 0 ? MonotonicClock.approxTime.now() : approxStartNanos;
+            return approxTimeOfCreation;
+        }
+
+        public long approxTimeOfStart()
+        {
+            return approxTimeOfStart;
         }
 
         abstract public String debug();

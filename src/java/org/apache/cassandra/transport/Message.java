@@ -57,6 +57,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
@@ -723,7 +724,8 @@ public abstract class Message
             private final ChannelHandlerContext ctx;
             private final Request request;
             private final Dispatcher dispatcher;
-            long queryStartNanoTime = System.nanoTime();
+            private final long approxTimeOfCreation = MonotonicClock.approxTime.now();
+            private long approxTimeOfStart;
 
             public RequestProcessor(ChannelHandlerContext ctx, Request request, Dispatcher dispatcher)
             {
@@ -733,6 +735,8 @@ public abstract class Message
             }
             public void run()
             {
+                approxTimeOfStart = MonotonicClock.approxTime.now();
+
                 final Response response;
                 final ServerConnection connection;
                 try
@@ -746,7 +750,7 @@ public abstract class Message
 
                     logger.trace("Received: {}, v={}", request, connection.getVersion());
                     connection.requests.inc();
-                    response = request.execute(qstate, queryStartNanoTime);
+                    response = request.execute(qstate, approxTimeOfCreation);
                     response.setStreamId(request.getStreamId());
                     response.setWarnings(ClientWarn.instance.getWarnings());
                     response.attach(connection);
@@ -768,9 +772,14 @@ public abstract class Message
                 flush(new FlushItem(ctx, response, request.getSourceFrame(), dispatcher));
             }
 
-            public long approxStartNanos()
+            public long approxTimeOfCreation()
             {
-                return queryStartNanoTime;
+                return approxTimeOfCreation;
+            }
+
+            public long approxTimeOfStart()
+            {
+                return approxTimeOfStart;
             }
 
             public String debug()
