@@ -208,7 +208,6 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
 
         // execute repair and start prepare phase
         ListenableFuture<Boolean> sessionResult = coordinator.execute(sessionSupplier, proposeFailed);
-        Assert.assertFalse(proposeFailed.get());
         prepareLatch.countDown();
         // prepare completed
         try

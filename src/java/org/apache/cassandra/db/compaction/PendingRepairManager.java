@@ -443,7 +443,7 @@ class PendingRepairManager
             {
                 if (obsoleteSSTables)
                 {
-                    logger.info("Obsoleting transient repaired ssatbles");
+                    logger.info("Obsoleting transient repaired sstables for {}", sessionID);
                     Preconditions.checkState(Iterables.all(transaction.originals(), SSTableReader::isTransient));
                     transaction.obsoleteOriginals();
                 }
