@@ -203,6 +203,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
 
         fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, msg));
+        logger.info(msg);
 
         ActiveRepairService.instance.removeParentRepairSessionIfPresent(parentSession);
         final Context ctx = context;
