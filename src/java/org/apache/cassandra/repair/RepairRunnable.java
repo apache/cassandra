@@ -205,7 +205,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
 
         fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, msg));
-        logger.info(msg);
+        logger.info(options.getPreviewKind().logPrefix(parentSession) + msg);
 
         ActiveRepairService.instance.removeParentRepairSession(parentSession);
         TraceState localState = traceState;
@@ -270,7 +270,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         progressCounter.incrementAndGet();
 
         if (Iterables.isEmpty(validColumnFamilies))
-            throw new SkipRepairException(String.format("Empty keyspace, skipping repair: %s", keyspace));
+            throw new SkipRepairException(String.format("%s Empty keyspace, skipping repair: %s", parentSession, keyspace));
         return Lists.newArrayList(validColumnFamilies);
     }
 

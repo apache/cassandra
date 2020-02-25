@@ -1486,7 +1486,7 @@ public class CompactionManager implements CompactionManagerMBean
                                   BooleanSupplier isCancelled)
     {
         int originalCount = txn.originals().size();
-        logger.info("Performing anticompaction on {} sstables", originalCount);
+        logger.info("Performing anticompaction on {} sstables for {}", originalCount, pendingRepair);
 
         //Group SSTables
         Set<SSTableReader> sstables = txn.originals();
@@ -1509,9 +1509,8 @@ public class CompactionManager implements CompactionManagerMBean
                 antiCompactedSSTableCount += antiCompacted;
             }
         }
-
-        String format = "Anticompaction completed successfully, anticompacted from {} to {} sstable(s).";
-        logger.info(format, originalCount, antiCompactedSSTableCount);
+        String format = "Anticompaction completed successfully, anticompacted from {} to {} sstable(s) for {}.";
+        logger.info(format, originalCount, antiCompactedSSTableCount, pendingRepair);
     }
 
     @VisibleForTesting
@@ -1537,7 +1536,7 @@ public class CompactionManager implements CompactionManagerMBean
             return 0;
         }
 
-        logger.info("Anticompacting {}", txn);
+        logger.info("Anticompacting {} in {}.{} for {}", txn.originals(), cfs.keyspace.getName(), cfs.getTableName(), pendingRepair);
         Set<SSTableReader> sstableAsSet = txn.originals();
 
         File destination = cfs.getDirectories().getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(sstableAsSet, OperationType.ANTICOMPACTION));
@@ -1627,8 +1626,6 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
 
-            List<SSTableReader> anticompactedSSTables = new ArrayList<>();
-
             fullWriter.prepareToCommit();
             transWriter.prepareToCommit();
             unrepairedWriter.prepareToCommit();
@@ -1636,16 +1633,23 @@ public class CompactionManager implements CompactionManagerMBean
             txn.obsoleteOriginals();
             txn.prepareToCommit();
 
-            anticompactedSSTables.addAll(fullWriter.finished());
-            anticompactedSSTables.addAll(transWriter.finished());
-            anticompactedSSTables.addAll(unrepairedWriter.finished());
+            List<SSTableReader> fullSSTables = new ArrayList<>(fullWriter.finished());
+            List<SSTableReader> transSSTables = new ArrayList<>(transWriter.finished());
+            List<SSTableReader> unrepairedSSTables = new ArrayList<>(unrepairedWriter.finished());
 
             fullWriter.commit();
             transWriter.commit();
             unrepairedWriter.commit();
             txn.commit();
-
-            return anticompactedSSTables.size();
+            logger.info("Anticompacted {} in {}.{} to full = {}, transient = {}, unrepaired = {} for {}",
+                        sstableAsSet,
+                        cfs.keyspace.getName(),
+                        cfs.getTableName(),
+                        fullSSTables,
+                        transSSTables,
+                        unrepairedSSTables,
+                        pendingRepair);
+            return fullSSTables.size() + transSSTables.size() + unrepairedSSTables.size();
         }
         catch (Throwable e)
         {

@@ -151,7 +151,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             {
                 if (!session.previewKind.isPreview())
                 {
-                    logger.info("{} {} is fully synced", session.previewKind.logPrefix(session.getId()), desc.columnFamily);
+                    logger.info("{} {}.{} is fully synced", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
                     SystemDistributedKeyspace.successfulRepairJob(session.getId(), desc.keyspace, desc.columnFamily);
                 }
                 cfs.metric.repairsCompleted.inc();
@@ -165,7 +165,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             {
                 if (!session.previewKind.isPreview())
                 {
-                    logger.warn("{} {} sync failed", session.previewKind.logPrefix(session.getId()), desc.columnFamily);
+                    logger.warn("{} {}.{} sync failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
                     SystemDistributedKeyspace.failedRepairJob(session.getId(), desc.keyspace, desc.columnFamily, t);
                 }
                 cfs.metric.repairsCompleted.inc();
@@ -199,6 +199,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                                                   boolean pullRepair,
                                                   PreviewKind previewKind)
     {
+        long startedAt = System.currentTimeMillis();
         List<SyncTask> syncTasks = new ArrayList<>();
         // We need to difference all trees one against another
         for (int i = 0; i < trees.size() - 1; ++i)
@@ -252,7 +253,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             trees.get(i).trees.release();
         }
         trees.get(trees.size() - 1).trees.release();
-
+        logger.info("Created {} sync tasks based on {} merkle tree responses for {} (took: {}ms)",
+                    syncTasks.size(), trees.size(), desc.parentSessionId, System.currentTimeMillis() - startedAt);
         return syncTasks;
     }
 
@@ -290,6 +292,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                                                           boolean isIncremental,
                                                           PreviewKind previewKind)
     {
+        long startedAt = System.currentTimeMillis();
         List<SyncTask> syncTasks = new ArrayList<>();
         // We need to difference all trees one against another
         DifferenceHolder diffHolder = new DifferenceHolder(trees);
@@ -339,6 +342,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 logger.debug("Node {} has nothing to stream", address);
             }
         }
+        logger.info("Created {} optimised sync tasks based on {} merkle tree responses for {} (took: {}ms)",
+                    syncTasks.size(), trees.size(), desc.parentSessionId, System.currentTimeMillis() - startedAt);
         return syncTasks;
     }
 
@@ -384,7 +389,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         Queue<InetAddressAndPort> requests = new LinkedList<>(endpoints);
         InetAddressAndPort address = requests.poll();
         ValidationTask firstTask = new ValidationTask(desc, address, nowInSec, session.previewKind);
-        logger.info("Validating {}", address);
+        logger.info("{} Validating {}", session.previewKind.logPrefix(desc.sessionId), address);
         session.trackValidationCompletion(Pair.create(desc, address), firstTask);
         tasks.add(firstTask);
         ValidationTask currentTask = firstTask;
@@ -397,7 +402,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             {
                 public void onSuccess(TreeResponse result)
                 {
-                    logger.info("Validating {}", nextAddress);
+                    logger.info("{} Validating {}", session.previewKind.logPrefix(desc.sessionId), nextAddress);
                     session.trackValidationCompletion(Pair.create(desc, nextAddress), nextTask);
                     taskExecutor.execute(nextTask);
                 }
@@ -441,7 +446,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             Queue<InetAddressAndPort> requests = entry.getValue();
             InetAddressAndPort address = requests.poll();
             ValidationTask firstTask = new ValidationTask(desc, address, nowInSec, session.previewKind);
-            logger.info("Validating {}", address);
+            logger.info("{} Validating {}", session.previewKind.logPrefix(session.getId()), address);
             session.trackValidationCompletion(Pair.create(desc, address), firstTask);
             tasks.add(firstTask);
             ValidationTask currentTask = firstTask;
@@ -454,7 +459,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 {
                     public void onSuccess(TreeResponse result)
                     {
-                        logger.info("Validating {}", nextAddress);
+                        logger.info("{} Validating {}", session.previewKind.logPrefix(session.getId()), nextAddress);
                         session.trackValidationCompletion(Pair.create(desc, nextAddress), nextTask);
                         taskExecutor.execute(nextTask);
                     }
