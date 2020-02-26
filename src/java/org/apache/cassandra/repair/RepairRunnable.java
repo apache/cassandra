@@ -198,7 +198,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private void complete(String msg)
     {
         final long durationMillis = System.currentTimeMillis() - creationTimeMillis;
-        if (msg == null) {
+        if (msg == null)
+        {
             final String duration = DurationFormatUtils.formatDurationWords(durationMillis, true, true);
             msg = String.format("Repair command #%d finished in %s", cmd, duration);
         }
@@ -227,7 +228,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     public void run()
     {
-        try {
+        try
+        {
             Either<Context, String> setup = setup();
             if (setup.isRight())
             {
@@ -284,8 +286,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         // Why is this before start when its publishing the start event?  For backwards compatability
         // Before we finish validating we actually trigger this, so kept publishing early even though its not
         // correct...
-        String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, parentSession, keyspace,
-                                       options);
+        final String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, parentSession, keyspace,
+                                             options);
         logger.info(message);
         Tracing.traceRepair(message);
         fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
@@ -418,7 +420,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         {
             List<CommonRange> filtered = new ArrayList<>(commonRanges.size());
 
-            for (CommonRange commonRange: commonRanges)
+            for (CommonRange commonRange : commonRanges)
             {
                 Set<InetAddressAndPort> endpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.endpoints, liveEndpoints::contains));
                 Set<InetAddressAndPort> transEndpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.transEndpoints, liveEndpoints::contains));
@@ -445,9 +447,9 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         // the local node also needs to be included in the set of participants, since coordinator sessions aren't persisted
         Set<InetAddressAndPort> allParticipants = ImmutableSet.<InetAddressAndPort>builder()
-                                           .addAll(allNeighbors)
-                                           .add(FBUtilities.getBroadcastAddressAndPort())
-                                           .build();
+                                                  .addAll(allNeighbors)
+                                                  .add(FBUtilities.getBroadcastAddressAndPort())
+                                                  .build();
 
         List<CommonRange> allRanges = filterCommonRanges(commonRanges, allParticipants, forceRepair);
 
@@ -502,7 +504,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     }
                     else
                     {
-                        message =  (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
+                        message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
                         logger.info(message);
                         fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, message));
                     }
@@ -647,7 +649,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             fail(t.getMessage());
             executor.shutdownNow();
         }
-
     }
 
     private static void addRangeToNeighbors(List<CommonRange> neighborRangeList, Range<Token> range, EndpointsForRange neighbors)
@@ -688,7 +689,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 ByteBuffer sessionIdBytes = ByteBufferUtil.bytes(sessionId);
                 InetAddressAndPort source = FBUtilities.getBroadcastAddressAndPort();
 
-                HashSet<UUID>[] seen = new HashSet[] { new HashSet<>(), new HashSet<>() };
+                HashSet<UUID>[] seen = new HashSet[]{ new HashSet<>(), new HashSet<>() };
                 int si = 0;
                 UUID uuid;
 
@@ -744,8 +745,10 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }, "Repair-Runnable-" + threadCounter.incrementAndGet());
     }
 
-    private static final class Context {
-        public final @Nullable TraceState traceState;
+    private static final class Context
+    {
+        public final @Nullable
+        TraceState traceState;
         public final Set<InetAddressAndPort> allNeighbors;
         public final List<CommonRange> commonRanges;
         public final List<ColumnFamilyStore> columnFamilyStores;
