@@ -69,7 +69,6 @@ public class RepairCoordinatorBase extends DistributedTestBase implements Serial
         // In CI a new JVM is spun up for each test file, so this doesn't have to worry about another test file
         // getting this set first
         System.setProperty("cassandra.nodetool.jmx_notification_poll_interval_seconds", "1");
-        DatabaseDescriptor.clientInitialization();
     }
 
     @BeforeClass
