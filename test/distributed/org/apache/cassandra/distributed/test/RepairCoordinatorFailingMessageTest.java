@@ -122,7 +122,7 @@ public class RepairCoordinatorFailingMessageTest extends DistributedTestBase imp
         {
             NodeToolResult result = repair(1, KEYSPACE, "prepareirfailure");
             result.asserts()
-                  .notOk()
+                  .failure()
                   .errorContains("error prepare fail")
                   .notificationContains(NodeToolResult.ProgressEventType.ERROR, "error prepare fail")
                   .notificationContains(NodeToolResult.ProgressEventType.COMPLETE, "finished with error");
@@ -148,7 +148,7 @@ public class RepairCoordinatorFailingMessageTest extends DistributedTestBase imp
         {
             NodeToolResult result = repair(1, KEYSPACE, table);
             result.asserts()
-                  .notOk()
+                  .failure()
                   .errorContains("Some repair failed")
                   .notificationContains(NodeToolResult.ProgressEventType.ERROR, "Some repair failed")
                   .notificationContains(NodeToolResult.ProgressEventType.COMPLETE, "finished with error");
@@ -173,7 +173,7 @@ public class RepairCoordinatorFailingMessageTest extends DistributedTestBase imp
         {
             NodeToolResult result = repair(1, KEYSPACE, table);
             result.asserts()
-                  .notOk()
+                  .failure()
                   .errorContains("Some repair failed")
                   .notificationContains(NodeToolResult.ProgressEventType.ERROR, "Some repair failed")
                   .notificationContains(NodeToolResult.ProgressEventType.COMPLETE, "finished with error");

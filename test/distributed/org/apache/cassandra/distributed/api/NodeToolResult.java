@@ -47,12 +47,12 @@ public class NodeToolResult
     }
 
     public final class Asserts {
-        public Asserts ok() {
+        public Asserts success() {
             Assert.assertEquals("nodetool command " + commandAndArgs[0] + " was not successful", 0, rc);
             return this;
         }
 
-        public Asserts notOk() {
+        public Asserts failure() {
             Assert.assertNotEquals("nodetool command " + commandAndArgs[0] + " was successful but not expected to be", 0, rc);
             return this;
         }

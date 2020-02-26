@@ -63,7 +63,7 @@ public abstract class RepairCoordinatorSlow extends RepairCoordinatorBase
             long repairExceptions = getRepairExceptions(CLUSTER, 1);
             NodeToolResult result = repair(1, KEYSPACE, table);
             result.asserts()
-                  .notOk()
+                  .failure()
                   .errorContains("Got negative replies from endpoints [127.0.0.2:7012]");
             if (withNotifications)
             {
@@ -120,7 +120,7 @@ public abstract class RepairCoordinatorSlow extends RepairCoordinatorBase
             long repairExceptions = getRepairExceptions(CLUSTER, 1);
             NodeToolResult result = repair(1, KEYSPACE, table);
             result.asserts()
-                  .notOk()
+                  .failure()
                   .errorContains("Endpoint not alive");
             if (withNotifications)
             {
@@ -188,7 +188,7 @@ public abstract class RepairCoordinatorSlow extends RepairCoordinatorBase
             NodeToolResult result = repair(1, KEYSPACE, table);
             recovered.join(); // if recovery didn't happen then the results are not what are being tested, so block here first
             result.asserts()
-                  .notOk();
+                  .failure();
             if (withNotifications)
             {
                 result.asserts()

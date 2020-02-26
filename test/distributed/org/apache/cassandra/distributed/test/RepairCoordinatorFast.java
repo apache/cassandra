@@ -59,7 +59,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
 
         long repairExceptions = getRepairExceptions(CLUSTER, 2);
         NodeToolResult result = repair(2, KEYSPACE, table);
-        result.asserts().ok();
+        result.asserts().success();
         if (withNotifications)
         {
             result.asserts()
@@ -89,7 +89,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         long repairExceptions = getRepairExceptions(CLUSTER, 2);
         NodeToolResult result = repair(2, "doesnotexist");
         result.asserts()
-              .notOk()
+              .failure()
               .errorContains("Keyspace [doesnotexist] does not exist.");
 
         Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
@@ -103,7 +103,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         long repairExceptions = getRepairExceptions(CLUSTER, 2);
         NodeToolResult result = repair(2, KEYSPACE, "doesnotexist");
         result.asserts()
-              .notOk();
+              .failure();
         if (withNotifications)
         {
             result.asserts()
@@ -131,7 +131,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         long repairExceptions = getRepairExceptions(CLUSTER, 2);
         // if CF has a . in it, it is assumed to be a 2i which rejects repairs
         NodeToolResult result = repair(2, KEYSPACE, table + ".value");
-        result.asserts().ok();
+        result.asserts().success();
         if (withNotifications)
         {
             result.asserts()
@@ -173,7 +173,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
                                        "--start-token", Long.toString(intersectingRange.minExclusive),
                                        "--end-token", Long.toString(intersectingRange.maxInclusive));
         result.asserts()
-              .notOk()
+              .failure()
               .errorContains("Requested range " + intersectingRange + " intersects a local range (" + tokenRange + ") but is not fully contained in one");
         if (withNotifications)
         {
@@ -198,7 +198,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         long repairExceptions = getRepairExceptions(CLUSTER, 2);
         NodeToolResult result = repair(2, KEYSPACE, table, "--in-hosts", "thisreally.should.not.exist.apache.org");
         result.asserts()
-              .notOk()
+              .failure()
               .errorContains("Unknown host specified thisreally.should.not.exist.apache.org");
         if (withNotifications)
         {
@@ -225,7 +225,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         long repairExceptions = getRepairExceptions(CLUSTER, 2);
         NodeToolResult result = repair(2, KEYSPACE, table, "--in-hosts", "localhost");
         result.asserts()
-              .notOk()
+              .failure()
               .errorContains("The current host must be part of the repair");
         if (withNotifications)
         {
@@ -252,7 +252,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         long repairExceptions = getRepairExceptions(CLUSTER, 2);
         NodeToolResult result = repair(1, KEYSPACE, table, "--in-hosts", "localhost");
         result.asserts()
-              .notOk()
+              .failure()
               .errorContains("Specified hosts [localhost] do not share range");
         if (withNotifications)
         {
@@ -282,7 +282,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         long repairExceptions = getRepairExceptions(CLUSTER, 1);
         NodeToolResult result = repair(1, "replicationfactor", table);
         result.asserts()
-              .ok();
+              .success();
 
         assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
 
@@ -302,7 +302,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
             long repairExceptions = getRepairExceptions(CLUSTER, 1);
             NodeToolResult result = repair(1, KEYSPACE, table);
             result.asserts()
-                  .notOk()
+                  .failure()
                   .errorContains("Got negative replies from endpoints");
             if (withNotifications)
             {
@@ -345,7 +345,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
             long repairExceptions = getRepairExceptions(CLUSTER, 1);
             NodeToolResult result = repair(1, KEYSPACE, table);
             result.asserts()
-                  .notOk();
+                  .failure();
             if (withNotifications)
             {
                 result.asserts()
