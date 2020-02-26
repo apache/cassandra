@@ -25,14 +25,25 @@ import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
+
 public class Row
 {
-    private final String[] names;
+    private final ObjectIntMap<String> nameIndex;
     @Nullable private Object[] results; // mutable to avoid allocations in loops
 
     public Row(String[] names)
     {
-        this.names = names;
+        this.nameIndex = new ObjectIntHashMap<>(names.length);
+        for (int i = 0; i < names.length; i++) {
+            nameIndex.put(names[i], i);
+        }
+    }
+
+    private Row(ObjectIntMap<String> nameIndex)
+    {
+        this.nameIndex = nameIndex;
     }
 
     void setResults(@Nullable Object[] results)
@@ -41,7 +52,7 @@ public class Row
     }
 
     public Row copy() {
-        Row copy = new Row(names);
+        Row copy = new Row(nameIndex);
         copy.setResults(results);
         return copy;
     }
@@ -78,7 +89,7 @@ public class Row
     public String toString()
     {
         return "Row{" +
-               "names=" + Arrays.toString(names) +
+               "names=" + nameIndex.keys() +
                ", results=" + Arrays.toString(results) +
                '}';
     }
@@ -91,9 +102,6 @@ public class Row
 
     private int findIndex(String name)
     {
-        for (int i = 0; i < names.length; i++)
-            if (names[i].equals(name))
-                return i;
-        return -1;
+        return nameIndex.getOrDefault(name, -1);
     }
 }
