@@ -28,10 +28,10 @@ import org.junit.Assert;
 
 public class NodeToolResult
 {
-    public final String[] commandAndArgs;
-    public final int rc;
-    public final List<Notification> notifications;
-    public final Throwable error;
+    private final String[] commandAndArgs;
+    private final int rc;
+    private final List<Notification> notifications;
+    private final Throwable error;
 
     public NodeToolResult(String[] commandAndArgs, int rc, List<Notification> notifications, Throwable error)
     {
@@ -39,6 +39,26 @@ public class NodeToolResult
         this.rc = rc;
         this.notifications = notifications;
         this.error = error;
+    }
+
+    public String[] getCommandAndArgs()
+    {
+        return commandAndArgs;
+    }
+
+    public int getRc()
+    {
+        return rc;
+    }
+
+    public List<Notification> getNotifications()
+    {
+        return notifications;
+    }
+
+    public Throwable getError()
+    {
+        return error;
     }
 
     public Asserts asserts()

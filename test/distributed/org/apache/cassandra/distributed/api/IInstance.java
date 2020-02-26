@@ -49,7 +49,7 @@ public interface IInstance extends IIsolatedExecutor
         return nodetoolResult(true, commandAndArgs);
     }
     default int nodetool(String... commandAndArgs) {
-        return nodetoolResult(commandAndArgs).rc;
+        return nodetoolResult(commandAndArgs).getRc();
     }
     void uncaughtException(Thread t, Throwable e);
 
