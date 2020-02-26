@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Correct inaccurate logging message (CASSANDRA-15549)
  * Add documentation of dynamo (CASSANDRA-15486)
  * Added documentation for Guarantees (CASSANDRA-15482)
  * Added documentation for audit logging (CASSANDRA-15474)

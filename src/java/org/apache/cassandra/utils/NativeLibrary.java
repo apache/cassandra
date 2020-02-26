@@ -198,7 +198,7 @@ public final class NativeLibrary
             {
                 logger.warn("Unable to lock JVM memory (ENOMEM)."
                         + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
-                        + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
+                        + " Increase RLIMIT_MEMLOCK.");
             }
             else if (osType != MAC)
             {
