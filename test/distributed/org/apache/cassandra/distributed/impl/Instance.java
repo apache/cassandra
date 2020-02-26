@@ -213,9 +213,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private void registerFilter(ICluster cluster)
     {
-        MessagingService.instance().inboundSink.add(message -> {
-            return permitMessage(cluster, FBUtilities.getBroadcastAddressAndPort(), serializeMessage(message.from(), FBUtilities.getBroadcastAddressAndPort(), message));
-        });
+        MessagingService.instance().inboundSink.add(message ->
+                permitMessage(cluster, FBUtilities.getBroadcastAddressAndPort(), serializeMessage(message.from(), FBUtilities.getBroadcastAddressAndPort(), message)));
     }
 
     private boolean permitMessage(ICluster cluster, InetAddressAndPort to, IMessage message)
