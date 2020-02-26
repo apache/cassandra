@@ -59,12 +59,12 @@ As an example, create a keyspace with replication factor (RF) 3.
  CREATE KEYSPACE CassandraKeyspaceSimple WITH replication = {'class': 'SimpleStrategy', 
  'replication_factor' : 3};
  
- Alter keyspace to increase replication factor to 4 with 1 transient replicas. 
+Alter keyspace to increase replication factor to 4 with 1 transient replicas. 
  
  ::
  
-  ALTER KEYSPACE CassandraKeyspaceSimple WITH REPLICATION = {'class' : 'SimpleStrategy', 
-  'replication_factor' : '4/1'};
+   ALTER KEYSPACE CassandraKeyspaceSimple WITH REPLICATION = {'class' : 'SimpleStrategy', 
+   'replication_factor' : '4/1'};
 
 RF cannot be altered while some endpoints are not in a normal state (no range movements). If there is no read traffic there are some extra alterations you can safely make, but this is so atypical that a good default is to not allow unsafe changes. 
 
