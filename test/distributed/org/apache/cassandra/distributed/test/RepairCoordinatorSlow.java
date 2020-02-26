@@ -135,7 +135,7 @@ public abstract class RepairCoordinatorSlow extends RepairCoordinatorBase
         }
         finally
         {
-            CLUSTER.get(2).startup(CLUSTER);
+            CLUSTER.get(2).startup();
         }
 
         // make sure to call outside of the try/finally so the node is up so we can actually query
@@ -175,7 +175,7 @@ public abstract class RepairCoordinatorSlow extends RepairCoordinatorBase
                     }
                     Future<Void> f = participantShutdown.get();
                     f.get(); // wait for shutdown to complete
-                    CLUSTER.get(2).startup(CLUSTER);
+                    CLUSTER.get(2).startup();
                 } catch (Exception e) {
                     if (e instanceof RuntimeException) {
                         throw (RuntimeException) e;
@@ -221,7 +221,7 @@ public abstract class RepairCoordinatorSlow extends RepairCoordinatorBase
         {
             filter.off();
             try {
-                CLUSTER.get(2).startup(CLUSTER);
+                CLUSTER.get(2).startup();
             } catch (Exception e) {
                 // if you call startup twice it is allowed to fail, so ignore it... hope this didn't brike the other tests =x
             }
