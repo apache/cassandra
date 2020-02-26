@@ -40,6 +40,12 @@ public class Row
         this.results = results;
     }
 
+    public Row copy() {
+        Row copy = new Row(names);
+        copy.setResults(results);
+        return copy;
+    }
+
     public <T> T get(String name)
     {
         checkAccess();
