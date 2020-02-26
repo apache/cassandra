@@ -25,9 +25,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 
-public class ResultSet implements Iterator<Row>
+public class QueryResult implements Iterator<Row>
 {
-    public static final ResultSet EMPTY = new ResultSet(new String[0], null);
+    public static final QueryResult EMPTY = new QueryResult(new String[0], null);
 
     private final String[] names;
     private final Object[][] results;
@@ -35,7 +35,7 @@ public class ResultSet implements Iterator<Row>
     private final Row row;
     private int offset = -1;
 
-    public ResultSet(String[] names, Object[][] results)
+    public QueryResult(String[] names, Object[][] results)
     {
         this.names = names;
         this.results = results;
@@ -43,7 +43,7 @@ public class ResultSet implements Iterator<Row>
         this.filter = ignore -> true;
     }
 
-    private ResultSet(String[] names, Object[][] results, Predicate<Row> filter, int offset)
+    private QueryResult(String[] names, Object[][] results, Predicate<Row> filter, int offset)
     {
         this.names = names;
         this.results = results;
@@ -67,9 +67,9 @@ public class ResultSet implements Iterator<Row>
         return results.length;
     }
 
-    public ResultSet filter(Predicate<Row> fn)
+    public QueryResult filter(Predicate<Row> fn)
     {
-        return new ResultSet(names, results, filter.and(fn), offset);
+        return new QueryResult(names, results, filter.and(fn), offset);
     }
 
     public Object[][] toObjectArrays()

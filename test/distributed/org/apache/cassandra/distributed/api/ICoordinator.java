@@ -31,7 +31,7 @@ public interface ICoordinator
     {
         return executeWithResult(query, consistencyLevel, boundValues).toObjectArrays();
     }
-    ResultSet executeWithResult(String query, Enum<?> consistencyLevel, Object... boundValues);
+    QueryResult executeWithResult(String query, Enum<?> consistencyLevel, Object... boundValues);
 
     Iterator<Object[]> executeWithPaging(String query, Enum<?> consistencyLevel, int pageSize, Object... boundValues);
 

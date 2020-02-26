@@ -34,7 +34,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
-import org.apache.cassandra.distributed.api.ResultSet;
+import org.apache.cassandra.distributed.api.QueryResult;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.QueryPager;
@@ -53,7 +53,7 @@ public class Coordinator implements ICoordinator
     }
 
     @Override
-    public ResultSet executeWithResult(String query, Enum<?> consistencyLevel, Object... boundValues)
+    public QueryResult executeWithResult(String query, Enum<?> consistencyLevel, Object... boundValues)
     {
         return instance.sync(() -> executeInternal(query, consistencyLevel, boundValues)).call();
     }
@@ -73,7 +73,7 @@ public class Coordinator implements ICoordinator
         }).call();
     }
 
-    private ResultSet executeInternal(String query, Enum<?> consistencyLevelOrigin, Object[] boundValues)
+    private QueryResult executeInternal(String query, Enum<?> consistencyLevelOrigin, Object[] boundValues)
     {
         ClientState clientState = makeFakeClientState();
         CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
@@ -99,11 +99,11 @@ public class Coordinator implements ICoordinator
             ResultMessage.Rows rows = (ResultMessage.Rows) res;
             String[] names = rows.result.metadata.names.stream().map(c -> c.name.toString()).toArray(String[]::new);
             Object[][] results = RowUtil.toObjects(rows);
-            return new ResultSet(names, results);
+            return new QueryResult(names, results);
         }
         else
         {
-            return ResultSet.EMPTY;
+            return QueryResult.EMPTY;
         }
     }
 

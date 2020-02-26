@@ -28,7 +28,7 @@ import org.junit.Assert;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.NodeToolResult;
-import org.apache.cassandra.distributed.api.ResultSet;
+import org.apache.cassandra.distributed.api.QueryResult;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.IInvokableInstance;
@@ -65,22 +65,22 @@ public final class DistributedRepairUtils
         return cluster.get(node).callOnInstance(() -> StorageMetrics.repairExceptions.getCount());
     }
 
-    public static ResultSet queryParentRepairHistory(AbstractCluster<?> cluster, String ks, String table)
+    public static QueryResult queryParentRepairHistory(AbstractCluster<?> cluster, String ks, String table)
     {
         return queryParentRepairHistory(cluster, DEFAULT_COORDINATOR, ks, table);
     }
 
-    public static ResultSet queryParentRepairHistory(AbstractCluster<?> cluster, int coordinator, String ks, String table)
+    public static QueryResult queryParentRepairHistory(AbstractCluster<?> cluster, int coordinator, String ks, String table)
     {
         // This is kinda brittle since the caller never gets the ID and can't ask for the ID; it needs to infer the id
         // this logic makes the assumption the ks/table pairs are unique (should be or else create should fail) so any
         // repair for that pair will be the repair id
         Set<String> tableNames = table == null? Collections.emptySet() : ImmutableSet.of(table);
 
-        ResultSet rs = retryWithBackoffBlocking(10, () -> cluster.coordinator(coordinator)
-                                                                       .executeWithResult("SELECT * FROM system_distributed.parent_repair_history", ConsistencyLevel.QUORUM)
-                                                                       .filter(row -> ks.equals(row.getString("keyspace_name")))
-                                                                       .filter(row -> tableNames.equals(row.getSet("columnfamily_names"))));
+        QueryResult rs = retryWithBackoffBlocking(10, () -> cluster.coordinator(coordinator)
+                                                                   .executeWithResult("SELECT * FROM system_distributed.parent_repair_history", ConsistencyLevel.QUORUM)
+                                                                   .filter(row -> ks.equals(row.getString("keyspace_name")))
+                                                                   .filter(row -> tableNames.equals(row.getSet("columnfamily_names"))));
         return rs;
     }
 
@@ -91,7 +91,7 @@ public final class DistributedRepairUtils
 
     public static void assertParentRepairNotExist(AbstractCluster<?> cluster, int coordinator, String ks, String table)
     {
-        ResultSet rs = queryParentRepairHistory(cluster, coordinator, ks, table);
+        QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         Assert.assertFalse("No repairs should be found but at least one found", rs.hasNext());
     }
 
@@ -102,7 +102,7 @@ public final class DistributedRepairUtils
 
     public static void assertParentRepairNotExist(AbstractCluster<?> cluster, int coordinator, String ks)
     {
-        ResultSet rs = queryParentRepairHistory(cluster, coordinator, ks, null);
+        QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, null);
         Assert.assertFalse("No repairs should be found but at least one found", rs.hasNext());
     }
 
@@ -113,7 +113,7 @@ public final class DistributedRepairUtils
 
     public static void assertParentRepairSuccess(AbstractCluster<?> cluster, int coordinator, String ks, String table)
     {
-        ResultSet rs = queryParentRepairHistory(cluster, coordinator, ks, table);
+        QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         validateExistingParentRepair(rs, row -> {
             // check completed
             Assert.assertNotNull("finished_at not found, the repair is not complete?", rs.getTimestamp("finished_at"));
@@ -131,7 +131,7 @@ public final class DistributedRepairUtils
 
     public static void assertParentRepairFailedWithMessageContains(AbstractCluster<?> cluster, int coordinator, String ks, String table, String message)
     {
-        ResultSet rs = queryParentRepairHistory(cluster, coordinator, ks, table);
+        QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         validateExistingParentRepair(rs, row -> {
             // check completed
             Assert.assertNotNull("finished_at not found, the repair is not complete?", rs.getTimestamp("finished_at"));
@@ -145,7 +145,7 @@ public final class DistributedRepairUtils
         });
     }
 
-    private static void validateExistingParentRepair(ResultSet rs, Consumer<Row> fn)
+    private static void validateExistingParentRepair(QueryResult rs, Consumer<Row> fn)
     {
         Assert.assertTrue("No rows found", rs.hasNext());
         Row row = rs.next();
