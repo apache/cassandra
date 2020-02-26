@@ -142,7 +142,7 @@ public final class DistributedRepairUtils
         ResultSet rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         validateExistingParentRepair(rs, row -> {
             // check completed
-            Assert.assertNotNull("finished_at not found, alears the repair is not complete?", rs.getTimestamp("finished_at"));
+            Assert.assertNotNull("finished_at not found, the repair is not complete?", rs.getTimestamp("finished_at"));
 
             // check not failed (aka success)
             Assert.assertNull("Exception found", rs.getString("exception_stacktrace"));
@@ -160,7 +160,7 @@ public final class DistributedRepairUtils
         ResultSet rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         validateExistingParentRepair(rs, row -> {
             // check completed
-            Assert.assertNotNull("finished_at not found, alears the repair is not complete?", rs.getTimestamp("finished_at"));
+            Assert.assertNotNull("finished_at not found, the repair is not complete?", rs.getTimestamp("finished_at"));
 
             // check failed
             Assert.assertNotNull("Exception not found", rs.getString("exception_stacktrace"));
