@@ -114,7 +114,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     // Timestamp to prevent processing any in-flight messages for we've not send any SYN yet, see CASSANDRA-12653.
     volatile long firstSynSendAt = 0L;
 
-    public static final long aVeryLongTime = 259200 * 1000; // 3 days
+    public static final long aVeryLongTime = getVeryLongTime();
 
     // Maximimum difference between generation value and local time we are willing to accept about a peer
     static final int MAX_GENERATION_DIFFERENCE = 86400 * 365;
@@ -188,6 +188,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private final Supplier<Boolean> haveMajorVersion3NodesMemoized = Suppliers.memoizeWithExpiration(haveMajorVersion3NodesSupplier, 1, TimeUnit.MINUTES);
 
     private static final boolean disableThreadValidation = Boolean.getBoolean(Props.DISABLE_THREAD_VALIDATION);
+
+    private static long getVeryLongTime()
+    {
+        String newVLT =  System.getProperty("cassandra.very_long_time_ms");
+        if (newVLT != null)
+        {
+            logger.info("Overriding aVeryLongTime to {}ms", newVLT);
+            return Long.parseLong(newVLT);
+        }
+        return 259200 * 1000; // 3 days
+    }
 
     private static boolean isInGossipStage()
     {
