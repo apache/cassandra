@@ -20,11 +20,9 @@ package org.apache.cassandra.distributed.test;
 
 import java.util.Collections;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 
@@ -35,6 +33,8 @@ import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.IInvokableInstance;
 import org.apache.cassandra.metrics.StorageMetrics;
+
+import static org.apache.cassandra.utils.Retry.retryWithBackoffBlocking;
 
 public final class DistributedRepairUtils
 {
@@ -76,37 +76,11 @@ public final class DistributedRepairUtils
         // this logic makes the assumption the ks/table pairs are unique (should be or else create should fail) so any
         // repair for that pair will be the repair id
         Set<String> tableNames = table == null? Collections.emptySet() : ImmutableSet.of(table);
-        ResultSet rs = null;
-        Exception latestException = null;
-        for (int i = 0; i < 10; i++)
-        {
-            try
-            {
-                rs = cluster.coordinator(coordinator)
-                            .executeWithResult("SELECT * FROM system_distributed.parent_repair_history", ConsistencyLevel.QUORUM)
-                            .filter(row -> ks.equals(row.getString("keyspace_name")))
-                            .filter(row -> tableNames.equals(row.getSet("columnfamily_names")));
-                break;
-            }
-            catch (Exception e)
-            {
-                latestException = e;
-                rs = null;
-                //TODO do we have a backoff stategy I can leverage?  I would prefer expotential but don't want to add for somethinr minor
-                Uninterruptibles.sleepUninterruptibly( (i + 1) * 300, TimeUnit.MILLISECONDS);
-            }
-        }
-        if (rs == null)
-        {
-            // exception should exist
-            if (latestException == null)
-            {
-                Assert.fail("Unable to query system_distributed.parent_repair_history, got back neither result set or exception ");
-            }
-            if (latestException instanceof RuntimeException)
-                throw (RuntimeException) latestException;
-            throw new RuntimeException(latestException);
-        }
+
+        ResultSet rs = retryWithBackoffBlocking(10, () -> cluster.coordinator(coordinator)
+                                                                       .executeWithResult("SELECT * FROM system_distributed.parent_repair_history", ConsistencyLevel.QUORUM)
+                                                                       .filter(row -> ks.equals(row.getString("keyspace_name")))
+                                                                       .filter(row -> tableNames.equals(row.getSet("columnfamily_names"))));
         return rs;
     }
 
