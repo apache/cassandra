@@ -82,6 +82,7 @@ import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Either;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
@@ -227,13 +228,13 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     public void run()
     {
         try {
-            Pair<Context, String> setup = setup();
-            if (setup.right != null)
+            Either<Context, String> setup = setup();
+            if (setup.isRight())
             {
-                skip(setup.right);
+                skip(setup.toRight().getValue());
                 return;
             }
-            Context ctx = setup.left;
+            Context ctx = setup.toLeft().getValue();
             assert ctx != null : "Context is required but was not found";
             this.context = ctx;
             start(ctx);
@@ -245,7 +246,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private Pair<Context, String> setup() throws Exception
+    private Either<Context, String> setup() throws Exception
     {
         ActiveRepairService.instance.recordRepairStatus(cmd, ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
 
@@ -255,7 +256,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         if (Iterables.isEmpty(validColumnFamilies))
         {
-            return Pair.create(null, String.format("Empty keyspace, skipping repair: %s", keyspace));
+            return Either.right(String.format("Empty keyspace, skipping repair: %s", keyspace));
         }
 
         final TraceState traceState;
@@ -328,7 +329,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             allNeighbors = actualNeighbors;
         }
 
-        return Pair.create(new Context(traceState, allNeighbors, commonRanges, columnFamilyStores, cfnames, force), null);
+        return Either.left(new Context(traceState, allNeighbors, commonRanges, columnFamilyStores, cfnames, force));
     }
 
     private void start(Context ctx) throws Exception
