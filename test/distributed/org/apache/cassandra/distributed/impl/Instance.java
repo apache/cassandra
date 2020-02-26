@@ -29,7 +29,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
 import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
 import javax.management.NotificationListener;
@@ -558,19 +557,19 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
     {
         return sync(() -> {
-            DtestNodeTool nodetool = new DtestNodeTool(withNotifications);
+            DTestNodeTool nodetool = new DTestNodeTool(withNotifications);
             int rc =  nodetool.execute(commandAndArgs);
             return new NodeToolResult(commandAndArgs, rc, new ArrayList<>(nodetool.notifications.notifications), nodetool.latestError);
         }).call();
     }
 
-    private static class DtestNodeTool extends NodeTool {
+    private static class DTestNodeTool extends NodeTool {
         private final StorageServiceMBean storageProxy;
         private final CollectingNotificationListener notifications = new CollectingNotificationListener();
 
         private Throwable latestError;
 
-        DtestNodeTool(boolean withNotifications) {
+        DTestNodeTool(boolean withNotifications) {
             super(new InternalNodeProbeFactory(withNotifications));
             storageProxy = InternalNodeProbe.create(withNotifications).getStorageService();
             storageProxy.addNotificationListener(notifications, null, null);
