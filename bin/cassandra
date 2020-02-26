@@ -27,6 +27,7 @@
 # behavior, those variables are:
 #
 #   CLASSPATH -- A Java classpath containing everything necessary to run.
+#   EXTRA_CLASSPATH -- A Java classpath with anything to be appended to CLASSPATH
 #   JVM_OPTS -- Additional arguments to the JVM for heap size, etc
 #   JVM_ON_OUT_OF_MEMORY_ERROR_OPT -- The OnOutOfMemoryError JVM option if specified
 #   CASSANDRA_CONF -- Directory containing Cassandra configuration files.

@@ -1,6 +1,8 @@
 3.11.7
 Merged from 3.0:
  * Run evictFromMembership in GossipStage (CASSANDRA-15592)
+Merged from 2.2
+ * Allow EXTRA_CLASSPATH to work on tar/source installations (CASSANDRA-15567)
 
 
 3.11.6
@@ -28,6 +30,9 @@ Merged from 3.0:
  * Ensure legacy rows have primary key livenessinfo when they contain illegal cells (CASSANDRA-15365)
  * Fix race condition when setting bootstrap flags (CASSANDRA-14878)
 Merged from 2.2:
+ * Fix NativeLibrary.tryOpenDirectory callers for Windows (CASSANDRA-15426)
+
+2.2.16
  * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
  * In-JVM DTest: Support NodeTool in dtest (CASSANDRA-15429)
