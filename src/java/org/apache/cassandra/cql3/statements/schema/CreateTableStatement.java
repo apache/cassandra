@@ -31,6 +31,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -206,11 +207,29 @@ public final class CreateTableStatement extends AlterSchemaStatement
             boolean reverse = !clusteringOrder.getOrDefault(column, true);
             clusteringTypes.add(reverse ? ReversedType.getInstance(type.getType()) : type.getType());
         });
+        
+        if (!clusteringOrder.isEmpty())
+        {
+            if(clusteringOrder.size() > clusteringColumns.size())
+            {
+                throw new InvalidRequestException("Only clustering key columns can be defined in CLUSTERING ORDER directive");
+            }
 
-        // If we give a clustering order, we must explicitly do so for all aliases and in the order of the PK
-        // This wasn't previously enforced because of a bug in the implementation
-        if (!clusteringOrder.isEmpty() && !clusteringColumns.equals(new ArrayList<>(clusteringOrder.keySet())))
-            throw ire("Clustering key columns must exactly match columns in CLUSTERING ORDER BY directive");
+            int n = 0;
+            for (ColumnIdentifier id : clusteringOrder.keySet())
+            {
+                ColumnIdentifier c = clusteringColumns.get(n);
+                if (!id.equals(c))
+                {
+                    if (clusteringOrder.containsKey(c))
+                        throw new InvalidRequestException(String.format("The order of columns in the CLUSTERING ORDER directive must be the one of the clustering key (%s must appear before %s)", c, id));
+                    else
+                        throw new InvalidRequestException(String.format("Missing CLUSTERING ORDER for column %s", c));
+                }
+                ++n;
+            }
+        }
+
 
         // Static columns only make sense if we have at least one clustering column. Otherwise everything is static anyway
         if (clusteringColumns.isEmpty() && !staticColumns.isEmpty())

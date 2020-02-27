@@ -2,6 +2,7 @@
  * Correct inaccurate logging message (CASSANDRA-15549)
  * Add documentation of dynamo (CASSANDRA-15486)
  * Added documentation for Guarantees (CASSANDRA-15482)
+ * Reverted to the original behavior of "CLUSTERING ORDER" on "CREATE TABLE"(CASSANDRA-15271)
  * Added documentation for audit logging (CASSANDRA-15474)
  * Unset GREP_OPTIONS (CASSANDRA-14487)
  * Added streaming documentation (CASSANDRA-15477)
