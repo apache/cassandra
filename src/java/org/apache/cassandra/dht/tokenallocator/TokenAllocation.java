@@ -255,7 +255,7 @@ public class TokenAllocation
                 ? topology.getDatacenterRacks().get(dc).asMap().size()
                 : 1;
 
-        if (racks >= replicas)
+        if (racks > replicas)
         {
             return new StrategyAdapter()
             {
@@ -275,6 +275,32 @@ public class TokenAllocation
                 public boolean inAllocationRing(InetAddressAndPort other)
                 {
                     return dc.equals(snitch.getDatacenter(other));
+                }
+            };
+        }
+        else if (racks == replicas)
+        {
+            // When the number of racks is the same as the replication factor, everything must replicate exactly once
+            // in each rack. This is the same as having independent rings from each rack.
+            final String rack = snitch.getRack(endpoint);
+            return new StrategyAdapter()
+            {
+                @Override
+                public int replicas()
+                {
+                    return 1;
+                }
+
+                @Override
+                public Object getGroup(InetAddressAndPort unit)
+                {
+                    return unit;
+                }
+
+                @Override
+                public boolean inAllocationRing(InetAddressAndPort other)
+                {
+                    return dc.equals(snitch.getDatacenter(other)) && rack.equals(snitch.getRack(other));
                 }
             };
         }
