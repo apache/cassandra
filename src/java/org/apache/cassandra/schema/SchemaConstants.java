@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.utils.HashingUtils;
+import org.apache.cassandra.db.Digest;
 
 public final class SchemaConstants
 {
@@ -66,7 +66,7 @@ public final class SchemaConstants
 
     static
     {
-        emptyVersion = UUID.nameUUIDFromBytes(HashingUtils.CURRENT_HASH_FUNCTION.newHasher().hash().asBytes());
+        emptyVersion = UUID.nameUUIDFromBytes(Digest.forSchema().digest());
     }
 
     /**

@@ -1400,6 +1400,8 @@ public final class SystemKeyspace
         String previous = getPreviousVersionString();
         String next = FBUtilities.getReleaseVersionString();
 
+        FBUtilities.setPreviousReleaseVersionString(previous);
+
         // if we're restarting after an upgrade, snapshot the system and schema keyspaces
         if (!previous.equals(NULL_VERSION.toString()) && !previous.equals(next))
 

@@ -46,7 +46,7 @@ public class MD5Digest
         @Override
         protected MessageDigest initialValue()
         {
-            return HashingUtils.newMessageDigest("MD5");
+            return FBUtilities.newMessageDigest("MD5");
         }
 
         @Override

@@ -89,10 +89,9 @@ final class ScriptBasedUDFunction extends UDFunction
     "com.google.common.collect",
     "com.google.common.reflect",
     // following required by UDF
-    "com.datastax.driver.core",
-    "com.datastax.driver.core.utils",
-    //Driver Metadata class requires hashmap from this
-    "com.datastax.shaded.netty.util.collection"
+    "org.apache.cassandra.cql3.functions.types",
+    "org.apache.cassandra.cql3.functions.types.exceptions",
+    "org.apache.cassandra.cql3.functions.types.utils"
     };
 
     // use a JVM standard ExecutorService as DebuggableThreadPoolExecutor references internal

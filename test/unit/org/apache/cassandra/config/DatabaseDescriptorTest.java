@@ -26,7 +26,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 
+import com.google.common.base.Throwables;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -203,6 +205,67 @@ public class DatabaseDescriptorTest
         DatabaseDescriptor.applyAddressConfig(testConfig);
 
     }
+
+    @Test
+    public void testInvalidPartition() throws Exception
+    {
+        Config testConfig = DatabaseDescriptor.loadConfig();
+        testConfig.partitioner = "ThisDoesNotExist";
+
+        try
+        {
+            DatabaseDescriptor.applyPartitioner(testConfig);
+            Assert.fail("Partition does not exist, so should fail");
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.assertEquals("Invalid partitioner class ThisDoesNotExist", e.getMessage());
+            Throwable cause = Throwables.getRootCause(e);
+            Assert.assertNotNull("Unable to find root cause why partitioner was rejected", cause);
+            // this is a bit implementation specific, so free to change; mostly here to make sure reason isn't lost
+            Assert.assertEquals(ClassNotFoundException.class, cause.getClass());
+            Assert.assertEquals("org.apache.cassandra.dht.ThisDoesNotExist", cause.getMessage());
+        }
+    }
+
+    @Test
+    public void testInvalidPartitionPropertyOverride() throws Exception
+    {
+        String key = Config.PROPERTY_PREFIX + "partitioner";
+        String previous = System.getProperty(key);
+        try
+        {
+            System.setProperty(key, "ThisDoesNotExist");
+            Config testConfig = DatabaseDescriptor.loadConfig();
+            testConfig.partitioner = "Murmur3Partitioner";
+
+            try
+            {
+                DatabaseDescriptor.applyPartitioner(testConfig);
+                Assert.fail("Partition does not exist, so should fail");
+            }
+            catch (ConfigurationException e)
+            {
+                Assert.assertEquals("Invalid partitioner class ThisDoesNotExist", e.getMessage());
+                Throwable cause = Throwables.getRootCause(e);
+                Assert.assertNotNull("Unable to find root cause why partitioner was rejected", cause);
+                // this is a bit implementation specific, so free to change; mostly here to make sure reason isn't lost
+                Assert.assertEquals(ClassNotFoundException.class, cause.getClass());
+                Assert.assertEquals("org.apache.cassandra.dht.ThisDoesNotExist", cause.getMessage());
+            }
+        }
+        finally
+        {
+            if (previous == null)
+            {
+                System.getProperties().remove(key);
+            }
+            else
+            {
+                System.setProperty(key, previous);
+            }
+        }
+    }
     
     @Test
     public void testTokensFromString()
@@ -211,6 +274,57 @@ public class DatabaseDescriptorTest
         Collection<String> tokens = DatabaseDescriptor.tokensFromString(" a,b ,c , d, f,g,h");
         assertEquals(7, tokens.size());
         assertTrue(tokens.containsAll(Arrays.asList(new String[]{"a", "b", "c", "d", "f", "g", "h"})));
+    }
+
+    @Test
+    public void testExceptionsForInvalidConfigValues() {
+        try
+        {
+            DatabaseDescriptor.setColumnIndexCacheSize(-1);
+            fail("Should have received a ConfigurationException column_index_cache_size_in_kb = -1");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(2048, DatabaseDescriptor.getColumnIndexCacheSize());
+
+        try
+        {
+            DatabaseDescriptor.setColumnIndexCacheSize(2 * 1024 * 1024);
+            fail("Should have received a ConfigurationException column_index_cache_size_in_kb = 2GiB");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(2048, DatabaseDescriptor.getColumnIndexCacheSize());
+
+        try
+        {
+            DatabaseDescriptor.setColumnIndexSize(-1);
+            fail("Should have received a ConfigurationException column_index_size_in_kb = -1");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
+
+        try
+        {
+            DatabaseDescriptor.setColumnIndexSize(2 * 1024 * 1024);
+            fail("Should have received a ConfigurationException column_index_size_in_kb = 2GiB");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
+
+        try
+        {
+            DatabaseDescriptor.setBatchSizeWarnThresholdInKB(-1);
+            fail("Should have received a ConfigurationException batch_size_warn_threshold_in_kb = -1");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(5120, DatabaseDescriptor.getBatchSizeWarnThreshold());
+
+        try
+        {
+            DatabaseDescriptor.setBatchSizeWarnThresholdInKB(2 * 1024 * 1024);
+            fail("Should have received a ConfigurationException batch_size_warn_threshold_in_kb = 2GiB");
+        }
+        catch (ConfigurationException ignored) { }
+        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
     }
 
     @Test

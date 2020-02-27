@@ -27,6 +27,7 @@
 # behavior, those variables are:
 #
 #   CLASSPATH -- A Java classpath containing everything necessary to run.
+#   EXTRA_CLASSPATH -- A Java classpath with anything to be appended to CLASSPATH
 #   JVM_OPTS -- Additional arguments to the JVM for heap size, etc
 #   JVM_ON_OUT_OF_MEMORY_ERROR_OPT -- The OnOutOfMemoryError JVM option if specified
 #   CASSANDRA_CONF -- Directory containing Cassandra configuration files.
@@ -65,6 +66,12 @@
 
 # NB: Developers should be aware that this script should remain compatible with
 # POSIX sh and Solaris sh. This means, in particular, no $(( )) and no $( ).
+
+# Unset any grep options that may include `--color=always` per say.
+# Using `unset GREP_OPTIONS` will also work on the non-deprecated use case
+# of setting a new grep alias.
+# See CASSANDRA-14487 for more details.
+unset GREP_OPTIONS
 
 # If an include wasn't specified in the environment, then search for one...
 

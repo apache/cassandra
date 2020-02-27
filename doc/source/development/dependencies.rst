@@ -39,7 +39,6 @@ POM file types
 * **build-deps-pom(-sources)** + **coverage-deps-pom** - used by ``ant build`` compile target. Listed dependenices will be resolved and copied to ``build/lib/{jar,sources}`` by executing the ``maven-ant-tasks-retrieve-build`` target. This should contain libraries that are required for build tools (grammar, docs, instrumentation), but are not shipped as part of the Cassandra distribution.
 * **test-deps-pom** - refered by ``maven-ant-tasks-retrieve-test`` to retrieve and save dependencies to ``build/test/lib``. Exclusively used during JUnit test execution.
 * **all-pom** - pom for `cassandra-all.jar <https://mvnrepository.com/artifact/org.apache.cassandra/cassandra-all>`_ that can be installed or deployed to public maven repos via ``ant publish``
-* **dist-pom** - pom for tarball distribution (cassandra-{bin,src}.tar.gz) created by ``ant artifacts``. Should be left as is, but needed for installing or deploying releases.
 
 
 Troubleshooting and conflict resolution

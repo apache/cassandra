@@ -276,7 +276,7 @@ providers are available; the first based on standard JMX security and the second
 Cassandra's own auth subsystem.
 
 The default settings for Cassandra make JMX accessible only from localhost. To enable remote JMX connections, edit
-``cassandra-env.sh`` (or ``cassandra-env.ps1`` on Windows) to change the ``LOCAL_JMX`` setting to ``yes``. Under the
+``cassandra-env.sh`` (or ``cassandra-env.ps1`` on Windows) to change the ``LOCAL_JMX`` setting to ``no``. Under the
 standard configuration, when remote JMX connections are enabled, :ref:`standard JMX authentication <standard-jmx-auth>`
 is also switched on.
 

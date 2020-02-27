@@ -88,11 +88,19 @@ public final class FileUtils
             ByteBuffer buf = ByteBuffer.allocateDirect(1);
             clean(buf);
         }
+        catch (IllegalAccessException e)
+        {
+            logger.error("FATAL: Cassandra is unable to access required classes. This usually means it has been " +
+                "run without the aid of the standard startup scripts or the scripts have been edited. If this was " +
+                "intentional, and you are attempting to use Java 11+ you may need to add the --add-exports and " +
+                "--add-opens jvm options from either jvm11-server.options or jvm11-client.options");
+            throw new RuntimeException(e);  // causes ExceptionInInitializerError, will prevent startup
+        }
         catch (Throwable t)
         {
-            logger.error("FATAL: Cannot initialize optimized memory deallocator. Some data, both in-memory and on-disk, may live longer due to garbage collection.");
+            logger.error("FATAL: Cannot initialize optimized memory deallocator.");
             JVMStabilityInspector.inspectThrowable(t);
-            throw new RuntimeException(t);
+            throw new RuntimeException(t); // causes ExceptionInInitializerError, will prevent startup
         }
     }
 

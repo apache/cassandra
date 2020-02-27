@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
-import com.google.common.hash.Hasher;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.exceptions.UnknownColumnException;
@@ -37,7 +36,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HashingUtils;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
@@ -375,10 +373,10 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         return column -> iter.next(column) != null;
     }
 
-    public void digest(Hasher hasher)
+    public void digest(Digest digest)
     {
         for (ColumnMetadata c : this)
-            HashingUtils.updateBytes(hasher, c.name.bytes.duplicate());
+            digest.update(c.name.bytes);
     }
 
     /**

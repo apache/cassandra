@@ -21,14 +21,12 @@ import java.util.*;
 import java.util.function.Consumer;
 
 import com.google.common.base.Predicate;
-import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Commit;
-import org.apache.cassandra.utils.HashingUtils;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
@@ -391,10 +389,10 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             return time.deletes(cell);
         }
 
-        public void digest(Hasher hasher)
+        public void digest(Digest digest)
         {
-            time.digest(hasher);
-            HashingUtils.updateWithBoolean(hasher, isShadowable);
+            time.digest(digest);
+            digest.updateWithBoolean(isShadowable);
         }
 
         public int dataSize()
@@ -766,7 +764,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                 if (column == null)
                     return true;
 
-                return AbstractTypeVersionComparator.INSTANCE.compare(column.type, dataColumn.type) < 0;
+                return ColumnMetadataVersionComparator.INSTANCE.compare(column, dataColumn) < 0;
             }
 
             @SuppressWarnings("resource")

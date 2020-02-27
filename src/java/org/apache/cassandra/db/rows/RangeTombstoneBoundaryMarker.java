@@ -20,8 +20,6 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import com.google.common.hash.Hasher;
-
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
@@ -150,11 +148,11 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
         return new RangeTombstoneBoundMarker(openBound(reversed), openDeletionTime(reversed));
     }
 
-    public void digest(Hasher hasher)
+    public void digest(Digest digest)
     {
-        bound.digest(hasher);
-        endDeletion.digest(hasher);
-        startDeletion.digest(hasher);
+        bound.digest(digest);
+        endDeletion.digest(digest);
+        startDeletion.digest(digest);
     }
 
     public String toString(TableMetadata metadata)

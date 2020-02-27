@@ -69,6 +69,8 @@ public class ColumnIndex
 
     private DeletionTime openMarker;
 
+    private int cacheSizeThreshold;
+
     private final Collection<SSTableFlushObserver> observers;
 
     public ColumnIndex(SerializationHeader header,
@@ -97,9 +99,12 @@ public class ColumnIndex
         this.firstClustering = null;
         this.lastClustering = null;
         this.openMarker = null;
-        if (this.buffer != null)
+
+        int newCacheSizeThreshold = DatabaseDescriptor.getColumnIndexCacheSize();
+        if (this.buffer != null && this.cacheSizeThreshold == newCacheSizeThreshold)
             this.reusableBuffer = this.buffer;
         this.buffer = null;
+        this.cacheSizeThreshold = newCacheSizeThreshold;
     }
 
     public void buildRowIndex(UnfilteredRowIterator iterator) throws IOException
@@ -139,7 +144,7 @@ public class ColumnIndex
 
     public List<IndexInfo> indexSamples()
     {
-        if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) <= DatabaseDescriptor.getColumnIndexCacheSize())
+        if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) <= cacheSizeThreshold)
         {
             return indexSamples;
         }
@@ -197,7 +202,7 @@ public class ColumnIndex
         if (buffer == null)
         {
             indexSamplesSerializedSize += idxSerializer.serializedSize(cIndexInfo);
-            if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) > DatabaseDescriptor.getColumnIndexCacheSize())
+            if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) > cacheSizeThreshold)
             {
                 buffer = reuseOrAllocateBuffer();
                 for (IndexInfo indexSample : indexSamples)
@@ -210,7 +215,7 @@ public class ColumnIndex
                 indexSamples.add(cIndexInfo);
             }
         }
-        // don't put an else here...
+        // don't put an else here since buffer may be allocated in preceding if block
         if (buffer != null)
         {
             idxSerializer.serialize(cIndexInfo, buffer);
@@ -229,7 +234,7 @@ public class ColumnIndex
             return buffer;
         }
         // don't use the standard RECYCLER as that only recycles up to 1MB and requires proper cleanup
-        return new DataOutputBuffer(DatabaseDescriptor.getColumnIndexCacheSize() * 2);
+        return new DataOutputBuffer(cacheSizeThreshold * 2);
     }
 
     private void add(Unfiltered unfiltered) throws IOException

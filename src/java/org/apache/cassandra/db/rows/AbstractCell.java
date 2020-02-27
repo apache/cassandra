@@ -20,16 +20,15 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import com.google.common.hash.Hasher;
-
-import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.HashingUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
@@ -120,22 +119,18 @@ public abstract class AbstractCell extends Cell
                + (path == null ? 0 : path.dataSize());
     }
 
-    public void digest(Hasher hasher)
+    public void digest(Digest digest)
     {
         if (isCounterCell())
-        {
-            CounterContext.instance().updateDigest(hasher, value());
-        }
+            digest.updateWithCounterContext(value());
         else
-        {
-            HashingUtils.updateBytes(hasher, value().duplicate());
-        }
+            digest.update(value());
 
-        HashingUtils.updateWithLong(hasher, timestamp());
-        HashingUtils.updateWithInt(hasher, ttl());
-        HashingUtils.updateWithBoolean(hasher, isCounterCell());
+        digest.updateWithLong(timestamp())
+              .updateWithInt(ttl())
+              .updateWithBoolean(isCounterCell());
         if (path() != null)
-            path().digest(hasher);
+            path().digest(digest);
     }
 
     public void validate()
@@ -210,7 +205,19 @@ public abstract class AbstractCell extends Cell
         if (isTombstone())
             return String.format("[%s=<tombstone> %s]", column().name, livenessInfoString());
         else
-            return String.format("[%s=%s %s]", column().name, type.getString(value()), livenessInfoString());
+            return String.format("[%s=%s %s]", column().name, safeToString(type, value()), livenessInfoString());
+    }
+
+    private static String safeToString(AbstractType<?> type, ByteBuffer data)
+    {
+        try
+        {
+            return type.getString(data);
+        }
+        catch (Exception e)
+        {
+            return "0x" + ByteBufferUtil.bytesToHex(data);
+        }
     }
 
     private String livenessInfoString()

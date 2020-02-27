@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NativeLibrary;
 
 /**
@@ -54,7 +55,7 @@ final class LogReplica implements AutoCloseable
     static LogReplica create(File directory, String fileName)
     {
         int folderFD = NativeLibrary.tryOpenDirectory(directory.getPath());
-        if (folderFD == -1)
+        if (folderFD == -1 && !FBUtilities.isWindows)
             throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", directory.getPath())), directory.getPath());
 
         return new LogReplica(new File(fileName), folderFD);
@@ -63,7 +64,7 @@ final class LogReplica implements AutoCloseable
     static LogReplica open(File file)
     {
         int folderFD = NativeLibrary.tryOpenDirectory(file.getParentFile().getPath());
-        if (folderFD == -1)
+        if (folderFD == -1 && !FBUtilities.isWindows)
             throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", file.getParentFile().getPath())), file.getParentFile().getPath());
 
         return new LogReplica(file, folderFD);

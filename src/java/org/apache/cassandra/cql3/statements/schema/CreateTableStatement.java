@@ -27,10 +27,8 @@ import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -207,10 +205,22 @@ public final class CreateTableStatement extends AlterSchemaStatement
             clusteringTypes.add(reverse ? ReversedType.getInstance(type.getType()) : type.getType());
         });
 
-        // If we give a clustering order, we must explicitly do so for all aliases and in the order of the PK
-        // This wasn't previously enforced because of a bug in the implementation
-        if (!clusteringOrder.isEmpty() && !clusteringColumns.equals(new ArrayList<>(clusteringOrder.keySet())))
-            throw ire("Clustering key columns must exactly match columns in CLUSTERING ORDER BY directive");
+        if (clusteringOrder.size() > clusteringColumns.size())
+            throw ire("Only clustering columns can be defined in CLUSTERING ORDER directive");
+
+        int n = 0;
+        for (ColumnIdentifier id : clusteringOrder.keySet())
+        {
+            ColumnIdentifier c = clusteringColumns.get(n);
+            if (!id.equals(c))
+            {
+                if (clusteringOrder.containsKey(c))
+                    throw ire("The order of columns in the CLUSTERING ORDER directive must match that of the clustering columns (%s must appear before %s)", c, id);
+                else
+                    throw ire("Missing CLUSTERING ORDER for column %s", c);
+            }
+            ++n;
+        }
 
         // Static columns only make sense if we have at least one clustering column. Otherwise everything is static anyway
         if (clusteringColumns.isEmpty() && !staticColumns.isEmpty())

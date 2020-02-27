@@ -96,6 +96,7 @@ import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -1535,24 +1536,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         BootStrapper bootstrapper = new BootStrapper(FBUtilities.getBroadcastAddressAndPort(), tokens, tokenMetadata);
         bootstrapper.addProgressListener(progressSupport);
         ListenableFuture<StreamState> bootstrapStream = bootstrapper.bootstrap(streamStateStore, useStrictConsistency && !replacing); // handles token update
-        Futures.addCallback(bootstrapStream, new FutureCallback<StreamState>()
-        {
-            @Override
-            public void onSuccess(StreamState streamState)
-            {
-                bootstrapFinished();
-                logger.info("Bootstrap completed! for the tokens {}", tokens);
-            }
-
-            @Override
-            public void onFailure(Throwable e)
-            {
-                logger.warn("Error during bootstrap.", e);
-            }
-        }, MoreExecutors.directExecutor());
         try
         {
             bootstrapStream.get();
+            bootstrapFinished();
+            logger.info("Bootstrap completed for tokens {}", tokens);
             return true;
         }
         catch (Throwable e)
@@ -5365,6 +5353,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setTombstoneFailureThreshold(threshold);
     }
 
+    public int getColumnIndexCacheSize()
+    {
+        return DatabaseDescriptor.getColumnIndexCacheSizeInKB();
+    }
+
+    public void setColumnIndexCacheSize(int cacheSizeInKB)
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(cacheSizeInKB);
+        logger.info("Updated column_index_cache_size_in_kb to {}", cacheSizeInKB);
+    }
+
     public int getBatchSizeFailureThreshold()
     {
         return DatabaseDescriptor.getBatchSizeFailThresholdInKB();
@@ -5447,6 +5446,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.valueOf(strategy));
         logger.info("Setting corrupted tombstone strategy to {}", strategy);
+    }
+
+    @Override
+    public long getNativeTransportMaxConcurrentRequestsInBytes()
+    {
+        return Server.EndpointPayloadTracker.getGlobalLimit();
+    }
+
+    @Override
+    public void setNativeTransportMaxConcurrentRequestsInBytes(long newLimit)
+    {
+        Server.EndpointPayloadTracker.setGlobalLimit(newLimit);
+    }
+
+    @Override
+    public long getNativeTransportMaxConcurrentRequestsInBytesPerIp()
+    {
+        return Server.EndpointPayloadTracker.getEndpointLimit();
+    }
+
+    @Override
+    public void setNativeTransportMaxConcurrentRequestsInBytesPerIp(long newLimit)
+    {
+        Server.EndpointPayloadTracker.setEndpointLimit(newLimit);
     }
 
     @VisibleForTesting

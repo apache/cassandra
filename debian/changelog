@@ -1,8 +1,14 @@
-cassandra (4.0~alpha3) UNRELEASED; urgency=medium
+cassandra (4.0~alpha4) UNRELEASED; urgency=medium
 
   * New release
 
- -- Michael Shuler <mshuler@apache.org>  Tue, 29 Oct 2019 16:16:36 -0500
+ --
+
+cassandra (4.0~alpha3) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Mon, 30 Jan 2020 19:28:04 +0100
 
 cassandra (4.0~alpha2) unstable; urgency=medium
 
