@@ -34,6 +34,11 @@ import java.util.function.Supplier;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 
+/**
+ * Class for retryable actions.
+ *
+ * @see {@link #retryWithBackoff(int, Supplier, Predicate)}
+ */
 public final class Retry
 {
     private static final ScheduledExecutorService SCHEDULED = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("RetryScheduler"));
@@ -43,11 +48,29 @@ public final class Retry
 
     }
 
+    /**
+     * Schedule code to run after the defined duration.
+     *
+     * Since a executor was not defined, the global {@link ForkJoinPool#commonPool()} executor will be used, if this
+     * is not desirable then should use {@link #schedule(Duration, Executor, Runnable)}.
+     *
+     * @param duration how long to delay
+     * @param fn code to run
+     * @return future representing result
+     */
     public static CompletableFuture<Void> schedule(final Duration duration, final Runnable fn)
     {
         return schedule(duration, ForkJoinPool.commonPool(), fn);
     }
 
+    /**
+     * Schedule code to run after the defined duration on the provided executor.
+     *
+     * @param duration how long to delay
+     * @param executor to run on
+     * @param fn code to run
+     * @return future representing result
+     */
     public static CompletableFuture<Void> schedule(final Duration duration, final Executor executor, final Runnable fn)
     {
         long nanos = duration.toNanos();
@@ -78,6 +101,14 @@ public final class Retry
         }
     }
 
+    /**
+     * Continously attempting to call the provided future supplier until successful or until no longer able to retry.
+     *
+     * @param maxRetries to allow
+     * @param fn asyncronous operation to retry
+     * @param retryableException used to say if retry is allowed
+     * @return future representing the result.  If retries were not able to get a successful result, the exception is the last exception seen.
+     */
     public static <A> CompletableFuture<A> retryWithBackoff(final int maxRetries,
                                                             final Supplier<CompletableFuture<A>> fn,
                                                             final Predicate<Throwable> retryableException)
@@ -87,12 +118,19 @@ public final class Retry
         return future;
     }
 
-    public static <A> A retryWithBackoffBlocking(final int maxRetries,
-                                                 final Supplier<A> fn)
+    /**
+     * This is the same as {@link #retryWithBackoff(int, Supplier, Predicate)}, but takes a blocking retryable action
+     * and blocks the caller until done.
+     */
+    public static <A> A retryWithBackoffBlocking(final int maxRetries, final Supplier<A> fn)
     {
         return retryWithBackoffBlocking(maxRetries, fn, (ignore) -> true);
     }
 
+    /**
+     * This is the same as {@link #retryWithBackoff(int, Supplier, Predicate)}, but takes a blocking retryable action
+     * and blocks the caller until done.
+     */
     public static <A> A retryWithBackoffBlocking(final int maxRetries,
                                                  final Supplier<A> fn,
                                                  final Predicate<Throwable> retryableException)
@@ -165,6 +203,9 @@ public final class Retry
         }
     }
 
+    /**
+     * Compute a expoential delay based off the retry count and min/max delay.
+     */
     private static long computeSleepTimeMillis(int retryCount, long baseSleepTimeMillis, long maxSleepMillis)
     {
         long baseTime = baseSleepTimeMillis * (1L << retryCount);
