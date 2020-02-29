@@ -116,11 +116,11 @@ public final class DistributedRepairUtils
         QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         validateExistingParentRepair(rs, row -> {
             // check completed
-            Assert.assertNotNull("finished_at not found, the repair is not complete?", rs.getTimestamp("finished_at"));
+            Assert.assertNotNull("finished_at not found, the repair is not complete?", row.getTimestamp("finished_at"));
 
             // check not failed (aka success)
-            Assert.assertNull("Exception found", rs.getString("exception_stacktrace"));
-            Assert.assertNull("Exception found", rs.getString("exception_message"));
+            Assert.assertNull("Exception found", row.getString("exception_stacktrace"));
+            Assert.assertNull("Exception found", row.getString("exception_message"));
         });
     }
 
@@ -134,11 +134,11 @@ public final class DistributedRepairUtils
         QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         validateExistingParentRepair(rs, row -> {
             // check completed
-            Assert.assertNotNull("finished_at not found, the repair is not complete?", rs.getTimestamp("finished_at"));
+            Assert.assertNotNull("finished_at not found, the repair is not complete?", row.getTimestamp("finished_at"));
 
             // check failed
-            Assert.assertNotNull("Exception not found", rs.getString("exception_stacktrace"));
-            String exceptionMessage = rs.getString("exception_message");
+            Assert.assertNotNull("Exception not found", row.getString("exception_stacktrace"));
+            String exceptionMessage = row.getString("exception_message");
             Assert.assertNotNull("Exception not found", exceptionMessage);
 
             Assert.assertTrue("Unable to locate message '" + message + "' in repair error message: " + exceptionMessage, exceptionMessage.contains(message));

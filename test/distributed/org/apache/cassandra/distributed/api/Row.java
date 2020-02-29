@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.api;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
@@ -28,6 +29,13 @@ import javax.annotation.Nullable;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 
+/**
+ * Data representing a single row in a query result.
+ *
+ * This class is mutable from the parent {@link QueryResult} and can have the row it points to changed between calls
+ * to {@link QueryResult#hasNext()}, for this reason it is unsafe to hold reference to this class after that call;
+ * to get around this, a call to {@link #copy()} will return a new object pointing to the same row.
+ */
 public class Row
 {
     private final ObjectIntMap<String> nameIndex;
@@ -35,6 +43,7 @@ public class Row
 
     public Row(String[] names)
     {
+        Objects.requireNonNull(names, "names");
         this.nameIndex = new ObjectIntHashMap<>(names.length);
         for (int i = 0; i < names.length; i++) {
             nameIndex.put(names[i], i);
@@ -51,6 +60,9 @@ public class Row
         this.results = results;
     }
 
+    /**
+     * Creates a copy of the current row; can be used past calls to {@link QueryResult#hasNext()}.
+     */
     public Row copy() {
         Row copy = new Row(nameIndex);
         copy.setResults(results);

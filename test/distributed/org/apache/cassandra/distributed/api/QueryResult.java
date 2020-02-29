@@ -18,13 +18,44 @@
 
 package org.apache.cassandra.distributed.api;
 
-import java.util.Date;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.Set;
-import java.util.UUID;
+import java.util.Objects;
 import java.util.function.Predicate;
 
+/**
+ * A table of data representing a complete query result.
+ *
+ * A <code>QueryResult</code> is different from {@link java.sql.ResultSet} in several key ways:
+ *
+ * <ul>
+ *     <li>represents a complete result rather than a cursor</li>
+ *     <li>returns a {@link Row} to access the current row of data</li>
+ *     <li>relies on object pooling; {@link #hasNext()} may return the same object just with different data, accessing a
+ *     {@link Row} from a previous {@link #hasNext()} call has undefined behavior.</li>
+ *     <li>includes {@link #filter(Predicate)}, this will do client side filtering since Apache Cassandra is more
+ *     restrictive on server side filtering</li>
+ * </ul>
+ *
+ * <h2>Unsafe patterns</h2>
+ *
+ * Below are a few unsafe patterns which may lead to unexpected results
+ *
+ * <code>{@code
+ * while (rs.hasNext()) {
+ *   list.add(rs.next());
+ * }
+ * }</code>
+ *
+ * <code>{@code
+ * rs.forEach(list::add)
+ * }</code>
+ *
+ * Both cases have the same issue; reference to a row from a previous call to {@link #hasNext()}.  Since the same {@link Row}
+ * object can be used accross different calls to {@link #hasNext()} this would mean any attempt to access after the fact
+ * points to newer data.  If this behavior is not desirable and access is needed between calls, then {@link Row#copy()}
+ * should be used; this will clone the {@link Row} and return a new object pointing to the same data.
+ */
 public class QueryResult implements Iterator<Row>
 {
     public static final QueryResult EMPTY = new QueryResult(new String[0], null);
@@ -37,7 +68,7 @@ public class QueryResult implements Iterator<Row>
 
     public QueryResult(String[] names, Object[][] results)
     {
-        this.names = names;
+        this.names = Objects.requireNonNull(names, "names");
         this.results = results;
         this.row = new Row(names);
         this.filter = ignore -> true;
@@ -72,6 +103,10 @@ public class QueryResult implements Iterator<Row>
         return new QueryResult(names, results, filter.and(fn), offset);
     }
 
+    /**
+     * Get all rows as a 2d array.  Any calls to {@link #filter(Predicate)} will be ignored and the array returned will
+     * be the full set from the query.
+     */
     public Object[][] toObjectArrays()
     {
         return results;
@@ -100,30 +135,5 @@ public class QueryResult implements Iterator<Row>
         if (offset < 0 || offset >= results.length)
             throw new NoSuchElementException();
         return row;
-    }
-
-    public <T> T get(String name)
-    {
-        return next().get(name);
-    }
-
-    public String getString(String name)
-    {
-        return next().getString(name);
-    }
-
-    public UUID getUUID(String name)
-    {
-        return next().getUUID(name);
-    }
-
-    public Date getTimestamp(String name)
-    {
-        return next().getTimestamp(name);
-    }
-
-    public <T> Set<T> getSet(String name)
-    {
-        return next().getSet(name);
     }
 }
