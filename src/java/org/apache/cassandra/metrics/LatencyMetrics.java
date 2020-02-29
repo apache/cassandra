@@ -37,7 +37,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 public class LatencyMetrics
 {
     /** Latency */
-    public final Timer latency;
+    public final LatencyMetricsTimer latency;
     /** Total latency in micro sec */
     public final Counter totalLatency;
 
@@ -89,7 +89,7 @@ public class LatencyMetrics
         this.aliasFactory = aliasFactory;
         this.namePrefix = namePrefix;
 
-        Timer timer = new LatencyMetrics.LatencyMetricsTimer(new DecayingEstimatedHistogramReservoir());
+        LatencyMetricsTimer timer = new LatencyMetrics.LatencyMetricsTimer(new DecayingEstimatedHistogramReservoir());
         Counter counter = new LatencyMetricsCounter();
 
         if (aliasFactory == null)
@@ -122,12 +122,12 @@ public class LatencyMetrics
         }
     }
 
-    public void addChildren(LatencyMetrics latencyMetric) 
+    private void addChildren(LatencyMetrics latencyMetric)
     {
         this.children.add(latencyMetric);
     }
 
-    public synchronized void removeChildren(LatencyMetrics toRelease)
+    private synchronized void removeChildren(LatencyMetrics toRelease)
     {
         /*
         Merge details of removed children metrics and add them to our local copy to prevent metrics from going
@@ -135,7 +135,7 @@ public class LatencyMetrics
         Will not protect against simultaneous updates, but since these methods are used by linked parent instances only,
         they should not receive any updates.
          */
-        ((LatencyMetricsTimer) this.latency).releasedLatencyCount += toRelease.latency.getCount();
+        this.latency.releasedLatencyCount += toRelease.latency.getCount();
 
         DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot childSnapshot = (DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot) toRelease.latency.getSnapshot();
         DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot snapshot = (DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot) this.latency.getSnapshot();
@@ -176,7 +176,7 @@ public class LatencyMetrics
         }
     }
 
-    class LatencyMetricsTimer extends Timer 
+    public class LatencyMetricsTimer extends Timer
     {
 
         long releasedLatencyCount = 0;
