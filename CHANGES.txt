@@ -1,4 +1,5 @@
 4.0-alpha3
+ * Correct Visibility and Improve Safety of Methods in LatencyMetrics (CASSANDRA-15597)
  * Fix in-jvm dtest java 11 compatibility (CASSANDRA-15463)
  * Remove joda time dependency (CASSANDRA-15257)
  * Exclude purgeable tombstones from repaired data tracking (CASSANDRA-15462)
