@@ -30,6 +30,7 @@ import com.google.common.collect.Lists;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -75,6 +76,9 @@ public class PendingAntiCompactionBytemanTest extends AbstractPendingAntiCompact
         {
             assertTrue(e.getCause() instanceof CompactionInterruptedException);
         }
+        // Note that since we fail the PAC immediately when any of the anticompactions fail we need to wait for the other
+        // AC to finish as well before asserting that we have nothing compacting.
+        CompactionManager.instance.waitForCessation(Lists.newArrayList(cfs, cfs2), (sstable) -> true);
         // and make sure nothing is marked compacting
         assertTrue(cfs.getTracker().getCompacting().isEmpty());
         assertTrue(cfs2.getTracker().getCompacting().isEmpty());
