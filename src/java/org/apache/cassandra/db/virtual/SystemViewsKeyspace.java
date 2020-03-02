@@ -31,6 +31,7 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .add(new CachesTable(NAME))
                     .add(new ClientsTable(NAME))
                     .add(new SettingsTable(NAME))
+                    .add(new SystemPropertiesTable(NAME))
                     .add(new SSTableTasksTable(NAME))
                     .add(new ThreadPoolsTable(NAME))
                     .add(new InternodeOutboundTable(NAME))
