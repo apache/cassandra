@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -1201,6 +1202,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             {
                 sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, repairedAt, pendingRepair, isTransient);
                 sstable.reloadSSTableMetadata();
+                verifyMetadata(sstable, repairedAt, pendingRepair, isTransient);
                 changed.add(sstable);
             }
         }
@@ -1217,5 +1219,15 @@ public class CompactionStrategyManager implements INotificationConsumer
                 writeLock.unlock();
             }
         }
+    }
+
+    private static void verifyMetadata(SSTableReader sstable, long repairedAt, UUID pendingRepair, boolean isTransient)
+    {
+        if (!Objects.equals(pendingRepair, sstable.getPendingRepair()))
+            throw new IllegalStateException(String.format("Failed setting pending repair to %s on %s (pending repair is %s)", pendingRepair, sstable, sstable.getPendingRepair()));
+        if (repairedAt != sstable.getRepairedAt())
+            throw new IllegalStateException(String.format("Failed setting repairedAt to %d on %s (repairedAt is %d)", repairedAt, sstable, sstable.getRepairedAt()));
+        if (isTransient != sstable.isTransient())
+            throw new IllegalStateException(String.format("Failed setting isTransient to %b on %s (isTransient is %b)", isTransient, sstable, sstable.isTransient()));
     }
 }

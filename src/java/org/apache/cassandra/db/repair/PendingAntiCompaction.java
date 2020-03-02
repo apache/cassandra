@@ -69,7 +69,7 @@ public class PendingAntiCompaction
     private static final int ACQUIRE_SLEEP_MS = Integer.getInteger("cassandra.acquire_sleep_ms", 1000);
     private static final int ACQUIRE_RETRY_SECONDS = Integer.getInteger("cassandra.acquire_retry_seconds", 60);
 
-    static class AcquireResult
+    public static class AcquireResult
     {
         final ColumnFamilyStore cfs;
         final Refs<SSTableReader> refs;
@@ -82,7 +82,8 @@ public class PendingAntiCompaction
             this.txn = txn;
         }
 
-        void abort()
+        @VisibleForTesting
+        public void abort()
         {
             if (txn != null)
                 txn.abort();
@@ -122,6 +123,14 @@ public class PendingAntiCompaction
             if (metadata.repairedAt != UNREPAIRED_SSTABLE)
                 return false;
 
+            if (!sstable.descriptor.version.hasPendingRepair())
+            {
+                String message = String.format("Prepare phase failed because it encountered legacy sstables that don't " +
+                                               "support pending repair, run upgradesstables before starting incremental " +
+                                               "repairs, repair session (%s)", prsid);
+                throw new SSTableAcquisitionException(message);
+            }
+
             // exclude sstables pending repair, but record session ids for
             // non-finalized sessions for a later error message
             if (metadata.pendingRepair != NO_PENDING_REPAIR)
@@ -149,7 +158,7 @@ public class PendingAntiCompaction
         }
     }
 
-    static class AcquisitionCallable implements Callable<AcquireResult>
+    public static class AcquisitionCallable implements Callable<AcquireResult>
     {
         private final ColumnFamilyStore cfs;
         private final UUID sessionID;
@@ -157,7 +166,8 @@ public class PendingAntiCompaction
         private final int acquireRetrySeconds;
         private final int acquireSleepMillis;
 
-        AcquisitionCallable(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, UUID sessionID, int acquireRetrySeconds, int acquireSleepMillis)
+        @VisibleForTesting
+        public AcquisitionCallable(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, UUID sessionID, int acquireRetrySeconds, int acquireSleepMillis)
         {
             this(cfs, sessionID, acquireRetrySeconds, acquireSleepMillis, new AntiCompactionPredicate(ranges, sessionID));
         }
