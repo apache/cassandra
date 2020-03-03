@@ -218,6 +218,8 @@ public class TableMetrics
     public final Counter additionalWrites;
     public final Gauge<Long> additionalWriteLatencyNanos;
 
+    public final Gauge<Integer> unleveledSSTables;
+
     /**
      * Metrics for inconsistencies detected between repaired data sets across replicas. These
      * are tracked on the coordinator.
@@ -943,6 +945,16 @@ public class TableMetrics
 
         confirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesConfirmed", cfs.keyspace.metric.confirmedRepairedInconsistencies);
         unconfirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesUnconfirmed", cfs.keyspace.metric.unconfirmedRepairedInconsistencies);
+
+        unleveledSSTables = createTableGauge("UnleveledSSTables", cfs::getUnleveledSSTables, () -> {
+            // global gauge
+            int cnt = 0;
+            for (Metric cfGauge : allTableMetrics.get("UnleveledSSTables"))
+            {
+                cnt += ((Gauge<? extends Number>) cfGauge).getValue().intValue();
+            }
+            return cnt;
+        });
     }
 
     public void updateSSTableIterated(int count)
