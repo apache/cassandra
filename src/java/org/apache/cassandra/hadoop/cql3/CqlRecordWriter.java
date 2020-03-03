@@ -474,14 +474,16 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
      */
     private String appendKeyWhereClauses(String cqlQuery)
     {
-        String keyWhereClause = "";
+        StringBuilder keyWhereClause = new StringBuilder();
+
+        keyWhereClause.append(cqlQuery).append(" WHERE ");
 
         for (ColumnMetadata partitionKey : partitionKeyColumns)
-            keyWhereClause += String.format("%s = ?", keyWhereClause.isEmpty() ? quote(partitionKey.getName()) : (" AND " + quote(partitionKey.getName())));
+            keyWhereClause.append(String.format("%s = ?", (keyWhereClause.length() == 0) ? quote(partitionKey.getName()) : (" AND " + quote(partitionKey.getName()))));
         for (ColumnMetadata clusterColumn : clusterColumns)
-            keyWhereClause += " AND " + quote(clusterColumn.getName()) + " = ?";
+            keyWhereClause.append(" AND " + quote(clusterColumn.getName()) + " = ?");
 
-        return cqlQuery + " WHERE " + keyWhereClause;
+        return keyWhereClause.toString();
     }
 
     /** Quoting for working with uppercase */
