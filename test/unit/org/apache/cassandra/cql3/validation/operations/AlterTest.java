@@ -84,8 +84,8 @@ public class AlterTest extends CQLTester
     public void testDropListAndAddListWithSameName() throws Throwable
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, content text, myCollection list<text>);");
-        execute("INSERT INTO %s (id, content , myCollection) VALUES ('test', 'first test', ['first element']);");
-        execute("ALTER TABLE %s DROP myCollection;");
+        execute("INSERT INTO %s (id, content , myCollection) VALUES ('test', 'first test', ['first element']) USING TIMESTAMP 19999;");
+        execute("ALTER TABLE %s DROP myCollection USING TIMESTAMP 20000;");
         execute("ALTER TABLE %s ADD myCollection list<text>;");
 
         assertRows(execute("SELECT * FROM %s;"), row("test", "first test", null));
