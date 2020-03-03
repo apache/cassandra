@@ -69,15 +69,16 @@ case "$1" in
         echo -n "Starting Cassandra: "
         [ -d `dirname "$pid_file"` ] || \
             install -m 755 -o $CASSANDRA_OWNR -g $CASSANDRA_OWNR -d `dirname $pid_file`
-        su $CASSANDRA_OWNR -c "$CASSANDRA_PROG -p $pid_file" > $log_file 2>&1
+        runuser -u $CASSANDRA_OWNR -- $CASSANDRA_PROG -p $pid_file > $log_file 2>&1
         retval=$?
+        chown root.root $pid_file
         [ $retval -eq 0 ] && touch $lock_file
         echo "OK"
         ;;
     stop)
         # Cassandra shutdown
         echo -n "Shutdown Cassandra: "
-        su $CASSANDRA_OWNR -c "kill `cat $pid_file`"
+        runuser -u $CASSANDRA_OWNR -- kill `cat $pid_file`
         retval=$?
         [ $retval -eq 0 ] && rm -f $lock_file
         for t in `seq 40`; do
