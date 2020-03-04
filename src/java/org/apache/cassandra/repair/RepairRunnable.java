@@ -173,7 +173,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCounter.get(), totalProgress, errorMessage));
 
         // since this can fail, update table only after updating in-memory and notification state
-        tryStoreParentRepairFailure(error);
+        maybeStoreParentRepairFailure(error);
     }
 
     private void fail(String reason)
@@ -225,7 +225,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         try
         {
-            unsafeRun();
+            runMayThrow();
         }
         catch (SkipRepairException e)
         {
@@ -238,7 +238,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private void unsafeRun() throws Exception
+    private void runMayThrow() throws Exception
     {
         ActiveRepairService.instance.recordRepairStatus(cmd, ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
 
@@ -251,11 +251,11 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         NeighborsAndRanges neighborsAndRanges = getNeighborsAndRanges();
 
-        tryStoreParentRepairStart(cfnames);
+        maybeStoreParentRepairStart(cfnames);
 
         prepare(columnFamilies, neighborsAndRanges.allNeighbors, neighborsAndRanges.force);
 
-        repair(cfnames, neighborsAndRanges.allNeighbors, neighborsAndRanges.commonRanges, neighborsAndRanges.force);
+        repair(cfnames, neighborsAndRanges);
     }
 
     private List<ColumnFamilyStore> getColumnFamilies() throws IOException
@@ -265,28 +265,14 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         progressCounter.incrementAndGet();
 
         if (Iterables.isEmpty(validColumnFamilies))
-        {
             throw new SkipRepairException(String.format("Empty keyspace, skipping repair: %s", keyspace));
-        }
-        if (validColumnFamilies instanceof List)
-        {
-            return (List<ColumnFamilyStore>) validColumnFamilies;
-        }
-
-        List<ColumnFamilyStore> copy = new ArrayList<>();
-        for (ColumnFamilyStore cfs : validColumnFamilies)
-        {
-            copy.add(cfs);
-        }
-        return copy;
+        return Lists.newArrayList(validColumnFamilies);
     }
 
     private TraceState maybeCreateTraceState(Iterable<ColumnFamilyStore> columnFamilyStores)
     {
         if (!options.isTraced())
-        {
             return null;
-        }
 
         StringBuilder cfsb = new StringBuilder();
         for (ColumnFamilyStore cfs : columnFamilyStores)
@@ -307,7 +293,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private void notifyStarting()
     {
         String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, parentSession, keyspace,
-                                             options);
+                                       options);
         logger.info(message);
         Tracing.traceRepair(message);
         fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
@@ -317,7 +303,22 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
         List<CommonRange> commonRanges = new ArrayList<>();
-        populateNeighborsAndRanges(allNeighbors, commonRanges);
+
+        //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
+        //calculation multiple times
+        Iterable<Range<Token>> keyspaceLocalRanges = storageService.getLocalReplicas(keyspace).ranges();
+
+        for (Range<Token> range : options.getRanges())
+        {
+            EndpointsForRange neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range,
+                                                                           options.getDataCenters(),
+                                                                           options.getHosts());
+
+            addRangeToNeighbors(commonRanges, range, neighbors);
+            allNeighbors.addAll(neighbors.endpoints());
+        }
+
+        progressCounter.incrementAndGet();
 
         boolean force = options.isForcedRepair();
 
@@ -330,7 +331,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         return new NeighborsAndRanges(force, allNeighbors, commonRanges);
     }
 
-    private void tryStoreParentRepairStart(String[] cfnames)
+    private void maybeStoreParentRepairStart(String[] cfnames)
     {
         if (!options.isPreview())
         {
@@ -338,7 +339,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private void tryStoreParentRepairSuccess(Collection<Range<Token>> successfulRanges)
+    private void maybeStoreParentRepairSuccess(Collection<Range<Token>> successfulRanges)
     {
         if (!options.isPreview())
         {
@@ -346,7 +347,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private void tryStoreParentRepairFailure(Throwable error)
+    private void maybeStoreParentRepairFailure(Throwable error)
     {
         if (!options.isPreview())
         {
@@ -363,39 +364,21 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private void repair(String[] cfnames, Set<InetAddressAndPort> allNeighbors, List<CommonRange> commonRanges, boolean force)
+    private void repair(String[] cfnames, NeighborsAndRanges neighborsAndRanges)
     {
         if (options.isPreview())
         {
-            previewRepair(parentSession, creationTimeMillis, commonRanges, cfnames);
+            previewRepair(parentSession, creationTimeMillis, neighborsAndRanges.commonRanges, cfnames);
         }
         else if (options.isIncremental())
         {
-            incrementalRepair(parentSession, creationTimeMillis, force, traceState, allNeighbors, commonRanges, cfnames);
+            incrementalRepair(parentSession, creationTimeMillis, neighborsAndRanges.force, traceState,
+                              neighborsAndRanges.allNeighbors, neighborsAndRanges.commonRanges, cfnames);
         }
         else
         {
-            normalRepair(parentSession, creationTimeMillis, traceState, commonRanges, cfnames);
+            normalRepair(parentSession, creationTimeMillis, traceState, neighborsAndRanges.commonRanges, cfnames);
         }
-    }
-
-    private void populateNeighborsAndRanges(Set<InetAddressAndPort> allNeighbors, List<CommonRange> commonRanges)
-    {
-        //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
-        //calculation multiple times
-        Iterable<Range<Token>> keyspaceLocalRanges = storageService.getLocalReplicas(keyspace).ranges();
-
-        for (Range<Token> range : options.getRanges())
-        {
-            EndpointsForRange neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range,
-                                                                                 options.getDataCenters(),
-                                                                                 options.getHosts());
-
-            addRangeToNeighbors(commonRanges, range, neighbors);
-            allNeighbors.addAll(neighbors.endpoints());
-        }
-
-        progressCounter.incrementAndGet();
     }
 
     private void normalRepair(UUID parentSession,
@@ -665,7 +648,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         public void onSuccess(Object result)
         {
-            tryStoreParentRepairSuccess(successfulRanges);
+            maybeStoreParentRepairSuccess(successfulRanges);
             if (hasFailure.get())
             {
                 fail(null);
@@ -787,7 +770,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private static final class NeighborsAndRanges {
+    private static final class NeighborsAndRanges
+    {
         private final boolean force;
         private final Set<InetAddressAndPort> allNeighbors;
         private final List<CommonRange> commonRanges;
