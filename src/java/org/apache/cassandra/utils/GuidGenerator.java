@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Random;
@@ -36,9 +34,9 @@ public class GuidGenerator {
         long secureInitializer = mySecureRand.nextLong();
         myRand = new Random(secureInitializer);
         try {
-            s_id = InetAddress.getLocalHost().toString();
+            s_id = FBUtilities.getLocalAddress().toString();
         }
-        catch (UnknownHostException e) {
+        catch (RuntimeException e) {
             throw new AssertionError(e);
         }
     }
