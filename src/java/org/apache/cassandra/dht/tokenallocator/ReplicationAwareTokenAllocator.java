@@ -61,9 +61,12 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
 
         if (unitCount() < replicas)
             // Allocation does not matter; everything replicates everywhere.
+            //However, at this point it is
+            // important to start the cluster/datacenter with suitably varied token range sizes so that the algorithm
+            // can maintain good balance for any number of nodes.
             return generateRandomTokens(newUnit, numTokens);
         if (numTokens > sortedTokens.size())
-            // Some of the heuristics below can't deal with this case. Use random for now, later allocations can fix any problems this may cause.
+            // Some of the heuristics below can't deal with this very unlikely case. Use splits for now, later allocations can fix any problems this may cause.
             return generateRandomTokens(newUnit, numTokens);
 
         // ============= construct our initial token ring state =============
@@ -151,6 +154,13 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
             }
         }
         TokenAllocatorDiagnostics.randomTokensGenerated(this, numTokens, unitToTokens, sortedTokens, newUnit, tokens);
+        return tokens;
+    }
+
+    Collection<Token> generateSplits(Unit newUnit, int numTokens)
+    {
+        Collection<Token> tokens = super.generateSplits(newUnit, numTokens);
+        unitToTokens.putAll(newUnit, tokens);
         return tokens;
     }
 
