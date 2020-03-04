@@ -33,6 +33,18 @@ public interface IMessageFilters
         Builder from(int ... nums);
         Builder to(int ... nums);
 
+        Builder runInbound(boolean inbound);
+
+        default Builder runInbound()
+        {
+            return runInbound(true);
+        }
+
+        default Builder runOutbound()
+        {
+            return runInbound(false);
+        }
+
         /**
          * Every message for which matcher returns `true` will be _dropped_ (assuming all
          * other matchers in the chain will return `true` as well).
@@ -55,8 +67,20 @@ public interface IMessageFilters
     void reset();
 
     /**
-     * {@code true} value returned by the implementation implies that the message was
+     * Checks if the message should be delivered.  This is expected to run on "inbound", or on the reciever of
+     * the message (instance.config.num == to).
+     *
+     * @return {@code true} value returned by the implementation implies that the message was
      * not matched by any filters and therefore should be delivered.
      */
-    boolean permit(int from, int to, IMessage msg);
+    boolean permitInbound(int from, int to, IMessage msg);
+
+    /**
+     * Checks if the message should be delivered.  This is expected to run on "outbound", or on the sender of
+     * the message (instance.config.num == from).
+     *
+     * @return {@code true} value returned by the implementation implies that the message was
+     * not matched by any filters and therefore should be delivered.
+     */
+    boolean permitOutbound(int from, int to, IMessage msg);
 }

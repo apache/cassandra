@@ -211,17 +211,31 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         });
     }
 
-    private void registerFilter(ICluster cluster)
+    private void registerInboundFilter(ICluster cluster)
     {
         MessagingService.instance().inboundSink.add(message ->
-                permitMessage(cluster, FBUtilities.getBroadcastAddressAndPort(), serializeMessage(message.from(), FBUtilities.getBroadcastAddressAndPort(), message)));
+                permitMessageInbound(cluster, FBUtilities.getBroadcastAddressAndPort(), serializeMessage(message.from(), FBUtilities.getBroadcastAddressAndPort(), message)));
     }
 
-    private boolean permitMessage(ICluster cluster, InetAddressAndPort to, IMessage message)
+    private void registerOutboundFilter(ICluster cluster)
+    {
+
+        MessagingService.instance().outboundSink.add((message, to) ->
+                                                     permitMessageOutbound(cluster, to, serializeMessage(message.from(), to, message)));
+    }
+
+    private boolean permitMessageInbound(ICluster cluster, InetAddressAndPort to, IMessage message)
     {
         int fromNum = cluster.get(message.from()).config().num();
         int toNum = cluster.get(to).config().num();
-        return cluster.filters().permit(fromNum, toNum, message);
+        return cluster.filters().permitInbound(fromNum, toNum, message);
+    }
+
+    private boolean permitMessageOutbound(ICluster cluster, InetAddressAndPort to, IMessage message)
+    {
+        int fromNum = cluster.get(message.from()).config().num();
+        int toNum = cluster.get(to).config().num();
+        return cluster.filters().permitOutbound(fromNum, toNum, message);
     }
 
     public void uncaughtException(Thread thread, Throwable throwable)
@@ -359,7 +373,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     throw new RuntimeException(e);
                 }
 
-                registerFilter(cluster);
+                registerInboundFilter(cluster);
+                registerOutboundFilter(cluster);
                 if (config.has(NETWORK))
                 {
                     MessagingService.instance().listen();

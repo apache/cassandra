@@ -27,11 +27,22 @@ import org.apache.cassandra.distributed.api.IMessageFilters;
 
 public class MessageFilters implements IMessageFilters
 {
-    private final List<Filter> filters = new CopyOnWriteArrayList<>();
+    private final List<Filter> inboundFilters = new CopyOnWriteArrayList<>();
+    private final List<Filter> outboundFilters = new CopyOnWriteArrayList<>();
 
-    public boolean permit(int from, int to, IMessage msg)
+    public boolean permitInbound(int from, int to, IMessage msg)
     {
-        for (Filter filter : filters)
+        for (Filter filter : inboundFilters)
+        {
+            if (filter.matches(from, to, msg))
+                return false;
+        }
+        return true;
+    }
+
+    public boolean permitOutbound(int from, int to, IMessage msg)
+    {
+        for (Filter filter : outboundFilters)
         {
             if (filter.matches(from, to, msg))
                 return false;
@@ -41,12 +52,13 @@ public class MessageFilters implements IMessageFilters
 
     public class Filter implements IMessageFilters.Filter
     {
+        final boolean inbound;
         final int[] from;
         final int[] to;
         final int[] verbs;
         final Matcher matcher;
 
-        Filter(int[] from, int[] to, int[] verbs, Matcher matcher)
+        Filter(boolean inbound, int[] from, int[] to, int[] verbs, Matcher matcher)
         {
             if (from != null)
             {
@@ -63,6 +75,7 @@ public class MessageFilters implements IMessageFilters
                 verbs = verbs.clone();
                 Arrays.sort(verbs);
             }
+            this.inbound = inbound;
             this.from = from;
             this.to = to;
             this.verbs = verbs;
@@ -90,13 +103,13 @@ public class MessageFilters implements IMessageFilters
 
         public Filter off()
         {
-            filters.remove(this);
+            (inbound ? inboundFilters : outboundFilters).remove(this);
             return this;
         }
 
         public Filter on()
         {
-            filters.add(this);
+            (inbound ? inboundFilters : outboundFilters).add(this);
             return this;
         }
 
@@ -111,6 +124,7 @@ public class MessageFilters implements IMessageFilters
 
     public class Builder implements IMessageFilters.Builder
     {
+        boolean inbound = true;
         int[] from;
         int[] to;
         int[] verbs;
@@ -133,7 +147,13 @@ public class MessageFilters implements IMessageFilters
             return this;
         }
 
-        public IMessageFilters.Builder messagesMatching(Matcher matcher)
+        public Builder runInbound(boolean inbound)
+        {
+            this.inbound = inbound;
+            return this;
+        }
+
+        public Builder messagesMatching(Matcher matcher)
         {
             this.matcher = matcher;
             return this;
@@ -141,7 +161,7 @@ public class MessageFilters implements IMessageFilters
 
         public Filter drop()
         {
-            return new Filter(from, to, verbs, matcher).on();
+            return new Filter(inbound, from, to, verbs, matcher).on();
         }
     }
 
@@ -160,6 +180,7 @@ public class MessageFilters implements IMessageFilters
     @Override
     public void reset()
     {
-        filters.clear();
+        inboundFilters.clear();
+        outboundFilters.clear();
     }
 }
