@@ -20,6 +20,7 @@ Data Modeling
 .. toctree::
    :maxdepth: 2
 
+   intro
    data_modeling_conceptual
    data_modeling_rdbms
    data_modeling_queries
