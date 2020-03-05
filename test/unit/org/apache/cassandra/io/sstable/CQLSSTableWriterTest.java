@@ -35,18 +35,15 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.UDHelper;
+import org.apache.cassandra.cql3.functions.types.*;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
-import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.ProtocolVersion;
-import com.datastax.driver.core.TypeCodec;
-import com.datastax.driver.core.UDTValue;
-import com.datastax.driver.core.UserType;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -351,7 +348,7 @@ public class CQLSSTableWriterTest
         loadSSTables(dataDir, KS);
 
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
-        TypeCodec collectionCodec = UDHelper.codecFor(DataType.CollectionType.frozenList(tuple2Type));
+        TypeCodec collectionCodec = UDHelper.codecFor(DataType.CollectionType.list(tuple2Type));
         TypeCodec tuple3Codec = UDHelper.codecFor(tuple3Type);
 
         assertEquals(resultSet.size(), 100);
@@ -360,13 +357,13 @@ public class CQLSSTableWriterTest
             assertEquals(cnt,
                          row.getInt("k"));
             List<UDTValue> values = (List<UDTValue>) collectionCodec.deserialize(row.getBytes("v1"),
-                                                                                 ProtocolVersion.NEWEST_SUPPORTED);
+                                                                                 ProtocolVersion.CURRENT);
             assertEquals(values.get(0).getInt("a"), cnt * 10);
             assertEquals(values.get(0).getInt("b"), cnt * 20);
             assertEquals(values.get(1).getInt("a"), cnt * 30);
             assertEquals(values.get(1).getInt("b"), cnt * 40);
 
-            UDTValue v2 = (UDTValue) tuple3Codec.deserialize(row.getBytes("v2"), ProtocolVersion.NEWEST_SUPPORTED);
+            UDTValue v2 = (UDTValue) tuple3Codec.deserialize(row.getBytes("v2"), ProtocolVersion.CURRENT);
 
             assertEquals(v2.getInt("a"), cnt * 100);
             assertEquals(v2.getInt("b"), cnt * 200);
@@ -429,7 +426,7 @@ public class CQLSSTableWriterTest
             assertEquals(cnt,
                          row.getInt("k"));
             UDTValue nestedTpl = (UDTValue) nestedTupleCodec.deserialize(row.getBytes("v1"),
-                                                                         ProtocolVersion.NEWEST_SUPPORTED);
+                                                                         ProtocolVersion.CURRENT);
             assertEquals(nestedTpl.getInt("c"), cnt * 100);
             UDTValue tpl = nestedTpl.getUDTValue("tpl");
             assertEquals(tpl.getInt("a"), cnt * 200);

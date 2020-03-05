@@ -20,10 +20,14 @@ package org.apache.cassandra.dht;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
+import org.junit.Assert;
 
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 
 import com.google.common.base.Predicate;
@@ -147,6 +151,8 @@ public class BootStrapperTest
         generateFakeEndpoints(tmd, numOldNodes, numVNodes, "0", "0");
     }
 
+    Random rand = new Random(1);
+
     private void generateFakeEndpoints(TokenMetadata tmd, int numOldNodes, int numVNodes, String dc, String rack) throws UnknownHostException
     {
         IPartitioner p = tmd.partitioner;
@@ -157,7 +163,7 @@ public class BootStrapperTest
             InetAddressAndPort addr = InetAddressAndPort.getByName("127." + dc + "." + rack + "." + (i + 1));
             List<Token> tokens = Lists.newArrayListWithCapacity(numVNodes);
             for (int j = 0; j < numVNodes; ++j)
-                tokens.add(p.getRandomToken());
+                tokens.add(p.getRandomToken(rand));
             
             tmd.updateNormalTokens(tokens, addr);
         }
@@ -270,7 +276,54 @@ public class BootStrapperTest
         }
     }
 
-    
+    @Test
+    public void testAllocateTokensRfEqRacks() throws UnknownHostException
+    {
+        IEndpointSnitch oldSnitch = DatabaseDescriptor.getEndpointSnitch();
+        try
+        {
+            DatabaseDescriptor.setEndpointSnitch(new RackInferringSnitch());
+            int vn = 8;
+            int replicas = 3;
+            int rackCount = replicas;
+            String ks = "BootStrapperTestNTSKeyspaceRfEqRacks";
+            String dc = "1";
+
+            TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+            metadata.clearUnsafe();
+            metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.1.0.99"));
+            metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.15.0.99"));
+
+            SchemaLoader.createKeyspace(ks, KeyspaceParams.nts(dc, replicas, "15", 15), SchemaLoader.standardCFMD(ks, "Standard1"));
+            int base = 5;
+            for (int i = 0; i < rackCount; ++i)
+                generateFakeEndpoints(metadata, base << i, vn, dc, Integer.toString(i));     // unbalanced racks
+
+            int cnt = 5;
+            for (int i = 0; i < cnt; ++i)
+                allocateTokensForNode(vn, ks, metadata, InetAddressAndPort.getByName("127." + dc + ".0." + (99 + i)));
+
+            double target = 1.0 / (base + cnt);
+            double permittedOver = 1.0 / (2 * vn + 1) + 0.01;
+
+            Map<InetAddress, Float> ownership = StorageService.instance.effectiveOwnership(ks);
+            boolean failed = false;
+            for (Map.Entry<InetAddress, Float> o : ownership.entrySet())
+            {
+                int rack = o.getKey().getAddress()[2];
+                if (rack != 0)
+                    continue;
+
+                System.out.format("Node %s owns %f ratio to optimal %.2f\n", o.getKey(), o.getValue(), o.getValue() / target);
+                if (o.getValue()/target > 1 + permittedOver)
+                    failed = true;
+            }
+            Assert.assertFalse(String.format("One of the nodes in the rack has over %.2f%% overutilization.", permittedOver * 100), failed);
+        } finally {
+            DatabaseDescriptor.setEndpointSnitch(oldSnitch);
+        }
+    }
+
     @Test
     public void testAllocateTokensMultipleKeyspaces() throws UnknownHostException
     {

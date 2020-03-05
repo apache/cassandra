@@ -82,14 +82,18 @@ import static org.apache.cassandra.net.Verb.READ_REQ;
 public abstract class AbstractReadResponseTest
 {
     public static final String KEYSPACE1 = "DataResolverTest";
+    public static final String KEYSPACE3 = "DataResolverTest3";
     public static final String CF_STANDARD = "Standard1";
     public static final String CF_COLLECTION = "Collection1";
 
     public static Keyspace ks;
+    public static Keyspace ks3;
     public static ColumnFamilyStore cfs;
     public static ColumnFamilyStore cfs2;
+    public static ColumnFamilyStore cfs3;
     public static TableMetadata cfm;
     public static TableMetadata cfm2;
+    public static TableMetadata cfm3;
     public static ColumnMetadata m;
 
     public static DecoratedKey dk;
@@ -128,19 +132,32 @@ public abstract class AbstractReadResponseTest
                      .addRegularColumn("one", AsciiType.instance)
                      .addRegularColumn("two", AsciiType.instance);
 
+        TableMetadata.Builder builder3 =
+        TableMetadata.builder(KEYSPACE3, CF_STANDARD)
+                     .addPartitionKeyColumn("key", BytesType.instance)
+                     .addClusteringColumn("col1", AsciiType.instance)
+                     .addRegularColumn("c1", AsciiType.instance)
+                     .addRegularColumn("c2", AsciiType.instance)
+                     .addRegularColumn("one", AsciiType.instance)
+                     .addRegularColumn("two", AsciiType.instance);
+
         TableMetadata.Builder builder2 =
         TableMetadata.builder(KEYSPACE1, CF_COLLECTION)
                      .addPartitionKeyColumn("k", ByteType.instance)
                      .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true));
 
         SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), builder1, builder2);
+        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(2), builder1, builder2);
+        SchemaLoader.createKeyspace(KEYSPACE3, KeyspaceParams.simple(4), builder3);
 
         ks = Keyspace.open(KEYSPACE1);
         cfs = ks.getColumnFamilyStore(CF_STANDARD);
         cfm = cfs.metadata();
         cfs2 = ks.getColumnFamilyStore(CF_COLLECTION);
         cfm2 = cfs2.metadata();
+        ks3 = Keyspace.open(KEYSPACE3);
+        cfs3 = ks3.getColumnFamilyStore(CF_STANDARD);
+        cfm3 = cfs3.metadata();
         m = cfm2.getColumn(new ColumnIdentifier("m", false));
     }
 

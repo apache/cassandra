@@ -114,7 +114,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     // Timestamp to prevent processing any in-flight messages for we've not send any SYN yet, see CASSANDRA-12653.
     volatile long firstSynSendAt = 0L;
 
-    public static final long aVeryLongTime = 259200 * 1000; // 3 days
+    public static final long aVeryLongTime = getVeryLongTime();
 
     // Maximimum difference between generation value and local time we are willing to accept about a peer
     static final int MAX_GENERATION_DIFFERENCE = 86400 * 365;
@@ -189,9 +189,20 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private static final boolean disableThreadValidation = Boolean.getBoolean(Props.DISABLE_THREAD_VALIDATION);
 
+    private static long getVeryLongTime()
+    {
+        String newVLT =  System.getProperty("cassandra.very_long_time_ms");
+        if (newVLT != null)
+        {
+            logger.info("Overriding aVeryLongTime to {}ms", newVLT);
+            return Long.parseLong(newVLT);
+        }
+        return 259200 * 1000; // 3 days
+    }
+
     private static boolean isInGossipStage()
     {
-        return ((JMXEnabledSingleThreadExecutor) Stage.GOSSIP.executor).isExecutedBy(Thread.currentThread());
+        return ((JMXEnabledSingleThreadExecutor) Stage.GOSSIP.executor()).isExecutedBy(Thread.currentThread());
     }
 
     private static void checkProperThreadForStateMutation()
@@ -429,7 +440,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         ListenableFutureTask task = ListenableFutureTask.create(runnable, null);
-        Stage.GOSSIP.executor.execute(task);
+        Stage.GOSSIP.execute(task);
         try
         {
             task.get();
@@ -898,7 +909,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
-    private void doStatusCheck()
+    @VisibleForTesting
+    void doStatusCheck()
     {
         if (logger.isTraceEnabled())
             logger.trace("Performing status check ...");
@@ -906,7 +918,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         long now = System.currentTimeMillis();
         long nowNano = System.nanoTime();
 
-        long pending = ((JMXEnabledThreadPoolExecutor) Stage.GOSSIP.executor).metrics.pendingTasks.getValue();
+        long pending = ((JMXEnabledThreadPoolExecutor) Stage.GOSSIP.executor()).metrics.pendingTasks.getValue();
         if (pending > 0 && lastProcessedMessageAt < now - 1000)
         {
             // if some new messages just arrived, give the executor some time to work on them
@@ -952,7 +964,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     {
                         logger.debug("time is expiring for endpoint : {} ({})", endpoint, expireTime);
                     }
-                    evictFromMembership(endpoint);
+                    runInGossipStageBlocking(() -> evictFromMembership(endpoint));
                 }
             }
         }

@@ -1,6 +1,6 @@
 {% extends "defindex.html" %}
 {% block tables %}
-<div id="wipwarning">This documentation is currently a work-in-progress and contains a number of TODO sections.
+<div id="wipwarning">This documentation is a work-in-progress.
     <a href="{{ pathto("bugs") }}">Contributions</a> are welcome.</div>
 
 <h3>Main documentation</h3>
@@ -40,7 +40,7 @@
   <tr>
     <td class="left-column">
       <p class="biglink"><a class="biglink" href="{{ pathto("data_modeling/index") }}">{% trans %}Data Modeling{% endtrans %}</a><br/>
-      <span class="linkdescr">{% trans %}Or how to make square pegs fit round holes{% endtrans %}</span></p>
+      <span class="linkdescr">{% trans %}Hint: it's not relational{% endtrans %}</span></p>
     </td>
     <td class="right-column">
       <p class="biglink"><a class="biglink" href="{{ pathto("troubleshooting/index") }}">{% trans %}Troubleshooting{% endtrans %}</a><br/>

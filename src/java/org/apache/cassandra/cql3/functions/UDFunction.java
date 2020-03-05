@@ -42,19 +42,19 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.TypeCodec;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.schema.Difference;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.functions.types.DataType;
+import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.Difference;
 import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -98,7 +98,6 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     //
     private static final String[] whitelistedPatterns =
     {
-    "com/datastax/driver/core/",
     "com/google/common/reflect/TypeToken",
     "java/io/IOException.class",
     "java/io/Serializable.class",
@@ -115,6 +114,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     "java/text/",
     "java/time/",
     "java/util/",
+    "org/apache/cassandra/cql3/functions/types/",
     "org/apache/cassandra/cql3/functions/JavaUDF.class",
     "org/apache/cassandra/cql3/functions/UDFContext.class",
     "org/apache/cassandra/exceptions/",

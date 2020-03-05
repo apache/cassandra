@@ -18,9 +18,13 @@
 
 package org.apache.cassandra.dht.tokenallocator;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Random;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.dht.IPartitioner;
@@ -28,6 +32,9 @@ import org.apache.cassandra.dht.Token;
 
 public abstract class TokenAllocatorBase<Unit> implements TokenAllocator<Unit>
 {
+    static final double MIN_INITIAL_SPLITS_RATIO = 1.0 - 1.0 / Math.sqrt(5.0);
+    static final double MAX_INITIAL_SPLITS_RATIO = MIN_INITIAL_SPLITS_RATIO + 0.075;
+
     final NavigableMap<Token, Unit> sortedTokens;
     final ReplicationStrategy<Unit> strategy;
     final IPartitioner partitioner;
@@ -77,6 +84,59 @@ public abstract class TokenAllocatorBase<Unit> implements TokenAllocator<Unit>
         if (group == null)
             groupMap.put(groupClass, group = new GroupInfo(groupClass));
         return group;
+    }
+
+    Collection<Token> generateSplits(Unit newUnit, int numTokens)
+    {
+        return generateSplits(newUnit, numTokens, MIN_INITIAL_SPLITS_RATIO, MAX_INITIAL_SPLITS_RATIO);
+    }
+    /**
+     * Selects tokens by repeatedly splitting the largest range in the ring at the given ratio.
+     *
+     * This is used to choose tokens for the first nodes in the ring where the algorithm cannot be applied (e.g. when
+     * number of nodes < RF). It generates a reasonably chaotic initial token split, after which the algorithm behaves
+     * well for an unbounded number of nodes.
+     */
+    Collection<Token> generateSplits(Unit newUnit, int numTokens, double minRatio, double maxRatio)
+    {
+        Random random = new Random(sortedTokens.size());
+
+        double potentialRatioGrowth = maxRatio - minRatio;
+
+        List<Token> tokens = Lists.newArrayListWithExpectedSize(numTokens);
+
+        if (sortedTokens.isEmpty())
+        {
+            // Select a random start token. This has no effect on distribution, only on where the local ring is "centered".
+            // Using a random start decreases the chances of clash with the tokens of other datacenters in the ring.
+            Token t = partitioner.getRandomToken();
+            tokens.add(t);
+            sortedTokens.put(t, newUnit);
+        }
+
+        while (tokens.size() < numTokens)
+        {
+            // split max span using given ratio
+            Token prev = sortedTokens.lastKey();
+            double maxsz = 0;
+            Token t1 = null;
+            Token t2 = null;
+            for (Token curr : sortedTokens.keySet())
+            {
+                double sz = prev.size(curr);
+                if (sz > maxsz)
+                {
+                    maxsz = sz;
+                    t1 = prev; t2 = curr;
+                }
+                prev = curr;
+            }
+            assert t1 != null;
+            Token t = partitioner.split(t1, t2, minRatio + potentialRatioGrowth * random.nextDouble());
+            tokens.add(t);
+            sortedTokens.put(t, newUnit);
+        }
+        return tokens;
     }
 
     /**

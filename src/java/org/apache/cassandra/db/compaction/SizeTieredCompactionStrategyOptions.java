@@ -94,4 +94,11 @@ public final class SizeTieredCompactionStrategyOptions
 
         return uncheckedOptions;
     }
+
+    @Override
+    public String toString()
+    {
+        return String.format("Min sstable size: %d, bucket low: %f, bucket high: %f", minSSTableSize, bucketLow, bucketHigh);
+    }
+
 }

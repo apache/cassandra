@@ -37,9 +37,11 @@ import org.apache.cassandra.transport.frame.compress.SnappyCompressor;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.Pair;
 import org.quicktheories.core.Gen;
+import org.quicktheories.impl.Constraint;
 
 import static org.quicktheories.QuickTheory.qt;
-import static org.quicktheories.generators.SourceDSL.*;
+import static org.quicktheories.generators.SourceDSL.arbitrary;
+import static org.quicktheories.generators.SourceDSL.integers;
 
 public class ChecksummingTransformerTest
 {
@@ -57,7 +59,7 @@ public class ChecksummingTransformerTest
     @Test
     public void roundTripSafetyProperty()
     {
-        qt().withExamples(500)
+        qt()
             .forAll(inputs(),
                     compressors(),
                     checksumTypes(),
@@ -68,7 +70,7 @@ public class ChecksummingTransformerTest
     @Test
     public void roundTripZeroLengthInput()
     {
-        qt().withExamples(20)
+        qt()
             .forAll(zeroLengthInputs(),
                     compressors(),
                     checksumTypes(),
@@ -79,21 +81,21 @@ public class ChecksummingTransformerTest
     @Test
     public void corruptionCausesFailure()
     {
-        qt().withExamples(500)
+        qt()
             .forAll(inputWithCorruptablePosition(),
                     integers().between(0, Byte.MAX_VALUE).map(Integer::byteValue),
                     compressors(),
                     checksumTypes())
-            .checkAssert(this::roundTripWithCorruption);
+            .checkAssert(ChecksummingTransformerTest::roundTripWithCorruption);
     }
 
-    private void roundTripWithCorruption(Pair<String, Integer> inputAndCorruptablePosition,
+    static void roundTripWithCorruption(Pair<ReusableBuffer, Integer> inputAndCorruptablePosition,
                                          byte corruptionValue,
                                          Compressor compressor,
                                          ChecksumType checksum)
     {
-        String input = inputAndCorruptablePosition.left;
-        ByteBuf expectedBuf = Unpooled.wrappedBuffer(input.getBytes());
+        ReusableBuffer input = inputAndCorruptablePosition.left;
+        ByteBuf expectedBuf = input.toByteBuf();
         int byteToCorrupt = inputAndCorruptablePosition.right;
         ChecksummingTransformer transformer = new ChecksummingTransformer(checksum, DEFAULT_BLOCK_SIZE, compressor);
         ByteBuf outbound = transformer.transformOutbound(expectedBuf);
@@ -173,11 +175,10 @@ public class ChecksummingTransformerTest
         Assert.assertEquals(expectedBuf, inbound);
     }
 
-    private void roundTrip(String input, Compressor compressor, ChecksumType checksum, int blockSize)
+    private void roundTrip(ReusableBuffer input, Compressor compressor, ChecksumType checksum, int blockSize)
     {
         ChecksummingTransformer transformer = new ChecksummingTransformer(checksum, blockSize, compressor);
-        byte[] expectedBytes = input.getBytes();
-        ByteBuf expectedBuf = Unpooled.wrappedBuffer(expectedBytes);
+        ByteBuf expectedBuf = input.toByteBuf();
 
         ByteBuf outbound = transformer.transformOutbound(expectedBuf);
         ByteBuf inbound = transformer.transformInbound(outbound, FLAGS);
@@ -187,23 +188,38 @@ public class ChecksummingTransformerTest
         Assert.assertEquals(expectedBuf, inbound);
     }
 
-    private Gen<Pair<String, Integer>> inputWithCorruptablePosition()
+    private Gen<Pair<ReusableBuffer, Integer>> inputWithCorruptablePosition()
     {
         // we only generate corruption for byte 2 onward. This is to skip introducing corruption in the number
         // of chunks (which isn't checksummed
-        return inputs().flatMap(s -> integers().between(2, s.length() + 2).map(i -> Pair.create(s, i)));
+        return inputs().flatMap(s -> integers().between(2, s.length + 2).map(i -> Pair.create(s, i)));
     }
 
-    private Gen<String> inputs()
+    private static Gen<ReusableBuffer> inputs()
     {
-        Gen<String> randomStrings = strings().basicMultilingualPlaneAlphabet().ofLengthBetween(0, MAX_INPUT_SIZE);
-        Gen<String> highlyCompressable = strings().betweenCodePoints('c', 'e').ofLengthBetween(1, MAX_INPUT_SIZE);
+        Gen<ReusableBuffer> randomStrings = inputs(0, MAX_INPUT_SIZE, 0, (1 << 8) - 1);
+        Gen<ReusableBuffer> highlyCompressable = inputs(1, MAX_INPUT_SIZE, 'c', 'e');
         return randomStrings.mix(highlyCompressable, 50);
     }
 
-    private Gen<String> zeroLengthInputs()
+    private static Gen<ReusableBuffer> inputs(int minSize, int maxSize, int smallestByte, int largestByte)
     {
-        return strings().ascii().ofLength(0);
+        ReusableBuffer buffer = new ReusableBuffer(new byte[maxSize]);
+        Constraint byteGen = Constraint.between(smallestByte, largestByte);
+        Constraint lengthGen = Constraint.between(minSize, maxSize);
+        Gen<ReusableBuffer> gen = td -> {
+            int size = (int) td.next(lengthGen);
+            buffer.length = size;
+            for (int i = 0; i < size; i++)
+                buffer.bytes[i] = (byte) td.next(byteGen);
+            return buffer;
+        };
+        return gen;
+    }
+
+    private Gen<ReusableBuffer> zeroLengthInputs()
+    {
+        return arbitrary().constant(new ReusableBuffer(new byte[0]));
     }
 
     private Gen<Compressor> compressors()
@@ -220,5 +236,4 @@ public class ChecksummingTransformerTest
     {
         return arbitrary().constant(DEFAULT_BLOCK_SIZE);
     }
-
 }

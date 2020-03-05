@@ -85,7 +85,7 @@ def bisearch(ucs, table):
     if ucs < table[0][0] or ucs > table[max][1]:
         return 0
     while max >= min:
-        mid = (min + max) / 2
+        mid = int((min + max) / 2)
         if ucs > table[mid][1]:
             min = mid + 1
         elif ucs < table[mid][0]:
@@ -251,20 +251,21 @@ def mk_wcwidth(ucs):
 
     # if we arrive here, ucs is not a combining or C0/C1 control character
 
-    return 1 + \
-        int(ucs >= 0x1100 and
-            (ucs <= 0x115f or                     # Hangul Jamo init. consonants
-             ucs == 0x2329 or ucs == 0x232a or
-             (ucs >= 0x2e80 and ucs <= 0xa4cf and
-              ucs != 0x303f) or                   # CJK ... Yi
-                (ucs >= 0xac00 and ucs <= 0xd7a3) or  # Hangul Syllables
-                (ucs >= 0xf900 and ucs <= 0xfaff) or  # CJK Compatibility Ideographs
-                (ucs >= 0xfe10 and ucs <= 0xfe19) or  # Vertical forms
-                (ucs >= 0xfe30 and ucs <= 0xfe6f) or  # CJK Compatibility Forms
-                (ucs >= 0xff00 and ucs <= 0xff60) or  # Fullwidth Forms
-                (ucs >= 0xffe0 and ucs <= 0xffe6) or
-                (ucs >= 0x20000 and ucs <= 0x2fffd) or
-                (ucs >= 0x30000 and ucs <= 0x3fffd)))
+    return 1 + int(
+        ucs >= 0x1100
+        and (ucs <= 0x115f                    # Hangul Jamo init. consonants
+             or ucs == 0x2329 or ucs == 0x232a
+             or (ucs >= 0x2e80 and ucs <= 0xa4cf
+                 and ucs != 0x303f)                # CJK ... Yi
+             or (ucs >= 0xac00 and ucs <= 0xd7a3)  # Hangul Syllables
+             or (ucs >= 0xf900 and ucs <= 0xfaff)  # CJK Compatibility Ideographs
+             or (ucs >= 0xfe10 and ucs <= 0xfe19)  # Vertical forms
+             or (ucs >= 0xfe30 and ucs <= 0xfe6f)  # CJK Compatibility Forms
+             or (ucs >= 0xff00 and ucs <= 0xff60)  # Fullwidth Forms
+             or (ucs >= 0xffe0 and ucs <= 0xffe6)
+             or (ucs >= 0x20000 and ucs <= 0x2fffd)
+             or (ucs >= 0x30000 and ucs <= 0x3fffd))
+    )
 
 
 def mk_wcswidth(pwcs):
@@ -313,7 +314,7 @@ def wcwidth(c):
 
 
 def wcswidth(s):
-    return mk_wcswidth(map(ord, s))
+    return mk_wcswidth(list(map(ord, s)))
 
 
 def wcwidth_cjk(c):
@@ -321,7 +322,7 @@ def wcwidth_cjk(c):
 
 
 def wcswidth_cjk(s):
-    return mk_wcswidth_cjk(map(ord, s))
+    return mk_wcswidth_cjk(list(map(ord, s)))
 
 
 if __name__ == "__main__":
@@ -341,7 +342,7 @@ if __name__ == "__main__":
         ('COMBINING PALATALIZED HOOK BELOW', 0),
         ('COMBINING GRAVE ACCENT', 0),
     )
-    nonprinting = u'\r\n\t\a\b\f\v\x7f'
+    nonprinting = '\r\n\t\a\b\f\v\x7f'
 
     import unicodedata
 
@@ -366,13 +367,13 @@ if __name__ == "__main__":
     assert mk_wcwidth(0x10ffff) == 1
     assert mk_wcwidth(0x3fffd) == 2
 
-    teststr = u'B\0ig br\u00f8wn moose\ub143\u200b'
+    teststr = 'B\0ig br\u00f8wn moose\ub143\u200b'
     calculatedwidth = wcswidth(teststr)
     assert calculatedwidth == 17, 'expected 17, got %d' % calculatedwidth
 
     calculatedwidth = wcswidth_cjk(teststr)
     assert calculatedwidth == 18, 'expected 18, got %d' % calculatedwidth
 
-    assert wcswidth(u'foobar\u200b\a') < 0
+    assert wcswidth('foobar\u200b\a') < 0
 
-    print 'tests pass.'
+    print('tests pass.')

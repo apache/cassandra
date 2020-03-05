@@ -31,10 +31,16 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.consistent.ConsistentSession;
+import org.apache.cassandra.repair.consistent.LocalSession;
+import org.apache.cassandra.repair.consistent.LocalSessions;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
@@ -78,7 +84,8 @@ import org.apache.cassandra.utils.Pair;
  * all of them in parallel otherwise.
  */
 public class RepairSession extends AbstractFuture<RepairSessionResult> implements IEndpointStateChangeSubscriber,
-                                                                                 IFailureDetectionEventListener
+                                                                                  IFailureDetectionEventListener,
+                                                                                  LocalSessions.Listener
 {
     private static Logger logger = LoggerFactory.getLogger(RepairSession.class);
 
@@ -400,5 +407,39 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         logger.error("{} session completed with the following error", previewKind.logPrefix(getId()), exception);
         // If a node failed, we stop everything (though there could still be some activity in the background)
         forceShutdown(exception);
+    }
+
+    public void onIRStateChange(LocalSession session)
+    {
+        // we should only be registered as listeners for PreviewKind.REPAIRED, but double check here
+        if (previewKind == PreviewKind.REPAIRED &&
+            session.getState() == ConsistentSession.State.FINALIZED &&
+            includesTables(session.tableIds))
+        {
+            for (Range<Token> range : session.ranges)
+            {
+                if (range.intersects(ranges()))
+                {
+                    logger.error("{} An intersecting incremental repair with session id = {} finished, preview repair might not be accurate", previewKind.logPrefix(getId()), session.sessionID);
+                    forceShutdown(new Exception("An incremental repair with session id "+session.sessionID+" finished during this preview repair runtime"));
+                    return;
+                }
+            }
+        }
+    }
+
+    private boolean includesTables(Set<TableId> tableIds)
+    {
+        Keyspace ks = Keyspace.open(keyspace);
+        if (ks != null)
+        {
+            for (String table : cfnames)
+            {
+                ColumnFamilyStore cfs = ks.getColumnFamilyStore(table);
+                if (tableIds.contains(cfs.metadata.id))
+                    return true;
+            }
+        }
+        return false;
     }
 }

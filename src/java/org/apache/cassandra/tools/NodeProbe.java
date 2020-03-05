@@ -59,6 +59,7 @@ import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.HintedHandOffManagerMBean;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.gms.FailureDetector;
@@ -96,6 +97,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
+import org.apache.cassandra.utils.NativeLibrary;
 
 /**
  * JMX client operations for Cassandra.
@@ -113,22 +115,23 @@ public class NodeProbe implements AutoCloseable
     private String username;
     private String password;
 
-    private JMXConnector jmxc;
-    private MBeanServerConnection mbeanServerConn;
-    private CompactionManagerMBean compactionProxy;
-    private StorageServiceMBean ssProxy;
-    private GossiperMBean gossProxy;
-    private MemoryMXBean memProxy;
-    private GCInspectorMXBean gcProxy;
-    private RuntimeMXBean runtimeProxy;
-    private StreamManagerMBean streamProxy;
-    public MessagingServiceMBean msProxy;
-    private FailureDetectorMBean fdProxy;
-    private CacheServiceMBean cacheService;
-    private StorageProxyMBean spProxy;
-    private HintedHandOffManagerMBean hhProxy;
-    private BatchlogManagerMBean bmProxy;
-    private ActiveRepairServiceMBean arsProxy;
+
+    protected JMXConnector jmxc;
+    protected MBeanServerConnection mbeanServerConn;
+    protected CompactionManagerMBean compactionProxy;
+    protected StorageServiceMBean ssProxy;
+    protected GossiperMBean gossProxy;
+    protected MemoryMXBean memProxy;
+    protected GCInspectorMXBean gcProxy;
+    protected RuntimeMXBean runtimeProxy;
+    protected StreamManagerMBean streamProxy;
+    protected MessagingServiceMBean msProxy;
+    protected FailureDetectorMBean fdProxy;
+    protected CacheServiceMBean cacheService;
+    protected StorageProxyMBean spProxy;
+    protected HintedHandOffManagerMBean hhProxy;
+    protected BatchlogManagerMBean bmProxy;
+    protected ActiveRepairServiceMBean arsProxy;
     private boolean failed;
 
     /**
@@ -182,7 +185,7 @@ public class NodeProbe implements AutoCloseable
      *
      * @throws IOException on connection failures
      */
-    private void connect() throws IOException
+    protected void connect() throws IOException
     {
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
         Map<String,Object> env = new HashMap<String,Object>();
@@ -398,7 +401,8 @@ public class NodeProbe implements AutoCloseable
         RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, options);
         try
         {
-            jmxc.addConnectionNotificationListener(runner, null, null);
+            if (jmxc != null)
+                jmxc.addConnectionNotificationListener(runner, null, null);
             ssProxy.addNotificationListener(runner, null, null);
             runner.run();
         }
@@ -411,7 +415,8 @@ public class NodeProbe implements AutoCloseable
             try
             {
                 ssProxy.removeNotificationListener(runner);
-                jmxc.removeConnectionNotificationListener(runner);
+                if (jmxc != null)
+                    jmxc.removeConnectionNotificationListener(runner);
             }
             catch (Throwable e)
             {
@@ -513,6 +518,11 @@ public class NodeProbe implements AutoCloseable
     public Map<String, Float> effectiveOwnershipWithPort(String keyspace) throws IllegalStateException
     {
         return ssProxy.effectiveOwnershipWithPort(keyspace);
+    }
+
+    public MBeanServerConnection getMbeanServerConn()
+    {
+        return mbeanServerConn;
     }
 
     public CacheServiceMBean getCacheServiceMBean()
@@ -775,34 +785,18 @@ public class NodeProbe implements AutoCloseable
 
     public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity, int counterCacheCapacity)
     {
-        try
-        {
-            String keyCachePath = "org.apache.cassandra.db:type=Caches";
-            CacheServiceMBean cacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), CacheServiceMBean.class);
-            cacheMBean.setKeyCacheCapacityInMB(keyCacheCapacity);
-            cacheMBean.setRowCacheCapacityInMB(rowCacheCapacity);
-            cacheMBean.setCounterCacheCapacityInMB(counterCacheCapacity);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
+        CacheServiceMBean cacheMBean = getCacheServiceMBean();
+        cacheMBean.setKeyCacheCapacityInMB(keyCacheCapacity);
+        cacheMBean.setRowCacheCapacityInMB(rowCacheCapacity);
+        cacheMBean.setCounterCacheCapacityInMB(counterCacheCapacity);
     }
 
     public void setCacheKeysToSave(int keyCacheKeysToSave, int rowCacheKeysToSave, int counterCacheKeysToSave)
     {
-        try
-        {
-            String keyCachePath = "org.apache.cassandra.db:type=Caches";
-            CacheServiceMBean cacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), CacheServiceMBean.class);
-            cacheMBean.setKeyCacheKeysToSave(keyCacheKeysToSave);
-            cacheMBean.setRowCacheKeysToSave(rowCacheKeysToSave);
-            cacheMBean.setCounterCacheKeysToSave(counterCacheKeysToSave);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
+        CacheServiceMBean cacheMBean = getCacheServiceMBean();
+        cacheMBean.setKeyCacheKeysToSave(keyCacheKeysToSave);
+        cacheMBean.setRowCacheKeysToSave(rowCacheKeysToSave);
+        cacheMBean.setCounterCacheKeysToSave(counterCacheKeysToSave);
     }
 
     public void setHintedHandoffThrottleInKB(int throttleInKB)
@@ -1308,6 +1302,11 @@ public class NodeProbe implements AutoCloseable
         return failed;
     }
 
+    public void failed()
+    {
+        this.failed = true;
+    }
+
     public long getReadRepairAttempted()
     {
         return spProxy.getReadRepairAttempted();
@@ -1682,12 +1681,18 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getLoggingLevels();
     }
 
+    public long getPid()
+    {
+        return NativeLibrary.getProcessID();
+    }
+
     public void resumeBootstrap(PrintStream out) throws IOException
     {
         BootstrapMonitor monitor = new BootstrapMonitor(out);
         try
         {
-            jmxc.addConnectionNotificationListener(monitor, null, null);
+            if (jmxc != null)
+                jmxc.addConnectionNotificationListener(monitor, null, null);
             ssProxy.addNotificationListener(monitor, null, null);
             if (ssProxy.resumeBootstrap())
             {
@@ -1708,13 +1713,24 @@ public class NodeProbe implements AutoCloseable
             try
             {
                 ssProxy.removeNotificationListener(monitor);
-                jmxc.removeConnectionNotificationListener(monitor);
+                if (jmxc != null)
+                    jmxc.removeConnectionNotificationListener(monitor);
             }
             catch (Throwable e)
             {
                 out.println("Exception occurred during clean-up. " + e);
             }
         }
+    }
+
+    public Map<String, List<Integer>> getMaximumPoolSizes(List<String> stageNames)
+    {
+        return ssProxy.getConcurrency(stageNames);
+    }
+
+    public void setConcurrency(String stageName, int coreThreads, int maxConcurrency)
+    {
+        ssProxy.setConcurrency(stageName, coreThreads, maxConcurrency);
     }
 
     public void replayBatchlog() throws IOException
@@ -1755,7 +1771,7 @@ public class NodeProbe implements AutoCloseable
     {
         ssProxy.clearConnectionHistory();
     }
-    
+
     public void disableAuditLog()
     {
         ssProxy.disableAuditLog();
@@ -1774,6 +1790,11 @@ public class NodeProbe implements AutoCloseable
     public void disableOldProtocolVersions()
     {
         ssProxy.disableNativeTransportOldProtocolVersions();
+	}
+
+    public MessagingServiceMBean getMessagingServiceProxy()
+    {
+        return msProxy;
     }
 }
 

@@ -26,7 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Timer.Context;
-
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
@@ -133,8 +132,7 @@ public abstract class AbstractCommitLogService
             throw new IllegalArgumentException(String.format("Commit log flush interval must be positive: %fms",
                                                              syncIntervalNanos * 1e-6));
         shutdown = false;
-        Runnable runnable = new SyncRunnable(MonotonicClock.preciseTime);
-        thread = NamedThreadFactory.createThread(runnable, name);
+        thread = NamedThreadFactory.createThread(new SyncRunnable(MonotonicClock.preciseTime), name);
         thread.start();
     }
 
@@ -314,7 +312,8 @@ public abstract class AbstractCommitLogService
 
     public void awaitTermination() throws InterruptedException
     {
-        thread.join();
+        if (thread != null)
+            thread.join();
     }
 
     public long getCompletedTasks()

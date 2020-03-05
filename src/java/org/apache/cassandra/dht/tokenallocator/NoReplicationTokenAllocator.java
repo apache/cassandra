@@ -114,24 +114,6 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
         unitTokens.add(new Weighted<TokenInfo>(token.replicatedOwnership, token));
     }
 
-    private Collection<Token> generateRandomTokens(UnitInfo<Unit> newUnit, int numTokens, Map<Unit, UnitInfo<Unit>> unitInfos)
-    {
-        Set<Token> tokens = new HashSet<>(numTokens);
-        while (tokens.size() < numTokens)
-        {
-            Token token = partitioner.getRandomToken();
-            if (!sortedTokens.containsKey(token))
-            {
-                tokens.add(token);
-                sortedTokens.put(token, newUnit.unit);
-            }
-        }
-        unitInfos.put(newUnit.unit, newUnit);
-        createTokenInfos(unitInfos);
-        TokenAllocatorDiagnostics.randomTokensGenerated(this, numTokens, sortedUnits, sortedTokens, newUnit.unit, tokens);
-        return tokens;
-    }
-
     public Collection<Token> addUnit(Unit newUnit, int numTokens)
     {
         assert !tokensInUnits.containsKey(newUnit);
@@ -141,10 +123,10 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
         Map<Unit, UnitInfo<Unit>> unitInfos = createUnitInfos(groups);
 
         if (unitInfos.isEmpty())
-            return generateRandomTokens(newUnitInfo, numTokens, unitInfos);
+            return generateSplits(newUnit, numTokens);
 
         if (numTokens > sortedTokens.size())
-            return generateRandomTokens(newUnitInfo, numTokens, unitInfos);
+            return generateSplits(newUnit, numTokens);
 
         TokenInfo<Unit> head = createTokenInfos(unitInfos);
 
@@ -172,7 +154,19 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
         }
 
         List<Token> newTokens = Lists.newArrayListWithCapacity(numTokens);
+        // Generate different size nodes, at most at 2/(numTokens*2+1) difference,
+        // but tighten the spread as the number of nodes grows (since it increases the time until we need to use nodes
+        // we have just split).
+        double sizeCorrection = Math.min(1.0, (numTokens + 1.0) / (unitInfos.size() + 1.0));
+        double spread = targetAverage * sizeCorrection * 2.0 / (2 * numTokens + 1);
 
+        // The biggest target is assigned to the biggest existing node. This should result in better balance in
+        // the amount of data that needs to be streamed from the different sources to the new node.
+        double target = targetAverage + spread / 2;
+
+        // This step intentionally divides by the count (rather than count - 1) because we also need to count the new
+        // node. This leaves the last position in the spread (i.e. the smallest size, least data to stream) for it.
+        double step = spread / unitsToChange.size();
         int nr = 0;
         // calculate the tokens
         for (Weighted<UnitInfo> unit : unitsToChange)
@@ -193,7 +187,7 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
                 unit.value.ownership -= wt.weight;
             }
 
-            double toTakeOver = unit.weight - targetAverage;
+            double toTakeOver = unit.weight - target;
             // Split toTakeOver proportionally between the vnodes.
             for (Weighted<TokenInfo> wt : tokens)
             {
@@ -230,6 +224,7 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
 
             // adjust the weight for current unit
             sortedUnits.add(new Weighted<>(unit.value.ownership, unit.value));
+            target -= step;
             ++nr;
         }
         sortedUnits.add(new Weighted<>(newUnitInfo.ownership, newUnitInfo));
@@ -266,5 +261,10 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
     public int getReplicas()
     {
         return 1;
+    }
+
+    public String toString()
+    {
+        return getClass().getSimpleName();
     }
 }

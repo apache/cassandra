@@ -25,6 +25,7 @@ import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.Pair;
 
+import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Arrays;
@@ -65,16 +66,29 @@ public class InstanceClassLoader extends URLClassLoader
         InstanceClassLoader create(int id, URL[] urls, ClassLoader sharedClassLoader);
     }
 
+    private volatile boolean isClosed = false;
     private final URL[] urls;
     private final int generation; // used to help debug class loader leaks, by helping determine which classloaders should have been collected
+    private final int id;
     private final ClassLoader sharedClassLoader;
 
-    InstanceClassLoader(int generation, URL[] urls, ClassLoader sharedClassLoader)
+    InstanceClassLoader(int generation, int id, URL[] urls, ClassLoader sharedClassLoader)
     {
         super(urls, null);
         this.urls = urls;
         this.sharedClassLoader = sharedClassLoader;
         this.generation = generation;
+        this.id = id;
+    }
+
+    public int getClusterGeneration()
+    {
+        return generation;
+    }
+
+    public int getInstanceId()
+    {
+        return id;
     }
 
     @Override
@@ -88,6 +102,9 @@ public class InstanceClassLoader extends URLClassLoader
 
     Class<?> loadClassInternal(String name) throws ClassNotFoundException
     {
+        if (isClosed)
+            throw new IllegalStateException(String.format("Can't load %s. Instance class loader is already closed.", name));
+
         synchronized (getClassLoadingLock(name))
         {
             // First, check if the class has already been loaded
@@ -112,7 +129,14 @@ public class InstanceClassLoader extends URLClassLoader
     {
         return "InstanceClassLoader{" +
                "generation=" + generation +
+               ", id = " + id +
                ", urls=" + Arrays.toString(urls) +
                '}';
+    }
+
+    public void close() throws IOException
+    {
+        isClosed = true;
+        super.close();
     }
 }

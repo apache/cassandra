@@ -36,10 +36,12 @@ import org.junit.Test;
 import com.datastax.driver.core.CodecRegistry;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
+import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
+import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.audit.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
@@ -51,6 +53,7 @@ import org.apache.cassandra.tools.Util;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.binlog.BinLog;
 
 import static org.apache.cassandra.fqltool.QueryReplayer.ParsedTargetHost.fromString;
 import static org.junit.Assert.assertArrayEquals;
@@ -584,6 +587,88 @@ public class FQLReplayTest
     public void testBadPort()
     {
         fromString("aaa:bbb@abc.com:xyz");
+    }
+
+    @Test (expected = IORuntimeException.class)
+    public void testFutureVersion() throws Exception
+    {
+        FQLQueryReader reader = new FQLQueryReader();
+        File dir = Files.createTempDirectory("chronicle").toFile();
+        try (ChronicleQueue queue = ChronicleQueueBuilder.single(dir).build())
+        {
+            ExcerptAppender appender = queue.acquireAppender();
+            appender.writeDocument(new BinLog.ReleaseableWriteMarshallable() {
+                protected long version()
+                {
+                    return 999;
+                }
+
+                protected String type()
+                {
+                    return FullQueryLogger.SINGLE_QUERY;
+                }
+
+                public void writeMarshallablePayload(WireOut wire)
+                {
+                    wire.write("future-field").text("future_value");
+                }
+
+                public void release()
+                {
+
+                }
+            });
+
+            ExcerptTailer tailer = queue.createTailer();
+            tailer.readDocument(reader);
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().contains("Unsupported record version"));
+            throw e;
+        }
+
+    }
+
+    @Test (expected = IORuntimeException.class)
+    public void testUnknownRecord() throws Exception
+    {
+        FQLQueryReader reader = new FQLQueryReader();
+        File dir = Files.createTempDirectory("chronicle").toFile();
+        try (ChronicleQueue queue = ChronicleQueueBuilder.single(dir).build())
+        {
+            ExcerptAppender appender = queue.acquireAppender();
+            appender.writeDocument(new BinLog.ReleaseableWriteMarshallable() {
+                protected long version()
+                {
+                    return FullQueryLogger.CURRENT_VERSION;
+                }
+
+                protected String type()
+                {
+                    return "unknown-type";
+                }
+
+                public void writeMarshallablePayload(WireOut wire)
+                {
+                    wire.write("unknown-field").text("unknown_value");
+                }
+
+                public void release()
+                {
+
+                }
+            });
+
+            ExcerptTailer tailer = queue.createTailer();
+            tailer.readDocument(reader);
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().contains("Unsupported record type field"));
+            throw e;
+        }
+
     }
 
     private void compareStatements(Statement statement1, Statement statement2)

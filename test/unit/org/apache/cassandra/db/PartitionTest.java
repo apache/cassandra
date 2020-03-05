@@ -20,11 +20,13 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
-import com.google.common.hash.Hasher;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
@@ -40,9 +42,9 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.HashingUtils;
 
 import static junit.framework.Assert.assertTrue;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
@@ -138,33 +140,34 @@ public class PartitionTest
             ImmutableBTreePartition p1 = Util.getOnlyPartitionUnfiltered(cmd1);
             ImmutableBTreePartition p2 = Util.getOnlyPartitionUnfiltered(cmd2);
 
-            Hasher hasher1 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-            Hasher hasher2 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-            UnfilteredRowIterators.digest(p1.unfilteredIterator(), hasher1, version);
-            UnfilteredRowIterators.digest(p2.unfilteredIterator(), hasher2, version);
-            Assert.assertFalse(hasher1.hash().equals(hasher2.hash()));
+            byte[] digest1 = getDigest(p1.unfilteredIterator(), version);
+            byte[] digest2 = getDigest(p2.unfilteredIterator(), version);
+            assertFalse(Arrays.equals(digest1, digest2));
 
             p1 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
             p2 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
-            hasher1 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-            hasher2 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-            UnfilteredRowIterators.digest(p1.unfilteredIterator(), hasher1, version);
-            UnfilteredRowIterators.digest(p2.unfilteredIterator(), hasher2, version);
-            Assert.assertEquals(hasher1.hash(), hasher2.hash());
+            digest1 = getDigest(p1.unfilteredIterator(), version);
+            digest2 = getDigest(p2.unfilteredIterator(), version);
+            assertArrayEquals(digest1, digest2);
 
             p1 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
             RowUpdateBuilder.deleteRow(cfs.metadata(), 6, "key2", "c").applyUnsafe();
             p2 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
-            hasher1 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-            hasher2 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
-            UnfilteredRowIterators.digest(p1.unfilteredIterator(), hasher1, version);
-            UnfilteredRowIterators.digest(p2.unfilteredIterator(), hasher2, version);
-            Assert.assertFalse(hasher1.hash().equals(hasher2.hash()));
+            digest1 = getDigest(p1.unfilteredIterator(), version);
+            digest2 = getDigest(p2.unfilteredIterator(), version);
+            assertFalse(Arrays.equals(digest1, digest2));
         }
         finally
         {
             cfs.truncateBlocking();
         }
+    }
+
+    private byte[] getDigest(UnfilteredRowIterator partition, int version)
+    {
+        Digest digest = Digest.forReadResponse();
+        UnfilteredRowIterators.digest(partition, digest, version);
+        return digest.digest();
     }
 
     @Test

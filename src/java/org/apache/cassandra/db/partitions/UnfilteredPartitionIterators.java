@@ -21,8 +21,6 @@ import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
 
-import com.google.common.hash.Hasher;
-
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
@@ -259,16 +257,16 @@ public abstract class UnfilteredPartitionIterators
      * Caller must close the provided iterator.
      *
      * @param iterator the iterator to digest.
-     * @param hasher the {@link Hasher} to use for the digest.
+     * @param digest the {@link Digest} to use.
      * @param version the messaging protocol to use when producing the digest.
      */
-    public static void digest(UnfilteredPartitionIterator iterator, Hasher hasher, int version)
+    public static void digest(UnfilteredPartitionIterator iterator, Digest digest, int version)
     {
         while (iterator.hasNext())
         {
             try (UnfilteredRowIterator partition = iterator.next())
             {
-                    UnfilteredRowIterators.digest(partition, hasher, version);
+                UnfilteredRowIterators.digest(partition, digest, version);
             }
         }
     }

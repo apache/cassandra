@@ -113,15 +113,36 @@ New features
 
 Upgrading
 ---------
+    - Sstables for tables using with a frozen UDT written by C* 3.0 appear as corrupted.
+
+      Background: The serialization-header in the -Statistics.db sstable component contains the type information
+      of the table columns. C* 3.0 write incorrect type information for frozen UDTs by omitting the
+      "frozen" information. Non-frozen UDTs were introduced by CASSANDRA-7423 in C* 3.6. Since then, the missing
+      "frozen" information leads to deserialization issues that result in CorruptSSTableExceptions, potentially other
+      exceptions as well.
+
+      As a mitigation, the sstable serialization-headers are rewritten to contain the missing "frozen" information for
+      UDTs once, when an upgrade from C* 3.0 is detected. This migration does not touch snapshots or backups.
+
+      The sstablescrub tool now performs a check of the sstable serialization-header against the schema. A mismatch of
+      the types in the serialization-header and the schema will cause sstablescrub to error out and stop by default.
+      See the new `-e` option. `-e off` disables the new validation code. `-e fix` or `-e fix-only`, e.g.
+      `sstablescrub -e fix keyspace table`, will validate the serialization-header, rewrite the non-frozen UDTs
+      in the serialzation-header to frozen UDTs, if that matches the schema, and continue with scrub.
+      See `sstablescrub -h`.
+      (CASSANDRA-15035)
     - CASSANDRA-13241 lowered the default chunk_lengh_in_kb for compresesd tables from
       64kb to 16kb. For highly compressible data this can have a noticeable impact
       on space utilization. You may want to consider manually specifying this value.
     - Additional columns have been added to system_distributed.repair_history,
       system_traces.sessions and system_traces.events. As a result select queries
-      againsts these tables will fail and generate an error in the log
-      during upgrade when the cluster is mixed version. The tables can be made
-      readable by following the instructions in CASSANDRA-14897 to add the
-      new columns to the system tables before upgrading.
+      against these tables - including queries against tracing tables performed
+      automatically by the drivers and cqlsh - will fail and generate an error in the log
+      during upgrade when the cluster is mixed version. On 3.x side this will also lead
+      to broken internode connections and lost messages.
+      Cassandra versions 3.0.20 and 3.11.6 pre-add these columns (see CASSANDRA-15385),
+      so please make sure to upgrade to those versions or higher before upgrading to
+      4.0 for query tracing to not cause any issues during the upgrade to 4.0.
     - Timestamp ties between values resolve differently: if either value has a TTL,
       this value always wins. This is to provide consistent reconciliation before
       and after the value expires into a tombstone.
@@ -215,6 +236,16 @@ Upgrading
       have been set as false by default. Operators should modify them to allow the
       creation of new views and SASI indexes, the existing ones will continue working.
       See CASSANDRA-14866 for details.
+    - CASSANDRA-15216 - The flag 'cross_node_timeout' has been set as true by default.
+      This change is done under the assumption that users have setup NTP on
+      their clusters or otherwise synchronize their clocks, and that clocks are
+      mostly in sync, since this is a requirement for general correctness of
+      last write wins.
+    - CASSANDRA-15257 removed the joda time dependency.  Any time formats
+      passed will now need to conform to java.time.format.DateTimeFormatter.
+      Most notably, days and months must be two digits, and years exceeding
+      four digits need to be prefixed with a plus or minus sign.
+
 
 Materialized Views
 -------------------
@@ -710,6 +741,8 @@ Upgrading
    - The 'index_interval' option for 'CREATE TABLE' statements, which has been deprecated
      since 2.1 and replaced with the 'min_index_interval' and 'max_index_interval' options,
      has now been removed.
+   - The 'replicate_on_write' and 'populate_io_cache_on_flush' options for 'CREATE TABLE' statements,
+     which have been deprecated since 2.1, have also been removed.
    - Batchlog entries are now stored in a new table - system.batches.
      The old one has been deprecated.
    - JMX methods set/getCompactionStrategyClass have been removed, use

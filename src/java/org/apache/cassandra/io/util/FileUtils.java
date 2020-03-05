@@ -88,11 +88,19 @@ public final class FileUtils
             ByteBuffer buf = ByteBuffer.allocateDirect(1);
             clean(buf);
         }
+        catch (IllegalAccessException e)
+        {
+            logger.error("FATAL: Cassandra is unable to access required classes. This usually means it has been " +
+                "run without the aid of the standard startup scripts or the scripts have been edited. If this was " +
+                "intentional, and you are attempting to use Java 11+ you may need to add the --add-exports and " +
+                "--add-opens jvm options from either jvm11-server.options or jvm11-client.options");
+            throw new RuntimeException(e);  // causes ExceptionInInitializerError, will prevent startup
+        }
         catch (Throwable t)
         {
-            logger.error("FATAL: Cannot initialize optimized memory deallocator. Some data, both in-memory and on-disk, may live longer due to garbage collection.");
+            logger.error("FATAL: Cannot initialize optimized memory deallocator.");
             JVMStabilityInspector.inspectThrowable(t);
-            throw new RuntimeException(t);
+            throw new RuntimeException(t); // causes ExceptionInInitializerError, will prevent startup
         }
     }
 
@@ -175,19 +183,16 @@ public final class FileUtils
         return f;
     }
 
-    public static Throwable deleteWithConfirm(String filePath, boolean expect, Throwable accumulate)
+    public static Throwable deleteWithConfirm(String filePath, Throwable accumulate)
     {
-        return deleteWithConfirm(new File(filePath), expect, accumulate);
+        return deleteWithConfirm(new File(filePath), accumulate);
     }
 
-    public static Throwable deleteWithConfirm(File file, boolean expect, Throwable accumulate)
+    public static Throwable deleteWithConfirm(File file, Throwable accumulate)
     {
-        boolean exists = file.exists();
-        assert exists || !expect : "attempted to delete non-existing file " + file.getName();
         try
         {
-            if (exists)
-                Files.delete(file.toPath());
+            Files.delete(file.toPath());
         }
         catch (Throwable t)
         {
@@ -210,7 +215,7 @@ public final class FileUtils
 
     public static void deleteWithConfirm(File file)
     {
-        maybeFail(deleteWithConfirm(file, true, null));
+        maybeFail(deleteWithConfirm(file, null));
     }
 
     public static void renameWithOutConfirm(String from, String to)
@@ -373,8 +378,8 @@ public final class FileUtils
     /** Return true if file is contained in folder */
     public static boolean isContained(File folder, File file)
     {
-        String folderPath = getCanonicalPath(folder);
-        String filePath = getCanonicalPath(file);
+        Path folderPath = Paths.get(getCanonicalPath(folder));
+        Path filePath = Paths.get(getCanonicalPath(file));
 
         return filePath.startsWith(folderPath);
     }

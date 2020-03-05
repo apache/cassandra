@@ -41,6 +41,19 @@ public interface IInstance extends IIsolatedExecutor
     Future<Void> shutdown();
     Future<Void> shutdown(boolean graceful);
 
+    int liveMemberCount();
+
+    int nodetool(String... commandAndArgs);
+    void uncaughtException(Thread t, Throwable e);
+
+    /**
+     * Return the number of times the instance tried to call {@link System#exit(int)}.
+     *
+     * When the instance is shutdown, this state should be saved, but in case not possible should return {@code -1}
+     * to indicate "unknown".
+     */
+    long killAttempts();
+
     // these methods are not for external use, but for simplicity we leave them public and on the normal IInstance interface
     void startup(ICluster cluster);
     void receiveMessage(IMessage message);

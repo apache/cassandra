@@ -49,6 +49,10 @@ public interface IInstanceConfig
      */
     void propagate(Object writeToConfig);
 
+    /**
+     * Validates whether the config properties are within range of accepted values.
+     */
+    void validate();
     Object get(String fieldName);
     String getString(String fieldName);
     int getInt(String fieldName);

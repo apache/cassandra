@@ -24,6 +24,7 @@ import org.junit.Test;
 
 import org.junit.Assert;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 
 @Ignore
 public abstract class AbstractTransactionalTest
@@ -32,6 +33,7 @@ public abstract class AbstractTransactionalTest
     public static void setupDD()
     {
         DatabaseDescriptor.daemonInitialization();
+        CommitLog.instance.start();
     }
 
     protected abstract TestableTransaction newTest() throws Exception;

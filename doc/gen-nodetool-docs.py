@@ -20,9 +20,13 @@ from __future__ import print_function
 
 import os
 import re
+import sys
 import subprocess
 from subprocess import PIPE
 from subprocess import Popen
+
+if(os.environ.get("SKIP_NODETOOL") == "1"):
+    sys.exit(0)
 
 
 nodetool = "../bin/nodetool"

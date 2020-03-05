@@ -36,8 +36,6 @@ import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.audit.AuditLogOptions;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
 
 import static org.junit.Assert.assertEquals;
@@ -122,7 +120,17 @@ public class BinLogTest
                 releaseCount.incrementAndGet();
             }
 
-            public void writeMarshallable(WireOut wire)
+            protected long version()
+            {
+                return 0;
+            }
+
+            protected String type()
+            {
+                return "test";
+            }
+
+            public void writeMarshallablePayload(WireOut wire)
             {
                 try
                 {
@@ -136,8 +144,17 @@ public class BinLogTest
         });
         binLog.put(new BinLog.ReleaseableWriteMarshallable()
         {
+            protected long version()
+            {
+                return 0;
+            }
 
-            public void writeMarshallable(WireOut wire)
+            protected String type()
+            {
+                return "test";
+            }
+
+            public void writeMarshallablePayload(WireOut wire)
             {
 
             }
@@ -182,7 +199,17 @@ public class BinLogTest
                 released.release();
             }
 
-            public void writeMarshallable(WireOut wire)
+            protected long version()
+            {
+                return 0;
+            }
+
+            protected String type()
+            {
+                return "test";
+            }
+
+            public void writeMarshallablePayload(WireOut wire)
             {
 
             }
@@ -227,7 +254,17 @@ public class BinLogTest
                 {
                 }
 
-                public void writeMarshallable(WireOut wire)
+                protected long version()
+                {
+                    return 0;
+                }
+
+                protected String type()
+                {
+                    return "test";
+                }
+
+                public void writeMarshallablePayload(WireOut wire)
                 {
                     //Notify the bing log thread is about to block
                     binLogBlocked.release();
@@ -303,7 +340,17 @@ public class BinLogTest
                 {
                 }
 
-                public void writeMarshallable(WireOut wire)
+                protected long version()
+                {
+                    return 0;
+                }
+
+                protected String type()
+                {
+                    return "test";
+                }
+
+                public void writeMarshallablePayload(WireOut wire)
                 {
                     //Notify the bing log thread is about to block
                     binLogBlocked.release();
@@ -420,7 +467,17 @@ public class BinLogTest
                 //Do nothing
             }
 
-            public void writeMarshallable(WireOut wire)
+            protected long version()
+            {
+                return 0;
+            }
+
+            protected String type()
+            {
+                return "test";
+            }
+
+            public void writeMarshallablePayload(WireOut wire)
             {
                 wire.write("text").text(text);
             }

@@ -1821,6 +1821,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public void createLinks(String snapshotDirectoryPath)
     {
+        createLinks(descriptor, components, snapshotDirectoryPath);
+    }
+
+    public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath)
+    {
         for (Component component : components)
         {
             File sourceFile = new File(descriptor.filenameFor(component));
@@ -1850,7 +1855,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             // this saves index summary lookup and index file iteration which whould be pretty costly
             // especially in presence of promoted column indexes
             if (isKeyCacheEnabled())
-                cacheKey(key, rowIndexEntrySerializer.deserialize(in, in.getFilePointer()));
+                cacheKey(key, rowIndexEntrySerializer.deserialize(in));
         }
 
         return key;

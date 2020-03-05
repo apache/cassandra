@@ -21,8 +21,6 @@ package org.apache.cassandra.concurrent;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 public class JMXEnabledSingleThreadExecutor extends JMXEnabledThreadPoolExecutor
 {
@@ -41,6 +39,12 @@ public class JMXEnabledSingleThreadExecutor extends JMXEnabledThreadPoolExecutor
     public void setMaximumThreads(int number)
     {
         throw new UnsupportedOperationException("Cannot change max threads for single threaded executor.");
+    }
+
+    @Override
+    public void setMaximumPoolSize(int newMaximumPoolSize)
+    {
+        setMaximumThreads(newMaximumPoolSize);
     }
 
     public boolean isExecutedBy(Thread test)

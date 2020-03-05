@@ -109,7 +109,7 @@ public class DescribeCluster extends NodeToolCmd
 
             ArrayListMultimap<InetAddressAndPort, HostStatWithPort> hostToTokens = ArrayListMultimap.create();
             for (HostStatWithPort stat : dc.getValue())
-                hostToTokens.put(stat.endpoint, stat);
+                hostToTokens.put(stat.endpointWithPort, stat);
 
             int totalNodes = 0; // total number of nodes in a datacenter
             int downNodes = 0; // number of down nodes in a datacenter

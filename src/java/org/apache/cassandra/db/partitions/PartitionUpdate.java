@@ -326,6 +326,15 @@ public class PartitionUpdate extends AbstractBTreePartition
     public int dataSize()
     {
         int size = 0;
+
+        if (holder.staticRow != null)
+        {
+            for (ColumnData cd : holder.staticRow.columnData())
+            {
+                size += cd.dataSize();
+            }
+        }
+
         for (Row row : this)
         {
             size += row.clustering().dataSize();
@@ -394,6 +403,24 @@ public class PartitionUpdate extends AbstractBTreePartition
                 else
                 {
                     ComplexColumnData complexData = (ComplexColumnData)cd;
+                    maxTimestamp = Math.max(maxTimestamp, complexData.complexDeletion().markedForDeleteAt());
+                    for (Cell cell : complexData)
+                        maxTimestamp = Math.max(maxTimestamp, cell.timestamp());
+                }
+            }
+        }
+
+        if (this.holder.staticRow != null)
+        {
+            for (ColumnData cd : this.holder.staticRow.columnData())
+            {
+                if (cd.column().isSimple())
+                {
+                    maxTimestamp = Math.max(maxTimestamp, ((Cell) cd).timestamp());
+                }
+                else
+                {
+                    ComplexColumnData complexData = (ComplexColumnData) cd;
                     maxTimestamp = Math.max(maxTimestamp, complexData.complexDeletion().markedForDeleteAt());
                     for (Cell cell : complexData)
                         maxTimestamp = Math.max(maxTimestamp, cell.timestamp());

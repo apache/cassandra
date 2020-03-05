@@ -534,6 +534,8 @@ TotalHints                 Counter        Number of hint messages written to thi
 TotalHintsInProgress       Counter        Number of hints attemping to be sent currently.
 ========================== ============== ===========
 
+.. _handoff-metrics:
+
 HintedHandoff Metrics
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -555,6 +557,8 @@ Name                        Type           Description
 Hints_created-<PeerIP>       Counter        Number of hints on disk for this peer.
 Hints_not_stored-<PeerIP>    Counter        Number of hints not stored for this peer, due to being down past the configured hint window.
 =========================== ============== ===========
+
+.. _hintsservice-metrics:
 
 HintsService Metrics
 ^^^^^^^^^^^^^^^^^^^^^

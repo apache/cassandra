@@ -27,7 +27,7 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.gms.Gossiper;
@@ -264,11 +264,11 @@ public class OutboundConnections
         }
 
         final MessagingService messagingService;
-        ObjectObjectOpenHashMap<InetAddressAndPort, Counts> prevEndpointToCounts = new ObjectObjectOpenHashMap<>();
+        ObjectObjectHashMap<InetAddressAndPort, Counts> prevEndpointToCounts = new ObjectObjectHashMap<>();
 
         private void closeUnusedSinceLastRun()
         {
-            ObjectObjectOpenHashMap<InetAddressAndPort, Counts> curEndpointToCounts = new ObjectObjectOpenHashMap<>();
+            ObjectObjectHashMap<InetAddressAndPort, Counts> curEndpointToCounts = new ObjectObjectHashMap<>();
             for (OutboundConnections connections : messagingService.channelManagers.values())
             {
                 Counts cur = new Counts(

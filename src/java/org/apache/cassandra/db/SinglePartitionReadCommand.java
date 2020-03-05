@@ -695,7 +695,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
             StorageHook.instance.reportRead(cfs.metadata().id, partitionKey());
 
-            return withSSTablesIterated(inputCollector.finalizeIterators(), cfs.metric, metricsCollector);
+            return withSSTablesIterated(inputCollector.finalizeIterators(cfs, nowInSec(), oldestUnrepairedTombstone), cfs.metric, metricsCollector);
         }
         catch (RuntimeException | Error e)
         {
@@ -921,7 +921,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             try (UnfilteredRowIterator iter = result.unfilteredIterator(columnFilter(), Slices.ALL, false))
             {
                 final Mutation mutation = new Mutation(PartitionUpdate.fromIterator(iter, columnFilter()));
-                Stage.MUTATION.executor.execute(() -> {
+                Stage.MUTATION.execute(() -> {
                     // skipping commitlog and index updates is fine since we're just de-fragmenting existing data
                     Keyspace.open(mutation.getKeyspaceName()).apply(mutation, false, false);
                 });

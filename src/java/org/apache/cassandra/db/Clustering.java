@@ -29,12 +29,15 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 import static org.apache.cassandra.db.AbstractBufferClusteringPrefix.EMPTY_VALUES_ARRAY;
 
 public interface Clustering extends ClusteringPrefix
 {
+    static final long EMPTY_SIZE = ObjectSizes.measure(new BufferClustering(EMPTY_VALUES_ARRAY));
+
     public static final Serializer serializer = new Serializer();
 
     public long unsharedHeapSizeExcludingData();
@@ -43,7 +46,7 @@ public interface Clustering extends ClusteringPrefix
     {
         // Important for STATIC_CLUSTERING (but must copy empty native clustering types).
         if (size() == 0)
-            return kind() == Kind.STATIC_CLUSTERING ? this : new BufferClustering(EMPTY_VALUES_ARRAY);
+            return kind() == Kind.STATIC_CLUSTERING ? this : EMPTY;
 
         ByteBuffer[] newValues = new ByteBuffer[size()];
         for (int i = 0; i < size(); i++)
@@ -78,7 +81,7 @@ public interface Clustering extends ClusteringPrefix
 
     public static Clustering make(ByteBuffer... values)
     {
-        return new BufferClustering(values);
+        return values.length == 0 ? EMPTY : new BufferClustering(values);
     }
 
     /**
