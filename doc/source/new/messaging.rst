@@ -14,14 +14,14 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-Improved Internode Messaging  
-------------------------------  
+Improved Internode Messaging
+------------------------------
 
 
-Apache Cassandra 4.0 has added several new improvements to internode messaging. 
+Apache Cassandra 4.0 has added several new improvements to internode messaging.
 
 Optimized Internode Messaging Protocol
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The internode messaging protocol has been optimized (`CASSANDRA-14485
 <https://issues.apache.org/jira/browse/CASSANDRA-14485>`_). Previously the ``IPAddressAndPort`` of the sender was included with each message that was sent even though the ``IPAddressAndPort`` had already been sent once when the initial connection/session was established. In Cassandra 4.0 ``IPAddressAndPort`` has been removed from every separate message sent  and only sent when connection/session is initiated.
 
@@ -33,10 +33,10 @@ Another improvement is that at several instances (listed) a fixed 4-byte integer
 
 
 NIO Messaging
-^^^^^^^^^^^^^^^ 
+^^^^^^^^^^^^^^^
 In Cassandra 4.0 peer-to-peer (internode) messaging has been switched to non-blocking I/O (NIO) via Netty (`CASSANDRA-8457
-<https://issues.apache.org/jira/browse/CASSANDRA-8457>`_). 
- 
+<https://issues.apache.org/jira/browse/CASSANDRA-8457>`_).
+
 As serialization format,  each message contains a header with several fixed fields, an optional key-value parameters section, and then the message payload itself. Note: the IP address in the header may be either IPv4 (4 bytes) or IPv6 (16 bytes).
 
   The diagram below shows the IPv4 address for brevity.
@@ -68,11 +68,11 @@ As serialization format,  each message contains a header with several fixed fiel
   /                           Payload                             /
   /                                                               |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- 
+
 An individual parameter has a String key and a byte array value. The key is serialized with its length, encoded as two bytes, followed by the UTF-8 byte encoding of the string. The body is serialized with its length, encoded as four bytes, followed by the bytes of the value.
 
-Resource limits on Queued Messages 
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 
+Resource limits on Queued Messages
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 System stability is improved by enforcing strict resource limits (`CASSANDRA-15066
 <https://issues.apache.org/jira/browse/CASSANDRA-15066>`_) on the number of outbound messages that are queued, measured by the ``serializedSize`` of the message. There are three separate limits imposed simultaneously to ensure that progress is always made without any reasonable combination of failures impacting a node’s stability.
 
@@ -90,7 +90,7 @@ System stability is improved by enforcing strict resource limits (`CASSANDRA-150
  internode_application_receive_queue_reserve_global_capacity_in_bytes: 536870912   #512MiB
 
 Virtual Tables for Messaging Metrics
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Metrics is improved by keeping metrics using virtual tables for inter-node inbound and outbound messaging (`CASSANDRA-15066
 <https://issues.apache.org/jira/browse/CASSANDRA-15066>`_). For inbound messaging a  virtual table (``internode_inbound``) has been added to keep metrics for:
 
@@ -138,11 +138,11 @@ This is what it looks like in pre 4.0 if we have tracing on and run a light-weig
 
 ::
 
- Sending PAXOS_PREPARE message to /A.B.C.D [MessagingService-Outgoing-/A.B.C.D] | 2017-09-11 
+ Sending PAXOS_PREPARE message to /A.B.C.D [MessagingService-Outgoing-/A.B.C.D] | 2017-09-11
  21:55:18.971000 | A.B.C.D | 15045
- … REQUEST_RESPONSE message received from /A.B.C.D [MessagingService-Incoming-/A.B.C.D] | 
+ … REQUEST_RESPONSE message received from /A.B.C.D [MessagingService-Incoming-/A.B.C.D] |
  2017-09-11 21:55:18.976000 | A.B.C.D | 20270
- … Processing response from /A.B.C.D [SharedPool-Worker-4] | 2017-09-11 21:55:18.976000 | 
+ … Processing response from /A.B.C.D [SharedPool-Worker-4] | 2017-09-11 21:55:18.976000 |
  A.B.C.D | 20372
 
 Same thing applies for Propose stage as well.
@@ -171,7 +171,7 @@ The Unprotected option is still available.
 
 Resilience
 **********
-For resilience, all frames are written with a separate CRC protected header, of 8 and 6 bytes respectively. If corruption occurs in this header, the connection must be reset, as before. If corruption occurs anywhere outside of the header, the corrupt frame will be skipped, leaving the connection intact and avoiding the loss of any messages unnecessarily. 
+For resilience, all frames are written with a separate CRC protected header, of 8 and 6 bytes respectively. If corruption occurs in this header, the connection must be reset, as before. If corruption occurs anywhere outside of the header, the corrupt frame will be skipped, leaving the connection intact and avoiding the loss of any messages unnecessarily.
 
 Previously, any issue at any point in the stream would result in the connection being reset, with the loss of any in-flight messages.
 
@@ -201,10 +201,10 @@ A consistent approach is adopted for all kinds of failure to connect, including:
 
 - Retry forever, until either success or no messages waiting to deliver.
 - Wait incrementally longer periods before reconnecting, up to a maximum of 1s.
-- While failing to connect, no reserve queue limits are acquired. 
+- While failing to connect, no reserve queue limits are acquired.
 
 Closing a connection
-++++++++++++++++++++ 
+++++++++++++++++++++
 - Correctly drains outbound messages that are waiting to be delivered (unless disconnected and fail to reconnect).
 - Messages written to a closing connection are either delivered or rejected, with a new connection being opened if the old is irrevocably closed.
 - Unused connections are pruned eventually.
@@ -215,28 +215,28 @@ Reconnecting
 We sometimes need to reconnect a perfectly valid connection, e.g. if the preferred IP address changes. We ensure that the underlying connection has no in-progress operations before closing it and reconnecting.
 
 Message Failure
-++++++++++++++++ 
+++++++++++++++++
 Propagates to callbacks instantly, better preventing overload by reclaiming committed memory.
 
 Expiry
-~~~~~~~~ 
+~~~~~~~~
 - No longer experiences head-of-line blocking (e.g. undroppable message preventing all droppable messages from being expired).
 - While overloaded, expiry is attempted eagerly on enqueuing threads.
 - While disconnected we schedule regular pruning, to handle the case where messages are no longer being sent, but we have a large backlog to expire.
 
 Overload
-~~~~~~~~~ 
+~~~~~~~~~
 - Tracked by bytes queued, as opposed to number of messages.
 
 Serialization Errors
-~~~~~~~~~~~~~~~~~~~~~ 
+~~~~~~~~~~~~~~~~~~~~~
 - Do not result in the connection being invalidated; the message is simply completed with failure, and then erased from the frame.
 - Includes detected mismatch between calculated serialization size to actual.
 
 Failures to flush to network, perhaps because the connection has been reset are not currently notified to callback handlers, as the necessary information has been discarded, though it would be possible to do so in future if we decide it is worth our while.
 
 QoS
-+++++  
++++++
 "Gossip" connection has been replaced with a general purpose "Urgent" connection, for any small messages impacting system stability.
 
 Metrics
@@ -244,14 +244,14 @@ Metrics
 We track, and expose via Virtual Table and JMX, the number of messages and bytes that: we could not serialize or flush due to an error, we dropped due to overload or timeout, are pending, and have successfully sent.
 
 Added a Message size limit
-^^^^^^^^^^^^^^^^^^^^^^^^^^ 
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Cassandra pre-4.0 doesn't protect the server from allocating huge buffers for the inter-node Message objects. Adding a message size limit would be good to deal with issues such as a malfunctioning cluster participant. Version 4.0 introduced max message size config param, akin to max mutation size - set to endpoint reserve capacity by default.
 
 Recover from unknown table when deserializing internode messages
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 As discussed in (`CASSANDRA-9289
 <https://issues.apache.org/jira/browse/CASSANDRA-9289>`_) it would be nice to gracefully recover from seeing an unknown table in a message from another node. Pre-4.0, we close the connection and reconnect, which can cause other concurrent queries to fail.
-Version 4.0  fixes the issue by wrapping message in-stream with 
-``TrackedDataInputPlus``, catching 
+Version 4.0  fixes the issue by wrapping message in-stream with
+``TrackedDataInputPlus``, catching
 ``UnknownCFException``, and skipping the remaining bytes in this message. TCP won't be closed and it will remain connected for other messages.
