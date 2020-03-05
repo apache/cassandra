@@ -53,7 +53,8 @@ public class ClientModeSSTableTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        DatabaseDescriptor.toolInitialization();
+        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.applyAddressConfig();
 
         metadata = CFMetaData.Builder.createDense(KSNAME, CFNAME, false, false)
                                                 .addPartitionKey("key", BytesType.instance)

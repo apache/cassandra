@@ -49,6 +49,7 @@ public class TupleTypesRepresentationTest
     static
     {
         DatabaseDescriptor.toolInitialization();
+        DatabaseDescriptor.applyAddressConfig();
     }
 
     private static final String keyspace = "ks";

@@ -33,6 +33,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 import org.apache.commons.io.FileUtils;
 import org.junit.BeforeClass;
 
@@ -251,6 +253,9 @@ public abstract class ToolsTester
 
         ThreadMXBean threads = ManagementFactory.getThreadMXBean();
         initialThreads = Arrays.asList(threads.getThreadInfo(threads.getAllThreadIds()));
+
+        DatabaseDescriptor.toolInitialization();
+        DatabaseDescriptor.applyAddressConfig();
     }
 
     public static class SystemExitException extends Error

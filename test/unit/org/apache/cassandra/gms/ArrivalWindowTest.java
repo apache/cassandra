@@ -27,10 +27,18 @@ import org.junit.Test;
 
 import java.net.InetAddress;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
+import org.junit.BeforeClass;
 
 public class ArrivalWindowTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void testWithNanoTime()
     {

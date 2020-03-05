@@ -20,9 +20,11 @@ package org.apache.cassandra.db;
 
 import java.util.function.Supplier;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.UnfilteredDeserializer.OldFormatDeserializer.UnfilteredIterator;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
@@ -37,6 +39,12 @@ import static org.junit.Assert.*;
 
 public class OldFormatDeserializerTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void testRangeTombstones() throws Exception
     {

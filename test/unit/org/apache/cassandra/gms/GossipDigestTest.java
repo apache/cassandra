@@ -28,11 +28,20 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 
 import java.net.InetAddress;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.MessagingService;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class GossipDigestTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void test() throws IOException
     {
