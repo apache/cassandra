@@ -104,3 +104,5 @@ full list of Apache contributors public keys, you can refer to `this link <https
 - Verify that Cassandra is running by invoking ``nodetool status`` from the command line.
 - The default location of configuration files is ``/etc/cassandra``.
 - The default location of log and data directories is ``/var/log/cassandra/`` and ``/var/lib/cassandra``.
+- In regards to "rpc_interface" or "rpc_address", remember to set one or the other but not both.
+- Client requests are processed as normally by the JVM, despite the "request_scheduler" using NoScheduler.
