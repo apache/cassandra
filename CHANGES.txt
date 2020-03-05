@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Added Virtual Table exposing Cassandra relevant system properties (CASSANDRA-15616)
  * Add data modeling introduction (CASSANDRA-15481)
  * Improve the algorithmic token allocation in case racks = RF (CASSANDRA-15600)
  * Fix ConnectionTest.testAcquireReleaseOutbound (CASSANDRA-15308)
