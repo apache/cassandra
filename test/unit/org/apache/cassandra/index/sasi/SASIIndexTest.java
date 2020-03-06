@@ -1099,25 +1099,30 @@ public class SASIIndexTest
 
         int previousCount = 0;
 
-        do
+        try
         {
-            // this loop figures out if number of search results monotonically increasing
-            // to make sure that concurrent updates don't interfere with reads, uses first_name and age
-            // indexes to test correctness of both Trie and SkipList ColumnIndex implementations.
+            do
+            {
+                // this loop figures out if number of search results monotonically increasing
+                // to make sure that concurrent updates don't interfere with reads, uses first_name and age
+                // indexes to test correctness of both Trie and SkipList ColumnIndex implementations.
 
+                Set<DecoratedKey> rows = getPaged(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
+                                                  buildExpression(age, Operator.EQ, Int32Type.instance.decompose(26)));
+
+                Assert.assertTrue(previousCount <= rows.size());
+                previousCount = rows.size();
+            }
+            while (updates.get() < writeCount);
+
+            // to make sure that after all of the writes are done we can read all "count" worth of rows
             Set<DecoratedKey> rows = getPaged(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
-                                                          buildExpression(age, Operator.EQ, Int32Type.instance.decompose(26)));
-
-            Assert.assertTrue(previousCount <= rows.size());
-            previousCount = rows.size();
+                            buildExpression(age, Operator.EQ, Int32Type.instance.decompose(26)));
+            Assert.assertEquals(writeCount, rows.size());
+        } finally {
+            scheduler.shutdownNow();
+            scheduler.awaitTermination(30, TimeUnit.SECONDS);
         }
-        while (updates.get() < writeCount);
-
-        // to make sure that after all of the writes are done we can read all "count" worth of rows
-        Set<DecoratedKey> rows = getPaged(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
-                                                      buildExpression(age, Operator.EQ, Int32Type.instance.decompose(26)));
-
-        Assert.assertEquals(writeCount, rows.size());
     }
 
     @Test
