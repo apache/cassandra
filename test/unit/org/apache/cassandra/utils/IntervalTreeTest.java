@@ -21,21 +21,21 @@ package org.apache.cassandra.utils;
  */
 
 
+import static org.junit.Assert.assertEquals;
+
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.junit.Test;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
-
-import static org.junit.Assert.assertEquals;
+import org.junit.Test;
 
 public class IntervalTreeTest
 {
@@ -92,7 +92,10 @@ public class IntervalTreeTest
 
         intersection1 = it2.search(Interval.<Integer, Void>create(1780, 1790));
         assertEquals(2, intersection1.size());
-
+        
+		IntervalTree<Integer, Void, Interval<Integer, Void>> it3 = IntervalTree.build(null);
+		List<Void> intersection3 = it3.search(Interval.<Integer, Void>create(1907, 1907));
+		assertEquals(0, intersection3.size());
     }
 
     @Test
@@ -193,6 +196,8 @@ public class IntervalTreeTest
         for (Interval<Integer, String> i : it2)
             intervals2.add(i);
 
-        assertEquals(intervals, intervals2);
+		Collections.sort(intervals, (i1, i2) -> i1.min.compareTo(i2.min));
+		Collections.sort(intervals2, (i1, i2) -> i1.min.compareTo(i2.min));
+		assertEquals(intervals, intervals2);
     }
 }
