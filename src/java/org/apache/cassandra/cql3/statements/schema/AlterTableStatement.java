@@ -395,7 +395,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         // DROP
         private final List<ColumnMetadata.Raw> droppedColumns = new ArrayList<>();
-        private long timestamp = FBUtilities.timestampMicros();
+        private Long timestamp;
 
         // RENAME
         private final Map<ColumnMetadata.Raw, ColumnMetadata.Raw> renamedColumns = new HashMap<>();
@@ -412,12 +412,14 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
             String tableName = name.getName();
-
             switch (kind)
             {
                 case   ALTER_COLUMN: return new AlterColumn(keyspaceName, tableName);
                 case    ADD_COLUMNS: return new AddColumns(keyspaceName, tableName, addedColumns);
-                case   DROP_COLUMNS: return new DropColumns(keyspaceName, tableName, droppedColumns, timestamp);
+                case   DROP_COLUMNS: return new DropColumns(keyspaceName,
+                                                            tableName,
+                                                            droppedColumns,
+                                                            timestamp == null ? state.getTimestamp() : timestamp);
                 case RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns);
                 case  ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs);
             }
