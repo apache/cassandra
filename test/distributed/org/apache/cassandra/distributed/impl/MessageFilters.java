@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.impl;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.cassandra.distributed.api.IMessage;
@@ -50,15 +51,15 @@ public class MessageFilters implements IMessageFilters
         return true;
     }
 
-    public class Filter implements IMessageFilters.Filter
+    public static class Filter implements IMessageFilters.Filter
     {
-        final boolean inbound;
+        final List<Filter> parent;
         final int[] from;
         final int[] to;
         final int[] verbs;
         final Matcher matcher;
 
-        Filter(boolean inbound, int[] from, int[] to, int[] verbs, Matcher matcher)
+        private Filter(List<Filter> parent, int[] from, int[] to, int[] verbs, Matcher matcher)
         {
             if (from != null)
             {
@@ -75,7 +76,7 @@ public class MessageFilters implements IMessageFilters
                 verbs = verbs.clone();
                 Arrays.sort(verbs);
             }
-            this.inbound = inbound;
+            this.parent = Objects.requireNonNull(parent, "parent");
             this.from = from;
             this.to = to;
             this.verbs = verbs;
@@ -86,7 +87,8 @@ public class MessageFilters implements IMessageFilters
         {
             return (from == null ? 0 : Arrays.hashCode(from))
                    + (to == null ? 0 : Arrays.hashCode(to))
-                   + (verbs == null ? 0 : Arrays.hashCode(verbs));
+                   + (verbs == null ? 0 : Arrays.hashCode(verbs)
+                   + parent.hashCode());
         }
 
         public boolean equals(Object that)
@@ -98,18 +100,19 @@ public class MessageFilters implements IMessageFilters
         {
             return Arrays.equals(from, that.from)
                    && Arrays.equals(to, that.to)
-                   && Arrays.equals(verbs, that.verbs);
+                   && Arrays.equals(verbs, that.verbs)
+                   && parent.equals(that.parent);
         }
 
         public Filter off()
         {
-            (inbound ? inboundFilters : outboundFilters).remove(this);
+            parent.remove(this);
             return this;
         }
 
         public Filter on()
         {
-            (inbound ? inboundFilters : outboundFilters).add(this);
+            parent.add(this);
             return this;
         }
 
@@ -161,7 +164,7 @@ public class MessageFilters implements IMessageFilters
 
         public Filter drop()
         {
-            return new Filter(inbound, from, to, verbs, matcher).on();
+            return new Filter(inbound ? inboundFilters : outboundFilters, from, to, verbs, matcher).on();
         }
     }
 
