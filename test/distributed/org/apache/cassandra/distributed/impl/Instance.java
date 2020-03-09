@@ -214,7 +214,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private void registerInboundFilter(ICluster cluster)
     {
         MessagingService.instance().inboundSink.add(message ->
-                permitMessageInbound(cluster, FBUtilities.getBroadcastAddressAndPort(), serializeMessage(message.from(), FBUtilities.getBroadcastAddressAndPort(), message)));
+                permitMessageInbound(cluster, serializeMessage(message.from(), broadcastAddressAndPort(), message)));
     }
 
     private void registerOutboundFilter(ICluster cluster)
@@ -224,16 +224,16 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                                      permitMessageOutbound(cluster, to, serializeMessage(message.from(), to, message)));
     }
 
-    private boolean permitMessageInbound(ICluster cluster, InetAddressAndPort to, IMessage message)
+    private boolean permitMessageInbound(ICluster cluster, IMessage message)
     {
         int fromNum = cluster.get(message.from()).config().num();
-        int toNum = cluster.get(to).config().num();
+        int toNum = config.num(); // since this instance is reciving the message, to will always be this instance
         return cluster.filters().permitInbound(fromNum, toNum, message);
     }
 
     private boolean permitMessageOutbound(ICluster cluster, InetAddressAndPort to, IMessage message)
     {
-        int fromNum = cluster.get(message.from()).config().num();
+        int fromNum = config.num(); // since this instance is sending the message, from will always be this instance
         int toNum = cluster.get(to).config().num();
         return cluster.filters().permitOutbound(fromNum, toNum, message);
     }
