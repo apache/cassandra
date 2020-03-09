@@ -373,8 +373,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     throw new RuntimeException(e);
                 }
 
-                registerInboundFilter(cluster);
-                registerOutboundFilter(cluster);
                 if (config.has(NETWORK))
                 {
                     MessagingService.instance().listen();
@@ -386,6 +384,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 //                    -- not sure what that means?  SocketFactory.instance.getClass();
                     registerMockMessaging(cluster);
                 }
+                registerInboundFilter(cluster);
+                registerOutboundFilter(cluster);
                 JVMStabilityInspector.replaceKiller(new InstanceKiller());
 
                 ActiveRepairService.instance.start();
