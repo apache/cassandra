@@ -21,6 +21,25 @@
 Compaction
 ----------
 
+Strategies
+^^^^^^^^^^
+
+Picking the right compaction strategy for your workload will ensure the best performance for both querying and for compaction itself.
+
+:ref:`Size Tiered Compaction Strategy <stcs>`
+    The default compaction strategy.  Useful as a fallback when other strategies don't fit the workload.  Most useful for
+    non pure time series workloads with spinning disks, or when the I/O from :ref:`LCS <lcs>` is too high.
+
+
+:ref:`Leveled Compaction Strategy <lcs>`
+    Leveled Compaction Strategy (LCS) is optimized for read heavy workloads, or workloads with lots of updates and deletes.  It is not a good choice for immutable time series data.
+
+
+:ref:`Time Window Compaction Strategy <twcs>`
+    Time Window Compaction Strategy is designed for TTL'ed, mostly immutable time series data.
+
+
+
 Types of compaction
 ^^^^^^^^^^^^^^^^^^^
 
@@ -276,172 +295,7 @@ More detailed compaction logging
 Enable with the compaction option ``log_all`` and a more detailed compaction log file will be produced in your log
 directory.
 
-.. _STCS:
 
-Size Tiered Compaction Strategy
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The basic idea of ``SizeTieredCompactionStrategy`` (STCS) is to merge sstables of approximately the same size. All
-sstables are put in different buckets depending on their size. An sstable is added to the bucket if size of the sstable
-is within ``bucket_low`` and ``bucket_high`` of the current average size of the sstables already in the bucket. This
-will create several buckets and the most interesting of those buckets will be compacted. The most interesting one is
-decided by figuring out which bucket's sstables takes the most reads.
 
-Major compaction
-~~~~~~~~~~~~~~~~
 
-When running a major compaction with STCS you will end up with two sstables per data directory (one for repaired data
-and one for unrepaired data). There is also an option (-s) to do a major compaction that splits the output into several
-sstables. The sizes of the sstables are approximately 50%, 25%, 12.5%... of the total size.
-
-.. _stcs-options:
-
-STCS options
-~~~~~~~~~~~~
-
-``min_sstable_size`` (default: 50MB)
-    Sstables smaller than this are put in the same bucket.
-``bucket_low`` (default: 0.5)
-    How much smaller than the average size of a bucket a sstable should be before not being included in the bucket. That
-    is, if ``bucket_low * avg_bucket_size < sstable_size`` (and the ``bucket_high`` condition holds, see below), then
-    the sstable is added to the bucket.
-``bucket_high`` (default: 1.5)
-    How much bigger than the average size of a bucket a sstable should be before not being included in the bucket. That
-    is, if ``sstable_size < bucket_high * avg_bucket_size`` (and the ``bucket_low`` condition holds, see above), then
-    the sstable is added to the bucket.
-
-Defragmentation
-~~~~~~~~~~~~~~~
-
-Defragmentation is done when many sstables are touched during a read.  The result of the read is put in to the memtable
-so that the next read will not have to touch as many sstables. This can cause writes on a read-only-cluster.
-
-.. _LCS:
-
-Leveled Compaction Strategy
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The idea of ``LeveledCompactionStrategy`` (LCS) is that all sstables are put into different levels where we guarantee
-that no overlapping sstables are in the same level. By overlapping we mean that the first/last token of a single sstable
-are never overlapping with other sstables. This means that for a SELECT we will only have to look for the partition key
-in a single sstable per level. Each level is 10x the size of the previous one and each sstable is 160MB by default. L0
-is where sstables are streamed/flushed - no overlap guarantees are given here.
-
-When picking compaction candidates we have to make sure that the compaction does not create overlap in the target level.
-This is done by always including all overlapping sstables in the next level. For example if we select an sstable in L3,
-we need to guarantee that we pick all overlapping sstables in L4 and make sure that no currently ongoing compactions
-will create overlap if we start that compaction. We can start many parallel compactions in a level if we guarantee that
-we wont create overlap. For L0 -> L1 compactions we almost always need to include all L1 sstables since most L0 sstables
-cover the full range. We also can't compact all L0 sstables with all L1 sstables in a single compaction since that can
-use too much memory.
-
-When deciding which level to compact LCS checks the higher levels first (with LCS, a "higher" level is one with a higher
-number, L0 being the lowest one) and if the level is behind a compaction will be started in that level.
-
-Major compaction
-~~~~~~~~~~~~~~~~
-
-It is possible to do a major compaction with LCS - it will currently start by filling out L1 and then once L1 is full,
-it continues with L2 etc. This is sub optimal and will change to create all the sstables in a high level instead,
-CASSANDRA-11817.
-
-Bootstrapping
-~~~~~~~~~~~~~
-
-During bootstrap sstables are streamed from other nodes. The level of the remote sstable is kept to avoid many
-compactions after the bootstrap is done. During bootstrap the new node also takes writes while it is streaming the data
-from a remote node - these writes are flushed to L0 like all other writes and to avoid those sstables blocking the
-remote sstables from going to the correct level, we only do STCS in L0 until the bootstrap is done.
-
-STCS in L0
-~~~~~~~~~~
-
-If LCS gets very many L0 sstables reads are going to hit all (or most) of the L0 sstables since they are likely to be
-overlapping. To more quickly remedy this LCS does STCS compactions in L0 if there are more than 32 sstables there. This
-should improve read performance more quickly compared to letting LCS do its L0 -> L1 compactions. If you keep getting
-too many sstables in L0 it is likely that LCS is not the best fit for your workload and STCS could work out better.
-
-Starved sstables
-~~~~~~~~~~~~~~~~
-
-If a node ends up with a leveling where there are a few very high level sstables that are not getting compacted they
-might make it impossible for lower levels to drop tombstones etc. For example, if there are sstables in L6 but there is
-only enough data to actually get a L4 on the node the left over sstables in L6 will get starved and not compacted.  This
-can happen if a user changes sstable\_size\_in\_mb from 5MB to 160MB for example. To avoid this LCS tries to include
-those starved high level sstables in other compactions if there has been 25 compaction rounds where the highest level
-has not been involved.
-
-.. _lcs-options:
-
-LCS options
-~~~~~~~~~~~
-
-``sstable_size_in_mb`` (default: 160MB)
-    The target compressed (if using compression) sstable size - the sstables can end up being larger if there are very
-    large partitions on the node.
-
-``fanout_size`` (default: 10)
-    The target size of levels increases by this fanout_size multiplier. You can reduce the space amplification by tuning
-    this option.
-
-LCS also support the ``cassandra.disable_stcs_in_l0`` startup option (``-Dcassandra.disable_stcs_in_l0=true``) to avoid
-doing STCS in L0.
-
-.. _TWCS:
-
-Time Window CompactionStrategy
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-``TimeWindowCompactionStrategy`` (TWCS) is designed specifically for workloads where it's beneficial to have data on
-disk grouped by the timestamp of the data, a common goal when the workload is time-series in nature or when all data is
-written with a TTL. In an expiring/TTL workload, the contents of an entire SSTable likely expire at approximately the
-same time, allowing them to be dropped completely, and space reclaimed much more reliably than when using
-``SizeTieredCompactionStrategy`` or ``LeveledCompactionStrategy``. The basic concept is that
-``TimeWindowCompactionStrategy`` will create 1 sstable per file for a given window, where a window is simply calculated
-as the combination of two primary options:
-
-``compaction_window_unit`` (default: DAYS)
-    A Java TimeUnit (MINUTES, HOURS, or DAYS).
-``compaction_window_size`` (default: 1)
-    The number of units that make up a window.
-``unsafe_aggressive_sstable_expiration`` (default: false)
-    Expired sstables will be dropped without checking its data is shadowing other sstables. This is a potentially
-    risky option that can lead to data loss or deleted data re-appearing, going beyond what
-    `unchecked_tombstone_compaction` does for single  sstable compaction. Due to the risk the jvm must also be
-    started with `-Dcassandra.unsafe_aggressive_sstable_expiration=true`.
-
-Taken together, the operator can specify windows of virtually any size, and `TimeWindowCompactionStrategy` will work to
-create a single sstable for writes within that window. For efficiency during writing, the newest window will be
-compacted using `SizeTieredCompactionStrategy`.
-
-Ideally, operators should select a ``compaction_window_unit`` and ``compaction_window_size`` pair that produces
-approximately 20-30 windows - if writing with a 90 day TTL, for example, a 3 Day window would be a reasonable choice
-(``'compaction_window_unit':'DAYS','compaction_window_size':3``).
-
-TimeWindowCompactionStrategy Operational Concerns
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The primary motivation for TWCS is to separate data on disk by timestamp and to allow fully expired SSTables to drop
-more efficiently. One potential way this optimal behavior can be subverted is if data is written to SSTables out of
-order, with new data and old data in the same SSTable. Out of order data can appear in two ways:
-
-- If the user mixes old data and new data in the traditional write path, the data will be comingled in the memtables
-  and flushed into the same SSTable, where it will remain comingled.
-- If the user's read requests for old data cause read repairs that pull old data into the current memtable, that data
-  will be comingled and flushed into the same SSTable.
-
-While TWCS tries to minimize the impact of comingled data, users should attempt to avoid this behavior.  Specifically,
-users should avoid queries that explicitly set the timestamp via CQL ``USING TIMESTAMP``. Additionally, users should run
-frequent repairs (which streams data in such a way that it does not become comingled).
-
-Changing TimeWindowCompactionStrategy Options
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Operators wishing to enable ``TimeWindowCompactionStrategy`` on existing data should consider running a major compaction
-first, placing all existing data into a single (old) window. Subsequent newer writes will then create typical SSTables
-as expected.
-
-Operators wishing to change ``compaction_window_unit`` or ``compaction_window_size`` can do so, but may trigger
-additional compactions as adjacent windows are joined together. If the window size is decrease d (for example, from 24
-hours to 12 hours), then the existing SSTables will not be modified - TWCS can not split existing SSTables into multiple
-windows.
