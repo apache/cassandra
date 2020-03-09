@@ -20,7 +20,6 @@ package org.apache.cassandra.utils;
  *
  */
 
-
 import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
@@ -37,11 +36,9 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.junit.Test;
 
-public class IntervalTreeTest
-{
+public class IntervalListTest {
     @Test
-    public void testSearch() throws Exception
-    {
+    public void testSearch() throws Exception {
         List<Interval<Integer, Void>> intervals = new ArrayList<Interval<Integer, Void>>();
 
         intervals.add(Interval.<Integer, Void>create(-300, -200));
@@ -57,8 +54,7 @@ public class IntervalTreeTest
         intervals.add(Interval.<Integer, Void>create(40, 50));
         intervals.add(Interval.<Integer, Void>create(49, 60));
 
-
-        IntervalTree<Integer, Void, Interval<Integer, Void>> it = IntervalTree.build(intervals);
+        IntervalList<Integer, Void, Interval<Integer, Void>> it = IntervalList.build(intervals);
 
         assertEquals(3, it.search(Interval.<Integer, Void>create(4, 4)).size());
         assertEquals(4, it.search(Interval.<Integer, Void>create(4, 5)).size());
@@ -70,20 +66,20 @@ public class IntervalTreeTest
 
         List<Interval<Integer, Void>> intervals2 = new ArrayList<Interval<Integer, Void>>();
 
-        //stravinsky 1880-1971
+        // stravinsky 1880-1971
         intervals2.add(Interval.<Integer, Void>create(1880, 1971));
-        //Schoenberg
+        // Schoenberg
         intervals2.add(Interval.<Integer, Void>create(1874, 1951));
-        //Grieg
+        // Grieg
         intervals2.add(Interval.<Integer, Void>create(1843, 1907));
-        //Schubert
+        // Schubert
         intervals2.add(Interval.<Integer, Void>create(1779, 1828));
-        //Mozart
+        // Mozart
         intervals2.add(Interval.<Integer, Void>create(1756, 1828));
-        //Schuetz
+        // Schuetz
         intervals2.add(Interval.<Integer, Void>create(1585, 1672));
 
-        IntervalTree<Integer, Void, Interval<Integer, Void>> it2 = IntervalTree.build(intervals2);
+        IntervalList<Integer, Void, Interval<Integer, Void>> it2 = IntervalList.build(intervals2);
 
         assertEquals(0, it2.search(Interval.<Integer, Void>create(1829, 1842)).size());
 
@@ -92,15 +88,14 @@ public class IntervalTreeTest
 
         intersection1 = it2.search(Interval.<Integer, Void>create(1780, 1790));
         assertEquals(2, intersection1.size());
-        
-		IntervalTree<Integer, Void, Interval<Integer, Void>> it3 = IntervalTree.build(null);
-		List<Void> intersection3 = it3.search(Interval.<Integer, Void>create(1907, 1907));
-		assertEquals(0, intersection3.size());
+
+        IntervalList<Integer, Void, Interval<Integer, Void>> it3 = IntervalList.build(null);
+        List<Void> intersection3 = it3.search(Interval.<Integer, Void>create(1907, 1907));
+        assertEquals(0, intersection3.size());
     }
 
     @Test
-    public void testIteration()
-    {
+    public void testIteration() {
         List<Interval<Integer, Void>> intervals = new ArrayList<Interval<Integer, Void>>();
 
         intervals.add(Interval.<Integer, Void>create(-300, -200));
@@ -116,7 +111,7 @@ public class IntervalTreeTest
         intervals.add(Interval.<Integer, Void>create(40, 50));
         intervals.add(Interval.<Integer, Void>create(49, 60));
 
-        IntervalTree<Integer, Void, Interval<Integer, Void>> it = IntervalTree.build(intervals);
+        IntervalList<Integer, Void, Interval<Integer, Void>> it = IntervalList.build(intervals);
 
         Collections.sort(intervals, Interval.<Integer, Void>minOrdering());
 
@@ -128,8 +123,7 @@ public class IntervalTreeTest
     }
 
     @Test
-    public void testSerialization() throws Exception
-    {
+    public void testSerialization() throws Exception {
         List<Interval<Integer, String>> intervals = new ArrayList<Interval<Integer, String>>();
 
         intervals.add(Interval.<Integer, String>create(-300, -200, "a"));
@@ -145,45 +139,35 @@ public class IntervalTreeTest
         intervals.add(Interval.<Integer, String>create(40, 50, "k"));
         intervals.add(Interval.<Integer, String>create(49, 60, "l"));
 
-        IntervalTree<Integer, String, Interval<Integer, String>> it = IntervalTree.build(intervals);
+        IntervalList<Integer, String, Interval<Integer, String>> it = IntervalList.build(intervals);
 
-        IVersionedSerializer<IntervalTree<Integer, String, Interval<Integer, String>>> serializer = IntervalTree.serializer(
-                new ISerializer<Integer>()
-                {
-                    public void serialize(Integer i, DataOutputPlus out) throws IOException
-                    {
+        IVersionedSerializer<IntervalList<Integer, String, Interval<Integer, String>>> serializer = IntervalList
+                .serializer(new ISerializer<Integer>() {
+                    public void serialize(Integer i, DataOutputPlus out) throws IOException {
                         out.writeInt(i);
                     }
 
-                    public Integer deserialize(DataInputPlus in) throws IOException
-                    {
+                    public Integer deserialize(DataInputPlus in) throws IOException {
                         return in.readInt();
                     }
 
-                    public long serializedSize(Integer i)
-                    {
+                    public long serializedSize(Integer i) {
                         return 4;
                     }
-                },
-                new ISerializer<String>()
-                {
-                    public void serialize(String v, DataOutputPlus out) throws IOException
-                    {
+                }, new ISerializer<String>() {
+                    public void serialize(String v, DataOutputPlus out) throws IOException {
                         out.writeUTF(v);
                     }
 
-                    public String deserialize(DataInputPlus in) throws IOException
-                    {
+                    public String deserialize(DataInputPlus in) throws IOException {
                         return in.readUTF();
                     }
 
-                    public long serializedSize(String v)
-                    {
+                    public long serializedSize(String v) {
                         return v.length();
                     }
-                },
-                (Constructor<Interval<Integer, String>>) (Object) Interval.class.getConstructor(Object.class, Object.class, Object.class)
-        );
+                }, (Constructor<Interval<Integer, String>>) (Object) Interval.class.getConstructor(Object.class,
+                        Object.class, Object.class));
 
         DataOutputBuffer out = new DataOutputBuffer();
 
@@ -191,13 +175,13 @@ public class IntervalTreeTest
 
         DataInputPlus in = new DataInputBuffer(out.toByteArray());
 
-        IntervalTree<Integer, String, Interval<Integer, String>> it2 = serializer.deserialize(in, 0);
+        IntervalList<Integer, String, Interval<Integer, String>> it2 = serializer.deserialize(in, 0);
         List<Interval<Integer, String>> intervals2 = new ArrayList<Interval<Integer, String>>();
         for (Interval<Integer, String> i : it2)
             intervals2.add(i);
 
-		Collections.sort(intervals, (i1, i2) -> i1.min.compareTo(i2.min));
-		Collections.sort(intervals2, (i1, i2) -> i1.min.compareTo(i2.min));
-		assertEquals(intervals, intervals2);
+        Collections.sort(intervals, (i1, i2) -> i1.min.compareTo(i2.min));
+        Collections.sort(intervals2, (i1, i2) -> i1.min.compareTo(i2.min));
+        assertEquals(intervals, intervals2);
     }
 }
