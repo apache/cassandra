@@ -32,17 +32,17 @@ public class MessageFilters implements IMessageFilters
 
     public boolean permitInbound(int from, int to, IMessage msg)
     {
-        for (Filter filter : inboundFilters)
-        {
-            if (filter.matches(from, to, msg))
-                return false;
-        }
-        return true;
+        return permit(inboundFilters, from, to, msg);
     }
 
     public boolean permitOutbound(int from, int to, IMessage msg)
     {
-        for (Filter filter : outboundFilters)
+        return permit(outboundFilters, from, to, msg);
+    }
+
+    private static boolean permit(List<Filter> filters, int from, int to, IMessage msg)
+    {
+        for (Filter filter : filters)
         {
             if (filter.matches(from, to, msg))
                 return false;
