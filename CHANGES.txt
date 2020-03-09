@@ -1,4 +1,5 @@
 3.11.7
+ * cqlsh return non-zero status when STDIN CQL fails (CASSANDRA-15623)
  * Allow sstableloader to use SSL on the native port (CASSANDRA-14904)
 Merged from 3.0:
 =======
