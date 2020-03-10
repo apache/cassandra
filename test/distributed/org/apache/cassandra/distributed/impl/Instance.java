@@ -571,15 +571,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
     {
         return sync(() -> {
-            try (DTestNodeTool nodetool = new DTestNodeTool(withNotifications))
-            {
-                int rc =  nodetool.execute(commandAndArgs);
-                return new NodeToolResult(commandAndArgs, rc, new ArrayList<>(nodetool.notifications.notifications), nodetool.latestError);
-            }
+            DTestNodeTool nodetool = new DTestNodeTool(withNotifications);
+            int rc =  nodetool.execute(commandAndArgs);
+            return new NodeToolResult(commandAndArgs, rc, new ArrayList<>(nodetool.notifications.notifications), nodetool.latestError);
         }).call();
     }
 
-    private static class DTestNodeTool extends NodeTool implements AutoCloseable {
+    private static class DTestNodeTool extends NodeTool {
         private final StorageServiceMBean storageProxy;
         private final CollectingNotificationListener notifications = new CollectingNotificationListener();
 
@@ -620,18 +618,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             super.err(e);
             latestError = e;
-        }
-
-        public void close()
-        {
-            try
-            {
-                storageProxy.removeNotificationListener(notifications, null, null);
-            }
-            catch (ListenerNotFoundException e)
-            {
-                // ignore
-            }
         }
     }
 
