@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.*;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -29,9 +30,9 @@ import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import com.google.common.collect.Iterables;
+import com.google.common.io.Files;
 
 import org.junit.*;
-import com.google.common.io.Files;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -68,10 +69,15 @@ import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import org.junit.After;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 
 @Ignore
 @RunWith(Parameterized.class)
@@ -81,6 +87,7 @@ public abstract class CommitLogTest
     private static final String KEYSPACE2 = "CommitLogTestNonDurable";
     protected static final String STANDARD1 = "Standard1";
     private static final String STANDARD2 = "Standard2";
+    private static final String CUSTOM1 = "Custom1";
 
     private static JVMStabilityInspector.Killer oldKiller;
     private static KillerForTests testKiller;
@@ -111,10 +118,19 @@ public abstract class CommitLogTest
         KeyspaceParams.DEFAULT_LOCAL_DURABLE_WRITES = false;
 
         SchemaLoader.prepareServer();
+
+        TableMetadata.Builder custom =
+            TableMetadata.builder(KEYSPACE1, CUSTOM1)
+                         .addPartitionKeyColumn("k", IntegerType.instance)
+                         .addClusteringColumn("c1", MapType.getInstance(UTF8Type.instance, UTF8Type.instance, false))
+                         .addClusteringColumn("c2", SetType.getInstance(UTF8Type.instance, false))
+                         .addStaticColumn("s", IntegerType.instance);
+
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance),
+                                    custom);
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     KeyspaceParams.simpleTransient(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
@@ -814,6 +830,7 @@ public abstract class CommitLogTest
         // Currently we don't attempt to re-flush a memtable that failed, thus make sure data is replayed by commitlog.
         // If retries work subsequent flushes should clear up error and this should change to expect 0.
         Assert.assertEquals(1, CommitLog.instance.resetUnsafe(false));
+        System.clearProperty("cassandra.replayList");
     }
 
     public void testOutOfOrderFlushRecovery(BiConsumer<ColumnFamilyStore, Memtable> flushAction, boolean performCompaction)
@@ -848,6 +865,7 @@ public abstract class CommitLogTest
         // persisted all data in the commit log. Because we know there was an error, there must be something left to
         // replay.
         Assert.assertEquals(1, CommitLog.instance.resetUnsafe(false));
+        System.clearProperty("cassandra.replayList");
     }
 
     BiConsumer<ColumnFamilyStore, Memtable> flush = (cfs, current) ->
@@ -899,6 +917,33 @@ public abstract class CommitLogTest
     public void testOutOfOrderLogDiscardWithCompaction() throws ExecutionException, InterruptedException, IOException
     {
         testOutOfOrderFlushRecovery(recycleSegments, true);
+    }
+
+    @Test
+    public void testRecoveryWithCollectionClusteringKeysStatic() throws Exception
+    {
+
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CUSTOM1);
+        RowUpdateBuilder rb = new RowUpdateBuilder(cfs.metadata(), 0, BigInteger.ONE);
+
+        rb.add("s", BigInteger.valueOf(2));
+
+        Mutation rm = rb.build();
+        CommitLog.instance.add(rm);
+
+        int replayed = 0;
+
+        try
+        {
+            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+            replayed = CommitLog.instance.resetUnsafe(false);
+        }
+        finally
+        {
+            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+        }
+
+        Assert.assertEquals(replayed, 1);
     }
 }
 
