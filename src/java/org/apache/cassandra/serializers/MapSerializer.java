@@ -78,6 +78,10 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
     {
         try
         {
+            if (bytes.remaining() == 0)
+            {
+                return;
+            }
             ByteBuffer input = bytes.duplicate();
             int n = readCollectionSize(input, version);
             for (int i = 0; i < n; i++)

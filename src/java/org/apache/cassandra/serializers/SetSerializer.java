@@ -67,6 +67,10 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
     {
         try
         {
+            if (bytes.remaining() == 0)
+            {
+                return;
+            }
             ByteBuffer input = bytes.duplicate();
             int n = readCollectionSize(input, version);
             for (int i = 0; i < n; i++)
