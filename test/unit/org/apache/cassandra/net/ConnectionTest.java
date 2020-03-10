@@ -615,17 +615,16 @@ public class ConnectionTest
             try
             {
                 inbound.open().sync();
-                CountDownLatch receiveDone = new CountDownLatch(1);
                 CountDownLatch deliveryDone = new CountDownLatch(1);
 
-                unsafeSetHandler(Verb._TEST_1, () -> msg -> receiveDone.countDown());
+                unsafeSetHandler(Verb._TEST_1, () -> msg -> {
+                    outbound.unsafeRunOnDelivery(deliveryDone::countDown);
+                });
                 outbound.enqueue(Message.out(Verb._TEST_1, noPayload));
                 Assert.assertEquals(1, outbound.pendingCount());
-                outbound.unsafeRunOnDelivery(deliveryDone::countDown);
 
-                Assert.assertTrue(receiveDone.await(10, SECONDS));
                 Assert.assertTrue(deliveryDone.await(10, SECONDS));
-                Assert.assertEquals(0, receiveDone.getCount());
+                Assert.assertEquals(0, deliveryDone.getCount());
                 Assert.assertEquals(0, outbound.pendingCount());
             }
             finally
