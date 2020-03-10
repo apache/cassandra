@@ -206,7 +206,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, msg));
         logger.info(msg);
 
-        ActiveRepairService.instance.removeParentRepairSessionIfPresent(parentSession);
+        ActiveRepairService.instance.removeParentRepairSession(parentSession);
         TraceState localState = traceState;
         if (options.isTraced() && localState != null)
         {
