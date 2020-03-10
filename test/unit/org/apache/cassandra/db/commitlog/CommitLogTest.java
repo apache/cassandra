@@ -41,6 +41,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
@@ -73,6 +74,7 @@ public class CommitLogTest
     private static final String KEYSPACE2 = "CommitLogTestNonDurable";
     private static final String STANDARD1 = "Standard1";
     private static final String STANDARD2 = "Standard2";
+    private static final String CUSTOM1 = "Custom1";
 
     public CommitLogTest(ParameterizedClass commitLogCompression)
     {
@@ -104,10 +106,20 @@ public class CommitLogTest
         KeyspaceParams.DEFAULT_LOCAL_DURABLE_WRITES = false;
 
         SchemaLoader.prepareServer();
+
+        CFMetaData custom = CFMetaData.compile(String.format("CREATE TABLE \"%s\" (" +
+                                                             "k int," +
+                                                             "c1 frozen<map<text, text>>," +
+                                                             "c2 frozen<set<text>>," +
+                                                             "s int static," +
+                                                             "PRIMARY KEY (k, c1, c2)" +
+                                                             ");", CUSTOM1), KEYSPACE1);
+
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance),
+                                    custom);
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     KeyspaceParams.simpleTransient(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
@@ -657,6 +669,7 @@ public class CommitLogTest
         // Currently we don't attempt to re-flush a memtable that failed, thus make sure data is replayed by commitlog.
         // If retries work subsequent flushes should clear up error and this should change to expect 0.
         Assert.assertEquals(1, CommitLog.instance.resetUnsafe(false));
+        System.clearProperty("cassandra.replayList");
     }
 
     public void testOutOfOrderFlushRecovery(BiConsumer<ColumnFamilyStore, Memtable> flushAction, boolean performCompaction)
@@ -691,6 +704,7 @@ public class CommitLogTest
         // persisted all data in the commit log. Because we know there was an error, there must be something left to
         // replay.
         Assert.assertEquals(1, CommitLog.instance.resetUnsafe(false));
+        System.clearProperty("cassandra.replayList");
     }
 
     BiConsumer<ColumnFamilyStore, Memtable> flush = (cfs, current) ->
@@ -742,6 +756,34 @@ public class CommitLogTest
     public void testOutOfOrderLogDiscardWithCompaction() throws ExecutionException, InterruptedException, IOException
     {
         testOutOfOrderFlushRecovery(recycleSegments, true);
+    }
+
+    @Test
+    public void testRecoveryWithCollectionClusteringKeysStatic() throws Exception
+    {
+
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CUSTOM1);
+        RowUpdateBuilder rb = new RowUpdateBuilder(cfs.metadata, 0, 1);
+
+        rb.add("s", 2);
+
+        Mutation rm = rb.build();
+        CommitLog.instance.add(rm);
+
+        int replayed = 0;
+
+        try
+        {
+            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+            replayed = CommitLog.instance.resetUnsafe(false);
+        }
+        finally
+        {
+            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+        }
+
+        Assert.assertEquals(replayed, 1);
+
     }
 }
 
