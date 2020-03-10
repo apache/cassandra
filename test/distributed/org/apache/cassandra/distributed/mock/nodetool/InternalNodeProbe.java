@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.distributed.mock.nodetool;
 
-import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.Iterator;
 import java.util.Map;
-
 import javax.management.ListenerNotFoundException;
 
 import com.google.common.collect.Multimap;
@@ -56,21 +54,10 @@ public class InternalNodeProbe extends NodeProbe
 {
     private final boolean withNotifications;
 
-    public InternalNodeProbe(boolean withNotifications) throws IOException
+    public InternalNodeProbe(boolean withNotifications)
     {
-        super("", 0);
         this.withNotifications = withNotifications;
-        connect(); // need to double "connect" since constructor calls connect; withNotifications isn't visable the first time
-    }
-
-    public static InternalNodeProbe create(boolean withNotifications) {
-        try {
-            return new InternalNodeProbe(withNotifications);
-        }
-        catch (IOException e)
-        {
-            throw new AssertionError(e);
-        }
+        connect();
     }
 
     protected void connect()

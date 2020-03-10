@@ -587,7 +587,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         DTestNodeTool(boolean withNotifications) {
             super(new InternalNodeProbeFactory(withNotifications));
-            storageProxy = InternalNodeProbe.create(withNotifications).getStorageService();
+            storageProxy = new InternalNodeProbe(withNotifications).getStorageService();
             storageProxy.addNotificationListener(notifications, null, null);
         }
 
