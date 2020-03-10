@@ -145,11 +145,15 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
+    public void notification(String msg)
+    {
+        logger.info(msg);
+        fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, msg));
+    }
+
     private void skip(String msg)
     {
-        logger.info("Repair {} skipped: {}", parentSession, msg);
-        fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, 100, 100, "Repair " + parentSession + " skipped: " + msg));
-
+        notification("Repair " + parentSession + " skipped: " + msg);
         success(msg);
     }
 
@@ -519,15 +523,12 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     if (summary.isEmpty())
                     {
                         message = previewKind == PreviewKind.REPAIRED ? "Repaired data is in sync" : "Previewed data was in sync";
-                        logger.info(message);
-                        fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, message));
                     }
                     else
                     {
                         message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
-                        logger.info(message);
-                        fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, message));
                     }
+                    notification(message);
 
                     success("Repair preview completed successfully");
                 }
@@ -751,7 +752,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                         if (seen[si == 0 ? 1 : 0].contains(uuid))
                             continue;
                         String message = String.format("%s: %s", r.getInetAddress("source"), r.getString("activity"));
-                        fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, 0, 0, message));
+                        notification(message);
                     }
                     tlast = tcur;
 
