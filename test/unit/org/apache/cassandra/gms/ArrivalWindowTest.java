@@ -25,26 +25,26 @@ import static org.junit.Assert.*;
 
 import org.junit.Test;
 
-import java.lang.RuntimeException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.FBUtilities;
+import org.junit.BeforeClass;
 
 public class ArrivalWindowTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void testWithNanoTime()
     {
         final ArrivalWindow windowWithNano = new ArrivalWindow(4);
         final long toNano = 1000000L;
-        InetAddress ep;
-        try
-        {
-            ep = InetAddress.getLocalHost();
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
+        InetAddress ep = FBUtilities.getLocalAddress();
         windowWithNano.add(111 * toNano, ep);
         windowWithNano.add(222 * toNano, ep);
         windowWithNano.add(333 * toNano, ep);

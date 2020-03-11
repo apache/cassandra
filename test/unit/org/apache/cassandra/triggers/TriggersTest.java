@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.triggers;
 
-import java.net.InetAddress;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -67,7 +66,7 @@ public class TriggersTest
         StorageService.instance.initServer(0);
         if (thriftServer == null || ! thriftServer.isRunning())
         {
-            thriftServer = new ThriftServer(InetAddress.getLocalHost(), 9170, 50);
+            thriftServer = new ThriftServer(FBUtilities.getLocalAddress(), 9170, 50);
             thriftServer.start();
         }
 
@@ -126,7 +125,7 @@ public class TriggersTest
         Cassandra.Client client = new Cassandra.Client(
                                         new TBinaryProtocol(
                                             new TFramedTransportFactory().openTransport(
-                                                InetAddress.getLocalHost().getHostName(), 9170)));
+                                                FBUtilities.getLocalAddress().getHostName(), 9170)));
         client.set_keyspace(ksName);
         client.insert(bytes(2),
                       new ColumnParent(cfName),
@@ -142,7 +141,7 @@ public class TriggersTest
         Cassandra.Client client = new Cassandra.Client(
                                     new TBinaryProtocol(
                                         new TFramedTransportFactory().openTransport(
-                                            InetAddress.getLocalHost().getHostName(), 9170)));
+                                            FBUtilities.getLocalAddress().getHostName(), 9170)));
         client.set_keyspace(ksName);
         org.apache.cassandra.thrift.Mutation mutation = new org.apache.cassandra.thrift.Mutation();
         ColumnOrSuperColumn cosc = new ColumnOrSuperColumn();
@@ -183,7 +182,7 @@ public class TriggersTest
         Cassandra.Client client = new Cassandra.Client(
                 new TBinaryProtocol(
                         new TFramedTransportFactory().openTransport(
-                                InetAddress.getLocalHost().getHostName(), 9170)));
+                                FBUtilities.getLocalAddress().getHostName(), 9170)));
         client.set_keyspace(ksName);
         client.cas(bytes(6),
                    cfName,
@@ -237,7 +236,7 @@ public class TriggersTest
             Cassandra.Client client = new Cassandra.Client(
                     new TBinaryProtocol(
                             new TFramedTransportFactory().openTransport(
-                                    InetAddress.getLocalHost().getHostName(), 9170)));
+                                    FBUtilities.getLocalAddress().getHostName(), 9170)));
             client.set_keyspace(ksName);
             client.cas(bytes(9),
                        cf,
@@ -262,7 +261,7 @@ public class TriggersTest
             Cassandra.Client client = new Cassandra.Client(
                     new TBinaryProtocol(
                             new TFramedTransportFactory().openTransport(
-                                    InetAddress.getLocalHost().getHostName(), 9170)));
+                                    FBUtilities.getLocalAddress().getHostName(), 9170)));
             client.set_keyspace(ksName);
             client.cas(bytes(10),
                        cf,

@@ -85,6 +85,7 @@ public class SSTableHeaderFixTest
     static
     {
         DatabaseDescriptor.toolInitialization();
+        DatabaseDescriptor.applyAddressConfig();
     }
 
     private File temporaryFolder;

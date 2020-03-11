@@ -49,15 +49,16 @@ import org.apache.cassandra.utils.MerkleTrees;
 
 public class RepairMessageSerializationsTest
 {
-    private static final int PROTOCOL_VERSION = MessagingService.current_version;
     private static final int GC_BEFORE = 1000000;
 
+    private static int protocolVersion;
     private static IPartitioner originalPartitioner;
 
     @BeforeClass
     public static void before()
     {
         DatabaseDescriptor.daemonInitialization();
+        protocolVersion = MessagingService.current_version;
         originalPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
@@ -94,16 +95,16 @@ public class RepairMessageSerializationsTest
 
     private <T extends RepairMessage> T serializeRoundTrip(T msg, IVersionedSerializer<T> serializer) throws IOException
     {
-        long size = serializer.serializedSize(msg, PROTOCOL_VERSION);
+        long size = serializer.serializedSize(msg, protocolVersion);
 
         ByteBuffer buf = ByteBuffer.allocate((int)size);
         DataOutputPlus out = new DataOutputBufferFixed(buf);
-        serializer.serialize(msg, out, PROTOCOL_VERSION);
+        serializer.serialize(msg, out, protocolVersion);
         Assert.assertEquals(size, buf.position());
 
         buf.flip();
         DataInputPlus in = new DataInputBuffer(buf, false);
-        T deserialized = serializer.deserialize(in, PROTOCOL_VERSION);
+        T deserialized = serializer.deserialize(in, protocolVersion);
         Assert.assertEquals(msg, deserialized);
         Assert.assertEquals(msg.hashCode(), deserialized.hashCode());
         return deserialized;

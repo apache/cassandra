@@ -29,6 +29,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -68,6 +69,8 @@ public class CommitLogDescriptorTest
         neverEnabledEncryption = EncryptionContextGenerator.createDisabledContext();
         TransparentDataEncryptionOptions disaabledTdeOptions = new TransparentDataEncryptionOptions(false, enabledTdeOptions.cipher, enabledTdeOptions.key_alias, enabledTdeOptions.key_provider);
         previouslyEnabledEncryption = new EncryptionContext(disaabledTdeOptions);
+        
+        DatabaseDescriptor.daemonInitialization();
     }
 
     @Test

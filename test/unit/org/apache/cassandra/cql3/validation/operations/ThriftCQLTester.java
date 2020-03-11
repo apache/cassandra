@@ -19,9 +19,7 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.ServerSocket;
-import java.net.UnknownHostException;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -29,12 +27,10 @@ import org.junit.BeforeClass;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TFramedTransport;
-import org.apache.thrift.transport.TSocket;
 
 public class ThriftCQLTester extends CQLTester
 {
@@ -61,7 +57,7 @@ public class ThriftCQLTester extends CQLTester
 
         if (thriftServer == null || ! thriftServer.isRunning())
         {
-            thriftServer = new ThriftServer(InetAddress.getLocalHost(), thriftPort, 50);
+            thriftServer = new ThriftServer(FBUtilities.getLocalAddress(), thriftPort, 50);
             thriftServer.start();
         }
     }
@@ -77,7 +73,7 @@ public class ThriftCQLTester extends CQLTester
 
     public Cassandra.Client getClient() throws Throwable
     {
-        return getClient(InetAddress.getLocalHost().getHostName(), thriftPort);
+        return getClient(FBUtilities.getLocalAddress().getHostName(), thriftPort);
     }
 
     public Cassandra.Client getClient(String hostname, int thriftPort) throws Throwable

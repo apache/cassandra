@@ -24,6 +24,7 @@ import java.util.*;
 import com.google.common.collect.Lists;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
@@ -59,6 +60,12 @@ public class MerkleTreeTest
     private Range<Token> fullRange()
     {
         return new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken());
+    }
+
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
     }
 
     @Before
