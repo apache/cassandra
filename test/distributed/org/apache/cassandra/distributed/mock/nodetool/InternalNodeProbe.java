@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.distributed.mock.nodetool;
 
-import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.Iterator;
 import java.util.Map;
+import javax.management.ListenerNotFoundException;
 
 import com.google.common.collect.Multimap;
 
@@ -45,14 +45,19 @@ import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.tools.NodeProbe;
+import org.mockito.Mockito;
 
 public class InternalNodeProbe extends NodeProbe
 {
-    public InternalNodeProbe() throws IOException
+    private final boolean withNotifications;
+
+    public InternalNodeProbe(boolean withNotifications)
     {
-        super("", 0);
+        this.withNotifications = withNotifications;
+        connect();
     }
 
     protected void connect()
@@ -61,7 +66,26 @@ public class InternalNodeProbe extends NodeProbe
         mbeanServerConn = null;
         jmxc = null;
 
-        ssProxy = StorageService.instance;
+        if (withNotifications)
+        {
+            ssProxy = StorageService.instance;
+        }
+        else
+        {
+            // replace the notification apis with a no-op method
+            StorageServiceMBean mock = Mockito.spy(StorageService.instance);
+            Mockito.doNothing().when(mock).addNotificationListener(Mockito.any(), Mockito.any(), Mockito.any());
+            try
+            {
+                Mockito.doNothing().when(mock).removeNotificationListener(Mockito.any(), Mockito.any(), Mockito.any());
+                Mockito.doNothing().when(mock).removeNotificationListener(Mockito.any());
+            }
+            catch (ListenerNotFoundException e)
+            {
+                throw new AssertionError(e);
+            }
+            ssProxy = mock;
+        }
         msProxy = MessagingService.instance();
         streamProxy = StreamManager.instance;
         compactionProxy = CompactionManager.instance;

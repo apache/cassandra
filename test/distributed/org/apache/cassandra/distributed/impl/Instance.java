@@ -25,10 +25,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
+import javax.management.ListenerNotFoundException;
+import javax.management.Notification;
+import javax.management.NotificationListener;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -58,6 +61,8 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -81,6 +86,7 @@ import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
 import org.apache.cassandra.streaming.async.StreamingInboundHandler;
@@ -199,31 +205,37 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private void registerMockMessaging(ICluster cluster)
     {
-        BiConsumer<InetAddressAndPort, IMessage> deliverToInstance = (to, message) -> cluster.get(to).receiveMessage(message);
-        BiConsumer<InetAddressAndPort, IMessage> deliverToInstanceIfNotFiltered = (to, message) -> {
-            if (permitMessage(cluster, to, message))
-                deliverToInstance.accept(to, message);
-        };
-
         MessagingService.instance().outboundSink.add((message, to) -> {
-            deliverToInstanceIfNotFiltered.accept(to, serializeMessage(message.from(), to, message));
+            cluster.get(to).receiveMessage(serializeMessage(message.from(), to, message));
             return false;
         });
     }
 
-    // unnecessary if registerMockMessaging used
-    private void registerFilter(ICluster cluster)
+    private void registerInboundFilter(ICluster cluster)
     {
-        MessagingService.instance().outboundSink.add((message, to) -> {
-            return permitMessage(cluster, to, serializeMessage(message.from(), to, message));
-        });
+        MessagingService.instance().inboundSink.add(message ->
+                permitMessageInbound(cluster, serializeMessage(message.from(), broadcastAddressAndPort(), message)));
     }
 
-    private boolean permitMessage(ICluster cluster, InetAddressAndPort to, IMessage message)
+    private void registerOutboundFilter(ICluster cluster)
+    {
+
+        MessagingService.instance().outboundSink.add((message, to) ->
+                                                     permitMessageOutbound(cluster, to, serializeMessage(message.from(), to, message)));
+    }
+
+    private boolean permitMessageInbound(ICluster cluster, IMessage message)
     {
         int fromNum = cluster.get(message.from()).config().num();
+        int toNum = config.num(); // since this instance is reciving the message, to will always be this instance
+        return cluster.filters().permitInbound(fromNum, toNum, message);
+    }
+
+    private boolean permitMessageOutbound(ICluster cluster, InetAddressAndPort to, IMessage message)
+    {
+        int fromNum = config.num(); // since this instance is sending the message, from will always be this instance
         int toNum = cluster.get(to).config().num();
-        return cluster.filters().permit(fromNum, toNum, message);
+        return cluster.filters().permitOutbound(fromNum, toNum, message);
     }
 
     public void uncaughtException(Thread thread, Throwable throwable)
@@ -274,8 +286,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             Message.Header header = messageIn.header;
             TraceState state = Tracing.instance.initializeFromMessage(header);
             if (state != null) state.trace("{} message received from {}", header.verb, header.from);
-            header.verb.stage.execute(ThrowingRunnable.toRunnable(() -> messageIn.verb().handler().doVerb((Message<Object>) messageIn)),
-                                      ExecutorLocals.create(state));
+            header.verb.stage.execute(() -> {
+                MessagingService.instance().inboundSink.accept(messageIn);
+            }, ExecutorLocals.create(state));
         }).run();
     }
 
@@ -362,7 +375,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 if (config.has(NETWORK))
                 {
-                    registerFilter(cluster);
                     MessagingService.instance().listen();
                 }
                 else
@@ -372,6 +384,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 //                    -- not sure what that means?  SocketFactory.instance.getClass();
                     registerMockMessaging(cluster);
                 }
+                registerInboundFilter(cluster);
+                registerOutboundFilter(cluster);
                 JVMStabilityInspector.replaceKiller(new InstanceKiller());
 
                 // TODO: this is more than just gossip
@@ -554,9 +568,66 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).call();
     }
 
-    public int nodetool(String... commandAndArgs)
+    public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
     {
-        return sync(() -> new NodeTool(new InternalNodeProbeFactory()).execute(commandAndArgs)).call();
+        return sync(() -> {
+            DTestNodeTool nodetool = new DTestNodeTool(withNotifications);
+            int rc =  nodetool.execute(commandAndArgs);
+            return new NodeToolResult(commandAndArgs, rc, new ArrayList<>(nodetool.notifications.notifications), nodetool.latestError);
+        }).call();
+    }
+
+    private static class DTestNodeTool extends NodeTool {
+        private final StorageServiceMBean storageProxy;
+        private final CollectingNotificationListener notifications = new CollectingNotificationListener();
+
+        private Throwable latestError;
+
+        DTestNodeTool(boolean withNotifications) {
+            super(new InternalNodeProbeFactory(withNotifications));
+            storageProxy = new InternalNodeProbe(withNotifications).getStorageService();
+            storageProxy.addNotificationListener(notifications, null, null);
+        }
+
+        public int execute(String... args)
+        {
+            try
+            {
+                return super.execute(args);
+            }
+            finally
+            {
+                try
+                {
+                    storageProxy.removeNotificationListener(notifications, null, null);
+                }
+                catch (ListenerNotFoundException e)
+                {
+                    // ignored
+                }
+            }
+        }
+
+        protected void badUse(Exception e)
+        {
+            super.badUse(e);
+            latestError = e;
+        }
+
+        protected void err(Throwable e)
+        {
+            super.err(e);
+            latestError = e;
+        }
+    }
+
+    private static final class CollectingNotificationListener implements NotificationListener {
+        private final CopyOnWriteArrayList<Notification> notifications = new CopyOnWriteArrayList<>();
+
+        public void handleNotification(Notification notification, Object handback)
+        {
+            notifications.add(notification);
+        }
     }
 
     public long killAttempts()

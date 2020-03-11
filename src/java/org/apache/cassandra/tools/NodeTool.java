@@ -276,13 +276,13 @@ public class NodeTool
         }
     }
 
-    private static void badUse(Exception e)
+    protected void badUse(Exception e)
     {
         System.out.println("nodetool: " + e.getMessage());
         System.out.println("See 'nodetool help' or 'nodetool help <command>'.");
     }
 
-    private static void err(Throwable e)
+    protected void err(Throwable e)
     {
         System.err.println("error: " + e.getMessage());
         System.err.println("-- StackTrace --");

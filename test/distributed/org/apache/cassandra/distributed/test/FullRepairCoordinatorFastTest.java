@@ -16,27 +16,19 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.mock.nodetool;
+package org.apache.cassandra.distributed.test;
 
-import java.io.IOException;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.INodeProbeFactory;
+import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairParallelism;
+import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairType;
 
-public class InternalNodeProbeFactory implements INodeProbeFactory
+@RunWith(Parameterized.class)
+public class FullRepairCoordinatorFastTest extends RepairCoordinatorFast
 {
-    private final boolean withNotifications;
-
-    public InternalNodeProbeFactory(boolean withNotifications)
+    public FullRepairCoordinatorFastTest(RepairParallelism parallelism, boolean withNotifications)
     {
-        this.withNotifications = withNotifications;
-    }
-
-    public NodeProbe create(String host, int port) throws IOException {
-        return new InternalNodeProbe(withNotifications);
-    }
-
-    public NodeProbe create(String host, int port, String username, String password) throws IOException {
-        return new InternalNodeProbe(withNotifications);
+        super(RepairType.FULL, parallelism, withNotifications);
     }
 }

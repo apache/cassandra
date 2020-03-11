@@ -16,27 +16,23 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.mock.nodetool;
+package org.apache.cassandra.distributed.api;
 
-import java.io.IOException;
+import java.io.Serializable;
 
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.INodeProbeFactory;
-
-public class InternalNodeProbeFactory implements INodeProbeFactory
+public final class LongTokenRange implements Serializable
 {
-    private final boolean withNotifications;
+    public final long minExclusive;
+    public final long maxInclusive;
 
-    public InternalNodeProbeFactory(boolean withNotifications)
+    public LongTokenRange(long minExclusive, long maxInclusive)
     {
-        this.withNotifications = withNotifications;
+        this.minExclusive = minExclusive;
+        this.maxInclusive = maxInclusive;
     }
 
-    public NodeProbe create(String host, int port) throws IOException {
-        return new InternalNodeProbe(withNotifications);
-    }
-
-    public NodeProbe create(String host, int port, String username, String password) throws IOException {
-        return new InternalNodeProbe(withNotifications);
+    public String toString()
+    {
+        return "(" + minExclusive + "," + maxInclusive + "]";
     }
 }

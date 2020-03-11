@@ -131,7 +131,7 @@ public class PreviewRepairTest extends DistributedTestBase
             SimpleCondition continuePreviewRepair = new SimpleCondition();
             DelayMessageFilter filter = new DelayMessageFilter(continuePreviewRepair);
             // this pauses the validation request sent from node1 to node2 until we have run a full inc repair below
-            cluster.filters().verbs(Verb.VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
+            cluster.filters().outbound().verbs(Verb.VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
 
             Future<Pair<Boolean, Boolean>> rsFuture = es.submit(() -> cluster.get(1).callOnInstance(repair(options(true))));
             Thread.sleep(1000);
@@ -170,7 +170,7 @@ public class PreviewRepairTest extends DistributedTestBase
             // pause preview repair validation messages on node2 until node1 has finished
             SimpleCondition continuePreviewRepair = new SimpleCondition();
             DelayMessageFilter filter = new DelayMessageFilter(continuePreviewRepair);
-            cluster.filters().verbs(Verb.VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
+            cluster.filters().outbound().verbs(Verb.VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
 
             // get local ranges to repair two separate ranges:
             List<String> localRanges = cluster.get(1).callOnInstance(() -> {
