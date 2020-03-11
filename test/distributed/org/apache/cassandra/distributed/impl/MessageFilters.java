@@ -138,50 +138,50 @@ public class MessageFilters implements IMessageFilters
             this.inbound = inbound;
         }
 
-        public Builder from(int... nums)
+        public IMessageFilters.Builder from(int... nums)
         {
             from = nums;
             return this;
         }
 
-        public Builder to(int... nums)
+        public IMessageFilters.Builder to(int... nums)
         {
             to = nums;
             return this;
         }
 
-        public Builder verbs(int... verbs)
+        public IMessageFilters.Builder verbs(int... verbs)
         {
             this.verbs = verbs;
             return this;
         }
 
-        public Builder allVerbs()
+        public IMessageFilters.Builder allVerbs()
         {
             this.verbs = null;
             return this;
         }
 
-        public Builder inbound(boolean inbound)
+        public IMessageFilters.Builder inbound(boolean inbound)
         {
             this.inbound = inbound;
             return this;
         }
 
-        public Builder messagesMatching(Matcher matcher)
+        public IMessageFilters.Builder messagesMatching(Matcher matcher)
         {
             this.matcher = matcher;
             return this;
         }
 
-        public Filter drop()
+        public IMessageFilters.Filter drop()
         {
             return new Filter(inbound ? inboundFilters : outboundFilters, from, to, verbs, matcher).on();
         }
     }
 
 
-    public Builder inbound(boolean inbound)
+    public IMessageFilters.Builder inbound(boolean inbound)
     {
         return new Builder(inbound);
     }
