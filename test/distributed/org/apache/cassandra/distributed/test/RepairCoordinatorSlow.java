@@ -57,7 +57,7 @@ public abstract class RepairCoordinatorSlow extends RepairCoordinatorBase
     {
         String table = tableName("preparerpctimeout");
         CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
-        MessageFilters.Filter filter = CLUSTER.verbs(Verb.PREPARE_MSG).drop();
+        IMessageFilters.Filter filter = CLUSTER.verbs(Verb.PREPARE_MSG).drop();
         try
         {
             long repairExceptions = getRepairExceptions(CLUSTER, 1);
