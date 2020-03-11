@@ -19,8 +19,12 @@
 package org.apache.cassandra.distributed.test;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Sets;
@@ -36,7 +40,10 @@ import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.impl.MessageFilters;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 public class MessageFiltersTest extends DistributedTestBase
 {
@@ -184,29 +191,71 @@ public class MessageFiltersTest extends DistributedTestBase
                                                                Verb.MUTATION_REQ.id,
                                                                Verb.MUTATION_RSP.id));
 
-            // Reads and writes are going to time out in both directions
-            IMessageFilters.Filter filter = cluster.filters()
-                                                   .allVerbs()
-                                                   .from(1)
-                                                   .to(2)
-                                                   .messagesMatching((from, to, msg) -> {
-                                                       // Decode and verify message on instance; return the result back here
-                                                       Integer id = cluster.get(1).callsOnInstance((IIsolatedExecutor.SerializableCallable<Integer>) () -> {
-                                                           Message decoded = Instance.deserializeMessage(msg);
-                                                           return (Integer) decoded.verb().id;
-                                                       }).call();
-                                                       Assert.assertTrue(verbs.contains(id));
-                                                       counter.incrementAndGet();
-                                                       return false;
-                                                   }).drop();
+            for (boolean inbound : Arrays.asList(true, false))
+            {
+                counter.set(0);
+                // Reads and writes are going to time out in both directions
+                IMessageFilters.Filter filter = cluster.filters()
+                                                       .allVerbs()
+                                                       .runInbound(inbound)
+                                                       .from(1)
+                                                       .to(2)
+                                                       .messagesMatching((from, to, msg) -> {
+                                                           // Decode and verify message on instance; return the result back here
+                                                           Integer id = cluster.get(1).callsOnInstance((IIsolatedExecutor.SerializableCallable<Integer>) () -> {
+                                                               Message decoded = Instance.deserializeMessage(msg);
+                                                               return (Integer) decoded.verb().id;
+                                                           }).call();
+                                                           Assert.assertTrue(verbs.contains(id));
+                                                           counter.incrementAndGet();
+                                                           return false;
+                                                       }).drop();
 
-            for (int i : new int[]{ 1, 2 })
-                cluster.coordinator(i).execute(read, ConsistencyLevel.ALL);
-            for (int i : new int[]{ 1, 2 })
-                cluster.coordinator(i).execute(write, ConsistencyLevel.ALL);
+                for (int i : new int[]{ 1, 2 })
+                    cluster.coordinator(i).execute(read, ConsistencyLevel.ALL);
+                for (int i : new int[]{ 1, 2 })
+                    cluster.coordinator(i).execute(write, ConsistencyLevel.ALL);
 
-            filter.off();
-            Assert.assertEquals(4, counter.get());
+                filter.off();
+                Assert.assertEquals(4, counter.get());
+            }
+        }
+    }
+
+    @Test
+    public void outboundBeforeInbound() throws Throwable
+    {
+        try (Cluster cluster = Cluster.create(2))
+        {
+            InetAddressAndPort other = cluster.get(2).broadcastAddressAndPort();
+            CountDownLatch waitForIt = new CountDownLatch(1);
+            Set<Integer> outboundMessagesSeen = new HashSet<>();
+            Set<Integer> inboundMessagesSeen = new HashSet<>();
+            AtomicBoolean outboundAfterInbound = new AtomicBoolean(false);
+            cluster.filters().verbs(Verb.ECHO_REQ.id, Verb.ECHO_RSP.id).runOutbound().messagesMatching((from, to, msg) -> {
+                outboundMessagesSeen.add(msg.verb());
+                if (inboundMessagesSeen.contains(msg.verb()))
+                    outboundAfterInbound.set(true);
+                return false;
+            }).drop(); // drop is confusing since I am not dropping, im just listening...
+            cluster.filters().verbs(Verb.ECHO_REQ.id, Verb.ECHO_RSP.id).runInbound().messagesMatching((from, to, msg) -> {
+                inboundMessagesSeen.add(msg.verb());
+                return false;
+            }).drop(); // drop is confusing since I am not dropping, im just listening...
+            cluster.filters().verbs(Verb.ECHO_RSP.id).runInbound().messagesMatching((from, to, msg) -> {
+                waitForIt.countDown();
+                return false;
+            }).drop(); // drop is confusing since I am not dropping, im just listening...
+            cluster.get(1).runOnInstance(() -> {
+                MessagingService.instance().send(Message.out(Verb.ECHO_REQ, NoPayload.noPayload), other);
+            });
+
+            waitForIt.await();
+
+            Assert.assertEquals(outboundMessagesSeen, inboundMessagesSeen);
+            // since both are equal, only need to confirm the size of one
+            Assert.assertEquals(2, outboundMessagesSeen.size());
+            Assert.assertFalse("outbound message saw after inbound", outboundAfterInbound.get());
         }
     }
 
