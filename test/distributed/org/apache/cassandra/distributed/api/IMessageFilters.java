@@ -33,16 +33,19 @@ public interface IMessageFilters
         Builder from(int ... nums);
         Builder to(int ... nums);
 
-        Builder runInbound(boolean inbound);
+        Builder verbs(int... verbs);
+        Builder allVerbs();
 
-        default Builder runInbound()
+        Builder inbound(boolean inbound);
+
+        default Builder inbound()
         {
-            return runInbound(true);
+            return inbound(true);
         }
 
-        default Builder runOutbound()
+        default Builder outbound()
         {
-            return runInbound(false);
+            return inbound(false);
         }
 
         /**
@@ -62,8 +65,19 @@ public interface IMessageFilters
         }
     }
 
-    Builder verbs(int... verbs);
-    Builder allVerbs();
+    Builder inbound(boolean inbound);
+    default Builder inbound() {
+        return inbound(true);
+    }
+    default Builder outbound() {
+        return inbound(false);
+    }
+    default Builder verbs(int... verbs) {
+        return inbound().verbs(verbs);
+    }
+    default Builder allVerbs() {
+        return inbound().allVerbs();
+    }
     void reset();
 
     /**

@@ -24,8 +24,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 
 import com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -43,7 +41,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 public class MessageFiltersTest extends DistributedTestBase
 {
@@ -78,7 +75,7 @@ public class MessageFiltersTest extends DistributedTestBase
         MessageFilters filters = new MessageFilters();
         Permit permit = inbound ? (from, to, msg) -> filters.permitInbound(from, to, msg) : (from, to, msg) -> filters.permitOutbound(from, to, msg);
 
-        MessageFilters.Filter filter = filters.allVerbs().runInbound(inbound).from(1).drop();
+        IMessageFilters.Filter filter = filters.allVerbs().inbound(inbound).from(1).drop();
         Assert.assertFalse(permit.test(i1, i2, msg(VERB1, MSG1)));
         Assert.assertFalse(permit.test(i1, i2, msg(VERB2, MSG1)));
         Assert.assertFalse(permit.test(i1, i2, msg(VERB3, MSG1)));
@@ -87,7 +84,7 @@ public class MessageFiltersTest extends DistributedTestBase
         Assert.assertTrue(permit.test(i1, i2, msg(VERB1, MSG1)));
         filters.reset();
 
-        filters.verbs(VERB1).runInbound(inbound).from(1).to(2).drop();
+        filters.verbs(VERB1).inbound(inbound).from(1).to(2).drop();
         Assert.assertFalse(permit.test(i1, i2, msg(VERB1, MSG1)));
         Assert.assertTrue(permit.test(i1, i2, msg(VERB2, MSG1)));
         Assert.assertTrue(permit.test(i2, i1, msg(VERB1, MSG1)));
@@ -95,7 +92,7 @@ public class MessageFiltersTest extends DistributedTestBase
 
         filters.reset();
         AtomicInteger counter = new AtomicInteger();
-        filters.verbs(VERB1).runInbound(inbound).from(1).to(2).messagesMatching((from, to, msg) -> {
+        filters.verbs(VERB1).inbound(inbound).from(1).to(2).messagesMatching((from, to, msg) -> {
             counter.incrementAndGet();
             return Arrays.equals(msg.bytes(), MSG1.getBytes());
         }).drop();
@@ -111,7 +108,7 @@ public class MessageFiltersTest extends DistributedTestBase
         Assert.assertEquals(counter.get(), 2);
         filters.reset();
 
-        filters.allVerbs().runInbound(inbound).from(3, 2).to(2, 1).drop();
+        filters.allVerbs().inbound(inbound).from(3, 2).to(2, 1).drop();
         Assert.assertFalse(permit.test(i3, i1, msg(VERB1, MSG1)));
         Assert.assertFalse(permit.test(i3, i2, msg(VERB1, MSG1)));
         Assert.assertFalse(permit.test(i2, i1, msg(VERB1, MSG1)));
@@ -121,7 +118,7 @@ public class MessageFiltersTest extends DistributedTestBase
         filters.reset();
 
         counter.set(0);
-        filters.allVerbs().runInbound(inbound).from(1).to(2).messagesMatching((from, to, msg) -> {
+        filters.allVerbs().inbound(inbound).from(1).to(2).messagesMatching((from, to, msg) -> {
             counter.incrementAndGet();
             return false;
         }).drop();
@@ -197,7 +194,7 @@ public class MessageFiltersTest extends DistributedTestBase
                 // Reads and writes are going to time out in both directions
                 IMessageFilters.Filter filter = cluster.filters()
                                                        .allVerbs()
-                                                       .runInbound(inbound)
+                                                       .inbound(inbound)
                                                        .from(1)
                                                        .to(2)
                                                        .messagesMatching((from, to, msg) -> {
@@ -232,17 +229,17 @@ public class MessageFiltersTest extends DistributedTestBase
             Set<Integer> outboundMessagesSeen = new HashSet<>();
             Set<Integer> inboundMessagesSeen = new HashSet<>();
             AtomicBoolean outboundAfterInbound = new AtomicBoolean(false);
-            cluster.filters().verbs(Verb.ECHO_REQ.id, Verb.ECHO_RSP.id).runOutbound().messagesMatching((from, to, msg) -> {
+            cluster.filters().outbound().verbs(Verb.ECHO_REQ.id, Verb.ECHO_RSP.id).messagesMatching((from, to, msg) -> {
                 outboundMessagesSeen.add(msg.verb());
                 if (inboundMessagesSeen.contains(msg.verb()))
                     outboundAfterInbound.set(true);
                 return false;
             }).drop(); // drop is confusing since I am not dropping, im just listening...
-            cluster.filters().verbs(Verb.ECHO_REQ.id, Verb.ECHO_RSP.id).runInbound().messagesMatching((from, to, msg) -> {
+            cluster.filters().inbound().verbs(Verb.ECHO_REQ.id, Verb.ECHO_RSP.id).messagesMatching((from, to, msg) -> {
                 inboundMessagesSeen.add(msg.verb());
                 return false;
             }).drop(); // drop is confusing since I am not dropping, im just listening...
-            cluster.filters().verbs(Verb.ECHO_RSP.id).runInbound().messagesMatching((from, to, msg) -> {
+            cluster.filters().inbound().verbs(Verb.ECHO_RSP.id).messagesMatching((from, to, msg) -> {
                 waitForIt.countDown();
                 return false;
             }).drop(); // drop is confusing since I am not dropping, im just listening...

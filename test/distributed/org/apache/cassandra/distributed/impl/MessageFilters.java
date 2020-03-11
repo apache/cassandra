@@ -127,15 +127,15 @@ public class MessageFilters implements IMessageFilters
 
     public class Builder implements IMessageFilters.Builder
     {
-        boolean inbound = true;
+        boolean inbound;
         int[] from;
         int[] to;
         int[] verbs;
         Matcher matcher;
 
-        private Builder(int[] verbs)
+        private Builder(boolean inbound)
         {
-            this.verbs = verbs;
+            this.inbound = inbound;
         }
 
         public Builder from(int... nums)
@@ -150,7 +150,19 @@ public class MessageFilters implements IMessageFilters
             return this;
         }
 
-        public Builder runInbound(boolean inbound)
+        public Builder verbs(int... verbs)
+        {
+            this.verbs = verbs;
+            return this;
+        }
+
+        public Builder allVerbs()
+        {
+            this.verbs = null;
+            return this;
+        }
+
+        public Builder inbound(boolean inbound)
         {
             this.inbound = inbound;
             return this;
@@ -169,15 +181,9 @@ public class MessageFilters implements IMessageFilters
     }
 
 
-    public Builder verbs(int... verbs)
+    public Builder inbound(boolean inbound)
     {
-        return new Builder(verbs);
-    }
-
-    @Override
-    public Builder allVerbs()
-    {
-        return new Builder(null);
+        return new Builder(inbound);
     }
 
     @Override

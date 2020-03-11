@@ -363,7 +363,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         return filters;
     }
 
-    public MessageFilters.Builder verbs(Verb... verbs)
+    public IMessageFilters.Builder verbs(Verb... verbs)
     {
         int[] ids = new int[verbs.length];
         for (int i = 0; i < verbs.length; ++i)
