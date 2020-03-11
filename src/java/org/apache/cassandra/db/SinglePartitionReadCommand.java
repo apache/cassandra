@@ -48,7 +48,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 /**
@@ -928,8 +927,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         if (result == null)
             return filter;
 
-        SearchIterator<Clustering<?>, Row> searchIter = result.searchIterator(columnFilter(), false);
-
         RegularAndStaticColumns columns = columnFilter().fetchedColumns();
         NavigableSet<Clustering<?>> clusterings = filter.requestedRows();
 
@@ -940,20 +937,27 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         boolean removeStatic = false;
         if (!columns.statics.isEmpty())
         {
-            Row staticRow = searchIter.next(Clustering.STATIC_CLUSTERING);
+            Row staticRow = result.getRow(Clustering.STATIC_CLUSTERING);
             removeStatic = staticRow != null && canRemoveRow(staticRow, columns.statics, sstableTimestamp);
         }
 
         NavigableSet<Clustering<?>> toRemove = null;
-        for (Clustering<?> clustering : clusterings)
+        try (UnfilteredRowIterator iterator = result.unfilteredIterator(columnFilter(), clusterings, false))
         {
-            Row row = searchIter.next(clustering);
-            if (row == null || !canRemoveRow(row, columns.regulars, sstableTimestamp))
-                continue;
+            while (iterator.hasNext())
+            {
+                Unfiltered unfiltered = iterator.next();
+                if (unfiltered == null || !unfiltered.isRow())
+                    continue;
 
-            if (toRemove == null)
-                toRemove = new TreeSet<>(result.metadata().comparator);
-            toRemove.add(clustering);
+                Row row = (Row) unfiltered;
+                if (!canRemoveRow(row, columns.regulars, sstableTimestamp))
+                    continue;
+
+                if (toRemove == null)
+                    toRemove = new TreeSet<>(result.metadata().comparator);
+                toRemove.add(row.clustering());
+            }
         }
 
         if (!removeStatic && toRemove == null)
