@@ -27,7 +27,11 @@ public interface ICoordinator
 {
     // a bit hacky, but ConsistencyLevel draws in too many dependent classes, so we cannot have a cross-version
     // method signature that accepts ConsistencyLevel directly.  So we just accept an Enum<?> and cast.
-    Object[][] execute(String query, Enum<?> consistencyLevel, Object... boundValues);
+    default Object[][] execute(String query, Enum<?> consistencyLevel, Object... boundValues)
+    {
+        return executeWithResult(query, consistencyLevel, boundValues).toObjectArrays();
+    }
+    QueryResult executeWithResult(String query, Enum<?> consistencyLevel, Object... boundValues);
 
     Iterator<Object[]> executeWithPaging(String query, Enum<?> consistencyLevel, int pageSize, Object... boundValues);
 

@@ -56,6 +56,7 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
@@ -151,9 +152,16 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         @Override
         public synchronized void startup()
         {
+            startup(AbstractCluster.this);
+        }
+
+        public synchronized void startup(ICluster cluster)
+        {
+            if (cluster != AbstractCluster.this)
+                throw new IllegalArgumentException("Only the owning cluster can be used for startup"); //TODO why have this in the API?
             if (!isShutdown)
                 throw new IllegalStateException();
-            delegate().startup(AbstractCluster.this);
+            delegate().startup(cluster);
             isShutdown = false;
             updateMessagingVersions();
         }
@@ -183,9 +191,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             throw new IllegalStateException("Cannot get live member count on shutdown instance");
         }
 
-        public int nodetool(String... commandAndArgs)
+        public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
         {
-            return delegate().nodetool(commandAndArgs);
+            return delegate().nodetoolResult(withNotifications, commandAndArgs);
         }
 
         public long killAttempts()
@@ -355,7 +363,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         return filters;
     }
 
-    public MessageFilters.Builder verbs(Verb... verbs)
+    public IMessageFilters.Builder verbs(Verb... verbs)
     {
         int[] ids = new int[verbs.length];
         for (int i = 0; i < verbs.length; ++i)

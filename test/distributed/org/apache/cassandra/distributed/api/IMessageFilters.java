@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.distributed.api;
 
+import java.util.function.Predicate;
+
 public interface IMessageFilters
 {
     public interface Filter
@@ -31,6 +33,21 @@ public interface IMessageFilters
         Builder from(int ... nums);
         Builder to(int ... nums);
 
+        Builder verbs(int... verbs);
+        Builder allVerbs();
+
+        Builder inbound(boolean inbound);
+
+        default Builder inbound()
+        {
+            return inbound(true);
+        }
+
+        default Builder outbound()
+        {
+            return inbound(false);
+        }
+
         /**
          * Every message for which matcher returns `true` will be _dropped_ (assuming all
          * other matchers in the chain will return `true` as well).
@@ -42,15 +59,42 @@ public interface IMessageFilters
     public interface Matcher
     {
         boolean matches(int from, int to, IMessage message);
+
+        static Matcher of(Predicate<IMessage> fn) {
+            return (from, to, m) -> fn.test(m);
+        }
     }
 
-    Builder verbs(int... verbs);
-    Builder allVerbs();
+    Builder inbound(boolean inbound);
+    default Builder inbound() {
+        return inbound(true);
+    }
+    default Builder outbound() {
+        return inbound(false);
+    }
+    default Builder verbs(int... verbs) {
+        return inbound().verbs(verbs);
+    }
+    default Builder allVerbs() {
+        return inbound().allVerbs();
+    }
     void reset();
 
     /**
-     * {@code true} value returned by the implementation implies that the message was
+     * Checks if the message should be delivered.  This is expected to run on "inbound", or on the reciever of
+     * the message (instance.config.num == to).
+     *
+     * @return {@code true} value returned by the implementation implies that the message was
      * not matched by any filters and therefore should be delivered.
      */
-    boolean permit(int from, int to, IMessage msg);
+    boolean permitInbound(int from, int to, IMessage msg);
+
+    /**
+     * Checks if the message should be delivered.  This is expected to run on "outbound", or on the sender of
+     * the message (instance.config.num == from).
+     *
+     * @return {@code true} value returned by the implementation implies that the message was
+     * not matched by any filters and therefore should be delivered.
+     */
+    boolean permitOutbound(int from, int to, IMessage msg);
 }
