@@ -21,7 +21,6 @@ package org.apache.cassandra.security;
 import static org.junit.Assert.assertArrayEquals;
 
 import java.io.IOException;
-import java.net.InetAddress;
 
 import javax.net.ssl.SSLServerSocket;
 
@@ -29,12 +28,20 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
+import org.apache.cassandra.utils.FBUtilities;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class SSLFactoryTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Test
     public void testFilterCipherSuites()
@@ -62,7 +69,7 @@ public class SSLFactoryTest
         };
 
         // enabled ciphers must be a subset of configured ciphers with identical order
-        try (SSLServerSocket socket = SSLFactory.getServerSocket(options, InetAddress.getLocalHost(), 55123))
+        try (SSLServerSocket socket = SSLFactory.getServerSocket(options, FBUtilities.getLocalAddress(), 55123))
         {
             String[] enabled = socket.getEnabledCipherSuites();
             String[] wanted = Iterables.toArray(Iterables.filter(Lists.newArrayList(options.cipher_suites),

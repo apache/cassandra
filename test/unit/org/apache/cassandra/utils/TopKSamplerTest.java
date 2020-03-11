@@ -29,16 +29,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.clearspring.analytics.hash.MurmurHash;
 import com.clearspring.analytics.stream.Counter;
 import junit.framework.Assert;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.TopKSampler.SamplerResult;
 
 public class TopKSamplerTest
 {
+
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Test
     public void testSamplerSingleInsertionsEqualMulti() throws TimeoutException

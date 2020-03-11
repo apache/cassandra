@@ -25,10 +25,18 @@ import java.util.UUID;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
+import org.junit.BeforeClass;
 
 public class SessionInfoTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     /**
      * Test if total numbers are collect
      */

@@ -63,6 +63,7 @@ public class JMXAuthTest extends CQLTester
     @BeforeClass
     public static void setupClass() throws Exception
     {
+        DatabaseDescriptor.daemonInitialization();
         setupAuthorizer();
         setupJMXServer();
     }
