@@ -327,7 +327,8 @@ public class BTreeRow extends AbstractRow
         Map<ByteBuffer, DroppedColumn> droppedColumns = metadata.droppedColumns;
 
         boolean mayFilterColumns = !filter.fetchesAllColumns(isStatic());
-        boolean mayHaveShadowed = activeDeletion.supersedes(deletion.time());
+        // When merging sstable data in Row.Merger#merge(), rowDeletion is removed if it doesn't supersede activeDeletion.
+        boolean mayHaveShadowed = !activeDeletion.isLive() && !deletion.time().supersedes(activeDeletion);
 
         if (!mayFilterColumns && !mayHaveShadowed && droppedColumns.isEmpty())
             return this;

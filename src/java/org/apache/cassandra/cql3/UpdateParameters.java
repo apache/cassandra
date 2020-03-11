@@ -24,7 +24,6 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -203,7 +202,7 @@ public class UpdateParameters
             return null;
 
         Partition partition = prefetchedRows.get(key);
-        Row prefetchedRow = partition == null ? null : partition.searchIterator(ColumnFilter.selection(partition.columns()), false).next(clustering);
+        Row prefetchedRow = partition == null ? null : partition.getRow(clustering);
 
         // We need to apply the pending mutations to return the row in its current state
         Row pendingMutations = builder.copy().build();
