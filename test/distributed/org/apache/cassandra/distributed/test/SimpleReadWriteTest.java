@@ -35,6 +35,7 @@ import static org.junit.Assert.assertEquals;
 
 import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
+import static org.junit.Assert.fail;
 
 public class SimpleReadWriteTest extends DistributedTestBase
 {
@@ -144,7 +145,7 @@ public class SimpleReadWriteTest extends DistributedTestBase
             try
             {
                 cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.ALL);
-                Assert.fail("Read timeout expected but it did not occur");
+                fail("Read timeout expected but it did not occur");
             }
             catch (Exception ex)
             {
@@ -228,19 +229,24 @@ public class SimpleReadWriteTest extends DistributedTestBase
             // Introduce schema disagreement
             cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl ADD v2 int", 1);
 
-            Exception thrown = null;
             try
             {
                 cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) VALUES (2, 2, 2, 2)",
                                               ConsistencyLevel.QUORUM);
+                fail("Should have failed because of schema disagreement.");
             }
-            catch (RuntimeException e)
+            catch (Exception e)
             {
-                thrown = e;
-            }
+                Assert.assertTrue(e instanceof RuntimeException);
+                RuntimeException re = ((RuntimeException) e);
+                // for some reason, we get weird errors when trying to check class directly
+                // I suppose it has to do with some classloader manipulation going on
+                Assert.assertTrue(re.getCause().getClass().toString().contains("WriteFailureException"));
+                // we may see 1 or 2 failures in here, because of the fail-fast behavior of AbstractWriteResponseHandler
+                Assert.assertTrue(re.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2")
+                                  || re.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.3"));
 
-            Assert.assertTrue(thrown.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2"));
-            Assert.assertTrue(thrown.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.3"));
+            }
         }
     }
 
@@ -258,20 +264,23 @@ public class SimpleReadWriteTest extends DistributedTestBase
             // Introduce schema disagreement
             cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl ADD v2 int", 1);
 
-            Exception thrown = null;
             try
             {
-                assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
-                                                         ConsistencyLevel.ALL),
-                           row(1, 1, 1, null));
+                cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.ALL);
+                fail("Should have failed because of schema disagreement.");
             }
             catch (Exception e)
             {
-                thrown = e;
+                Assert.assertTrue(e instanceof RuntimeException);
+                RuntimeException re = ((RuntimeException) e);
+                // for some reason, we get weird errors when trying to check class directly
+                // I suppose it has to do with some classloader manipulation going on
+                Assert.assertTrue(re.getCause().getClass().toString().contains("ReadFailureException"));
+                // we may see 1 or 2 failures in here, because of the fail-fast behavior of ReadCallback
+                Assert.assertTrue(re.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2")
+                                  || re.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.3"));
             }
 
-            Assert.assertTrue(thrown.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2"));
-            Assert.assertTrue(thrown.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.3"));
         }
     }
 
