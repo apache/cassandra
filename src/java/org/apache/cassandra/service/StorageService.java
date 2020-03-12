@@ -3677,14 +3677,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             String keyspace = tablesByKeyspace.getKey();
             if (!Schema.instance.getKeyspaces().contains(keyspace))
             {
-                SystemKeyspace.clearSizeEstimates(keyspace);
+                SystemKeyspace.clearEstimates(keyspace);
             }
             else
             {
                 for (String table : tablesByKeyspace.getValue())
                 {
                     if (Schema.instance.getTableMetadataRef(keyspace, table) == null)
-                        SystemKeyspace.clearSizeEstimates(keyspace, table);
+                        SystemKeyspace.clearEstimates(keyspace, table);
                 }
             }
         }
@@ -3910,6 +3910,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         return localDCPrimaryRanges;
+    }
+
+    public Collection<Range<Token>> getLocalPrimaryRange()
+    {
+        return getLocalPrimaryRangeForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    public Collection<Range<Token>> getLocalPrimaryRangeForEndpoint(InetAddressAndPort referenceEndpoint)
+    {
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        TokenMetadata tokenMetadata = this.tokenMetadata.cloneOnlyTokenMap();
+        String dc = snitch.getDatacenter(referenceEndpoint);
+        Set<Token> tokens = new HashSet<>(tokenMetadata.getTokens(referenceEndpoint));
+
+        // filter tokens to the single DC
+        List<Token> filteredTokens = Lists.newArrayList();
+        for (Token token : tokenMetadata.sortedTokens())
+        {
+            InetAddressAndPort endpoint = tokenMetadata.getEndpoint(token);
+            if (dc.equals(snitch.getDatacenter(endpoint)))
+                filteredTokens.add(token);
+        }
+
+        return getAllRanges(filteredTokens).stream()
+                                           .filter(t -> tokens.contains(t.right))
+                                           .collect(Collectors.toList());
     }
 
     /**
