@@ -18,14 +18,15 @@
 package org.apache.cassandra.transport.messages;
 
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.CodecException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,15 +90,21 @@ public class ErrorMessage extends Message.Response
                         // The number of failures is also present in protocol v5, but used instead to specify the size of the failure map
                         int failure = body.readInt();
 
-                        Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new ConcurrentHashMap<>();
+                        Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
+                            ImmutableMap.Builder<InetAddressAndPort, RequestFailureReason> builder = ImmutableMap.builderWithExpectedSize(failure);
                             for (int i = 0; i < failure; i++)
                             {
                                 InetAddress endpoint = CBUtil.readInetAddr(body);
                                 RequestFailureReason failureReason = RequestFailureReason.fromCode(body.readUnsignedShort());
-                                failureReasonByEndpoint.put(InetAddressAndPort.getByAddress(endpoint), failureReason);
+                                builder.put(InetAddressAndPort.getByAddress(endpoint), failureReason);
                             }
+                            failureReasonByEndpoint = builder.build();
+                        }
+                        else
+                        {
+                            failureReasonByEndpoint = Collections.emptyMap();
                         }
 
                         if (code == ExceptionCode.WRITE_FAILURE)
