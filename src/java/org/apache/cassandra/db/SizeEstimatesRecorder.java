@@ -19,10 +19,12 @@ package org.apache.cassandra.db;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
@@ -70,8 +72,21 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
 
         for (Keyspace keyspace : Keyspace.nonLocalStrategy())
         {
-            Collection<Range<Token>> localRanges = StorageService.instance.getPrimaryRangesForEndpoint(keyspace.getName(),
-                    FBUtilities.getBroadcastAddressAndPort());
+            // In tools the call to describe_splits_ex() used to be coupled with the call to describe_local_ring() so
+            // most access was for the local primary range; after creating the size_estimates table this was changed
+            // to be the primary range.
+            // In a multi-dc setup its not uncommon for the local ring to be offset by 1 for the next DC; example:
+            // DC1: [0, 10, 20, 30]
+            // DC2: [1, 11, 21, 31]
+            // DC3: [2, 12, 22, 32]
+            // When working with the primary ring we have:
+            // [0, 1, 2, 10, 11, 12, 20, 21, 22, 30, 31, 32]
+            // this then leads to primrary ranges with one token in it, which cause the estimates to be less useful.
+            // Since only one range was published some tools make this assumption; for this reason we can't publish
+            // all ranges (including the replica ranges) nor can we keep backwards compatability and publish primary
+            // range.  If we publish multiple ranges downstream integrations may start to see duplicate data.
+            // See CASSANDRA-15637
+            Collection<Range<Token>> localRanges = StorageService.instance.getLocalPrimaryRange();
             for (ColumnFamilyStore table : keyspace.getColumnFamilyStores())
             {
                 long start = System.nanoTime();

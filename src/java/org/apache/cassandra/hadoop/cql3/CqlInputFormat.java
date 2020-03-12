@@ -18,6 +18,7 @@
 package org.apache.cassandra.hadoop.cql3;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -27,8 +28,14 @@ import com.datastax.driver.core.Metadata;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
+import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.TokenRange;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.hadoop.conf.Configuration;
@@ -130,10 +137,11 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         ExecutorService executor = new ThreadPoolExecutor(0, 128, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
         List<org.apache.hadoop.mapreduce.InputSplit> splits = new ArrayList<>();
 
-        try (Cluster cluster = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf).split(","), conf);
+        String[] inputInitialAddress = ConfigHelper.getInputInitialAddress(conf).split(",");
+        try (Cluster cluster = CqlConfigHelper.getInputCluster(inputInitialAddress, conf);
              Session session = cluster.connect())
         {
-            List<Future<List<org.apache.hadoop.mapreduce.InputSplit>>> splitfutures = new ArrayList<>();
+            List<SplitFuture> splitfutures = new ArrayList<>();
             Pair<String, String> jobKeyRange = ConfigHelper.getInputKeyRange(conf);
             Range<Token> jobRange = null;
             if (jobKeyRange != null)
@@ -145,14 +153,18 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
             Metadata metadata = cluster.getMetadata();
 
             // canonical ranges and nodes holding replicas
-            Map<TokenRange, Set<Host>> masterRangeNodes = getRangeMap(keyspace, metadata);
-
+            Map<TokenRange, List<Host>> masterRangeNodes = getRangeMap(keyspace, metadata, getTargetDC(metadata, inputInitialAddress));
             for (TokenRange range : masterRangeNodes.keySet())
             {
                 if (jobRange == null)
                 {
                     // for each tokenRange, pick a live owner and ask it to compute bite-sized splits
-                    splitfutures.add(executor.submit(new SplitCallable(range, masterRangeNodes.get(range), conf, session)));
+                    for (TokenRange unwrapped : range.unwrap())
+                    {
+                        SplitFuture task = new SplitFuture(new SplitCallable(unwrapped, masterRangeNodes.get(range), conf, session));
+                        executor.submit(task);
+                        splitfutures.add(task);
+                    }
                 }
                 else
                 {
@@ -161,24 +173,64 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
                     {
                         for (TokenRange intersection: range.intersectWith(jobTokenRange))
                         {
-                            // for each tokenRange, pick a live owner and ask it to compute bite-sized splits
-                            splitfutures.add(executor.submit(new SplitCallable(intersection,  masterRangeNodes.get(range), conf, session)));
+                            for (TokenRange unwrapped : intersection.unwrap())
+                            {
+                                // for each tokenRange, pick a live owner and ask it to compute bite-sized splits
+                                SplitFuture task = new SplitFuture(new SplitCallable(unwrapped,  masterRangeNodes.get(range), conf, session));
+                                executor.submit(task);
+                                splitfutures.add(task);
+                            }
                         }
                     }
                 }
             }
 
             // wait until we have all the results back
-            for (Future<List<org.apache.hadoop.mapreduce.InputSplit>> futureInputSplits : splitfutures)
+            List<SplitFuture> failedTasks = new ArrayList<>();
+            int maxSplits = 0;
+            long expectedPartionsForFailedRanges = 0;
+            for (SplitFuture task : splitfutures)
             {
                 try
                 {
-                    splits.addAll(futureInputSplits.get());
+                    List<ColumnFamilySplit> tokenRangeSplits = task.get();
+                    if (tokenRangeSplits.size() > maxSplits)
+                    {
+                        maxSplits = tokenRangeSplits.size();
+                        expectedPartionsForFailedRanges = tokenRangeSplits.get(0).getLength();
+                    }
                 }
                 catch (Exception e)
                 {
-                    throw new IOException("Could not get input splits", e);
+                    failedTasks.add(task);
                 }
+            }
+            // The estimate is only stored on a single host, if that host is down then can not get the estimate
+            // its more than likely that a single host could be "too large" for one split but there is no way of
+            // knowning!
+            // This logic attempts to guess the estimate from all the successful ranges
+            if (!failedTasks.isEmpty())
+            {
+                // if every split failed this will be 0
+                if (maxSplits == 0)
+                {
+                    IllegalStateException exception = new IllegalStateException("No successful tasks found");
+                    for (SplitFuture task : failedTasks)
+                    {
+                        try
+                        {
+                            // the task failed, so this should throw
+                            task.get();
+                        }
+                        catch (Exception cause)
+                        {
+                            exception.addSuppressed(cause);
+                        }
+                    }
+                    throw exception;
+                }
+                for (SplitFuture task : failedTasks)
+                    toSplit(task.splitCallable.hosts, splitTokenRange(task.splitCallable.tokenRange, maxSplits, expectedPartionsForFailedRanges));
             }
         }
         finally
@@ -191,19 +243,55 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         return splits;
     }
 
-    private TokenRange rangeToTokenRange(Metadata metadata, Range<Token> range)
+    private static String getTargetDC(Metadata metadata, String[] inputInitialAddress)
     {
-        return metadata.newTokenRange(metadata.newToken(partitioner.getTokenFactory().toString(range.left)),
-                metadata.newToken(partitioner.getTokenFactory().toString(range.right)));
+        BiMultiValMap<InetAddress, String> addressToDc = new BiMultiValMap<>();
+        Multimap<String, InetAddress> dcToAddresses = addressToDc.inverse();
+
+        // only way to match is off the broadcast addresses, so for all hosts do a existence check
+        Set<InetAddress> addresses = new HashSet<>(inputInitialAddress.length);
+        for (String inputAddress : inputInitialAddress)
+            addresses.addAll(parseAddress(inputAddress));
+
+        for (Host host : metadata.getAllHosts())
+        {
+            InetAddress address = host.getBroadcastAddress();
+            if (addresses.contains(address))
+                addressToDc.put(address, host.getDatacenter());
+        }
+
+        switch (dcToAddresses.keySet().size())
+        {
+            case 1:
+                return Iterables.getOnlyElement(dcToAddresses.keySet());
+            case 0:
+                throw new IllegalStateException("Input addresses could not be used to find DC; non match client metadata");
+            default:
+                // Mutliple DCs found, attempt to pick the first based off address list. This is to mimic the 2.1
+                // behavior which would connect in order and the first node successfully able to connect to was the
+                // local DC to use; since client abstracts this, we rely on existence as a proxy for connect.
+                for (String inputAddress : inputInitialAddress)
+                {
+                    for (InetAddress add : parseAddress(inputAddress))
+                    {
+                        String dc = addressToDc.get(add);
+                        // possible the address isn't in the cluster and the client dropped, so ignore null
+                        if (dc != null)
+                            return dc;
+                    }
+                }
+                // some how we were able to connect to the cluster, find multiple DCs using matching, and yet couldn't
+                // match again...
+                throw new AssertionError("Unable to infer datacenter from initial addresses; multiple datacenters found "
+                                         + dcToAddresses.keySet() + ", should only use addresses from one datacenter");
+        }
     }
 
-    private Map<TokenRange, Long> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf, Session session)
+    private static List<InetAddress> parseAddress(String str)
     {
-        int splitSize = ConfigHelper.getInputSplitSize(conf);
-        int splitSizeMb = ConfigHelper.getInputSplitSizeInMb(conf);
         try
         {
-            return describeSplits(keyspace, cfName, range, splitSize, splitSizeMb, session);
+            return Arrays.asList(InetAddress.getAllByName(str));
         }
         catch (Exception e)
         {
@@ -211,22 +299,49 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         }
     }
 
-    private Map<TokenRange, Set<Host>> getRangeMap(String keyspace, Metadata metadata)
+    private TokenRange rangeToTokenRange(Metadata metadata, Range<Token> range)
     {
-        return metadata.getTokenRanges()
-                       .stream()
-                       .collect(toMap(p -> p, p -> metadata.getReplicas('"' + keyspace + '"', p)));
+        return metadata.newTokenRange(metadata.newToken(partitioner.getTokenFactory().toString(range.left)),
+                metadata.newToken(partitioner.getTokenFactory().toString(range.right)));
     }
 
-    private Map<TokenRange, Long> describeSplits(String keyspace, String table, TokenRange tokenRange, int splitSize, int splitSizeMb, Session session)
+    private Map<TokenRange, Long> getSubSplits(String keyspace, String cfName, TokenRange range, Host host, Configuration conf, Session session)
     {
+        int splitSize = ConfigHelper.getInputSplitSize(conf);
+        int splitSizeMb = ConfigHelper.getInputSplitSizeInMb(conf);
+        try
+        {
+            return describeSplits(keyspace, cfName, range, host, splitSize, splitSizeMb, session);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Map<TokenRange, List<Host>> getRangeMap(String keyspace, Metadata metadata, String targetDC)
+    {
+        return CqlClientHelper.getPrimaryRangeForDC(keyspace, metadata, targetDC);
+    }
+
+    private Map<TokenRange, Long> describeSplits(String keyspace, String table, TokenRange tokenRange, Host host, int splitSize, int splitSizeMb, Session session)
+    {
+        // In 2.1 the host list was walked in-order (only move to next if IOException) and calls
+        // org.apache.cassandra.service.StorageService.getSplits(java.lang.String, java.lang.String, org.apache.cassandra.dht.Range<org.apache.cassandra.dht.Token>, int)
+        // that call computes totalRowCountEstimate (used to compute #splits) then splits the ring based off those estimates
+        //
+        // The main difference is that the estimates in 2.1 were computed based off the data, so replicas could answer the estimates
+        // In 3.0 we rely on the below CQL query which is local and only computes estimates for the primary range; this
+        // puts us in a sticky spot to answer, if the node fails what do we do?  3.0 behavior only matches 2.1 IFF all
+        // nodes are up and healthy
         String query = String.format("SELECT mean_partition_size, partitions_count " +
                                      "FROM %s.%s " +
                                      "WHERE keyspace_name = ? AND table_name = ? AND range_start = ? AND range_end = ?",
                                      SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                      SystemKeyspace.SIZE_ESTIMATES);
 
-        ResultSet resultSet = session.execute(query, keyspace, table, tokenRange.getStart().toString(), tokenRange.getEnd().toString());
+        Statement stmt = new SimpleStatement(query, keyspace, table, tokenRange.getStart().toString(), tokenRange.getEnd().toString()).setHost(host);
+        ResultSet resultSet = session.execute(stmt);
 
         Row row = resultSet.one();
 
@@ -250,14 +365,19 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         if (splitCount == 0)
         {
             Map<TokenRange, Long> wrappedTokenRange = new HashMap<>();
-            wrappedTokenRange.put(tokenRange, (long) 128);
+            wrappedTokenRange.put(tokenRange, partitionCount == 0 ? 128L : partitionCount);
             return wrappedTokenRange;
         }
 
+        return splitTokenRange(tokenRange, splitCount, partitionCount / splitCount);
+    }
+
+    private static Map<TokenRange, Long> splitTokenRange(TokenRange tokenRange, int splitCount, long partitionCount)
+    {
         List<TokenRange> splitRanges = tokenRange.splitEvenly(splitCount);
         Map<TokenRange, Long> rangesWithLength = Maps.newHashMapWithExpectedSize(splitRanges.size());
         for (TokenRange range : splitRanges)
-            rangesWithLength.put(range, partitionCount/splitCount);
+            rangesWithLength.put(range, partitionCount);
 
         return rangesWithLength;
     }
@@ -277,56 +397,70 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
      * Gets a token tokenRange and splits it up according to the suggested
      * size into input splits that Hadoop can use.
      */
-    class SplitCallable implements Callable<List<org.apache.hadoop.mapreduce.InputSplit>>
+    class SplitCallable implements Callable<List<ColumnFamilySplit>>
     {
 
         private final TokenRange tokenRange;
-        private final Set<Host> hosts;
+        private final List<Host> hosts;
         private final Configuration conf;
         private final Session session;
 
-        public SplitCallable(TokenRange tr, Set<Host> hosts, Configuration conf, Session session)
+        public SplitCallable(TokenRange tr, List<Host> hosts, Configuration conf, Session session)
         {
+            Preconditions.checkArgument(!hosts.isEmpty(), "hosts list requires at least 1 host but was empty");
             this.tokenRange = tr;
             this.hosts = hosts;
             this.conf = conf;
             this.session = session;
         }
 
-        public List<org.apache.hadoop.mapreduce.InputSplit> call() throws Exception
+        public List<ColumnFamilySplit> call() throws Exception
         {
-            ArrayList<org.apache.hadoop.mapreduce.InputSplit> splits = new ArrayList<>();
-            Map<TokenRange, Long> subSplits;
-            subSplits = getSubSplits(keyspace, cfName, tokenRange, conf, session);
-            // turn the sub-ranges into InputSplits
-            String[] endpoints = new String[hosts.size()];
-
-            // hadoop needs hostname, not ip
-            int endpointIndex = 0;
-            for (Host endpoint : hosts)
-                endpoints[endpointIndex++] = endpoint.getAddress().getHostName();
-
-            boolean partitionerIsOpp = partitioner instanceof OrderPreservingPartitioner || partitioner instanceof ByteOrderedPartitioner;
-
-            for (Map.Entry<TokenRange, Long> subSplitEntry : subSplits.entrySet())
-            {
-                List<TokenRange> ranges = subSplitEntry.getKey().unwrap();
-                for (TokenRange subrange : ranges)
-                {
-                    ColumnFamilySplit split =
-                            new ColumnFamilySplit(
-                                    partitionerIsOpp ?
-                                            subrange.getStart().toString().substring(2) : subrange.getStart().toString(),
-                                    partitionerIsOpp ?
-                                            subrange.getEnd().toString().substring(2) : subrange.getEnd().toString(),
-                                    subSplitEntry.getValue(),
-                                    endpoints);
-
-                    logger.trace("adding {}", split);
-                    splits.add(split);
-                }
-            }
-            return splits;
+            Map<TokenRange, Long> subSplits = getSubSplits(keyspace, cfName, tokenRange, hosts.get(0), conf, session);
+            return toSplit(hosts, subSplits);
         }
+
+    }
+
+    private static class SplitFuture extends FutureTask<List<ColumnFamilySplit>>
+    {
+        private final SplitCallable splitCallable;
+
+        SplitFuture(SplitCallable splitCallable)
+        {
+            super(splitCallable);
+            this.splitCallable = splitCallable;
+        }
+    }
+
+    private List<ColumnFamilySplit> toSplit(List<Host> hosts, Map<TokenRange, Long> subSplits)
+    {
+        // turn the sub-ranges into InputSplits
+        String[] endpoints = new String[hosts.size()];
+
+        // hadoop needs hostname, not ip
+        int endpointIndex = 0;
+        for (Host endpoint : hosts)
+            endpoints[endpointIndex++] = endpoint.getAddress().getHostName();
+
+        boolean partitionerIsOpp = partitioner instanceof OrderPreservingPartitioner || partitioner instanceof ByteOrderedPartitioner;
+
+        ArrayList<ColumnFamilySplit> splits = new ArrayList<>();
+        for (Map.Entry<TokenRange, Long> subSplitEntry : subSplits.entrySet())
+        {
+            TokenRange subrange = subSplitEntry.getKey();
+            ColumnFamilySplit split =
+                new ColumnFamilySplit(
+                    partitionerIsOpp ?
+                        subrange.getStart().toString().substring(2) : subrange.getStart().toString(),
+                    partitionerIsOpp ?
+                        subrange.getEnd().toString().substring(2) : subrange.getEnd().toString(),
+                    subSplitEntry.getValue(),
+                    endpoints);
+
+            logger.trace("adding {}", split);
+            splits.add(split);
+        }
+        return splits;
     }
 }
