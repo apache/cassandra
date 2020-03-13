@@ -85,21 +85,21 @@ pipeline {
           stage('JVM DTests') {
             steps {
                 warnError('Tests unstable') {
-                  build job: "${env.JOB_NAME}-test-jvm-dtest-forking"
+                  build job: "${env.JOB_NAME}-jvm-dtest"
                 }
             }
             post {
               success {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('test-jvm-dtest-forking')
+                          copyTestResults('jvm-dtest')
                       }
                   }
               }
               unstable {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('test-jvm-dtest-forking')
+                          copyTestResults('jvm-dtest')
                       }
                   }
               }
