@@ -23,9 +23,6 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 
-import org.apache.cassandra.net.InboundMessageHandlers;
-import org.apache.cassandra.net.OutboundConnection;
-
 public class ConnectionUtils
 {
     public interface FailCheck
@@ -94,6 +91,11 @@ public class ConnectionUtils
             errorBytes = bytes;
             checkError = true;
             return this;
+        }
+
+        public void longCheck(long timeout, TimeUnit timeUnit)
+        {
+            ConnectionUtils.longCheck(this::check, timeout, timeUnit);
         }
 
         public void check()
@@ -195,6 +197,11 @@ public class ConnectionUtils
             return this;
         }
 
+        public void longCheck(long timeout, TimeUnit timeUnit)
+        {
+            ConnectionUtils.longCheck(this::check, timeout, timeUnit);
+        }
+
         public void check()
         {
             doCheck(Assert::assertEquals);
@@ -236,6 +243,27 @@ public class ConnectionUtils
                         Uninterruptibles.sleepUninterruptibly(1L, TimeUnit.MILLISECONDS);
                 testAndFailCheck.accept("scheduled count values don't match", scheduled, connection.scheduledCount());
                 testAndFailCheck.accept("scheduled bytes values don't match", scheduledBytes, connection.scheduledBytes());
+            }
+        }
+    }
+
+    private static void longCheck(Runnable assertion, long timeout, TimeUnit timeUnit)
+    {
+        long start = System.currentTimeMillis();
+        for (;;)
+        {
+            try
+            {
+                assertion.run();
+                return;
+            }
+            catch (AssertionError e)
+            {
+                long elapsedMs = System.currentTimeMillis() - start;
+                if (elapsedMs > timeUnit.toMillis(timeout))
+                    throw e;
+                else
+                    Uninterruptibles.sleepUninterruptibly(5, TimeUnit.MILLISECONDS);
             }
         }
     }

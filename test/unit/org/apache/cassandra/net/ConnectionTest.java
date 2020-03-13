@@ -487,13 +487,13 @@ public class ConnectionTest
                            .overload (  0,  0)
                            .expired  (  0,  0)
                            .error    ( 10, 10 * message.serializedSize(version))
-                           .check();
+                           .longCheck(  5, SECONDS);
             check(inbound) .received ( 90, 90 * message.serializedSize(version))
                            .processed( 90, 90 * message.serializedSize(version))
                            .pending  (  0,  0)
                            .expired  (  0,  0)
                            .error    (  0,  0)
-                           .check();
+                           .longCheck(  5, SECONDS);
         });
     }
 
