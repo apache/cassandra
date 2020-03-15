@@ -52,7 +52,7 @@ final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter
     public void channelActive(ChannelHandlerContext ctx) throws Exception
     {
         final long count = counter.incrementAndGet();
-        long limit = DatabaseDescriptor.getNativeTransportMaxConcurrentConnections();
+        long limit = DatabaseDescriptor.getMaxNativeTransportConcurrentConnections();
         // Setting the limit to -1 disables it.
         if(limit < 0)
         {
@@ -61,12 +61,12 @@ final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter
         if (count > limit)
         {
             // The decrement will be done in channelClosed(...)
-            noSpamLogger.error("Exceeded maximum native connection limit of {} by using {} connections (see native_transport_max_concurrent_connections in cassandra.yaml)", limit, count);
+            noSpamLogger.error("Exceeded maximum native connection limit of {} by using {} connections (see max_native_transport_concurrent_connections in cassandra.yaml)", limit, count);
             ctx.close();
         }
         else
         {
-            long perIpLimit = DatabaseDescriptor.getNativeTransportMaxConcurrentConnectionsPerIp();
+            long perIpLimit = DatabaseDescriptor.getMaxNativeTransportConcurrentConnectionsPerIp();
             if (perIpLimit > 0)
             {
                 InetAddress address = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
@@ -85,7 +85,7 @@ final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter
                 if (perIpCount.incrementAndGet() > perIpLimit)
                 {
                     // The decrement will be done in channelClosed(...)
-                    noSpamLogger.error("Exceeded maximum native connection limit per ip of {} by using {} connections (see native_transport_max_concurrent_connections_per_ip)", perIpLimit, perIpCount);
+                    noSpamLogger.error("Exceeded maximum native connection limit per ip of {} by using {} connections (see max_native_transport_concurrent_connections_per_ip)", perIpLimit, perIpCount);
                     ctx.close();
                     return;
                 }

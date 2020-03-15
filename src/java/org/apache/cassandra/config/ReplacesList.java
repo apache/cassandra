@@ -24,7 +24,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Contatining annotation type for the repeatable annotation {@link Replaces}
+ * Concatenating annotation type for the repeatable annotation {@link Replaces}
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD})

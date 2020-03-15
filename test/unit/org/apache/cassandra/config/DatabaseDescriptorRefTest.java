@@ -184,7 +184,19 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.ConsoleAppenderCustomizer",
     "org.apache.cassandra.locator.InetAddressAndPort",
     "org.apache.cassandra.cql3.statements.schema.AlterKeyspaceStatement",
-    "org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement"
+    "org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement",
+    "org.apache.cassandra.config.Duration",
+    "org.apache.cassandra.config.DataStorage",
+    "org.apache.cassandra.config.DataStorage$DataStorageUnit",
+    "org.apache.cassandra.config.DataStorage$DataStorageUnit$1",
+    "org.apache.cassandra.config.DataStorage$DataStorageUnit$2",
+    "org.apache.cassandra.config.DataStorage$DataStorageUnit$3",
+    "org.apache.cassandra.config.DataStorage$DataStorageUnit$4",
+    "org.apache.cassandra.config.BitRate",
+    "org.apache.cassandra.config.BitRate$BitRateUnit",
+    "org.apache.cassandra.config.BitRate$BitRateUnit$1",
+    "org.apache.cassandra.config.BitRate$BitRateUnit$2",
+    "org.apache.cassandra.config.BitRate$BitRateUnit$3"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));
@@ -312,7 +324,7 @@ public class DatabaseDescriptorRefTest
         {
             Method method = databaseDescriptorClass.getDeclaredMethod(methodName);
             method.invoke(null);
-
+            
             if (threadCount != threads.getThreadCount())
             {
                 for (ThreadInfo threadInfo : threads.getThreadInfo(threads.getAllThreadIds()))

@@ -6,7 +6,6 @@ cluster_name: Test Cluster
 # memtable_allocation_type: heap_buffers
 memtable_allocation_type: offheap_objects
 commitlog_sync: batch
-commitlog_sync_batch_window_in_ms: 1.0
 commitlog_segment_size_in_mb: 5
 commitlog_directory: build/test/cassandra/commitlog
 # commitlog_compression:
@@ -23,12 +22,12 @@ native_transport_port_ssl: 9142
 column_index_size_in_kb: 4
 saved_caches_directory: build/test/cassandra/saved_caches
 data_file_directories:
-- build/test/cassandra/data
+  - build/test/cassandra/data
 disk_access_mode: mmap
 seed_provider:
-- class_name: org.apache.cassandra.locator.SimpleSeedProvider
-  parameters:
-  - seeds: "127.0.0.1:7010"
+  - class_name: org.apache.cassandra.locator.SimpleSeedProvider
+    parameters:
+      - seeds: "127.0.0.1:7010"
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 dynamic_snitch: true
 server_encryption_options:

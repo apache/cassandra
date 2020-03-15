@@ -33,6 +33,23 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+5.0
+===
+
+New features
+------------
+
+Upgrading
+---------
+    - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(bps|mbps|kbps|Kbps|Mbps),
+      memory (kb|KB|mb|MB|gb|GB|b|B) and duration(d|D|h|H|s|S|ms|MS|mS|Ms|us|US|uS|Us|µs|µS|ns|NS|nS|Nsm|M|m)
+      parameters.
+      Backward compatibility with the old cassandra.yaml file will be in place until the next major version.
+    - Many cassandra.yaml parameters' names have been changed. Full list can be found on ...... (ADD LINK LATER WHEN PAGE
+      IS CREATED)
+Deprecation
+-----------
+
 4.1
 ===
 

@@ -231,7 +231,7 @@ The ``settings`` table  is rather useful and lists all the current configuration
    auto_snapshot                      | true
    automatic_sstable_upgrade          | false
    cluster_name                       | Test Cluster
-   enable_transient_replication       | false
+   transient_replication_enabled      | false
    hinted_handoff_enabled             | true
    hints_directory                    | /home/ec2-user/cassandra/data/hints
    incremental_backups                | false

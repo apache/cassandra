@@ -6,8 +6,7 @@ cluster_name: Test Cluster
 # memtable_allocation_type: heap_buffers
 memtable_allocation_type: offheap_objects
 commitlog_sync: batch
-commitlog_sync_batch_window_in_ms: 1.0
-commitlog_segment_size_in_mb: 5
+commitlog_segment_size: 5mb
 commitlog_directory: build/test/cassandra/commitlog
 # commitlog_compression:
 # - class_name: LZ4Compressor
@@ -20,7 +19,7 @@ storage_port: 7012
 ssl_storage_port: 17012
 start_native_transport: true
 native_transport_port: 9042
-column_index_size_in_kb: 4
+column_index_size: 4kb
 saved_caches_directory: build/test/cassandra/saved_caches
 data_file_directories:
     - build/test/cassandra/data
@@ -39,17 +38,17 @@ server_encryption_options:
     truststore_password: cassandra
 incremental_backups: true
 concurrent_compactors: 4
-compaction_throughput_mb_per_sec: 0
+compaction_throughput: 0mbps
 row_cache_class_name: org.apache.cassandra.cache.OHCProvider
-row_cache_size_in_mb: 16
-enable_user_defined_functions: true
-enable_scripted_user_defined_functions: true
-prepared_statements_cache_size_mb: 1
+row_cache_size: 16mb
+user_defined_functions_enabled: true
+scripted_user_defined_functions_enabled: true
+prepared_statements_cache_size: 1mb
 corrupted_tombstone_strategy: exception
 stream_entire_sstables: true
-stream_throughput_outbound_megabits_per_sec: 200000000
-enable_sasi_indexes: true
-enable_materialized_views: true
+stream_throughput_outbound: 200000000mbps
+sasi_indexes_enabled: true
+materialized_views_enabled: true
 enable_drop_compact_storage: true
 file_cache_enabled: true
 auto_hints_cleanup_enabled: true

@@ -98,7 +98,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
 
     public Keyspaces apply(Keyspaces schema)
     {
-        if (!DatabaseDescriptor.getEnableMaterializedViews())
+        if (!DatabaseDescriptor.getMaterializedViewsEnabled())
             throw ire("Materialized views are disabled. Enable in cassandra.yaml to use.");
 
         /*

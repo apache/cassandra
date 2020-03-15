@@ -1,3 +1,5 @@
+5.0
+ * Standaridize storage configuration parameters' names. Support unit suffixes. (CASSANDRA-15234)
 4.1
  * Refactor normal/preview/IR repair to standardize repair cleanup and error handling of failed RepairJobs (CASSANDRA-17069)
  * Log missing peers in StartupClusterConnectivityChecker (CASSANDRA-17130)

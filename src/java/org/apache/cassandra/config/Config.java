@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import com.google.common.base.Joiner;
@@ -56,17 +55,24 @@ public class Config
     public String authorizer;
     public String role_manager;
     public String network_authorizer;
-    public volatile int permissions_validity_in_ms = 2000;
+
+    @Replaces(oldName = "permissions_validity_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration permissions_validity = new Duration("2s");
     public volatile int permissions_cache_max_entries = 1000;
-    public volatile int permissions_update_interval_in_ms = -1;
+    @Replaces(oldName = "permissions_update_interval_in_ms", converter = Converter.MillisDurationConverterCustom.class, scheduledRemoveBy = "6.0")
+    public volatile Duration permissions_update_interval = new Duration("null");
     public volatile boolean permissions_cache_active_update = false;
-    public volatile int roles_validity_in_ms = 2000;
+    @Replaces(oldName = "roles_validity_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration roles_validity = new Duration("2s");
     public volatile int roles_cache_max_entries = 1000;
-    public volatile int roles_update_interval_in_ms = -1;
+    @Replaces(oldName = "roles_update_interval_in_ms", converter = Converter.MillisDurationConverterCustom.class, scheduledRemoveBy = "6.0")
+    public volatile Duration roles_update_interval= new Duration("null");
     public volatile boolean roles_cache_active_update = false;
-    public volatile int credentials_validity_in_ms = 2000;
+    @Replaces(oldName = "credentials_validity_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration credentials_validity = new Duration("2s");
     public volatile int credentials_cache_max_entries = 1000;
-    public volatile int credentials_update_interval_in_ms = -1;
+    @Replaces(oldName = "credentials_update_interval_in_ms", converter = Converter.MillisDurationConverterCustom.class, scheduledRemoveBy = "6.0")
+    public volatile Duration credentials_update_interval= new Duration("null");
     public volatile boolean credentials_cache_active_update = false;
 
     /* Hashing strategy Random or OPHF */
@@ -75,7 +81,8 @@ public class Config
     public boolean auto_bootstrap = true;
     public volatile boolean hinted_handoff_enabled = true;
     public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
-    public volatile int max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
+    @Replaces(oldName = "max_hint_window_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration max_hint_window = new Duration("3h");
     public String hints_directory;
     public boolean hint_window_persistent_enabled = true;
 
@@ -95,28 +102,39 @@ public class Config
     /** Triggers automatic allocation of tokens if set, based on the provided replica count for a datacenter */
     public Integer allocate_tokens_for_local_replication_factor = null;
 
-    public long native_transport_idle_timeout_in_ms = 0L;
+    @Replaces(oldName = "native_transport_idle_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration native_transport_idle_timeout = new Duration("0ms");
 
-    public volatile long request_timeout_in_ms = 10000L;
+    @Replaces(oldName = "request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration request_timeout = new Duration("10000ms");
 
-    public volatile long read_request_timeout_in_ms = 5000L;
+    @Replaces(oldName = "read_request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration read_request_timeout = new Duration("5000ms");
 
-    public volatile long range_request_timeout_in_ms = 10000L;
+    @Replaces(oldName = "range_request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration range_request_timeout = new Duration("10000ms");
 
-    public volatile long write_request_timeout_in_ms = 2000L;
+    @Replaces(oldName = "write_request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration write_request_timeout = new Duration("2000ms");
 
-    public volatile long counter_write_request_timeout_in_ms = 5000L;
+    @Replaces(oldName = "counter_write_request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration counter_write_request_timeout = new Duration("5000ms");
 
-    public volatile long cas_contention_timeout_in_ms = 1000L;
+    @Replaces(oldName = "cas_contention_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration cas_contention_timeout = new Duration("1000ms");
 
-    public volatile long truncate_request_timeout_in_ms = 60000L;
+    @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration truncate_request_timeout = new Duration("60000ms");
 
     public Integer streaming_connections_per_host = 1;
-    public Integer streaming_keep_alive_period_in_secs = 300; //5 minutes
+    @Replaces(oldName = "streaming_keep_alive_period_in_secs", converter = Converter.SecondsDurationConverter.class, scheduledRemoveBy = "6.0")
+    public Duration streaming_keep_alive_period = new Duration("300s");
 
-    public boolean cross_node_timeout = true;
+    @Replaces(oldName = "cross_node_timeout", scheduledRemoveBy = "6.0")
+    public boolean internode_timeout = true;
 
-    public volatile long slow_query_log_timeout_in_ms = 500L;
+    @Replaces(oldName = "slow_query_log_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration slow_query_log_timeout = new Duration("500ms");
 
     public volatile double phi_convict_threshold = 8.0;
 
@@ -130,14 +148,17 @@ public class Config
     public Integer concurrent_replicates = null;
 
     public int memtable_flush_writers = 0;
-    public Integer memtable_heap_space_in_mb;
-    public Integer memtable_offheap_space_in_mb;
+    @Replaces(oldName = "memtable_heap_space_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage memtable_heap_space;
+    @Replaces(oldName = "memtable_offheap_space_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage memtable_offheap_space;
     public Float memtable_cleanup_threshold = null;
 
     // Limit the maximum depth of repair session merkle trees
     @Deprecated
     public volatile Integer repair_session_max_tree_depth = null;
-    public volatile Integer repair_session_space_in_mb = null;
+    @Replaces(oldName = "repair_session_space_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public volatile DataStorage repair_session_space = null;
 
     public volatile boolean use_offheap_merkle_trees = true;
 
@@ -165,7 +186,8 @@ public class Config
     public String broadcast_rpc_address;
     public boolean rpc_keepalive = true;
 
-    public Integer internode_max_message_size_in_bytes;
+    @Replaces(oldName = "internode_max_message_size_in_bytes", converter = Converter.BytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage internode_max_message_size;
 
     @Replaces(oldName = "internode_send_buff_size_in_bytes", deprecated = true)
     public int internode_socket_send_buffer_size_in_bytes = 0;
@@ -173,33 +195,46 @@ public class Config
     public int internode_socket_receive_buffer_size_in_bytes = 0;
 
     // TODO: derive defaults from system memory settings?
-    public int internode_application_send_queue_capacity_in_bytes = 1 << 22; // 4MiB
-    public int internode_application_send_queue_reserve_endpoint_capacity_in_bytes = 1 << 27; // 128MiB
-    public int internode_application_send_queue_reserve_global_capacity_in_bytes = 1 << 29; // 512MiB
+    @Replaces(oldName = "internode_application_send_queue_capacity_in_bytes", converter = Converter.BytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage internode_application_send_queue_capacity = new DataStorage("4MB");
+    @Replaces(oldName = "internode_application_send_queue_reserve_endpoint_capacity_in_bytes", converter = Converter.BytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage internode_application_send_queue_reserve_endpoint_capacity = new DataStorage("128MB");
+    @Replaces(oldName = "internode_application_send_queue_reserve_global_capacity_in_bytes", converter = Converter.BytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage internode_application_send_queue_reserve_global_capacity = new DataStorage("512MB");
 
-    public int internode_application_receive_queue_capacity_in_bytes = 1 << 22; // 4MiB
-    public int internode_application_receive_queue_reserve_endpoint_capacity_in_bytes = 1 << 27; // 128MiB
-    public int internode_application_receive_queue_reserve_global_capacity_in_bytes = 1 << 29; // 512MiB
+    @Replaces(oldName = "internode_application_receive_queue_capacity_in_bytes", converter = Converter.BytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage internode_application_receive_queue_capacity = new DataStorage("4MB");
+    @Replaces(oldName = "internode_application_receive_queue_reserve_endpoint_capacity_in_bytes", converter = Converter.BytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage internode_application_receive_queue_reserve_endpoint_capacity = new DataStorage("128MB");
+    @Replaces(oldName = "internode_application_receive_queue_reserve_global_capacity_in_bytes", converter = Converter.BytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage internode_application_receive_queue_reserve_global_capacity = new DataStorage("512MB");
 
     // Defensive settings for protecting Cassandra from true network partitions. See (CASSANDRA-14358) for details.
     // The amount of time to wait for internode tcp connections to establish.
-    public volatile int internode_tcp_connect_timeout_in_ms = 2000;
+    @Replaces(oldName = "internode_tcp_connect_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration internode_tcp_connect_timeout = new Duration("2s");
     // The amount of time unacknowledged data is allowed on a connection before we throw out the connection
     // Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
     // (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
     // (which picks up the OS default) and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
-    public volatile int internode_tcp_user_timeout_in_ms = 30000;
+    @Replaces(oldName = "internode_tcp_connect_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration internode_tcp_user_timeout = new Duration("30s");
     // Similar to internode_tcp_user_timeout_in_ms but used specifically for streaming connection.
     // The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
-    public volatile int internode_streaming_tcp_user_timeout_in_ms = 300_000; // 5 minutes
+    @Replaces(oldName = "internode_streaming_tcp_user_timeout_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration internode_streaming_tcp_user_timeout = new Duration("300s"); // 5 minutes
 
     public boolean start_native_transport = true;
     public int native_transport_port = 9042;
     public Integer native_transport_port_ssl = null;
-    public int native_transport_max_threads = 128;
-    public int native_transport_max_frame_size_in_mb = 16;
-    public volatile long native_transport_max_concurrent_connections = -1L;
-    public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
+    @Replaces(oldName = "native_transport_max_threads", scheduledRemoveBy = "6.0")
+    public int max_native_transport_threads = 128;
+    @Replaces(oldName = "native_transport_max_frame_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage max_native_transport_frame_size = new DataStorage("16MB");
+    @Replaces(oldName = "native_transport_max_concurrent_connections", scheduledRemoveBy = "6.0")
+    public volatile long max_native_transport_concurrent_connections = -1L;
+    @Replaces(oldName = "native_transport_max_concurrent_connections_per_ip", scheduledRemoveBy = "6.0")
+    public volatile long max_native_transport_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
     public volatile boolean native_transport_allow_older_protocols = true;
     public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
@@ -216,35 +251,39 @@ public class Config
      * Default is the same as the native protocol frame limit: 256Mb.
      * See AbstractType for how it is used.
      */
-    public int max_value_size_in_mb = 256;
+    @Replaces(oldName = "max_value_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage max_value_size = new DataStorage("256MB");
 
     public boolean snapshot_before_compaction = false;
     public boolean auto_snapshot = true;
     public volatile long snapshot_links_per_second = 0;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
-    public int column_index_size_in_kb = 64;
-    public volatile int column_index_cache_size_in_kb = 2;
-    public volatile int batch_size_warn_threshold_in_kb = 5;
-    public volatile int batch_size_fail_threshold_in_kb = 50;
+    @Replaces(oldName = "column_index_size_in_kb", converter = Converter.KilobytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public volatile DataStorage column_index_size = new DataStorage("64KB");
+    @Replaces(oldName = "column_index_cache_size_in_kb", converter = Converter.KilobytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage column_index_cache_size = new DataStorage("2KB");
+    @Replaces(oldName = "batch_size_warn_threshold_in_kb", converter = Converter.KilobytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage batch_size_warn_threshold = new DataStorage("5KB");
+    @Replaces(oldName = "batch_size_fail_threshold_in_kb", converter = Converter.KilobytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public volatile DataStorage batch_size_fail_threshold = new DataStorage("50KB");
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public volatile Integer concurrent_compactors;
-    public volatile int compaction_throughput_mb_per_sec = 16;
-    public volatile int compaction_large_partition_warning_threshold_mb = 100;
-    public int min_free_space_per_drive_in_mb = 50;
+    @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converter.MegabitsPerSecondBitRateConverter.class, scheduledRemoveBy = "6.0")
+    public volatile BitRate compaction_throughput = new BitRate("16Mbps");
+    @Replaces(oldName = "compaction_large_partition_warning_threshold_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public volatile DataStorage compaction_large_partition_warning_threshold = new DataStorage("100MB");
+    @Replaces(oldName = "min_free_space_per_drive_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage min_free_space_per_drive = new DataStorage("50MB");
     public volatile Integer compaction_tombstone_warning_threshold = 100000;
 
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
-    /**
-     * @deprecated retry support removed on CASSANDRA-10992
-     */
-    @Deprecated
-    public int max_streaming_retries = 3;
-
-    public volatile int stream_throughput_outbound_megabits_per_sec = 200;
-    public volatile int inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
+    @Replaces(oldName = "stream_throughput_outbound_megabits_per_sec", converter = Converter.MegabitsPerSecondBitRateConverter.class, scheduledRemoveBy = "6.0")
+    public volatile BitRate stream_throughput_outbound = new BitRate("200Mbps");
+    @Replaces(oldName = "inter_dc_stream_throughput_outbound_megabits_per_sec", converter = Converter.MegabitsPerSecondBitRateConverter.class, scheduledRemoveBy = "6.0")
+    public volatile BitRate inter_dc_stream_throughput_outbound = new BitRate("200Mbps");
 
     public volatile int entire_sstable_stream_throughput_outbound_megabits_per_sec = 200;
     public volatile int entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
@@ -261,37 +300,44 @@ public class Config
 
     // Commit Log
     public String commitlog_directory;
-    public Integer commitlog_total_space_in_mb;
+    @Replaces(oldName = "commitlog_total_space_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage commitlog_total_space;
     public CommitLogSync commitlog_sync;
 
-    /**
-     * @deprecated since 4.0 This value was near useless, and we're not using it anymore
-     */
-    public double commitlog_sync_batch_window_in_ms = Double.NaN;
-    public double commitlog_sync_group_window_in_ms = Double.NaN;
-    public int commitlog_sync_period_in_ms;
-    public int commitlog_segment_size_in_mb = 32;
+    @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converter.MillisDurationInDoubleConverter.class, scheduledRemoveBy = "6.0")
+    public Duration commitlog_sync_group_window = new Duration("null");
+    @Replaces(oldName = "commitlog_sync_period_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public Duration commitlog_sync_period = new Duration("null");
+    @Replaces(oldName = "commitlog_segment_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage commitlog_segment_size = new DataStorage("32mb");
+
     public ParameterizedClass commitlog_compression;
     public FlushCompression flush_compression = FlushCompression.fast;
     public int commitlog_max_compression_buffers_in_pool = 3;
-    public Integer periodic_commitlog_sync_lag_block_in_ms;
+    @Replaces(oldName = "periodic_commitlog_sync_lag_block_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public Duration periodic_commitlog_sync_lag_block;
     public TransparentDataEncryptionOptions transparent_data_encryption_options = new TransparentDataEncryptionOptions();
 
-    public Integer max_mutation_size_in_kb;
+    @Replaces(oldName = "max_mutation_size_in_kb", converter = Converter.KilobytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage max_mutation_size;
 
     // Change-data-capture logs
     public boolean cdc_enabled = false;
     public String cdc_raw_directory;
-    public int cdc_total_space_in_mb = 0;
-    public int cdc_free_space_check_interval_ms = 250;
+    @Replaces(oldName = "cdc_total_space_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage cdc_total_space = new DataStorage("0MB");
+    @Replaces(oldName = "cdc_free_space_check_interval_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public Duration cdc_free_space_check_interval = new Duration("250ms");
 
     @Deprecated
     public int commitlog_periodic_queue_size = -1;
 
     public String endpoint_snitch;
     public boolean dynamic_snitch = true;
-    public int dynamic_snitch_update_interval_in_ms = 100;
-    public int dynamic_snitch_reset_interval_in_ms = 600000;
+    @Replaces(oldName = "dynamic_snitch_update_interval_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public Duration dynamic_snitch_update_interval = new Duration("100ms");
+    @Replaces(oldName = "dynamic_snitch_reset_interval_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public Duration dynamic_snitch_reset_interval = new Duration("10m");
     public double dynamic_snitch_badness_threshold = 1.0;
 
     public String failure_detector = "FailureDetector";
@@ -301,31 +347,40 @@ public class Config
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
-    public int hinted_handoff_throttle_in_kb = 1024;
-    public int batchlog_replay_throttle_in_kb = 1024;
+    @Replaces(oldName = "hinted_handoff_throttle_in_kb", converter = Converter.KilobytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public volatile DataStorage hinted_handoff_throttle = new DataStorage("1024KB");
+    @Replaces(oldName = "batchlog_replay_throttle_in_kb", converter = Converter.KilobytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public volatile DataStorage batchlog_replay_throttle = new DataStorage("1024KB");
     public int max_hints_delivery_threads = 2;
-    public int hints_flush_period_in_ms = 10000;
-    public int max_hints_file_size_in_mb = 128;
+    @Replaces(oldName = "hints_flush_period_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public Duration hints_flush_period = new Duration("10s");
+    @Replaces(oldName = "max_hints_file_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage max_hints_file_size = new DataStorage("128mb");
     public ParameterizedClass hints_compression;
     public volatile boolean auto_hints_cleanup_enabled = false;
 
     public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;
-    public int trickle_fsync_interval_in_kb = 10240;
+    @Replaces(oldName = "trickle_fsync_interval_in_kb", converter = Converter.KilobytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage trickle_fsync_interval = new DataStorage("10240KB");
 
-    public volatile int sstable_preemptive_open_interval_in_mb = 50;
+    @Replaces(oldName = "sstable_preemptive_open_interval_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public volatile DataStorage sstable_preemptive_open_interval = new DataStorage("50MB");
 
     public volatile boolean key_cache_migrate_during_compaction = true;
-    public Long key_cache_size_in_mb = null;
+    @Replaces(oldName = "key_cache_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage key_cache_size;
     public volatile int key_cache_save_period = 14400;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
 
     public String row_cache_class_name = "org.apache.cassandra.cache.OHCProvider";
-    public long row_cache_size_in_mb = 0;
+    @Replaces(oldName = "row_cache_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public volatile DataStorage row_cache_size = new DataStorage("0MB");
     public volatile int row_cache_save_period = 0;
     public volatile int row_cache_keys_to_save = Integer.MAX_VALUE;
 
-    public Long counter_cache_size_in_mb = null;
+    @Replaces(oldName = "counter_cache_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage counter_cache_size;
     public volatile int counter_cache_save_period = 7200;
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
@@ -334,9 +389,11 @@ public class Config
     private static boolean isClientMode = false;
     private static Supplier<Config> overrideLoadConfig = null;
 
-    public Integer networking_cache_size_in_mb;
+    @Replaces(oldName = "networking_cache_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage networking_cache_size;
 
-    public Integer file_cache_size_in_mb;
+    @Replaces(oldName = "file_cache_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage file_cache_size;
 
     public boolean file_cache_enabled = Boolean.getBoolean("cassandra.file_cache_enabled");
 
@@ -371,15 +428,21 @@ public class Config
 
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
-    public volatile Long index_summary_capacity_in_mb;
-    public volatile int index_summary_resize_interval_in_minutes = 60;
+    @Replaces(oldName = "index_summary_capacity_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage index_summary_capacity;
+    @Replaces(oldName = "index_summary_resize_interval_in_minutes", converter = Converter.MinutesDurationConverter.class, scheduledRemoveBy = "6.0")
+    public volatile Duration index_summary_resize_interval = new Duration("60m");
 
-    public int gc_log_threshold_in_ms = 200;
-    public int gc_warn_threshold_in_ms = 1000;
+    @Replaces(oldName = "gc_log_threshold_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public Duration gc_log_threshold = new Duration("200ms");
+    @Replaces(oldName = "gc_warn_threshold_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
+    public Duration gc_warn_threshold = new Duration("1s");
 
     // TTL for different types of trace events.
-    public int tracetype_query_ttl = (int) TimeUnit.DAYS.toSeconds(1);
-    public int tracetype_repair_ttl = (int) TimeUnit.DAYS.toSeconds(7);
+    @Replaces(oldName = "tracetype_query_ttl", converter = Converter.SecondsDurationConverter.class, scheduledRemoveBy = "6.0")
+    public Duration tracetype_query_ttl = new Duration("86400s");
+    @Replaces(oldName = "tracetype_repair_ttl", converter = Converter.SecondsDurationConverter.class, scheduledRemoveBy = "6.0")
+    public Duration tracetype_repair_ttl = new Duration("604800s");
 
     /**
      * Maintain statistics on whether writes achieve the ideal consistency level
@@ -392,17 +455,25 @@ public class Config
     /**
      * Size of the CQL prepared statements cache in MB.
      * Defaults to 1/256th of the heap size or 10MB, whichever is greater.
+     *
      */
-    public Long prepared_statements_cache_size_mb = null;
+    @Replaces(oldName = "prepared_statements_cache_size_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+    public DataStorage prepared_statements_cache_size;
 
-    public boolean enable_user_defined_functions = false;
-    public boolean enable_scripted_user_defined_functions = false;
+    @Replaces(oldName = "enable_user_defined_functions", scheduledRemoveBy = "6.0")
+    public boolean user_defined_functions_enabled = false;
 
-    public boolean enable_materialized_views = false;
+    @Replaces(oldName = "enable_scripted_user_defined_functions", scheduledRemoveBy = "6.0")
+    public boolean scripted_user_defined_functions_enabled = false;
 
-    public boolean enable_transient_replication = false;
+    @Replaces(oldName = "enable_materialized_views", scheduledRemoveBy = "6.0")
+    public boolean materialized_views_enabled = false;
 
-    public boolean enable_sasi_indexes = false;
+    @Replaces(oldName = "enable_transient_replication", scheduledRemoveBy = "6.0")
+    public boolean transient_replication_enabled = false;
+
+    @Replaces(oldName = "enable_sasi_indexes", scheduledRemoveBy = "6.0")
+    public boolean sasi_indexes_enabled = false;
 
     public volatile boolean enable_drop_compact_storage = false;
 
@@ -415,25 +486,28 @@ public class Config
      * When you disable async UDF execution, users MUST pay attention to read-timeouts since these may indicate
      * UDFs that run too long or forever - and this can destabilize the cluster.
      */
-    public boolean enable_user_defined_functions_threads = true;
+    @Replaces(oldName = "user_defined_functions_threads_enabled", scheduledRemoveBy = "6.0")
+    public boolean user_defined_functions_threads_enabled = true;
     /**
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.
-     * (Only valid, if enable_user_defined_functions_threads==true)
+     * (Only valid, if user_defined_functions_threads_enabled==true)
      */
-    public long user_defined_function_warn_timeout = 500;
+    //No need of unit conversion as this parameter is not exposed in the yaml file
+    public long user_defined_function_warn_timeout_in_ms = 500;
     /**
      * Time in milliseconds after a fatal UDF run-time situation is detected and action according to
      * user_function_timeout_policy will take place.
-     * (Only valid, if enable_user_defined_functions_threads==true)
+     * (Only valid, if user_defined_functions_threads_enabled==true)
      */
-    public long user_defined_function_fail_timeout = 1500;
+    //No need of unit conversion as this parameter is not exposed in the yaml file
+    public long user_defined_function_fail_timeout_in_ms = 1500;
     /**
-     * Defines what to do when a UDF ran longer than user_defined_function_fail_timeout.
+     * Defines what to do when a UDF ran longer than user_defined_function_fail_timeout_in_ms.
      * Possible options are:
      * - 'die' - i.e. it is able to emit a warning to the client before the Cassandra Daemon will shut down.
      * - 'die_immediate' - shut down C* daemon immediately (effectively prevent the chance that the client will receive a warning).
      * - 'ignore' - just log - the most dangerous option.
-     * (Only valid, if enable_user_defined_functions_threads==true)
+     * (Only valid, if user_defined_functions_threads_enabled==true)
      */
     public UserFunctionTimeoutPolicy user_function_timeout_policy = UserFunctionTimeoutPolicy.die;
 
@@ -465,6 +539,7 @@ public class Config
      * block_for_peers_in_remote_dcs: controls if this node will consider remote datacenters to wait for. The default
      * is to _not_ wait on remote datacenters.
      */
+    //No need of unit conversion as this parameter is not exposed in the yaml file
     public int block_for_peers_timeout_in_secs = 10;
     public boolean block_for_peers_in_remote_dcs = false;
 

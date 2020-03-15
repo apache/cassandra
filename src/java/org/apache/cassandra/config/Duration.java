@@ -41,7 +41,6 @@ public final class Duration
 
     private final TimeUnit unit;
 
-
     public Duration(String value)
     {
         if (value == null || value.equals("null"))
@@ -274,3 +273,4 @@ public final class Duration
         throw new AssertionError();
     }
 }
+
