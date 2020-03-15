@@ -46,7 +46,7 @@ Transient replication is not enabled by default.  Transient replication must be 
 
 ::
 
- enable_transient_replication: true
+ transient_replication_enabled: true
 
 Transient replication may be configured with both ``SimpleStrategy`` and ``NetworkTopologyStrategy``. Transient replication is configured by setting replication factor as ``<total_replicas>/<transient_replicas>``.
 

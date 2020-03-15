@@ -45,7 +45,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.metrics.MessagingMetrics;
-import org.apache.cassandra.utils.ApproximateTime;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
@@ -540,12 +539,12 @@ public class MessagingServiceTest
 
             Set<InetAddressAndPort> expect = new HashSet<>();
             expect.add(InetAddressAndPort.getByAddressOverrideDefaults(listenAddress, DatabaseDescriptor.getStoragePort()));
-            if (settings.encryption.enable_legacy_ssl_storage_port)
+            if (settings.encryption.legacy_ssl_storage_port_enabled)
                 expect.add(InetAddressAndPort.getByAddressOverrideDefaults(listenAddress, DatabaseDescriptor.getSSLStoragePort()));
             if (listenOnBroadcastAddr)
             {
                 expect.add(InetAddressAndPort.getByAddressOverrideDefaults(FBUtilities.getBroadcastAddressAndPort().address, DatabaseDescriptor.getStoragePort()));
-                if (settings.encryption.enable_legacy_ssl_storage_port)
+                if (settings.encryption.legacy_ssl_storage_port_enabled)
                     expect.add(InetAddressAndPort.getByAddressOverrideDefaults(FBUtilities.getBroadcastAddressAndPort().address, DatabaseDescriptor.getSSLStoragePort()));
             }
 

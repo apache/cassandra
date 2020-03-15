@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.HashMap;
 import java.util.HashSet;
 
 import java.util.List;
@@ -53,6 +54,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     private static final Logger logger = LoggerFactory.getLogger(YamlConfigurationLoader.class);
 
     private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
+
+    private static boolean isOldYAML = false;
 
     /**
      * Inspect the classpath to find storage configuration file
@@ -186,6 +189,27 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         private final Set<String> nullProperties = new HashSet<>();
 
+        private static final Map<String, String> MAP_OLD_TO_NEW_PARAMETERS = new HashMap<String, String>()
+        {
+            {
+                put("enable_user_defined_functions", "user_defined_functions_enabled");
+                put("enable_scripted_user_defined_functions", "scripted_user_defined_functions_enabled");
+                put("cross_node_timeout", "internode_timeout");
+                put("native_transport_max_threads", "max_native_transport_threads");
+                put("native_transport_max_frame_size_in_mb", "max_native_transport_frame_size_in_mb");
+                put("native_transport_max_concurrent_connections", "max_native_transport_frame_size_in_mb");
+                put("native_transport_max_concurrent_connections_per_ip", "max_native_transport_concurrent_connections_per_ip");
+                put("otc_coalescing_strategy", "outbound_connection_coalescing_strategy");
+                put("otc_coalescing_window_us", "outbound_connection_coalescing_window_us");
+                put("otc_coalescing_enough_coalesced_messages", "outbound_connection_coalescing_enough_coalesced_messages");
+                put("otc_backlog_expiration_interval_ms", "outbound_connection_backlog_expiration_interval_ms");
+                put("enable_legacy_ssl_storage_port", "legacy_ssl_storage_port_enabled");
+                put("enable_materialized_views", "materialized_views_enabled");
+                put("enable_sasi_indexes", "sasi_indexes_enabled");
+                put("enable_transient_replication", "transient_replication_enabled");
+            }
+        };
+
         public PropertiesChecker()
         {
             setSkipMissingProperties(true);
@@ -198,7 +222,45 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
             if (result instanceof MissingProperty)
             {
-                missingProperties.add(result.getName());
+                if(MAP_OLD_TO_NEW_PARAMETERS.containsKey(name))
+                {
+                    isOldYAML = true;
+                }
+                else
+                {
+                    missingProperties.add(result.getName());
+                }
+
+                //Backward compatibility in case the user is still using the old version of the storage config yaml file
+                //CASSANDRA-15234
+                if(isOldYAML)
+                {
+                    final Property resultWithNewNames = super.getProperty(type, MAP_OLD_TO_NEW_PARAMETERS.get(name));
+                    return new Property(resultWithNewNames.getName(), resultWithNewNames.getType())
+                    {
+                        @Override
+                        public void set(Object object, Object value) throws Exception
+                        {
+                            if (value == null && get(object) != null)
+                            {
+                                nullProperties.add(getName());
+                            }
+                            resultWithNewNames.set(object, value);
+                        }
+
+                        @Override
+                        public Class<?>[] getActualTypeArguments()
+                        {
+                            return resultWithNewNames.getActualTypeArguments();
+                        }
+
+                        @Override
+                        public Object get(Object object)
+                        {
+                            return resultWithNewNames.get(object);
+                        }
+                    };
+                }
             }
 
             return new Property(result.getName(), result.getType())
@@ -237,6 +299,12 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             if (!missingProperties.isEmpty())
             {
                 throw new ConfigurationException("Invalid yaml. Please remove properties " + missingProperties + " from your cassandra.yaml", false);
+            }
+            if (isOldYAML)
+            {
+                logger.info("You are using the old version of the Cassandra storage config YAML file." +
+                                                 "Cassandra still provides backward compatibility but it is " +
+                                                 "recommended to consider update.");
             }
         }
     }

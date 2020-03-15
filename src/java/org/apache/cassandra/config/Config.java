@@ -108,7 +108,9 @@ public class Config
     public Integer streaming_connections_per_host = 1;
     public Integer streaming_keep_alive_period_in_secs = 300; //5 minutes
 
-    public boolean cross_node_timeout = true;
+    //Effective cassandra.yaml v.2.0 cross_node_timeout is renamed to internode_timeout
+    //The old name is kept to keep backwards compatibility
+    public boolean internode_timeout = true;
 
     public volatile long slow_query_log_timeout_in_ms = 500L;
 
@@ -182,10 +184,21 @@ public class Config
     public boolean start_native_transport = true;
     public int native_transport_port = 9042;
     public Integer native_transport_port_ssl = null;
-    public int native_transport_max_threads = 128;
-    public int native_transport_max_frame_size_in_mb = 256;
-    public volatile long native_transport_max_concurrent_connections = -1L;
-    public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
+    //Effective cassandra.yaml v.2.0 native_transport_max_threads is renamed to max_native_transport_threads
+    //The old name is kept to keep backwards compatibility
+    public int max_native_transport_threads = 128;
+    //Effective cassandra.yaml v.2.0 native_transport_max_frame_size_in_mb is renamed to
+    // max_native_transport_frame_size_in_mb
+    //The old name is kept to keep backwards compatibility
+    public int max_native_transport_frame_size_in_mb = 256;
+    //Effective cassandra.yaml v.2.0 native_transport_max_concurrent_connections is renamed to
+    // max_native_transport_concurrent_connections
+    //The old name is kept to keep backwards compatibility
+    public volatile long max_native_transport_concurrent_connections = -1L;
+    //Effective cassandra.yaml v.2.0 native_transport_max_concurrent_connections_per_ip is renamed to
+    // max_native_transport_concurrent_connections_per_ip
+    //The old name is kept to keep backwards compatibility
+    public volatile long max_native_transport_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
     public volatile boolean native_transport_allow_older_protocols = true;
     public int native_transport_frame_block_size_in_kb = 32;
@@ -193,7 +206,6 @@ public class Config
     public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
     @Deprecated
     public Integer native_transport_max_negotiable_protocol_version = null;
-
 
     /**
      * Max size of values in SSTables, in MegaBytes.
@@ -353,7 +365,11 @@ public class Config
      * whitespace insensitive. You can also specify a subclass of
      * {@link org.apache.cassandra.utils.CoalescingStrategies.CoalescingStrategy} by name.
      */
-    public String otc_coalescing_strategy = "DISABLED";
+
+    //Effective cassandra.yaml v.2.0 otc_coalescing_strategy is renamed to
+    //outbound_connection_coalescing_strategy
+    //The old name is kept to keep backwards compatibility
+    public String outbound_connection_coalescing_strategy = "DISABLED";
 
     /*
      * How many microseconds to wait for coalescing. For fixed strategy this is the amount of time after the first
@@ -361,9 +377,15 @@ public class Config
      * maximum amount of time that will be waited as well as the interval at which messages must arrive on average
      * for coalescing to be enabled.
      */
+    //Effective cassandra.yaml v.2.0 otc_coalescing_window_us is renamed to
+    //outbound_connection_coalescing_window_us
+    //The old name is kept to keep backwards compatibility
     public static final int otc_coalescing_window_us_default = 200;
-    public int otc_coalescing_window_us = otc_coalescing_window_us_default;
-    public int otc_coalescing_enough_coalesced_messages = 8;
+    public int outbound_connection_coalescing_window_us = otc_coalescing_window_us_default;
+    //Effective cassandra.yaml v.2.0 otc_coalescing_enough_coalesced_messages is renamed to
+    //outbound_connection_coalescing_enough_coalesced_messages
+    //The old name is kept to keep backwards compatibility
+    public int outbound_connection_coalescing_enough_coalesced_messages = 8;
 
     public int windows_timer_interval = 0;
 
@@ -373,14 +395,30 @@ public class Config
      */
     public Long prepared_statements_cache_size_mb = null;
 
-    public boolean enable_user_defined_functions = false;
-    public boolean enable_scripted_user_defined_functions = false;
+    //Effective cassandra.yaml v.2.0 enable_user_defined_functions is renamed to
+    //user_defined_functions_enabled
+    //The old name is kept to keep backwards compatibility
+    public boolean user_defined_functions_enabled = false;
 
-    public boolean enable_materialized_views = false;
+    //Effective cassandra.yaml v.2.0 enable_scripted_user_defined_functions is renamed to
+    //scripted_user_defined_functions_enabled
+    //The old name is kept to keep backwards compatibility
+    public boolean scripted_user_defined_functions_enabled = false;
 
-    public boolean enable_transient_replication = false;
+    //Effective cassandra.yaml v.2.0 enable_materialized_views is renamed to
+    //materialized_views_enabled
+    //The old name is kept to keep backwards compatibility
+    public boolean materialized_views_enabled = false;
 
-    public boolean enable_sasi_indexes = false;
+    //Effective cassandra.yaml v.2.0 enable_transient_replication is renamed to
+    //transient_replication_enabled
+    //The old name is kept to keep backwards compatibility
+    public boolean transient_replication_enabled = false;
+
+    //Effective cassandra.yaml v.2.0 enable_sasi_indexes is renamed to
+    //sasi_indexes_enabled
+    //The old name is kept to keep backwards compatibility
+    public boolean sasi_indexes_enabled = false;
 
     /**
      * Optionally disable asynchronous UDF execution.
@@ -391,16 +429,19 @@ public class Config
      * When you disable async UDF execution, users MUST pay attention to read-timeouts since these may indicate
      * UDFs that run too long or forever - and this can destabilize the cluster.
      */
-    public boolean enable_user_defined_functions_threads = true;
+    //Effective cassandra.yaml v.2.0 user_defined_functions_threads_enabled is renamed to
+    //user_defined_functions_threads_enabled
+    //The old name is kept to keep backwards compatibility
+    public boolean user_defined_functions_threads_enabled = true;
     /**
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.
-     * (Only valid, if enable_user_defined_functions_threads==true)
+     * (Only valid, if user_defined_functions_threads_enabled==true)
      */
     public long user_defined_function_warn_timeout = 500;
     /**
      * Time in milliseconds after a fatal UDF run-time situation is detected and action according to
      * user_function_timeout_policy will take place.
-     * (Only valid, if enable_user_defined_functions_threads==true)
+     * (Only valid, if user_defined_functions_threads_enabled==true)
      */
     public long user_defined_function_fail_timeout = 1500;
     /**
@@ -409,7 +450,7 @@ public class Config
      * - 'die' - i.e. it is able to emit a warning to the client before the Cassandra Daemon will shut down.
      * - 'die_immediate' - shut down C* daemon immediately (effectively prevent the chance that the client will receive a warning).
      * - 'ignore' - just log - the most dangerous option.
-     * (Only valid, if enable_user_defined_functions_threads==true)
+     * (Only valid, if user_defined_functions_threads_enabled==true)
      */
     public UserFunctionTimeoutPolicy user_function_timeout_policy = UserFunctionTimeoutPolicy.die;
 

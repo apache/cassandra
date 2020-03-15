@@ -499,8 +499,8 @@ public class DatabaseDescriptor
 
         checkForLowestAcceptedTimeouts(conf);
 
-        checkValidForByteConversion(conf.native_transport_max_frame_size_in_mb,
-                                    "native_transport_max_frame_size_in_mb", ByteUnit.MEBI_BYTES);
+        checkValidForByteConversion(conf.max_native_transport_frame_size_in_mb,
+                                    "max_native_transport_frame_size_in_mb", ByteUnit.MEBI_BYTES);
 
         checkValidForByteConversion(conf.column_index_size_in_kb,
                                     "column_index_size_in_kb", ByteUnit.KIBI_BYTES);
@@ -810,11 +810,11 @@ public class DatabaseDescriptor
             throw new ConfigurationException("Error configuring back-pressure strategy: " + conf.back_pressure_strategy, ex);
         }
 
-        if (conf.otc_coalescing_enough_coalesced_messages > 128)
-            throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be smaller than 128", false);
+        if (conf.outbound_connection_coalescing_enough_coalesced_messages > 128)
+            throw new ConfigurationException("outbound_connection_coalescing_enough_coalesced_messages must be smaller than 128", false);
 
-        if (conf.otc_coalescing_enough_coalesced_messages <= 0)
-            throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be positive", false);
+        if (conf.outbound_connection_coalescing_enough_coalesced_messages <= 0)
+            throw new ConfigurationException("outbound_connection_coalescing_enough_coalesced_messages must be positive", false);
 
         Integer maxMessageSize = conf.internode_max_message_size_in_bytes;
         if (maxMessageSize != null)
@@ -1616,12 +1616,12 @@ public class DatabaseDescriptor
 
     public static boolean hasCrossNodeTimeout()
     {
-        return conf.cross_node_timeout;
+        return conf.internode_timeout;
     }
 
     public static void setCrossNodeTimeout(boolean crossNodeTimeout)
     {
-        conf.cross_node_timeout = crossNodeTimeout;
+        conf.internode_timeout = crossNodeTimeout;
     }
 
     public static long getSlowQueryTimeout(TimeUnit units)
@@ -2089,37 +2089,37 @@ public class DatabaseDescriptor
 
     public static int getNativeTransportMaxThreads()
     {
-        return conf.native_transport_max_threads;
+        return conf.max_native_transport_threads;
     }
 
     public static void setNativeTransportMaxThreads(int max_threads)
     {
-        conf.native_transport_max_threads = max_threads;
+        conf.max_native_transport_threads = max_threads;
     }
 
     public static int getNativeTransportMaxFrameSize()
     {
-        return (int) ByteUnit.MEBI_BYTES.toBytes(conf.native_transport_max_frame_size_in_mb);
+        return (int) ByteUnit.MEBI_BYTES.toBytes(conf.max_native_transport_frame_size_in_mb);
     }
 
     public static long getNativeTransportMaxConcurrentConnections()
     {
-        return conf.native_transport_max_concurrent_connections;
+        return conf.max_native_transport_concurrent_connections;
     }
 
     public static void setNativeTransportMaxConcurrentConnections(long nativeTransportMaxConcurrentConnections)
     {
-        conf.native_transport_max_concurrent_connections = nativeTransportMaxConcurrentConnections;
+        conf.max_native_transport_concurrent_connections = nativeTransportMaxConcurrentConnections;
     }
 
     public static long getNativeTransportMaxConcurrentConnectionsPerIp()
     {
-        return conf.native_transport_max_concurrent_connections_per_ip;
+        return conf.max_native_transport_concurrent_connections_per_ip;
     }
 
-    public static void setNativeTransportMaxConcurrentConnectionsPerIp(long native_transport_max_concurrent_connections_per_ip)
+    public static void setNativeTransportMaxConcurrentConnectionsPerIp(long max_native_transport_concurrent_connections_per_ip)
     {
-        conf.native_transport_max_concurrent_connections_per_ip = native_transport_max_concurrent_connections_per_ip;
+        conf.max_native_transport_concurrent_connections_per_ip = max_native_transport_concurrent_connections_per_ip;
     }
 
     public static boolean useNativeTransportLegacyFlusher()
@@ -2716,22 +2716,22 @@ public class DatabaseDescriptor
 
     public static boolean enableUserDefinedFunctions()
     {
-        return conf.enable_user_defined_functions;
+        return conf.user_defined_functions_enabled;
     }
 
     public static boolean enableScriptedUserDefinedFunctions()
     {
-        return conf.enable_scripted_user_defined_functions;
+        return conf.scripted_user_defined_functions_enabled;
     }
 
     public static void enableScriptedUserDefinedFunctions(boolean enableScriptedUserDefinedFunctions)
     {
-        conf.enable_scripted_user_defined_functions = enableScriptedUserDefinedFunctions;
+        conf.scripted_user_defined_functions_enabled = enableScriptedUserDefinedFunctions;
     }
 
     public static boolean enableUserDefinedFunctionsThreads()
     {
-        return conf.enable_user_defined_functions_threads;
+        return conf.user_defined_functions_threads_enabled;
     }
 
     public static long getUserDefinedFunctionWarnTimeout()
@@ -2746,32 +2746,32 @@ public class DatabaseDescriptor
 
     public static boolean getEnableMaterializedViews()
     {
-        return conf.enable_materialized_views;
+        return conf.materialized_views_enabled;
     }
 
     public static void setEnableMaterializedViews(boolean enableMaterializedViews)
     {
-        conf.enable_materialized_views = enableMaterializedViews;
+        conf.materialized_views_enabled = enableMaterializedViews;
     }
 
     public static boolean getEnableSASIIndexes()
     {
-        return conf.enable_sasi_indexes;
+        return conf.sasi_indexes_enabled;
     }
 
     public static void setEnableSASIIndexes(boolean enableSASIIndexes)
     {
-        conf.enable_sasi_indexes = enableSASIIndexes;
+        conf.sasi_indexes_enabled = enableSASIIndexes;
     }
 
     public static boolean isTransientReplicationEnabled()
     {
-        return conf.enable_transient_replication;
+        return conf.transient_replication_enabled;
     }
 
     public static void setTransientReplicationEnabledUnsafe(boolean enabled)
     {
-        conf.enable_transient_replication = enabled;
+        conf.transient_replication_enabled = enabled;
     }
 
     public static long getUserDefinedFunctionFailTimeout()
