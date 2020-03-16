@@ -270,7 +270,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
          */
         private long getTimestamp()
         {
-            return timestamp == null ? FBUtilities.timestampMicros() : timestamp;
+            return timestamp == null ? ClientState.getTimestamp() : timestamp;
         }
     }
 
