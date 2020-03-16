@@ -47,6 +47,7 @@ final class SystemPropertiesTable extends AbstractVirtualTable
             "sun.arch.data.model",
             // jmx properties
             "java.rmi.server.hostname",
+            "java.rmi.server.randomID",
             "com.sun.management.jmxremote.authenticate",
             "com.sun.management.jmxremote.rmi.port",
             "com.sun.management.jmxremote.ssl",
@@ -62,7 +63,13 @@ final class SystemPropertiesTable extends AbstractVirtualTable
             "cassandra-foreground",
             "cassandra-pidfile",
             "default.provide.overlapping.tombstones",
-            "org.apache.cassandra.disable_mbean_registration"
+            "org.apache.cassandra.disable_mbean_registration",
+            // only for testing
+            "org.apache.cassandra.db.virtual.SystemPropertiesTableTest"
+            );
+
+    private static final Set<String> CASSANDRA_RELEVANT_ENVS = Sets.newHashSet(
+            "JAVA_HOME"
             );
 
     SystemPropertiesTable(String keyspace)
@@ -80,6 +87,11 @@ final class SystemPropertiesTable extends AbstractVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
 
+        System.getenv().keySet()
+                .stream()
+                .filter(SystemPropertiesTable::isCassandraRelevant)
+                .forEach(name -> addRow(result, name, System.getenv(name)));
+
         System.getProperties().stringPropertyNames()
                 .stream()
                 .filter(SystemPropertiesTable::isCassandraRelevant)
@@ -94,14 +106,15 @@ final class SystemPropertiesTable extends AbstractVirtualTable
         SimpleDataSet result = new SimpleDataSet(metadata());
         String name = UTF8Type.instance.compose(partitionKey.getKey());
         if (isCassandraRelevant(name))
-            addRow(result, name, System.getProperty(name));
+            addRow(result, name, System.getProperty(name, System.getenv(name)));
 
         return result;
     }
 
     static boolean isCassandraRelevant(String name)
     {
-        return name.startsWith(Config.PROPERTY_PREFIX) || CASSANDRA_RELEVANT_PROPERTIES.contains(name);
+        return name.startsWith(Config.PROPERTY_PREFIX) || CASSANDRA_RELEVANT_PROPERTIES.contains(name)
+                                                       || CASSANDRA_RELEVANT_ENVS.contains(name);
     }
 
     private static void addRow(SimpleDataSet result, String name, String value)
