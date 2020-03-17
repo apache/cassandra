@@ -30,6 +30,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairResult;
 import org.apache.cassandra.repair.RepairSessionResult;
 import org.apache.cassandra.repair.SyncStat;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.utils.FBUtilities;
@@ -130,6 +132,12 @@ public class SyncStatSummary
             totalsCalculated = true;
         }
 
+        boolean isCounter()
+        {
+            TableMetadata tmd = Schema.instance.getTableMetadata(keyspace, table);
+            return tmd != null && tmd.isCounter();
+        }
+
         public String toString()
         {
             if (!totalsCalculated)
@@ -192,6 +200,10 @@ public class SyncStatSummary
         summaries.values().forEach(Table::calculateTotals);
         for (Table table: summaries.values())
         {
+            if (table.isCounter())
+            {
+                continue;
+            }
             table.calculateTotals();
             files += table.files;
             bytes += table.bytes;
