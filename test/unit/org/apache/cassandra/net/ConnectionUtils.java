@@ -247,9 +247,13 @@ public class ConnectionUtils
         }
     }
 
+    /**
+     * Perform the {@param assertion} within the specified duration repeatly until a success.
+     * Otherwise, it times out and re-throws the {@link AssertionError} from the {@param assertion}.
+     */
     private static void longCheck(Runnable assertion, long timeout, TimeUnit timeUnit)
     {
-        long start = System.currentTimeMillis();
+        long startNano = System.nanoTime();
         for (;;)
         {
             try
@@ -259,8 +263,8 @@ public class ConnectionUtils
             }
             catch (AssertionError e)
             {
-                long elapsedMs = System.currentTimeMillis() - start;
-                if (elapsedMs > timeUnit.toMillis(timeout))
+                long elapsedNano = System.nanoTime() - startNano;
+                if (elapsedNano > timeUnit.toNanos(timeout))
                     throw e;
                 else
                     Uninterruptibles.sleepUninterruptibly(5, TimeUnit.MILLISECONDS);
