@@ -100,7 +100,9 @@ public final class SystemKeyspace
     public static final String PEER_EVENTS_V2 = "peer_events_v2";
     public static final String COMPACTION_HISTORY = "compaction_history";
     public static final String SSTABLE_ACTIVITY = "sstable_activity";
-    public static final String SIZE_ESTIMATES = "size_estimates";
+    public static final String TABLE_ESTIMATES = "table_estimates";
+    public static final String TABLE_ESTIMATES_TYPE_PRIMARY = "primary";
+    public static final String TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY = "local_primary";
     public static final String AVAILABLE_RANGES_V2 = "available_ranges_v2";
     public static final String TRANSFERRED_RANGES_V2 = "transferred_ranges_v2";
     public static final String VIEW_BUILDS_IN_PROGRESS = "view_builds_in_progress";
@@ -112,6 +114,7 @@ public final class SystemKeyspace
     @Deprecated public static final String LEGACY_PEER_EVENTS = "peer_events";
     @Deprecated public static final String LEGACY_TRANSFERRED_RANGES = "transferred_ranges";
     @Deprecated public static final String LEGACY_AVAILABLE_RANGES = "available_ranges";
+    @Deprecated public static final String LEGACY_SIZE_ESTIMATES = "size_estimates";
 
 
     public static final TableMetadata Batches =
@@ -237,9 +240,10 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((keyspace_name, columnfamily_name, generation)))")
                 .build();
 
-    private static final TableMetadata SizeEstimates =
-        parse(SIZE_ESTIMATES,
-                "per-table primary range size estimates",
+    @Deprecated
+    private static final TableMetadata LegacySizeEstimates =
+        parse(LEGACY_SIZE_ESTIMATES,
+              "per-table primary range size estimates, table is deprecated in favor of " + TABLE_ESTIMATES,
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "table_name text,"
@@ -249,6 +253,20 @@ public final class SystemKeyspace
                 + "partitions_count bigint,"
                 + "PRIMARY KEY ((keyspace_name), table_name, range_start, range_end))")
                 .build();
+
+    private static final TableMetadata TableEstimates =
+        parse(TABLE_ESTIMATES,
+              "per-table range size estimates",
+              "CREATE TABLE %s ("
+               + "keyspace_name text,"
+               + "table_name text,"
+               + "range_type text,"
+               + "range_start text,"
+               + "range_end text,"
+               + "mean_partition_size bigint,"
+               + "partitions_count bigint,"
+               + "PRIMARY KEY ((keyspace_name), table_name, range_type, range_start, range_end))")
+               .build();
 
     private static final TableMetadata AvailableRangesV2 =
     parse(AVAILABLE_RANGES_V2,
@@ -397,7 +415,8 @@ public final class SystemKeyspace
                          LegacyPeerEvents,
                          CompactionHistory,
                          SSTableActivity,
-                         SizeEstimates,
+                         LegacySizeEstimates,
+                         TableEstimates,
                          AvailableRangesV2,
                          LegacyAvailableRanges,
                          TransferredRangesV2,
@@ -1248,17 +1267,17 @@ public final class SystemKeyspace
     public static void updateSizeEstimates(String keyspace, String table, Map<Range<Token>, Pair<Long, Long>> estimates)
     {
         long timestamp = FBUtilities.timestampMicros();
-        PartitionUpdate.Builder update = new PartitionUpdate.Builder(SizeEstimates, UTF8Type.instance.decompose(keyspace), SizeEstimates.regularAndStaticColumns(), estimates.size());
-        // delete all previous values with a single range tombstone.
         int nowInSec = FBUtilities.nowInSeconds();
-        update.add(new RangeTombstone(Slice.make(SizeEstimates.comparator, table), new DeletionTime(timestamp - 1, nowInSec)));
+        PartitionUpdate.Builder update = new PartitionUpdate.Builder(LegacySizeEstimates, UTF8Type.instance.decompose(keyspace), LegacySizeEstimates.regularAndStaticColumns(), estimates.size());
+        // delete all previous values with a single range tombstone.
+        update.add(new RangeTombstone(Slice.make(LegacySizeEstimates.comparator, table), new DeletionTime(timestamp - 1, nowInSec)));
 
         // add a CQL row for each primary token range.
         for (Map.Entry<Range<Token>, Pair<Long, Long>> entry : estimates.entrySet())
         {
             Range<Token> range = entry.getKey();
             Pair<Long, Long> values = entry.getValue();
-            update.add(Rows.simpleBuilder(SizeEstimates, table, range.left.toString(), range.right.toString())
+            update.add(Rows.simpleBuilder(LegacySizeEstimates, table, range.left.toString(), range.right.toString())
                            .timestamp(timestamp)
                            .add("partitions_count", values.left)
                            .add("mean_partition_size", values.right)
@@ -1268,20 +1287,54 @@ public final class SystemKeyspace
     }
 
     /**
+     * Writes the current partition count and size estimates into table_estimates
+     */
+    public static void updateTableEstimates(String keyspace, String table, String type, Map<Range<Token>, Pair<Long, Long>> estimates)
+    {
+        long timestamp = FBUtilities.timestampMicros();
+        int nowInSec = FBUtilities.nowInSeconds();
+        PartitionUpdate.Builder update = new PartitionUpdate.Builder(TableEstimates, UTF8Type.instance.decompose(keyspace), TableEstimates.regularAndStaticColumns(), estimates.size());
+
+        // delete all previous values with a single range tombstone.
+        update.add(new RangeTombstone(Slice.make(TableEstimates.comparator, table, type), new DeletionTime(timestamp - 1, nowInSec)));
+
+        // add a CQL row for each primary token range.
+        for (Map.Entry<Range<Token>, Pair<Long, Long>> entry : estimates.entrySet())
+        {
+            Range<Token> range = entry.getKey();
+            Pair<Long, Long> values = entry.getValue();
+            update.add(Rows.simpleBuilder(TableEstimates, table, type, range.left.toString(), range.right.toString())
+                           .timestamp(timestamp)
+                           .add("partitions_count", values.left)
+                           .add("mean_partition_size", values.right)
+                           .build());
+        }
+
+        new Mutation(update.build()).apply();
+    }
+
+
+    /**
      * Clears size estimates for a table (on table drop)
      */
-    public static void clearSizeEstimates(String keyspace, String table)
+    public static void clearEstimates(String keyspace, String table)
     {
-        String cql = format("DELETE FROM %s WHERE keyspace_name = ? AND table_name = ?", SizeEstimates.toString());
+        String cqlFormat = "DELETE FROM %s WHERE keyspace_name = ? AND table_name = ?";
+        String cql = format(cqlFormat, LegacySizeEstimates.toString());
+        executeInternal(cql, keyspace, table);
+        cql = String.format(cqlFormat, TableEstimates.toString());
         executeInternal(cql, keyspace, table);
     }
 
     /**
      * Clears size estimates for a keyspace (used to manually clean when we miss a keyspace drop)
      */
-    public static void clearSizeEstimates(String keyspace)
+    public static void clearEstimates(String keyspace)
     {
-        String cql = String.format("DELETE FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SIZE_ESTIMATES);
+        String cqlFormat = "DELETE FROM %s WHERE keyspace_name = ?";
+        String cql = String.format(cqlFormat, LegacySizeEstimates.toString());
+        executeInternal(cql, keyspace);
+        cql = String.format(cqlFormat, TableEstimates.toString());
         executeInternal(cql, keyspace);
     }
 
@@ -1291,7 +1344,7 @@ public final class SystemKeyspace
     public static synchronized SetMultimap<String, String> getTablesWithSizeEstimates()
     {
         SetMultimap<String, String> keyspaceTableMap = HashMultimap.create();
-        String cql = String.format("SELECT keyspace_name, table_name FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SIZE_ESTIMATES);
+        String cql = String.format("SELECT keyspace_name, table_name FROM %s WHERE range_type='%s'", TableEstimates.toString(), TABLE_ESTIMATES_TYPE_PRIMARY);
         UntypedResultSet rs = executeInternal(cql);
         for (UntypedResultSet.Row row : rs)
         {

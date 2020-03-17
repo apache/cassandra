@@ -338,7 +338,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
                                      "FROM %s.%s " +
                                      "WHERE keyspace_name = ? AND table_name = ? AND range_start = ? AND range_end = ?",
                                      SchemaConstants.SYSTEM_KEYSPACE_NAME,
-                                     SystemKeyspace.SIZE_ESTIMATES);
+                                     SystemKeyspace.LEGACY_SIZE_ESTIMATES);
 
         Statement stmt = new SimpleStatement(query, keyspace, table, tokenRange.getStart().toString(), tokenRange.getEnd().toString()).setHost(host);
         ResultSet resultSet = session.execute(stmt);

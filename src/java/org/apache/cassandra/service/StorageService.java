@@ -3674,14 +3674,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             String keyspace = tablesByKeyspace.getKey();
             if (!Schema.instance.getKeyspaces().contains(keyspace))
             {
-                SystemKeyspace.clearSizeEstimates(keyspace);
+                SystemKeyspace.clearEstimates(keyspace);
             }
             else
             {
                 for (String table : tablesByKeyspace.getValue())
                 {
                     if (Schema.instance.getTableMetadataRef(keyspace, table) == null)
-                        SystemKeyspace.clearSizeEstimates(keyspace, table);
+                        SystemKeyspace.clearEstimates(keyspace, table);
                 }
             }
         }
