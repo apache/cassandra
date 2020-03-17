@@ -3061,4 +3061,11 @@ public class DatabaseDescriptor
             throw new ConfigurationException(String.format("%s must be positive value < %d, but was %d",
                                                            name, unit.overflowThreshold(), val), false);
     }
+
+    public static int getValidationPreviewPurgeHeadStartInSec()
+    {
+        int seconds = conf.validation_preview_purge_head_start_in_sec;
+        return Math.max(seconds, 0);
+    }
+
 }

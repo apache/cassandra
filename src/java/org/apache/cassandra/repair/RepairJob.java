@@ -71,6 +71,19 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         this.parallelismDegree = session.parallelismDegree;
     }
 
+    public int getNowInSeconds()
+    {
+        int nowInSeconds = FBUtilities.nowInSeconds();
+        if (session.previewKind == PreviewKind.REPAIRED)
+        {
+            return nowInSeconds + DatabaseDescriptor.getValidationPreviewPurgeHeadStartInSec();
+        }
+        else
+        {
+            return nowInSeconds;
+        }
+    }
+
     /**
      * Runs repair job.
      *
@@ -345,7 +358,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
         logger.info("{} {}", session.previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
-        int nowInSec = FBUtilities.nowInSeconds();
+        int nowInSec = getNowInSeconds();
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
         for (InetAddressAndPort endpoint : endpoints)
         {
@@ -365,7 +378,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
         logger.info("{} {}", session.previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
-        int nowInSec = FBUtilities.nowInSeconds();
+        int nowInSec = getNowInSeconds();
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
 
         Queue<InetAddressAndPort> requests = new LinkedList<>(endpoints);
@@ -407,7 +420,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
         logger.info("{} {}", session.previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
-        int nowInSec = FBUtilities.nowInSeconds();
+        int nowInSec = getNowInSeconds();
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
 
         Map<String, Queue<InetAddressAndPort>> requestsByDatacenter = new HashMap<>();
