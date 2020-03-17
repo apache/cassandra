@@ -18,11 +18,11 @@ public class CqlClientHelper
     {
     }
 
-    public static Map<TokenRange, List<Host>> getPrimaryRangeForDC(String keyspace, Metadata metadata, String preferredDc)
+    public static Map<TokenRange, List<Host>> getLocalPrimaryRangeForDC(String keyspace, Metadata metadata, String targetDC)
     {
         Objects.requireNonNull(keyspace, "keyspace");
         Objects.requireNonNull(metadata, "metadata");
-        Objects.requireNonNull(preferredDc, "preferredDc");
+        Objects.requireNonNull(targetDC, "targetDC");
 
         // In 2.1 the logic was to have a set of nodes used as a seed, they were used to query
         // client.describe_local_ring(keyspace) -> List<TokenRange>; this should include all nodes in the local dc.
@@ -34,7 +34,7 @@ public class CqlClientHelper
         Map<Token, Host> tokenToHost = new HashMap<>();
         for (Host host : metadata.getAllHosts())
         {
-            if (!preferredDc.equals(host.getDatacenter()))
+            if (!targetDC.equals(host.getDatacenter()))
                 continue;
 
             for (Token token : host.getTokens())

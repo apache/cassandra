@@ -37,6 +37,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.InputSplit;
@@ -142,6 +143,10 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
              Session session = cluster.connect())
         {
             List<SplitFuture> splitfutures = new ArrayList<>();
+            //TODO if the job range is defined and does perfectly match tokens, then the logic will be unable to get estimates since they are pre-computed
+            // tokens: [0, 10, 20]
+            // job range: [0, 10) - able to get estimate
+            // job range: [5, 15) - unable to get estimate
             Pair<String, String> jobKeyRange = ConfigHelper.getInputKeyRange(conf);
             Range<Token> jobRange = null;
             if (jobKeyRange != null)
@@ -158,9 +163,9 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
             {
                 if (jobRange == null)
                 {
-                    // for each tokenRange, pick a live owner and ask it to compute bite-sized splits
                     for (TokenRange unwrapped : range.unwrap())
                     {
+                        // for each tokenRange, pick a live owner and ask it for the byte-sized splits
                         SplitFuture task = new SplitFuture(new SplitCallable(unwrapped, masterRangeNodes.get(range), conf, session));
                         executor.submit(task);
                         splitfutures.add(task);
@@ -175,7 +180,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
                         {
                             for (TokenRange unwrapped : intersection.unwrap())
                             {
-                                // for each tokenRange, pick a live owner and ask it to compute bite-sized splits
+                                // for each tokenRange, pick a live owner and ask it for the byte-sized splits
                                 SplitFuture task = new SplitFuture(new SplitCallable(unwrapped,  masterRangeNodes.get(range), conf, session));
                                 executor.submit(task);
                                 splitfutures.add(task);
@@ -321,7 +326,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
 
     private static Map<TokenRange, List<Host>> getRangeMap(String keyspace, Metadata metadata, String targetDC)
     {
-        return CqlClientHelper.getPrimaryRangeForDC(keyspace, metadata, targetDC);
+        return CqlClientHelper.getLocalPrimaryRangeForDC(keyspace, metadata, targetDC);
     }
 
     private Map<TokenRange, Long> describeSplits(String keyspace, String table, TokenRange tokenRange, Host host, int splitSize, int splitSizeMb, Session session)
@@ -334,14 +339,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         // In 3.0 we rely on the below CQL query which is local and only computes estimates for the primary range; this
         // puts us in a sticky spot to answer, if the node fails what do we do?  3.0 behavior only matches 2.1 IFF all
         // nodes are up and healthy
-        String query = String.format("SELECT mean_partition_size, partitions_count " +
-                                     "FROM %s.%s " +
-                                     "WHERE keyspace_name = ? AND table_name = ? AND range_start = ? AND range_end = ?",
-                                     SchemaConstants.SYSTEM_KEYSPACE_NAME,
-                                     SystemKeyspace.LEGACY_SIZE_ESTIMATES);
-
-        Statement stmt = new SimpleStatement(query, keyspace, table, tokenRange.getStart().toString(), tokenRange.getEnd().toString()).setHost(host);
-        ResultSet resultSet = session.execute(stmt);
+        ResultSet resultSet = queryTableEstimates(session, host, keyspace, table, tokenRange);
 
         Row row = resultSet.one();
 
@@ -370,6 +368,35 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         }
 
         return splitTokenRange(tokenRange, splitCount, partitionCount / splitCount);
+    }
+
+    private static ResultSet queryTableEstimates(Session session, Host host, String keyspace, String table, TokenRange tokenRange)
+    {
+        try
+        {
+            String query = String.format("SELECT mean_partition_size, partitions_count " +
+                                         "FROM %s.%s " +
+                                         "WHERE keyspace_name = ? AND table_name = ? AND range_type = '%s' AND range_start = ? AND range_end = ?",
+                                         SchemaConstants.SYSTEM_KEYSPACE_NAME,
+                                         SystemKeyspace.TABLE_ESTIMATES,
+                                         SystemKeyspace.TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY);
+            Statement stmt = new SimpleStatement(query, keyspace, table, tokenRange.getStart().toString(), tokenRange.getEnd().toString()).setHost(host);
+            return session.execute(stmt);
+        }
+        catch (InvalidQueryException e)
+        {
+            // if the table doesn't exist, fall back to old table
+            if (!e.getMessage().contains("does not exist"))
+                throw e;
+            String query = String.format("SELECT mean_partition_size, partitions_count " +
+                                         "FROM %s.%s " +
+                                         "WHERE keyspace_name = ? AND table_name = ? AND range_start = ? AND range_end = ?",
+                                         SchemaConstants.SYSTEM_KEYSPACE_NAME,
+                                         SystemKeyspace.LEGACY_SIZE_ESTIMATES);
+
+            Statement stmt = new SimpleStatement(query, keyspace, table, tokenRange.getStart().toString(), tokenRange.getEnd().toString()).setHost(host);
+            return session.execute(stmt);
+        }
     }
 
     private static Map<TokenRange, Long> splitTokenRange(TokenRange tokenRange, int splitCount, long partitionCount)
@@ -405,10 +432,10 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         private final Configuration conf;
         private final Session session;
 
-        public SplitCallable(TokenRange tr, List<Host> hosts, Configuration conf, Session session)
+        public SplitCallable(TokenRange tokenRange, List<Host> hosts, Configuration conf, Session session)
         {
             Preconditions.checkArgument(!hosts.isEmpty(), "hosts list requires at least 1 host but was empty");
-            this.tokenRange = tr;
+            this.tokenRange = tokenRange;
             this.hosts = hosts;
             this.conf = conf;
             this.session = session;
