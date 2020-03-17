@@ -253,7 +253,8 @@ public class ConnectionUtils
      */
     private static void longCheck(Runnable assertion, long timeout, TimeUnit timeUnit)
     {
-        long startNano = System.nanoTime();
+        final long startNano = System.nanoTime();
+        final long timeoutNano = timeUnit.toNanos(timeout);
         for (;;)
         {
             try
@@ -264,7 +265,7 @@ public class ConnectionUtils
             catch (AssertionError e)
             {
                 long elapsedNano = System.nanoTime() - startNano;
-                if (elapsedNano > timeUnit.toNanos(timeout))
+                if (elapsedNano > timeoutNano)
                     throw e;
                 else
                     Uninterruptibles.sleepUninterruptibly(5, TimeUnit.MILLISECONDS);
