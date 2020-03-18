@@ -146,8 +146,9 @@ public class TrieMemIndex extends MemIndex
             RangeUnionIterator.Builder<Long, Token> builder = RangeUnionIterator.builder();
             for (ConcurrentSkipListSet<DecoratedKey> keys : search)
             {
-                if (!keys.isEmpty())
-                    builder.add(new KeyRangeIterator(keys));
+                int size;
+                if ((size = keys.size()) > 0)
+                    builder.add(new KeyRangeIterator(keys, size));
             }
 
             return builder.build();
