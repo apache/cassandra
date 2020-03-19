@@ -319,6 +319,17 @@ If not set, the default directory is $CASSANDRA_HOME/data/data.
 
     #     - /var/lib/cassandra/data
 
+``local_system_data_file_directory``
+-------------------------
+*This option is commented out by default.*
+
+Directory were Cassandra should store the data of the local system keyspaces.
+By default Cassandra will store the data of the local system keyspaces (at the exception of the system.batches,
+system.paxos, system.compaction_history, system.prepared_statements and system.repair tables) in the first of the data
+directories specified by data_file_directories.
+This approach ensures that if one of the other disks is lost Cassandra can continue to operate. For extra security
+this setting allows to store those data on a different directory that provides redundancy.
+
 ``commitlog_directory``
 -----------------------
 *This option is commented out by default.*

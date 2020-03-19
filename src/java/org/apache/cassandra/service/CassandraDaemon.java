@@ -24,8 +24,14 @@ import java.lang.management.MemoryPoolMXBean;
 import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
+
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
@@ -44,6 +50,7 @@ import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
+
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -223,6 +230,19 @@ public class CassandraDaemon
     {
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
 
+        // Since CASSANDRA-14793 the local system keyspaces data are not dispatched across the data directories
+        // anymore to reduce the risks in case of disk failures. By consequence, the system need to ensure in case of
+        // upgrade that the old data files have been migrated to the new directories before we start deleting
+        // snapshots and upgrading system tables.
+        try
+        {
+            migrateSystemDataIfNeeded();
+        }
+        catch (IOException e)
+        {
+            exitOrFail(StartupException.ERR_WRONG_DISK_STATE, e.getMessage(), e);
+        }
+
         // Delete any failed snapshot deletions on Windows - see CASSANDRA-9658
         if (FBUtilities.isWindows)
             WindowsFailedSnapshotTracker.deleteOldSnapshots();
@@ -247,7 +267,7 @@ public class CassandraDaemon
         }
         catch (IOException e)
         {
-            exitOrFail(3, e.getMessage(), e.getCause());
+            exitOrFail(StartupException.ERR_WRONG_DISK_STATE, e.getMessage(), e.getCause());
         }
 
         // We need to persist this as soon as possible after startup checks.
@@ -472,6 +492,73 @@ public class CassandraDaemon
         }
 
     }
+
+    /**
+     * Checks if the data of the local system keyspaces need to be migrated to a different location.
+     *
+     * @throws IOException
+     */
+    public void migrateSystemDataIfNeeded() throws IOException
+    {
+        // If there is only one directory and no system keyspace directory has been specified we do not need to do
+        // anything. If it is not the case we want to try to migrate the data.
+        if (!DatabaseDescriptor.useSpecificLocationForLocalSystemData()
+                && DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations().length <= 1)
+            return;
+
+        // We can face several cases:
+        //  1) The system data are spread accross the data file locations and need to be moved to
+        //     the first data location (upgrade to 4.0)
+        //  2) The system data are spread accross the data file locations and need to be moved to
+        //     the system keyspace location configured by the user (upgrade to 4.0)
+        //  3) The system data are stored in the first data location and need to be moved to
+        //     the system keyspace location configured by the user (system_data_file_directory has been configured)
+        Path target = Paths.get(DatabaseDescriptor.getLocalSystemKeyspacesDataFileLocations()[0]);
+
+        String[] nonLocalSystemKeyspacesFileLocations = DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations();
+        String[] sources = DatabaseDescriptor.useSpecificLocationForLocalSystemData() ? nonLocalSystemKeyspacesFileLocations
+                                                                                      : Arrays.copyOfRange(nonLocalSystemKeyspacesFileLocations,
+                                                                                                           1,
+                                                                                                           nonLocalSystemKeyspacesFileLocations.length);
+
+        for (String source : sources)
+        {
+            Path dataFileLocation = Paths.get(source);
+
+            if (!Files.exists(dataFileLocation))
+                continue;
+
+            try (Stream<Path> locationChildren = Files.list(dataFileLocation))
+            {
+                Path[] keyspaceDirectories = locationChildren.filter(p -> SchemaConstants.isLocalSystemKeyspace(p.getFileName().toString()))
+                                                             .toArray(Path[]::new);
+
+                for (Path keyspaceDirectory : keyspaceDirectories)
+                {
+                    try (Stream<Path> keyspaceChildren = Files.list(keyspaceDirectory))
+                    {
+                        Path[] tableDirectories = keyspaceChildren.filter(Files::isDirectory)
+                                                                  .filter(p -> !SystemKeyspace.TABLES_SPLIT_ACROSS_MULTIPLE_DISKS
+                                                                                              .contains(p.getFileName()
+                                                                                                         .toString()))
+                                                                  .toArray(Path[]::new);
+
+                        for (Path tableDirectory : tableDirectories)
+                        {
+                            FileUtils.moveRecursively(tableDirectory,
+                                                      target.resolve(dataFileLocation.relativize(tableDirectory)));
+                        }
+
+                        if (!SchemaConstants.SYSTEM_KEYSPACE_NAME.equals(keyspaceDirectory.getFileName().toString()))
+                        {
+                            FileUtils.deleteDirectoryIfEmpty(keyspaceDirectory);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void setupVirtualKeyspaces()
     {
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
