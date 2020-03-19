@@ -100,7 +100,7 @@ public class ClearSnapshotTest extends CQLTester
         tool = ToolRunner.invokeNodetool("snapshot","-t","some-other-name");
         tool.assertOnCleanExit();
             assertTrue(!tool.getStdout().isEmpty());
-        
+
         Map<String, TabularData> snapshots_before = probe.getSnapshotDetails();
         Assert.assertTrue(snapshots_before.size() == 2);
 

@@ -38,6 +38,14 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - The data of the system keyspaces using a local strategy (at the exception of the system.batches,
+      system.paxos, system.compaction_history, system.prepared_statements and system.repair tables)
+      is now stored by default in the first data directory, instead of being distributed among all
+      the data directories. This approach will allow the server to tolerate the failure of the other disks.
+      To ensure that a disk failure will not bring a node down, it is possible to use the system_data_file_directory
+      yaml property to store the local system keyspaces data on a directory that provides redundancy.
+      On node startup the local system keyspaces data will be automatically migrated if needed to the
+      correct location.
     - Nodes will now bootstrap all intra-cluster connections at startup by default and wait
       10 seconds for the all but one node in the local data center to be connected and marked
       UP in gossip. This prevents nodes from coordinating requests and failing because they

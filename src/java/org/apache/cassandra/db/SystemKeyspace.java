@@ -72,8 +72,6 @@ import static java.util.Collections.singletonMap;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
-import static org.apache.cassandra.locator.Replica.fullReplica;
-import static org.apache.cassandra.locator.Replica.transientReplica;
 
 public final class SystemKeyspace
 {
@@ -109,6 +107,17 @@ public final class SystemKeyspace
     public static final String BUILT_VIEWS = "built_views";
     public static final String PREPARED_STATEMENTS = "prepared_statements";
     public static final String REPAIRS = "repairs";
+
+    /**
+     * By default the system keyspace tables should be stored in a single data directory to allow the server
+     * to handle more gracefully disk failures. Some tables through can be split accross multiple directories
+     * as the server can continue operating even if those tables lost some data.
+     */
+    public static final Set<String> TABLES_SPLIT_ACROSS_MULTIPLE_DISKS = ImmutableSet.of(BATCHES,
+                                                                                         PAXOS,
+                                                                                         COMPACTION_HISTORY,
+                                                                                         PREPARED_STATEMENTS,
+                                                                                         REPAIRS);
 
     @Deprecated public static final String LEGACY_PEERS = "peers";
     @Deprecated public static final String LEGACY_PEER_EVENTS = "peer_events";

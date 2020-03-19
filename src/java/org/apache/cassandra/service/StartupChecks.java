@@ -340,6 +340,7 @@ public class StartupChecks
                                                  Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
                                                                DatabaseDescriptor.getSavedCachesLocation(),
                                                                DatabaseDescriptor.getHintsDirectory().getAbsolutePath()));
+
         for (String dataDir : dirs)
         {
             logger.debug("Checking directory {}", dataDir);
