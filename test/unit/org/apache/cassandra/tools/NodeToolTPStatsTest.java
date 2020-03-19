@@ -112,7 +112,7 @@ public class NodeToolTPStatsTest extends CQLTester
     public void testTPStats() throws Throwable
     {
         ToolResult tool = ToolRunner.invokeNodetool("tpstats");
-        Assertions.assertThat(tool.getStdout()).containsIgnoringCase("Pool Name                    Active Pending Completed Blocked All time blocked");
+        Assertions.assertThat(tool.getStdout()).containsPattern("Pool Name \\s* Active Pending Completed Blocked All time blocked");
         Assertions.assertThat(tool.getStdout()).containsIgnoringCase("Latencies waiting in queue (micros) per dropped message types");
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());

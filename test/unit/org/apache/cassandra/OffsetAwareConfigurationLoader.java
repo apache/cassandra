@@ -94,6 +94,9 @@ public class OffsetAwareConfigurationLoader extends YamlConfigurationLoader
         for (int i = 0; i < config.data_file_directories.length; i++)
             config.data_file_directories[i] += sep + offset;
 
+        if (config.local_system_data_file_directory != null)
+            config.local_system_data_file_directory += sep + offset;
+
         return config;
     }
 }

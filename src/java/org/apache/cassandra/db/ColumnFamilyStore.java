@@ -115,20 +115,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                                              new NamedThreadFactory("MemtableFlushWriter"),
                                                                                              "internal");
 
-    private static final ExecutorService [] perDiskflushExecutors = new ExecutorService[DatabaseDescriptor.getAllDataFileLocations().length];
-
-    static
-    {
-        for (int i = 0; i < DatabaseDescriptor.getAllDataFileLocations().length; i++)
-        {
-            perDiskflushExecutors[i] = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
-                                                                        Stage.KEEP_ALIVE_SECONDS,
-                                                                        TimeUnit.SECONDS,
-                                                                        new LinkedBlockingQueue<Runnable>(),
-                                                                        new NamedThreadFactory("PerDiskMemtableFlushWriter_"+i),
-                                                                        "internal");
-        }
-    }
+    private static final PerDiskFlushExecutors perDiskflushExecutors = new PerDiskFlushExecutors(DatabaseDescriptor.getFlushWriters(),
+                                                                                                 DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations(),
+                                                                                                 DatabaseDescriptor.useSpecificLocationForLocalSystemData());
 
     // post-flush executor is single threaded to provide guarantee that any flush Future on a CF will never return until prior flushes have completed
     private static final ThreadPoolExecutor postFlushExecutor = new JMXEnabledThreadPoolExecutor(1,
@@ -232,9 +221,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static void shutdownExecutorsAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        List<ExecutorService> executors = new ArrayList<>(perDiskflushExecutors.length + 3);
+        List<ExecutorService> executors = new ArrayList<>();
         Collections.addAll(executors, reclaimExecutor, postFlushExecutor, flushExecutor);
-        Collections.addAll(executors, perDiskflushExecutors);
+        perDiskflushExecutors.appendAllExecutors(executors);
         ExecutorUtils.shutdownAndWait(timeout, unit, executors);
     }
 
@@ -1108,9 +1097,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     // flush the memtable
                     flushRunnables = memtable.flushRunnables(txn);
+                    ExecutorService[] executors = perDiskflushExecutors.getExecutorsFor(keyspace.getName(), name);
 
                     for (int i = 0; i < flushRunnables.size(); i++)
-                        futures.add(perDiskflushExecutors[i].submit(flushRunnables.get(i)));
+                        futures.add(executors[i].submit(flushRunnables.get(i)));
 
                     /**
                      * we can flush 2is as soon as the barrier completes, as they will be consistent with (or ahead of) the
@@ -2805,5 +2795,89 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean getNeverPurgeTombstones()
     {
         return neverPurgeTombstones;
+    }
+
+    /**
+     * The thread pools used to flush memtables.
+     *
+     * <p>Each disk has its own set of thread pools to perform memtable flushes.</p>
+     * <p>Based on the configuration. Local system keyspaces can have their own disk
+     * to allow for special redundancy mechanism. If it is the case the executor services returned for
+     * local system keyspaces will be different from the ones for the other keyspaces.</p>
+     */
+    private static final class PerDiskFlushExecutors
+    {
+        /**
+         * The flush executors for non local system keyspaces.
+         */
+        private final ExecutorService[] nonLocalSystemflushExecutors;
+
+        /**
+         * The flush executors for the local system keyspaces.
+         */
+        private final ExecutorService[] localSystemDiskFlushExecutors;
+
+        /**
+         * {@code true} if local system keyspaces are stored in their own directory and use an extra flush executor,
+         * {@code false} otherwise.
+         */
+        private final boolean useSpecificExecutorForSystemKeyspaces;
+
+        public PerDiskFlushExecutors(int flushWriters,
+                                     String[] locationsForNonSystemKeyspaces,
+                                     boolean useSpecificLocationForSystemKeyspaces)
+        {
+            ExecutorService[] flushExecutors = createPerDiskFlushWriters(locationsForNonSystemKeyspaces.length, flushWriters);
+            nonLocalSystemflushExecutors = flushExecutors;
+            useSpecificExecutorForSystemKeyspaces = useSpecificLocationForSystemKeyspaces;
+            localSystemDiskFlushExecutors = useSpecificLocationForSystemKeyspaces ? new ExecutorService[] {newThreadPool("LocalSystemKeyspacesDiskMemtableFlushWriter", flushWriters)}
+                                                                                  : new ExecutorService[] {flushExecutors[0]};
+        }
+
+        private static ExecutorService[] createPerDiskFlushWriters(int numberOfExecutors, int flushWriters)
+        {
+            ExecutorService[] flushExecutors = new ExecutorService[numberOfExecutors];
+
+            for (int i = 0; i < numberOfExecutors; i++)
+            {
+                flushExecutors[i] = newThreadPool("PerDiskMemtableFlushWriter_" + i, flushWriters);
+            }
+            return flushExecutors;
+        }
+
+        private static JMXEnabledThreadPoolExecutor newThreadPool(String poolName, int size)
+        {
+            return new JMXEnabledThreadPoolExecutor(size,
+                                                    Stage.KEEP_ALIVE_SECONDS,
+                                                    TimeUnit.SECONDS,
+                                                    new LinkedBlockingQueue<>(),
+                                                    new NamedThreadFactory(poolName),
+                                                    "internal");
+        }
+
+        /**
+         * Returns the flush executors for the specified keyspace.
+         *
+         * @param keyspaceName the keyspace name
+         * @param tableName the table name
+         * @return the flush executors that should be used for flushing the memtables of the specified keyspace.
+         */
+        public ExecutorService[] getExecutorsFor(String keyspaceName, String tableName)
+        {
+            return Directories.isStoredInLocalSystemKeyspacesDataLocation(keyspaceName, tableName) ? localSystemDiskFlushExecutors
+                                                                                                   : nonLocalSystemflushExecutors;
+        }
+
+        /**
+         * Appends all the {@code ExecutorService} used for flushes to the collection.
+         *
+         * @param collection the collection to append to.
+         */
+        public void appendAllExecutors(Collection<ExecutorService> collection)
+        {
+            Collections.addAll(collection, nonLocalSystemflushExecutors);
+            if (useSpecificExecutorForSystemKeyspaces)
+                Collections.addAll(collection, localSystemDiskFlushExecutors);
+        }
     }
 }
