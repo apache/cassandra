@@ -63,6 +63,7 @@ public class SkipListMemIndex extends MemIndex
         return overhead;
     }
 
+    @SuppressWarnings("resource")
     public RangeIterator<Long, Token> search(Expression expression)
     {
         ByteBuffer min = expression.lower == null ? null : expression.lower.value;
