@@ -18,16 +18,39 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.Serializable;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.messages.StreamMessage;
 
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.streaming.StreamSession.State.PREPARING;
+import static org.apache.cassandra.streaming.StreamSession.State.STREAMING;
+import static org.apache.cassandra.streaming.StreamSession.State.WAIT_COMPLETE;
+import static org.apache.cassandra.streaming.messages.StreamMessage.Type.PREPARE_ACK;
+import static org.apache.cassandra.streaming.messages.StreamMessage.Type.PREPARE_SYN;
+import static org.apache.cassandra.streaming.messages.StreamMessage.Type.PREPARE_SYNACK;
+import static org.apache.cassandra.streaming.messages.StreamMessage.Type.RECEIVED;
+import static org.apache.cassandra.streaming.messages.StreamMessage.Type.STREAM;
+import static org.apache.cassandra.streaming.messages.StreamMessage.Type.STREAM_INIT;
 
 public class StreamingTest extends TestBaseImpl
 {
@@ -51,6 +74,9 @@ public class StreamingTest extends TestBaseImpl
                 Assert.assertEquals(0, results.length);
             }
 
+            // collect message and state
+            registerSink(cluster, nodes);
+
             cluster.get(nodes).runOnInstance(() -> StorageService.instance.rebuild(null, KEYSPACE, null, null));
             {
                 Object[][] results = cluster.get(nodes).executeInternal(String.format("SELECT k, c1, c2 FROM %s.cf;", KEYSPACE));
@@ -72,4 +98,85 @@ public class StreamingTest extends TestBaseImpl
         testStreaming(2, 2, 1000, "LeveledCompactionStrategy");
     }
 
+    public static void registerSink(Cluster cluster, int initiatorNodeId)
+    {
+        IInvokableInstance initiatorNode = cluster.get(initiatorNodeId);
+        InetSocketAddress initiator = initiatorNode.broadcastAddress();
+        MessageStateSinkImpl initiatorSink = new MessageStateSinkImpl();
+
+        for (int node = 1; node <= cluster.size(); node++)
+        {
+            if (initiatorNodeId == node)
+                continue;
+
+            IInvokableInstance followerNode = cluster.get(node);
+            InetSocketAddress follower = followerNode.broadcastAddress();
+
+            // verify on initiator's stream session
+            initiatorSink.messages(follower, Arrays.asList(PREPARE_SYNACK, STREAM, StreamMessage.Type.COMPLETE));
+            initiatorSink.states(follower, Arrays.asList(PREPARING, STREAMING, WAIT_COMPLETE, StreamSession.State.COMPLETE));
+
+            // verify on follower's stream session
+            MessageStateSinkImpl followerSink = new MessageStateSinkImpl();
+            followerSink.messages(initiator, Arrays.asList(STREAM_INIT, PREPARE_SYN, PREPARE_ACK, RECEIVED));
+            followerSink.states(initiator,  Arrays.asList(PREPARING, STREAMING, StreamSession.State.COMPLETE));
+            followerNode.runOnInstance(() -> StreamSession.sink = followerSink);
+        }
+
+        cluster.get(initiatorNodeId).runOnInstance(() -> StreamSession.sink = initiatorSink);
+    }
+
+    @VisibleForTesting
+    public static class MessageStateSinkImpl implements StreamSession.MessageStateSink, Serializable
+    {
+        // use enum ordinal instead of enum to walk around inter-jvm class loader issue, only classes defined in
+        // InstanceClassLoader#sharedClassNames are shareable between server jvm and test jvm
+        public final Map<InetAddress, Queue<Integer>> messageSink = new ConcurrentHashMap<>();
+        public final Map<InetAddress, Queue<Integer>> stateTransitions = new ConcurrentHashMap<>();
+
+        public void messages(InetSocketAddress peer, List<StreamMessage.Type> messages)
+        {
+            messageSink.put(peer.getAddress(), messages.stream().map(Enum::ordinal).collect(Collectors.toCollection(LinkedList::new)));
+        }
+
+        public void states(InetSocketAddress peer, List<StreamSession.State> states)
+        {
+            stateTransitions.put(peer.getAddress(), states.stream().map(Enum::ordinal).collect(Collectors.toCollection(LinkedList::new)));
+        }
+
+        @Override
+        public void recordState(InetAddressAndPort from, StreamSession.State state)
+        {
+            Queue<Integer> states = stateTransitions.get(from.address);
+            if (states.peek() == null)
+                Assert.fail("Unexpected state " + state);
+
+            int expected = states.poll();
+            Assert.assertEquals(StreamSession.State.values()[expected], state);
+        }
+
+        @Override
+        public void recordMessage(InetAddressAndPort from, StreamMessage.Type message)
+        {
+            if (message == StreamMessage.Type.KEEP_ALIVE)
+                return;
+
+            Queue<Integer> messages = messageSink.get(from.address);
+            if (messages.peek() == null)
+                Assert.fail("Unexpected message " + message);
+
+            int expected = messages.poll();
+            Assert.assertEquals(StreamMessage.Type.values()[expected], message);
+        }
+
+        @Override
+        public void onClose(InetAddressAndPort from)
+        {
+            Queue<Integer> states = stateTransitions.get(from.address);
+            Assert.assertTrue("Missing states: " + states, states.isEmpty());
+
+            Queue<Integer> messages = messageSink.get(from.address);
+            Assert.assertTrue("Missing messages: " + messages, messages.isEmpty());
+        }
+    }
 }

@@ -86,7 +86,7 @@ public class StreamInitMessage extends StreamMessage
             out.writeInt(message.previewKind.getSerializationVal());
         }
 
-        public StreamInitMessage deserialize(DataInputPlus in, int version, StreamSession session) throws IOException
+        public StreamInitMessage deserialize(DataInputPlus in, int version) throws IOException
         {
             InetAddressAndPort from = inetAddressAndPortSerializer.deserialize(in, version);
             int sessionIndex = in.readInt();

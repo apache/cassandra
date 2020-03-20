@@ -127,7 +127,7 @@ public class StreamingInboundHandlerTest
 
     private StreamSession createSession(SessionIdentifier sid)
     {
-        return new StreamSession(StreamOperation.BOOTSTRAP, sid.from, (template, messagingVersion) -> null, sid.sessionIndex, UUID.randomUUID(), PreviewKind.ALL);
+        return new StreamSession(StreamOperation.BOOTSTRAP, sid.from, (template, messagingVersion) -> null, true, sid.sessionIndex, UUID.randomUUID(), PreviewKind.ALL);
     }
 
     @Test (expected = IllegalStateException.class)
@@ -152,8 +152,8 @@ public class StreamingInboundHandlerTest
     public void StreamDeserializingTask_deriveSession_IFM_HasSession()
     {
         UUID planId = UUID.randomUUID();
-        StreamResultFuture future = StreamResultFuture.initReceivingSide(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, channel, UUID.randomUUID(), PreviewKind.ALL);
-        StreamManager.instance.register(future);
+        StreamResultFuture future = StreamResultFuture.createFollower(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, channel, UUID.randomUUID(), PreviewKind.ALL);
+        StreamManager.instance.registerFollower(future);
         StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, planId, 0,
                                                              0, 0, UUID.randomUUID());
         IncomingStreamMessage msg = new IncomingStreamMessage(null, header);

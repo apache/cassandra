@@ -18,12 +18,9 @@
 
 package org.apache.cassandra.streaming.async;
 
-import java.io.EOFException;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -31,7 +28,6 @@ import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +40,6 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
-import org.apache.cassandra.net.AsyncStreamingInputPlus.InputTimeoutException;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamResultFuture;
@@ -183,7 +178,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
                         Uninterruptibles.sleepUninterruptibly(400, TimeUnit.MILLISECONDS);
                     }
 
-                    StreamMessage message = StreamMessage.deserialize(buffers, protocolVersion, null);
+                    StreamMessage message = StreamMessage.deserialize(buffers, protocolVersion);
 
                     // keep-alives don't necessarily need to be tied to a session (they could be arrive before or after
                     // wrt session lifecycle, due to races), just log that we received the message and carry on
@@ -202,10 +197,6 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 
                     session.messageReceived(message);
                 }
-            }
-            catch (InputTimeoutException | EOFException e)
-            {
-                // ignore
             }
             catch (Throwable t)
             {
@@ -248,7 +239,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             {
                 assert session == null : "initiator of stream session received a StreamInitMessage";
                 StreamInitMessage init = (StreamInitMessage) message;
-                StreamResultFuture.initReceivingSide(init.sessionIndex, init.planId, init.streamOperation, init.from, channel, init.pendingRepair, init.previewKind);
+                StreamResultFuture.createFollower(init.sessionIndex, init.planId, init.streamOperation, init.from, channel, init.pendingRepair, init.previewKind);
                 streamSession = sessionProvider.apply(new SessionIdentifier(init.from, init.planId, init.sessionIndex));
             }
             else if (message instanceof IncomingStreamMessage)
@@ -262,7 +253,9 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             if (streamSession == null)
                 throw new IllegalStateException(createLogTag(null, channel) + " no session found for message " + message);
 
-            streamSession.attach(channel);
+            // Attach this channel to the session: this only happens upon receiving the first init message as a follower;
+            // in all other cases, no new control channel will be added, as the proper control channel will be already attached.
+            streamSession.attachInbound(channel, message instanceof StreamInitMessage);
             return streamSession;
         }
     }

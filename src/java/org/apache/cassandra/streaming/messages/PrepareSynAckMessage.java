@@ -38,7 +38,7 @@ public class PrepareSynAckMessage extends StreamMessage
                 StreamSummary.serializer.serialize(summary, out, version);
         }
 
-        public PrepareSynAckMessage deserialize(DataInputPlus input, int version, StreamSession session) throws IOException
+        public PrepareSynAckMessage deserialize(DataInputPlus input, int version) throws IOException
         {
             PrepareSynAckMessage message = new PrepareSynAckMessage();
             int numSummaries = input.readInt();

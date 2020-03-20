@@ -187,13 +187,14 @@ public class EntireSSTableStreamingCorrectFilesCountTest
                                                                     1,
                                                                     new DefaultConnectionFactory(),
                                                                     false,
+                                                                    false,
                                                                     null,
                                                                     PreviewKind.NONE);
 
-        StreamResultFuture future = StreamResultFuture.init(UUID.randomUUID(),
-                                                            StreamOperation.BOOTSTRAP,
-                                                            Collections.singleton(streamEventHandler),
-                                                            streamCoordinator);
+        StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(),
+                                                                       StreamOperation.BOOTSTRAP,
+                                                                       Collections.singleton(streamEventHandler),
+                                                                       streamCoordinator);
 
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         streamCoordinator.addSessionInfo(new SessionInfo(peer,

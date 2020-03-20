@@ -64,7 +64,7 @@ public class StreamPlan
     {
         this.streamOperation = streamOperation;
         this.coordinator = new StreamCoordinator(streamOperation, connectionsPerHost, new DefaultConnectionFactory(),
-                                                 connectSequentially, pendingRepair, previewKind);
+                                                 false, connectSequentially, pendingRepair, previewKind);
     }
 
     /**
@@ -176,7 +176,7 @@ public class StreamPlan
      */
     public StreamResultFuture execute()
     {
-        return StreamResultFuture.init(planId, streamOperation, handlers, coordinator);
+        return StreamResultFuture.createInitiator(planId, streamOperation, handlers, coordinator);
     }
 
     /**

@@ -1561,8 +1561,8 @@ public class OutboundConnection
         Established established = state.established();
         Channel channel = established.channel;
         OutboundConnectionSettings settings = established.settings;
-        return SocketFactory.channelId(settings.from, (InetSocketAddress) channel.remoteAddress(),
-                                       settings.to, (InetSocketAddress) channel.localAddress(),
+        return SocketFactory.channelId(settings.from, (InetSocketAddress) channel.localAddress(),
+                                       settings.to, (InetSocketAddress) channel.remoteAddress(),
                                        type, channel.id().asShortText());
     }
 

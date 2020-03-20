@@ -32,7 +32,7 @@ public class OutgoingStreamMessage extends StreamMessage
 {
     public static Serializer<OutgoingStreamMessage> serializer = new Serializer<OutgoingStreamMessage>()
     {
-        public OutgoingStreamMessage deserialize(DataInputPlus in, int version, StreamSession session)
+        public OutgoingStreamMessage deserialize(DataInputPlus in, int version)
         {
             throw new UnsupportedOperationException("Not allowed to call deserialize on an outgoing stream");
         }

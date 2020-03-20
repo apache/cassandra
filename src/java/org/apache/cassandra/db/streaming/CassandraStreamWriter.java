@@ -83,7 +83,7 @@ public class CassandraStreamWriter
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
 
         AsyncStreamingOutputPlus out = (AsyncStreamingOutputPlus) output;
-        try(ChannelProxy proxy = sstable.getDataChannel().sharedCopy();
+        try(ChannelProxy proxy = sstable.getDataChannel().newChannel();
             ChecksumValidator validator = new File(sstable.descriptor.filenameFor(Component.CRC)).exists()
                                           ? DataIntegrityMetadata.checksumValidator(sstable.descriptor)
                                           : null)

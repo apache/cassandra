@@ -31,7 +31,7 @@ public class PrepareSynMessage extends StreamMessage
 {
     public static Serializer<PrepareSynMessage> serializer = new Serializer<PrepareSynMessage>()
     {
-        public PrepareSynMessage deserialize(DataInputPlus input, int version, StreamSession session) throws IOException
+        public PrepareSynMessage deserialize(DataInputPlus input, int version) throws IOException
         {
             PrepareSynMessage message = new PrepareSynMessage();
             // requests

@@ -106,12 +106,12 @@ public class StreamManager implements StreamManagerMBean
      * We manage them in two different maps to distinguish plan from initiated ones to
      * receiving ones withing the same JVM.
      */
-    private final Map<UUID, StreamResultFuture> initiatedStreams = new NonBlockingHashMap<>();
-    private final Map<UUID, StreamResultFuture> receivingStreams = new NonBlockingHashMap<>();
+    private final Map<UUID, StreamResultFuture> initiatorStreams = new NonBlockingHashMap<>();
+    private final Map<UUID, StreamResultFuture> followerStreams = new NonBlockingHashMap<>();
 
     public Set<CompositeData> getCurrentStreams()
     {
-        return Sets.newHashSet(Iterables.transform(Iterables.concat(initiatedStreams.values(), receivingStreams.values()), new Function<StreamResultFuture, CompositeData>()
+        return Sets.newHashSet(Iterables.transform(Iterables.concat(initiatorStreams.values(), followerStreams.values()), new Function<StreamResultFuture, CompositeData>()
         {
             public CompositeData apply(StreamResultFuture input)
             {
@@ -120,7 +120,7 @@ public class StreamManager implements StreamManagerMBean
         }));
     }
 
-    public void register(final StreamResultFuture result)
+    public void registerInitiator(final StreamResultFuture result)
     {
         result.addEventListener(notifier);
         // Make sure we remove the stream on completion (whether successful or not)
@@ -128,14 +128,14 @@ public class StreamManager implements StreamManagerMBean
         {
             public void run()
             {
-                initiatedStreams.remove(result.planId);
+                initiatorStreams.remove(result.planId);
             }
         }, MoreExecutors.directExecutor());
 
-        initiatedStreams.put(result.planId, result);
+        initiatorStreams.put(result.planId, result);
     }
 
-    public StreamResultFuture registerReceiving(final StreamResultFuture result)
+    public StreamResultFuture registerFollower(final StreamResultFuture result)
     {
         result.addEventListener(notifier);
         // Make sure we remove the stream on completion (whether successful or not)
@@ -143,17 +143,17 @@ public class StreamManager implements StreamManagerMBean
         {
             public void run()
             {
-                receivingStreams.remove(result.planId);
+                followerStreams.remove(result.planId);
             }
         }, MoreExecutors.directExecutor());
 
-        StreamResultFuture previous = receivingStreams.putIfAbsent(result.planId, result);
+        StreamResultFuture previous = followerStreams.putIfAbsent(result.planId, result);
         return previous ==  null ? result : previous;
     }
 
     public StreamResultFuture getReceivingStream(UUID planId)
     {
-        return receivingStreams.get(planId);
+        return followerStreams.get(planId);
     }
 
     public void addNotificationListener(NotificationListener listener, NotificationFilter filter, Object handback)
@@ -178,11 +178,15 @@ public class StreamManager implements StreamManagerMBean
 
     public StreamSession findSession(InetAddressAndPort peer, UUID planId, int sessionIndex)
     {
-        StreamSession session = findSession(initiatedStreams, peer, planId, sessionIndex);
+        // Search follower session first, because in some tests, eg. StreamingTransferTest, both initiator session
+        // and follower session are listening to local host.
+        // TODO CASSANDRA-15665 it's more robust to add "isFollower" flag into {@link  StreamMessageHeader} to distinguish
+        // initiator session and follower session.
+        StreamSession session = findSession(followerStreams, peer, planId, sessionIndex);
         if (session !=  null)
             return session;
 
-        return findSession(receivingStreams, peer, planId, sessionIndex);
+        return findSession(initiatorStreams, peer, planId, sessionIndex);
     }
 
     private StreamSession findSession(Map<UUID, StreamResultFuture> streams, InetAddressAndPort peer, UUID planId, int sessionIndex)
