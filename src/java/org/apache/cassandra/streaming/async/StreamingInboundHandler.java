@@ -183,7 +183,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
                         Uninterruptibles.sleepUninterruptibly(400, TimeUnit.MILLISECONDS);
                     }
 
-                    StreamMessage message = StreamMessage.deserialize(buffers, protocolVersion, null);
+                    StreamMessage message = StreamMessage.deserialize(buffers, protocolVersion);
 
                     // keep-alives don't necessarily need to be tied to a session (they could be arrive before or after
                     // wrt session lifecycle, due to races), just log that we received the message and carry on

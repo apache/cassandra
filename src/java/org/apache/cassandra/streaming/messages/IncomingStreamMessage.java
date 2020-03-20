@@ -35,10 +35,10 @@ public class IncomingStreamMessage extends StreamMessage
     public static Serializer<IncomingStreamMessage> serializer = new Serializer<IncomingStreamMessage>()
     {
         @SuppressWarnings("resource")
-        public IncomingStreamMessage deserialize(DataInputPlus input, int version, StreamSession session) throws IOException
+        public IncomingStreamMessage deserialize(DataInputPlus input, int version) throws IOException
         {
             StreamMessageHeader header = StreamMessageHeader.serializer.deserialize(input, version);
-            session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex);
+            StreamSession session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex);
             if (session == null)
                 throw new IllegalStateException(String.format("unknown stream session: %s - %d", header.planId, header.sessionIndex));
             ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(header.tableId);

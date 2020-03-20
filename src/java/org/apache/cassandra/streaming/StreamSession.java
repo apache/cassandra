@@ -162,12 +162,27 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public enum State
     {
-        INITIALIZED,
-        PREPARING,
-        STREAMING,
-        WAIT_COMPLETE,
-        COMPLETE,
-        FAILED,
+        INITIALIZED(false),
+        PREPARING(false),
+        STREAMING(false),
+        WAIT_COMPLETE(false),
+        COMPLETE(true),
+        FAILED(true);
+
+        private final boolean finalState;
+
+        State(boolean finalState)
+        {
+            this.finalState = finalState;
+        }
+
+        /**
+         * @return true if current statu is final and cannot be change to other state.
+         */
+        public boolean isFinalState()
+        {
+             return finalState;
+        }
     }
 
     private volatile State state = State.INITIALIZED;
@@ -339,7 +354,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     private void failIfFinished()
     {
-        if (state() == State.COMPLETE || state() == State.FAILED)
+        if (state().isFinalState())
             throw new RuntimeException(String.format("Stream %s is finished with state %s", planId(), state().name()));
     }
 
@@ -426,7 +441,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
         catch (Exception e)
         {
-            logger.warn("failed to abort some streaming tasks", e);
+            logger.warn("[Stream #{}] failed to abort some streaming tasks", planId(), e);
         }
     }
 
@@ -437,6 +452,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public void state(State newState)
     {
+        if (logger.isTraceEnabled())
+            logger.trace("[Stream #{}] Changing session state from {} to {}", planId(), state, newState);
+
         state = newState;
     }
 
@@ -577,7 +595,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     private void prepareAsync(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
     {
-
         for (StreamRequest request : requests)
             addTransferRanges(request.keyspace, RangesAtEndpoint.concat(request.full, request.transientReplicas), request.columnFamilies, true); // always flush on stream request
         for (StreamSummary summary : summaries)
@@ -674,7 +691,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public synchronized void complete()
     {
-        logger.debug("handling Complete message, state = {}, completeSent = {}", state, completeSent);
+        logger.debug("[Stream #{}] handling Complete message, state = {}, completeSent = {}", planId(), state, completeSent);
         if (state == State.WAIT_COMPLETE)
         {
             if (!completeSent)

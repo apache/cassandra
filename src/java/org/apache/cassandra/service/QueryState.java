@@ -68,7 +68,7 @@ public class QueryState
     public long getTimestamp()
     {
         if (timestamp == Long.MIN_VALUE)
-            timestamp = clientState.getTimestamp();
+            timestamp = ClientState.getTimestamp();
         return timestamp;
     }
 

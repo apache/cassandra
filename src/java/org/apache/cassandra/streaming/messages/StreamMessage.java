@@ -43,16 +43,16 @@ public abstract class StreamMessage
         return 1 + message.type.outSerializer.serializedSize(message, version);
     }
 
-    public static StreamMessage deserialize(DataInputPlus in, int version, StreamSession session) throws IOException
+    public static StreamMessage deserialize(DataInputPlus in, int version) throws IOException
     {
         Type type = Type.lookupById(in.readByte());
-        return type.inSerializer.deserialize(in, version, session);
+        return type.inSerializer.deserialize(in, version);
     }
 
     /** StreamMessage serializer */
     public static interface Serializer<V extends StreamMessage>
     {
-        V deserialize(DataInputPlus in, int version, StreamSession session) throws IOException;
+        V deserialize(DataInputPlus in, int version) throws IOException;
         void serialize(V message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException;
         long serializedSize(V message, int version) throws IOException;
     }
