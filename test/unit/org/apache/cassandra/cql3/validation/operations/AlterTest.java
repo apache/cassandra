@@ -316,6 +316,7 @@ public class AlterTest extends CQLTester
                    row("tbl1", map("class", "org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy",
                                   "min_threshold", "7",
                                   "max_threshold", "32")));
+        metadata.clearUnsafe();
     }
 
     @Test
