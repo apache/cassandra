@@ -200,4 +200,34 @@ public class NettyStreamingMessageSenderTest
         Assert.assertFalse(sender.connected());
         Assert.assertEquals(StreamSession.State.FAILED, session.state());
     }
+
+    @Test
+    public void verifyStateChange()
+    {
+        for (StreamSession.State current : StreamSession.State.values())
+        {
+            for (StreamSession.State newState : StreamSession.State.values())
+            {
+                boolean succeed = true;
+
+                if (current.isFinalState() && current != newState)
+                    succeed = false;
+
+                if (current.ordinal() > newState.ordinal())
+                    succeed = false;
+
+                try
+                {
+                    current.verifyStateChange(newState);
+                    Assert.assertTrue("Expect failure", succeed);
+                }
+                catch (Throwable e)
+                {
+                    Assert.assertFalse("Expect succeed", succeed);
+                    Assert.assertTrue("Unexpected error message: " + e.getMessage(), e.getMessage().contains("Cannot change from"));
+                }
+
+            }
+        }
+    }
 }
