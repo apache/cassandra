@@ -21,9 +21,8 @@ package org.apache.cassandra.streaming.async;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
+import java.nio.channels.ClosedByInterruptException;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -33,6 +32,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,6 +61,7 @@ import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * Responsible for sending {@link StreamMessage}s to a given peer. We manage an array of netty {@link Channel}s
@@ -102,7 +103,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
      * A special {@link Channel} for sending non-stream streaming messages, basically anything that isn't an
      * {@link OutgoingStreamMessage} (or an {@link IncomingStreamMessage}, but a node doesn't send that, it's only received).
      */
-    private Channel controlMessageChannel;
+    private volatile Channel controlMessageChannel;
 
     // note: this really doesn't need to be a LBQ, just something that's thread safe
     private final Collection<ScheduledFuture<?>> channelKeepAlives = new LinkedBlockingQueue<>();
@@ -153,6 +154,9 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         return controlMessageChannel != null;
     }
 
+    /**
+     * Used by follower to setup control message channel created by initiator
+     */
     public void injectControlMessageChannel(Channel channel)
     {
         this.controlMessageChannel = channel;
@@ -160,11 +164,20 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         scheduleKeepAliveTask(channel);
     }
 
+    /**
+     * Used by initiator to setup control message channel connecting to follower
+     */
     private void setupControlMessageChannel() throws IOException
     {
         if (controlMessageChannel == null)
         {
-            controlMessageChannel = createChannel();
+            /*
+             * Inbound handlers are needed:
+             *  a) for initiator's control channel(the first outbound channel) to receive follower's message.
+             *  b) for streaming receiver (note: both initiator and follower can receive streaming files) to reveive files,
+             *     in {@link Handler#setupStreamingPipeline}
+             */
+            controlMessageChannel = createChannel(true);
             scheduleKeepAliveTask(controlMessageChannel);
         }
     }
@@ -181,11 +194,16 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         task.future = scheduledFuture;
     }
     
-    private Channel createChannel() throws IOException
+    private Channel createChannel(boolean isInboundHandlerNeeded) throws IOException
     {
         Channel channel = factory.createConnection(template, streamingVersion);
-        ChannelPipeline pipeline = channel.pipeline();
-        pipeline.addLast("stream", new StreamingInboundHandler(template.to, streamingVersion, session));
+        session.attachOutbound(channel);
+
+        if (isInboundHandlerNeeded)
+        {
+            ChannelPipeline pipeline = channel.pipeline();
+            pipeline.addLast("stream", new StreamingInboundHandler(template.to, streamingVersion, session));
+        }
         channel.attr(TRANSFERRING_FILE_ATTR).set(Boolean.FALSE);
         logger.debug("Creating channel id {} local {} remote {}", channel.id(), channel.localAddress(), channel.remoteAddress());
         return channel;
@@ -316,9 +334,10 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             if (!acquirePermit(SEMAPHORE_UNAVAILABLE_LOG_INTERVAL))
                 return;
 
+            Channel channel = null;
             try
             {
-                Channel channel = getOrCreateChannel();
+                channel = getOrCreateChannel();
                 if (!channel.attr(TRANSFERRING_FILE_ATTR).compareAndSet(false, true))
                     throw new IllegalStateException("channel's transferring state is currently set to true. refusing to start new stream");
 
@@ -335,6 +354,19 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             catch (Exception e)
             {
                 session.onError(e);
+            }
+            catch (Throwable t)
+            {
+                if (closed && Throwables.getRootCause(t) instanceof ClosedByInterruptException && fileTransferExecutor.isShutdown())
+                {
+                    logger.debug("{} Streaming channel was closed due to the executor pool being shutdown", createLogTag(session, channel));
+                }
+                else
+                {
+                    JVMStabilityInspector.inspectThrowable(t);
+                    if (!session.state().isFinalState())
+                        session.onError(t);
+                }
             }
             finally
             {
@@ -383,7 +415,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                 if (channel != null)
                     return channel;
 
-                channel = createChannel();
+                channel = createChannel(false);
                 threadToChannelMap.put(currentThread, channel);
                 return channel;
             }
@@ -513,6 +545,9 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     @Override
     public void close()
     {
+        if (closed)
+            return;
+
         closed = true;
         if (logger.isDebugEnabled())
             logger.debug("{} Closing stream connection channels on {}", createLogTag(session, null), template.to);
@@ -520,14 +555,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             future.cancel(false);
         channelKeepAlives.clear();
 
-        List<Future<Void>> futures = new ArrayList<>(threadToChannelMap.size());
-        for (Channel channel : threadToChannelMap.values())
-            futures.add(channel.close());
-        FBUtilities.waitOnFutures(futures, 10, TimeUnit.SECONDS);
         threadToChannelMap.clear();
         fileTransferExecutor.shutdownNow();
-
-        if (controlMessageChannel != null)
-            controlMessageChannel.close();
     }
 }
