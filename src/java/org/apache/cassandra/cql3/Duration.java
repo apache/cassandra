@@ -374,10 +374,7 @@ public final class Duration
      */
     public boolean hasMillisecondPrecision()
     {
-        // Checks that the duration has no data bellow milliseconds. We can do that by checking that the last
-        // 6 bits of the number of nanoseconds are all zeros. The compiler will replace the call to
-        // numberOfTrailingZeros by a TZCNT instruction.
-        return Long.numberOfTrailingZeros(getNanoseconds()) >= 6;
+        return getNanoseconds() % NANOS_PER_MILLI == 0;
     }
 
     /**
