@@ -26,6 +26,8 @@ import org.apache.commons.lang3.text.StrBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.config.CassandraRelevantEnv.JAVA_HOME;
+
 /**
  * Utility to log heap histogram.
  *
@@ -75,10 +77,9 @@ public final class HeapUtils
     {
         // Searching in the JAVA_HOME is safer than searching into System.getProperty("java.home") as the Oracle
         // JVM might use the JRE which do not contains jmap.
-        String javaHome = System.getenv("JAVA_HOME");
+        String javaHome = JAVA_HOME.getString();
         if (javaHome == null)
             return null;
-
         File javaBinDirectory = new File(javaHome, "bin");
         File[] files = javaBinDirectory.listFiles(new FilenameFilter()
         {
