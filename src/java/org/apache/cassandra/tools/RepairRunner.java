@@ -25,6 +25,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 
+import com.google.common.base.Throwables;
+
+import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
@@ -40,7 +43,7 @@ public class RepairRunner extends JMXNotificationProgressListener
     private final StorageServiceMBean ssProxy;
     private final String keyspace;
     private final Map<String, String> options;
-    private final Condition condition = new SimpleCondition();
+    private final SimpleCondition condition = new SimpleCondition();
 
     private int cmd;
     private volatile Exception error;
@@ -59,8 +62,8 @@ public class RepairRunner extends JMXNotificationProgressListener
         if (cmd <= 0)
         {
             // repairAsync can only return 0 for replication factor 1.
-            String message = String.format("[%s] Replication factor is 1. No repair is needed for keyspace '%s'", format.format(System.currentTimeMillis()), keyspace);
-            out.println(message);
+            String message = String.format("Replication factor is 1. No repair is needed for keyspace '%s'", keyspace);
+            printMessage(message);
         }
         else
         {
@@ -68,6 +71,14 @@ public class RepairRunner extends JMXNotificationProgressListener
             {
                 queryForCompletedRepair(String.format("After waiting for poll interval of %s seconds",
                                                       NodeProbe.JMX_NOTIFICATION_POLL_INTERVAL_SECONDS));
+            }
+            Exception error = this.error;
+            if (error == null)
+            {
+                // notifications are lossy so its possible to see complete and not error; request latest state
+                // from the server
+                queryForCompletedRepair("condition satisfied");
+                error = this.error;
             }
             if (error != null)
             {
@@ -111,12 +122,12 @@ public class RepairRunner extends JMXNotificationProgressListener
     public void progress(String tag, ProgressEvent event)
     {
         ProgressEventType type = event.getType();
-        String message = String.format("[%s] %s", format.format(System.currentTimeMillis()), event.getMessage());
+        String message = event.getMessage();
         if (type == ProgressEventType.PROGRESS)
         {
             message = message + " (progress: " + (int) event.getProgressPercentage() + "%)";
         }
-        out.println(message);
+        printMessage(message);
         if (type == ProgressEventType.ERROR)
         {
             error = new RuntimeException(String.format("Repair job has failed with the error message: %s. " +
@@ -136,9 +147,9 @@ public class RepairRunner extends JMXNotificationProgressListener
         String queriedString = "queried for parent session status and";
         if (status == null)
         {
-            String message = String.format("[%s] %s %s couldn't find repair status for cmd: %s", triggeringCondition,
-                                           queriedString, format.format(System.currentTimeMillis()), cmd);
-            out.println(message);
+            String message = String.format("%s %s couldn't find repair status for cmd: %s", triggeringCondition,
+                                           queriedString, cmd);
+            printMessage(message);
         }
         else
         {
@@ -148,8 +159,8 @@ public class RepairRunner extends JMXNotificationProgressListener
             {
                 case COMPLETED:
                 case FAILED:
-                    out.println(String.format("[%s] %s %s discovered repair %s.",
-                                              this.format.format(System.currentTimeMillis()), triggeringCondition,
+                    printMessage(String.format("%s %s discovered repair %s.",
+                                              triggeringCondition,
                                               queriedString, parentRepairStatus.name().toLowerCase()));
                     if (parentRepairStatus == ActiveRepairService.ParentRepairStatus.FAILED)
                     {
@@ -161,7 +172,7 @@ public class RepairRunner extends JMXNotificationProgressListener
                 case IN_PROGRESS:
                     break;
                 default:
-                    out.println(String.format("[%s] WARNING Encountered unexpected RepairRunnable.ParentRepairStatus: %s", System.currentTimeMillis(), parentRepairStatus));
+                    printMessage(String.format("WARNING Encountered unexpected RepairRunnable.ParentRepairStatus: %s", parentRepairStatus));
                     printMessages(messages);
                     break;
             }
@@ -172,7 +183,12 @@ public class RepairRunner extends JMXNotificationProgressListener
     {
         for (String message : messages)
         {
-            out.println(String.format("[%s] %s", this.format.format(System.currentTimeMillis()), message));
+            printMessage(message);
         }
+    }
+
+    private void printMessage(String message)
+    {
+        out.println(String.format("[%s] %s", this.format.format(System.currentTimeMillis()), message));
     }
 }

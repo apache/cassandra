@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.time.Duration;
 import java.util.Set;
 
 import com.google.common.collect.Iterables;
@@ -43,6 +44,7 @@ import static org.apache.cassandra.distributed.test.DistributedRepairUtils.asser
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairNotExist;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairSuccess;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.getRepairExceptions;
+import static org.apache.cassandra.utils.AssertUtil.assertTimeoutPreemptively;
 
 public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
 {
@@ -51,104 +53,113 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         super(repairType, parallelism, withNotifications);
     }
 
-    @Test(timeout = 1 * 60 * 1000)
+    @Test
     public void simple() {
         String table = tableName("simple");
-        CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, PRIMARY KEY (key))", KEYSPACE, table));
-        CLUSTER.coordinator(1).execute(format("INSERT INTO %s.%s (key) VALUES (?)", KEYSPACE, table), ConsistencyLevel.ANY, "some text");
+        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+            CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, PRIMARY KEY (key))", KEYSPACE, table));
+            CLUSTER.coordinator(1).execute(format("INSERT INTO %s.%s (key) VALUES (?)", KEYSPACE, table), ConsistencyLevel.ANY, "some text");
 
-        long repairExceptions = getRepairExceptions(CLUSTER, 2);
-        NodeToolResult result = repair(2, KEYSPACE, table);
-        result.asserts().success();
-        if (withNotifications)
-        {
-            result.asserts()
-                  .notificationContains(ProgressEventType.START, "Starting repair command")
-                  .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
-                  .notificationContains(ProgressEventType.SUCCESS, repairType != RepairType.PREVIEW ? "Repair completed successfully": "Repair preview completed successfully")
-                  .notificationContains(ProgressEventType.COMPLETE, "finished");
-        }
+            long repairExceptions = getRepairExceptions(CLUSTER, 2);
+            NodeToolResult result = repair(2, KEYSPACE, table);
+            result.asserts().success();
+            if (withNotifications)
+            {
+                result.asserts()
+                      .notificationContains(ProgressEventType.START, "Starting repair command")
+                      .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
+                      .notificationContains(ProgressEventType.SUCCESS, repairType != RepairType.PREVIEW ? "Repair completed successfully": "Repair preview completed successfully")
+                      .notificationContains(ProgressEventType.COMPLETE, "finished");
+            }
 
-        if (repairType != RepairType.PREVIEW)
-        {
-            assertParentRepairSuccess(CLUSTER, KEYSPACE, table);
-        }
-        else
-        {
-            assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
-        }
+            if (repairType != RepairType.PREVIEW)
+            {
+                assertParentRepairSuccess(CLUSTER, KEYSPACE, table);
+            }
+            else
+            {
+                assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
+            }
 
-        Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
+            Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
+        });
     }
 
-    @Test(timeout = 1 * 60 * 1000)
+    @Test
     public void missingKeyspace()
     {
-        // as of this moment the check is done in nodetool so the JMX notifications are not imporant
-        // nor is the history stored
-        long repairExceptions = getRepairExceptions(CLUSTER, 2);
-        NodeToolResult result = repair(2, "doesnotexist");
-        result.asserts()
-              .failure()
-              .errorContains("Keyspace [doesnotexist] does not exist.");
+        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+            // as of this moment the check is done in nodetool so the JMX notifications are not imporant
+            // nor is the history stored
+            long repairExceptions = getRepairExceptions(CLUSTER, 2);
+            NodeToolResult result = repair(2, "doesnotexist");
+            result.asserts()
+                  .failure()
+                  .errorContains("Keyspace [doesnotexist] does not exist.");
 
-        Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
+            Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
 
-        assertParentRepairNotExist(CLUSTER, "doesnotexist");
+            assertParentRepairNotExist(CLUSTER, "doesnotexist");
+        });
     }
 
-    @Test(timeout = 1 * 60 * 1000)
+    @Test
     public void missingTable()
     {
-        long repairExceptions = getRepairExceptions(CLUSTER, 2);
-        NodeToolResult result = repair(2, KEYSPACE, "doesnotexist");
-        result.asserts()
-              .failure();
-        if (withNotifications)
-        {
+        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+            long repairExceptions = getRepairExceptions(CLUSTER, 2);
+            String tableName = tableName("doesnotexist");
+            NodeToolResult result = repair(2, KEYSPACE, tableName);
             result.asserts()
-                  .errorContains("failed with error Unknown keyspace/cf pair (distributed_test_keyspace.doesnotexist)")
-                  // Start notification is ignored since this is checked during setup (aka before start)
-                  .notificationContains(ProgressEventType.ERROR, "failed with error Unknown keyspace/cf pair (distributed_test_keyspace.doesnotexist)")
-                  .notificationContains(ProgressEventType.COMPLETE, "finished with error");
-        }
+                  .failure();
+            if (withNotifications)
+            {
+                result.asserts()
+                      .errorContains("Unknown keyspace/cf pair (distributed_test_keyspace." + tableName + ")")
+                      // Start notification is ignored since this is checked during setup (aka before start)
+                      .notificationContains(ProgressEventType.ERROR, "failed with error Unknown keyspace/cf pair (distributed_test_keyspace." + tableName + ")")
+                      .notificationContains(ProgressEventType.COMPLETE, "finished with error");
+            }
 
-        assertParentRepairNotExist(CLUSTER, KEYSPACE, "doesnotexist");
+            assertParentRepairNotExist(CLUSTER, KEYSPACE, "doesnotexist");
 
-        Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 2));
+            Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 2));
+        });
     }
 
-    @Test(timeout = 1 * 60 * 1000)
+    @Test
     public void noTablesToRepair()
     {
         // index CF currently don't support repair, so they get dropped when listed
         // this is done in this test to cause the keyspace to have 0 tables to repair, which causes repair to no-op
         // early and skip.
         String table = tableName("withindex");
-        CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
-        CLUSTER.schemaChange(format("CREATE INDEX value_%s ON %s.%s (value)", postfix(), KEYSPACE, table));
+        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+            CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
+            CLUSTER.schemaChange(format("CREATE INDEX value_%s ON %s.%s (value)", postfix(), KEYSPACE, table));
 
-        long repairExceptions = getRepairExceptions(CLUSTER, 2);
-        // if CF has a . in it, it is assumed to be a 2i which rejects repairs
-        NodeToolResult result = repair(2, KEYSPACE, table + ".value");
-        result.asserts().success();
-        if (withNotifications)
-        {
-            result.asserts()
-                  .notificationContains("Empty keyspace")
-                  .notificationContains("skipping repair: " + KEYSPACE)
-                  // Start notification is ignored since this is checked during setup (aka before start)
-                  .notificationContains(ProgressEventType.SUCCESS, "Empty keyspace") // will fail since success isn't returned; only complete
-                  .notificationContains(ProgressEventType.COMPLETE, "finished"); // will fail since it doesn't do this
-        }
+            long repairExceptions = getRepairExceptions(CLUSTER, 2);
+            // if CF has a . in it, it is assumed to be a 2i which rejects repairs
+            NodeToolResult result = repair(2, KEYSPACE, table + ".value");
+            result.asserts().success();
+            if (withNotifications)
+            {
+                result.asserts()
+                      .notificationContains("Empty keyspace")
+                      .notificationContains("skipping repair: " + KEYSPACE)
+                      // Start notification is ignored since this is checked during setup (aka before start)
+                      .notificationContains(ProgressEventType.SUCCESS, "Empty keyspace") // will fail since success isn't returned; only complete
+                      .notificationContains(ProgressEventType.COMPLETE, "finished"); // will fail since it doesn't do this
+            }
 
-        assertParentRepairNotExist(CLUSTER, KEYSPACE, table + ".value");
+            assertParentRepairNotExist(CLUSTER, KEYSPACE, table + ".value");
 
-        // this is actually a SKIP and not a FAILURE, so shouldn't increment
-        Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
+            // this is actually a SKIP and not a FAILURE, so shouldn't increment
+            Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
+        });
     }
 
-    @Test(timeout = 1 * 60 * 1000)
+    @Test
     public void intersectingRange()
     {
         // this test exists to show that this case will cause repair to finish; success or failure isn't imporant
@@ -156,229 +167,238 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         // repair to fail but it didn't, this would be fine and this test should be updated to reflect the new
         // semantic
         String table = tableName("intersectingrange");
-        CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
+        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+            CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
 
-        //TODO dtest api for this?
-        LongTokenRange tokenRange = CLUSTER.get(2).callOnInstance(() -> {
-            Set<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE).ranges();
-            Range<Token> range = Iterables.getFirst(ranges, null);
-            long left = (long) range.left.getTokenValue();
-            long right = (long) range.right.getTokenValue();
-            return new LongTokenRange(left, right);
-        });
-        LongTokenRange intersectingRange = new LongTokenRange(tokenRange.maxInclusive - 7, tokenRange.maxInclusive + 7);
+            //TODO dtest api for this?
+            LongTokenRange tokenRange = CLUSTER.get(2).callOnInstance(() -> {
+                Set<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE).ranges();
+                Range<Token> range = Iterables.getFirst(ranges, null);
+                long left = (long) range.left.getTokenValue();
+                long right = (long) range.right.getTokenValue();
+                return new LongTokenRange(left, right);
+            });
+            LongTokenRange intersectingRange = new LongTokenRange(tokenRange.maxInclusive - 7, tokenRange.maxInclusive + 7);
 
-        long repairExceptions = getRepairExceptions(CLUSTER, 2);
-        NodeToolResult result = repair(2, KEYSPACE, table,
-                                       "--start-token", Long.toString(intersectingRange.minExclusive),
-                                       "--end-token", Long.toString(intersectingRange.maxInclusive));
-        result.asserts()
-              .failure()
-              .errorContains("Requested range " + intersectingRange + " intersects a local range (" + tokenRange + ") but is not fully contained in one");
-        if (withNotifications)
-        {
-            result.asserts()
-                  .notificationContains(ProgressEventType.START, "Starting repair command")
-                  .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
-                  .notificationContains(ProgressEventType.ERROR, "Requested range " + intersectingRange + " intersects a local range (" + tokenRange + ") but is not fully contained in one")
-                  .notificationContains(ProgressEventType.COMPLETE, "finished with error");
-        }
-
-        assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
-
-        Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 2));
-    }
-
-    @Test(timeout = 1 * 60 * 1000)
-    public void unknownHost()
-    {
-        String table = tableName("unknownhost");
-        CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
-
-        long repairExceptions = getRepairExceptions(CLUSTER, 2);
-        NodeToolResult result = repair(2, KEYSPACE, table, "--in-hosts", "thisreally.should.not.exist.apache.org");
-        result.asserts()
-              .failure()
-              .errorContains("Unknown host specified thisreally.should.not.exist.apache.org");
-        if (withNotifications)
-        {
-            result.asserts()
-                  .notificationContains(ProgressEventType.START, "Starting repair command")
-                  .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
-                  .notificationContains(ProgressEventType.ERROR, "Unknown host specified thisreally.should.not.exist.apache.org")
-                  .notificationContains(ProgressEventType.COMPLETE, "finished with error");
-        }
-
-        assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
-
-        Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 2));
-    }
-
-    @Test(timeout = 1 * 60 * 1000)
-    public void desiredHostNotCoordinator()
-    {
-        // current limitation is that the coordinator must be apart of the repair, so as long as that exists this test
-        // verifies that the validation logic will termniate the repair properly
-        String table = tableName("desiredhostnotcoordinator");
-        CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
-
-        long repairExceptions = getRepairExceptions(CLUSTER, 2);
-        NodeToolResult result = repair(2, KEYSPACE, table, "--in-hosts", "localhost");
-        result.asserts()
-              .failure()
-              .errorContains("The current host must be part of the repair");
-        if (withNotifications)
-        {
-            result.asserts()
-                  .notificationContains(ProgressEventType.START, "Starting repair command")
-                  .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
-                  .notificationContains(ProgressEventType.ERROR, "The current host must be part of the repair")
-                  .notificationContains(ProgressEventType.COMPLETE, "finished with error");
-        }
-
-        assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
-
-        Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 2));
-    }
-
-    @Test(timeout = 1 * 60 * 1000)
-    public void onlyCoordinator()
-    {
-        // this is very similar to ::desiredHostNotCoordinator but has the difference that the only host to do repair
-        // is the coordinator
-        String table = tableName("onlycoordinator");
-        CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
-
-        long repairExceptions = getRepairExceptions(CLUSTER, 2);
-        NodeToolResult result = repair(1, KEYSPACE, table, "--in-hosts", "localhost");
-        result.asserts()
-              .failure()
-              .errorContains("Specified hosts [localhost] do not share range");
-        if (withNotifications)
-        {
-            result.asserts()
-                  .notificationContains(ProgressEventType.START, "Starting repair command")
-                  .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
-                  .notificationContains(ProgressEventType.ERROR, "Specified hosts [localhost] do not share range")
-                  .notificationContains(ProgressEventType.COMPLETE, "finished with error");
-        }
-
-        assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
-
-        //TODO should this be marked as fail to match others?  Should they not be marked?
-        Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
-    }
-
-    @Test(timeout = 1 * 60 * 1000)
-    public void replicationFactorOne()
-    {
-        // In the case of rf=1 repair fails to create a cmd handle so node tool exists early
-        String table = tableName("one");
-        // since cluster is shared and this test gets called multiple times, need "IF NOT EXISTS" so the second+ attempt
-        // does not fail
-        CLUSTER.schemaChange("CREATE KEYSPACE IF NOT EXISTS replicationfactor WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
-        CLUSTER.schemaChange(format("CREATE TABLE replicationfactor.%s (key text, value text, PRIMARY KEY (key))", table));
-
-        long repairExceptions = getRepairExceptions(CLUSTER, 1);
-        NodeToolResult result = repair(1, "replicationfactor", table);
-        result.asserts()
-              .success();
-
-        assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
-
-        Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 1));
-    }
-
-    @Test(timeout = 1 * 60 * 1000)
-    public void prepareFailure()
-    {
-        String table = tableName("preparefailure");
-        CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
-        IMessageFilters.Filter filter = CLUSTER.verbs(Verb.PREPARE_MSG).messagesMatching(of(m -> {
-            throw new RuntimeException("prepare fail");
-        })).drop();
-        try
-        {
-            long repairExceptions = getRepairExceptions(CLUSTER, 1);
-            NodeToolResult result = repair(1, KEYSPACE, table);
+            long repairExceptions = getRepairExceptions(CLUSTER, 2);
+            NodeToolResult result = repair(2, KEYSPACE, table,
+                                           "--start-token", Long.toString(intersectingRange.minExclusive),
+                                           "--end-token", Long.toString(intersectingRange.maxInclusive));
             result.asserts()
                   .failure()
-                  .errorContains("Got negative replies from endpoints");
+                  .errorContains("Requested range " + intersectingRange + " intersects a local range (" + tokenRange + ") but is not fully contained in one");
             if (withNotifications)
             {
                 result.asserts()
                       .notificationContains(ProgressEventType.START, "Starting repair command")
                       .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
-                      .notificationContains(ProgressEventType.ERROR, "Got negative replies from endpoints")
+                      .notificationContains(ProgressEventType.ERROR, "Requested range " + intersectingRange + " intersects a local range (" + tokenRange + ") but is not fully contained in one")
                       .notificationContains(ProgressEventType.COMPLETE, "finished with error");
             }
 
-            Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 1));
-            if (repairType != RepairType.PREVIEW)
-            {
-                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "Got negative replies from endpoints");
-            }
-            else
-            {
-                assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
-            }
-        }
-        finally
-        {
-            filter.off();
-        }
+            assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
+
+            Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 2));
+        });
     }
 
-    @Test(timeout = 1 * 60 * 1000)
+    @Test
+    public void unknownHost()
+    {
+        String table = tableName("unknownhost");
+        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+            CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
+
+            long repairExceptions = getRepairExceptions(CLUSTER, 2);
+            NodeToolResult result = repair(2, KEYSPACE, table, "--in-hosts", "thisreally.should.not.exist.apache.org");
+            result.asserts()
+                  .failure()
+                  .errorContains("Unknown host specified thisreally.should.not.exist.apache.org");
+            if (withNotifications)
+            {
+                result.asserts()
+                      .notificationContains(ProgressEventType.START, "Starting repair command")
+                      .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
+                      .notificationContains(ProgressEventType.ERROR, "Unknown host specified thisreally.should.not.exist.apache.org")
+                      .notificationContains(ProgressEventType.COMPLETE, "finished with error");
+            }
+
+            assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
+
+            Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 2));
+        });
+    }
+
+    @Test
+    public void desiredHostNotCoordinator()
+    {
+        // current limitation is that the coordinator must be apart of the repair, so as long as that exists this test
+        // verifies that the validation logic will termniate the repair properly
+        String table = tableName("desiredhostnotcoordinator");
+        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+            CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
+
+            long repairExceptions = getRepairExceptions(CLUSTER, 2);
+            NodeToolResult result = repair(2, KEYSPACE, table, "--in-hosts", "localhost");
+            result.asserts()
+                  .failure()
+                  .errorContains("The current host must be part of the repair");
+            if (withNotifications)
+            {
+                result.asserts()
+                      .notificationContains(ProgressEventType.START, "Starting repair command")
+                      .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
+                      .notificationContains(ProgressEventType.ERROR, "The current host must be part of the repair")
+                      .notificationContains(ProgressEventType.COMPLETE, "finished with error");
+            }
+
+            assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
+
+            Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 2));
+        });
+    }
+
+    @Test
+    public void onlyCoordinator()
+    {
+        // this is very similar to ::desiredHostNotCoordinator but has the difference that the only host to do repair
+        // is the coordinator
+        String table = tableName("onlycoordinator");
+        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+            CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
+
+            long repairExceptions = getRepairExceptions(CLUSTER, 2);
+            NodeToolResult result = repair(1, KEYSPACE, table, "--in-hosts", "localhost");
+            result.asserts()
+                  .failure()
+                  .errorContains("Specified hosts [localhost] do not share range");
+            if (withNotifications)
+            {
+                result.asserts()
+                      .notificationContains(ProgressEventType.START, "Starting repair command")
+                      .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
+                      .notificationContains(ProgressEventType.ERROR, "Specified hosts [localhost] do not share range")
+                      .notificationContains(ProgressEventType.COMPLETE, "finished with error");
+            }
+
+            assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
+
+            //TODO should this be marked as fail to match others?  Should they not be marked?
+            Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
+        });
+    }
+
+    @Test
+    public void replicationFactorOne()
+    {
+        // In the case of rf=1 repair fails to create a cmd handle so node tool exists early
+        String table = tableName("one");
+        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+            // since cluster is shared and this test gets called multiple times, need "IF NOT EXISTS" so the second+ attempt
+            // does not fail
+            CLUSTER.schemaChange("CREATE KEYSPACE IF NOT EXISTS replicationfactor WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+            CLUSTER.schemaChange(format("CREATE TABLE replicationfactor.%s (key text, value text, PRIMARY KEY (key))", table));
+
+            long repairExceptions = getRepairExceptions(CLUSTER, 1);
+            NodeToolResult result = repair(1, "replicationfactor", table);
+            result.asserts()
+                  .success();
+
+            assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
+
+            Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 1));
+        });
+    }
+
+    @Test
+    public void prepareFailure()
+    {
+        String table = tableName("preparefailure");
+        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+            CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
+            IMessageFilters.Filter filter = CLUSTER.verbs(Verb.PREPARE_MSG).messagesMatching(of(m -> {
+                throw new RuntimeException("prepare fail");
+            })).drop();
+            try
+            {
+                long repairExceptions = getRepairExceptions(CLUSTER, 1);
+                NodeToolResult result = repair(1, KEYSPACE, table);
+                result.asserts()
+                      .failure()
+                      .errorContains("Got negative replies from endpoints");
+                if (withNotifications)
+                {
+                    result.asserts()
+                          .notificationContains(ProgressEventType.START, "Starting repair command")
+                          .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
+                          .notificationContains(ProgressEventType.ERROR, "Got negative replies from endpoints")
+                          .notificationContains(ProgressEventType.COMPLETE, "finished with error");
+                }
+
+                Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 1));
+                if (repairType != RepairType.PREVIEW)
+                {
+                    assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "Got negative replies from endpoints");
+                }
+                else
+                {
+                    assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
+                }
+            }
+            finally
+            {
+                filter.off();
+            }
+        });
+    }
+
+    @Test
     public void snapshotFailure()
     {
         Assume.assumeFalse("incremental does not do snapshot", repairType == RepairType.INCREMENTAL);
         Assume.assumeFalse("Parallel repair does not perform snapshots", parallelism == RepairParallelism.PARALLEL);
 
         String table = tableName("snapshotfailure");
-        CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
-        IMessageFilters.Filter filter = CLUSTER.verbs(Verb.SNAPSHOT_MSG).messagesMatching(of(m -> {
-            throw new RuntimeException("snapshot fail");
-        })).drop();
-        try
-        {
-            long repairExceptions = getRepairExceptions(CLUSTER, 1);
-            NodeToolResult result = repair(1, KEYSPACE, table);
-            result.asserts()
-                  .failure();
-            if (withNotifications)
+        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+            CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
+            IMessageFilters.Filter filter = CLUSTER.verbs(Verb.SNAPSHOT_MSG).messagesMatching(of(m -> {
+                throw new RuntimeException("snapshot fail");
+            })).drop();
+            try
             {
+                long repairExceptions = getRepairExceptions(CLUSTER, 1);
+                NodeToolResult result = repair(1, KEYSPACE, table);
                 result.asserts()
-                      .errorContains("Could not create snapshot")
-                      .notificationContains(ProgressEventType.START, "Starting repair command")
-                      .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
-                      .notificationContains(ProgressEventType.ERROR, "Could not create snapshot ")
-                      .notificationContains(ProgressEventType.COMPLETE, "finished with error");
-            }
-            else
-            {
-                // Right now coordination doesn't propgate the first exception, so we only know "there exists a issue".
-                // With notifications on nodetool will see the error then complete, so the cmd state (what nodetool
-                // polls on) is ignored.  With notifications off, the poll await fails and queries cmd state, and that
-                // will have the below error.
-                // NOTE: this isn't desireable, would be good to propgate
-                result.asserts()
-                      .errorContains("Some repair failed");
-            }
+                      .failure()
+                      // Right now coordination doesn't propgate the first exception, so we only know "there exists a issue".
+                      // With notifications on nodetool will see the error then complete, so the cmd state (what nodetool
+                      // polls on) is ignored.  With notifications off or dropped, the poll await fails and queries cmd
+                      // state, and that will have the below error.
+                      // NOTE: this isn't desireable, would be good to propgate
+                      .errorContains("Could not create snapshot", "Some repair failed");
+                if (withNotifications)
+                {
+                    result.asserts()
+                          .notificationContains(ProgressEventType.START, "Starting repair command")
+                          .notificationContains(ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
+                          .notificationContains(ProgressEventType.ERROR, "Could not create snapshot ")
+                          .notificationContains(ProgressEventType.COMPLETE, "finished with error");
+                }
 
-            Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 1));
-            if (repairType != RepairType.PREVIEW)
-            {
-                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "Could not create snapshot");
+                Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 1));
+                if (repairType != RepairType.PREVIEW)
+                {
+                    assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "Could not create snapshot");
+                }
+                else
+                {
+                    assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
+                }
             }
-            else
+            finally
             {
-                assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
+                filter.off();
             }
-        }
-        finally
-        {
-            filter.off();
-        }
+        });
     }
 }

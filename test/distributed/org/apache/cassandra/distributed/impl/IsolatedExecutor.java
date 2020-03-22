@@ -47,6 +47,7 @@ import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.Throwables;
 
 public class IsolatedExecutor implements IIsolatedExecutor
 {
@@ -65,7 +66,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
 
     public Future<Void> shutdown()
     {
-        isolatedExecutor.shutdown();
+        isolatedExecutor.shutdownNow();
 
         /* Use a thread pool with a core pool size of zero to terminate the thread as soon as possible
         ** so the instance class loader can be garbage collected.  Uses a custom thread factory
@@ -202,11 +203,12 @@ public class IsolatedExecutor implements IIsolatedExecutor
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException(e);
+            Thread.currentThread().interrupt();
+            throw Throwables.throwAsUncheckedException(e);
         }
         catch (ExecutionException e)
         {
-            throw new RuntimeException(e.getCause());
+            throw Throwables.throwAsUncheckedException(e.getCause());
         }
     }
 

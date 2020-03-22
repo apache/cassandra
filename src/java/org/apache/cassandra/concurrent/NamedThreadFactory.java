@@ -36,7 +36,10 @@ public class NamedThreadFactory implements ThreadFactory
 {
     private static volatile String globalPrefix;
     public static void setGlobalPrefix(String prefix) { globalPrefix = prefix; }
-    public static String globalPrefix() { return globalPrefix == null ? "" : globalPrefix; }
+    public static String globalPrefix() {
+        String prefix = globalPrefix;
+        return prefix == null ? "" : prefix;
+    }
 
     public final String id;
     private final int priority;

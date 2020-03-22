@@ -415,7 +415,7 @@ public class NodeProbe implements AutoCloseable
         }
         catch (Exception e)
         {
-            throw new IOException(e) ;
+            throw new IOException(e);
         }
         finally
         {
