@@ -55,6 +55,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.SyncUtil;
 
 import static com.google.common.base.Throwables.propagate;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -126,7 +127,7 @@ public final class FileUtils
         }
     }
 
-    private static final File tempDir = new File(System.getProperty("java.io.tmpdir"));
+    private static final File tempDir = new File(JAVA_IO_TMPDIR.getString());
     private static final AtomicLong tempFileNum = new AtomicLong();
 
     public static File getTempDir()

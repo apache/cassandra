@@ -24,6 +24,8 @@ import java.util.Set;
 
 import com.google.common.collect.Sets;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
+
 public final class Architecture
 {
     // Note that s390x, aarch64, & ppc64le architectures are not officially supported and adding them here is only done out
@@ -38,7 +40,7 @@ public final class Architecture
     "ppc64le"
     ));
 
-    public static final boolean IS_UNALIGNED = UNALIGNED_ARCH.contains(System.getProperty("os.arch"));
+    public static final boolean IS_UNALIGNED = UNALIGNED_ARCH.contains(OS_ARCH.getString());
 
     private Architecture()
     {

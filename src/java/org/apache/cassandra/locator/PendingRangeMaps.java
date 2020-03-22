@@ -21,11 +21,14 @@
 package org.apache.cassandra.locator;
 
 import com.google.common.collect.Iterators;
+
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 
 import java.util.*;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 
 public class PendingRangeMaps implements Iterable<Map.Entry<Range<Token>, EndpointsForRange.Builder>>
 {
@@ -194,7 +197,7 @@ public class PendingRangeMaps implements Iterable<Map.Entry<Range<Token>, Endpoi
             for (Replica replica : entry.getValue())
             {
                 sb.append(replica).append(':').append(range);
-                sb.append(System.getProperty("line.separator"));
+                sb.append(LINE_SEPARATOR.getString());
             }
         }
 

@@ -19,7 +19,6 @@ package org.apache.cassandra.config;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.net.*;
 import java.nio.file.FileStore;
 import java.nio.file.NoSuchFileException;
@@ -49,7 +48,6 @@ import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
-import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -76,6 +74,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang3.StringUtils;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MB;
 
@@ -2692,7 +2692,7 @@ public class DatabaseDescriptor
     public static boolean hasLargeAddressSpace()
     {
         // currently we just check if it's a 64bit arch, but any we only really care if the address space is large
-        String datamodel = System.getProperty("sun.arch.data.model");
+        String datamodel = SUN_ARCH_DATA_MODEL.getString();
         if (datamodel != null)
         {
             switch (datamodel)
@@ -2701,7 +2701,7 @@ public class DatabaseDescriptor
                 case "32": return false;
             }
         }
-        String arch = System.getProperty("os.arch");
+        String arch = OS_ARCH.getString();
         return arch.contains("64") || arch.contains("sparcv9");
     }
 
