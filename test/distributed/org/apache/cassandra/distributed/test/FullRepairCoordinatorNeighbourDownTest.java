@@ -25,10 +25,10 @@ import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairParall
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairType;
 
 @RunWith(Parameterized.class)
-public class PreviewRepairCoordinatorSlowTest extends RepairCoordinatorSlow
+public class FullRepairCoordinatorNeighbourDownTest extends RepairCoordinatorNeighbourDown
 {
-    public PreviewRepairCoordinatorSlowTest(RepairParallelism parallelism, boolean withNotifications)
+    public FullRepairCoordinatorNeighbourDownTest(RepairParallelism parallelism, boolean withNotifications)
     {
-        super(RepairType.PREVIEW, parallelism, withNotifications);
+        super(RepairType.FULL, parallelism, withNotifications);
     }
 }

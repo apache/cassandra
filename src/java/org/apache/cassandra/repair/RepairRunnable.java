@@ -227,8 +227,14 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     public void run()
     {
+        String previousName = Thread.currentThread().getName();
         try
         {
+            Thread.currentThread().setName(NamedThreadFactory.globalPrefix()
+                                           + "Repair Coordinator #" + cmd
+                                           + " id=" + parentSession
+                                           + " ks=" + keyspace
+                                           + " tables=" + options.getColumnFamilies());
             runMayThrow();
         }
         catch (SkipRepairException e)
@@ -239,6 +245,10 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         {
             notifyError(e);
             fail(e.getMessage());
+        }
+        finally
+        {
+            Thread.currentThread().setName(previousName);
         }
     }
 

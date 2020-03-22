@@ -231,6 +231,24 @@ public final class Throwables
     }
 
     /**
+     * throw the exception without wrapping as a runtime exception.  This relies on a trick to stop the compiler from
+     * forcing checking of checked exceptions so a exception can be rethrown unchecked
+     */
+    public static RuntimeException throwAsUncheckedException(Throwable t)
+    {
+        throwAs(t);
+
+        // Appeasing the compiler: the following line will never be executed.
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> void throwAs(Throwable t) throws T
+    {
+        throw (T) t;
+    }
+
+    /**
      * A shortcut for {@code unchecked(unwrapped(t))}. This is called "cleaned" because this basically removes the annoying
      * cruft surrounding an exception :).
      */
