@@ -21,6 +21,7 @@ package org.apache.cassandra.repair;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractFuture;
 
@@ -39,7 +40,8 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
     private static Logger logger = LoggerFactory.getLogger(SyncTask.class);
 
     protected final RepairJobDesc desc;
-    protected final List<Range<Token>> rangesToSync;
+    @VisibleForTesting
+    public final List<Range<Token>> rangesToSync;
     protected final PreviewKind previewKind;
     protected final SyncNodePair nodePair;
 
