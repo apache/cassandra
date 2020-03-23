@@ -54,9 +54,9 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     private final UUID pendingRepair;
 
     @VisibleForTesting
-    final boolean requestRanges;
+    public final boolean requestRanges;
     @VisibleForTesting
-    final boolean transferRanges;
+    public final boolean transferRanges;
 
     public LocalSyncTask(RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote,
                          List<Range<Token>> diff, UUID pendingRepair,
