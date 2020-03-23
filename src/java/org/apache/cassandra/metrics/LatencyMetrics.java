@@ -122,12 +122,12 @@ public class LatencyMetrics
         }
     }
 
-    public void addChildren(LatencyMetrics latencyMetric) 
+    private void addChildren(LatencyMetrics latencyMetric)
     {
         this.children.add(latencyMetric);
     }
 
-    public synchronized void removeChildren(LatencyMetrics toRelease)
+    private synchronized void removeChildren(LatencyMetrics toRelease)
     {
         /*
         Merge details of removed children metrics and add them to our local copy to prevent metrics from going
