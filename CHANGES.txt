@@ -1,3 +1,6 @@
+2.2.18
+ * Disable JMX rebinding (CASSANDRA-15653)
+
 2.2.17
  * Fix Commit log replays when static column clustering keys are collections (CASSANDRA-14365)
  * Fix Red Hat init script on newer systemd versions (CASSANDRA-15273)
