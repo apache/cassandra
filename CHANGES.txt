@@ -1,3 +1,6 @@
+2.1.22
+ * Disable JMX rebinding (CASSANDRA-15653, CASSANDRA-16075)
+
 2.1.21
  * Fix writing of snapshot manifest when the table has table-backed secondary indexes (CASSANDRA-10968)
  * Fix parse error in cqlsh COPY FROM and formatting for map of blobs (CASSANDRA-15679)

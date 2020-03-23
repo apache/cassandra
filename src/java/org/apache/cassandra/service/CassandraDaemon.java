@@ -23,7 +23,13 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.rmi.registry.LocateRegistry;
+import java.rmi.AccessException;
+import java.rmi.AlreadyBoundException;
+import java.rmi.NotBoundException;
+import java.rmi.Remote;
+import java.rmi.RemoteException;
+import java.rmi.registry.Registry;
+import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMIServerSocketFactory;
 import java.util.List;
 import java.util.*;
@@ -35,6 +41,7 @@ import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
 import javax.management.remote.rmi.RMIConnectorServer;
+import javax.management.remote.rmi.RMIJRMPServerImpl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
@@ -97,23 +104,18 @@ public class CassandraDaemon
                 try
                 {
                     RMIServerSocketFactory serverFactory = new RMIServerSocketFactoryImpl();
-                    LocateRegistry.createRegistry(Integer.valueOf(jmxPort), null, serverFactory);
+                    Map<String, ?> env = Collections.singletonMap(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
 
-                    StringBuffer url = new StringBuffer();
-                    url.append("service:jmx:");
-                    url.append("rmi://localhost/jndi/");
-                    url.append("rmi://localhost:").append(jmxPort).append("/jmxrmi");
-
-                    Map env = new HashMap();
-                    env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
-
-                    jmxServer = new RMIConnectorServer(
-                            new JMXServiceURL(url.toString()),
-                            env,
-                            ManagementFactory.getPlatformMBeanServer()
-                    );
-
+                    Registry registry = new JmxRegistry(Integer.valueOf(jmxPort), null, serverFactory, "jmxrmi");
+                    JMXServiceURL url = new JMXServiceURL(String.format("service:jmx:rmi://localhost/jndi/rmi://localhost:%s/jmxrmi", jmxPort));
+                    @SuppressWarnings("resource")
+                    RMIJRMPServerImpl server = new RMIJRMPServerImpl(Integer.valueOf(jmxPort),
+                                                                     null,
+                                                                     (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
+                                                                     env);
+                    jmxServer = new RMIConnectorServer(url, env, server, ManagementFactory.getPlatformMBeanServer());
                     jmxServer.start();
+                    ((JmxRegistry)registry).setRemoteServerStub(server.toStub());
                 }
                 catch (IOException e)
                 {
@@ -688,5 +690,49 @@ public class CassandraDaemon
          * Returns whether the server is currently running.
          */
         public boolean isRunning();
+    }
+
+
+    @SuppressWarnings("restriction")
+    private static class JmxRegistry extends sun.rmi.registry.RegistryImpl {
+        private final String lookupName;
+        private Remote remoteServerStub;
+
+        JmxRegistry(final int port,
+                    final RMIClientSocketFactory csf,
+                    RMIServerSocketFactory ssf,
+                    final String lookupName) throws RemoteException
+        {
+            super(port, csf, ssf);
+            this.lookupName = lookupName;
+        }
+
+        @Override
+        public Remote lookup(String s) throws RemoteException, NotBoundException
+        {
+            return lookupName.equals(s) ? remoteServerStub : null;
+        }
+
+        @Override
+        public void bind(String s, Remote remote) throws RemoteException, AlreadyBoundException, AccessException
+        {
+        }
+
+        @Override
+        public void unbind(String s) throws RemoteException, NotBoundException, AccessException {
+        }
+
+        @Override
+        public void rebind(String s, Remote remote) throws RemoteException, AccessException {
+        }
+
+        @Override
+        public String[] list() throws RemoteException {
+            return new String[] {lookupName};
+        }
+
+        public void setRemoteServerStub(Remote remoteServerStub) {
+            this.remoteServerStub = remoteServerStub;
+        }
     }
 }
