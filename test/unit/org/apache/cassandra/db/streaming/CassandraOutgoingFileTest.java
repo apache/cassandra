@@ -89,11 +89,12 @@ public class CassandraOutgoingFileTest
     {
         List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(store.getPartitioner().getMinimumToken(), sstable.last.getToken()));
 
+        List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(requestedRanges);
         CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(),
-                                                              sstable.getPositionsForRanges(requestedRanges),
+                                                              sections,
                                                               requestedRanges, sstable.estimatedKeys());
 
-        assertTrue(cof.contained(requestedRanges, sstable));
+        assertTrue(cof.contained(sections, sstable));
     }
 
     @Test
@@ -101,11 +102,12 @@ public class CassandraOutgoingFileTest
     {
         List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(store.getPartitioner().getMinimumToken(), getTokenAtIndex(2)));
 
+        List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(requestedRanges);
         CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(),
-                                                              sstable.getPositionsForRanges(requestedRanges),
+                                                              sections,
                                                               requestedRanges, sstable.estimatedKeys());
 
-        assertFalse(cof.contained(requestedRanges, sstable));
+        assertFalse(cof.contained(sections, sstable));
     }
 
     @Test
@@ -116,11 +118,12 @@ public class CassandraOutgoingFileTest
                                                          new Range<>(getTokenAtIndex(5), sstable.last.getToken()));
         requestedRanges = Range.normalize(requestedRanges);
 
+        List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(requestedRanges);
         CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(),
-                                                              sstable.getPositionsForRanges(requestedRanges),
+                                                              sections,
                                                               requestedRanges, sstable.estimatedKeys());
 
-        assertTrue(cof.contained(requestedRanges, sstable));
+        assertTrue(cof.contained(sections, sstable));
     }
 
     private DecoratedKey getKeyAtIndex(int i)

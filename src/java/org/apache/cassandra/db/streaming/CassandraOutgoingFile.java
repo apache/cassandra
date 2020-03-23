@@ -30,14 +30,9 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
-import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
@@ -46,8 +41,6 @@ import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.concurrent.Ref;
-
-import static org.apache.cassandra.db.compaction.Verifier.RangeOwnHelper;
 
 /**
  * used to transfer the part(or whole) of a SSTable data file
@@ -65,9 +58,8 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final CassandraStreamHeader header;
     private final boolean keepSSTableLevel;
     private final ComponentManifest manifest;
-    private Boolean isFullyContained;
 
-    private final List<Range<Token>> normalizedRanges;
+    private final boolean shouldStreamEntireSStable;
 
     public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
                                  List<SSTableReader.PartitionPositionBounds> sections, List<Range<Token>> normalizedRanges,
@@ -78,9 +70,9 @@ public class CassandraOutgoingFile implements OutgoingStream
         this.ref = ref;
         this.estimatedKeys = estimatedKeys;
         this.sections = sections;
-        this.normalizedRanges = ImmutableList.copyOf(normalizedRanges);
         this.filename = ref.get().getFilename();
         this.manifest = getComponentManifest(ref.get());
+        this.shouldStreamEntireSStable = shouldStreamEntireSSTable();
 
         SSTableReader sstable = ref.get();
         keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
@@ -93,7 +85,7 @@ public class CassandraOutgoingFile implements OutgoingStream
                                  .withSections(sections)
                                  .withCompressionMetadata(sstable.compression ? sstable.getCompressionMetadata() : null)
                                  .withSerializationHeader(sstable.header.toComponent())
-                                 .isEntireSSTable(shouldStreamEntireSSTable())
+                                 .isEntireSSTable(shouldStreamEntireSStable)
                                  .withComponentManifest(manifest)
                                  .withFirstKey(sstable.first)
                                  .withTableId(sstable.metadata().id)
@@ -163,7 +155,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         CassandraStreamHeader.serializer.serialize(header, out, version);
         out.flush();
 
-        if (shouldStreamEntireSSTable() && out instanceof AsyncStreamingOutputPlus)
+        if (shouldStreamEntireSStable && out instanceof AsyncStreamingOutputPlus)
         {
             CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, manifest);
             writer.write((AsyncStreamingOutputPlus) out);
@@ -185,46 +177,18 @@ public class CassandraOutgoingFile implements OutgoingStream
         if (!DatabaseDescriptor.streamEntireSSTables() || ref.get().getSSTableMetadata().hasLegacyCounterShards)
             return false;
 
-        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(getTableId());
-
-        if (cfs == null)
-            return false;
-
-        AbstractCompactionStrategy compactionStrategy = cfs.getCompactionStrategyManager()
-                                                           .getCompactionStrategyFor(ref.get());
-
-        if (compactionStrategy instanceof LeveledCompactionStrategy)
-            return contained(normalizedRanges, ref.get());
-
-        return false;
+        return contained(sections, ref.get());
     }
 
     @VisibleForTesting
-    public boolean contained(List<Range<Token>> normalizedRanges, SSTableReader sstable)
+    public boolean contained(List<SSTableReader.PartitionPositionBounds> sections, SSTableReader sstable)
     {
-        if (isFullyContained != null)
-            return isFullyContained;
-
-        isFullyContained = computeContainment(normalizedRanges, sstable);
-        return isFullyContained;
-    }
-
-    private boolean computeContainment(List<Range<Token>> normalizedRanges, SSTableReader sstable)
-    {
-        if (normalizedRanges == null)
+        if (sections == null || sections.isEmpty())
             return false;
 
-        RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(normalizedRanges);
-        try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
-        {
-            while (iter.hasNext())
-            {
-                DecoratedKey key = iter.next();
-                if (!rangeOwnHelper.check(key))
-                    return false;
-            }
-        }
-        return true;
+        // if transfer sections contain entire sstable
+        long transferLength = sections.stream().mapToLong(p -> p.upperPosition - p.lowerPosition).sum();
+        return transferLength == sstable.uncompressedLength();
     }
 
     @Override
