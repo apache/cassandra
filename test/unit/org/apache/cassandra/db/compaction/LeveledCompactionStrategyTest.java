@@ -460,6 +460,58 @@ public class LeveledCompactionStrategyTest
 
         // the 11 tables containing key1 should all compact to 1 table
         assertEquals(1, cfs.getLiveSSTables().size());
+        // Set it up again
+        cfs.truncateBlocking();
+
+        // create 10 sstables that contain data for both key1 and key2
+        for (int i = 0; i < numIterations; i++)
+        {
+            for (DecoratedKey key : keys)
+            {
+                UpdateBuilder update = UpdateBuilder.create(cfs.metadata(), key);
+                for (int c = 0; c < columns; c++)
+                    update.newRow("column" + c).add("val", value);
+                update.applyUnsafe();
+            }
+            cfs.forceBlockingFlush();
+        }
+
+        // create 20 more sstables with 10 containing data for key1 and other 10 containing data for key2
+        for (int i = 0; i < numIterations; i++)
+        {
+            for (DecoratedKey key : keys)
+            {
+                UpdateBuilder update = UpdateBuilder.create(cfs.metadata(), key);
+                for (int c = 0; c < columns; c++)
+                    update.newRow("column" + c).add("val", value);
+                update.applyUnsafe();
+                cfs.forceBlockingFlush();
+            }
+        }
+
+        // We should have a total of 30 sstables again
+        assertEquals(30, cfs.getLiveSSTables().size());
+
+        // This time, we're going to make sure the token range wraps around, to cover the full range
+        Range<Token> wrappingRange;
+        if (key1.getToken().compareTo(key2.getToken()) < 0)
+        {
+            wrappingRange = new Range<>(key2.getToken(), key1.getToken());
+        }
+        else
+        {
+            wrappingRange = new Range<>(key1.getToken(), key2.getToken());
+        }
+        Collection<Range<Token>> wrappingRanges = new ArrayList<>(Arrays.asList(wrappingRange));
+        cfs.forceCompactionForTokenRange(wrappingRanges);
+
+        while(CompactionManager.instance.isCompacting(Arrays.asList(cfs), (sstable) -> true))
+        {
+            Thread.sleep(100);
+        }
+
+        // should all compact to 1 table
+        assertEquals(1, cfs.getLiveSSTables().size());
     }
 
     @Test
