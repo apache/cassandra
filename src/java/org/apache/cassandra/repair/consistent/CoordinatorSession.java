@@ -150,7 +150,7 @@ public class CoordinatorSession extends ConsistentSession
     {
         Preconditions.checkArgument(allStates(State.PREPARING));
 
-        logger.debug("Beginning prepare phase of incremental repair session {}", sessionID);
+        logger.info("Beginning prepare phase of incremental repair session {}", sessionID);
         Message<RepairMessage> message =
             Message.out(Verb.PREPARE_CONSISTENT_REQ, new PrepareConsistentRequest(sessionID, coordinator, participants));
         for (final InetAddressAndPort participant : participants)
@@ -164,7 +164,7 @@ public class CoordinatorSession extends ConsistentSession
     {
         if (!success)
         {
-            logger.debug("{} failed the prepare phase for incremental repair session {}", participant, sessionID);
+            logger.warn("{} failed the prepare phase for incremental repair session {}", participant, sessionID);
             sendFailureMessageToParticipants();
             setParticipantState(participant, State.FAILED);
         }
@@ -198,7 +198,7 @@ public class CoordinatorSession extends ConsistentSession
     public synchronized ListenableFuture<Boolean> finalizePropose()
     {
         Preconditions.checkArgument(allStates(State.REPAIRING));
-        logger.debug("Proposing finalization of repair session {}", sessionID);
+        logger.info("Proposing finalization of repair session {}", sessionID);
         Message<RepairMessage> message = Message.out(Verb.FINALIZE_PROPOSE_MSG, new FinalizePropose(sessionID));
         for (final InetAddressAndPort participant : participants)
         {
@@ -215,7 +215,7 @@ public class CoordinatorSession extends ConsistentSession
         }
         else if (!success)
         {
-            logger.debug("Finalization proposal of session {} rejected by {}. Aborting session", sessionID, participant);
+            logger.warn("Finalization proposal of session {} rejected by {}. Aborting session", sessionID, participant);
             fail();
             finalizeProposeFuture.set(false);
         }
@@ -225,7 +225,7 @@ public class CoordinatorSession extends ConsistentSession
             setParticipantState(participant, State.FINALIZE_PROMISED);
             if (getState() == State.FINALIZE_PROMISED)
             {
-                logger.debug("Finalization proposal for repair session {} accepted by all participants.", sessionID);
+                logger.info("Finalization proposal for repair session {} accepted by all participants.", sessionID);
                 finalizeProposeFuture.set(true);
             }
         }
@@ -234,7 +234,7 @@ public class CoordinatorSession extends ConsistentSession
     public synchronized void finalizeCommit()
     {
         Preconditions.checkArgument(allStates(State.FINALIZE_PROMISED));
-        logger.debug("Committing finalization of repair session {}", sessionID);
+        logger.info("Committing finalization of repair session {}", sessionID);
         Message<RepairMessage> message = Message.out(Verb.FINALIZE_COMMIT_MSG, new FinalizeCommit(sessionID));
         for (final InetAddressAndPort participant : participants)
         {

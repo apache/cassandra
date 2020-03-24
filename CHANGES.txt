@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Use more appropriate logging levels (CASSANDRA-15661)
  * Added production recommendations and improved compaction doc organization
  * Document usage of EC2Snitch with intra-region VPC peering (CASSANDRA-15337)
  * Fixed flakey test in SASIIndexTest by shutting down its ExecutorService (CASSANDRA-15528)
