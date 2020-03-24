@@ -253,7 +253,7 @@ public class CommitLogReader
                     throw (IOException) re.getCause();
                 throw re;
             }
-            logger.debug("Finished reading {}", file);
+            logger.info("Finished reading {}", file);
         }
     }
 
