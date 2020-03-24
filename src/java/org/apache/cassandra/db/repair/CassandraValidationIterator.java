@@ -204,6 +204,8 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         }
 
         Preconditions.checkArgument(sstables != null);
+        logger.info("Performing validation compaction on {} sstables", sstables.size());
+        logger.debug("Performing validation compaction on {}", sstables);
         controller = new ValidationCompactionController(cfs, getDefaultGcBefore(cfs, nowInSec));
         scanners = cfs.getCompactionStrategyManager().getScanners(sstables, ranges);
         ci = new ValidationCompactionIterator(scanners.scanners, controller, nowInSec, CompactionManager.instance.active);
