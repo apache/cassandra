@@ -20,15 +20,26 @@ package org.apache.cassandra.utils.streamhist;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.psjava.util.AssertStatus;
+import org.quicktheories.core.Gen;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.quicktheories.QuickTheory.qt;
+import static org.quicktheories.generators.SourceDSL.integers;
+import static org.quicktheories.generators.SourceDSL.lists;
 
 public class StreamingTombstoneHistogramBuilderTest
 {
@@ -111,11 +122,12 @@ public class StreamingTombstoneHistogramBuilderTest
         builder.update(2);
         builder.update(2);
         builder.update(2);
+        builder.update(2, Integer.MAX_VALUE); // To check that value overflow is handled correctly
         TombstoneHistogram hist = builder.build();
         Map<Integer, Integer> asMap = asMap(hist);
 
         assertEquals(1, asMap.size());
-        assertEquals(3, asMap.get(2).intValue());
+        assertEquals(Integer.MAX_VALUE, asMap.get(2).intValue());
 
         //Make sure it's working with Serde
         DataOutputBuffer out = new DataOutputBuffer();
@@ -126,7 +138,7 @@ public class StreamingTombstoneHistogramBuilderTest
 
         asMap = asMap(deserialized);
         assertEquals(1, deserialized.size());
-        assertEquals(3, asMap.get(2).intValue());
+        assertEquals(Integer.MAX_VALUE, asMap.get(2).intValue());
     }
 
     @Test
@@ -167,10 +179,226 @@ public class StreamingTombstoneHistogramBuilderTest
         IntStream.range(Integer.MAX_VALUE - 30, Integer.MAX_VALUE).forEach(builder::update);
     }
 
+    @Test
+    public void testLargeDeletionTimesAndLargeValuesDontCauseOverflow()
+    {
+        qt().forAll(streamingTombstoneHistogramBuilderGen(1000, 300000, 60),
+                    lists().of(integers().from(0).upTo(Cell.MAX_DELETION_TIME)).ofSize(300),
+                    lists().of(integers().allPositive()).ofSize(300))
+            .checkAssert(this::updateHistogramAndCheckAllBucketsArePositive);
+    }
+
+    private void updateHistogramAndCheckAllBucketsArePositive(StreamingTombstoneHistogramBuilder histogramBuilder, List<Integer> keys, List<Integer> values)
+    {
+        for (int i = 0; i < keys.size(); i++)
+        {
+            histogramBuilder.update(keys.get(i), values.get(i));
+        }
+
+        TombstoneHistogram histogram = histogramBuilder.build();
+        for (Map.Entry<Integer, Integer> buckets : asMap(histogram).entrySet())
+        {
+            assertTrue("Invalid bucket key", buckets.getKey() >= 0);
+            assertTrue("Invalid bucket value", buckets.getValue() >= 0);
+        }
+    }
+
+    @Test
+    public void testThatPointIsNotMissedBecauseOfRoundingToNoDeletionTime() throws Exception
+    {
+        int pointThatRoundedToNoDeletion = Cell.NO_DELETION_TIME - 2;
+        assert pointThatRoundedToNoDeletion + pointThatRoundedToNoDeletion % 3 == Cell.NO_DELETION_TIME : "test data should be valid";
+
+        StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 10, 3);
+        builder.update(pointThatRoundedToNoDeletion);
+
+        TombstoneHistogram histogram = builder.build();
+
+        Map<Integer, Integer> integerIntegerMap = asMap(histogram);
+        assertEquals(integerIntegerMap.size(), 1);
+        assertEquals(integerIntegerMap.get(Cell.MAX_DELETION_TIME).intValue(), 1);
+    }
+
+    @Test
+    public void testInvalidArguments()
+    {
+        assertThatThrownBy(() -> new StreamingTombstoneHistogramBuilder(5, 10, 0)).hasMessage("Invalid arguments: maxBinSize:5 maxSpoolSize:10 delta:0");
+        assertThatThrownBy(() -> new StreamingTombstoneHistogramBuilder(5, 10, -1)).hasMessage("Invalid arguments: maxBinSize:5 maxSpoolSize:10 delta:-1");
+        assertThatThrownBy(() -> new StreamingTombstoneHistogramBuilder(5, -1, 60)).hasMessage("Invalid arguments: maxBinSize:5 maxSpoolSize:-1 delta:60");
+        assertThatThrownBy(() -> new StreamingTombstoneHistogramBuilder(-1, 10, 60)).hasMessage("Invalid arguments: maxBinSize:-1 maxSpoolSize:10 delta:60");
+        assertThatThrownBy(() -> new StreamingTombstoneHistogramBuilder(0, 10, 60)).hasMessage("Invalid arguments: maxBinSize:0 maxSpoolSize:10 delta:60");
+    }
+
+    @Test
+    public void testSpool()
+    {
+        StreamingTombstoneHistogramBuilder.Spool spool = new StreamingTombstoneHistogramBuilder.Spool(8);
+        assertTrue(spool.tryAddOrAccumulate(5, 1));
+        assertSpool(spool, 5, 1);
+        assertTrue(spool.tryAddOrAccumulate(5, 3));
+        assertSpool(spool, 5, 4);
+
+        assertTrue(spool.tryAddOrAccumulate(10, 1));
+        assertSpool(spool, 5, 4,
+                    10, 1);
+
+        assertTrue(spool.tryAddOrAccumulate(12, 1));
+        assertTrue(spool.tryAddOrAccumulate(14, 1));
+        assertTrue(spool.tryAddOrAccumulate(16, 1));
+        assertSpool(spool, 5, 4,
+                    10, 1,
+                    12, 1,
+                    14, 1,
+                    16, 1);
+
+        assertTrue(spool.tryAddOrAccumulate(18, 1));
+        assertTrue(spool.tryAddOrAccumulate(20, 1));
+        assertTrue(spool.tryAddOrAccumulate(30, 1));
+        assertSpool(spool, 5, 4,
+                    10, 1,
+                    12, 1,
+                    14, 1,
+                    16, 1,
+                    18, 1,
+                    20, 1,
+                    30, 1);
+
+        assertTrue(spool.tryAddOrAccumulate(16, 5));
+        assertTrue(spool.tryAddOrAccumulate(12, 4));
+        assertTrue(spool.tryAddOrAccumulate(18, 9));
+        assertSpool(spool,
+                    5, 4,
+                    10, 1,
+                    12, 5,
+                    14, 1,
+                    16, 6,
+                    18, 10,
+                    20, 1,
+                    30, 1);
+
+        assertTrue(spool.tryAddOrAccumulate(99, 5));
+    }
+
+    @Test
+    public void testDataHolder()
+    {
+        StreamingTombstoneHistogramBuilder.DataHolder dataHolder = new StreamingTombstoneHistogramBuilder.DataHolder(4, 1);
+        assertFalse(dataHolder.isFull());
+        assertEquals(0, dataHolder.size());
+
+        assertTrue(dataHolder.addValue(4, 1));
+        assertDataHolder(dataHolder,
+                         4, 1);
+
+        assertFalse(dataHolder.addValue(4, 1));
+        assertDataHolder(dataHolder,
+                         4, 2);
+
+        assertTrue(dataHolder.addValue(7, 1));
+        assertDataHolder(dataHolder,
+                         4, 2,
+                         7, 1);
+
+        assertFalse(dataHolder.addValue(7, 1));
+        assertDataHolder(dataHolder,
+                         4, 2,
+                         7, 2);
+
+        assertTrue(dataHolder.addValue(5, 1));
+        assertDataHolder(dataHolder,
+                         4, 2,
+                         5, 1,
+                         7, 2);
+
+        assertFalse(dataHolder.addValue(5, 1));
+        assertDataHolder(dataHolder,
+                         4, 2,
+                         5, 2,
+                         7, 2);
+
+        assertTrue(dataHolder.addValue(2, 1));
+        assertDataHolder(dataHolder,
+                         2, 1,
+                         4, 2,
+                         5, 2,
+                         7, 2);
+        assertTrue(dataHolder.isFull());
+
+        // expect to merge [4,2]+[5,2]
+        dataHolder.mergeNearestPoints();
+        assertDataHolder(dataHolder,
+                         2, 1,
+                         4, 4,
+                         7, 2);
+
+        assertFalse(dataHolder.addValue(2, 1));
+        assertDataHolder(dataHolder,
+                         2, 2,
+                         4, 4,
+                         7, 2);
+
+        dataHolder.addValue(8, 1);
+        assertDataHolder(dataHolder,
+                         2, 2,
+                         4, 4,
+                         7, 2,
+                         8, 1);
+        assertTrue(dataHolder.isFull());
+
+        // expect to merge [7,2]+[8,1]
+        dataHolder.mergeNearestPoints();
+        assertDataHolder(dataHolder,
+                         2, 2,
+                         4, 4,
+                         7, 3);
+    }
+
+    private static void assertDataHolder(StreamingTombstoneHistogramBuilder.DataHolder dataHolder, int... pointValue)
+    {
+        assertEquals(pointValue.length / 2, dataHolder.size());
+
+        for (int i = 0; i < pointValue.length; i += 2)
+        {
+            int point = pointValue[i];
+            int expectedValue = pointValue[i + 1];
+            assertEquals(expectedValue, dataHolder.getValue(point));
+        }
+    }
+
+    /**
+     * Compare the contents of {@code spool} with the given collection of key-value pairs in {@code pairs}.
+     */
+    private static void assertSpool(StreamingTombstoneHistogramBuilder.Spool spool, int... pairs)
+    {
+        assertEquals(pairs.length / 2, spool.size);
+        Map<Integer, Integer> tests = new HashMap<>();
+        for (int i = 0; i < pairs.length; i += 2)
+            tests.put(pairs[i], pairs[i + 1]);
+
+        spool.forEach((k, v) -> {
+            Integer x = tests.remove(k);
+            assertNotNull("key " + k, x);
+            assertEquals(x.intValue(), v);
+        });
+        AssertStatus.assertTrue(tests.isEmpty());
+    }
+
     private Map<Integer, Integer> asMap(TombstoneHistogram histogram)
     {
         Map<Integer, Integer> result = new HashMap<>();
         histogram.forEach(result::put);
         return result;
+    }
+
+    private Gen<StreamingTombstoneHistogramBuilder> streamingTombstoneHistogramBuilderGen(int maxBinSize, int maxSpoolSize, int maxRoundSeconds)
+    {
+        return positiveIntegerUpTo(maxBinSize).zip(integers().between(0, maxSpoolSize),
+                                                   positiveIntegerUpTo(maxRoundSeconds),
+                                                   StreamingTombstoneHistogramBuilder::new);
+    }
+
+    private Gen<Integer> positiveIntegerUpTo(int upperBound)
+    {
+        return integers().between(1, upperBound);
     }
 }

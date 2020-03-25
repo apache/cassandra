@@ -91,7 +91,12 @@ public class TombstoneHistogram
             DataHolder dataHolder = new DataHolder(size, 1);
             for (int i = 0; i < size; i++)
             {
-                dataHolder.addValue((int)in.readDouble(), (int)in.readLong());
+                // Already serialized sstable metadata may contain negative deletion-time values (see CASSANDRA-14092).
+                // Just do a "safe cast" and it should be good. For safety, also do that for the 'value' (tombstone count).
+                int localDeletionTime = StreamingTombstoneHistogramBuilder.saturatingCastToMaxDeletionTime((long) in.readDouble());
+                int count = StreamingTombstoneHistogramBuilder.saturatingCastToInt(in.readLong());
+
+                dataHolder.addValue(localDeletionTime, count);
             }
 
             return new TombstoneHistogram(dataHolder);
