@@ -204,6 +204,13 @@
         </not>
     </condition>
 
+    <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
+    <condition property="jdk11-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED" else="">
+        <not>
+            <equals arg1="${ant.java.version}" arg2="1.8"/>
+        </not>
+    </condition>
+
     <condition property="build.java.11">
         <istrue value="${use.jdk11}"/>
     </condition>
@@ -936,6 +943,7 @@
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
             <compilerarg value="-XDignore.symbol.file"/>
+            <compilerarg line="${jdk11-javac-exports}"/>
             <classpath>
                 <path refid="cassandra.classpath"/>
             </classpath>
