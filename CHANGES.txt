@@ -1,6 +1,7 @@
 3.0.21
  * Run evictFromMembership in GossipStage (CASSANDRA-15592)
 Merged from 2.2:
+ * Disable JMX rebinding (CASSANDRA-15653)
  * Fix Commit log replays when static column clustering keys are collections (CASSANDRA-14365)
  * Fix Red Hat init script on newer systemd versions (CASSANDRA-15273)
  * Allow EXTRA_CLASSPATH to work on tar/source installations (CASSANDRA-15567)
