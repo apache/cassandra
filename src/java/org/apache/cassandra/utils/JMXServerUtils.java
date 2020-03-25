@@ -27,7 +27,12 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.rmi.registry.LocateRegistry;
+import java.rmi.AccessException;
+import java.rmi.AlreadyBoundException;
+import java.rmi.NoSuchObjectException;
+import java.rmi.NotBoundException;
+import java.rmi.Remote;
+import java.rmi.RemoteException;
 import java.rmi.registry.Registry;
 import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMIServerSocketFactory;
@@ -73,10 +78,11 @@ public class JMXServerUtils
         // Configure the RMI client & server socket factories, including SSL config.
         env.putAll(configureJmxSocketFactories(serverAddress, local));
 
-        // configure the RMI registry to use the socket factories we just created
-        Registry registry = LocateRegistry.createRegistry(port,
-                                                          (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
-                                                          (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
+        // configure the RMI registry
+        Registry registry = new JmxRegistry(port,
+                                            (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
+                                            (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
+                                            "jmxrmi");
 
         // Configure authn, using a JMXAuthenticator which either wraps a set log LoginModules configured
         // via a JAAS configuration entry, or one which delegates to the standard file based authenticator.
@@ -122,7 +128,7 @@ public class JMXServerUtils
             jmxServer.setMBeanServerForwarder(authzProxy);
         jmxServer.start();
 
-        registry.rebind("jmxrmi", server);
+        ((JmxRegistry)registry).setRemoteServerStub(server.toStub());
         logJmxServiceUrl(serverAddress, port);
         return jmxServer;
     }
@@ -295,6 +301,49 @@ public class JMXServerUtils
             {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    /*
+     * Better to use the internal API than re-invent the wheel.
+     */
+    @SuppressWarnings("restriction")
+    private static class JmxRegistry extends sun.rmi.registry.RegistryImpl {
+        private final String lookupName;
+        private Remote remoteServerStub;
+
+        JmxRegistry(final int port,
+                    final RMIClientSocketFactory csf,
+                    RMIServerSocketFactory ssf,
+                    final String lookupName) throws RemoteException {
+            super(port, csf, ssf);
+            this.lookupName = lookupName;
+        }
+
+        @Override
+        public Remote lookup(String s) throws RemoteException, NotBoundException {
+            return lookupName.equals(s) ? remoteServerStub : null;
+        }
+
+        @Override
+        public void bind(String s, Remote remote) throws RemoteException, AlreadyBoundException, AccessException {
+        }
+
+        @Override
+        public void unbind(String s) throws RemoteException, NotBoundException, AccessException {
+        }
+
+        @Override
+        public void rebind(String s, Remote remote) throws RemoteException, AccessException {
+        }
+
+        @Override
+        public String[] list() throws RemoteException {
+            return new String[] {lookupName};
+        }
+
+        public void setRemoteServerStub(Remote remoteServerStub) {
+            this.remoteServerStub = remoteServerStub;
         }
     }
 }
