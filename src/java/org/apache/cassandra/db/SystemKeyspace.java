@@ -1344,7 +1344,7 @@ public final class SystemKeyspace
     public static synchronized SetMultimap<String, String> getTablesWithSizeEstimates()
     {
         SetMultimap<String, String> keyspaceTableMap = HashMultimap.create();
-        String cql = String.format("SELECT keyspace_name, table_name FROM %s WHERE range_type='%s'", TableEstimates.toString(), TABLE_ESTIMATES_TYPE_PRIMARY);
+        String cql = String.format("SELECT keyspace_name, table_name FROM %s", TableEstimates.toString(), TABLE_ESTIMATES_TYPE_PRIMARY);
         UntypedResultSet rs = executeInternal(cql);
         for (UntypedResultSet.Row row : rs)
         {
