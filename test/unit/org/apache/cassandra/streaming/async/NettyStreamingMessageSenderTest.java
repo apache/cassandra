@@ -202,32 +202,60 @@ public class NettyStreamingMessageSenderTest
     }
 
     @Test
-    public void verifyStateChange()
+    public void verifyStreamStateChange()
     {
-        for (StreamSession.State current : StreamSession.State.values())
+        StreamSession.State current = StreamSession.State.INITIALIZED;
+        verifyTransition(current, StreamSession.State.INITIALIZED, false);
+        verifyTransition(current, StreamSession.State.PREPARING, true);
+        verifyTransition(current, StreamSession.State.STREAMING, false);
+        verifyTransition(current, StreamSession.State.WAIT_COMPLETE, false);
+        verifyTransition(current, StreamSession.State.COMPLETE, true);
+        verifyTransition(current, StreamSession.State.FAILED, true);
+
+        current = StreamSession.State.PREPARING;
+        verifyTransition(current, StreamSession.State.INITIALIZED, false);
+        verifyTransition(current, StreamSession.State.PREPARING, false);
+        verifyTransition(current, StreamSession.State.STREAMING, true);
+        verifyTransition(current, StreamSession.State.WAIT_COMPLETE, true);
+        verifyTransition(current, StreamSession.State.COMPLETE, false);
+        verifyTransition(current, StreamSession.State.FAILED, true);
+
+        current = StreamSession.State.STREAMING;
+        verifyTransition(current, StreamSession.State.INITIALIZED, false);
+        verifyTransition(current, StreamSession.State.PREPARING, false);
+        verifyTransition(current, StreamSession.State.STREAMING, false);
+        verifyTransition(current, StreamSession.State.WAIT_COMPLETE, true);
+        verifyTransition(current, StreamSession.State.COMPLETE, false);
+        verifyTransition(current, StreamSession.State.FAILED, true);
+
+        current = StreamSession.State.WAIT_COMPLETE;
+        verifyTransition(current, StreamSession.State.INITIALIZED, false);
+        verifyTransition(current, StreamSession.State.PREPARING, false);
+        verifyTransition(current, StreamSession.State.STREAMING, false);
+        verifyTransition(current, StreamSession.State.WAIT_COMPLETE, false);
+        verifyTransition(current, StreamSession.State.COMPLETE, true);
+        verifyTransition(current, StreamSession.State.FAILED, true);
+
+        current = StreamSession.State.COMPLETE;
+        for (StreamSession.State newState : StreamSession.State.values())
+            verifyTransition(current, newState, false);
+
+        current = StreamSession.State.FAILED;
+        for (StreamSession.State newState : StreamSession.State.values())
+            verifyTransition(current, newState, false);
+    }
+
+    private void verifyTransition(StreamSession.State current, StreamSession.State newState, boolean valid)
+    {
+        try
         {
-            for (StreamSession.State newState : StreamSession.State.values())
-            {
-                boolean succeed = true;
-
-                if (current.isFinalState() && current != newState)
-                    succeed = false;
-
-                if (current.ordinal() > newState.ordinal())
-                    succeed = false;
-
-                try
-                {
-                    current.verifyStateChange(newState);
-                    Assert.assertTrue("Expect failure", succeed);
-                }
-                catch (Throwable e)
-                {
-                    Assert.assertFalse("Expect succeed", succeed);
-                    Assert.assertTrue("Unexpected error message: " + e.getMessage(), e.getMessage().contains("Cannot change from"));
-                }
-
-            }
+            current.verifyStateChange(newState);
+            Assert.assertTrue("Expect invalid transition", valid);
+        }
+        catch (Throwable e)
+        {
+            Assert.assertFalse("Expect valid transition", valid);
+            Assert.assertTrue("Unexpected error message: " + e.getMessage(), e.getMessage().contains("Cannot transit stream state"));
         }
     }
 }

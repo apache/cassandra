@@ -169,7 +169,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         COMPLETE(true),
         FAILED(true);
 
-        private boolean finalState;
+        private final boolean finalState;
 
         State(boolean finalState)
         {
@@ -177,6 +177,22 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
 
         /**
+         * State Transition:
+         *
+         * <pre>
+         *
+         *  +------------------+----------> FAILED <---------+
+         *  |                  |              ^              |
+         *  |                  |              |              |
+         *  INITIALIZED --> PREPARING --> STREAMING --> WAIT_COMPLETE ---> COMPLETED
+         *  |                  |                             ^                ^
+         *  |                  |         if preview          |                |
+         *  |                  +-----------------------------+                |
+         *  |               nothing to request or to transfer                 |
+         *  +-----------------------------------------------------------------+
+         *                  nothing to request or to transfer
+         *  </pre>
+         *
          * @return true if current statu is final and cannot be change to other state.
          */
         public boolean isFinalState()
@@ -191,13 +207,32 @@ public class StreamSession implements IEndpointStateChangeSubscriber
          */
         public void verifyStateChange(State newState)
         {
-            // if it's in final state, should not leave
-            if (isFinalState() && newState != this)
-                throw new IllegalStateException("Cannot change from final state " + this + " to " + newState);
+            boolean valid;
 
-            // should not transit to earlier state
-            if (ordinal() > newState.ordinal())
-                throw new IllegalStateException("Cannot change from " + this + " to " + newState);
+            switch (this)
+            {
+                case INITIALIZED:
+                    valid = newState == PREPARING || newState == FAILED || newState == COMPLETE;
+                    break;
+                case PREPARING:
+                    valid = newState == STREAMING || newState == WAIT_COMPLETE || newState == FAILED;
+                    break;
+                case STREAMING:
+                    valid = newState == WAIT_COMPLETE || newState == FAILED;
+                    break;
+                case WAIT_COMPLETE:
+                    valid = newState == FAILED || newState == COMPLETE;
+                    break;
+                case COMPLETE:
+                case FAILED:
+                    valid = false;
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown state " + newState);
+            }
+
+            if (!valid)
+                throw new IllegalStateException(String.format("Cannot transit stream state from %s to %s.", this, newState));
         }
     }
 
@@ -599,7 +634,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     private void prepareAsync(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
     {
-
         for (StreamRequest request : requests)
             addTransferRanges(request.keyspace, RangesAtEndpoint.concat(request.full, request.transientReplicas), request.columnFamilies, true); // always flush on stream request
         for (StreamSummary summary : summaries)
