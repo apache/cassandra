@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Fix overflows on StreamingTombstoneHistogramBuilder produced by large deletion times (CASSANDRA-14773)
  * Mark system_views/system_virtual_schema as system keyspaces in cqlsh (CASSANDRA-15706)
  * Avoid unnecessary collection/iterator allocations during btree construction (CASSANDRA-15390)
  * Repair history tables should have TTL and TWCS (CASSANDRA-12701)
