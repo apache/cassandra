@@ -895,11 +895,13 @@ public class TokenMetadata
         {
             EndpointsForRange currentReplicas = strategy.calculateNaturalReplicas(range.right, metadata);
             EndpointsForRange newReplicas = strategy.calculateNaturalReplicas(range.right, allLeftMetadata);
-            for (Replica replica : newReplicas)
+            for (Replica newReplica : newReplicas)
             {
-                if (currentReplicas.endpoints().contains(replica.endpoint()))
+                if (currentReplicas.endpoints().contains(newReplica.endpoint()))
                     continue;
-                newPendingRanges.addPendingRange(range, replica);
+
+                for (Replica pendingReplica : newReplica.subtractSameReplication(addressRanges.get(newReplica.endpoint())))
+                    newPendingRanges.addPendingRange(range, pendingReplica);
             }
         }
 
