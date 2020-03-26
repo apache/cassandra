@@ -783,7 +783,7 @@ public class TokenMetadata
             Replica replica = entry.getValue();
             if (replica.endpoint().equals(endpoint))
             {
-                builder.add(replica);
+                builder.add(replica, Conflict.DUPLICATE);
             }
         }
         return builder.build();
