@@ -787,7 +787,7 @@ public class TokenMetadata
             Replica replica = entry.getValue();
             if (replica.endpoint().equals(endpoint))
             {
-                builder.add(replica);
+                builder.add(replica, Conflict.DUPLICATE);
             }
         }
         return builder.build();
@@ -899,11 +899,15 @@ public class TokenMetadata
         {
             EndpointsForRange currentReplicas = strategy.calculateNaturalReplicas(range.right, metadata);
             EndpointsForRange newReplicas = strategy.calculateNaturalReplicas(range.right, allLeftMetadata);
-            for (Replica replica : newReplicas)
+            for (Replica newReplica : newReplicas)
             {
-                if (currentReplicas.endpoints().contains(replica.endpoint()))
+                if (currentReplicas.endpoints().contains(newReplica.endpoint()))
                     continue;
-                newPendingRanges.addPendingRange(range, replica);
+
+                // we calculate pending replicas for leave- and move- affected ranges in the same way to avoid
+                // a possible conflict when 2 pending replicas have the same endpoint and different ranges.
+                for (Replica pendingReplica : newReplica.subtractSameReplication(addressRanges.get(newReplica.endpoint())))
+                    newPendingRanges.addPendingRange(range, pendingReplica);
             }
         }
 
