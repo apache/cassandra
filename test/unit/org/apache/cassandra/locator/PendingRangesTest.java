@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
 import static org.junit.Assert.assertEquals;
@@ -170,6 +171,81 @@ public class PendingRangesTest
         assertPendingRanges(tm.getPendingRangesMM(KEYSPACE), expected);
     }
 
+    @Test
+    public void test1Leave1Move()
+    {
+        TokenMetadata tm = new TokenMetadata();
+        AbstractReplicationStrategy strategy = simpleStrategy(tm, 3);
+
+        Token newToken = token(0);
+        Token token1 = token(-9);
+        Token token2 = token(-5);
+        Token token3 = token(-1);
+        Token token4 = token(1);
+        Token token5 = token(5);
+
+        InetAddressAndPort node1 = peer(1);
+        InetAddressAndPort node2 = peer(2);
+        InetAddressAndPort node3 = peer(3);
+        InetAddressAndPort node4 = peer(4);
+        InetAddressAndPort node5 = peer(5);
+
+        // setup initial ring
+        addNode(tm, node1, token1);
+        addNode(tm, node2, token2);
+        addNode(tm, node3, token3);
+        addNode(tm, node4, token4);
+        addNode(tm, node5, token5);
+
+        tm.addLeavingEndpoint(node5);
+        tm.addMovingEndpoint(newToken, node3);
+
+        tm.calculatePendingRanges(strategy, KEYSPACE);
+        assertRangesAtEndpoint(RangesAtEndpoint.of(new Replica(node1, new Range<>(token2, token3), true)),
+                               tm.getPendingRanges(KEYSPACE, node1));
+        assertRangesAtEndpoint(RangesAtEndpoint.of(new Replica(node2, new Range<>(token3, token4), true)),
+                               tm.getPendingRanges(KEYSPACE, node2));
+        assertRangesAtEndpoint(RangesAtEndpoint.of(new Replica(node3, new Range<>(token3, newToken), true),
+                                                   new Replica(node3, new Range<>(token4, token5), true)),
+                               tm.getPendingRanges(KEYSPACE, node3));
+        assertRangesAtEndpoint(RangesAtEndpoint.empty(node4), tm.getPendingRanges(KEYSPACE, node4));
+        assertRangesAtEndpoint(RangesAtEndpoint.empty(node5), tm.getPendingRanges(KEYSPACE, node5));
+    }
+
+    @Test
+    public void testLeave2()
+    {
+        TokenMetadata tm = new TokenMetadata();
+        AbstractReplicationStrategy strategy = simpleStrategy(tm, 2);
+
+        Token token1 = token(-9);
+        Token token2 = token(-4);
+        Token token3 = token(0);
+        Token token4 = token(4);
+
+        InetAddressAndPort node1 = peer(1);
+        InetAddressAndPort node2 = peer(2);
+        InetAddressAndPort node3 = peer(3);
+        InetAddressAndPort node4 = peer(4);
+
+        addNode(tm, node1, token1);
+        addNode(tm, node2, token2);
+        addNode(tm, node3, token3);
+        addNode(tm, node4, token4);
+
+        tm.addLeavingEndpoint(node2);
+        tm.addLeavingEndpoint(node3);
+
+        tm.calculatePendingRanges(strategy, KEYSPACE);
+        assertRangesAtEndpoint(RangesAtEndpoint.of(new Replica(node1, new Range<>(token1, token3), true)),
+                               tm.getPendingRanges(KEYSPACE, node1));
+        assertRangesAtEndpoint(RangesAtEndpoint.empty(node2), tm.getPendingRanges(KEYSPACE, node2));
+        assertRangesAtEndpoint(RangesAtEndpoint.empty(node3), tm.getPendingRanges(KEYSPACE, node3));
+        assertRangesAtEndpoint(RangesAtEndpoint.of(new Replica(node4, new Range<>(token4, token1), true),
+                                                   new Replica(node4, new Range<>(token1, token2), true)),
+                               tm.getPendingRanges(KEYSPACE, node4));
+    }
+
 
     private void assertPendingRanges(PendingRangeMaps pending, RangesByEndpoint expected)
     {
@@ -189,6 +265,12 @@ public class PendingRangesTest
     }
 
 
+    private void assertRangesAtEndpoint(RangesAtEndpoint expected, RangesAtEndpoint actual)
+    {
+        assertEquals(expected.size(), actual.size());
+        assertTrue(Iterables.all(expected, actual::contains));
+    }
+
     private void assertRangesByEndpoint(RangesByEndpoint expected, RangesByEndpoint actual)
     {
         assertEquals(expected.keySet(), actual.keySet());
@@ -196,8 +278,7 @@ public class PendingRangesTest
         {
             RangesAtEndpoint expectedReplicas = expected.get(endpoint);
             RangesAtEndpoint actualReplicas = actual.get(endpoint);
-            assertEquals(expectedReplicas.size(), actualReplicas.size());
-            assertTrue(Iterables.all(expectedReplicas, actualReplicas::contains));
+            assertRangesAtEndpoint(expectedReplicas, actualReplicas);
         }
     }
 
