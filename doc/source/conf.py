@@ -29,7 +29,7 @@ cassandra_build_file = '../../build.xml'
 with open(cassandra_build_file) as f:
     m = re.search("name=\"base\.version\" value=\"([^\"]+)\"", f.read())
     if not m or m.lastindex != 1:
-        raise RuntimeException("Problem finding version in build.xml file, this shouldn't happen.")
+        raise RuntimeError("Problem finding version in build.xml file, this shouldn't happen.")
     cassandra_version = m.group(1)
 
 def setup(sphinx):
