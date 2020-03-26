@@ -88,6 +88,7 @@ public class StreamTransferTaskTest
         }
 
         // create streaming task that streams those two sstables
+        session.state(StreamSession.State.PREPARING);
         StreamTransferTask task = new StreamTransferTask(session, cfs.metadata.id);
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
@@ -98,6 +99,7 @@ public class StreamTransferTaskTest
         assertEquals(2, task.getTotalNumberOfFiles());
 
         // if file sending completes before timeout then the task should be canceled.
+        session.state(StreamSession.State.STREAMING);
         Future f = task.scheduleTimeout(0, 0, TimeUnit.NANOSECONDS);
         f.get();
 
