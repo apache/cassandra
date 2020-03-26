@@ -414,7 +414,7 @@ def insert_driver_hooks():
 
 class Shell(cmd.Cmd):
     custom_prompt = os.getenv('CQLSH_PROMPT', '')
-    if custom_prompt is not '':
+    if custom_prompt != '':
         custom_prompt += "\n"
     default_prompt = custom_prompt + "cqlsh> "
     continue_prompt = "   ... "
