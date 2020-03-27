@@ -26,7 +26,6 @@ import java.nio.file.Path;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
-import java.util.List;
 import java.util.function.Consumer;
 import javax.management.MBeanServer;
 
@@ -34,18 +33,14 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import com.sun.management.HotSpotDiagnosticMXBean;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.impl.InstanceConfig;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.service.CassandraDaemon;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.utils.SigarLibrary;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
-import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 /* Resource Leak Test - useful when tracking down issues with in-JVM framework cleanup.
  * All objects referencing the InstanceClassLoader need to be garbage collected or
@@ -60,7 +55,7 @@ import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
  * but it shows that the file handles for Data/Index files are being leaked.
  */
 @Ignore
-public class ResourceLeakTest extends DistributedTestBase
+public class ResourceLeakTest extends TestBaseImpl
 {
     // Parameters to adjust while hunting for leaks
     final int numTestLoops = 1;            // Set this value high to crash on leaks, or low when tracking down an issue.
@@ -142,21 +137,18 @@ public class ResourceLeakTest extends DistributedTestBase
         }
     }
 
-    void doTest(int numClusterNodes, Consumer<InstanceConfig> updater) throws Throwable
+    void doTest(int numClusterNodes, Consumer<IInstanceConfig> updater) throws Throwable
     {
         for (int loop = 0; loop < numTestLoops; loop++)
         {
             System.out.println(String.format("========== Starting loop %03d ========", loop));
-            try (Cluster cluster = Cluster.build(numClusterNodes).withConfig(updater).start())
+            try (Cluster cluster = (Cluster) builder().withNodes(numClusterNodes).withConfig(updater).start())
             {
-                if (cluster.get(1).config().has(GOSSIP)) // Wait for gossip to settle on the seed node
-                    cluster.get(1).runOnInstance(() -> Gossiper.waitToSettle());
-
                 init(cluster);
                 String tableName = "tbl" + loop;
                 cluster.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
                 cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + "." + tableName + "(pk,ck,v) VALUES (0,0,0)", ConsistencyLevel.ALL);
-                cluster.get(1).callOnInstance(() -> FBUtilities.waitOnFutures(Keyspace.open(KEYSPACE).flush()));
+                cluster.get(1).flush(KEYSPACE);
                 if (dumpEveryLoop)
                 {
                     dumpResources(String.format("loop%03d", loop));

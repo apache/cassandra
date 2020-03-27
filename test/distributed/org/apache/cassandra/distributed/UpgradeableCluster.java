@@ -22,11 +22,13 @@ import java.io.File;
 import java.util.List;
 
 import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
-import org.apache.cassandra.distributed.impl.IInvokableInstance;
-import org.apache.cassandra.distributed.impl.IUpgradeableInstance;
+import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
-import org.apache.cassandra.distributed.impl.Versions;
+import org.apache.cassandra.distributed.shared.Builder;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.Versions;
 
 /**
  * A multi-version cluster, offering only the cross-version API
@@ -35,21 +37,36 @@ import org.apache.cassandra.distributed.impl.Versions;
  * to permit upgrade tests to perform cluster operations without updating the cross-version API,
  * so long as one node is up-to-date.
  */
-public class UpgradeableCluster extends AbstractCluster<IUpgradeableInstance> implements ICluster, AutoCloseable
+public class UpgradeableCluster extends AbstractCluster<IUpgradeableInstance> implements AutoCloseable
 {
-    private UpgradeableCluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader)
+    private UpgradeableCluster(File root, Versions.Version version, List<IInstanceConfig> configs, ClassLoader sharedClassLoader)
     {
         super(root, version, configs, sharedClassLoader);
     }
 
-    protected IUpgradeableInstance newInstanceWrapper(int generation, Versions.Version version, InstanceConfig config)
+    protected IUpgradeableInstance newInstanceWrapper(int generation, Versions.Version version, IInstanceConfig config)
     {
         return new Wrapper(generation, version, config);
     }
 
     public static Builder<IUpgradeableInstance, UpgradeableCluster> build()
     {
-        return new Builder<>(UpgradeableCluster::new);
+        return new Builder<IUpgradeableInstance, UpgradeableCluster>(UpgradeableCluster::new)
+        {
+            {
+                withVersion(CURRENT_VERSION);
+            }
+
+            protected void setupLogging(File file)
+            {
+                setupLogging(file);
+            }
+
+            protected IInstanceConfig generateConfig(int nodeNum, String ipAddress, NetworkTopology networkTopology, File root, String token, String seedIp)
+            {
+                return InstanceConfig.generate(nodeNum, ipAddress, networkTopology, root, token, seedIp);
+            }
+        };
     }
 
     public static Builder<IUpgradeableInstance, UpgradeableCluster> build(int nodeCount)

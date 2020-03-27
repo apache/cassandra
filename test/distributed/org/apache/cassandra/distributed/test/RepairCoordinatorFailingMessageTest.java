@@ -45,7 +45,7 @@ import static org.apache.cassandra.distributed.api.IMessageFilters.Matcher.of;
 
 @RunWith(Parameterized.class)
 @Ignore("Until CASSANDRA-15566 is in these tests all time out")
-public class RepairCoordinatorFailingMessageTest extends DistributedTestBase implements Serializable
+public class RepairCoordinatorFailingMessageTest extends TestBaseImpl implements Serializable
 {
     private static Cluster CLUSTER;
 

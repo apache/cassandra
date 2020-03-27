@@ -43,9 +43,10 @@ import org.junit.rules.ExpectedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.impl.InstanceClassLoader;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
 import org.apache.cassandra.net.Verb;
@@ -54,12 +55,13 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.junit.Assert.fail;
+import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
-public class CasWriteTest extends DistributedTestBase
+// TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
+public class CasWriteTest extends TestBaseImpl
 {
     // Sharing the same cluster to boost test speed. Using a pkGen to make sure queries has distinct pk value for paxos instances.
-    private static Cluster cluster;
+    private static ICluster cluster;
     private static final AtomicInteger pkGen = new AtomicInteger(1_000); // preserve any pk values less than 1000 for manual queries.
     private static final Logger logger = LoggerFactory.getLogger(CasWriteTest.class);
 
@@ -69,12 +71,12 @@ public class CasWriteTest extends DistributedTestBase
     @BeforeClass
     public static void setupCluster() throws Throwable
     {
-        cluster = init(Cluster.create(3));
+        cluster = init(Cluster.build().withNodes(3).start());
         cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
     }
 
     @AfterClass
-    public static void close()
+    public static void close() throws Exception
     {
         cluster.close();
         cluster = null;
@@ -106,7 +108,7 @@ public class CasWriteTest extends DistributedTestBase
     public void testCasWriteTimeoutAtPreparePhase_ReqLost()
     {
         expectCasWriteTimeout();
-        cluster.verbs(Verb.PAXOS_PREPARE_REQ).from(1).to(2, 3).drop().on(); // drop the internode messages to acceptors
+        cluster.filters().verbs(Verb.PAXOS_PREPARE_REQ.id).from(1).to(2, 3).drop().on(); // drop the internode messages to acceptors
         cluster.coordinator(1).execute(mkUniqueCasInsertQuery(1), ConsistencyLevel.QUORUM);
     }
 
@@ -114,7 +116,7 @@ public class CasWriteTest extends DistributedTestBase
     public void testCasWriteTimeoutAtPreparePhase_RspLost()
     {
         expectCasWriteTimeout();
-        cluster.verbs(Verb.PAXOS_PREPARE_RSP).from(2, 3).to(1).drop().on(); // drop the internode messages to acceptors
+        cluster.filters().verbs(Verb.PAXOS_PREPARE_RSP.id).from(2, 3).to(1).drop().on(); // drop the internode messages to acceptors
         cluster.coordinator(1).execute(mkUniqueCasInsertQuery(1), ConsistencyLevel.QUORUM);
     }
 
@@ -122,7 +124,7 @@ public class CasWriteTest extends DistributedTestBase
     public void testCasWriteTimeoutAtProposePhase_ReqLost()
     {
         expectCasWriteTimeout();
-        cluster.verbs(Verb.PAXOS_PROPOSE_REQ).from(1).to(2, 3).drop().on();
+        cluster.filters().verbs(Verb.PAXOS_PROPOSE_REQ.id).from(1).to(2, 3).drop().on();
         cluster.coordinator(1).execute(mkUniqueCasInsertQuery(1), ConsistencyLevel.QUORUM);
     }
 
@@ -130,7 +132,7 @@ public class CasWriteTest extends DistributedTestBase
     public void testCasWriteTimeoutAtProposePhase_RspLost()
     {
         expectCasWriteTimeout();
-        cluster.verbs(Verb.PAXOS_PROPOSE_RSP).from(2, 3).to(1).drop().on();
+        cluster.filters().verbs(Verb.PAXOS_PROPOSE_RSP.id).from(2, 3).to(1).drop().on();
         cluster.coordinator(1).execute(mkUniqueCasInsertQuery(1), ConsistencyLevel.QUORUM);
     }
 
@@ -138,7 +140,7 @@ public class CasWriteTest extends DistributedTestBase
     public void testCasWriteTimeoutAtCommitPhase_ReqLost()
     {
         expectCasWriteTimeout();
-        cluster.verbs(Verb.PAXOS_COMMIT_REQ).from(1).to(2, 3).drop().on();
+        cluster.filters().verbs(Verb.PAXOS_COMMIT_REQ.id).from(1).to(2, 3).drop().on();
         cluster.coordinator(1).execute(mkUniqueCasInsertQuery(1), ConsistencyLevel.QUORUM);
     }
 
@@ -146,7 +148,7 @@ public class CasWriteTest extends DistributedTestBase
     public void testCasWriteTimeoutAtCommitPhase_RspLost()
     {
         expectCasWriteTimeout();
-        cluster.verbs(Verb.PAXOS_COMMIT_RSP).from(2, 3).to(1).drop().on();
+        cluster.filters().verbs(Verb.PAXOS_COMMIT_RSP.id).from(2, 3).to(1).drop().on();
         cluster.coordinator(1).execute(mkUniqueCasInsertQuery(1), ConsistencyLevel.QUORUM);
     }
 
@@ -159,8 +161,8 @@ public class CasWriteTest extends DistributedTestBase
                            Arrays.asList(1, 3),
                            c -> {
                                c.filters().reset();
-                               c.verbs(Verb.PAXOS_PREPARE_REQ).from(1).to(3).drop();
-                               c.verbs(Verb.PAXOS_PROPOSE_REQ).from(1).to(2).drop();
+                               c.filters().verbs(Verb.PAXOS_PREPARE_REQ.id).from(1).to(3).drop();
+                               c.filters().verbs(Verb.PAXOS_PROPOSE_REQ.id).from(1).to(2).drop();
                            },
                            failure ->
                                failure.get() != null &&
@@ -172,7 +174,7 @@ public class CasWriteTest extends DistributedTestBase
 
     private void testWithContention(int testUid,
                                     List<Integer> contendingNodes,
-                                    Consumer<Cluster> setupForEachRound,
+                                    Consumer<ICluster> setupForEachRound,
                                     Function<AtomicReference<Throwable>, Boolean> expectedException,
                                     String assertHintMessage) throws InterruptedException
     {

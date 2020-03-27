@@ -22,15 +22,14 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -39,13 +38,13 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageProxy;
 
-public class RepairDigestTrackingTest extends DistributedTestBase implements Serializable
+public class RepairDigestTrackingTest extends TestBaseImpl implements Serializable// TODO: why serializable?
 {
 
     @Test
     public void testInconsistenciesFound() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(2)))
+        try (Cluster cluster = (Cluster) init(builder().withNodes(2).start()))
         {
 
             cluster.get(1).runOnInstance(() -> {
@@ -117,7 +116,7 @@ public class RepairDigestTrackingTest extends DistributedTestBase implements Ser
     @Test
     public void testPurgeableTombstonesAreIgnored() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(2)))
+        try (Cluster cluster = (Cluster) init(builder().withNodes(2).start()))
         {
 
             cluster.get(1).runOnInstance(() -> {

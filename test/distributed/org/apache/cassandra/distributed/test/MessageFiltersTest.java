@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -29,20 +30,22 @@ import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.impl.Instance;
-import org.apache.cassandra.distributed.impl.MessageFilters;
+import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 
-public class MessageFiltersTest extends DistributedTestBase
+public class MessageFiltersTest extends TestBaseImpl
 {
     @Test
     public void simpleInboundFiltersTest()
@@ -73,7 +76,7 @@ public class MessageFiltersTest extends DistributedTestBase
         String MSG2 = "msg2";
 
         MessageFilters filters = new MessageFilters();
-        Permit permit = inbound ? (from, to, msg) -> filters.permitInbound(from, to, msg) : (from, to, msg) -> filters.permitOutbound(from, to, msg);
+        Permit permit = inbound ? filters::permitInbound : filters::permitOutbound;
 
         IMessageFilters.Filter filter = filters.allVerbs().inbound(inbound).from(1).drop();
         Assert.assertFalse(permit.test(i1, i2, msg(VERB1, MSG1)));
@@ -136,7 +139,11 @@ public class MessageFiltersTest extends DistributedTestBase
             public byte[] bytes() { return msg.getBytes(); }
             public int id() { return 0; }
             public int version() { return 0;  }
-            public InetAddressAndPort from() { return null; }
+            public InetSocketAddress from() { return null; }
+            public int fromPort()
+            {
+                return 0;
+            }
         };
     }
 
@@ -146,7 +153,7 @@ public class MessageFiltersTest extends DistributedTestBase
         String read = "SELECT * FROM " + KEYSPACE + ".tbl";
         String write = "INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)";
 
-        try (Cluster cluster = Cluster.create(2))
+        try (ICluster cluster = builder().withNodes(2).start())
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + cluster.size() + "};");
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
@@ -176,7 +183,7 @@ public class MessageFiltersTest extends DistributedTestBase
         String read = "SELECT * FROM " + KEYSPACE + ".tbl";
         String write = "INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)";
 
-        try (Cluster cluster = Cluster.create(2))
+        try (ICluster<IInvokableInstance> cluster = builder().withNodes(2).start())
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + cluster.size() + "};");
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
@@ -224,7 +231,8 @@ public class MessageFiltersTest extends DistributedTestBase
     {
         try (Cluster cluster = Cluster.create(2))
         {
-            InetAddressAndPort other = cluster.get(2).broadcastAddressAndPort();
+            InetAddressAndPort other = InetAddressAndPort.getByAddressOverrideDefaults(cluster.get(2).broadcastAddress().getAddress(),
+                                                                                       cluster.get(2).broadcastAddress().getPort());
             CountDownLatch waitForIt = new CountDownLatch(1);
             Set<Integer> outboundMessagesSeen = new HashSet<>();
             Set<Integer> inboundMessagesSeen = new HashSet<>();

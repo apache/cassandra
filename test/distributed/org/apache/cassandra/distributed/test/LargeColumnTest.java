@@ -20,21 +20,22 @@ package org.apache.cassandra.distributed.test;
 
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ICluster;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 
-public class LargeColumnTest extends DistributedTestBase
+// TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
+public class LargeColumnTest extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(LargeColumnTest.class);
+
     private static String str(int length, Random random, long seed)
     {
         random.setSeed(seed);
@@ -63,23 +64,24 @@ public class LargeColumnTest extends DistributedTestBase
         long seed = ThreadLocalRandom.current().nextLong();
         logger.info("Using seed {}", seed);
 
-        try (Cluster cluster = init(Cluster.build(nodes)
-                                           .withConfig(config ->
-                                                       config.set("commitlog_segment_size_in_mb", (columnSize * 3) >> 20)
-                                                             .set("internode_application_send_queue_reserve_endpoint_capacity_in_bytes", columnSize * 2)
-                                                             .set("internode_application_send_queue_reserve_global_capacity_in_bytes", columnSize * 3)
-                                                             .set("write_request_timeout_in_ms", SECONDS.toMillis(30L))
-                                                             .set("read_request_timeout_in_ms", SECONDS.toMillis(30L))
-                                                             .set("memtable_heap_space_in_mb", 1024)
-                                           )
-                                           .start()))
+        try (ICluster cluster = init(builder()
+                                     .withNodes(nodes)
+                                     .withConfig(config ->
+                                                 config.set("commitlog_segment_size_in_mb", (columnSize * 3) >> 20)
+                                                       .set("internode_application_send_queue_reserve_endpoint_capacity_in_bytes", columnSize * 2)
+                                                       .set("internode_application_send_queue_reserve_global_capacity_in_bytes", columnSize * 3)
+                                                       .set("write_request_timeout_in_ms", SECONDS.toMillis(30L))
+                                                       .set("read_request_timeout_in_ms", SECONDS.toMillis(30L))
+                                                       .set("memtable_heap_space_in_mb", 1024)
+                                     )
+                                     .start()))
         {
             cluster.schemaChange(String.format("CREATE TABLE %s.cf (k int, c text, PRIMARY KEY (k))", KEYSPACE));
 
-            for (int i = 0 ; i < rowCount ; ++i)
+            for (int i = 0; i < rowCount; ++i)
                 cluster.coordinator(1).execute(String.format("INSERT INTO %s.cf (k, c) VALUES (?, ?);", KEYSPACE), ConsistencyLevel.ALL, i, str(columnSize, random, seed | i));
 
-            for (int i = 0 ; i < rowCount ; ++i)
+            for (int i = 0; i < rowCount; ++i)
             {
                 Object[][] results = cluster.coordinator(1).execute(String.format("SELECT k, c FROM %s.cf WHERE k = ?;", KEYSPACE), ConsistencyLevel.ALL, i);
                 Assert.assertTrue(str(columnSize, random, seed | i).equals(results[0][1]));
@@ -92,5 +94,4 @@ public class LargeColumnTest extends DistributedTestBase
     {
         testLargeColumns(2, 16 << 20, 5);
     }
-
 }

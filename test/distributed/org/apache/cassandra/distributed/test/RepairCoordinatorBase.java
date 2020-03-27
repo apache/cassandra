@@ -33,7 +33,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairParallelism;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairType;
 
-public class RepairCoordinatorBase extends DistributedTestBase
+public class RepairCoordinatorBase extends TestBaseImpl
 {
     protected static Cluster CLUSTER;
 

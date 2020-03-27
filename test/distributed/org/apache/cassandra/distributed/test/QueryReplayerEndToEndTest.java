@@ -31,13 +31,14 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.fqltool.FQLQuery;
 import org.apache.cassandra.fqltool.QueryReplayer;
 
-public class QueryReplayerEndToEndTest extends DistributedTestBase
+public class QueryReplayerEndToEndTest extends TestBaseImpl
 {
     private final AtomicLong queryStartTimeGenerator = new AtomicLong(1000);
     private final AtomicInteger ckGenerator = new AtomicInteger(1);
@@ -45,11 +46,13 @@ public class QueryReplayerEndToEndTest extends DistributedTestBase
     @Test
     public void testReplayAndCloseMultipleTimes() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3, conf -> conf.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP, Feature.NETWORK))))
+        try (ICluster<IInvokableInstance> cluster = init(builder().withNodes(3)
+                                                                  .withConfig(conf -> conf.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP, Feature.NETWORK))
+                                                                  .start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             List<String> hosts = cluster.stream()
-                                        .map(i -> i.config().broadcastAddressAndPort().address.getHostAddress())
+                                        .map(i -> i.config().broadcastAddress().getAddress().getHostAddress())
                                         .collect(Collectors.toList());
 
             final int queriesCount = 3;

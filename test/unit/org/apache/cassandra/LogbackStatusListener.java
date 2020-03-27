@@ -33,7 +33,7 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.LoggerContextListener;
 import ch.qos.logback.core.status.Status;
 import ch.qos.logback.core.status.StatusListener;
-import org.apache.cassandra.distributed.impl.InstanceClassLoader;
+import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 
 /*
  * Listen for logback readiness and then redirect stdout/stderr to logback

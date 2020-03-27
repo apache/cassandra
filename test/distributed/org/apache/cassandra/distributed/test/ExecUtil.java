@@ -16,13 +16,36 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.impl;
+package org.apache.cassandra.distributed.test;
 
-import org.apache.cassandra.distributed.api.IInstance;
+import java.io.Serializable;
 
-// this lives outside the api package so that we do not have to worry about inter-version compatibility
-public interface IUpgradeableInstance extends IInstance
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+
+public class ExecUtil
 {
-    // only to be invoked while the node is shutdown!
-    public void setVersion(Versions.Version version);
+
+    public interface ThrowingSerializableRunnable<T extends Throwable> extends Serializable
+    {
+        public void run() throws T;
+    }
+
+    public static <T extends Throwable> IIsolatedExecutor.SerializableRunnable rethrow(ThrowingSerializableRunnable<T> run)
+    {
+        return () -> {
+            try
+            {
+                run.run();
+            }
+            catch (RuntimeException | Error t)
+            {
+                throw t;
+            }
+            catch (Throwable t)
+            {
+                throw new RuntimeException(t);
+            }
+        };
+    }
+
 }

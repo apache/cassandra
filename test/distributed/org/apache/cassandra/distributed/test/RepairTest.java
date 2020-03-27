@@ -30,30 +30,34 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.impl.InstanceConfig;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static org.apache.cassandra.distributed.impl.ExecUtil.rethrow;
+import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
-public class RepairTest extends DistributedTestBase
+public class RepairTest extends TestBaseImpl
 {
     private static final String insert = withKeyspace("INSERT INTO %s.test (k, c1, c2) VALUES (?, 'value1', 'value2');");
     private static final String query = withKeyspace("SELECT k, c1, c2 FROM %s.test WHERE k = ?;");
-    private static Cluster cluster;
 
-    private static void insert(Cluster cluster, int start, int end, int ... nodes)
+    private static ICluster<IInvokableInstance> cluster;
+
+    private static void insert(ICluster<IInvokableInstance> cluster, int start, int end, int ... nodes)
     {
         for (int i = start ; i < end ; ++i)
             for (int node : nodes)
                 cluster.get(node).executeInternal(insert, Integer.toString(i));
     }
 
-    private static void verify(Cluster cluster, int start, int end, int ... nodes)
+    private static void verify(ICluster<IInvokableInstance> cluster, int start, int end, int ... nodes)
     {
         for (int i = start ; i < end ; ++i)
         {
@@ -68,13 +72,13 @@ public class RepairTest extends DistributedTestBase
         }
     }
 
-    private static void flush(Cluster cluster, int ... nodes)
+    private static void flush(ICluster<IInvokableInstance> cluster, int ... nodes)
     {
         for (int node : nodes)
             cluster.get(node).runOnInstance(rethrow(() -> StorageService.instance.forceKeyspaceFlush(KEYSPACE)));
     }
 
-    private static Cluster create(Consumer<InstanceConfig> configModifier) throws IOException
+    private static ICluster create(Consumer<IInstanceConfig> configModifier) throws IOException
     {
         configModifier = configModifier.andThen(
         config -> config.set("hinted_handoff_enabled", false)
@@ -83,10 +87,10 @@ public class RepairTest extends DistributedTestBase
                         .with(GOSSIP)
         );
 
-        return init(Cluster.build(3).withConfig(configModifier).start());
+        return init(Cluster.build().withNodes(3).withConfig(configModifier).start());
     }
 
-    private void repair(Cluster cluster, Map<String, String> options)
+    private void repair(ICluster<IInvokableInstance> cluster, Map<String, String> options)
     {
         cluster.get(1).runOnInstance(rethrow(() -> {
             SimpleCondition await = new SimpleCondition();
@@ -98,7 +102,7 @@ public class RepairTest extends DistributedTestBase
         }));
     }
 
-    void populate(Cluster cluster, String compression)
+    void populate(ICluster<IInvokableInstance> cluster, String compression) throws Exception
     {
         try
         {
@@ -123,7 +127,7 @@ public class RepairTest extends DistributedTestBase
 
     }
 
-    void repair(Cluster cluster, boolean sequential, String compression)
+    void repair(ICluster<IInvokableInstance> cluster, boolean sequential, String compression) throws Exception
     {
         populate(cluster, compression);
         repair(cluster, ImmutableMap.of("parallelism", sequential ? "sequential" : "parallel"));
@@ -137,44 +141,44 @@ public class RepairTest extends DistributedTestBase
     }
 
     @AfterClass
-    public static void closeCluster()
+    public static void closeCluster() throws Exception
     {
         if (cluster != null)
             cluster.close();
     }
 
     @Test
-    public void testSequentialRepairWithDefaultCompression()
+    public void testSequentialRepairWithDefaultCompression() throws Exception
     {
         repair(cluster, true, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}");
     }
 
     @Test
-    public void testParallelRepairWithDefaultCompression()
+    public void testParallelRepairWithDefaultCompression() throws Exception
     {
         repair(cluster, false, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}");
     }
 
     @Test
-    public void testSequentialRepairWithMinCompressRatio()
+    public void testSequentialRepairWithMinCompressRatio() throws Exception
     {
         repair(cluster, true, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor', 'min_compress_ratio': 4.0}");
     }
 
     @Test
-    public void testParallelRepairWithMinCompressRatio()
+    public void testParallelRepairWithMinCompressRatio() throws Exception
     {
         repair(cluster, false, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor', 'min_compress_ratio': 4.0}");
     }
 
     @Test
-    public void testSequentialRepairWithoutCompression()
+    public void testSequentialRepairWithoutCompression() throws Exception
     {
         repair(cluster, true, "{'enabled': false}");
     }
 
     @Test
-    public void testParallelRepairWithoutCompression()
+    public void testParallelRepairWithoutCompression() throws Exception
     {
         repair(cluster, false, "{'enabled': false}");
     }

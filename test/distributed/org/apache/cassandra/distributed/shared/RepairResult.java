@@ -16,21 +16,16 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.api;
+package org.apache.cassandra.distributed.shared;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
-
-import java.util.stream.Stream;
-
-public interface ICluster
+public class RepairResult
 {
+    public final boolean success;
+    public final boolean wasInconsistent;
 
-    IInstance get(int i);
-    IInstance get(InetAddressAndPort endpoint);
-    int size();
-    Stream<? extends IInstance> stream();
-    Stream<? extends IInstance> stream(String dcName);
-    Stream<? extends IInstance> stream(String dcName, String rackName);
-    IMessageFilters filters();
-
+    public RepairResult(boolean success, boolean wasInconsistent)
+    {
+        this.success = success;
+        this.wasInconsistent = wasInconsistent;
+    }
 }

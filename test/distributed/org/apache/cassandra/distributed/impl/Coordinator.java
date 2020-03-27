@@ -32,8 +32,9 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
-import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.QueryResult;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -53,12 +54,12 @@ public class Coordinator implements ICoordinator
     }
 
     @Override
-    public QueryResult executeWithResult(String query, Enum<?> consistencyLevel, Object... boundValues)
+    public QueryResult executeWithResult(String query, ConsistencyLevel consistencyLevel, Object... boundValues)
     {
-        return instance.sync(() -> executeInternal(query, consistencyLevel, boundValues)).call();
+        return instance().sync(() -> executeInternal(query, consistencyLevel, boundValues)).call();
     }
 
-    public Future<Object[][]> asyncExecuteWithTracing(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    public Future<Object[][]> asyncExecuteWithTracing(UUID sessionId, String query, ConsistencyLevel consistencyLevelOrigin, Object... boundValues)
     {
         return instance.async(() -> {
             try
@@ -73,7 +74,12 @@ public class Coordinator implements ICoordinator
         }).call();
     }
 
-    private QueryResult executeInternal(String query, Enum<?> consistencyLevelOrigin, Object[] boundValues)
+    protected org.apache.cassandra.db.ConsistencyLevel toCassandraCL(ConsistencyLevel cl)
+    {
+        return org.apache.cassandra.db.ConsistencyLevel.fromCode(cl.ordinal());
+    }
+
+    private QueryResult executeInternal(String query, ConsistencyLevel consistencyLevelOrigin, Object[] boundValues)
     {
         ClientState clientState = makeFakeClientState();
         CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
@@ -84,7 +90,7 @@ public class Coordinator implements ICoordinator
 
         prepared.validate(QueryState.forInternalCalls().getClientState());
         ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
-                                             QueryOptions.create(consistencyLevel,
+                                             QueryOptions.create(toCassandraCL(consistencyLevel),
                                                                  boundBBValues,
                                                                  false,
                                                                  Integer.MAX_VALUE,
@@ -107,13 +113,18 @@ public class Coordinator implements ICoordinator
         }
     }
 
-    public Object[][] executeWithTracing(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    public Object[][] executeWithTracing(UUID sessionId, String query, ConsistencyLevel consistencyLevelOrigin, Object... boundValues)
     {
         return IsolatedExecutor.waitOn(asyncExecuteWithTracing(sessionId, query, consistencyLevelOrigin, boundValues));
     }
 
+    public IInstance instance()
+    {
+        return instance;
+    }
+
     @Override
-    public Iterator<Object[]> executeWithPaging(String query, Enum<?> consistencyLevelOrigin, int pageSize, Object... boundValues)
+    public Iterator<Object[]> executeWithPaging(String query, ConsistencyLevel consistencyLevelOrigin, int pageSize, Object... boundValues)
     {
         if (pageSize <= 0)
             throw new IllegalArgumentException("Page size should be strictly positive but was " + pageSize);
@@ -133,7 +144,7 @@ public class Coordinator implements ICoordinator
 
             SelectStatement selectStatement = (SelectStatement) prepared;
 
-            QueryPager pager = selectStatement.getQuery(QueryOptions.create(consistencyLevel,
+            QueryPager pager = selectStatement.getQuery(QueryOptions.create(toCassandraCL(consistencyLevel),
                                                                             boundBBValues,
                                                                             false,
                                                                             pageSize,
@@ -147,7 +158,7 @@ public class Coordinator implements ICoordinator
             // Usually pager fetches a single page (see SelectStatement#execute). We need to iterate over all
             // of the results lazily.
             return new Iterator<Object[]>() {
-                Iterator<Object[]> iter = RowUtil.toObjects(UntypedResultSet.create(selectStatement, consistencyLevel, clientState, pager,  pageSize));
+                Iterator<Object[]> iter = RowUtil.toObjects(UntypedResultSet.create(selectStatement, toCassandraCL(consistencyLevel), clientState, pager,  pageSize));
 
                 public boolean hasNext()
                 {

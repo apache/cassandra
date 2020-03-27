@@ -19,36 +19,30 @@
 package org.apache.cassandra.distributed.test;
 
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.impl.IInvokableInstance;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.net.Verb.READ_REPAIR_RSP;
-import static org.junit.Assert.assertEquals;
-
-import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
+import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
+import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
+import static org.apache.cassandra.net.Verb.READ_REPAIR_RSP;
 import static org.junit.Assert.fail;
 
-public class SimpleReadWriteTest extends DistributedTestBase
+// TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
+public class SimpleReadWriteTest extends TestBaseImpl
 {
-    @BeforeClass
-    public static void before()
-    {
-        DatabaseDescriptor.clientInitialization();
-    }
-
     @Test
     public void coordinatorReadTest() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3)))
+        try (ICluster cluster = init(builder().withNodes(3).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='none'");
 
@@ -68,7 +62,7 @@ public class SimpleReadWriteTest extends DistributedTestBase
     @Test
     public void largeMessageTest() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(2)))
+        try (ICluster cluster = init(builder().withNodes(2).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck))");
             StringBuilder builder = new StringBuilder();
@@ -88,7 +82,7 @@ public class SimpleReadWriteTest extends DistributedTestBase
     @Test
     public void coordinatorWriteTest() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3)))
+        try (ICluster cluster = init(builder().withNodes(3).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='none'");
 
@@ -110,7 +104,7 @@ public class SimpleReadWriteTest extends DistributedTestBase
     @Test
     public void readRepairTest() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3)))
+        try (ICluster cluster = init(builder().withNodes(3).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'");
 
@@ -133,7 +127,7 @@ public class SimpleReadWriteTest extends DistributedTestBase
     public void readRepairTimeoutTest() throws Throwable
     {
         final long reducedReadTimeout = 3000L;
-        try (Cluster cluster = init(Cluster.create(3)))
+        try (Cluster cluster = (Cluster) init(builder().withNodes(3).start()))
         {
             cluster.forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setReadRpcTimeout(reducedReadTimeout)));
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'");
@@ -218,7 +212,7 @@ public class SimpleReadWriteTest extends DistributedTestBase
     @Test
     public void writeWithSchemaDisagreement() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.build(3).withConfig(config -> config.with(NETWORK)).start()))
+        try (ICluster cluster = init(builder().withNodes(3).withConfig(config -> config.with(NETWORK)).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, PRIMARY KEY (pk, ck))");
 
@@ -253,7 +247,7 @@ public class SimpleReadWriteTest extends DistributedTestBase
     @Test
     public void readWithSchemaDisagreement() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3, config -> config.with(NETWORK))))
+        try (ICluster cluster = init(builder().withNodes(3).withConfig(config -> config.with(NETWORK)).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, PRIMARY KEY (pk, ck))");
 
@@ -287,7 +281,7 @@ public class SimpleReadWriteTest extends DistributedTestBase
     @Test
     public void simplePagedReadsTest() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3)))
+        try (ICluster cluster = init(builder().withNodes(3).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -315,7 +309,7 @@ public class SimpleReadWriteTest extends DistributedTestBase
     @Test
     public void pagingWithRepairTest() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3)))
+        try (ICluster cluster = init(builder().withNodes(3).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -347,8 +341,8 @@ public class SimpleReadWriteTest extends DistributedTestBase
     @Test
     public void pagingTests() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3));
-             Cluster singleNode = init(Cluster.build(1).withSubnet(1).start()))
+        try (ICluster cluster = init(builder().withNodes(3).start());
+             ICluster singleNode = init(builder().withNodes(1).withSubnet(1).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             singleNode.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
@@ -402,7 +396,7 @@ public class SimpleReadWriteTest extends DistributedTestBase
     @Test
     public void metricsCountQueriesTest() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(2)))
+        try (ICluster<IInvokableInstance> cluster = init(Cluster.create(2)))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             for (int i = 0; i < 100; i++)
@@ -415,8 +409,8 @@ public class SimpleReadWriteTest extends DistributedTestBase
 
             readCount1 = readCount(cluster.get(1)) - readCount1;
             readCount2 = readCount(cluster.get(2)) - readCount2;
-            assertEquals(readCount1, readCount2);
-            assertEquals(100, readCount1);
+            Assert.assertEquals(readCount1, readCount2);
+            Assert.assertEquals(100, readCount1);
         }
     }
 

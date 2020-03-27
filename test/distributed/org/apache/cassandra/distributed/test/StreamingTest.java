@@ -29,12 +29,12 @@ import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class StreamingTest extends DistributedTestBase
+public class StreamingTest extends TestBaseImpl
 {
 
     private void testStreaming(int nodes, int replicationFactor, int rowCount, String compactionStrategy) throws Throwable
     {
-        try (Cluster cluster = Cluster.create(nodes, config -> config.with(NETWORK)))
+        try (Cluster cluster = (Cluster) builder().withNodes(nodes).withConfig(config -> config.with(NETWORK)).start())
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + replicationFactor + "};");
             cluster.schemaChange(String.format("CREATE TABLE %s.cf (k text, c1 text, c2 text, PRIMARY KEY (k)) WITH compaction = {'class': '%s', 'enabled': 'true'}", KEYSPACE, compactionStrategy));
