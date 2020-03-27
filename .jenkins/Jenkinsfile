@@ -24,7 +24,7 @@
 // `curl -X POST  -F "jenkinsfile=<.jenkins/Jenkinsfile" https://builds.apache.org/pipeline-model-converter/validate`
 
 pipeline {
-  agent any
+  agent { label 'cassandra' }
   stages {
       stage('Init') {
         steps {
@@ -41,21 +41,21 @@ pipeline {
             stage('JVM DTests') {
               steps {
                   warnError('Tests unstable') {
-                    build job: "${env.JOB_NAME}-test-jvm-dtest-forking"
+                    build job: "${env.JOB_NAME}-jvm-dtest"
                   }
               }
               post {
                 success {
                     warnError('missing test xml files') {
                         script {
-                            copyTestResults('test-jvm-dtest-forking')
+                            copyTestResults('jvm-dtest')
                         }
                     }
                 }
                 unstable {
                     warnError('missing test xml files') {
                         script {
-                            copyTestResults('test-jvm-dtest-forking')
+                            copyTestResults('jvm-dtest')
                         }
                     }
                 }
