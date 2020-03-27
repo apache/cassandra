@@ -293,7 +293,7 @@ public final class MessagingService implements MessagingServiceMBean
      * a placeholder class that means "deserialize using the callback." We can't implement this without
      * special-case code in InboundTcpConnection because there is no way to pass the message id to IVersionedSerializer.
      */
-    static class CallbackDeterminedSerializer implements IVersionedSerializer<Object>
+    public static class CallbackDeterminedSerializer implements IVersionedSerializer<Object>
     {
         public static final CallbackDeterminedSerializer instance = new CallbackDeterminedSerializer();
 

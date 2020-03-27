@@ -16,21 +16,37 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.api;
+package org.apache.cassandra.distributed.test;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
+import java.io.IOException;
 
-import java.util.stream.Stream;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
-public interface ICluster
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ICluster;
+
+public class SharedClusterTestBase extends TestBaseImpl
 {
+    protected static ICluster cluster;
 
-    IInstance get(int i);
-    IInstance get(InetAddressAndPort endpoint);
-    int size();
-    Stream<? extends IInstance> stream();
-    Stream<? extends IInstance> stream(String dcName);
-    Stream<? extends IInstance> stream(String dcName, String rackName);
-    IMessageFilters filters();
+    @BeforeClass
+    public static void before() throws IOException
+    {
+        cluster = init(Cluster.build().withNodes(3).start());
+    }
 
+    @AfterClass
+    public static void after() throws Exception
+    {
+        cluster.close();
+    }
+
+    @After
+    public void afterEach()
+    {
+        cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
+        init(cluster);
+    }
 }

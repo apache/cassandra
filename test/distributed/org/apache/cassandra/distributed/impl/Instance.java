@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.impl;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,10 +30,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+
+import javax.management.ListenerNotFoundException;
+import javax.management.Notification;
+import javax.management.NotificationListener;
 
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -57,19 +64,25 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.IMessageSink;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
@@ -80,11 +93,13 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamCoordinator;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
 import org.apache.cassandra.utils.Pair;
@@ -100,6 +115,13 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
+    private static final Map<Class<?>, Function<Object, Object>> mapper = new HashMap<Class<?>, Function<Object, Object>>() {{
+        this.put(IInstanceConfig.ParameterizedClass.class, (obj) -> {
+            IInstanceConfig.ParameterizedClass pc = (IInstanceConfig.ParameterizedClass) obj;
+            return new org.apache.cassandra.config.ParameterizedClass(pc.class_name, pc.parameters);
+        });
+    }};
+
     public final IInstanceConfig config;
 
     // should never be invoked directly, so that it is instantiated on other class loader;
@@ -109,18 +131,21 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         super("node" + config.num(), classLoader);
         this.config = config;
         InstanceIDDefiner.setInstanceId(config.num());
-        FBUtilities.setBroadcastInetAddress(config.broadcastAddressAndPort().address);
+        FBUtilities.setBroadcastInetAddress(config.broadcastAddress().getAddress());
+
         // Set the config at instance creation, possibly before startup() has run on all other instances.
         // setMessagingVersions below will call runOnInstance which will instantiate
         // the MessagingService and dependencies preventing later changes to network parameters.
         Config.setOverrideLoadConfig(() -> loadConfig(config));
     }
 
+    @Override
     public IInstanceConfig config()
     {
         return config;
     }
 
+    @Override
     public ICoordinator coordinator()
     {
         return new Coordinator(this);
@@ -132,8 +157,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     }
 
     @Override
-    public InetAddressAndPort broadcastAddressAndPort() { return config.broadcastAddressAndPort(); }
+    public InetSocketAddress broadcastAddress() { return config.broadcastAddress(); }
 
+    @Override
     public Object[][] executeInternal(String query, Object... args)
     {
         return sync(() -> {
@@ -163,7 +189,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public boolean isShutdown()
     {
-        throw new UnsupportedOperationException();
+        return isolatedExecutor.isShutdown();
     }
 
     @Override
@@ -189,33 +215,34 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).run();
     }
 
-    private void registerMockMessaging(ICluster cluster)
+    private void registerMockMessaging(ICluster<IInstance> cluster)
     {
-        BiConsumer<InetAddressAndPort, IMessage> deliverToInstance = (to, message) -> cluster.get(to).receiveMessage(message);
-        BiConsumer<InetAddressAndPort, IMessage> deliverToInstanceIfNotFiltered = (to, message) -> {
+        BiConsumer<InetSocketAddress, IMessage> deliverToInstance = (to, message) -> cluster.get(to).receiveMessage(message);
+        BiConsumer<InetSocketAddress, IMessage> deliverToInstanceIfNotFiltered = (to, message) -> {
             int fromNum = config().num();
             int toNum = cluster.get(to).config().num();
 
-            if (cluster.filters().permit(fromNum, toNum, message))
+            if (cluster.filters().permitOutbound(fromNum, toNum, message)
+                && cluster.filters().permitInbound(fromNum, toNum, message))
                 deliverToInstance.accept(to, message);
         };
 
-        Map<InetAddress, InetAddressAndPort> addressAndPortMap = new HashMap<>();
+        Map<InetAddress, InetSocketAddress> addressAndPortMap = new HashMap<>();
         cluster.stream().forEach(instance -> {
-            InetAddressAndPort addressAndPort = instance.broadcastAddressAndPort();
-            if (!addressAndPort.equals(instance.config().broadcastAddressAndPort()))
-                throw new IllegalStateException("addressAndPort mismatch: " + addressAndPort + " vs " + instance.config().broadcastAddressAndPort());
-            InetAddressAndPort prev = addressAndPortMap.put(addressAndPort.address, addressAndPort);
+            InetSocketAddress addressAndPort = instance.broadcastAddress();
+            if (!addressAndPort.equals(instance.config().broadcastAddress()))
+                throw new IllegalStateException("addressAndPort mismatch: " + addressAndPort + " vs " + instance.config().broadcastAddress());
+            InetSocketAddress prev = addressAndPortMap.put(addressAndPort.getAddress(),
+                                                                        addressAndPort);
             if (null != prev)
                 throw new IllegalStateException("This version of Cassandra does not support multiple nodes with the same InetAddress: " + addressAndPort + " vs " + prev);
         });
 
-        MessagingService.instance().addMessageSink(
-                new MessageDeliverySink(deliverToInstanceIfNotFiltered, addressAndPortMap::get));
+        MessagingService.instance().addMessageSink(new MessageDeliverySink(deliverToInstanceIfNotFiltered, addressAndPortMap::get));
     }
 
     // unnecessary if registerMockMessaging used
-    private void registerFilter(ICluster cluster)
+    private void registerFilters(ICluster cluster)
     {
         IInstance instance = this;
         MessagingService.instance().addMessageSink(new IMessageSink()
@@ -223,31 +250,93 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress toAddress)
             {
                 // Port is not passed in, so take a best guess at the destination port from this instance
-                IInstance to = cluster.get(InetAddressAndPort.getByAddressOverrideDefaults(toAddress, instance.config().broadcastAddressAndPort().port));
+                IInstance to = cluster.get(NetworkTopology.addressAndPort(toAddress,
+                                                                          instance.config().broadcastAddress().getPort()));
                 int fromNum = config().num();
                 int toNum = to.config().num();
-                return cluster.filters().permit(fromNum, toNum, serializeMessage(message, id, broadcastAddressAndPort(), to.broadcastAddressAndPort()));
+                return cluster.filters().permitOutbound(fromNum, toNum, serializeMessage(message, id,
+                                                                                 broadcastAddress(),
+                                                                                 to.broadcastAddress()));
             }
 
             public boolean allowIncomingMessage(MessageIn message, int id)
             {
-                return true;
+                // Port is not passed in, so take a best guess at the destination port from this instance
+                IInstance from = cluster.get(NetworkTopology.addressAndPort(message.from,
+                                                                            instance.config().broadcastAddress().getPort()));
+                int fromNum = from.config().num();
+                int toNum = config().num();
+
+
+                IMessage msg = serializeMessage(message, id, from.broadcastAddress(), broadcastAddress());
+
+                return cluster.filters().permitInbound(fromNum, toNum, msg);
             }
         });
     }
 
-    public static IMessage serializeMessage(MessageOut messageOut, int id, InetAddressAndPort from, InetAddressAndPort to)
+    public static IMessage serializeMessage(MessageOut messageOut, int id, InetSocketAddress from, InetSocketAddress to)
     {
         try (DataOutputBuffer out = new DataOutputBuffer(1024))
         {
-            int version = MessagingService.instance().getVersion(to.address);
+            int version = MessagingService.instance().getVersion(to.getAddress());
 
             out.writeInt(MessagingService.PROTOCOL_MAGIC);
             out.writeInt(id);
             long timestamp = System.currentTimeMillis();
             out.writeInt((int) timestamp);
             messageOut.serialize(out, version);
-            return new Message(messageOut.verb.ordinal(), out.toByteArray(), id, version, from);
+            return new MessageImpl(messageOut.verb.ordinal(), out.toByteArray(), id, version, from);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static IMessage serializeMessage(MessageIn<?> messageIn, int id, InetSocketAddress from, InetSocketAddress to)
+    {
+        try (DataOutputBuffer out = new DataOutputBuffer(1024))
+        {
+            // Serialize header
+            int version = MessagingService.instance().getVersion(to.getAddress());
+
+            out.writeInt(MessagingService.PROTOCOL_MAGIC);
+            out.writeInt(id);
+            long timestamp = System.currentTimeMillis();
+            out.writeInt((int) timestamp);
+
+            // Serialize the message itself
+            IVersionedSerializer serializer = MessagingService.instance().verbSerializers.get(messageIn.verb);
+            CompactEndpointSerializationHelper.serialize(from.getAddress(), out);
+
+            out.writeInt(MessagingService.Verb.convertForMessagingServiceVersion(messageIn.verb, version).ordinal());
+            out.writeInt(messageIn.parameters.size());
+            for (Map.Entry<String, byte[]> entry : messageIn.parameters.entrySet())
+            {
+                out.writeUTF(entry.getKey());
+                out.writeInt(entry.getValue().length);
+                out.write(entry.getValue());
+            }
+
+            if (messageIn.payload != null && serializer != MessagingService.CallbackDeterminedSerializer.instance)
+            {
+                try (DataOutputBuffer dob = new DataOutputBuffer())
+                {
+                    serializer.serialize(messageIn.payload, dob, version);
+
+                    int size = dob.getLength();
+                    out.writeInt(size);
+                    out.write(dob.getData(), 0, size);
+                }
+            }
+            else
+            {
+                out.writeInt(0);
+            }
+
+
+            return new MessageImpl(messageIn.verb.ordinal(), out.toByteArray(), id, version, from);
         }
         catch (IOException e)
         {
@@ -257,9 +346,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private class MessageDeliverySink implements IMessageSink
     {
-        private final BiConsumer<InetAddressAndPort, IMessage> deliver;
-        private final Function<InetAddress, InetAddressAndPort> lookupAddressAndPort;
-        MessageDeliverySink(BiConsumer<InetAddressAndPort, IMessage> deliver, Function<InetAddress, InetAddressAndPort> lookupAddressAndPort)
+        private final BiConsumer<InetSocketAddress, IMessage> deliver;
+        private final Function<InetAddress, InetSocketAddress> lookupAddressAndPort;
+
+        MessageDeliverySink(BiConsumer<InetSocketAddress, IMessage> deliver,
+                            Function<InetAddress, InetSocketAddress> lookupAddressAndPort)
         {
             this.deliver = deliver;
             this.lookupAddressAndPort = lookupAddressAndPort;
@@ -267,10 +358,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         public boolean allowOutgoingMessage(MessageOut messageOut, int id, InetAddress to)
         {
-            InetAddressAndPort from = broadcastAddressAndPort();
+            InetSocketAddress from = broadcastAddress();
             assert from.equals(lookupAddressAndPort.apply(messageOut.from));
-            InetAddressAndPort toFull = lookupAddressAndPort.apply(to);
-            IMessage message = serializeMessage(messageOut, id, from, toFull);
 
             // Tracing logic - similar to org.apache.cassandra.net.OutboundTcpConnection.writeConnected
             byte[] sessionBytes = (byte[]) messageOut.parameters.get(Tracing.TRACE_HEADER);
@@ -278,7 +367,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
                 TraceState state = Tracing.instance.get(sessionId);
-                String traceMessage = String.format("Sending %s message to %s", messageOut.verb, toFull.address);
+                String traceMessage = String.format("Sending %s message to %s", messageOut.verb, to);
                 // session may have already finished; see CASSANDRA-5668
                 if (state == null)
                 {
@@ -294,7 +383,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
             }
 
-            deliver.accept(toFull, message);
+            InetSocketAddress toFull = lookupAddressAndPort.apply(to);
+            deliver.accept(toFull,
+                           serializeMessage(messageOut, id, broadcastAddress(), toFull));
+
             return false;
         }
 
@@ -304,7 +396,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             return true;
         }
     }
-
 
     public static Pair<MessageIn<Object>, Integer> deserializeMessage(IMessage imessage)
     {
@@ -332,6 +423,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             int partial = input.readInt();
 
             return Pair.create(MessageIn.read(input, version, id), partial);
+            //long currentTime = ApproximateTime.currentTimeMillis();
+            //return MessageIn.read(input, version, id, MessageIn.readConstructionTime(imessage.from().getAddress(), input, currentTime));
         }
         catch (IOException e)
         {
@@ -349,7 +442,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             }
             catch (Throwable t)
             {
-                throw new RuntimeException("Exception occurred on node " + broadcastAddressAndPort(), t);
+                throw new RuntimeException("Exception occurred on node " + broadcastAddress(), t);
             }
 
             MessageIn<Object> message = deserialized.left;
@@ -382,9 +475,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         return callsOnInstance(() -> MessagingService.current_version).call();
     }
 
-    public void setMessagingVersion(InetAddressAndPort endpoint, int version)
+    public void setMessagingVersion(InetSocketAddress endpoint, int version)
     {
-        runOnInstance(() -> MessagingService.instance().setVersion(endpoint.address, version));
+        runOnInstance(() -> MessagingService.instance().setVersion(endpoint.getAddress(), version));
     }
 
     public void flush(String keyspace)
@@ -414,7 +507,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 mkdirs();
 
-                assert config.networkTopology().contains(config.broadcastAddressAndPort());
+                assert config.networkTopology().contains(config.broadcastAddress());
                 DistributedTestSnitch.assign(config.networkTopology());
 
                 DatabaseDescriptor.setDaemonInitialized();
@@ -446,9 +539,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     throw new RuntimeException(e);
                 }
+
                 if (config.has(NETWORK))
                 {
-                    registerFilter(cluster);
+                    registerFilters(cluster);
                     MessagingService.instance().listen();
                 }
                 else
@@ -481,9 +575,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     StorageService.instance.setRpcReady(true);
                 }
 
-                if (!FBUtilities.getBroadcastAddress().equals(broadcastAddressAndPort().address))
+                if (!FBUtilities.getBroadcastAddress().equals(broadcastAddress().getAddress()))
                     throw new IllegalStateException();
-                if (DatabaseDescriptor.getStoragePort() != broadcastAddressAndPort().port)
+                if (DatabaseDescriptor.getStoragePort() != broadcastAddress().getPort())
                     throw new IllegalStateException();
             }
             catch (Throwable t)
@@ -507,7 +601,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private static Config loadConfig(IInstanceConfig overrides)
     {
         Config config = new Config();
-        overrides.propagate(config);
+        overrides.propagate(config, mapper);
         return config;
     }
 
@@ -516,13 +610,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         // This should be done outside instance in order to avoid serializing config
         String partitionerName = config.getString("partitioner");
         List<String> initialTokens = new ArrayList<>();
-        List<InetAddressAndPort> hosts = new ArrayList<>();
+        List<InetSocketAddress> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<>();
         for (int i = 1 ; i <= cluster.size() ; ++i)
         {
             IInstanceConfig config = cluster.get(i).config();
             initialTokens.add(config.getString("initial_token"));
-            hosts.add(config.broadcastAddressAndPort());
+            hosts.add(config.broadcastAddress());
             hostIds.add(config.hostId());
         }
 
@@ -536,28 +630,28 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             for (int i = 0; i < tokens.size(); i++)
             {
-                InetAddressAndPort ep = hosts.get(i);
+                InetSocketAddress ep = hosts.get(i);
                 UUID hostId = hostIds.get(i);
                 Token token = tokens.get(i);
                 Gossiper.runInGossipStageBlocking(() -> {
-                    Gossiper.instance.initializeNodeUnsafe(ep.address, hostId, 1);
-                    Gossiper.instance.injectApplicationState(ep.address,
+                    Gossiper.instance.initializeNodeUnsafe(ep.getAddress(), hostId, 1);
+                    Gossiper.instance.injectApplicationState(ep.getAddress(),
                                                              ApplicationState.TOKENS,
                                                              new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(token)));
-                    storageService.onChange(ep.address,
+                    storageService.onChange(ep.getAddress(),
                                             ApplicationState.STATUS,
                                             new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token)));
-                    Gossiper.instance.realMarkAlive(ep.address, Gossiper.instance.getEndpointStateForEndpoint(ep.address));
+                    Gossiper.instance.realMarkAlive(ep.getAddress(), Gossiper.instance.getEndpointStateForEndpoint(ep.getAddress()));
                 });
                 int messagingVersion = cluster.get(ep).isShutdown()
                                        ? MessagingService.current_version
                                        : Math.min(MessagingService.current_version, cluster.get(ep).getMessagingVersion());
-                MessagingService.instance().setVersion(ep.address, messagingVersion);
+                MessagingService.instance().setVersion(ep.getAddress(), messagingVersion);
             }
 
             // check that all nodes are in token metadata
             for (int i = 0; i < tokens.size(); ++i)
-                assert storageService.getTokenMetadata().isMember(hosts.get(i).address);
+                assert storageService.getTokenMetadata().isMember(hosts.get(i).getAddress());
         }
         catch (Throwable e) // UnknownHostException
         {
@@ -570,6 +664,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         return shutdown(true);
     }
 
+    @Override
     public Future<Void> shutdown(boolean graceful)
     {
         if (!graceful)
@@ -635,9 +730,84 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).call();
     }
 
-    public int nodetool(String... commandAndArgs)
+    public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
     {
-        return sync(() -> new NodeTool(new InternalNodeProbeFactory()).execute(commandAndArgs)).call();
+        return sync(() -> {
+            DTestNodeTool nodetool = new DTestNodeTool(withNotifications);
+            int rc =  nodetool.execute(commandAndArgs);
+            return new NodeToolResult(commandAndArgs, rc, new ArrayList<>(nodetool.notifications.notifications), nodetool.latestError);
+        }).call();
+    }
+
+    private static class DTestNodeTool extends NodeTool {
+        private final StorageServiceMBean storageProxy;
+        private final CollectingNotificationListener notifications = new CollectingNotificationListener();
+
+        private Throwable latestError;
+
+        DTestNodeTool(boolean withNotifications) {
+            super(new InternalNodeProbeFactory(withNotifications));
+            storageProxy = new InternalNodeProbe(withNotifications).getStorageService();
+            storageProxy.addNotificationListener(notifications, null, null);
+        }
+
+        public int execute(String... args)
+        {
+            try
+            {
+                return super.execute(args);
+            }
+            finally
+            {
+                try
+                {
+                    storageProxy.removeNotificationListener(notifications, null, null);
+                }
+                catch (ListenerNotFoundException e)
+                {
+                    // ignored
+                }
+            }
+        }
+
+        protected void badUse(Exception e)
+        {
+            super.badUse(e);
+            latestError = e;
+        }
+
+        protected void err(Throwable e)
+        {
+            super.err(e);
+            latestError = e;
+        }
+    }
+
+    private static final class CollectingNotificationListener implements NotificationListener
+    {
+        private final List<Notification> notifications = new CopyOnWriteArrayList<>();
+
+        public void handleNotification(Notification notification, Object handback)
+        {
+            notifications.add(notification);
+        }
+    }
+
+    public void uncaughtException(Thread thread, Throwable throwable)
+    {
+        System.out.println(String.format("Exception %s occurred on thread %s", throwable.getMessage(), thread.getName()));
+        throwable.printStackTrace();
+    }
+
+    public long killAttempts()
+    {
+        return callOnInstance(InstanceKiller::getKillAttempts);
+    }
+
+    private static void shutdownAndWait(List<ExecutorService> executors) throws TimeoutException, InterruptedException
+    {
+        ExecutorUtils.shutdownNow(executors);
+        ExecutorUtils.awaitTermination(1L, MINUTES, executors);
     }
 
     private static Throwable parallelRun(Throwable accumulate, ExecutorService runOn, ThrowingRunnable ... runnables)
