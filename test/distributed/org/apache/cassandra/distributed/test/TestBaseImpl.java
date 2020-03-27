@@ -18,27 +18,30 @@
 
 package org.apache.cassandra.distributed.test;
 
-import org.junit.Test;
+import org.junit.After;
+import org.junit.BeforeClass;
 
 import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInstance;
+import org.apache.cassandra.distributed.shared.Builder;
+import org.apache.cassandra.distributed.shared.DistributedTestBase;
 
-import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
-import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-
-// TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
-public class GossipSettlesTest extends TestBaseImpl
+public class TestBaseImpl extends DistributedTestBase
 {
-
-    @Test
-    public void testGossipSettles() throws Throwable
-    {
-        /* Use withSubnet(1) to prove seed provider is set correctly - without the fix to pass a seed provider, this test fails */
-        try (ICluster cluster = builder().withNodes(3)
-                                         .withConfig(config -> config.with(GOSSIP).with(NETWORK))
-                                         .withSubnet(1)
-                                         .start())
-        {
-        }
+    @After
+    public void afterEach() {
+        super.afterEach();
     }
 
+    @BeforeClass
+    public static void beforeClass() throws Throwable {
+        ICluster.setup();
+    }
+
+    @Override
+    public <I extends IInstance, C extends ICluster> Builder<I, C> builder() {
+        // This is definitely not the smartest solution, but given the complexity of the alternatives and low risk, we can just rely on the
+        // fact that this code is going to work accross _all_ versions.
+        return (Builder<I, C>) org.apache.cassandra.distributed.Cluster.build();
+    }
 }

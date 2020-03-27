@@ -102,6 +102,28 @@ public class MessageOut<T>
 
     public void serialize(DataOutputPlus out, int version) throws IOException
     {
+        serialize(out, from, verb, parameters, payload, serializer, version);
+    }
+
+    public static <T> void serialize(DataOutputPlus out,
+                                     InetAddress from,
+                                     MessagingService.Verb verb,
+                                     Map<String, byte[]> parameters,
+                                     T payload,
+                                     int version) throws IOException
+    {
+        IVersionedSerializer<T> serializer = (IVersionedSerializer<T>) MessagingService.instance().verbSerializers.get(verb);
+        serialize(out, from, verb, parameters, payload, serializer, version);
+    }
+
+    public static <T> void serialize(DataOutputPlus out,
+                                     InetAddress from,
+                                     MessagingService.Verb verb,
+                                     Map<String, byte[]> parameters,
+                                     T payload,
+                                     IVersionedSerializer<T> serializer,
+                                     int version) throws IOException
+    {
         CompactEndpointSerializationHelper.serialize(from, out);
 
         out.writeInt(MessagingService.Verb.convertForMessagingServiceVersion(verb, version).ordinal());
@@ -113,9 +135,9 @@ public class MessageOut<T>
             out.write(entry.getValue());
         }
 
-        if (payload != null)
+        if (payload != null && serializer != MessagingService.CallbackDeterminedSerializer.instance)
         {
-            try(DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
+            try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
             {
                 serializer.serialize(payload, dob, version);
 

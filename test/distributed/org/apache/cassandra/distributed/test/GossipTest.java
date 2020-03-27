@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class GossipTest extends DistributedTestBase
+public class GossipTest extends TestBaseImpl
 {
 
     @Test
@@ -63,7 +63,7 @@ public class GossipTest extends DistributedTestBase
                                        .stream().map(Object::toString).collect(Collectors.toList())
             ).call();
 
-            InetAddress failAddress = cluster.get(fail).broadcastAddressAndPort().address;
+            InetAddress failAddress = cluster.get(fail).broadcastAddress().getAddress();
             // wait for NORMAL state
             for (int i = 1 ; i <= liveCount ; ++i)
             {
