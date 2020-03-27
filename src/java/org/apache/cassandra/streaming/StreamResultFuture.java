@@ -68,19 +68,19 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         this.coordinator = coordinator;
 
         // if there is no session to listen to, we immediately set result for returning
-        if (!coordinator.isReceiving() && !coordinator.hasActiveSessions())
+        if (!coordinator.isFollower() && !coordinator.hasActiveSessions())
             set(getCurrentState());
     }
 
     private StreamResultFuture(UUID planId, StreamOperation streamOperation, UUID pendingRepair, PreviewKind previewKind)
     {
-        this(planId, streamOperation, new StreamCoordinator(streamOperation, 0, new DefaultConnectionFactory(), false, pendingRepair, previewKind));
+        this(planId, streamOperation, new StreamCoordinator(streamOperation, 0, new DefaultConnectionFactory(), false, false, pendingRepair, previewKind));
     }
 
-    public static StreamResultFuture init(UUID planId, StreamOperation streamOperation, Collection<StreamEventHandler> listeners,
-                                   StreamCoordinator coordinator)
+    public static StreamResultFuture createInitiator(UUID planId, StreamOperation streamOperation, Collection<StreamEventHandler> listeners,
+                                                     StreamCoordinator coordinator)
     {
-        StreamResultFuture future = createAndRegister(planId, streamOperation, coordinator);
+        StreamResultFuture future = createAndRegisterInitiator(planId, streamOperation, coordinator);
         if (listeners != null)
         {
             for (StreamEventHandler listener : listeners)
@@ -100,13 +100,13 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         return future;
     }
 
-    public static synchronized StreamResultFuture initReceivingSide(int sessionIndex,
-                                                                    UUID planId,
-                                                                    StreamOperation streamOperation,
-                                                                    InetAddressAndPort from,
-                                                                    Channel channel,
-                                                                    UUID pendingRepair,
-                                                                    PreviewKind previewKind)
+    public static synchronized StreamResultFuture createFollower(int sessionIndex,
+                                                                 UUID planId,
+                                                                 StreamOperation streamOperation,
+                                                                 InetAddressAndPort from,
+                                                                 Channel channel,
+                                                                 UUID pendingRepair,
+                                                                 PreviewKind previewKind)
     {
         StreamResultFuture future = StreamManager.instance.getReceivingStream(planId);
         if (future == null)
@@ -117,7 +117,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
             // The main reason we create a StreamResultFuture on the receiving side is for JMX exposure.
             future = new StreamResultFuture(planId, streamOperation, pendingRepair, previewKind);
-            StreamManager.instance.registerReceiving(future);
+            StreamManager.instance.registerFollower(future);
         }
         future.attachConnection(from, sessionIndex, channel);
         logger.info("[Stream #{}, ID#{}] Received streaming plan for {} from {} channel.remote {} channel.local {} channel.id {}",
@@ -125,10 +125,10 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         return future;
     }
 
-    private static StreamResultFuture createAndRegister(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
+    private static StreamResultFuture createAndRegisterInitiator(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
     {
         StreamResultFuture future = new StreamResultFuture(planId, streamOperation, coordinator);
-        StreamManager.instance.register(future);
+        StreamManager.instance.registerInitiator(future);
         return future;
     }
 
@@ -141,7 +141,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
     {
         StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex);
         session.init(this);
-        session.attach(channel);
+        session.attachInbound(channel);
     }
 
     public void addEventListener(StreamEventHandler listener)

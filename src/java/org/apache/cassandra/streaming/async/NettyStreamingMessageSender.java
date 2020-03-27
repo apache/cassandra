@@ -153,6 +153,9 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         return controlMessageChannel != null;
     }
 
+    /**
+     * Used by follower to setup control message channel created by initiator
+     */
     public void injectControlMessageChannel(Channel channel)
     {
         this.controlMessageChannel = channel;
@@ -160,6 +163,9 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         scheduleKeepAliveTask(channel);
     }
 
+    /**
+     * Used by initiator to setup control message channel connecting to follower
+     */
     private void setupControlMessageChannel() throws IOException
     {
         if (controlMessageChannel == null)

@@ -20,10 +20,8 @@ package org.apache.cassandra.streaming.async;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -31,7 +29,6 @@ import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -248,7 +245,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             {
                 assert session == null : "initiator of stream session received a StreamInitMessage";
                 StreamInitMessage init = (StreamInitMessage) message;
-                StreamResultFuture.initReceivingSide(init.sessionIndex, init.planId, init.streamOperation, init.from, channel, init.pendingRepair, init.previewKind);
+                StreamResultFuture.createFollower(init.sessionIndex, init.planId, init.streamOperation, init.from, channel, init.pendingRepair, init.previewKind);
                 streamSession = sessionProvider.apply(new SessionIdentifier(init.from, init.planId, init.sessionIndex));
             }
             else if (message instanceof IncomingStreamMessage)
@@ -262,7 +259,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             if (streamSession == null)
                 throw new IllegalStateException(createLogTag(null, channel) + " no session found for message " + message);
 
-            streamSession.attach(channel);
+            streamSession.attachInbound(channel);
             return streamSession;
         }
     }
