@@ -24,7 +24,7 @@ import org.apache.cassandra.distributed.Cluster;
 
 import static org.junit.Assert.assertEquals;
 
-public class NodeToolTest extends DistributedTestBase
+public class NodeToolTest extends TestBaseImpl
 {
     @Test
     public void test() throws Throwable

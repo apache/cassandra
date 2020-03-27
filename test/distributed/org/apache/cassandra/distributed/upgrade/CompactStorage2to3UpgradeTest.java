@@ -20,10 +20,11 @@ package org.apache.cassandra.distributed.upgrade;
 
 import org.junit.Test;
 
-import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
-import org.apache.cassandra.distributed.impl.Versions;
-import org.apache.cassandra.distributed.test.DistributedTestBase;
+import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.distributed.shared.Versions;
+import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
 public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
 {
@@ -42,12 +43,11 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
             // these shouldn't be replicated by the 3rd node
             coordinator.execute("INSERT INTO ks.tbl (pk, v1, v2) VALUES (3, 3, '3')", ConsistencyLevel.ALL);
             coordinator.execute("INSERT INTO ks.tbl (pk, v1, v2) VALUES (9, 9, '9')", ConsistencyLevel.ALL);
-            for (int i=0; i<cluster.size(); i++)
+            for (int i = 0; i < cluster.size(); i++)
             {
-                int nodeNum = i+1;
+                int nodeNum = i + 1;
                 System.out.println(String.format("****** node %s: %s", nodeNum, cluster.get(nodeNum).config()));
             }
-
         })
         .runAfterNodeUpgrade(((cluster, node) -> {
             if (node != 2)
@@ -55,11 +55,10 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
 
             Object[][] rows = cluster.coordinator(3).execute("SELECT * FROM ks.tbl LIMIT 2", ConsistencyLevel.ALL);
             Object[][] expected = {
-                DistributedTestBase.row(9, 9, "9"),
-                DistributedTestBase.row(3, 3, "3")
+            row(9, 9, "9"),
+            row(3, 3, "3")
             };
-            DistributedTestBase.assertRows(rows, expected);
-
+            assertRows(rows, expected);
         })).run();
     }
 
@@ -78,12 +77,11 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
             // these shouldn't be replicated by the 3rd node
             coordinator.execute("INSERT INTO ks.tbl (pk, v) VALUES (3, 3)", ConsistencyLevel.ALL);
             coordinator.execute("INSERT INTO ks.tbl (pk, v) VALUES (9, 9)", ConsistencyLevel.ALL);
-            for (int i=0; i<cluster.size(); i++)
+            for (int i = 0; i < cluster.size(); i++)
             {
-                int nodeNum = i+1;
+                int nodeNum = i + 1;
                 System.out.println(String.format("****** node %s: %s", nodeNum, cluster.get(nodeNum).config()));
             }
-
         })
         .runAfterNodeUpgrade(((cluster, node) -> {
 
@@ -92,11 +90,10 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
 
             Object[][] rows = cluster.coordinator(3).execute("SELECT * FROM ks.tbl LIMIT 2", ConsistencyLevel.ALL);
             Object[][] expected = {
-                DistributedTestBase.row(9, 9),
-                DistributedTestBase.row(3, 3)
+            row(9, 9),
+            row(3, 3)
             };
-            DistributedTestBase.assertRows(rows, expected);
-
+            assertRows(rows, expected);
         })).run();
     }
 }
