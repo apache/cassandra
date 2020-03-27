@@ -20,11 +20,10 @@ package org.apache.cassandra.distributed.upgrade;
 
 import org.junit.Test;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.distributed.impl.Versions;
-import org.apache.cassandra.distributed.test.DistributedTestBase;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.shared.Versions;
 
-import static org.apache.cassandra.distributed.impl.Versions.find;
+import static org.apache.cassandra.distributed.shared.Versions.find;
 
 public class MixedModeReadRepairTest extends UpgradeTestBase
 {
@@ -35,17 +34,17 @@ public class MixedModeReadRepairTest extends UpgradeTestBase
         .nodes(2)
         .upgrade(Versions.Major.v22, Versions.Major.v30)
         .nodesToUpgrade(2)
-        .setup((cluster) -> cluster.schemaChange("CREATE TABLE " + DistributedTestBase.KEYSPACE + ".tbl (pk ascii, b boolean, v blob, PRIMARY KEY (pk)) WITH COMPACT STORAGE"))
+        .setup((cluster) -> cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk ascii, b boolean, v blob, PRIMARY KEY (pk)) WITH COMPACT STORAGE"))
         .runAfterClusterUpgrade((cluster) -> {
             // now node2 is 3.0 and node1 is 2.2
             // make sure 2.2 side does not get the mutation
-            cluster.get(2).executeInternal("DELETE FROM " + DistributedTestBase.KEYSPACE + ".tbl WHERE pk = ?",
-                                                                          "something");
+            cluster.get(2).executeInternal("DELETE FROM " + KEYSPACE + ".tbl WHERE pk = ?",
+                                           "something");
             // trigger a read repair
-            cluster.coordinator(1).execute("SELECT * FROM " + DistributedTestBase.KEYSPACE + ".tbl WHERE pk = ?",
+            cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
                                            ConsistencyLevel.ALL,
                                            "something");
-            cluster.get(1).flush(DistributedTestBase.KEYSPACE);
+            cluster.get(1).flush(KEYSPACE);
             // upgrade node1 to 3.0
             cluster.get(1).shutdown().get();
             Versions allVersions = find();
@@ -53,7 +52,7 @@ public class MixedModeReadRepairTest extends UpgradeTestBase
             cluster.get(1).startup();
 
             // and make sure the sstables are readable
-            cluster.get(1).forceCompact(DistributedTestBase.KEYSPACE, "tbl");
+            cluster.get(1).forceCompact(KEYSPACE, "tbl");
         }).run();
     }
 }

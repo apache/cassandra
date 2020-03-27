@@ -25,17 +25,21 @@ import java.util.stream.IntStream;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;
-import org.apache.cassandra.distributed.impl.IInvokableInstance;
-import org.apache.cassandra.distributed.impl.InstanceConfig;
-import org.apache.cassandra.distributed.impl.NetworkTopology;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.shared.Builder;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.shared.DistributedTestBase.KEYSPACE;
 
-public class BootstrapTest extends DistributedTestBase
+// TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
+public class BootstrapTest extends TestBaseImpl
 {
 
     @Test
@@ -43,24 +47,22 @@ public class BootstrapTest extends DistributedTestBase
     {
         int originalNodeCount = 2;
         int expandedNodeCount = originalNodeCount + 1;
-        Cluster.Builder<IInvokableInstance, Cluster> builder = Cluster.build(originalNodeCount)
-                                                                      .withTokenSupplier(Cluster.evenlyDistributedTokens(expandedNodeCount))
-                                                                      .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(originalNodeCount, "dc0", "rack0"))
-                                                                      .withConfig(config -> config.with(NETWORK, GOSSIP));
+        Builder<IInstance, ICluster> builder = builder().withNodes(originalNodeCount)
+                                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
+                                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(originalNodeCount, "dc0", "rack0"))
+                                                        .withConfig(config -> config.with(NETWORK, GOSSIP));
 
         Map<Integer, Long> withBootstrap = null;
         Map<Integer, Long> naturally = null;
-
-        try (Cluster cluster = builder.start())
+        try (ICluster<IInvokableInstance> cluster = builder.withNodes(originalNodeCount).start())
         {
             populate(cluster);
 
-            InstanceConfig config = builder.withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                           .newInstanceConfig(cluster);
+            IInstanceConfig config = builder.withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                            .newInstanceConfig(cluster);
             config.set("auto_bootstrap", true);
 
-            IInstance newInstance = cluster.bootstrap(config);
-            newInstance.startup();
+            cluster.bootstrap(config).startup();
 
             cluster.stream().forEach(instance -> {
                 instance.nodetool("cleanup", KEYSPACE, "tbl");
@@ -69,20 +71,21 @@ public class BootstrapTest extends DistributedTestBase
             withBootstrap = count(cluster);
         }
 
-        builder = Cluster.build(expandedNodeCount)
-                         .withTokenSupplier(Cluster.evenlyDistributedTokens(expandedNodeCount))
+        builder = builder.withNodes(expandedNodeCount)
+                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                          .withConfig(config -> config.with(NETWORK, GOSSIP));
 
-        try (Cluster cluster = builder.start())
+        try (ICluster cluster = builder.start())
         {
             populate(cluster);
             naturally = count(cluster);
         }
 
-        Assert.assertEquals(withBootstrap, naturally);
+        for (Map.Entry<Integer, Long> e : withBootstrap.entrySet())
+            Assert.assertTrue(e.getValue() >= naturally.get(e.getKey()));
     }
 
-    public void populate(Cluster cluster)
+    public void populate(ICluster cluster)
     {
         cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + 3 + "};");
         cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
@@ -93,12 +96,11 @@ public class BootstrapTest extends DistributedTestBase
                                            i, i, i);
     }
 
-    public Map<Integer, Long> count(Cluster cluster)
+    public Map<Integer, Long> count(ICluster cluster)
     {
         return IntStream.rangeClosed(1, cluster.size())
                         .boxed()
                         .collect(Collectors.toMap(nodeId -> nodeId,
                                                   nodeId -> (Long) cluster.get(nodeId).executeInternal("SELECT count(*) FROM " + KEYSPACE + ".tbl")[0][0]));
     }
-
 }

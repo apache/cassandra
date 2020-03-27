@@ -26,12 +26,12 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 
-import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.QueryResult;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
-import org.apache.cassandra.distributed.impl.IInvokableInstance;
 import org.apache.cassandra.metrics.StorageMetrics;
 
 import static org.apache.cassandra.utils.Retry.retryWithBackoffBlocking;

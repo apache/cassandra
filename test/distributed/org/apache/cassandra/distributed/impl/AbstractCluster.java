@@ -19,10 +19,7 @@
 package org.apache.cassandra.distributed.impl;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,7 +32,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
@@ -43,8 +39,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.dht.IPartitioner;
@@ -52,13 +48,18 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.shared.InstanceClassLoader;
+import org.apache.cassandra.distributed.shared.MessageFilters;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
@@ -87,8 +88,10 @@ import org.apache.cassandra.utils.concurrent.SimpleCondition;
  * handlers for internode to have more control over it. Messaging is wired by passing verbs manually.
  * coordinator-handling code and hooks to the callbacks can be found in {@link Coordinator}.
  */
-public abstract class AbstractCluster<I extends IInstance> implements ICluster, AutoCloseable
+public abstract class AbstractCluster<I extends IInstance> implements ICluster<I>, AutoCloseable
 {
+    public static Versions.Version CURRENT_VERSION = new Versions.Version(FBUtilities.getReleaseVersionString(), Versions.getClassPath());;
+
     // WARNING: we have this logger not (necessarily) for logging, but
     // to ensure we have instantiated the main classloader's LoggerFactory (and any LogbackStatusListener)
     // before we instantiate any for a new instance
@@ -100,7 +103,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     // mutated by starting/stopping a node
     private final List<I> instances;
-    private final Map<InetAddressAndPort, I> instanceMap;
+    private final Map<InetSocketAddress, I> instanceMap;
 
     private final Versions.Version initialVersion;
 
@@ -111,7 +114,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
     protected class Wrapper extends DelegatingInvokableInstance implements IUpgradeableInstance
     {
         private final int generation;
-        private final InstanceConfig config;
+        private final IInstanceConfig config;
         private volatile IInvokableInstance delegate;
         private volatile Versions.Version version;
         private volatile boolean isShutdown = true;
@@ -123,7 +126,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             return delegate;
         }
 
-        public Wrapper(int generation, Versions.Version version, InstanceConfig config)
+        public Wrapper(int generation, Versions.Version version, IInstanceConfig config)
         {
             this.generation = generation;
             this.config = config;
@@ -134,9 +137,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
         private IInvokableInstance newInstance(int generation)
         {
-            ClassLoader classLoader = new InstanceClassLoader(generation, config.num, version.classpath, sharedClassLoader);
-            return Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>) Instance::new, classLoader)
-                           .apply(config.forVersion(version.major), classLoader);
+            ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader);
+            return Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>)Instance::new, classLoader)
+                                        .apply(config.forVersion(version.major), classLoader);
         }
 
         public IInstanceConfig config()
@@ -158,7 +161,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         public synchronized void startup(ICluster cluster)
         {
             if (cluster != AbstractCluster.this)
-                throw new IllegalArgumentException("Only the owning cluster can be used for startup"); //TODO why have this in the API?
+                throw new IllegalArgumentException("Only the owning cluster can be used for startup");
             if (!isShutdown)
                 throw new IllegalStateException();
             delegate().startup(cluster);
@@ -238,7 +241,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
     }
 
-    protected AbstractCluster(File root, Versions.Version initialVersion, List<InstanceConfig> configs,
+    protected AbstractCluster(File root, Versions.Version initialVersion, List<IInstanceConfig> configs,
                               ClassLoader sharedClassLoader)
     {
         this.root = root;
@@ -248,27 +251,27 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         this.initialVersion = initialVersion;
         int generation = AbstractCluster.generation.incrementAndGet();
 
-        for (InstanceConfig config : configs)
+        for (IInstanceConfig config : configs)
         {
             I instance = newInstanceWrapperInternal(generation, initialVersion, config);
             instances.add(instance);
             // we use the config().broadcastAddressAndPort() here because we have not initialised the Instance
-            I prev = instanceMap.put(instance.broadcastAddressAndPort(), instance);
+            I prev = instanceMap.put(instance.broadcastAddress(), instance);
             if (null != prev)
-                throw new IllegalStateException("Cluster cannot have multiple nodes with same InetAddressAndPort: " + instance.broadcastAddressAndPort() + " vs " + prev.broadcastAddressAndPort());
+                throw new IllegalStateException("Cluster cannot have multiple nodes with same InetAddressAndPort: " + instance.broadcastAddress() + " vs " + prev.broadcastAddress());
         }
         this.filters = new MessageFilters();
     }
 
-    protected abstract I newInstanceWrapper(int generation, Versions.Version version, InstanceConfig config);
+    protected abstract I newInstanceWrapper(int generation, Versions.Version version, IInstanceConfig config);
 
-    protected I newInstanceWrapperInternal(int generation, Versions.Version version, InstanceConfig config)
+    protected I newInstanceWrapperInternal(int generation, Versions.Version version, IInstanceConfig config)
     {
         config.validate();
         return newInstanceWrapper(generation, version, config);
     }
 
-    public I bootstrap(InstanceConfig config)
+    public I bootstrap(IInstanceConfig config)
     {
         if (!config.has(Feature.GOSSIP) || !config.has(Feature.NETWORK))
             throw new IllegalStateException("New nodes can only be bootstrapped when gossip and networking is enabled.");
@@ -276,12 +279,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         I instance = newInstanceWrapperInternal(0, initialVersion, config);
 
         instances.add(instance);
-        I prev = instanceMap.put(config.broadcastAddressAndPort(), instance);
+
+        I prev = instanceMap.put(config.broadcastAddress(), instance);
 
         if (null != prev)
         {
             throw new IllegalStateException(String.format("This cluster already contains a node (%d) with with same address and port: %s",
-                                                          config.num,
+                                                          config.num(),
                                                           instance));
         }
 
@@ -304,7 +308,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         return instances.get(node - 1);
     }
 
-    public I get(InetAddressAndPort addr)
+    public I get(InetSocketAddress addr)
     {
         return instanceMap.get(addr);
     }
@@ -391,6 +395,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }).run();
     }
 
+    public void schemaChange(String statement, int instance)
+    {
+        get(instance).schemaChangeInternal(statement);
+    }
+
     private void updateMessagingVersions()
     {
         for (IInstance reportTo : instances)
@@ -404,7 +413,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                     continue;
 
                 int minVersion = Math.min(reportFrom.getMessagingVersion(), reportTo.getMessagingVersion());
-                reportTo.setMessagingVersion(reportFrom.broadcastAddressAndPort(), minVersion);
+                reportTo.setMessagingVersion(reportFrom.broadcastAddress(), minVersion);
             }
         }
     }
@@ -524,12 +533,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
     }
 
-    public void schemaChange(String statement, int instance)
-    {
-        get(instance).schemaChangeInternal(statement);
-    }
-
-    void startup()
+    public void startup()
     {
         previousHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(this::uncaughtExceptions);
@@ -567,257 +571,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
         InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
         get(cl.getInstanceId()).uncaughtException(thread, error);
-    }
-
-    protected interface Factory<I extends IInstance, C extends AbstractCluster<I>>
-    {
-        C newCluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader);
-    }
-
-    public static class Builder<I extends IInstance, C extends AbstractCluster<I>>
-    {
-        private final Factory<I, C> factory;
-        private int nodeCount;
-        private int subnet;
-        private Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology;
-        private TokenSupplier tokenSupplier;
-        private File root;
-        private Versions.Version version = Versions.CURRENT;
-        private Consumer<InstanceConfig> configUpdater;
-
-        public Builder(Factory<I, C> factory)
-        {
-            this.factory = factory;
-        }
-
-        public Builder<I, C> withTokenSupplier(TokenSupplier tokenSupplier)
-        {
-            this.tokenSupplier = tokenSupplier;
-            return this;
-        }
-
-        public Builder<I, C> withSubnet(int subnet)
-        {
-            this.subnet = subnet;
-            return this;
-        }
-
-        public Builder<I, C> withNodes(int nodeCount)
-        {
-            this.nodeCount = nodeCount;
-            return this;
-        }
-
-        public Builder<I, C> withDCs(int dcCount)
-        {
-            return withRacks(dcCount, 1);
-        }
-
-        public Builder<I, C> withRacks(int dcCount, int racksPerDC)
-        {
-            if (nodeCount == 0)
-                throw new IllegalStateException("Node count will be calculated. Do not supply total node count in the builder");
-
-            int totalRacks = dcCount * racksPerDC;
-            int nodesPerRack = (nodeCount + totalRacks - 1) / totalRacks; // round up to next integer
-            return withRacks(dcCount, racksPerDC, nodesPerRack);
-        }
-
-        public Builder<I, C> withRacks(int dcCount, int racksPerDC, int nodesPerRack)
-        {
-            if (nodeIdTopology != null)
-                throw new IllegalStateException("Network topology already created. Call withDCs/withRacks once or before withDC/withRack calls");
-
-            nodeIdTopology = new HashMap<>();
-            int nodeId = 1;
-            for (int dc = 1; dc <= dcCount; dc++)
-            {
-                for (int rack = 1; rack <= racksPerDC; rack++)
-                {
-                    for (int rackNodeIdx = 0; rackNodeIdx < nodesPerRack; rackNodeIdx++)
-                        nodeIdTopology.put(nodeId++, NetworkTopology.dcAndRack(dcName(dc), rackName(rack)));
-                }
-            }
-            // adjust the node count to match the allocatation
-            final int adjustedNodeCount = dcCount * racksPerDC * nodesPerRack;
-            if (adjustedNodeCount != nodeCount)
-            {
-                assert adjustedNodeCount > nodeCount : "withRacks should only ever increase the node count";
-                logger.info("Network topology of {} DCs with {} racks per DC and {} nodes per rack required increasing total nodes to {}",
-                            dcCount, racksPerDC, nodesPerRack, adjustedNodeCount);
-                nodeCount = adjustedNodeCount;
-            }
-            return this;
-        }
-
-        public Builder<I, C> withDC(String dcName, int nodeCount)
-        {
-            return withRack(dcName, rackName(1), nodeCount);
-        }
-
-        public Builder<I, C> withRack(String dcName, String rackName, int nodesInRack)
-        {
-            if (nodeIdTopology == null)
-            {
-                if (nodeCount > 0)
-                    throw new IllegalStateException("Node count must not be explicitly set, or allocated using withDCs/withRacks");
-
-                nodeIdTopology = new HashMap<>();
-            }
-            for (int nodeId = nodeCount + 1; nodeId <= nodeCount + nodesInRack; nodeId++)
-                nodeIdTopology.put(nodeId, NetworkTopology.dcAndRack(dcName, rackName));
-
-            nodeCount += nodesInRack;
-            return this;
-        }
-
-        // Map of node ids to dc and rack - must be contiguous with an entry nodeId 1 to nodeCount
-        public Builder<I, C> withNodeIdTopology(Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology)
-        {
-            if (nodeIdTopology.isEmpty())
-                throw new IllegalStateException("Topology is empty. It must have an entry for every nodeId.");
-
-            IntStream.rangeClosed(1, nodeIdTopology.size()).forEach(nodeId -> {
-                if (nodeIdTopology.get(nodeId) == null)
-                    throw new IllegalStateException("Topology is missing entry for nodeId " + nodeId);
-            });
-
-            if (nodeCount != nodeIdTopology.size())
-            {
-                nodeCount = nodeIdTopology.size();
-                logger.info("Adjusting node count to {} for supplied network topology", nodeCount);
-            }
-
-            this.nodeIdTopology = new HashMap<>(nodeIdTopology);
-
-            return this;
-        }
-
-        public Builder<I, C> withRoot(File root)
-        {
-            this.root = root;
-            return this;
-        }
-
-        public Builder<I, C> withVersion(Versions.Version version)
-        {
-            this.version = version;
-            return this;
-        }
-
-        public Builder<I, C> withConfig(Consumer<InstanceConfig> updater)
-        {
-            this.configUpdater = updater;
-            return this;
-        }
-
-        public C createWithoutStarting() throws IOException
-        {
-            if (root == null)
-                root = Files.createTempDirectory("dtests").toFile();
-
-            if (nodeCount <= 0)
-                throw new IllegalStateException("Cluster must have at least one node");
-
-            if (nodeIdTopology == null)
-            {
-                nodeIdTopology = IntStream.rangeClosed(1, nodeCount).boxed()
-                                          .collect(Collectors.toMap(nodeId -> nodeId,
-                                                                    nodeId -> NetworkTopology.dcAndRack(dcName(0), rackName(0))));
-            }
-
-            root.mkdirs();
-            setupLogging(root);
-
-            ClassLoader sharedClassLoader = Thread.currentThread().getContextClassLoader();
-
-            List<InstanceConfig> configs = new ArrayList<>();
-
-            if (tokenSupplier == null)
-                tokenSupplier = evenlyDistributedTokens(nodeCount);
-
-            for (int i = 0; i < nodeCount; ++i)
-            {
-                int nodeNum = i + 1;
-                configs.add(createInstanceConfig(nodeNum));
-            }
-
-            return factory.newCluster(root, version, configs, sharedClassLoader);
-        }
-
-        public InstanceConfig newInstanceConfig(C cluster)
-        {
-            return createInstanceConfig(cluster.size() + 1);
-        }
-
-        private InstanceConfig createInstanceConfig(int nodeNum)
-        {
-            String ipPrefix = "127.0." + subnet + ".";
-            String seedIp = ipPrefix + "1";
-            String ipAddress = ipPrefix + nodeNum;
-            long token = tokenSupplier.token(nodeNum);
-
-            NetworkTopology topology = NetworkTopology.build(ipPrefix, 7012, nodeIdTopology);
-
-            InstanceConfig config = InstanceConfig.generate(nodeNum, ipAddress, topology, root, String.valueOf(token), seedIp);
-            if (configUpdater != null)
-                configUpdater.accept(config);
-
-            return config;
-        }
-
-        public C start() throws IOException
-        {
-            C cluster = createWithoutStarting();
-            cluster.startup();
-            return cluster;
-        }
-    }
-
-    public static TokenSupplier evenlyDistributedTokens(int numNodes)
-    {
-        long increment = (Long.MAX_VALUE / numNodes) * 2;
-        return (int nodeId) -> {
-            assert nodeId <= numNodes : String.format("Can not allocate a token for a node %s, since only %s nodes are allowed by the token allocation strategy",
-                                                      nodeId, numNodes);
-            return Long.MIN_VALUE + 1 + nodeId * increment;
-        };
-    }
-
-    public static interface TokenSupplier
-    {
-        public long token(int nodeId);
-    }
-
-    static String dcName(int index)
-    {
-        return "datacenter" + index;
-    }
-
-    static String rackName(int index)
-    {
-        return "rack" + index;
-    }
-
-    private static void setupLogging(File root)
-    {
-        try
-        {
-            String testConfPath = "test/conf/logback-dtest.xml";
-            Path logConfPath = Paths.get(root.getPath(), "/logback-dtest.xml");
-
-            if (!logConfPath.toFile().exists())
-            {
-                Files.copy(new File(testConfPath).toPath(),
-                           logConfPath);
-            }
-
-            System.setProperty("logback.configurationFile", "file://" + logConfPath);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
     }
 
     @Override
