@@ -9,7 +9,7 @@
 <   parallelism: 1
 ---
 >     exec_resource_class: xlarge
->   parallelism: 2
+>   parallelism: 5
 34,35c34,35
 <     #exec_resource_class: xlarge
 <   parallelism: 1
