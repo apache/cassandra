@@ -36,7 +36,7 @@ import org.apache.cassandra.service.reads.ReadCallback;
 
 public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
 {
-    private static class InstrumentedReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+    private static class InstrumentedReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
             extends ReadOnlyReadRepair implements InstrumentedReadRepair
     {
         public InstrumentedReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
@@ -92,7 +92,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     public void repairPartitionFailure()
     {
         ReplicaPlan.SharedForRangeRead readPlan = ReplicaPlan.shared(replicaPlan(replicas, replicas));
-        ReplicaPlan.ForTokenWrite writePlan = repairPlan(replicas, replicas);
+        ReplicaPlan.ForWrite writePlan = repairPlan(replicas, replicas);
         InstrumentedReadRepair repair = createInstrumentedReadRepair(readPlan);
         repair.repairPartition(null, Collections.emptyMap(), writePlan);
     }

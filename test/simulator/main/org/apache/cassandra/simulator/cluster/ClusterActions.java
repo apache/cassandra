@@ -44,7 +44,6 @@ import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
-import org.apache.cassandra.simulator.Actions;
 import org.apache.cassandra.simulator.Actions.ReliableAction;
 import org.apache.cassandra.simulator.Actions.StrictAction;
 import org.apache.cassandra.simulator.Debug;
@@ -57,9 +56,11 @@ import org.apache.cassandra.simulator.utils.KindOfSequence;
 
 import static org.apache.cassandra.distributed.impl.UnsafeGossipHelper.addToRingNormalRunner;
 import static org.apache.cassandra.simulator.Action.Modifiers.NO_TIMEOUTS;
+import static org.apache.cassandra.simulator.Debug.EventType.CLUSTER;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.JOIN;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.LEAVE;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.REPLACE;
+import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
 
 
 // TODO (feature): add Gossip failures (up to some acceptable number)
@@ -79,6 +80,7 @@ public class ClusterActions extends SimulatedSystems
 
     public static class Options
     {
+        public final int topologyChangeLimit;
         public final KindOfSequence.Period topologyChangeInterval;
         public final Choices<TopologyChange> allChoices;
         public final Choices<TopologyChange> choicesNoLeave;
@@ -94,6 +96,7 @@ public class ClusterActions extends SimulatedSystems
 
         public Options(Options copy, PaxosVariant changePaxosVariantTo)
         {
+            this.topologyChangeLimit = copy.topologyChangeLimit;
             this.topologyChangeInterval = copy.topologyChangeInterval;
             this.allChoices = copy.allChoices;
             this.choicesNoLeave = copy.choicesNoLeave;
@@ -104,9 +107,13 @@ public class ClusterActions extends SimulatedSystems
             this.changePaxosVariantTo = changePaxosVariantTo;
         }
 
-        public Options(KindOfSequence.Period topologyChangeInterval, Choices<TopologyChange> choices, int[] minRf, int[] initialRf, int[] maxRf, PaxosVariant changePaxosVariantTo)
+        public Options(int topologyChangeLimit, KindOfSequence.Period topologyChangeInterval, Choices<TopologyChange> choices, int[] minRf, int[] initialRf, int[] maxRf, PaxosVariant changePaxosVariantTo)
         {
+            if (Arrays.equals(minRf, maxRf))
+                choices = choices.without(TopologyChange.CHANGE_RF);
+
             this.topologyChangeInterval = topologyChangeInterval;
+            this.topologyChangeLimit = topologyChangeLimit;
             this.minRf = minRf;
             this.initialRf = initialRf;
             this.maxRf = maxRf;
@@ -184,6 +191,7 @@ public class ClusterActions extends SimulatedSystems
             }
 
             actions.add(ReliableAction.transitively("Sync Pending Ranges Executor", ClusterActions.this::syncPendingRanges));
+            debug.debug(CLUSTER, time, cluster, null, null);
             return ActionList.of(actions);
         });
     }
@@ -197,7 +205,7 @@ public class ClusterActions extends SimulatedSystems
     void validateReplicasForKeys(IInvokableInstance on, String keyspace, String table, Topology topology)
     {
         int[] primaryKeys = topology.primaryKeys;
-        int[][] validate = NonInterceptible.apply(() -> {
+        int[][] validate = NonInterceptible.apply(REQUIRED, () -> {
             Map<InetSocketAddress, Integer> lookup = Cluster.getUniqueAddressLookup(cluster, i -> i.config().num());
             int[][] result = new int[primaryKeys.length][];
             for (int i = 0 ; i < primaryKeys.length ; ++i)

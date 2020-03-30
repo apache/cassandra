@@ -22,10 +22,16 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +56,6 @@ import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.config.DatabaseDescriptor.getCounterWriteRpcTimeout;
 import static org.apache.cassandra.config.DatabaseDescriptor.getWriteRpcTimeout;
 import static org.apache.cassandra.db.WriteType.COUNTER;
-import static org.apache.cassandra.locator.ReplicaPlan.ForTokenWrite;
 import static org.apache.cassandra.schema.Schema.instance;
 import static org.apache.cassandra.service.StorageProxy.WritePerformer;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
@@ -64,7 +69,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     //Count down until all responses and expirations have occured before deciding whether the ideal CL was reached.
     private AtomicInteger responsesAndExpirations;
     private final Condition condition = newOneTimeCondition();
-    protected final ForTokenWrite replicaPlan;
+    protected final ReplicaPlan.ForWrite replicaPlan;
 
     protected final Runnable callback;
     protected final WriteType writeType;
@@ -73,6 +78,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
     private final long queryStartNanoTime;
+    private @Nullable final Supplier<Mutation> hintOnFailure;
 
     /**
       * Delegate to another WriteResponseHandler or possibly this one to track if the ideal consistency level was reached.
@@ -89,16 +95,16 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     /**
      * @param callback           A callback to be called when the write is successful.
+     * @param hintOnFailure
      * @param queryStartNanoTime
      */
-    protected AbstractWriteResponseHandler(ForTokenWrite replicaPlan,
-                                           Runnable callback,
-                                           WriteType writeType,
-                                           long queryStartNanoTime)
+    protected AbstractWriteResponseHandler(ForWrite replicaPlan, Runnable callback, WriteType writeType,
+                                           Supplier<Mutation> hintOnFailure, long queryStartNanoTime)
     {
         this.replicaPlan = replicaPlan;
         this.callback = callback;
         this.writeType = writeType;
+        this.hintOnFailure = hintOnFailure;
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         this.queryStartNanoTime = queryStartNanoTime;
     }
@@ -208,7 +214,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     {
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
-        return replicaPlan.blockFor();
+        return replicaPlan.writeQuorum();
     }
 
     /**
@@ -274,6 +280,9 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
         if (blockFor() + n > candidateReplicaCount())
             signal();
+
+        if (hintOnFailure != null)
+            StorageProxy.submitHint(hintOnFailure.get(), replicaPlan.lookup(from), null);
     }
 
     @Override
@@ -332,7 +341,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
                 for (ColumnFamilyStore cf : cfs)
                     cf.metric.additionalWrites.inc();
 
-                writePerformer.apply(mutation, replicaPlan.withContact(uncontacted),
+                writePerformer.apply(mutation, replicaPlan.withContacts(uncontacted),
                                      (AbstractWriteResponseHandler<IMutation>) this,
                                      localDC);
             }

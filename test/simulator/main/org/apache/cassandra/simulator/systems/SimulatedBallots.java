@@ -18,16 +18,16 @@
 
 package org.apache.cassandra.simulator.systems;
 
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.RandomSource.Choices;
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.service.paxos.Ballot.atUnixMicrosWithLsb;
 
 // TODO (feature): link with SimulateTime, and otherwise improve
 public class SimulatedBallots
@@ -55,38 +55,43 @@ public class SimulatedBallots
             super(1L);
         }
 
-        public TimeUUID randomBallot(long timestamp, boolean isSerial)
+        public Ballot atUnixMicros(long unixMicros, Ballot.Flag flag)
         {
-            return TimeUUID.atUnixMicrosWithLsb(timestamp, uniqueSupplier.getAsLong(), isSerial);
+            return atUnixMicrosWithLsb(unixMicros, uniqueSupplier.getAsLong(), flag);
         }
 
-        public TimeUUID randomBallot(long from, long to, boolean isSerial)
+        public Ballot next(long minUnixMicros, Ballot.Flag flag)
         {
-            return TimeUUID.atUnixMicrosWithLsb(random.uniform(from, to), uniqueSupplier.getAsLong(), isSerial);
+            return Ballot.atUnixMicrosWithLsb(nextBallotTimestampMicros(minUnixMicros), uniqueSupplier.getAsLong(), flag);
         }
 
-        public long nextBallotTimestampMicros(long minTimestamp)
+        public Ballot stale(long from, long to, Ballot.Flag flag)
+        {
+            return Ballot.atUnixMicrosWithLsb(random.uniform(from, to), uniqueSupplier.getAsLong(), flag);
+        }
+
+        private long nextBallotTimestampMicros(long minUnixMicros)
         {
             long next;
             switch (nextChoice.choose(random))
             {
                 default: throw new IllegalStateException();
                 case TO_LATEST:
-                    minTimestamp = Math.max(latest.get(), minTimestamp);
+                    minUnixMicros = Math.max(latest.get(), minUnixMicros);
                 case ONE:
-                    next = accumulateAndGet(minTimestamp, (a, b) -> Math.max(a, b) + 1);
+                    next = accumulateAndGet(minUnixMicros, (a, b) -> Math.max(a, b) + 1);
                     break;
                 case JUMP:
                     long jump = Math.max(1, nextJump.getAsLong());
                     next = addAndGet(jump);
-                    if (next < minTimestamp)
-                        next = accumulateAndGet(minTimestamp, (a, b) -> Math.max(a, b) + 1);
+                    if (next < minUnixMicros)
+                        next = accumulateAndGet(minUnixMicros, (a, b) -> Math.max(a, b) + 1);
             }
             latest.accumulateAndGet(next, Math::max);
             return next;
         }
 
-        public long prevBallotTimestampMicros()
+        public long prevUnixMicros()
         {
             return get();
         }

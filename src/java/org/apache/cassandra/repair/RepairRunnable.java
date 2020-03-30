@@ -73,11 +73,9 @@ import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifier;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -225,7 +223,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
         long durationMillis = currentTimeMillis() - creationTimeMillis;
         if (msg == null)
         {
-            String duration = DurationFormatUtils.formatDurationWords(durationMillis, true, true);
+            String duration = DurationFormatUtils.formatDurationWords(Math.max(0, durationMillis), true, true);
             msg = String.format("Repair command #%d finished in %s", cmd, duration);
         }
 

@@ -40,7 +40,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static com.google.common.collect.Iterables.any;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> extends ResponseResolver<E, P>
+public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
 {
     private volatile Message<ReadResponse> dataResponse;
 

@@ -58,6 +58,8 @@ public abstract class ColumnData implements IMeasurableMemory
 
     public abstract long unsharedHeapSizeExcludingData();
 
+    public abstract long unsharedHeapSize();
+
     /**
      * Validate the column data.
      *
@@ -95,6 +97,7 @@ public abstract class ColumnData implements IMeasurableMemory
     public abstract ColumnData markCounterLocalToBeCleared();
 
     public abstract ColumnData purge(DeletionPurger purger, int nowInSec);
+    public abstract ColumnData purgeDataOlderThan(long timestamp);
 
     public abstract long maxTimestamp();
 }

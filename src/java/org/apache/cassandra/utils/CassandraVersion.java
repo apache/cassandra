@@ -43,7 +43,7 @@ public class CassandraVersion implements Comparable<CassandraVersion>
      * note: 3rd/4th groups matches to words but only allows number and checked after regexp test.
      * this is because 3rd and the last can be identical.
      **/
-    private static final String VERSION_REGEXP = "(\\d+)\\.(\\d+)(?:\\.(\\w+))?(?:\\.(\\w+))?(\\-[-.\\w]+)?([.+][.\\w]+)?";
+    private static final String VERSION_REGEXP = "(?<major>\\d+)\\.(?<minor>\\d+)(\\.(?<patch>\\w+)(\\.(?<hotfix>\\w+))?)?(-(?<prerelease>[-.\\w]+))?([.+](?<build>[.\\w]+))?";
     private static final Pattern PATTERN_WORDS = Pattern.compile("\\w+");
     @VisibleForTesting
     static final int NO_HOTFIX = -1;
@@ -90,13 +90,13 @@ public class CassandraVersion implements Comparable<CassandraVersion>
 
         try
         {
-            this.major = Integer.parseInt(matcher.group(1));
-            this.minor = Integer.parseInt(matcher.group(2));
-            this.patch = matcher.group(3) != null ? Integer.parseInt(matcher.group(3)) : 0;
-            this.hotfix = matcher.group(4) != null ? Integer.parseInt(matcher.group(4)) : NO_HOTFIX;
+            this.major = intPart(matcher, "major");
+            this.minor = intPart(matcher, "minor");
+            this.patch = intPart(matcher, "patch", 0);
+            this.hotfix = intPart(matcher, "hotfix", NO_HOTFIX);
 
-            String pr = matcher.group(5);
-            String bld = matcher.group(6);
+            String pr = matcher.group("prerelease");
+            String bld = matcher.group("build");
 
             this.preRelease = pr == null || pr.isEmpty() ? null : parseIdentifiers(version, pr);
             this.build = bld == null || bld.isEmpty() ? null : parseIdentifiers(version, bld);
@@ -105,6 +105,17 @@ public class CassandraVersion implements Comparable<CassandraVersion>
         {
             throw new IllegalArgumentException("Invalid version value: " + version, e);
         }
+    }
+
+    private static int intPart(Matcher matcher, String group)
+    {
+        return Integer.parseInt(matcher.group(group));
+    }
+
+    private static int intPart(Matcher matcher, String group, int orElse)
+    {
+        String value = matcher.group(group);
+        return value == null ? orElse : Integer.parseInt(value);
     }
 
     private CassandraVersion getFamilyLowerBound()
@@ -117,7 +128,6 @@ public class CassandraVersion implements Comparable<CassandraVersion>
     private static String[] parseIdentifiers(String version, String str)
     {
         // Drop initial - or +
-        str = str.substring(1);
         String[] parts = StringUtils.split(str, ".-");
         for (String part : parts)
         {

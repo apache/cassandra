@@ -77,6 +77,12 @@ public class PendingRangeCalculatorService
         update.sync();
     }
 
+
+    public void executeWhenFinished(Runnable runnable)
+    {
+        update.runAfter(runnable);
+    }
+
     // public & static for testing purposes
     public static void calculatePendingRanges(AbstractReplicationStrategy strategy, String keyspaceName)
     {

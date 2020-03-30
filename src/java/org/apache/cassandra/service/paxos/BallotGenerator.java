@@ -19,13 +19,13 @@
 package org.apache.cassandra.service.paxos;
 
 import java.security.SecureRandom;
-import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.paxos.Ballot.Flag;
 import org.apache.cassandra.utils.Shared;
-import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.service.paxos.Ballot.atUnixMicrosWithLsb;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 @Shared(scope = SIMULATION)
@@ -35,23 +35,29 @@ public interface BallotGenerator
     {
         private static final SecureRandom secureRandom = new SecureRandom();
 
-        public TimeUUID randomBallot(long whenInMicros, boolean isSerial)
+        public Ballot atUnixMicros(long unixMicros, Flag flag)
         {
-            return TimeUUID.atUnixMicrosWithLsb(whenInMicros, secureRandom.nextLong(), isSerial);
+            return atUnixMicrosWithLsb(unixMicros, secureRandom.nextLong(), flag);
         }
 
-        public TimeUUID randomBallot(long fromInMicros, long toInMicros, boolean isSerial)
+        public Ballot next(long minUnixMicros, Flag flag)
         {
-            long timestampMicros = ThreadLocalRandom.current().nextLong(fromInMicros, toInMicros);
-            return randomBallot(timestampMicros, isSerial);
+            long unixMicros = ClientState.getTimestampForPaxos(minUnixMicros);
+            return atUnixMicros(unixMicros, flag);
         }
 
-        public long nextBallotTimestampMicros(long minTimestamp)
+        public Ballot stale(long fromInMicros, long toInMicros, Flag flag)
+        {
+            long unixMicros = ThreadLocalRandom.current().nextLong(fromInMicros, toInMicros);
+            return atUnixMicros(unixMicros, flag);
+        }
+
+        public long next(long minTimestamp)
         {
             return ClientState.getTimestampForPaxos(minTimestamp);
         }
 
-        public long prevBallotTimestampMicros()
+        public long prevUnixMicros()
         {
             return ClientState.getLastTimestampMicros();
         }
@@ -60,10 +66,11 @@ public interface BallotGenerator
     static class Global
     {
         private static BallotGenerator instance = new Default();
-        public static TimeUUID randomBallot(long whenInMicros, boolean isSerial) { return instance.randomBallot(whenInMicros, isSerial); }
-        public static TimeUUID randomBallot(long fromInMicros, long toInMicros, boolean isSerial) { return instance.randomBallot(fromInMicros, toInMicros, isSerial); }
-        public static long nextBallotTimestampMicros(long minWhenInMicros) { return instance.nextBallotTimestampMicros(minWhenInMicros); }
-        public static long prevBallotTimestampMicros() { return instance.prevBallotTimestampMicros(); }
+        public static Ballot atUnixMicros(long unixMicros, Flag flag) { return instance.atUnixMicros(unixMicros, flag); }
+        public static Ballot nextBallot(Flag flag) { return instance.next(Long.MIN_VALUE, flag); }
+        public static Ballot nextBallot(long minUnixMicros, Flag flag) { return instance.next(minUnixMicros, flag); }
+        public static Ballot staleBallot(long fromUnixMicros, long toUnixMicros, Flag flag) { return instance.stale(fromUnixMicros, toUnixMicros, flag); }
+        public static long prevUnixMicros() { return instance.prevUnixMicros(); }
 
         public static void unsafeSet(BallotGenerator newInstance)
         {
@@ -71,8 +78,8 @@ public interface BallotGenerator
         }
     }
 
-    TimeUUID randomBallot(long whenInMicros, boolean isSerial);
-    TimeUUID randomBallot(long fromInMicros, long toInMicros, boolean isSerial);
-    long nextBallotTimestampMicros(long minWhenInMicros);
-    long prevBallotTimestampMicros();
+    Ballot atUnixMicros(long unixMicros, Flag flag);
+    Ballot next(long minUnixMicros, Flag flag);
+    Ballot stale(long fromUnixMicros, long toUnixMicros, Flag flag);
+    long prevUnixMicros();
 }

@@ -939,4 +939,46 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int getDefaultKeyspaceReplicationFactor();
     public void setMinimumKeyspaceReplicationFactor(int value);
     public int getMinimumKeyspaceReplicationFactor();
+
+    boolean getSkipPaxosRepairOnTopologyChange();
+    void setSkipPaxosRepairOnTopologyChange(boolean v);
+
+    String getSkipPaxosRepairOnTopologyChangeKeyspaces();
+    void setSkipPaxosRepairOnTopologyChangeKeyspaces(String v);
+
+    int getPaxosAutoRepairThresholdMb();
+    void setPaxosAutoRepairThresholdMb(int threshold);
+
+    boolean getPaxosAutoRepairsEnabled();
+    void setPaxosAutoRepairsEnabled(boolean enabled);
+
+    boolean getPaxosStateFlushEnabled();
+    void setPaxosStateFlushEnabled(boolean enabled);
+
+    List<String> getPaxosAutoRepairTables();
+
+    long getPaxosPurgeGraceSeconds();
+    void setPaxosPurgeGraceSeconds(long v);
+
+    String getPaxosOnLinearizabilityViolations();
+    void setPaxosOnLinearizabilityViolations(String v);
+
+    String getPaxosStatePurging();
+    void setPaxosStatePurging(String v);
+
+    boolean getPaxosRepairEnabled();
+    void setPaxosRepairEnabled(boolean v);
+
+    boolean getPaxosDcLocalCommitEnabled();
+    void setPaxosDcLocalCommitEnabled(boolean v);
+
+    String getPaxosBallotLowBound(String keyspace, String table, String key);
+
+    public Long getRepairRpcTimeout();
+    public void setRepairRpcTimeout(Long timeoutInMillis);
+
+    public void evictHungRepairs();
+    public void clearPaxosRepairs();
+    public void setSkipPaxosRepairCompatibilityCheck(boolean v);
+    public boolean getSkipPaxosRepairCompatibilityCheck();
 }

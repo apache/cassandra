@@ -53,16 +53,18 @@ public enum Stage
     MISC              ("MiscStage",             "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),
     TRACING           ("TracingStage",          "internal", () -> 1,                                         null,                                            Stage::tracingStage),
     INTERNAL_RESPONSE ("InternalResponseStage", "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
-    IMMEDIATE         ("ImmediateStage",        "internal", () -> 0,                                         null,                                            Stage::immediateExecutor);
+    IMMEDIATE         ("ImmediateStage",        "internal", () -> 0,                                         null,                                            Stage::immediateExecutor),
+    PAXOS_REPAIR      ("PaxosRepairStage",      "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
+    ;
 
     public final String jmxName;
-    private final Supplier<ExecutorPlus> initialiser;
-    private volatile ExecutorPlus executor = null;
+    private final Supplier<ExecutorPlus> executorSupplier;
+    private volatile ExecutorPlus executor;
 
-    Stage(String jmxName, String jmxType, IntSupplier numThreads, LocalAwareExecutorPlus.MaximumPoolSizeListener onSetMaximumPoolSize, ExecutorServiceInitialiser initialiser)
+    Stage(String jmxName, String jmxType, IntSupplier numThreads, LocalAwareExecutorPlus.MaximumPoolSizeListener onSetMaximumPoolSize, ExecutorServiceInitialiser executorSupplier)
     {
         this.jmxName = jmxName;
-        this.initialiser = () -> initialiser.init(jmxName, jmxType, numThreads.getAsInt(), onSetMaximumPoolSize);
+        this.executorSupplier = () -> executorSupplier.init(jmxName, jmxType, numThreads.getAsInt(), onSetMaximumPoolSize);
     }
 
     private static String normalizeName(String stageName)
@@ -128,7 +130,7 @@ public enum Stage
             {
                 if (executor == null)
                 {
-                    executor = initialiser.get();
+                    executor = executorSupplier.get();
                 }
             }
         }

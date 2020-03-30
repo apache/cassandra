@@ -638,7 +638,7 @@ public class BigTableWriter extends SSTableWriter
 
         protected Throwable doAbort(Throwable accumulate)
         {
-            return indexFile.abort(accumulate);
+            return summary.close(indexFile.abort(accumulate));
         }
 
         @Override

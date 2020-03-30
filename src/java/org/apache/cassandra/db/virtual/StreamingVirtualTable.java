@@ -23,10 +23,12 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamingState;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 
@@ -35,7 +37,7 @@ public class StreamingVirtualTable extends AbstractVirtualTable
     public StreamingVirtualTable(String keyspace)
     {
         super(parse("CREATE TABLE streaming (" +
-                    "  id uuid,\n" +
+                    "  id timeuuid,\n" +
                     "  follower boolean,\n" +
                     "  operation text, \n" +
                     "  peers frozen<list<text>>,\n" +
@@ -76,7 +78,7 @@ public class StreamingVirtualTable extends AbstractVirtualTable
     @Override
     public DataSet data(DecoratedKey partitionKey)
     {
-        UUID id = UUIDType.instance.compose(partitionKey.getKey());
+        TimeUUID id = TimeUUIDType.instance.compose(partitionKey.getKey());
         SimpleDataSet result = new SimpleDataSet(metadata());
         StreamingState state = StreamManager.instance.getStreamingState(id);
         if (state != null)

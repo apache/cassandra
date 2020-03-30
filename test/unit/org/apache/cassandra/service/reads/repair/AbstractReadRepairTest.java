@@ -97,7 +97,7 @@ public abstract  class AbstractReadRepairTest
     static Replica replica2;
     static Replica replica3;
     static EndpointsForRange replicas;
-    static ReplicaPlan.ForRead<?> replicaPlan;
+    static ReplicaPlan.ForRead<?, ?> replicaPlan;
 
     static long now = TimeUnit.NANOSECONDS.toMicros(nanoTime());
     static DecoratedKey key;
@@ -283,17 +283,17 @@ public abstract  class AbstractReadRepairTest
         return replicaPlan(ks, consistencyLevel, replicas, replicas);
     }
 
-    static ReplicaPlan.ForTokenWrite repairPlan(ReplicaPlan.ForRangeRead readPlan)
+    static ReplicaPlan.ForWrite repairPlan(ReplicaPlan.ForRangeRead readPlan)
     {
-        return repairPlan(readPlan, readPlan.candidates());
+        return repairPlan(readPlan, readPlan.readCandidates());
     }
 
-    static ReplicaPlan.ForTokenWrite repairPlan(EndpointsForRange liveAndDown, EndpointsForRange targets)
+    static ReplicaPlan.ForWrite repairPlan(EndpointsForRange liveAndDown, EndpointsForRange targets)
     {
         return repairPlan(replicaPlan(liveAndDown, targets), liveAndDown);
     }
 
-    static ReplicaPlan.ForTokenWrite repairPlan(ReplicaPlan.ForRangeRead readPlan, EndpointsForRange liveAndDown)
+    static ReplicaPlan.ForWrite repairPlan(ReplicaPlan.ForRangeRead readPlan, EndpointsForRange liveAndDown)
     {
         Token token = readPlan.range().left.getToken();
         EndpointsForToken pending = EndpointsForToken.empty(token);

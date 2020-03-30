@@ -163,7 +163,7 @@ public class Debug
                     case CONSEQUENCES: case ALL: listener = adapt.apply(recursive(new LogOne(time, true))); break;
                 }
             }
-            else
+            else if (keyspace != null)
             {
                 Consumer<Action> debug;
                 switch (info)
@@ -183,6 +183,7 @@ public class Debug
                     case ALL: listener = recursive(runAfter(ignoreLogEvents(debug))); break;
                 }
             }
+            else continue;
 
             listeners.add(listener);
         }

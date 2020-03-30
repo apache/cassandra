@@ -101,7 +101,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         int contentions = 1;
         int receivedBlockFor = 3;
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
-        CasWriteTimeoutException ex = new CasWriteTimeoutException(WriteType.CAS, consistencyLevel, receivedBlockFor, receivedBlockFor, contentions);
+        CasWriteTimeoutException ex = new CasWriteTimeoutException(WriteType.CAS, consistencyLevel, 0, receivedBlockFor, contentions);
 
         ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(ex), ProtocolVersion.V5);
         assertTrue(deserialized.error instanceof CasWriteTimeoutException);
@@ -110,10 +110,10 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         assertEquals(WriteType.CAS, deserializedEx.writeType);
         assertEquals(contentions, deserializedEx.contentions);
         assertEquals(consistencyLevel, deserializedEx.consistency);
-        assertEquals(receivedBlockFor, deserializedEx.received);
+        assertEquals(0, deserializedEx.received);
         assertEquals(receivedBlockFor, deserializedEx.blockFor);
         assertEquals(ex.getMessage(), deserializedEx.getMessage());
-        assertTrue(deserializedEx.getMessage().contains("CAS operation timed out - encountered contentions"));
+        assertTrue(deserializedEx.getMessage().contains("CAS operation timed out: received 0 of 3 required responses after 1 contention retries"));
     }
 
     @Test

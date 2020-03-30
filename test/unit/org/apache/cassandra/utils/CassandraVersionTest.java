@@ -252,6 +252,16 @@ public class CassandraVersionTest
         v2 = new CassandraVersion("4.0");
         assertTrue(v1.compareTo(v2) < 0);
         assertTrue(v2.compareTo(v1) > 0);
+
+        assertEquals(-1, v1.compareTo(v2));
+
+        v1 = new CassandraVersion("1.2.3");
+        v2 = new CassandraVersion("1.2.3.1");
+        assertEquals(-1, v1.compareTo(v2));
+
+        v1 = new CassandraVersion("1.2.3.1");
+        v2 = new CassandraVersion("1.2.3.2");
+        assertEquals(-1, v1.compareTo(v2));
     }
 
     @Test
@@ -346,7 +356,7 @@ public class CassandraVersionTest
     @Test
     public void testParseIdentifiersPositive() throws Throwable
     {
-        String[] result = parseIdentifiers("DUMMY", "+a.b.cde.f_g.");
+        String[] result = parseIdentifiers("DUMMY", "a.b.cde.f_g.");
         String[] expected = {"a", "b", "cde", "f_g"};
         assertArrayEquals(expected, result);
     }

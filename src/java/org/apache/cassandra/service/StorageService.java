@@ -54,6 +54,7 @@ import javax.management.openmbean.TabularData;
 import javax.management.openmbean.TabularDataSupport;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
@@ -71,6 +72,9 @@ import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -79,6 +83,10 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AuthCacheService;
+import org.apache.cassandra.config.Config.PaxosStatePurging;
+import org.apache.cassandra.service.paxos.*;
+import org.apache.cassandra.service.paxos.cleanup.*;
+import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthSchemaChangeListener;
 import org.apache.cassandra.batchlog.BatchlogManager;
@@ -129,6 +137,8 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
+import org.apache.cassandra.net.AsyncOneResponse;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
@@ -140,7 +150,6 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
-import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
@@ -148,19 +157,23 @@ import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.tryFind;
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMENT_ALLOW_EMPTY;
+import static org.apache.cassandra.config.Config.PaxosStatePurging.repaired;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.apache.cassandra.schema.MigrationManager.evolveSystemKeyspace;
+import static org.apache.cassandra.service.ActiveRepairService.*;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.service.ActiveRepairService.*;
@@ -250,6 +263,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         return Keyspace.open(keyspaceName).getReplicationStrategy()
                 .getAddressReplicas(FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    public List<Range<Token>> getLocalRanges(String ks)
+    {
+        InetAddressAndPort broadcastAddress = FBUtilities.getBroadcastAddressAndPort();
+        Keyspace keyspace = Keyspace.open(ks);
+        List<Range<Token>> ranges = new ArrayList<>();
+        for (Replica r : keyspace.getReplicationStrategy().getAddressReplicas(broadcastAddress))
+            ranges.add(r.range());
+        return ranges;
     }
 
     public List<Range<Token>> getLocalAndPendingRanges(String ks)
@@ -1280,18 +1303,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
         }
 
-        // check the arguments
-        if (keyspace == null && tokens != null)
-        {
-            throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
-        }
-
-        logger.info("rebuild from dc: {}, {}, {}", sourceDc == null ? "(any dc)" : sourceDc,
-                    keyspace == null ? "(All keyspaces)" : keyspace,
-                    tokens == null ? "(All tokens)" : tokens);
-
         try
         {
+            // check the arguments
+            if (keyspace == null && tokens != null)
+            {
+                throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
+            }
+
+            logger.info("rebuild from dc: {}, {}, {}", sourceDc == null ? "(any dc)" : sourceDc,
+                        keyspace == null ? "(All keyspaces)" : keyspace,
+                        tokens == null ? "(All tokens)" : tokens);
+
+            repairPaxosForTopologyChange("rebuild");
+
             RangeStreamer streamer = new RangeStreamer(tokenMetadata,
                                                        null,
                                                        FBUtilities.getBroadcastAddressAndPort(),
@@ -1862,6 +1887,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         // Force disk boundary invalidation now that local tokens are set
         invalidateDiskBoundaries();
+        repairPaxosForTopologyChange("bootstrap");
 
         Future<StreamState> bootstrapStream = startBootstrap(tokens);
         try
@@ -4300,16 +4326,100 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return new FutureTask<>(task);
     }
 
+    private void tryRepairPaxosForTopologyChange(String reason)
+    {
+        try
+        {
+            startRepairPaxosForTopologyChange(reason).get();
+        }
+        catch (InterruptedException e)
+        {
+            logger.error("Error during paxos repair", e);
+            throw new AssertionError(e);
+        }
+        catch (ExecutionException e)
+        {
+            logger.error("Error during paxos repair", e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void repairPaxosForTopologyChange(String reason)
+    {
+        if (getSkipPaxosRepairOnTopologyChange() || !Paxos.useV2())
+        {
+            logger.info("skipping paxos repair for {}. skip_paxos_repair_on_topology_change is set, or v2 paxos variant is not being used", reason);
+            return;
+        }
+
+        logger.info("repairing paxos for {}", reason);
+
+        int retries = 0;
+        int maxRetries = Integer.getInteger("cassandra.paxos_repair_on_topology_change_retries", 10);
+        int delaySec = Integer.getInteger("cassandra.paxos_repair_on_topology_change_retry_delay_seconds", 10);
+
+        boolean completed = false;
+        while (!completed)
+        {
+            try
+            {
+                tryRepairPaxosForTopologyChange(reason);
+                completed = true;
+            }
+            catch (Exception e)
+            {
+                if (retries >= maxRetries)
+                    throw e;
+
+                retries++;
+                int sleep = delaySec * retries;
+                logger.info("Sleeping {} seconds before retrying paxos repair...", sleep);
+                Uninterruptibles.sleepUninterruptibly(sleep, TimeUnit.SECONDS);
+                logger.info("Retrying paxos repair for {}. Retry {}/{}", reason, retries, maxRetries);
+            }
+        }
+
+        logger.info("paxos repair for {} complete", reason);
+    }
+
+    @VisibleForTesting
+    public Future<?> startRepairPaxosForTopologyChange(String reason)
+    {
+        logger.info("repairing paxos for {}", reason);
+
+        List<Future<?>> futures = new ArrayList<>();
+
+        List<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces() ;
+        for (String ksName : keyspaces)
+        {
+            if (SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(ksName))
+                continue;
+
+            if (DatabaseDescriptor.skipPaxosRepairOnTopologyChangeKeyspaces().contains(ksName))
+                continue;
+
+            List<Range<Token>> ranges = getLocalAndPendingRanges(ksName);
+            futures.add(ActiveRepairService.instance.repairPaxosForTopologyChange(ksName, ranges, reason));
+        }
+
+        return FutureCombiner.allOf(futures);
+    }
+
+    public Future<?> autoRepairPaxos(TableId tableId)
+    {
+        TableMetadata table = Schema.instance.getTableMetadata(tableId);
+        if (table == null)
+            return ImmediateFuture.success(null);
+
+        List<Range<Token>> ranges = getLocalAndPendingRanges(table.keyspace);
+        PaxosCleanupLocalCoordinator coordinator = PaxosCleanupLocalCoordinator.createForAutoRepair(tableId, ranges);
+        ScheduledExecutors.optionalTasks.submit(coordinator::start);
+        return coordinator;
+    }
+
     public void forceTerminateAllRepairSessions()
     {
         ActiveRepairService.instance.terminateSessions();
-    }
-
-    // TODO: remove this after forward-porting Paxos, before final commit
-    public Future<?> startRepairPaxosForTopologyChange(String reason)
-    {
-        // PLACEHOLDER METHOD for simple porting of Simulator without breaking correctness
-        return ImmediateFuture.success(null);
     }
 
     @Nullable
@@ -4719,6 +4829,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         setMode(Mode.LEAVING, "replaying batch log and streaming data to other nodes", true);
 
+        repairPaxosForTopologyChange("decommission");
         // Start with BatchLog replay, which may create hints but no writes since this is no longer a valid endpoint.
         Future<?> batchlogReplay = BatchlogManager.instance.startBatchlogReplay();
         Future<StreamState> streamSuccess = startStreaming.get();
@@ -4834,6 +4945,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         RangeRelocator relocator = new RangeRelocator(Collections.singleton(newToken), keyspacesToProcess, tokenMetadata);
         relocator.calculateToFromStreams();
 
+        repairPaxosForTopologyChange("move");
         if (relocator.streamsNeeded())
         {
             setMode(Mode.MOVING, "fetching new ranges and streaming old ranges", true);
@@ -6400,5 +6512,189 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public int getMinimumKeyspaceReplicationFactor()
     {
         return DatabaseDescriptor.getMinimumKeyspaceRF();
+    }
+
+    public boolean getSkipPaxosRepairOnTopologyChange()
+    {
+        return DatabaseDescriptor.skipPaxosRepairOnTopologyChange();
+    }
+
+    public void setSkipPaxosRepairOnTopologyChange(boolean v)
+    {
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChange(v);
+        logger.info("paxos skip topology change repair {} via jmx", v ? "enabled" : "disabled");
+    }
+
+    public String getSkipPaxosRepairOnTopologyChangeKeyspaces()
+    {
+        return Joiner.on(',').join(DatabaseDescriptor.skipPaxosRepairOnTopologyChangeKeyspaces());
+    }
+
+    public void setSkipPaxosRepairOnTopologyChangeKeyspaces(String v)
+    {
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChangeKeyspaces(v);
+        logger.info("paxos skip topology change repair keyspaces set to  {} via jmx", v);
+    }
+
+    public int getPaxosAutoRepairThresholdMb()
+    {
+        return DatabaseDescriptor.getPaxosAutoRepairThresholdMB();
+    }
+
+    public void setPaxosAutoRepairThresholdMb(int threshold)
+    {
+        if (threshold < 0)
+            throw new RuntimeException("Paxos auto repair threshold must not be negative");
+
+        int oldThreshold = getPaxosAutoRepairThresholdMb();
+        if (oldThreshold == threshold)
+        {
+            logger.info("Supplied paxos auto repair threshold is the same as current value");
+        }
+        else
+        {
+            logger.info("Changing paxos auto repair threshold (MiB) from {} to {}", getPaxosAutoRepairThresholdMb(), threshold);
+            DatabaseDescriptor.setPaxosAutoRepairThresholdMB(threshold);
+        }
+    }
+
+    public boolean getPaxosAutoRepairsEnabled()
+    {
+        return PaxosState.uncommittedTracker().isAutoRepairsEnabled();
+    }
+
+    public void setPaxosAutoRepairsEnabled(boolean enabled)
+    {
+        PaxosState.uncommittedTracker().setAutoRepairsEnabled(enabled);
+        logger.info("paxos auto repairs {} via jmx", enabled ? "enabled" : "disabled");
+    }
+
+    public boolean getPaxosStateFlushEnabled()
+    {
+        return PaxosState.uncommittedTracker().isStateFlushEnabled();
+    }
+
+    public void setPaxosStateFlushEnabled(boolean enabled)
+    {
+        PaxosState.uncommittedTracker().setStateFlushEnabled(enabled);
+        logger.info("paxos state flush {} via jmx", enabled ? "enabled" : "disabled");
+    }
+
+    public List<String> getPaxosAutoRepairTables()
+    {
+        Set<TableId> tableIds = PaxosState.uncommittedTracker().tableIds();
+        List<String> tables = new ArrayList<>(tableIds.size());
+        for (TableId tableId : tableIds)
+        {
+            TableMetadata table = Schema.instance.getTableMetadata(tableId);
+            if (table == null)
+                continue;
+            tables.add(table.keyspace + '.' + table.name);
+        }
+        return tables;
+    }
+
+    public long getPaxosPurgeGraceSeconds()
+    {
+        return DatabaseDescriptor.getPaxosPurgeGrace(SECONDS);
+    }
+
+    public void setPaxosPurgeGraceSeconds(long v)
+    {
+        DatabaseDescriptor.setPaxosPurgeGrace(v, SECONDS);
+        logger.info("paxos purging grace seconds set to {} via jmx", v);
+    }
+
+    public String getPaxosOnLinearizabilityViolations()
+    {
+        return DatabaseDescriptor.paxosOnLinearizabilityViolations().toString();
+    }
+
+    public void setPaxosOnLinearizabilityViolations(String v)
+    {
+        DatabaseDescriptor.setPaxosOnLinearizabilityViolations(Config.PaxosOnLinearizabilityViolation.valueOf(v));
+        logger.info("paxos on linearizability violations {} via jmx", v);
+    }
+
+    public String getPaxosStatePurging()
+    {
+        return DatabaseDescriptor.paxosStatePurging().name();
+    }
+
+    public void setPaxosStatePurging(String v)
+    {
+        DatabaseDescriptor.setPaxosStatePurging(PaxosStatePurging.valueOf(v));
+        logger.info("paxos state purging {} via jmx", v);
+    }
+
+    public boolean getPaxosRepairEnabled()
+    {
+        return DatabaseDescriptor.paxosRepairEnabled();
+    }
+
+    public void setPaxosRepairEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setPaxosRepairEnabled(enabled);
+        logger.info("paxos repair {} via jmx", enabled ? "enabled" : "disabled");
+    }
+
+    public boolean getPaxosDcLocalCommitEnabled()
+    {
+        return PaxosCommit.getEnableDcLocalCommit();
+    }
+
+    public void setPaxosDcLocalCommitEnabled(boolean enabled)
+    {
+        PaxosCommit.setEnableDcLocalCommit(enabled);
+        logger.info("paxos dc local commit {} via jmx", enabled ? "enabled" : "disabled");
+    }
+
+    public String getPaxosBallotLowBound(String ksName, String tblName, String key)
+    {
+        Keyspace keyspace = Keyspace.open(ksName);
+        if (keyspace == null)
+            throw new IllegalArgumentException("Unknown keyspace '" + ksName + "'");
+
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(tblName);
+        if (cfs == null)
+            throw new IllegalArgumentException("Unknown table '" + tblName + "' in keyspace '" + ksName + "'");
+
+        TableMetadata table = cfs.metadata.get();
+        DecoratedKey dk = table.partitioner.decorateKey(table.partitionKeyType.fromString(key));
+        return cfs.getPaxosRepairHistory().ballotForToken(dk.getToken()).toString();
+    }
+
+    public Long getRepairRpcTimeout()
+    {
+        return DatabaseDescriptor.getRepairRpcTimeout();
+    }
+
+    public void setRepairRpcTimeout(Long timeoutInMillis)
+    {
+        Preconditions.checkState(timeoutInMillis > 0);
+        DatabaseDescriptor.setRepairRpcTimeout(timeoutInMillis);
+        logger.info("RepairRpcTimeout set to {}ms via JMX", timeoutInMillis);
+    }
+    public void evictHungRepairs()
+    {
+        logger.info("StorageService#clearPaxosRateLimiters called via jmx");
+        Paxos.evictHungRepairs();
+    }
+
+    public void clearPaxosRepairs()
+    {
+        logger.info("StorageService#clearPaxosRepairs called via jmx");
+        PaxosTableRepairs.clearRepairs();
+    }
+    
+    public void setSkipPaxosRepairCompatibilityCheck(boolean v)
+    {
+        PaxosRepair.setSkipPaxosRepairCompatibilityCheck(v);
+        logger.info("SkipPaxosRepairCompatibilityCheck set to {} via jmx", v);
+    }
+
+    public boolean getSkipPaxosRepairCompatibilityCheck()
+    {
+        return PaxosRepair.getSkipPaxosRepairCompatibilityCheck();
     }
 }

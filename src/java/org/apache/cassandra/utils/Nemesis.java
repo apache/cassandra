@@ -34,7 +34,7 @@ import static org.apache.cassandra.utils.Nemesis.Traffic.HIGH;
  * TODO: Support @Nemesis on methods, to insert nemesis points either before or after invocations of the method
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ ElementType.FIELD })
+@Target({ ElementType.FIELD, ElementType.METHOD })
 public @interface Nemesis
 {
     enum Traffic { LOW, HIGH }

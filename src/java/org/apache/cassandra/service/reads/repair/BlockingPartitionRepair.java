@@ -44,7 +44,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.locator.InOurDcTester;
+import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
@@ -61,26 +61,26 @@ public class BlockingPartitionRepair
         extends AsyncFuture<Object> implements RequestCallback<Object>
 {
     private final DecoratedKey key;
-    private final ReplicaPlan.ForTokenWrite writePlan;
+    private final ReplicaPlan.ForWrite writePlan;
     private final Map<Replica, Mutation> pendingRepairs;
     private final CountDownLatch latch;
     private final Predicate<InetAddressAndPort> shouldBlockOn;
 
     private volatile long mutationsSentTime;
 
-    public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
+    public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
     {
         this(key, repairs, writePlan,
-             writePlan.consistencyLevel().isDatacenterLocal() ? InOurDcTester.endpoints() : Predicates.alwaysTrue());
+             writePlan.consistencyLevel().isDatacenterLocal() ? InOurDc.endpoints() : Predicates.alwaysTrue());
     }
-    public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan, Predicate<InetAddressAndPort> shouldBlockOn)
+    public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan, Predicate<InetAddressAndPort> shouldBlockOn)
     {
         this.key = key;
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
         this.writePlan = writePlan;
         this.shouldBlockOn = shouldBlockOn;
 
-        int blockFor = writePlan.blockFor();
+        int blockFor = writePlan.writeQuorum();
         // here we remove empty repair mutations from the block for total, since
         // we're not sending them mutations
         for (Replica participant : writePlan.contacts())
@@ -101,7 +101,7 @@ public class BlockingPartitionRepair
 
     int blockFor()
     {
-        return writePlan.blockFor();
+        return writePlan.writeQuorum();
     }
 
     @VisibleForTesting

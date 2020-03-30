@@ -866,7 +866,6 @@ public class LocalSessions
         });
     }
 
-<<<<<<< HEAD
     /**
      * Checks for the session state, and sets it to prepared unless it is on a failed state.
      * Making the checks inside a synchronized block to prevent the session state from

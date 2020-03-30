@@ -26,6 +26,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +48,7 @@ import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.DISCARD;
 import static org.apache.cassandra.concurrent.Stage.INTERNAL_RESPONSE;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
@@ -65,14 +67,14 @@ public class RequestCallbacks implements OutboundMessageCallbacks
     private static final Logger logger = LoggerFactory.getLogger(RequestCallbacks.class);
 
     private final MessagingService messagingService;
-    private final ScheduledExecutorPlus executor = executorFactory().scheduled("Callback-Map-Reaper");
+    private final ScheduledExecutorPlus executor = executorFactory().scheduled("Callback-Map-Reaper", DISCARD);
     private final ConcurrentMap<CallbackKey, CallbackInfo> callbacks = new ConcurrentHashMap<>();
 
     RequestCallbacks(MessagingService messagingService)
     {
         this.messagingService = messagingService;
 
-        long expirationInterval = DatabaseDescriptor.getMinRpcTimeout(NANOSECONDS) / 2;
+        long expirationInterval = defaultExpirationInterval();
         executor.scheduleWithFixedDelay(this::expire, expirationInterval, expirationInterval, NANOSECONDS);
     }
 
@@ -101,12 +103,11 @@ public class RequestCallbacks implements OutboundMessageCallbacks
     void addWithExpiration(RequestCallback cb, Message message, InetAddressAndPort to)
     {
         // mutations need to call the overload with a ConsistencyLevel
-        assert message.verb() != Verb.MUTATION_REQ && message.verb() != Verb.COUNTER_MUTATION_REQ && message.verb() != Verb.PAXOS_COMMIT_REQ;
+        assert message.verb() != Verb.MUTATION_REQ && message.verb() != Verb.COUNTER_MUTATION_REQ;
         CallbackInfo previous = callbacks.put(key(message.id(), to), new CallbackInfo(message, to, cb));
         assert previous == null : format("Callback already exists for id %d/%s! (%s)", message.id(), to, previous);
     }
 
-    // FIXME: shouldn't need a special overload for writes; hinting should be part of AbstractWriteResponseHandler
     public void addWithExpiration(AbstractWriteResponseHandler<?> cb,
                                   Message<?> message,
                                   Replica to,
@@ -171,14 +172,6 @@ public class RequestCallbacks implements OutboundMessageCallbacks
 
         if (info.invokeOnFailure())
             INTERNAL_RESPONSE.submit(() -> info.callback.onFailure(info.peer, RequestFailureReason.TIMEOUT));
-
-        // FIXME: this has never belonged here, should be part of onFailure() in AbstractWriteResponseHandler
-        if (info.shouldHint())
-        {
-            WriteCallbackInfo writeCallbackInfo = ((WriteCallbackInfo) info);
-            Mutation mutation = writeCallbackInfo.mutation();
-            StorageProxy.submitHint(mutation, writeCallbackInfo.getReplica(), null);
-        }
     }
 
     void shutdownNow(boolean expireCallbacks)
@@ -377,5 +370,10 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         ForwardingInfo forwardTo = message.forwardTo();
         if (null != forwardTo)
             forwardTo.forEach(this::removeAndExpire);
+    }
+
+    public static long defaultExpirationInterval()
+    {
+        return DatabaseDescriptor.getMinRpcTimeout(NANOSECONDS) / 2;
     }
 }

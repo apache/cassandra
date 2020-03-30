@@ -83,23 +83,18 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
     private static final long MAX_CLOCK_SEQ_AND_NODE = 0x7f7f7f7f7f7f7f7fL;
 
 
-    final long rawTimestamp, lsb;
+    final long uuidTimestamp, lsb;
 
-    public TimeUUID(long rawTimestamp, long lsb)
+    public TimeUUID(long uuidTimestamp, long lsb)
     {
         // we don't validate that this is a true TIMEUUID to avoid problems with historical mixing of UUID with TimeUUID
-        this.rawTimestamp = rawTimestamp;
+        this.uuidTimestamp = uuidTimestamp;
         this.lsb = lsb;
     }
 
     public static TimeUUID atUnixMicrosWithLsb(long unixMicros, long uniqueLsb)
     {
         return new TimeUUID(unixMicrosToRawTimestamp(unixMicros), uniqueLsb);
-    }
-
-    public static TimeUUID atUnixMicrosWithLsb(long unixMicros, long uniqueLsb, boolean isSerial)
-    {
-        return new TimeUUID(unixMicrosToRawTimestamp(unixMicros) + (isSerial ? 2 : 1), uniqueLsb);
     }
 
     public static UUID atUnixMicrosWithLsbAsUUID(long unixMicros, long uniqueLsb)
@@ -187,7 +182,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
 
     public UUID asUUID()
     {
-        return new UUID(rawTimestampToMsb(rawTimestamp), lsb);
+        return new UUID(rawTimestampToMsb(uuidTimestamp), lsb);
     }
 
     /**
@@ -203,21 +198,21 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
      */
     public long unixMicros()
     {
-        return rawTimestampToUnixMicros(rawTimestamp);
+        return rawTimestampToUnixMicros(uuidTimestamp);
     }
 
     /**
      * The UUID-format timestamp, i.e. 10x micros-resolution, as of UUIDGen.UUID_EPOCH_UNIX_MILLIS
      * The tenths of a microsecond are used to store a flag value.
      */
-    public long rawTimestamp()
+    public long uuidTimestamp()
     {
-        return rawTimestamp & 0x0FFFFFFFFFFFFFFFL;
+        return uuidTimestamp & 0x0FFFFFFFFFFFFFFFL;
     }
 
     public long msb()
     {
-        return rawTimestampToMsb(rawTimestamp);
+        return rawTimestampToMsb(uuidTimestamp);
     }
 
     public long lsb()
@@ -260,7 +255,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
     @Override
     public int hashCode()
     {
-        return (int) ((rawTimestamp ^ (rawTimestamp >> 32) * 31) + (lsb ^ (lsb >> 32)));
+        return (int) ((uuidTimestamp ^ (uuidTimestamp >> 32) * 31) + (lsb ^ (lsb >> 32)));
     }
 
     @Override
@@ -272,12 +267,12 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
 
     public boolean equals(TimeUUID that)
     {
-        return that != null && rawTimestamp == that.rawTimestamp && lsb == that.lsb;
+        return that != null && uuidTimestamp == that.uuidTimestamp && lsb == that.lsb;
     }
 
     public boolean equals(UUID that)
     {
-        return that != null && rawTimestamp == that.timestamp() && lsb == that.getLeastSignificantBits();
+        return that != null && uuidTimestamp == that.timestamp() && lsb == that.getLeastSignificantBits();
     }
 
     @Override
@@ -288,19 +283,19 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
 
     public static String toString(TimeUUID ballot)
     {
-        return ballot == null ? "null" : ballot.rawTimestamp() + ":" + ballot;
+        return ballot == null ? "null" : ballot.uuidTimestamp() + ":" + ballot;
     }
 
     public static String toString(TimeUUID ballot, String kind)
     {
-        return ballot == null ? "null" : String.format("%s(%d:%s)", kind, ballot.rawTimestamp(), ballot);
+        return ballot == null ? "null" : String.format("%s(%d:%s)", kind, ballot.uuidTimestamp(), ballot);
     }
 
     @Override
     public int compareTo(TimeUUID that)
     {
-        return this.rawTimestamp != that.rawTimestamp
-               ? Long.compare(this.rawTimestamp, that.rawTimestamp)
+        return this.uuidTimestamp != that.uuidTimestamp
+               ? Long.compare(this.uuidTimestamp, that.uuidTimestamp)
                : Long.compare(this.lsb, that.lsb);
     }
 

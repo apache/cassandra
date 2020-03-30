@@ -22,8 +22,11 @@ import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
+import org.apache.cassandra.utils.BiLongAccumulator;
+import org.apache.cassandra.utils.LongAccumulator;
 
 /**
  * An efficient stack/list that is expected to be ordinarily either empty or close to, and for which
@@ -62,21 +65,45 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
     T next;
 
     @Inline
-    protected static <O, T extends IntrusiveStack<T>> void push(AtomicReferenceFieldUpdater<? super O, T> headUpdater, O owner, T prepend)
+    protected static <O, T extends IntrusiveStack<T>> T push(AtomicReferenceFieldUpdater<? super O, T> headUpdater, O owner, T prepend)
     {
-        push(headUpdater, owner, prepend, (prev, next) -> {
+        return push(headUpdater, owner, prepend, (prev, next) -> {
             next.next = prev;
             return next;
         });
     }
 
-    protected static <O, T extends IntrusiveStack<T>> void push(AtomicReferenceFieldUpdater<O, T> headUpdater, O owner, T prepend, BiFunction<T, T, T> combine)
+    protected static <O, T extends IntrusiveStack<T>> T push(AtomicReferenceFieldUpdater<O, T> headUpdater, O owner, T prepend, BiFunction<T, T, T> combine)
     {
         while (true)
         {
             T head = headUpdater.get(owner);
             if (headUpdater.compareAndSet(owner, head, combine.apply(head, prepend)))
-                return;
+                return head;
+        }
+    }
+
+    protected interface Setter<O, T>
+    {
+        public boolean compareAndSet(O owner, T expect, T update);
+    }
+
+    @Inline
+    protected static <O, T extends IntrusiveStack<T>> T push(Function<O, T> getter, Setter<O, T> setter, O owner, T prepend)
+    {
+        return push(getter, setter, owner, prepend, (prev, next) -> {
+            next.next = prev;
+            return next;
+        });
+    }
+
+    protected static <O, T extends IntrusiveStack<T>> T push(Function<O, T> getter, Setter<O, T> setter, O owner, T prepend, BiFunction<T, T, T> combine)
+    {
+        while (true)
+        {
+            T head = getter.apply(owner);
+            if (setter.compareAndSet(owner, head, combine.apply(head, prepend)))
+                return head;
         }
     }
 
@@ -84,6 +111,18 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
     {
         T head = headUpdater.get(owner);
         headUpdater.lazySet(owner, combine.apply(head, prepend));
+    }
+
+    protected static <T extends IntrusiveStack<T>, O> void pushExclusive(AtomicReferenceFieldUpdater<O, T> headUpdater, O owner, T prepend)
+    {
+        prepend.next = headUpdater.get(owner);
+        headUpdater.lazySet(owner, prepend);
+    }
+
+    protected static <T extends IntrusiveStack<T>> T pushExclusive(T head, T prepend)
+    {
+        prepend.next = head;
+        return prepend;
     }
 
     protected static <T extends IntrusiveStack<T>, O> Iterable<T> iterable(AtomicReferenceFieldUpdater<O, T> headUpdater, O owner)
@@ -110,6 +149,17 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
             list = list.next;
         }
         return size;
+    }
+
+    protected static <T extends IntrusiveStack<T>> long accumulate(T list, LongAccumulator<T> accumulator, long initialValue)
+    {
+        long value = initialValue;
+        while (list != null)
+        {
+            value = accumulator.apply(list, initialValue);
+            list = list.next;
+        }
+        return value;
     }
 
     // requires exclusive ownership (incl. with readers)

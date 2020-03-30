@@ -36,6 +36,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -180,7 +181,7 @@ public class CQL3CasRequest implements CASRequest
         return new RegularAndStaticColumns(statics, regulars);
     }
 
-    public SinglePartitionReadQuery readCommand(int nowInSec)
+    public SinglePartitionReadCommand readCommand(int nowInSec)
     {
         assert staticConditions != null || !conditions.isEmpty();
 
@@ -190,7 +191,7 @@ public class CQL3CasRequest implements CASRequest
         // With only a static condition, we still want to make the distinction between a non-existing partition and one
         // that exists (has some live data) but has not static content. So we query the first live row of the partition.
         if (conditions.isEmpty())
-            return SinglePartitionReadQuery.create(metadata,
+            return SinglePartitionReadCommand.create(metadata,
                                                    nowInSec,
                                                    columnFilter,
                                                    RowFilter.NONE,
@@ -199,7 +200,7 @@ public class CQL3CasRequest implements CASRequest
                                                    new ClusteringIndexSliceFilter(Slices.ALL, false));
 
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(conditions.navigableKeySet(), false);
-        return SinglePartitionReadQuery.create(metadata, nowInSec, key, columnFilter, filter);
+        return SinglePartitionReadCommand.create(metadata, nowInSec, key, columnFilter, filter);
     }
 
     /**
@@ -232,14 +233,14 @@ public class CQL3CasRequest implements CASRequest
         return builder.build();
     }
 
-    public PartitionUpdate makeUpdates(FilteredPartition current, ClientState state, TimeUUID ballot) throws InvalidRequestException
+    public PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException
     {
         PartitionUpdate.Builder updateBuilder = new PartitionUpdate.Builder(metadata, key, updatedColumns(), conditions.size());
         long timeUuidNanos = 0;
         for (RowUpdate upd : updates)
-            timeUuidNanos = upd.applyUpdates(current, updateBuilder, state, ballot.msb(), timeUuidNanos);
+            timeUuidNanos = upd.applyUpdates(current, updateBuilder, clientState, ballot.msb(), timeUuidNanos);
         for (RangeDeletion upd : rangeDeletions)
-            upd.applyUpdates(current, updateBuilder, state);
+            upd.applyUpdates(current, updateBuilder, clientState);
 
         PartitionUpdate partitionUpdate = updateBuilder.build();
         IndexRegistry.obtain(metadata).validate(partitionUpdate);

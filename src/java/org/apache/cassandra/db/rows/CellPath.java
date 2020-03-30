@@ -65,6 +65,8 @@ public abstract class CellPath implements IMeasurableMemory
 
     public abstract long unsharedHeapSizeExcludingData();
 
+    public abstract long unsharedHeapSize();
+
     @Override
     public final int hashCode()
     {

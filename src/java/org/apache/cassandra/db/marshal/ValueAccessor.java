@@ -37,6 +37,7 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.db.ClusteringPrefix.Kind.*;
@@ -325,6 +326,9 @@ public interface ValueAccessor<V>
 
     /** returns a TimeUUID from offset 0 */
     TimeUUID toTimeUUID(V value);
+
+    /** returns a TimeUUID from offset 0 */
+    Ballot toBallot(V value);
 
     /**
      * writes the short value {@param value} to {@param dst} at offset {@param offset}

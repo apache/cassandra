@@ -24,7 +24,7 @@ package org.apache.cassandra.simulator;
  */
 public interface FutureActionScheduler
 {
-    enum Deliver { DELIVER, TIMEOUT, FAILURE }
+    enum Deliver { DELIVER, TIMEOUT, DELIVER_AND_TIMEOUT, FAILURE }
 
     /**
      * Make a decision about the result of some attempt to deliver a message.
@@ -42,7 +42,7 @@ public interface FutureActionScheduler
      * The simulated global nanoTime at which a timeout should be reported for a message
      * with {@code expiresAfterNanos} timeout
      */
-    long messageTimeoutNanos(long expiresAfterNanos);
+    long messageTimeoutNanos(long expiresAfterNanos, long expirationIntervalNanos);
 
     /**
      * The simulated global nanoTime at which a failure should be reported for a message

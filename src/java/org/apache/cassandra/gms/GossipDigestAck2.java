@@ -43,11 +43,6 @@ public class GossipDigestAck2
     {
         this.epStateMap = epStateMap;
     }
-
-    Map<InetAddressAndPort, EndpointState> getEndpointStateMap()
-    {
-        return epStateMap;
-    }
 }
 
 class GossipDigestAck2Serializer implements IVersionedSerializer<GossipDigestAck2>

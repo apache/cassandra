@@ -39,7 +39,8 @@ import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.locator.ReplicaUtils.full;
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
+import static org.apache.cassandra.service.paxos.BallotGenerator.Global.nextBallot;
 
 public class WriteCallbackInfoTest
 {
@@ -80,7 +81,7 @@ public class WriteCallbackInfoTest
     {
         TableMetadata metadata = MockSchema.newTableMetadata("", "");
         Object payload = verb == Verb.PAXOS_COMMIT_REQ
-                         ? new Commit(nextTimeUUID(), new PartitionUpdate.Builder(metadata, ByteBufferUtil.EMPTY_BYTE_BUFFER, RegularAndStaticColumns.NONE, 1).build())
+                         ? new Commit(nextBallot(NONE), new PartitionUpdate.Builder(metadata, ByteBufferUtil.EMPTY_BYTE_BUFFER, RegularAndStaticColumns.NONE, 1).build())
                          : new Mutation(PartitionUpdate.simpleBuilder(metadata, "").build());
 
         RequestCallbacks.WriteCallbackInfo wcbi = new RequestCallbacks.WriteCallbackInfo(Message.out(verb, payload), full(testEp), null, cl, allowHints);

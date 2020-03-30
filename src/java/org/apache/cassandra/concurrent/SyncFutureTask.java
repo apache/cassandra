@@ -71,8 +71,7 @@ public class SyncFutureTask<T> extends SyncFuture<T> implements RunnableFuture<T
         catch (Throwable t)
         {
             tryFailure(t);
-            Thread thread = Thread.currentThread();
-            thread.getUncaughtExceptionHandler().uncaughtException(thread, t);
+            ExecutionFailure.handle(t);
         }
     }
 

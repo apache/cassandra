@@ -34,6 +34,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
@@ -132,7 +133,7 @@ public final class PathUtils
         }
     }
 
-    public static <T> T[] tryList(Path path, Function<Stream<Path>, Stream<T>> transform, IntFunction<T[]> arrayFactory)
+    public static <T extends Throwable, V> V[] tryList(Path path, Function<Stream<Path>, Stream<V>> transform, IntFunction<V[]> arrayFactory, ThrowingFunction<IOException, V[], T> orElse) throws T
     {
         try (Stream<Path> stream = Files.list(path))
         {
@@ -141,7 +142,7 @@ public final class PathUtils
         }
         catch (IOException e)
         {
-            return null;
+            return orElse.apply(e);
         }
     }
 
@@ -251,6 +252,22 @@ public final class PathUtils
         }
         catch (IOException e)
         {
+            throw propagateUnchecked(e, file, true);
+        }
+    }
+
+    public static void deleteIfExists(Path file)
+    {
+        try
+        {
+            Files.delete(file);
+            onDeletion.accept(file);
+        }
+        catch (IOException e)
+        {
+            if (e instanceof FileNotFoundException | e instanceof NoSuchFileException)
+                return;
+
             throw propagateUnchecked(e, file, true);
         }
     }
@@ -375,9 +392,8 @@ public final class PathUtils
         {
             logger.trace("Could not move file {} to {}", from, to, e);
 
-            // TODO: this should be an FSError (either read or write)?
-            // (but for now this is maintaining legacy semantics)
-            throw new RuntimeException(String.format("Failed to rename %s to %s", from, to), e);
+            // TODO: try to decide if is read or write? for now, have assumed write
+            throw propagateUnchecked(String.format("Failed to rename %s to %s", from, to), e, to, true);
         }
     }
 
@@ -734,6 +750,14 @@ public final class PathUtils
      */
     public static RuntimeException propagateUnchecked(IOException ioe, Path path, boolean write)
     {
+        return propagateUnchecked(null, ioe, path, write);
+    }
+
+    /**
+     * propagate an IOException as an FSWriteError, FSReadError or UncheckedIOException
+     */
+    public static RuntimeException propagateUnchecked(String message, IOException ioe, Path path, boolean write)
+    {
         if (ioe instanceof FileAlreadyExistsException
             || ioe instanceof NoSuchFileException
             || ioe instanceof AtomicMoveNotSupportedException
@@ -741,10 +765,10 @@ public final class PathUtils
             || ioe instanceof java.nio.file.FileSystemLoopException
             || ioe instanceof java.nio.file.NotDirectoryException
             || ioe instanceof java.nio.file.NotLinkException)
-            throw new UncheckedIOException(ioe);
+            throw new UncheckedIOException(message, ioe);
 
-        if (write) throw new FSWriteError(ioe, path);
-        else throw new FSReadError(ioe, path);
+        if (write) throw new FSWriteError(message, ioe, path);
+        else throw new FSReadError(message, ioe, path);
     }
 
     /**
