@@ -42,9 +42,9 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.simulator.Debug.Info;
 import org.apache.cassandra.simulator.Debug.Levels;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
-import org.apache.cassandra.simulator.debug.Capture;
 import org.apache.cassandra.simulator.debug.SelfReconcile;
 import org.apache.cassandra.simulator.systems.InterceptedWait;
+import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
 import org.apache.cassandra.simulator.utils.ChanceRange;
@@ -74,6 +74,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SHUTDOWN_A
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_AUTH_DEFAULT_RF;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_IGNORE_SIGAR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_GOSSIP_ENDPOINT_REMOVAL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
 import static org.apache.cassandra.simulator.debug.Reconcile.reconcileWith;
 import static org.apache.cassandra.simulator.debug.Record.record;
 import static org.apache.cassandra.simulator.debug.SelfReconcile.reconcileWithSelf;
@@ -85,6 +86,8 @@ public class SimulationRunner
 {
     private static final Logger logger = LoggerFactory.getLogger(SimulationRunner.class);
 
+    public enum RecordOption { NONE, VALUE, WITH_CALLSITES }
+
     @BeforeClass
     public static void beforeAll()
     {
@@ -92,7 +95,7 @@ public class SimulationRunner
 
         // Disallow time on the bootstrap classloader
         for (CassandraRelevantProperties property : Arrays.asList(CLOCK_GLOBAL, CLOCK_MONOTONIC_APPROX, CLOCK_MONOTONIC_PRECISE))
-            property.setString("org.apache.cassandra.simulator.systems.SimulatedTime$Throwing");
+            property.setString("org.apache.cassandra.simulator.systems.SimulatedTime$Delegating");
         try { Clock.Global.nanoTime(); } catch (IllegalStateException e) {} // make sure static initializer gets called
 
         // TODO (cleanup): disable unnecessary things like compaction logger threads etc
@@ -123,9 +126,10 @@ public class SimulationRunner
         MEMTABLE_OVERHEAD_SIZE.setInt(100);
         IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
         IS_DISABLED_MBEAN_REGISTRATION.setBoolean(true);
+        TEST_JVM_DTEST_DISABLE_SSL.setBoolean(true); // to support easily running without netty from dtest-jar
 
         if (Thread.currentThread() instanceof InterceptibleThread); // load InterceptibleThread class to avoid infinite loop in InterceptorOfGlobalMethods
-        new InterceptedWait.CaptureSites(Thread.currentThread(), false)
+        new InterceptedWait.CaptureSites(Thread.currentThread())
         .toString(ste -> !ste.getClassName().equals(SelfReconcile.class.getName())); // ensure self reconcile verify can work without infinite looping
         InterceptorOfGlobalMethods.Global.unsafeReset();
         ThreadLocalRandom.current();
@@ -138,7 +142,7 @@ public class SimulationRunner
 
     protected abstract static class BasicCommand<B extends ClusterSimulation.Builder<?>> implements ICommand<B>
     {
-        @Option(name = { "-s", "--seed"} , title = "0x|int", description = "Specify the first seed to test (each simulation will increment the seed by 1)")
+        @Option(name = { "--seed" } , title = "0x", description = "Specify the first seed to test (each simulation will increment the seed by 1)")
         protected String seed;
 
         @Option(name = { "--simulations"} , title = "int", description = "The number of simulations to run")
@@ -167,9 +171,10 @@ public class SimulationRunner
         protected String topologyChanges = stream(TopologyChange.values()).map(Object::toString).collect(Collectors.joining(","));
         @Option(name = { "--cluster-action-interval" }, title = "int...int(s|ms|us|ns)", description = "The period of time between two cluster actions (default 5..15s)")
         protected String topologyChangeInterval = "5..15s";
+        @Option(name = { "--cluster-action-limit" }, title = "int", description = "The maximum number of topology change events to perform (default 0)")
+        protected String topologyChangeLimit = "0";
 
-
-        @Option(name = {"--run-time"}, title = "int", description = "Length of simulated time to run in seconds (default -1)")
+        @Option(name = { "-s", "--run-time" }, title = "int", description = "Length of simulated time to run in seconds (default -1)")
         protected int secondsToSimulate = -1;
 
         @Option(name = { "--reads" }, title = "[distribution:]float...float", description = "Proportion of actions that are reads (default: 0.05..0.95)")
@@ -281,6 +286,7 @@ public class SimulationRunner
                                         .toArray(TopologyChange[]::new));
             });
             parseNanosRange(Optional.ofNullable(topologyChangeInterval)).ifPresent(builder::topologyChangeIntervalNanos);
+            builder.topologyChangeLimit(Integer.parseInt(topologyChangeLimit));
             Optional.ofNullable(priority).ifPresent(kinds -> {
                 builder.scheduler(stream(kinds.split(","))
                                   .filter(v -> !v.isEmpty())
@@ -332,7 +338,7 @@ public class SimulationRunner
 
             propagate(builder);
 
-            long seed = parseLong(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
+            long seed = parseHex(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
             for (int i = 0 ; i < simulationCount ; ++i)
             {
                 cleanup();
@@ -371,16 +377,16 @@ public class SimulationRunner
         @Option(name = {"--to"}, description = "Directory of recordings to reconcile with for the seed", required = true)
         private String dir;
 
-        @Option(name = {"--with-rng"}, description = "Record RNG values", arity = 0)
-        private boolean rng;
+        @Option(name = {"--with-rng"}, title = "0|1", description = "Record RNG values (with or without call sites)", allowedValues = {"0", "1"})
+        private int rng = -1;
 
-        @Option(name = {"--with-rng-callsites"}, description = "Record RNG call sites", arity = 0)
-        private boolean rngCallSites;
+        @Option(name = {"--with-time"}, title = "0|1", description = "Record time values (with or without call sites)", allowedValues = {"0", "1"})
+        private int time = -1;
 
         @Override
         protected void run(long seed, B builder) throws IOException
         {
-            record(dir, seed, rng, rngCallSites, builder);
+            record(dir, seed, RecordOption.values()[rng + 1], RecordOption.values()[time + 1], builder);
         }
     }
 
@@ -390,11 +396,11 @@ public class SimulationRunner
         @Option(name = {"--with"}, description = "Directory of recordings to reconcile with for the seed")
         private String dir;
 
-        @Option(name = {"--with-rng"}, description = "Reconcile RNG values (if present in source)", arity = 0)
-        private boolean rng;
+        @Option(name = {"--with-rng"}, title = "0|1", description = "Reconcile RNG values (if present in source)", allowedValues = {"0", "1"})
+        private int rng = -1;
 
-        @Option(name = {"--with-rng-callsites"}, description = "Reconcile RNG call sites (if present in source)", arity = 0)
-        private boolean rngCallSites;
+        @Option(name = {"--with-time"}, title = "0|1", description = "Reconcile time values (if present in source)", allowedValues = {"0", "1"})
+        private int time = -1;
 
         @Option(name = {"--with-allocations"}, description = "Reconcile memtable allocations (only with --with-self)", arity = 0)
         private boolean allocations;
@@ -405,9 +411,11 @@ public class SimulationRunner
         @Override
         protected void run(long seed, B builder) throws IOException
         {
-            if (withSelf) reconcileWithSelf(seed, rng, rngCallSites, allocations, builder);
+            RecordOption withRng = RecordOption.values()[rng + 1];
+            RecordOption withTime = RecordOption.values()[time + 1];
+            if (withSelf) reconcileWithSelf(seed, withRng, withTime, allocations, builder);
             else if (allocations) throw new IllegalArgumentException("--with-allocations is only compatible with --with-self");
-            else reconcileWith(dir, seed, rng, rngCallSites, builder);
+            else reconcileWith(dir, seed, withRng, withTime, builder);
         }
     }
 
@@ -421,11 +429,13 @@ public class SimulationRunner
     }
 
 
-    private static Optional<Long> parseLong(Optional<String> value)
+    private static Optional<Long> parseHex(Optional<String> value)
     {
-        return value.map(s -> s.startsWith("0x")
-                              ? Hex.parseLong(s, 2, s.length())
-                              : Long.parseLong(s));
+        return value.map(s -> {
+            if (s.startsWith("0x"))
+                return Hex.parseLong(s, 2, s.length());
+            throw new IllegalArgumentException("Invalid hex string: " + s);
+        });
     }
 
     private static final Pattern CHANCE_PATTERN = Pattern.compile("(uniform|(?<qlog>qlog(\\((?<quantizations>[0-9]+)\\))?):)?(?<min>0(\\.[0-9]+)?)(..(?<max>0\\.[0-9]+))?", Pattern.CASE_INSENSITIVE);

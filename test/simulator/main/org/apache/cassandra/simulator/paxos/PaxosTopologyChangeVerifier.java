@@ -24,6 +24,7 @@ import org.apache.cassandra.simulator.cluster.Topology;
 import org.apache.cassandra.simulator.systems.NonInterceptible;
 
 import static java.util.Arrays.stream;
+import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
 
 public class PaxosTopologyChangeVerifier implements TopologyChangeValidator
 {
@@ -47,9 +48,7 @@ public class PaxosTopologyChangeVerifier implements TopologyChangeValidator
     public void before(Topology before, int[] participatingKeys)
     {
         this.topologyBefore = before.select(participatingKeys);
-        this.ballotsBefore = NonInterceptible.apply(() ->
-            Ballots.read(cluster, keyspace, table, topologyBefore.primaryKeys, topologyBefore.replicasForKeys, true)
-        );
+        this.ballotsBefore = Ballots.read(REQUIRED, cluster, keyspace, table, topologyBefore.primaryKeys, topologyBefore.replicasForKeys, true);
         for (int i = 0; i < topologyBefore.primaryKeys.length ; ++i)
         {
             if (ballotsBefore[i].length != topologyBefore.quorumRf)
@@ -69,9 +68,7 @@ public class PaxosTopologyChangeVerifier implements TopologyChangeValidator
         int quorumBefore = topologyBefore.quorumRf / 2 + 1;
         int quorumAfter = topologyAfter.quorumRf / 2 + 1;
         Ballots.LatestBallots[][] allBefore = ballotsBefore;
-        Ballots.LatestBallots[][] allAfter = NonInterceptible.apply(() ->
-            Ballots.read(cluster, keyspace, table, primaryKeys, topologyAfter.replicasForKeys, true)
-        );
+        Ballots.LatestBallots[][] allAfter = Ballots.read(REQUIRED, cluster, keyspace, table, primaryKeys, topologyAfter.replicasForKeys, true);
         for (int pki = 0; pki < primaryKeys.length; ++pki)
         {
             Ballots.LatestBallots[] before = allBefore[pki];

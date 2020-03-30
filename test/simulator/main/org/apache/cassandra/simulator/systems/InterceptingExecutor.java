@@ -35,7 +35,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import io.netty.util.concurrent.FastThreadLocal;
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.LocalAwareExecutorPlus;
 import org.apache.cassandra.concurrent.LocalAwareSequentialExecutorPlus;
@@ -44,19 +45,20 @@ import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.concurrent.SingleThreadExecutorPlus;
 import org.apache.cassandra.concurrent.SyncFutureTask;
 import org.apache.cassandra.concurrent.TaskFactory;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.simulator.OrderOn;
-import org.apache.cassandra.simulator.OrderOn.OrderAppliesAfterScheduling;
+import org.apache.cassandra.simulator.systems.InterceptingAwaitable.InterceptingCondition;
 import org.apache.cassandra.simulator.systems.NotifyThreadPaused.AwaitPaused;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.Condition;
-import org.apache.cassandra.utils.concurrent.Condition.Sync;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.apache.cassandra.utils.concurrent.NotScheduledFuture;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.Collections.newSetFromMap;
+import static java.util.Collections.synchronizedMap;
 import static java.util.Collections.synchronizedSet;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SIMULATOR_DEBUG;
@@ -65,12 +67,11 @@ import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDU
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_TASK;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_TIMEOUT;
 import static org.apache.cassandra.simulator.systems.SimulatedExecution.callable;
-import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.absoluteToRelativeNanos;
+import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.localToRelativeNanos;
 import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.localToGlobalNanos;
-import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.relativeToGlobalAbsoluteNanos;
+import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.relativeToGlobalNanos;
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
-import static org.apache.commons.collections.MapUtils.synchronizedMap;
 
 // An executor whose tasks we can intercept the execution of
 @Shared(scope = SIMULATION, inner = INTERFACES)
@@ -141,13 +142,14 @@ public interface InterceptingExecutor extends OrderOn
         final InterceptingTaskFactory taskFactory;
 
         final Set<Object> debugPending = TEST_SIMULATOR_DEBUG.getBoolean() ? synchronizedSet(newSetFromMap(new IdentityHashMap<>())) : null;
-        final Condition isTerminated = new Sync();
+        final Condition isTerminated;
         volatile boolean isShutdown;
         volatile int pending;
 
         protected AbstractInterceptingExecutor(InterceptorOfExecution interceptorOfExecution, InterceptingTaskFactory taskFactory)
         {
             this.interceptorOfExecution = interceptorOfExecution;
+            this.isTerminated = new InterceptingCondition();
             this.taskFactory = taskFactory;
         }
 
@@ -254,11 +256,6 @@ public interface InterceptingExecutor extends OrderOn
 
         abstract void terminate();
 
-        protected void onThreadTermination()
-        {
-            FastThreadLocal.removeAll();
-        }
-
         public boolean isShutdown()
         {
             return isShutdown;
@@ -271,6 +268,17 @@ public interface InterceptingExecutor extends OrderOn
 
         public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException
         {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                InterceptibleThread interceptibleThread = (InterceptibleThread) thread;
+                if (interceptibleThread.isIntercepting())
+                {
+                    // simpler to use no timeout than to ensure pending tasks all run first in simulation
+                    isTerminated.await();
+                    return true;
+                }
+            }
             return isTerminated.await(timeout, unit);
         }
 
@@ -321,6 +329,7 @@ public interface InterceptingExecutor extends OrderOn
                             if (shutdown && remaining < threads.size())
                             {
                                 threads.remove(thread);
+                                thread.onTermination();
                                 if (threads.isEmpty())
                                     isTerminated.signal(); // this has simulator side-effects, so try to perform before we interceptTermination
                                 thread.interceptTermination(true);
@@ -453,6 +462,7 @@ public interface InterceptingExecutor extends OrderOn
             WaitingThread next;
             while (null != (next = waiting.poll()))
                 next.terminate();
+
             if (pending == 0)
                 terminate();
         }
@@ -547,13 +557,9 @@ public interface InterceptingExecutor extends OrderOn
             }
         }
 
-        enum ThreadState { WAITING, EXECUTING, TERMINATING, TERMINATED }
-
         final InterceptibleThread thread;
         final ArrayDeque<Runnable> queue = new ArrayDeque<>();
-        volatile boolean executing;
-        volatile boolean terminating;
-        volatile boolean terminated;
+        volatile boolean executing, terminating, terminated;
 
         AbstractSingleThreadedExecutorPlus(InterceptorOfExecution interceptorOfExecution, ThreadFactory threadFactory, InterceptingTaskFactory taskFactory)
         {
@@ -568,12 +574,11 @@ public interface InterceptingExecutor extends OrderOn
                         try
                         {
                             task = dequeue();
-                            if (task == null)
-                                return;
                         }
                         catch (InterruptedException | UncheckedInterruptedException ignore)
                         {
-                            continue;
+                            if (terminating) return;
+                            else continue;
                         }
 
                         try
@@ -589,47 +594,52 @@ public interface InterceptingExecutor extends OrderOn
                         executing = false;
                         boolean shutdown = isShutdown;
                         if ((0 == completePending(task) && shutdown))
-                        {
-                            isTerminated.signal(); // this has simulator side-effects, so try to perform before we interceptTermination
-                            thread.interceptTermination(true);
                             return;
-                        }
 
                         thread.interceptTermination(false);
                     }
                 }
                 finally
                 {
-                    synchronized (this)
+                    runDeterministic(thread::onTermination);
+                    if (terminating)
                     {
-                        terminated = true;
-                        notifyAll();
+                        synchronized (this)
+                        {
+                            terminated = true;
+                            notifyAll();
+                        }
                     }
-                    if (!isTerminated())
+                    else
                     {
-                        runDeterministic(() -> {
-                            isTerminated.signal();
-                            thread.interceptTermination(true);
-                        });
+                        runDeterministic(this::terminate);
                     }
                 }
             });
             thread.start();
         }
 
-        synchronized void terminate()
+        void terminate()
         {
-            terminating = true;
-            notifyAll();
-            try
+            synchronized (this)
             {
-                while (!terminated)
-                    wait();
+                assert pending == 0;
+                if (terminating)
+                    return;
+
+                terminating = true;
+                if (Thread.currentThread() != thread)
+                {
+                    notifyAll();
+                    try { while (!terminated) wait(); }
+                    catch (InterruptedException e) { throw new UncheckedInterruptedException(e); }
+                }
+                terminated = true;
             }
-            catch (InterruptedException e)
-            {
-                throw new UncheckedInterruptedException(e);
-            }
+
+            isTerminated.signal(); // this has simulator side-effects, so try to perform before we interceptTermination
+            if (Thread.currentThread() == thread && thread.isIntercepting())
+                thread.interceptTermination(true);
         }
 
         public synchronized void shutdown()
@@ -651,8 +661,8 @@ public interface InterceptingExecutor extends OrderOn
             List<Runnable> cancelled = new ArrayList<>(queue);
             queue.clear();
             cancelled.forEach(super::cancelPending);
-            if (pending > 0) thread.interrupt();
-            else terminate();
+            if (pending == 0) terminate();
+            else thread.interrupt();
             return cancelled;
         }
 
@@ -664,9 +674,14 @@ public interface InterceptingExecutor extends OrderOn
 
         synchronized Runnable dequeue() throws InterruptedException
         {
-            while (queue.isEmpty() && !terminating)
+            Runnable next;
+            while (null == (next = queue.poll()) && !terminating)
                 wait();
-            return queue.poll();
+
+            if (next == null)
+                throw new InterruptedException();
+
+            return next;
         }
 
         public AtLeastOnce atLeastOnceTrigger(Runnable run)
@@ -711,7 +726,7 @@ public interface InterceptingExecutor extends OrderOn
             synchronized (this)
             {
                 // we don't check isShutdown as we could have a task queued by simulation from prior to shutdown
-                if (isTerminated()) throw new AssertionError();
+                if (terminated) throw new AssertionError();
                 if (executing) throw new AssertionError();
                 if (debugPending != null && !debugPending.contains(task)) throw new AssertionError();
                 executing = true;
@@ -751,7 +766,7 @@ public interface InterceptingExecutor extends OrderOn
                 throw new RejectedExecutionException();
 
             long delayNanos = unit.toNanos(delay);
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_TASK, delayNanos, relativeToGlobalAbsoluteNanos(delayNanos), callable(run, null), this);
+            return interceptorOfExecution.intercept().schedule(SCHEDULED_TASK, delayNanos, relativeToGlobalNanos(delayNanos), callable(run, null), this);
         }
 
         public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit)
@@ -760,12 +775,12 @@ public interface InterceptingExecutor extends OrderOn
                 throw new RejectedExecutionException();
 
             long delayNanos = unit.toNanos(delay);
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_TASK, delayNanos, relativeToGlobalAbsoluteNanos(delayNanos), callable, this);
+            return interceptorOfExecution.intercept().schedule(SCHEDULED_TASK, delayNanos, relativeToGlobalNanos(delayNanos), callable, this);
         }
 
         public ScheduledFuture<?> scheduleTimeoutWithDelay(Runnable run, long delay, TimeUnit unit)
         {
-            return scheduleTimeoutAt(run, relativeToGlobalAbsoluteNanos(unit.toNanos(delay)));
+            return scheduleTimeoutAt(run, relativeToGlobalNanos(unit.toNanos(delay)));
         }
 
         public ScheduledFuture<?> scheduleAt(Runnable run, long deadlineNanos)
@@ -773,7 +788,7 @@ public interface InterceptingExecutor extends OrderOn
             if (isShutdown)
                 throw new RejectedExecutionException();
 
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_TASK, absoluteToRelativeNanos(deadlineNanos), localToGlobalNanos(deadlineNanos), callable(run, null), this);
+            return interceptorOfExecution.intercept().schedule(SCHEDULED_TASK, localToRelativeNanos(deadlineNanos), localToGlobalNanos(deadlineNanos), callable(run, null), this);
         }
 
         public ScheduledFuture<?> scheduleTimeoutAt(Runnable run, long deadlineNanos)
@@ -781,7 +796,7 @@ public interface InterceptingExecutor extends OrderOn
             if (isShutdown)
                 throw new RejectedExecutionException();
 
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_TIMEOUT, absoluteToRelativeNanos(deadlineNanos), localToGlobalNanos(deadlineNanos), callable(run, null), this);
+            return interceptorOfExecution.intercept().schedule(SCHEDULED_TIMEOUT, localToRelativeNanos(deadlineNanos), localToGlobalNanos(deadlineNanos), callable(run, null), this);
         }
 
         public ScheduledFuture<?> scheduleSelfRecurring(Runnable run, long delay, TimeUnit unit)
@@ -790,7 +805,7 @@ public interface InterceptingExecutor extends OrderOn
                 throw new RejectedExecutionException();
 
             long delayNanos = unit.toNanos(delay);
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_DAEMON, delayNanos, relativeToGlobalAbsoluteNanos(delayNanos), callable(run, null), this);
+            return interceptorOfExecution.intercept().schedule(SCHEDULED_DAEMON, delayNanos, relativeToGlobalNanos(delayNanos), callable(run, null), this);
         }
 
         public ScheduledFuture<?> scheduleAtFixedRate(Runnable run, long initialDelay, long period, TimeUnit unit)
@@ -799,13 +814,14 @@ public interface InterceptingExecutor extends OrderOn
                 throw new RejectedExecutionException();
 
             long delayNanos = unit.toNanos(initialDelay);
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_DAEMON, delayNanos, relativeToGlobalAbsoluteNanos(delayNanos), new Callable<Object>()
+            return interceptorOfExecution.intercept().schedule(SCHEDULED_DAEMON, delayNanos, relativeToGlobalNanos(delayNanos), new Callable<Object>()
             {
                 @Override
                 public Object call()
                 {
                     run.run();
-                    scheduleAtFixedRate(run, period, period, unit);
+                    if (!isShutdown)
+                        scheduleAtFixedRate(run, period, period, unit);
                     return null;
                 }
 
@@ -843,6 +859,204 @@ public interface InterceptingExecutor extends OrderOn
         InterceptingLocalAwareSequentialExecutor(InterceptorOfExecution interceptorOfExecution, ThreadFactory threadFactory, InterceptingTaskFactory taskFactory)
         {
             super(interceptorOfExecution, threadFactory, taskFactory);
+        }
+    }
+
+    @PerClassLoader
+    static class DiscardingSequentialExecutor implements LocalAwareSequentialExecutorPlus, ScheduledExecutorPlus
+    {
+        @Override
+        public void shutdown()
+        {
+        }
+
+        @Override
+        public List<Runnable> shutdownNow()
+        {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public boolean isShutdown()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean isTerminated()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException
+        {
+            return false;
+        }
+
+        @Override
+        public <T> Future<T> submit(Callable<T> task)
+        {
+            return ImmediateFuture.cancelled();
+        }
+
+        @Override
+        public <T> Future<T> submit(Runnable task, T result)
+        {
+            return ImmediateFuture.cancelled();
+        }
+
+        @Override
+        public Future<?> submit(Runnable task)
+        {
+            return ImmediateFuture.cancelled();
+        }
+
+        @Override
+        public void execute(WithResources withResources, Runnable task)
+        {
+        }
+
+        @Override
+        public <T> Future<T> submit(WithResources withResources, Callable<T> task)
+        {
+            return ImmediateFuture.cancelled();
+        }
+
+        @Override
+        public Future<?> submit(WithResources withResources, Runnable task)
+        {
+            return ImmediateFuture.cancelled();
+        }
+
+        @Override
+        public <T> Future<T> submit(WithResources withResources, Runnable task, T result)
+        {
+            return ImmediateFuture.cancelled();
+        }
+
+        @Override
+        public boolean inExecutor()
+        {
+            return false;
+        }
+
+        @Override
+        public int getCorePoolSize()
+        {
+            return 0;
+        }
+
+        @Override
+        public void setCorePoolSize(int newCorePoolSize)
+        {
+
+        }
+
+        @Override
+        public int getMaximumPoolSize()
+        {
+            return 0;
+        }
+
+        @Override
+        public void setMaximumPoolSize(int newMaximumPoolSize)
+        {
+
+        }
+
+        @Override
+        public int getActiveTaskCount()
+        {
+            return 0;
+        }
+
+        @Override
+        public long getCompletedTaskCount()
+        {
+            return 0;
+        }
+
+        @Override
+        public int getPendingTaskCount()
+        {
+            return 0;
+        }
+
+        @Override
+        public AtLeastOnceTrigger atLeastOnceTrigger(Runnable runnable)
+        {
+            return new AtLeastOnceTrigger()
+            {
+                @Override
+                public boolean trigger()
+                {
+                    return false;
+                }
+
+                @Override
+                public void runAfter(Runnable run)
+                {
+                }
+
+                @Override
+                public void sync()
+                {
+                }
+            };
+        }
+
+        @Override
+        public void execute(Runnable command)
+        {
+        }
+
+        @Override
+        public ScheduledFuture<?> scheduleSelfRecurring(Runnable run, long delay, TimeUnit units)
+        {
+            return new NotScheduledFuture<>();
+        }
+
+        @Override
+        public ScheduledFuture<?> scheduleAt(Runnable run, long deadline)
+        {
+            return new NotScheduledFuture<>();
+        }
+
+        @Override
+        public ScheduledFuture<?> scheduleTimeoutAt(Runnable run, long deadline)
+        {
+            return new NotScheduledFuture<>();
+        }
+
+        @Override
+        public ScheduledFuture<?> scheduleTimeoutWithDelay(Runnable run, long delay, TimeUnit units)
+        {
+            return new NotScheduledFuture<>();
+        }
+
+        @Override
+        public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit)
+        {
+            return new NotScheduledFuture<>();
+        }
+
+        @Override
+        public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit)
+        {
+            return new NotScheduledFuture<>();
+        }
+
+        @Override
+        public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit)
+        {
+            return new NotScheduledFuture<>();
+        }
+
+        @Override
+        public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit)
+        {
+            return new NotScheduledFuture<>();
         }
     }
 }

@@ -38,7 +38,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.*;
@@ -63,6 +65,8 @@ import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.pager.SinglePartitionPager;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -209,13 +213,15 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         markIndexesBuilding(ImmutableSet.of(index), true, isNewCF);
 
-        Callable<?> initialBuildTask = null;
+        FutureTask<?> initialBuildTask = null;
         // if the index didn't register itself, we can probably assume that no initialization needs to happen
         if (indexes.containsKey(indexDef.name))
         {
             try
             {
-                initialBuildTask = index.getInitializationTask();
+                Callable<?> call = index.getInitializationTask();
+                if (call != null)
+                    initialBuildTask = new FutureTask<>(call);
             }
             catch (Throwable t)
             {
@@ -233,16 +239,20 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         // otherwise run the initialization task asynchronously with a callback to mark it built or failed
         final Promise<Void> initialization = new AsyncPromise<>();
-        asyncExecutor.submit(initialBuildTask)
-                     .addCallback(
-                         success -> {
-                             markIndexBuilt(index, true);
-                             initialization.trySuccess(null);
-                         },
-                         failure -> {
-                             logAndMarkIndexesFailed(Collections.singleton(index), failure, true);
-                             initialization.tryFailure(failure);
-                         });
+        // we want to ensure we invoke this task asynchronously, so we want to add our callback before submission
+        // to ensure the work is not completed before we register the callback and so it gets performed by us.
+        // This is because Keyspace.open("system") can transitively attempt to open Keyspace.open("system")
+        initialBuildTask.addCallback(
+            success -> {
+                markIndexBuilt(index, true);
+                initialization.trySuccess(null);
+            },
+            failure -> {
+                logAndMarkIndexesFailed(Collections.singleton(index), failure, true);
+                initialization.tryFailure(failure);
+            }
+        );
+        asyncExecutor.execute(initialBuildTask);
 
         return initialization;
     }
@@ -667,7 +677,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             if (counter.decrementAndGet() == 0)
             {
                 inProgressBuilds.remove(indexName);
-                if (!needsFullRebuild.contains(indexName) && DatabaseDescriptor.isDaemonInitialized())
+                if (!needsFullRebuild.contains(indexName) && DatabaseDescriptor.isDaemonInitialized() && Keyspace.isInitialized())
                     SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), indexName);
             }
         }
@@ -799,17 +809,6 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     }
 
     /**
-     * Performs a blocking flush of all custom indexes
-     */
-    public void flushAllNonCFSBackedIndexesBlocking()
-    {
-        executeAllBlocking(indexes.values()
-                                  .stream()
-                                  .filter(index -> !index.getBackingTable().isPresent()),
-                           Index::getBlockingFlushTask, null);
-    }
-
-    /**
      * Performs a blocking execution of pre-join tasks of all indexes
      */
     public void executePreJoinTasksBlocking(boolean hadBootstrap)
@@ -841,6 +840,18 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         executeAllBlocking(nonCfsIndexes.stream(), Index::getBlockingFlushTask, callback);
         FBUtilities.waitOnFutures(wait);
+    }
+
+    /**
+     * Performs a blocking flush of all custom indexes
+     */
+    public void flushAllNonCFSBackedIndexesBlocking(Memtable baseCfsMemtable)
+    {
+        executeAllBlocking(indexes.values()
+                                  .stream()
+                                  .filter(index -> !index.getBackingTable().isPresent()),
+                           index -> index.getBlockingFlushTask(baseCfsMemtable),
+                           null);
     }
 
     /**

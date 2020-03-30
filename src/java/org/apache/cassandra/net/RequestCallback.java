@@ -41,6 +41,12 @@ public interface RequestCallback<T>
     }
 
     /**
+     * Returns true if the callback handles failure reporting - in which case the remove host will be asked to
+     * report failures to us in the event of a problem processing the request.
+     *
+     * TODO: this is an error prone method, and we should be handling failures everywhere
+     *       so we should probably just start doing that, and remove this method
+     *
      * @return true if the callback should be invoked on failure
      */
     default boolean invokeOnFailure()
@@ -56,4 +62,5 @@ public interface RequestCallback<T>
     {
         return false;
     }
+
 }

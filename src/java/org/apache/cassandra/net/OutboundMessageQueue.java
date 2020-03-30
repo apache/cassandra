@@ -519,7 +519,6 @@ class OutboundMessageQueue
             }
         }
 
-        //noinspection UnstableApiUsage
         runner.done.awaitUninterruptibly();
         return runner.removed.contains(remove);
     }

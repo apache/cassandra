@@ -21,6 +21,7 @@ package org.apache.cassandra.simulator.paxos;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -48,15 +49,22 @@ import org.apache.cassandra.simulator.Actions;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.cluster.KeyspaceActions;
+import org.apache.cassandra.simulator.systems.SimulatedActionTask;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.Boolean.TRUE;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
+import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE;
+import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
+import static org.apache.cassandra.simulator.ActionSchedule.Mode.STREAM_LIMITED;
+import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_AND_STREAM_LIMITED;
+import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
 import static org.apache.cassandra.simulator.Debug.EventType.PARTITION;
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.fail;
 
@@ -71,8 +79,6 @@ public class PairOfSequencesPaxosSimulation extends PaxosSimulation
     private static final String INSERT = "INSERT INTO " + KEYSPACE + ".tbl (pk, count, seq1, seq2) VALUES (?, 0, '', []) IF NOT EXISTS";
     private static final String INSERT1 = "INSERT INTO " + KEYSPACE + ".tbl (pk, count, seq1, seq2) VALUES (?, 0, '', []) USING TIMESTAMP 0";
     private static final String UPDATE = "UPDATE " + KEYSPACE + ".tbl SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS";
-    private static final String DELETE = "DELETE FROM " + KEYSPACE + ".tbl WHERE pk = ? IF EXISTS";
-    private static final String DELETE1 = "DELETE FROM " + KEYSPACE + ".tbl USING TIMESTAMP 4611686018427387904 WHERE pk = ?";
     private static final String SELECT = "SELECT pk, count, seq1, seq2 FROM  " + KEYSPACE + ".tbl WHERE pk = ?";
     private static final ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
 
@@ -127,7 +133,7 @@ public class PairOfSequencesPaxosSimulation extends PaxosSimulation
         }
     }
 
-    class ModifyingOperation extends Operation
+    public class ModifyingOperation extends Operation
     {
         final HistoryChecker historyChecker;
         public ModifyingOperation(int id, IInvokableInstance instance, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, int primaryKey, HistoryChecker historyChecker)
@@ -174,7 +180,8 @@ public class PairOfSequencesPaxosSimulation extends PaxosSimulation
                                           long seed, int[] primaryKeys,
                                           long runForNanos, LongSupplier jitter)
     {
-        super(simulated, cluster, scheduler, runForNanos, jitter);
+        super(runForNanos < 0 ? STREAM_LIMITED : clusterOptions.topologyChangeLimit < 0 ? TIME_LIMITED : TIME_AND_STREAM_LIMITED,
+              simulated, cluster, scheduler, runForNanos, jitter);
         this.readRatio = readRatio;
         this.concurrency = concurrency;
         this.simulateKeyForSeconds = simulateKeyForSeconds;
@@ -183,7 +190,8 @@ public class PairOfSequencesPaxosSimulation extends PaxosSimulation
         this.clusterOptions = clusterOptions;
         this.debug = debug;
         this.seed = seed;
-        this.primaryKeys = primaryKeys;
+        this.primaryKeys = primaryKeys.clone();
+        Arrays.sort(this.primaryKeys);
     }
 
     public ActionPlan plan()
@@ -196,7 +204,7 @@ public class PairOfSequencesPaxosSimulation extends PaxosSimulation
                 cluster.stream().map(i -> simulated.run("Insert Partitions", i, executeForPrimaryKeys(INSERT1, primaryKeys)))
             ),
             ActionList.of(
-                cluster.stream().map(i -> simulated.run("Delete Partitions", i, executeForPrimaryKeys(DELETE1, primaryKeys)))
+                cluster.stream().map(i -> SimulatedActionTask.unsafeTask("Shutdown " + i.broadcastAddress(), RELIABLE, RELIABLE_NO_TIMEOUTS, simulated, i, i::shutdown))
             )
         ));
 

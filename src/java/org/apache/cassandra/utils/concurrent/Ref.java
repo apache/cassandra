@@ -30,6 +30,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -191,7 +192,7 @@ public final class Ref<T> implements RefCounted<T>
 
         private static final AtomicIntegerFieldUpdater<State> releasedUpdater = AtomicIntegerFieldUpdater.newUpdater(State.class, "released");
 
-        public State(final GlobalState globalState, Ref reference, ReferenceQueue<? super Ref> q)
+        State(final GlobalState globalState, Ref reference, ReferenceQueue<? super Ref> q)
         {
             super(reference, q);
             this.globalState = globalState;

@@ -64,10 +64,9 @@ class Ordered extends OrderedLink implements ActionListener
         {
             this.on = on;
             this.concurrency = on.concurrency();
-            this.maybeRunning = !DEBUG ? new CountingCollection<>()
-                                       : concurrency == 1
-                                         ? new ArrayList<>(1)
-                                         : new LinkedHashSet<>();
+            this.maybeRunning = concurrency == 1
+                                ? new ArrayList<>(1)
+                                : new LinkedHashSet<>();
         }
 
         <O extends Ordered> void add(O add, Function<O, List<Sequence>> memberOf)

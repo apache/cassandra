@@ -18,8 +18,8 @@
 package org.apache.cassandra.repair;
 
 import java.util.*;
-import java.util.function.Predicate;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -27,6 +27,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.*;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +46,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -52,6 +55,8 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import static org.apache.cassandra.config.DatabaseDescriptor.paxosRepairEnabled;
+import static org.apache.cassandra.service.paxos.Paxos.useV2;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
@@ -71,8 +76,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
     /**
      * Create repair job to run on specific columnfamily
-     *
-     * @param session RepairSession that this RepairJob belongs
+     *  @param session RepairSession that this RepairJob belongs
      * @param columnFamily name of the ColumnFamily to repair
      */
     public RepairJob(RepairSession session, String columnFamily)
@@ -112,40 +116,77 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         allEndpoints.add(FBUtilities.getBroadcastAddressAndPort());
 
         Future<List<TreeResponse>> treeResponses;
+        Future<Void> paxosRepair;
+        if (paxosRepairEnabled() && ((useV2() && session.repairPaxos) || session.paxosOnly))
+        {
+            logger.info("{} {}.{} starting paxos repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+            TableMetadata metadata = Schema.instance.getTableMetadata(desc.keyspace, desc.columnFamily);
+            paxosRepair = PaxosCleanup.cleanup(allEndpoints, metadata, desc.ranges, session.commonRange.hasSkippedReplicas, taskExecutor);
+        }
+        else
+        {
+            logger.info("{} {}.{} not running paxos repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+            paxosRepair = ImmediateFuture.success(null);
+        }
+
+        if (session.paxosOnly)
+        {
+            paxosRepair.addCallback(new FutureCallback<Void>()
+            {
+                public void onSuccess(Void v)
+                {
+                    logger.info("{} {}.{} paxos repair completed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                    trySuccess(new RepairResult(desc, Collections.emptyList()));
+                }
+
+                /**
+                 * Snapshot, validation and sync failures are all handled here
+                 */
+                public void onFailure(Throwable t)
+                {
+                    logger.warn("{} {}.{} paxos repair failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                    tryFailure(t);
+                }
+            }, taskExecutor);
+            return;
+        }
+
         // Create a snapshot at all nodes unless we're using pure parallel repairs
         if (parallelismDegree != RepairParallelism.PARALLEL)
         {
-            Future<List<InetAddressAndPort>> allSnapshotTasks;
+            Future<?> allSnapshotTasks;
             if (session.isIncremental)
             {
                 // consistent repair does it's own "snapshotting"
-                allSnapshotTasks = ImmediateFuture.success(allEndpoints);
+                allSnapshotTasks = paxosRepair.map(input -> allEndpoints);
             }
             else
             {
                 // Request snapshot to all replica
-                List<Future<InetAddressAndPort>> snapshotTasks = new ArrayList<>(allEndpoints.size());
-                for (InetAddressAndPort endpoint : allEndpoints)
-                {
-                    SnapshotTask snapshotTask = new SnapshotTask(desc, endpoint);
-                    snapshotTasks.add(snapshotTask);
-                    taskExecutor.execute(snapshotTask);
-                }
-                allSnapshotTasks = FutureCombiner.allOf(snapshotTasks);
+                allSnapshotTasks = paxosRepair.flatMap(input -> {
+                    List<Future<InetAddressAndPort>> snapshotTasks = new ArrayList<>(allEndpoints.size());
+                    for (InetAddressAndPort endpoint : allEndpoints)
+                    {
+                        SnapshotTask snapshotTask = new SnapshotTask(desc, endpoint);
+                        snapshotTasks.add(snapshotTask);
+                        taskExecutor.execute(snapshotTask);
+                    }
+                    return FutureCombiner.allOf(snapshotTasks);
+                });
             }
 
             // When all snapshot complete, send validation requests
             treeResponses = allSnapshotTasks.flatMap(endpoints -> {
                 if (parallelismDegree == RepairParallelism.SEQUENTIAL)
-                    return sendSequentialValidationRequest(endpoints);
+                    return sendSequentialValidationRequest(allEndpoints);
                 else
-                    return sendDCAwareValidationRequest(endpoints);
-            }, taskExecutor);
+                    return sendDCAwareValidationRequest(allEndpoints);
+                }, taskExecutor);
         }
         else
         {
             // If not sequential, just send validation request to all replica
-            treeResponses = sendValidationRequest(allEndpoints);
+            treeResponses = paxosRepair.flatMap(input -> sendValidationRequest(allEndpoints));
         }
 
         // When all validations complete, submit sync tasks

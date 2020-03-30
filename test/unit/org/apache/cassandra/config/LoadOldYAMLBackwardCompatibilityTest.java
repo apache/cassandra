@@ -49,7 +49,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(DurationSpec.inMilliseconds(10000), config.range_request_timeout);
         assertEquals(DurationSpec.inMilliseconds(2000), config.write_request_timeout);
         assertEquals(DurationSpec.inMilliseconds(5000), config.counter_write_request_timeout);
-        assertEquals(DurationSpec.inMilliseconds(1000), config.cas_contention_timeout);
+        assertEquals(DurationSpec.inMilliseconds(1800), config.cas_contention_timeout);
         assertEquals(DurationSpec.inMilliseconds(60000), config.truncate_request_timeout);
         assertEquals(DurationSpec.inSeconds(300), config.streaming_keep_alive_period);
         assertEquals(DurationSpec.inMilliseconds(500), config.slow_query_log_timeout);

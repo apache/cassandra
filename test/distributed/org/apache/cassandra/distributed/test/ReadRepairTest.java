@@ -493,7 +493,7 @@ public class ReadRepairTest extends TestBaseImpl
         // on timestamp tie of RT and partition deletion: we should not generate RT bounds in such case,
         // since monotonicity is already ensured by the partition deletion, and RT is unnecessary there.
         // For details, see CASSANDRA-16453.
-        public static Object repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForTokenWrite writePlan, @SuperCall Callable<Void> r) throws Exception
+        public static Object repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan, @SuperCall Callable<Void> r) throws Exception
         {
             Assert.assertEquals(2, mutations.size());
             for (Mutation value : mutations.values())

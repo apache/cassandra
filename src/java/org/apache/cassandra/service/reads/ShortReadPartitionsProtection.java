@@ -174,7 +174,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), ReplicaPlan.shared(replicaPlan));
     }
 
-    private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+    private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
     UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
     {
         DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);

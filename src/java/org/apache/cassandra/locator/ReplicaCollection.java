@@ -62,14 +62,14 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
     /**
      * @return the number of replicas that match the predicate
      */
-    public abstract int count(Predicate<Replica> predicate);
+    public abstract int count(Predicate<? super Replica> predicate);
 
     /**
      * @return a *eagerly constructed* copy of this collection containing the Replica that match the provided predicate.
      * An effort will be made to either return ourself, or a subList, where possible.
      * It is guaranteed that no changes to any upstream Builder will affect the state of the result.
      */
-    public abstract C filter(Predicate<Replica> predicate);
+    public abstract C filter(Predicate<? super Replica> predicate);
 
     /**
      * @return a *eagerly constructed* copy of this collection containing the Replica that match the provided predicate.
@@ -77,18 +77,18 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
      * It is guaranteed that no changes to any upstream Builder will affect the state of the result.
      * Only the first maxSize items will be returned.
      */
-    public abstract C filter(Predicate<Replica> predicate, int maxSize);
+    public abstract C filter(Predicate<? super Replica> predicate, int maxSize);
 
     /**
      * @return a *lazily constructed* Iterable over this collection, containing the Replica that match the provided predicate.
      */
-    public abstract Iterable<Replica> filterLazily(Predicate<Replica> predicate);
+    public abstract Iterable<Replica> filterLazily(Predicate<? super Replica> predicate);
 
     /**
      * @return a *lazily constructed* Iterable over this collection, containing the Replica that match the provided predicate.
      * Only the first maxSize matching items will be returned.
      */
-    public abstract Iterable<Replica> filterLazily(Predicate<Replica> predicate, int maxSize);
+    public abstract Iterable<Replica> filterLazily(Predicate<? super Replica> predicate, int maxSize);
 
     /**
      * @return an *eagerly constructed* copy of this collection containing the Replica at positions [start..end);
@@ -101,7 +101,7 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
      * @return an *eagerly constructed* copy of this collection containing the Replica re-ordered according to this comparator
      * It is guaranteed that no changes to any upstream Builder will affect the state of the result.
      */
-    public abstract C sorted(Comparator<Replica> comparator);
+    public abstract C sorted(Comparator<? super Replica> comparator);
 
     public abstract Iterator<Replica> iterator();
     public abstract Stream<Replica> stream();

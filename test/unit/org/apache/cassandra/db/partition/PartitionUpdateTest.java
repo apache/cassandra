@@ -58,7 +58,7 @@ public class PartitionUpdateTest extends CQLTester
         builder.newRow().add("s", 1);
         builder.newRow(1).add("a", 2);
         int size1 = builder.build().dataSize();
-        Assert.assertEquals(44, size1);
+        Assert.assertEquals(94, size1);
 
         builder = UpdateBuilder.create(cfm, "key0");
         builder.newRow(1).add("a", 2);

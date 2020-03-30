@@ -23,6 +23,7 @@ import org.apache.cassandra.simulator.cluster.ClusterActionListener.RepairValida
 import org.apache.cassandra.simulator.cluster.Topology;
 
 import static java.util.Arrays.stream;
+import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
 
 public class PaxosRepairValidator implements RepairValidator
 {
@@ -51,7 +52,7 @@ public class PaxosRepairValidator implements RepairValidator
 
         this.isPaxos = isPaxos;
         this.topology = topology;
-        this.ballotsBefore = Ballots.read(cluster, keyspace, table, topology.primaryKeys, topology.replicasForKeys, false);
+        this.ballotsBefore = Ballots.read(REQUIRED, cluster, keyspace, table, topology.primaryKeys, topology.replicasForKeys, false);
     }
 
     @Override
@@ -64,7 +65,7 @@ public class PaxosRepairValidator implements RepairValidator
         int[][] replicasForKeys = topology.replicasForKeys;
         int quorumRf = topology.quorumRf;
         int quorum = quorumRf / 2 + 1;
-        Ballots.LatestBallots[][] ballotsAfter  = Ballots.read(cluster, keyspace, table, primaryKeys, replicasForKeys, true);
+        Ballots.LatestBallots[][] ballotsAfter  = Ballots.read(REQUIRED, cluster, keyspace, table, primaryKeys, replicasForKeys, true);
         for (int pki = 0; pki < primaryKeys.length ; ++pki)
         {
             Ballots.LatestBallots[] before = ballotsBefore[pki];

@@ -22,9 +22,14 @@ import java.util.ArrayList;
 
 import com.google.common.base.Preconditions;
 
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
 /**
  * A (possibly empty) collection of OrderOn
  */
+@Shared(scope = SIMULATION)
 public interface OrderOns
 {
     /**

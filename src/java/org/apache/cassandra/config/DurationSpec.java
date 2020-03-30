@@ -64,7 +64,7 @@ public class DurationSpec
 
     public DurationSpec(String value)
     {
-        if (value == null || value.equals("null") || value.toLowerCase(Locale.ROOT).equals("nan"))
+        if (value == null || value.equals("null") || value.toLowerCase(Locale.ROOT).equals("nan") || value.equals("0"))
         {
             quantity = 0;
             unit = MILLISECONDS;
@@ -74,7 +74,7 @@ public class DurationSpec
         //parse the string field value
         Matcher matcher = TIME_UNITS_PATTERN.matcher(value);
 
-        if(matcher.find())
+        if (matcher.find())
         {
             quantity = Long.parseLong(matcher.group(1));
             unit = fromSymbol(matcher.group(2));

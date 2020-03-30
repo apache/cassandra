@@ -569,7 +569,7 @@ public class CassandraIndexTest extends CQLTester
         Awaitility.await()
                   .atMost(1, TimeUnit.MINUTES)
                   .pollDelay(1, TimeUnit.SECONDS)
-                  .untilAsserted(() -> assertRows(execute(selectBuiltIndexesQuery)));
+                  .untilAsserted(() -> assertRows(execute(selectBuiltIndexesQuery), row("system", "PaxosUncommittedIndex", null)));
 
         String indexName = "build_remove_test_idx";
         String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
@@ -577,18 +577,18 @@ public class CassandraIndexTest extends CQLTester
         waitForIndex(KEYSPACE, tableName, indexName);
 
         // check that there are no other rows in the built indexes table
-        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null));
+        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null), row("system", "PaxosUncommittedIndex", null));
 
         // rebuild the index and verify the built status table
         getCurrentColumnFamilyStore().rebuildSecondaryIndex(indexName);
         waitForIndex(KEYSPACE, tableName, indexName);
 
         // check that there are no other rows in the built indexes table
-        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null));
+        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null), row("system", "PaxosUncommittedIndex", null));
 
         // check that dropping the index removes it from the built indexes table
         dropIndex("DROP INDEX %s." + indexName);
-        assertRows(execute(selectBuiltIndexesQuery));
+        assertRows(execute(selectBuiltIndexesQuery), row("system", "PaxosUncommittedIndex", null));
     }
 
 

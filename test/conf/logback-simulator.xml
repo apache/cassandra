@@ -40,11 +40,15 @@
     </filter>
   </appender>
 
+  <logger name="org.apache.cassandra.locator.TokenMetadata" level="ERROR"/>
+  <logger name="org.apache.cassandra.net.Message" level="ERROR"/>
+  <logger name="org.reflections.Reflections" level="ERROR"/>
   <logger name="org.apache.hadoop" level="WARN"/>
   <logger name="org.apache.cassandra.utils.SigarLibrary" level="ERROR"/>
   <logger name="org.apache.cassandra.utils.FBUtilities" level="ERROR"/>
   <logger name="org.apache.cassandra.config.DatabaseDescriptor" level="ERROR"/>
   <logger name="org.apache.cassandra.service.StartupChecks" level="ERROR"/>
+  <logger name="org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir" level="ERROR"/>
   <logger name="io.netty.handler.ssl.SslHandler" level="WARN"/>
 
   <root level="INFO">

@@ -19,6 +19,7 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The goods are here: www.ietf.org/rfc/rfc4122.txt.

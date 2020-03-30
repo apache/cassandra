@@ -33,11 +33,11 @@ import org.apache.cassandra.locator.ReplicaPlan;
 public class PartitionIteratorMergeListener<E extends Endpoints<E>>
         implements UnfilteredPartitionIterators.MergeListener
 {
-    private final ReplicaPlan.ForRead<E> replicaPlan;
+    private final ReplicaPlan.ForRead<E, ?> replicaPlan;
     private final ReadCommand command;
     private final ReadRepair readRepair;
 
-    public PartitionIteratorMergeListener(ReplicaPlan.ForRead<E> replicaPlan, ReadCommand command, ReadRepair readRepair)
+    public PartitionIteratorMergeListener(ReplicaPlan.ForRead<E, ?> replicaPlan, ReadCommand command, ReadRepair readRepair)
     {
         this.replicaPlan = replicaPlan;
         this.command = command;

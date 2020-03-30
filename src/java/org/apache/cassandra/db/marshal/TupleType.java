@@ -205,9 +205,17 @@ public class TupleType extends AbstractType<ByteBuffer>
      */
     public ByteBuffer[] split(ByteBuffer value)
     {
-        ByteBuffer[] components = new ByteBuffer[size()];
+        return split(value, size(), this);
+    }
+
+    /**
+     * Split a tuple value into its component values.
+     */
+    public static ByteBuffer[] split(ByteBuffer value, int numberOfElements, TupleType type)
+    {
+        ByteBuffer[] components = new ByteBuffer[numberOfElements];
         ByteBuffer input = value.duplicate();
-        for (int i = 0; i < size(); i++)
+        for (int i = 0; i < numberOfElements; i++)
         {
             if (!input.hasRemaining())
                 return Arrays.copyOfRange(components, 0, i);
@@ -226,7 +234,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         {
             throw new InvalidRequestException(String.format(
             "Expected %s %s for %s column, but got more",
-            size(), size() == 1 ? "value" : "values", this.asCQL3Type()));
+            numberOfElements, numberOfElements == 1 ? "value" : "values", type.asCQL3Type()));
         }
 
         return components;

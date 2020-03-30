@@ -133,7 +133,7 @@ public class ReplicaPlans
                     if (logger.isTraceEnabled())
                     {
                         logger.trace(String.format("Local replicas %s are insufficient to satisfy LOCAL_QUORUM requirement of %d live replicas and %d full replicas in '%s'",
-                                allLive.filter(InOurDcTester.replicas()), blockFor, blockForFullReplicas, DatabaseDescriptor.getLocalDataCenter()));
+                                                   allLive.filter(InOurDc.replicas()), blockFor, blockForFullReplicas, DatabaseDescriptor.getLocalDataCenter()));
                     }
                     throw UnavailableException.create(consistencyLevel, blockFor, blockForFullReplicas, localLive.allReplicas(), localLive.fullReplicas());
                 }
@@ -175,23 +175,23 @@ public class ReplicaPlans
     /**
      * Construct a ReplicaPlan for writing to exactly one node, with CL.ONE. This node is *assumed* to be alive.
      */
-    public static ReplicaPlan.ForTokenWrite forSingleReplicaWrite(Keyspace keyspace, Token token, Replica replica)
+    public static ReplicaPlan.ForWrite forSingleReplicaWrite(Keyspace keyspace, Token token, Replica replica)
     {
         EndpointsForToken one = EndpointsForToken.of(token, replica);
         EndpointsForToken empty = EndpointsForToken.empty(token);
-        return new ReplicaPlan.ForTokenWrite(keyspace, keyspace.getReplicationStrategy(), ConsistencyLevel.ONE, empty, one, one, one);
+        return new ReplicaPlan.ForWrite(keyspace, keyspace.getReplicationStrategy(), ConsistencyLevel.ONE, empty, one, one, one);
     }
 
     /**
      * A forwarding counter write is always sent to a single owning coordinator for the range, by the original coordinator
      * (if it is not itself an owner)
      */
-    public static ReplicaPlan.ForTokenWrite forForwardingCounterWrite(Keyspace keyspace, Token token, Replica replica)
+    public static ReplicaPlan.ForWrite forForwardingCounterWrite(Keyspace keyspace, Token token, Replica replica)
     {
         return forSingleReplicaWrite(keyspace, token, replica);
     }
 
-    public static ReplicaPlan.ForTokenWrite forLocalBatchlogWrite()
+    public static ReplicaPlan.ForWrite forLocalBatchlogWrite()
     {
         Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
         Keyspace systemKeypsace = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
@@ -211,7 +211,7 @@ public class ReplicaPlans
      *
      * @param isAny if batch consistency level is ANY, in which case a local node will be picked
      */
-    public static ReplicaPlan.ForTokenWrite forBatchlogWrite(boolean isAny) throws UnavailableException
+    public static ReplicaPlan.ForWrite forBatchlogWrite(boolean isAny) throws UnavailableException
     {
         // A single case we write not for range or token, but multiple mutations to many tokens
         Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
@@ -317,41 +317,41 @@ public class ReplicaPlans
         return result;
     }
 
-    public static ReplicaPlan.ForTokenWrite forReadRepair(Token token, ReplicaPlan.ForRead<?> readPlan) throws UnavailableException
+    public static ReplicaPlan.ForWrite forReadRepair(Token token, ReplicaPlan<?, ?> readPlan) throws UnavailableException
     {
-        return forWrite(readPlan.keyspace, readPlan.consistencyLevel, token, writeReadRepair(readPlan));
+        return forWrite(readPlan.keyspace(), readPlan.consistencyLevel(), token, writeReadRepair(readPlan));
     }
 
-    public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, Selector selector) throws UnavailableException
+    public static ReplicaPlan.ForWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, Selector selector) throws UnavailableException
     {
         return forWrite(keyspace, consistencyLevel, ReplicaLayout.forTokenWriteLiveAndDown(keyspace, token), selector);
     }
 
     @VisibleForTesting
-    public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken pending, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
+    public static ReplicaPlan.ForWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken pending, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
     {
         return forWrite(keyspace, consistencyLevel, ReplicaLayout.forTokenWrite(keyspace.getReplicationStrategy(), natural, pending), isAlive, selector);
     }
 
-    public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Selector selector) throws UnavailableException
+    public static ReplicaPlan.ForWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Selector selector) throws UnavailableException
     {
         return forWrite(keyspace, consistencyLevel, liveAndDown, FailureDetector.isReplicaAlive, selector);
     }
 
-    private static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
+    private static ReplicaPlan.ForWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
     {
         ReplicaLayout.ForTokenWrite live = liveAndDown.filter(isAlive);
         return forWrite(keyspace, consistencyLevel, liveAndDown, live, selector);
     }
 
-    public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite live, Selector selector) throws UnavailableException
+    public static ReplicaPlan.ForWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite live, Selector selector) throws UnavailableException
     {
         assert liveAndDown.replicationStrategy() == live.replicationStrategy()
                : "ReplicaLayout liveAndDown and live should be derived from the same replication strategy.";
         AbstractReplicationStrategy replicationStrategy = liveAndDown.replicationStrategy();
         EndpointsForToken contacts = selector.select(consistencyLevel, liveAndDown, live);
         assureSufficientLiveReplicasForWrite(replicationStrategy, consistencyLevel, live.all(), liveAndDown.pending());
-        return new ReplicaPlan.ForTokenWrite(keyspace, replicationStrategy, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
+        return new ReplicaPlan.ForWrite(keyspace, replicationStrategy, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
     }
 
     public interface Selector
@@ -434,7 +434,7 @@ public class ReplicaPlans
      * the minimal number of nodes to meet the consistency level, and prefer nodes we contacted on read to minimise
      * data transfer.
      */
-    public static Selector writeReadRepair(ReplicaPlan.ForRead<?> readPlan)
+    public static Selector writeReadRepair(ReplicaPlan<?, ?> readPlan)
     {
         return new Selector()
         {
@@ -497,7 +497,7 @@ public class ReplicaPlans
         {
             // TODO: we should cleanup our semantics here, as we're filtering ALL nodes to localDC which is unexpected for ReplicaPlan
             // Restrict natural and pending to node in the local DC only
-            liveAndDown = liveAndDown.filter(InOurDcTester.replicas());
+            liveAndDown = liveAndDown.filter(InOurDc.replicas());
         }
 
         ReplicaLayout.ForTokenWrite live = liveAndDown.filter(FailureDetector.isReplicaAlive);
@@ -526,7 +526,7 @@ public class ReplicaPlans
     private static <E extends Endpoints<E>> E candidatesForRead(ConsistencyLevel consistencyLevel, E liveNaturalReplicas)
     {
         return consistencyLevel.isDatacenterLocal()
-                ? liveNaturalReplicas.filter(InOurDcTester.replicas())
+                ? liveNaturalReplicas.filter(InOurDc.replicas())
                 : liveNaturalReplicas;
     }
 
@@ -621,7 +621,7 @@ public class ReplicaPlans
     {
         // TODO: should we be asserting that the ranges are adjacent?
         AbstractBounds<PartitionPosition> newRange = left.range().withNewRight(right.range().right);
-        EndpointsForRange mergedCandidates = left.candidates().keep(right.candidates().endpoints());
+        EndpointsForRange mergedCandidates = left.readCandidates().keep(right.readCandidates().endpoints());
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
 
         // Check if there are enough shared endpoints for the merge to be possible.

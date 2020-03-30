@@ -20,11 +20,15 @@ package org.apache.cassandra.simulator.asm;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -40,8 +44,10 @@ import static org.apache.cassandra.simulator.asm.Flag.NO_PROXY_METHODS;
 import static org.apache.cassandra.simulator.asm.TransformationKind.HASHCODE;
 import static org.apache.cassandra.simulator.asm.TransformationKind.SYNCHRONIZED;
 import static org.apache.cassandra.simulator.asm.Utils.deterministicToString;
+import static org.apache.cassandra.simulator.asm.Utils.visitEachRefType;
 import static org.apache.cassandra.simulator.asm.Utils.generateTryFinallyProxyCall;
 import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
+import static org.objectweb.asm.Opcodes.ACC_STATIC;
 import static org.objectweb.asm.Opcodes.ACC_SYNTHETIC;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 
@@ -49,6 +55,49 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
 {
     private static final List<AbstractInsnNode> DETERMINISM_SETUP = singletonList(new MethodInsnNode(INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptibleThread", "enterDeterministicMethod", "()V", false));
     private static final List<AbstractInsnNode> DETERMINISM_CLEANUP = singletonList(new MethodInsnNode(INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptibleThread", "exitDeterministicMethod", "()V", false));
+
+    class DependentTypeVisitor extends MethodVisitor
+    {
+        public DependentTypeVisitor(int api, MethodVisitor methodVisitor)
+        {
+            super(api, methodVisitor);
+        }
+
+        @Override
+        public void visitTypeInsn(int opcode, String type)
+        {
+            super.visitTypeInsn(opcode, type);
+            Utils.visitIfRefType(type, dependentTypes);
+        }
+
+        @Override
+        public void visitFieldInsn(int opcode, String owner, String name, String descriptor)
+        {
+            super.visitFieldInsn(opcode, owner, name, descriptor);
+            Utils.visitIfRefType(descriptor, dependentTypes);
+        }
+
+        @Override
+        public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface)
+        {
+            super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+            Utils.visitEachRefType(descriptor, dependentTypes);
+        }
+
+        @Override
+        public void visitInvokeDynamicInsn(String name, String descriptor, Handle bootstrapMethodHandle, Object... bootstrapMethodArguments)
+        {
+            super.visitInvokeDynamicInsn(name, descriptor, bootstrapMethodHandle, bootstrapMethodArguments);
+            Utils.visitEachRefType(descriptor, dependentTypes);
+        }
+
+        @Override
+        public void visitLocalVariable(String name, String descriptor, String signature, Label start, Label end, int index)
+        {
+            super.visitLocalVariable(name, descriptor, signature, start, end, index);
+            Utils.visitIfRefType(descriptor, dependentTypes);
+        }
+    }
 
     private final String className;
     private final ChanceSupplier monitorDelayChance;
@@ -59,24 +108,26 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
     private boolean isTransformed;
     private boolean isCacheablyTransformed = true;
     private final EnumSet<Flag> flags;
+    private final Consumer<String> dependentTypes;
 
-    ClassTransformer(int api, String className, EnumSet<Flag> flags)
+    ClassTransformer(int api, String className, EnumSet<Flag> flags, Consumer<String> dependentTypes)
     {
-        this(api, new ClassWriter(0), className, flags, null, null, null, null);
+        this(api, new ClassWriter(0), className, flags, null, null, null, null, dependentTypes);
     }
 
-    ClassTransformer(int api, String className, EnumSet<Flag> flags, ChanceSupplier monitorDelayChance, NemesisGenerator nemesis, NemesisFieldKind.Selector nemesisFieldSelector, Hashcode insertHashcode)
+    ClassTransformer(int api, String className, EnumSet<Flag> flags, ChanceSupplier monitorDelayChance, NemesisGenerator nemesis, NemesisFieldKind.Selector nemesisFieldSelector, Hashcode insertHashcode, Consumer<String> dependentTypes)
     {
-        this(api, new ClassWriter(0), className, flags, monitorDelayChance, nemesis, nemesisFieldSelector, insertHashcode);
+        this(api, new ClassWriter(0), className, flags, monitorDelayChance, nemesis, nemesisFieldSelector, insertHashcode, dependentTypes);
     }
 
-    private ClassTransformer(int api, ClassWriter classWriter, String className, EnumSet<Flag> flags, ChanceSupplier monitorDelayChance, NemesisGenerator nemesis, NemesisFieldKind.Selector nemesisFieldSelector, Hashcode insertHashcode)
+    private ClassTransformer(int api, ClassWriter classWriter, String className, EnumSet<Flag> flags, ChanceSupplier monitorDelayChance, NemesisGenerator nemesis, NemesisFieldKind.Selector nemesisFieldSelector, Hashcode insertHashcode, Consumer<String> dependentTypes)
     {
         super(api, classWriter);
         if (flags.contains(NEMESIS) && (nemesis == null || nemesisFieldSelector == null))
             throw new IllegalArgumentException();
         if (flags.contains(MONITORS) && monitorDelayChance == null)
             throw new IllegalArgumentException();
+        this.dependentTypes = dependentTypes;
         this.className = className;
         this.flags = flags;
         this.monitorDelayChance = monitorDelayChance;
@@ -87,11 +138,27 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
     }
 
     @Override
+    public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value)
+    {
+        if (dependentTypes != null)
+            Utils.visitIfRefType(descriptor, dependentTypes);
+        return super.visitField(access, name, descriptor, signature, value);
+    }
+
+    @Override
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions)
     {
+        if (dependentTypes != null)
+            visitEachRefType(descriptor, dependentTypes);
+
         EnumSet<Flag> flags = this.flags;
         if (flags.isEmpty() || ((access & ACC_SYNTHETIC) != 0 && (name.endsWith("$unsync") || name.endsWith("$catch") || name.endsWith("$nemesis"))))
-            return super.visitMethod(access, name, descriptor, signature, exceptions);
+        {
+            MethodVisitor visitor = super.visitMethod(access, name, descriptor, signature, exceptions);
+            if (dependentTypes != null && (access & (ACC_STATIC | ACC_SYNTHETIC)) != 0 && (name.equals("<clinit>") || name.startsWith("lambda$")))
+                visitor = new DependentTypeVisitor(api, visitor);
+            return visitor;
+        }
 
         boolean isToString = false;
         if (access == Opcodes.ACC_PUBLIC && name.equals("toString") && descriptor.equals("()Ljava/lang/String;") && !flags.contains(NO_PROXY_METHODS))
@@ -129,6 +196,8 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
             visitor = new GlobalMethodTransformer(flags, this, api, name, visitor);
         if (flags.contains(NEMESIS))
             visitor = new NemesisTransformer(this, api, name, visitor, nemesis, nemesisFieldSelector);
+        if (dependentTypes != null && (access & (ACC_STATIC | ACC_SYNTHETIC)) != 0 && (name.equals("<clinit>") || name.startsWith("lambda$")))
+            visitor = new DependentTypeVisitor(api, visitor);
         return visitor;
     }
 

@@ -26,8 +26,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
@@ -135,6 +138,14 @@ public class ClientState
     // most new user will intuitively expect timestamp to be strictly monotonic cluster-wise, but while that last part
     // is unrealistic expectation, doing it node-wise is easy).
     private static final AtomicLong lastTimestampMicros = new AtomicLong(0);
+
+    @VisibleForTesting
+    public static void resetLastTimestamp(long nowMillis)
+    {
+        long nowMicros = TimeUnit.MILLISECONDS.toMicros(nowMillis);
+        if (lastTimestampMicros.get() > nowMicros)
+            lastTimestampMicros.set(nowMicros);
+    }
 
     /**
      * Construct a new, empty ClientState for internal calls.
@@ -252,7 +263,7 @@ public class ClientState
      * with a clock in the future compared to the local one), we use the last proposal timestamp plus 1, ensuring
      * progress.
      *
-     * @param minTimestampToUse the max timestamp of the last proposal accepted by replica having responded
+     * @param minUnixMicros the max timestamp of the last proposal accepted by replica having responded
      * to the prepare phase of the paxos round this is for. In practice, that's the minimum timestamp this method
      * may return.
      * @return a timestamp suitable for a Paxos proposal (using the reasoning described above). Note that
@@ -261,18 +272,18 @@ public class ClientState
      * it may be returned multiple times). Note that we still ensure Paxos "ballot" are unique (for different
      * proposal) by (securely) randomizing the non-timestamp part of the UUID.
      */
-    public static long getTimestampForPaxos(long minTimestampToUse)
+    public static long getTimestampForPaxos(long minUnixMicros)
     {
         while (true)
         {
-            long current = Math.max(currentTimeMillis() * 1000, minTimestampToUse);
+            long current = Math.max(currentTimeMillis() * 1000, minUnixMicros);
             long last = lastTimestampMicros.get();
             long tstamp = last >= current ? last + 1 : current;
             // Note that if we ended up picking minTimestampMicrosToUse (it was "in the future"), we don't
             // want to change the local clock, otherwise a single node in the future could corrupt the clock
             // of all nodes and for all inserts (since non-paxos inserts also use lastTimestampMicros).
             // See CASSANDRA-11991
-            if (tstamp == minTimestampToUse || lastTimestampMicros.compareAndSet(last, tstamp))
+            if (tstamp == minUnixMicros || lastTimestampMicros.compareAndSet(last, tstamp))
                 return tstamp;
         }
     }

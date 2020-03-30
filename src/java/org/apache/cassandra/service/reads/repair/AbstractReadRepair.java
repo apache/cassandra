@@ -49,7 +49,8 @@ import org.apache.cassandra.tracing.Tracing;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
-public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> implements ReadRepair<E, P>
+public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+        implements ReadRepair<E, P>
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractReadRepair.class);
 
@@ -60,7 +61,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 
     private volatile DigestRepair<E, P> digestRepair = null;
 
-    private static class DigestRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+    private static class DigestRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
     {
         private final DataResolver<E, P> dataResolver;
         private final ReadCallback<E, P> readCallback;

@@ -51,18 +51,18 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.BallotGenerator;
-import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
+import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /*
@@ -660,7 +660,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     static RowIterator casInternal(ClientState state, CQL3CasRequest request, long timestamp, int nowInSeconds)
     {
-        TimeUUID ballot = BallotGenerator.Global.randomBallot(timestamp, false);
+        Ballot ballot = BallotGenerator.Global.atUnixMicros(timestamp, NONE);
 
         SinglePartitionReadQuery readCommand = request.readCommand(nowInSeconds);
         FilteredPartition current;
@@ -676,7 +676,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         PartitionUpdate updates = request.makeUpdates(current, state, ballot);
         updates = TriggerExecutor.instance.execute(updates);
 
-        Commit proposal = Commit.newProposal(ballot, updates);
+        Proposal proposal = Proposal.of(ballot, updates);
         proposal.makeMutation().apply();
         return null;
     }

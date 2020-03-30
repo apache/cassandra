@@ -22,9 +22,15 @@ import java.util.ArrayDeque;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.function.IntSupplier;
+import java.util.function.LongConsumer;
 import java.util.function.ToIntFunction;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.openhft.chronicle.core.util.WeakIdentityHashMap;
+import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.BlockingQueues;
@@ -45,8 +51,27 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
     CountDownLatch newCountDownLatch(int count);
     Condition newOneTimeCondition();
 
+    /**
+     * If this interceptor is debugging wait/wake/now sites, return one initialised with the current trace of the
+     * provided thread; otherwise return null.
+     */
+    CaptureSites captureWaitSite(Thread thread);
+
+    /**
+     * Returns the current thread as an InterceptibleThread IF it has its InterceptConsequences interceptor set.
+     * Otherwise, one of the following will happen:
+     *   * if the InterceptorOfWaits permits it, null will be returned;
+     *   * if it does not, the process will be failed.
+     */
+    InterceptibleThread ifIntercepted();
+
+    void uncaughtException(Thread thread, Throwable throwable);
+
+    @PerClassLoader
     public static class IfInterceptibleThread extends None implements InterceptorOfGlobalMethods
     {
+        static LongConsumer threadLocalRandomCheck;
+
         @Override
         public WaitQueue newWaitQueue()
         {
@@ -75,6 +100,29 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
                 return ((InterceptibleThread) thread).interceptorOfGlobalMethods().newOneTimeCondition();
 
             return Condition.newOneTimeCondition();
+        }
+
+        @Override
+        public CaptureSites captureWaitSite(Thread thread)
+        {
+            if (thread instanceof InterceptibleThread)
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().captureWaitSite(thread);
+
+            Thread currentThread = Thread.currentThread();
+            if (currentThread instanceof InterceptibleThread)
+                return ((InterceptibleThread) currentThread).interceptorOfGlobalMethods().captureWaitSite(thread);
+
+            return null;
+        }
+
+        @Override
+        public InterceptibleThread ifIntercepted()
+        {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().ifIntercepted();
+
+            return null;
         }
 
         @Override
@@ -272,6 +320,37 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
         }
 
         @Override
+        public void threadLocalRandomCheck(long seed)
+        {
+            if (threadLocalRandomCheck != null)
+                threadLocalRandomCheck.accept(seed);
+        }
+
+        @Override
+        public void uncaughtException(Thread thread, Throwable throwable)
+        {
+            if (thread instanceof InterceptibleThread)
+                ((InterceptibleThread) thread).interceptorOfGlobalMethods().uncaughtException(thread, throwable);
+        }
+
+        @Override
+        public long nanoTime()
+        {
+            return Clock.Global.nanoTime();
+        }
+
+        @Override
+        public long currentTimeMillis()
+        {
+            return Clock.Global.currentTimeMillis();
+        }
+
+        public static void setThreadLocalRandomCheck(LongConsumer runnable)
+        {
+            threadLocalRandomCheck = runnable;
+        }
+
+        @Override
         public void close()
         {
         }
@@ -315,6 +394,23 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
         public static <T> BlockingQueue<T> newBlockingQueue(int capacity)
         {
             return new BlockingQueues.Sync<>(capacity, new ArrayDeque<>());
+        }
+
+        public static CaptureSites captureWaitSite(Thread thread)
+        {
+            return methods.captureWaitSite(thread);
+        }
+
+        public static InterceptibleThread ifIntercepted()
+        {
+            return methods.ifIntercepted();
+        }
+
+        public static void uncaughtException(Thread thread, Throwable throwable)
+        {
+            System.err.println(thread);
+            throwable.printStackTrace(System.err);
+            methods.uncaughtException(thread, throwable);
         }
 
         public static void unsafeReset()

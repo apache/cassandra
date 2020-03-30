@@ -101,6 +101,7 @@ class OnClusterReplace extends OnClusterChangeTopology
         new OnClusterUpdateGossip(actions, joining, new OnInstanceSetBootstrapReplacing(actions, joining, leaving, hostId, movingToken)),
 
         new OnInstanceSyncSchemaForBootstrap(actions, joining),
+        new OnInstanceTopologyChangePaxosRepair(actions, joining, "Replace"),
         new OnInstanceBootstrap(actions, joinInstance, movingToken, true),
 
         // setup the node's own gossip state for natural ownership, and return gossip actions to disseminate

@@ -54,8 +54,8 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.utils.*;
 
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Hadoop InputFormat allowing map/reduce against Cassandra rows within one ColumnFamily.

@@ -278,7 +278,7 @@ public class StreamManager implements StreamManagerMBean
         return states.asMap().values();
     }
 
-    public StreamingState getStreamingState(UUID id)
+    public StreamingState getStreamingState(TimeUUID id)
     {
         return states.getIfPresent(id);
     }

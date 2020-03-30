@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.simulator.systems;
 
+import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
 import org.apache.cassandra.utils.Shared;
@@ -29,14 +30,23 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @Shared(scope = SIMULATION)
 public class NonInterceptible
 {
-    private static final ThreadLocal<Boolean> PERMIT = new ThreadLocal<>();
+    @Shared(scope = SIMULATION)
+    public enum Permit { REQUIRED, OPTIONAL }
+
+    private static final ThreadLocal<Permit> PERMIT = new ThreadLocal<>();
+
+    public static boolean isPermitted(Permit permit)
+    {
+        Permit current = PERMIT.get();
+        return current != null && current.compareTo(permit) >= 0;
+    }
 
     public static boolean isPermitted()
     {
-        return TRUE.equals(PERMIT.get());
+        return PERMIT.get() != null;
     }
 
-    public static void execute(Runnable runnable)
+    public static void execute(Permit permit, Runnable runnable)
     {
         if (isPermitted())
         {
@@ -44,19 +54,19 @@ public class NonInterceptible
         }
         else
         {
-            PERMIT.set(TRUE);
+            PERMIT.set(permit);
             try
             {
                 runnable.run();
             }
             finally
             {
-                PERMIT.set(FALSE);
+                PERMIT.set(null);
             }
         }
     }
 
-    public static <V> V apply(Supplier<V> supplier)
+    public static <V> V apply(Permit permit, Supplier<V> supplier)
     {
         if (isPermitted())
         {
@@ -64,14 +74,34 @@ public class NonInterceptible
         }
         else
         {
-            PERMIT.set(TRUE);
+            PERMIT.set(permit);
             try
             {
                 return supplier.get();
             }
             finally
             {
-                PERMIT.set(FALSE);
+                PERMIT.set(null);
+            }
+        }
+    }
+
+    public static <V> V call(Permit permit, Callable<V> call) throws Exception
+    {
+        if (isPermitted())
+        {
+            return call.call();
+        }
+        else
+        {
+            PERMIT.set(permit);
+            try
+            {
+                return call.call();
+            }
+            finally
+            {
+                PERMIT.set(null);
             }
         }
     }

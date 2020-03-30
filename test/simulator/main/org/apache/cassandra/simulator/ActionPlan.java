@@ -29,8 +29,7 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.apache.cassandra.simulator.ActionSchedule.Mode.STREAM_LIMITED;
-import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
+import static org.apache.cassandra.simulator.ActionSchedule.Mode.FINITE;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 
 public class ActionPlan
@@ -62,12 +61,12 @@ public class ActionPlan
         this.post = post;
     }
 
-    public CloseableIterator<?> iterator(long runForNanos, LongSupplier schedulerJitter, SimulatedTime time, RunnableActionScheduler preAndPostScheduler, RunnableActionScheduler mainScheduler, FutureActionScheduler futureScheduler)
+    public CloseableIterator<?> iterator(ActionSchedule.Mode mode, long runForNanos, LongSupplier schedulerJitter, SimulatedTime time, RunnableActionScheduler runnableScheduler, FutureActionScheduler futureScheduler)
     {
-        return new ActionSchedule(time, futureScheduler, schedulerJitter,
-                                  new Work(UNLIMITED, preAndPostScheduler, singletonList(pre.setStrictlySequential())),
-                                  new Work(runForNanos > 0 ? TIME_LIMITED : STREAM_LIMITED, runForNanos, mainScheduler, interleave),
-                                  new Work(UNLIMITED, preAndPostScheduler, singletonList(post.setStrictlySequential())));
+        return new ActionSchedule(time, futureScheduler, schedulerJitter, runnableScheduler,
+                                  new Work(UNLIMITED, singletonList(pre.setStrictlySequential())),
+                                  new Work(mode, runForNanos, interleave),
+                                  new Work(FINITE, singletonList(post.setStrictlySequential())));
     }
 
     public static ActionPlan interleave(List<ActionList> interleave)

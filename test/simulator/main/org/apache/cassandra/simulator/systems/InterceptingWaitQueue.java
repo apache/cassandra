@@ -26,32 +26,33 @@ import java.util.function.Predicate;
 import org.apache.cassandra.simulator.systems.InterceptingAwaitable.InterceptingSignal;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods.Global.ifIntercepted;
+
+@PerClassLoader
 class InterceptingWaitQueue extends WaitQueue.Standard implements WaitQueue
 {
-    private final InterceptorOfWaits interceptorOfWaits;
     final Queue<InterceptingSignal<?>> interceptible = new ConcurrentLinkedQueue<>();
 
-    public InterceptingWaitQueue(InterceptorOfWaits interceptorOfWaits)
+    public InterceptingWaitQueue()
     {
-        this.interceptorOfWaits = interceptorOfWaits;
     }
 
     public Signal register()
     {
-        if (interceptorOfWaits.ifIntercepted() == null)
+        if (ifIntercepted() == null)
             return super.register();
 
-        InterceptingSignal<?> signal = new InterceptingSignal<>(interceptorOfWaits);
+        InterceptingSignal<?> signal = new InterceptingSignal<>();
         interceptible.add(signal);
         return signal;
     }
 
     public <V> Signal register(V value, Consumer<V> consumer)
     {
-        if (interceptorOfWaits.ifIntercepted() == null)
+        if (ifIntercepted() == null)
             return super.register(value, consumer);
 
-        InterceptingSignal<V> signal = new InterceptingSignal<>(interceptorOfWaits, value, consumer);
+        InterceptingSignal<V> signal = new InterceptingSignal<>(value, consumer);
         interceptible.add(signal);
         return signal;
     }

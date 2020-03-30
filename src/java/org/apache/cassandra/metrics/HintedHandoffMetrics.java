@@ -28,7 +28,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.utils.UUIDGen;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

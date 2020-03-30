@@ -19,6 +19,8 @@
 package org.apache.cassandra.simulator;
 
 import java.io.Serializable;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -86,7 +88,7 @@ public abstract class Action implements PriorityQueueNode
         WITHHOLD((char)0, false),
 
         // Mark operations as a THREAD_TIMEOUT, and parent operations as forbidding such timeouts (unless all else has failed)
-        NO_TIMEOUTS('n', true, null, true), TIMEOUT('t', false, NO_TIMEOUTS),
+        NO_THREAD_TIMEOUTS('n', true, null, true), THREAD_TIMEOUT('t', false, NO_THREAD_TIMEOUTS),
 
         /**
          * All children of this action should be performed in strict order wrt the parent's consequences
@@ -110,9 +112,17 @@ public abstract class Action implements PriorityQueueNode
 
         /**
          * Must be combined with ORPHAN. Unlinks an Action from its direct parent, attaching it as a child of its
-         * grandparent. This is used to support streams of streams.
+         * grandparent. This is used to support streams of streams
          */
         ORPHAN_TO_GRANDPARENT((char)0, false),
+
+        /**
+         * When we both deliver a message and timeout, the timeout may be scheduled for much later. We do not want to
+         * apply restrictions on later operations starting because we are waiting for a timeout to fire in this case,
+         * so we detach the timeout from its parent's accounting - but re-attach its children to the parent if
+         * still alive. Must be coincident with ORPHAN.
+         */
+        PSEUDO_ORPHAN('p', false),
 
         /**
          * Recurring tasks, that the schedule may discount when determining if has terminated
@@ -186,6 +196,7 @@ public abstract class Action implements PriorityQueueNode
         public static final Modifiers INFO = Modifier.INFO.asSet();
         public static final Modifiers RELIABLE = Modifier.RELIABLE.asSet();
         public static final Modifiers DROP = Modifier.DROP.asSet();
+        public static final Modifiers PSEUDO_ORPHAN = of(Modifier.PSEUDO_ORPHAN);
         public static final Modifiers STREAM = of(Modifier.STREAM);
         public static final Modifiers INFINITE_STREAM = of(Modifier.STREAM, DAEMON);
         public static final Modifiers STREAM_ITEM = of(Modifier.STREAM, ORPHAN, ORPHAN_TO_GRANDPARENT);
@@ -195,15 +206,15 @@ public abstract class Action implements PriorityQueueNode
         public static final Modifiers START_THREAD = of(THREAD_SIGNAL);
         public static final Modifiers START_INFINITE_LOOP = of(ORPHAN, THREAD_SIGNAL);
         public static final Modifiers START_SCHEDULED_TASK = of(THREAD_SIGNAL);
-        public static final Modifiers START_TIMEOUT_TASK = of(Modifier.TIMEOUT, THREAD_SIGNAL);
+        public static final Modifiers START_TIMEOUT_TASK = of(Modifier.THREAD_TIMEOUT, THREAD_SIGNAL);
         public static final Modifiers START_DAEMON_TASK = of(ORPHAN, Modifier.DAEMON, THREAD_SIGNAL);
 
         public static final Modifiers WAKE_UP_THREAD = of(THREAD_SIGNAL, WAKEUP);
 
         public static final Modifiers STRICT = of(STRICT_CHILD_ORDER);
-        public static final Modifiers NO_TIMEOUTS = Modifier.NO_TIMEOUTS.asSet();
+        public static final Modifiers NO_TIMEOUTS = Modifier.NO_THREAD_TIMEOUTS.asSet();
 
-        public static final Modifiers RELIABLE_NO_TIMEOUTS = of(Modifier.NO_TIMEOUTS, Modifier.RELIABLE);
+        public static final Modifiers RELIABLE_NO_TIMEOUTS = of(Modifier.NO_THREAD_TIMEOUTS, Modifier.RELIABLE);
         public static final Modifiers DISPLAY_ORIGIN = of(Modifier.DISPLAY_ORIGIN);
 
         public static Modifiers of()
@@ -339,7 +350,7 @@ public abstract class Action implements PriorityQueueNode
     private List<ActionListener> listeners;
 
     /** The immediate parent, and furthest ancestor of this Action */
-    protected Action parent, origin = this;
+    protected Action parent, origin = this, pseudoParent;
 
     /** The number of direct consequences of this action that have not <i>transitively</i> terminated */
     private int childCount;
@@ -414,6 +425,10 @@ public abstract class Action implements PriorityQueueNode
     public boolean isFinished()
     {
         return phase.compareTo(FINISHED) >= 0;
+    }
+    public boolean isCancelled()
+    {
+        return phase.compareTo(CANCELLED) >= 0;
     }
     public boolean isInvalidated()
     {
@@ -575,41 +590,49 @@ public abstract class Action implements PriorityQueueNode
             Throwables.maybeFail(fail);
         }
 
-        boolean withhold = false;
-        int orphanCount = 0;
+        boolean isParentPseudoOrphan = is(PSEUDO_ORPHAN);
+        boolean withheld = false;
         for (int i = 0 ; i < consequences.size() ; ++i)
         {
             Action child = consequences.get(i);
             if (child.is(ORPHAN))
             {
-                Preconditions.checkState(!child.is(WITHHOLD));
-                ++orphanCount;
                 if (parent != null && child.is(ORPHAN_TO_GRANDPARENT))
                 {
                     ++parent.childCount;
                     parent.registerChild(child);
                 }
+                else if (child.is(PSEUDO_ORPHAN))
+                {
+                    child.inherit(transitive);
+                    registerPseudoOrphan(child);
+                    assert !child.is(WITHHOLD);
+                }
             }
             else
             {
-                child.inherit(transitive);
+                Action parent;
+                if (isParentPseudoOrphan && pseudoParent != null && pseudoParent.childCount > 0)
+                    parent = pseudoParent;
+                else
+                    parent = this;
+
+                child.inherit(parent.transitive);
                 if (child.is(WITHHOLD))
                 {
                     // this could be supported in principle by applying the ordering here, but it would be
                     // some work to ensure it doesn't lead to deadlocks so for now just assert we don't use it
-                    Preconditions.checkState(!is(STRICT_CHILD_ORDER) && !is(STRICT_CHILD_OF_PARENT_ORDER));
-                    withhold = true;
-                    addWithheld(child);
+                    Preconditions.checkState(!parent.is(STRICT_CHILD_ORDER) && !parent.is(STRICT_CHILD_OF_PARENT_ORDER));
+                    withheld = true;
+                    parent.addWithheld(child);
                 }
 
-                registerChild(child);
+                parent.registerChild(child);
+                parent.childCount++;
             }
         }
 
-        int addChildCount = consequences.size() - orphanCount;
-        childCount += addChildCount;
-
-        if (!withhold)
+        if (!withheld)
             return consequences;
 
         return consequences.filter(child -> !child.is(WITHHOLD));
@@ -620,9 +643,22 @@ public abstract class Action implements PriorityQueueNode
     {
         assert child.parent == null;
         child.parent = this;
+        registerChildOrigin(child);
+        if (DEBUG && !register(child, CHILD)) throw new AssertionError();
+    }
+
+    private void registerPseudoOrphan(Action child)
+    {
+        assert child.parent == null;
+        assert child.pseudoParent == null;
+        child.pseudoParent = this;
+        registerChildOrigin(child);
+    }
+
+    private void registerChildOrigin(Action child)
+    {
         if (is(Modifier.DISPLAY_ORIGIN)) child.origin = this;
         else if (origin != this) child.origin = origin;
-        if (DEBUG && !register(child, CHILD)) throw new AssertionError();
     }
 
     private boolean register(Object object, RegisteredType type)
@@ -791,22 +827,28 @@ public abstract class Action implements PriorityQueueNode
 
     void schedule(SimulatedTime time, FutureActionScheduler future)
     {
-        setPriority(scheduler.priority());
-        if (deadline == 0) deadline = time.nanoTime();
-        if (is(THREAD_SIGNAL))
-            deadline += future.schedulerDelayNanos();
+        setPriority(time, scheduler.priority());
+        if (is(THREAD_SIGNAL) || deadline == 0)
+        {
+            long newDeadline = deadline == 0 ? time.nanoTime() : deadline;
+            newDeadline += future.schedulerDelayNanos();
+            deadline = newDeadline;
+            time.onTimeEvent("ResetDeadline", newDeadline);
+        }
     }
 
-    public void setDeadline(long deadlineNanos)
+    public void setDeadline(SimulatedTime time, long deadlineNanos)
     {
         Preconditions.checkState(deadline == 0);
         Preconditions.checkArgument(deadlineNanos >= deadline);
         deadline = deadlineNanos;
+        time.onTimeEvent("SetDeadline", deadlineNanos);
     }
 
-    void setPriority(double priority)
+    public void setPriority(SimulatedTime time, double priority)
     {
         this.priority = priority;
+        time.onTimeEvent("SetPriority", Double.doubleToLongBits(priority));
     }
 
     public long deadline()
@@ -890,17 +932,62 @@ public abstract class Action implements PriorityQueueNode
         return describeModifiers() + description() + (origin != this ? " for " + origin : "");
     }
 
-    public String describeCurrentState()
+    public String toReconcileString()
     {
-        return describeCurrentState(new StringBuilder(), "").toString();
+        return this + " at [" + deadline + ',' + priority + ']';
     }
 
-    private StringBuilder describeCurrentState(StringBuilder sb, String prefix)
+    private static class StackElement
     {
-        if (!prefix.isEmpty())
+        final Action action;
+        final Deque<Action> children;
+
+        private StackElement(Action action)
         {
-            sb.append(prefix);
+            this.action = action;
+            this.children = new ArrayDeque<>(action.childCount);
+            for (Map.Entry<Object, RegisteredType> e : action.registered.entrySet())
+            {
+                if (e.getValue() == CHILD)
+                    children.add((Action) e.getKey());
+            }
         }
+    }
+
+    public String describeCurrentState()
+    {
+        StringBuilder sb = new StringBuilder();
+        Deque<StackElement> stack = new ArrayDeque<>();
+        appendCurrentState(sb);
+
+        stack.push(new StackElement(this));
+        while (!stack.isEmpty())
+        {
+            StackElement last = stack.peek();
+            if (last.children.isEmpty())
+            {
+                stack.pop();
+            }
+            else
+            {
+                Action child = last.children.pop();
+                sb.append('\n');
+                appendPrefix(stack.size(), sb);
+                child.appendCurrentState(sb);
+                stack.push(new StackElement(child));
+            }
+        }
+        return sb.toString();
+    }
+
+    private static void appendPrefix(int count, StringBuilder sb)
+    {
+        while (--count >= 0)
+            sb.append("   |");
+    }
+
+    private void appendCurrentState(StringBuilder sb)
+    {
         if (!isStarted()) sb.append("NOT_STARTED ");
         else if (!isFinished()) sb.append("NOT_FINISHED ");
         if (childCount > 0)
@@ -915,15 +1002,6 @@ public abstract class Action implements PriorityQueueNode
             sb.append(": ");
         }
         sb.append(description());
-        registered.entrySet().stream()
-                  .filter(e -> e.getValue() == CHILD)
-                  .map(e -> (Action) e.getKey())
-                  .forEach(a -> {
-                      sb.append('\n');
-                      a.describeCurrentState(sb, prefix + "   |");
-                  });
-
-        return sb;
     }
 
 }

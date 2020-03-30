@@ -43,10 +43,13 @@ import org.objectweb.asm.MethodVisitor;
 import static org.apache.cassandra.simulator.asm.Flag.DETERMINISTIC;
 import static org.apache.cassandra.simulator.asm.Flag.LOCK_SUPPORT;
 import static org.apache.cassandra.simulator.asm.Flag.NO_PROXY_METHODS;
+import static org.apache.cassandra.simulator.asm.Flag.SYSTEM_CLOCK;
 import static org.apache.cassandra.simulator.asm.InterceptClasses.BYTECODE_VERSION;
+import static org.objectweb.asm.Opcodes.ARETURN;
 import static org.objectweb.asm.Opcodes.ALOAD;
 import static org.objectweb.asm.Opcodes.GETFIELD;
 import static org.objectweb.asm.Opcodes.GETSTATIC;
+import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
@@ -103,7 +106,7 @@ public class InterceptAgent
                     return transformConcurrent(className, bytecode, DETERMINISTIC, NO_PROXY_METHODS);
 
                 if (className.startsWith("java/util/concurrent/locks"))
-                    return transformConcurrent(className, bytecode, LOCK_SUPPORT, NO_PROXY_METHODS);
+                    return transformConcurrent(className, bytecode, SYSTEM_CLOCK, LOCK_SUPPORT, NO_PROXY_METHODS);
 
                 return null;
             }
@@ -253,6 +256,9 @@ public class InterceptAgent
     {
         class ThreadLocalRandomVisitor extends ClassVisitor
         {
+            // CassandraRelevantProperties is not available to us here
+            final boolean determinismCheck = System.getProperty("cassandra.test.simulator.determinismcheck", "none").matches("relaxed|strict");
+
             public ThreadLocalRandomVisitor(int api, ClassVisitor classVisitor)
             {
                 super(api, classVisitor);
@@ -307,7 +313,10 @@ public class InterceptAgent
                 }
                 else
                 {
-                    return super.visitMethod(access, name, descriptor, signature, exceptions);
+                    MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                    if (determinismCheck && (name.equals("nextSeed") || name.equals("nextSecondarySeed")))
+                        mv = new ThreadLocalRandomCheckTransformer(api, mv);
+                    return mv;
                 }
             }
         }
@@ -325,7 +334,7 @@ public class InterceptAgent
 
     private static byte[] transformConcurrent(String className, byte[] bytes, Flag flag, Flag ... flags)
     {
-        ClassTransformer transformer = new ClassTransformer(BYTECODE_VERSION, className, EnumSet.of(flag, flags));
+        ClassTransformer transformer = new ClassTransformer(BYTECODE_VERSION, className, EnumSet.of(flag, flags), null);
         transformer.readAndTransform(bytes);
         if (!transformer.isTransformed())
             return null;

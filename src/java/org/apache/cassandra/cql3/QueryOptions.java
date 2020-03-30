@@ -60,6 +60,11 @@ public abstract class QueryOptions
         return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
     }
 
+    public static QueryOptions forInternalCallsWithNowInSec(int nowInSec, ConsistencyLevel consistency, List<ByteBuffer> values)
+    {
+        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT.withNowInSec(nowInSec), ProtocolVersion.CURRENT);
+    }
+
     public static QueryOptions forInternalCalls(List<ByteBuffer> values)
     {
         return new DefaultQueryOptions(ConsistencyLevel.ONE, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
@@ -208,6 +213,12 @@ public abstract class QueryOptions
 
     /** The keyspace that this query is bound to, or null if not relevant. */
     public String getKeyspace() { return getSpecificOptions().keyspace; }
+
+    public int getNowInSec(int ifNotSet)
+    {
+        int nowInSec = getSpecificOptions().nowInSeconds;
+        return nowInSec != Integer.MIN_VALUE ? nowInSec : ifNotSet;
+    }
 
     /**
      * The protocol version for the query.
@@ -505,6 +516,11 @@ public abstract class QueryOptions
             this.timestamp = timestamp;
             this.keyspace = keyspace;
             this.nowInSeconds = nowInSeconds;
+        }
+
+        public SpecificOptions withNowInSec(int nowInSec)
+        {
+            return new SpecificOptions(pageSize, state, serialConsistency, timestamp, keyspace, nowInSec);
         }
     }
 

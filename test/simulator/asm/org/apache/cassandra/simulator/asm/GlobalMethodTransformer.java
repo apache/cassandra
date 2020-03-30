@@ -39,6 +39,7 @@ class GlobalMethodTransformer extends MethodVisitor
     private final String methodName;
     private boolean globalMethods;
     private boolean globalClock;
+    private boolean systemClock;
     private boolean lockSupport;
     private boolean deterministic;
     boolean hasSeenAnyMethodInsn;
@@ -48,6 +49,7 @@ class GlobalMethodTransformer extends MethodVisitor
         super(api, parent);
         this.globalMethods = flags.contains(GLOBAL_METHODS);
         this.globalClock = flags.contains(Flag.GLOBAL_CLOCK);
+        this.systemClock = flags.contains(Flag.SYSTEM_CLOCK);
         this.lockSupport = flags.contains(Flag.LOCK_SUPPORT);
         this.deterministic = flags.contains(Flag.DETERMINISTIC);
         this.transformer = transformer;
@@ -115,6 +117,11 @@ class GlobalMethodTransformer extends MethodVisitor
             transformer.witness(GLOBAL_METHOD);
             super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/SimulatedTime$Global", "nextGlobalMonotonicMicros", descriptor, false);
         }
+        else if (systemClock && opcode == Opcodes.INVOKESTATIC && owner.equals("java/lang/System") && (name.equals("nanoTime") || name.equals("currentTimeMillis")))
+        {
+            transformer.witness(GLOBAL_METHOD);
+            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", name, descriptor, false);
+        }
         else
         {
             super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
@@ -147,6 +154,7 @@ class GlobalMethodTransformer extends MethodVisitor
                 default: throw new AssertionError();
                 case GLOBAL_METHODS: globalMethods = add; break;
                 case GLOBAL_CLOCK: globalClock = add; break;
+                case SYSTEM_CLOCK: systemClock = add; break;
                 case LOCK_SUPPORT: lockSupport = add; break;
                 case DETERMINISTIC: deterministic = add; break;
                 case MONITORS: throw new UnsupportedOperationException("Cannot currently toggle MONITORS at the method level");

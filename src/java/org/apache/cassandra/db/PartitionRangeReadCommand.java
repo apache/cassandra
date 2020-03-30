@@ -293,7 +293,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         return dataRange.isReversed();
     }
 
-    public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
+    public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException
     {
         return StorageProxy.getRangeSlice(this, consistency, queryStartNanoTime);
     }
@@ -512,7 +512,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         }
 
         @Override
-        public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
+        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException
         {
             return executeInternal(executionController());
         }

@@ -68,7 +68,7 @@ public class RepairSessionTest
                                                   new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)),
                                                   "Keyspace1", RepairParallelism.SEQUENTIAL,
                                                   false, false,
-                                                  PreviewKind.NONE, false, "Standard1");
+                                                  PreviewKind.NONE, false, false, false, "Standard1");
 
         // perform convict
         session.convict(remote, Double.MAX_VALUE);

@@ -50,7 +50,7 @@ public interface InterceptedExecution
         boolean submittedOrCancelled;
         Runnable onCancel;
 
-        protected InterceptedTaskExecution(InterceptingExecutor executor)
+        public InterceptedTaskExecution(InterceptingExecutor executor)
         {
             Preconditions.checkNotNull(executor);
             this.executor = executor;
@@ -225,6 +225,7 @@ public interface InterceptedExecution
             }
             finally
             {
+                thread.onTermination();
                 thread.interceptTermination(true);
             }
         }

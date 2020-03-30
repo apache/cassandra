@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.io.util;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.channels.FileChannel;
 import java.nio.file.*; // checkstyle: permit this import
@@ -34,6 +36,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.RateLimiter;
 
+import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.io.FSWriteError;
 
 import static org.apache.cassandra.io.util.PathUtils.filename;
@@ -162,6 +165,16 @@ public class File implements Comparable<File>
     public void delete()
     {
         maybeFail(delete(null, null));
+    }
+
+    /**
+     * This file will be deleted, with any failures being reported with an FSError
+     * @throws FSWriteError if cannot be deleted
+     */
+    public void deleteIfExists()
+    {
+        if (path != null)
+            PathUtils.deleteIfExists(path);
     }
 
     /**
@@ -336,6 +349,11 @@ public class File implements Comparable<File>
         return PathUtils.createFileIfNotExists(toPathForWrite());
     }
 
+    public boolean createDirectoriesIfNotExists()
+    {
+        return PathUtils.createDirectoriesIfNotExists(toPathForWrite());
+    }
+
     /**
      * Try to create a directory at this path.
      * Return true if a new directory was created at this path, and false otherwise.
@@ -436,12 +454,29 @@ public class File implements Comparable<File>
         PathUtils.forEachRecursive(path, path -> forEach.accept(new File(path)));
     }
 
+    private static <V> ThrowingFunction<IOException, V, RuntimeException> nulls() { return ignore -> null; }
+    private static <V> ThrowingFunction<IOException, V, IOException> rethrow()
+    {
+        return fail -> {
+            if (fail == null) throw new FileNotFoundException();
+            throw fail;
+        };
+    }
+    private static <V> ThrowingFunction<IOException, V, UncheckedIOException> unchecked()
+    {
+        return fail -> {
+            if (fail == null) fail = new FileNotFoundException();
+            throw new UncheckedIOException(fail);
+        };
+    }
+
+
     /**
      * @return if a directory, the names of the files within; null otherwise
      */
     public String[] tryListNames()
     {
-        return tryListNames(path, Function.identity());
+        return tryListNames(nulls());
     }
 
     /**
@@ -449,7 +484,7 @@ public class File implements Comparable<File>
      */
     public String[] tryListNames(BiPredicate<File, String> filter)
     {
-        return tryList(path, stream -> stream.map(PathUtils::filename).filter(filename -> filter.test(this, filename)), String[]::new);
+        return tryListNames(filter, nulls());
     }
 
     /**
@@ -457,7 +492,7 @@ public class File implements Comparable<File>
      */
     public File[] tryList()
     {
-        return tryList(path, Function.identity());
+        return tryList(nulls());
     }
 
     /**
@@ -465,7 +500,7 @@ public class File implements Comparable<File>
      */
     public File[] tryList(Predicate<File> filter)
     {
-        return tryList(path, stream -> stream.filter(filter));
+        return tryList(filter, nulls());
     }
 
     /**
@@ -473,28 +508,148 @@ public class File implements Comparable<File>
      */
     public File[] tryList(BiPredicate<File, String> filter)
     {
-        return tryList(path, stream -> stream.filter(file -> filter.test(this, file.name())));
+        return tryList(filter, nulls());
     }
 
-    private static String[] tryListNames(Path path, Function<Stream<File>, Stream<File>> toFiles)
+    /**
+     * @return if a directory, the names of the files within; null otherwise
+     */
+    public String[] listNames() throws IOException
     {
-        if (path == null)
-            return null;
-        return PathUtils.tryList(path, stream -> toFiles.apply(stream.map(File::new)).map(File::name), String[]::new);
+        return tryListNames(rethrow());
     }
 
-    private static <T> T[] tryList(Path path, Function<Stream<Path>, Stream<T>> transformation, IntFunction<T[]> constructor)
+    /**
+     * @return if a directory, the names of the files within, filtered by the provided predicate; null otherwise
+     */
+    public String[] listNames(BiPredicate<File, String> filter) throws IOException
     {
-        if (path == null)
-            return null;
-        return PathUtils.tryList(path, transformation, constructor);
+        return tryListNames(filter, rethrow());
     }
 
-    private static File[] tryList(Path path, Function<Stream<File>, Stream<File>> toFiles)
+    /**
+     * @return if a directory, the files within; null otherwise
+     */
+    public File[] list() throws IOException
+    {
+        return tryList(rethrow());
+    }
+
+    /**
+     * @return if a directory, the files within, filtered by the provided predicate; null otherwise
+     */
+    public File[] list(Predicate<File> filter) throws IOException
+    {
+        return tryList(filter, rethrow());
+    }
+
+    /**
+     * @return if a directory, the files within, filtered by the provided predicate; null otherwise
+     */
+    public File[] list(BiPredicate<File, String> filter) throws IOException
+    {
+        return tryList(filter, rethrow());
+    }
+
+    /**
+     * @return if a directory, the names of the files within; null otherwise
+     */
+    public String[] listNamesUnchecked() throws UncheckedIOException
+    {
+        return tryListNames(unchecked());
+    }
+
+    /**
+     * @return if a directory, the names of the files within, filtered by the provided predicate; null otherwise
+     */
+    public String[] listNamesUnchecked(BiPredicate<File, String> filter) throws UncheckedIOException
+    {
+        return tryListNames(filter, unchecked());
+    }
+
+    /**
+     * @return if a directory, the files within; null otherwise
+     */
+    public File[] listUnchecked() throws UncheckedIOException
+    {
+        return tryList(unchecked());
+    }
+
+    /**
+     * @return if a directory, the files within, filtered by the provided predicate; null otherwise
+     */
+    public File[] listUnchecked(Predicate<File> filter) throws UncheckedIOException
+    {
+        return tryList(filter, unchecked());
+    }
+
+    /**
+     * @return if a directory, the files within, filtered by the provided predicate; throw an UncheckedIO exception otherwise
+     */
+    public File[] listUnchecked(BiPredicate<File, String> filter) throws UncheckedIOException
+    {
+        return tryList(filter, unchecked());
+    }
+
+    /**
+     * @return if a directory, the names of the files within; null otherwise
+     */
+    public <T extends Throwable> String[] tryListNames(ThrowingFunction<IOException, String[], T> orElse) throws T
+    {
+        return tryListNames(path, Function.identity(), orElse);
+    }
+
+    /**
+     * @return if a directory, the names of the files within, filtered by the provided predicate; null otherwise
+     */
+    public <T extends Throwable> String[] tryListNames(BiPredicate<File, String> filter, ThrowingFunction<IOException, String[], T> orElse) throws T
+    {
+        return tryList(path, stream -> stream.map(PathUtils::filename).filter(filename -> filter.test(this, filename)), String[]::new, orElse);
+    }
+
+    /**
+     * @return if a directory, the files within; null otherwise
+     */
+    private <T extends Throwable> File[] tryList(ThrowingFunction<IOException, File[], T> orElse) throws T
+    {
+        return tryList(path, Function.identity(), orElse);
+    }
+
+    /**
+     * @return if a directory, the files within, filtered by the provided predicate; null otherwise
+     */
+    private <T extends Throwable> File[] tryList(Predicate<File> filter, ThrowingFunction<IOException, File[], T> orElse) throws T
+    {
+        return tryList(path, stream -> stream.filter(filter), orElse);
+    }
+
+    /**
+     * @return if a directory, the files within, filtered by the provided predicate; null otherwise
+     */
+    private <T extends Throwable> File[] tryList(BiPredicate<File, String> filter, ThrowingFunction<IOException, File[], T> orElse) throws T
+    {
+        return tryList(path, stream -> stream.filter(file -> filter.test(this, file.name())), orElse);
+    }
+
+    private static <T extends Throwable> String[] tryListNames(Path path, Function<Stream<File>, Stream<File>> toFiles, ThrowingFunction<IOException, String[], T> orElse) throws T
     {
         if (path == null)
-            return null;
-        return PathUtils.tryList(path, stream -> toFiles.apply(stream.map(File::new)), File[]::new);
+            return orElse.apply(null);
+        return PathUtils.tryList(path, stream -> toFiles.apply(stream.map(File::new)).map(File::name), String[]::new, orElse);
+    }
+
+    private static <T extends Throwable, V> V[] tryList(Path path, Function<Stream<Path>, Stream<V>> transformation, IntFunction<V[]> constructor, ThrowingFunction<IOException, V[], T> orElse) throws T
+    {
+        if (path == null)
+            return orElse.apply(null);
+        return PathUtils.tryList(path, transformation, constructor, orElse);
+    }
+
+    private static <T extends Throwable> File[] tryList(Path path, Function<Stream<File>, Stream<File>> toFiles, ThrowingFunction<IOException, File[], T> orElse) throws T
+    {
+        if (path == null)
+            return orElse.apply(null);
+        return PathUtils.tryList(path, stream -> toFiles.apply(stream.map(File::new)), File[]::new, orElse);
     }
 
     /**

@@ -88,7 +88,7 @@ public class DataStorageSpec
 
     public DataStorageSpec (String value, DataStorageUnit minUnit)
     {
-        if (value == null || value.equals("null"))
+        if (value == null || value.equals("null") || value.equals("0"))
         {
             quantity = 0;
             unit = minUnit;

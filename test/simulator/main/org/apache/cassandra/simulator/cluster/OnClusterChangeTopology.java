@@ -27,6 +27,7 @@ import org.apache.cassandra.simulator.systems.NonInterceptible;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE;
 import static org.apache.cassandra.simulator.Action.Modifiers.STRICT;
 import static org.apache.cassandra.simulator.ActionListener.runAfterTransitiveClosure;
+import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
 
 abstract class OnClusterChangeTopology extends Action implements Consumer<Action>
 {
@@ -56,7 +57,7 @@ abstract class OnClusterChangeTopology extends Action implements Consumer<Action
 
     void before(IInvokableInstance instance)
     {
-        NonInterceptible.execute(() -> {
+        NonInterceptible.execute(REQUIRED, () -> {
             actions.validateReplicasForKeys(instance, actions.keyspace, actions.table, before);
             validator.before(before, participatingKeys);
         });

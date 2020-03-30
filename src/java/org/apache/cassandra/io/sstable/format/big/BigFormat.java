@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.util.Collection;
-import java.util.UUID;
 
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.schema.TableMetadata;

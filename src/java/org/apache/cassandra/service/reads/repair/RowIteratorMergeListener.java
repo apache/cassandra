@@ -68,8 +68,8 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
     private final PartitionUpdate.Builder[] repairs;
     private final Row.Builder[] currentRows;
     private final RowDiffListener diffListener;
-    private final ReplicaPlan.ForRead<E> readPlan;
-    private final ReplicaPlan.ForTokenWrite writePlan;
+    private final ReplicaPlan.ForRead<E, ?> readPlan;
+    private final ReplicaPlan.ForWrite writePlan;
 
     // The partition level deletion for the merge row.
     private DeletionTime partitionLevelDeletion;
@@ -82,7 +82,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
 
     private final ReadRepair readRepair;
 
-    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E> readPlan, ReadCommand command, ReadRepair readRepair)
+    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E, ?> readPlan, ReadCommand command, ReadRepair readRepair)
     {
         this.partitionKey = partitionKey;
         this.columns = columns;

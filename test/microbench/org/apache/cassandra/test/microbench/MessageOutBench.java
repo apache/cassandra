@@ -21,7 +21,6 @@ package org.apache.cassandra.test.microbench;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.net.InetAddresses;
@@ -37,7 +36,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.UUIDGen;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -74,12 +72,12 @@ public class MessageOutBench
     {
         DatabaseDescriptor.daemonInitialization();
 
-        TimeUUID uuid = nextTimeUUID();
+        TimeUUID timeUuid = nextTimeUUID();
         Map<ParamType, Object> parameters = new EnumMap<>(ParamType.class);
 
         if (withParams)
         {
-            parameters.put(ParamType.TRACE_SESSION, uuid);
+            parameters.put(ParamType.TRACE_SESSION, timeUuid);
         }
 
         addr = InetAddressAndPort.getByAddress(InetAddresses.forString("127.0.73.101"));

@@ -18,22 +18,34 @@
 
 package org.apache.cassandra.simulator.asm;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import org.objectweb.asm.Opcodes;
 
+import static org.apache.cassandra.simulator.asm.InterceptClasses.Cached.Kind.MODIFIED;
+import static org.apache.cassandra.simulator.asm.InterceptClasses.Cached.Kind.UNMODIFIED;
+import static org.apache.cassandra.simulator.asm.InterceptClasses.Cached.Kind.UNSHAREABLE;
+
 // TODO (completeness): confirm that those classes we weave monitor-access for only extend other classes we also weave monitor access for
 // TODO (completeness): confirm that those classes we weave monitor access for only take monitors on types we also weave monitor access for (and vice versa)
+// WARNING: does not implement IClassTransformer directly as must be accessible to bootstrap class loader
 public class InterceptClasses implements BiFunction<String, byte[], byte[]>
 {
     public static final int BYTECODE_VERSION = Opcodes.ASM7;
@@ -58,13 +70,35 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
     private static final Pattern NEMESIS = GLOBAL_METHODS;
     private static final Set<String> WARNED = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    static final Cached SENTINEL = new Cached(null);
+    static final byte[] SENTINEL = new byte[0];
     static class Cached
     {
-        final byte[] cached;
-        private Cached(byte[] cached)
+        enum Kind { MODIFIED, UNMODIFIED, UNSHAREABLE }
+        final Kind kind;
+        final byte[] bytes;
+        final Set<String> uncacheablePeers;
+        private Cached(Kind kind, byte[] bytes, Set<String> uncacheablePeers)
         {
-            this.cached = cached;
+            this.kind = kind;
+            this.bytes = bytes;
+            this.uncacheablePeers = uncacheablePeers;
+        }
+    }
+
+    static class PeerGroup
+    {
+        final Set<String> uncacheablePeers = new TreeSet<>();
+        final Cached unmodified = new Cached(UNMODIFIED, null, uncacheablePeers);
+    }
+
+    class SubTransformer implements BiFunction<String, byte[], byte[]>
+    {
+        private final Map<String, byte[]> isolatedCache = new ConcurrentHashMap<>();
+
+        @Override
+        public byte[] apply(String name, byte[] bytes)
+        {
+            return transformTransitiveClosure(name, bytes, isolatedCache);
         }
     }
 
@@ -75,70 +109,168 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
     private final ChanceSupplier monitorDelayChance;
     private final Hashcode insertHashcode;
     private final NemesisFieldKind.Selector nemesisFieldSelector;
+    private final ClassLoader prewarmClassLoader;
+    private final Predicate<String> prewarm;
+    private final byte[] bufIn = new byte[4096];
+    private final ByteArrayOutputStream bufOut = new ByteArrayOutputStream();
 
-    public InterceptClasses(ChanceSupplier monitorDelayChance, ChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector)
+    public InterceptClasses(ChanceSupplier monitorDelayChance, ChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector, ClassLoader prewarmClassLoader, Predicate<String> prewarm)
     {
-        this(BYTECODE_VERSION, monitorDelayChance, nemesisChance, nemesisFieldSelector);
+        this(BYTECODE_VERSION, monitorDelayChance, nemesisChance, nemesisFieldSelector, prewarmClassLoader, prewarm);
     }
 
-    public InterceptClasses(int api, ChanceSupplier monitorDelayChance, ChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector)
+    public InterceptClasses(int api, ChanceSupplier monitorDelayChance, ChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector, ClassLoader prewarmClassLoader, Predicate<String> prewarm)
     {
         this.api = api;
         this.nemesisChance = nemesisChance;
         this.monitorDelayChance = monitorDelayChance;
         this.insertHashcode = new Hashcode(api);
         this.nemesisFieldSelector = nemesisFieldSelector;
+        this.prewarmClassLoader = prewarmClassLoader;
+        this.prewarm = prewarm;
     }
 
     @Override
     public synchronized byte[] apply(String name, byte[] bytes)
     {
-        if (bytes == null)
-            return maybeSynthetic(name);
+        return transformTransitiveClosure(name, bytes, null);
+    }
 
-        Hashcode hashcode = insertHashCode(name);
+    private byte[] transformTransitiveClosure(String externalName, byte[] input, Map<String, byte[]> isolatedCache)
+    {
+        if (input == null)
+            return maybeSynthetic(externalName);
 
-        name = dotsToSlashes(name);
+        String internalName = dotsToSlashes(externalName);
+        if (isolatedCache != null)
+        {
+            byte[] isolatedCached = isolatedCache.get(internalName);
+            if (isolatedCached != null)
+                return isolatedCached == SENTINEL ? input : isolatedCached;
+        }
+
+        Cached cached = cache.get(internalName);
+        if (cached != null)
+        {
+            if (isolatedCache == null)
+            {
+                switch (cached.kind)
+                {
+                    default: throw new AssertionError();
+                    case MODIFIED:
+                        return cached.bytes;
+                    case UNMODIFIED:
+                        return input;
+                    case UNSHAREABLE:
+                        return transform(internalName, externalName, null, input, null, null);
+                }
+            }
+
+            for (String peer : cached.uncacheablePeers)
+                transform(peer, slashesToDots(peer), null, cache.get(peer).bytes, isolatedCache, null);
+
+            switch (cached.kind)
+            {
+                default: throw new AssertionError();
+                case MODIFIED:
+                    return cached.bytes;
+                case UNMODIFIED:
+                    return input;
+                case UNSHAREABLE:
+                    return isolatedCache.get(internalName);
+            }
+        }
+
+        Set<String> visited = new HashSet<>();
+        visited.add(internalName);
+        NavigableSet<String> load = new TreeSet<>();
+        Consumer<String> dependentTypeConsumer = type -> {
+            if (prewarm.test(type) && visited.add(type))
+                load.add(type);
+        };
+
+        final PeerGroup peerGroup = new PeerGroup();
+        byte[] result = transform(internalName, externalName, peerGroup, input, isolatedCache, dependentTypeConsumer);
+        for (String next = load.pollFirst(); next != null; next = load.pollFirst())
+        {
+            // TODO (now): otherwise merge peer groups
+            Cached existing = cache.get(next);
+            if (existing == null)
+                transform(next, slashesToDots(next), peerGroup, read(next), isolatedCache, dependentTypeConsumer);
+        }
+
+        return result;
+    }
+
+    private byte[] read(String name)
+    {
+        try (InputStream in = prewarmClassLoader.getResourceAsStream(dotsToSlashes(name) + ".class"))
+        {
+            if (in == null)
+                throw new NoClassDefFoundError(dotsToSlashes(name) + ".class");
+
+            bufOut.reset();
+            for (int c = in.read(bufIn) ; c >= 0 ; c = in.read(bufIn))
+                bufOut.write(bufIn, 0, c);
+            return bufOut.toByteArray();
+        }
+        catch (IOException e)
+        {
+            throw new NoClassDefFoundError(name);
+        }
+    }
+
+    private byte[] transform(String internalName, String externalName, PeerGroup peerGroup, byte[] input, Map<String, byte[]> isolatedCache, Consumer<String> dependentTypes)
+    {
+        Hashcode hashcode = insertHashCode(externalName);
+
         EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
-        if (MONITORS.matcher(name).matches())
+        if (MONITORS.matcher(internalName).matches())
         {
             flags.add(Flag.MONITORS);
         }
-        if (GLOBAL_METHODS.matcher(name).matches())
+        if (GLOBAL_METHODS.matcher(internalName).matches())
         {
             flags.add(Flag.GLOBAL_METHODS);
             flags.add(Flag.LOCK_SUPPORT);
         }
-        if (NEMESIS.matcher(name).matches())
+        if (NEMESIS.matcher(internalName).matches())
         {
             flags.add(Flag.NEMESIS);
         }
 
         if (flags.isEmpty() && hashcode == null)
-            return bytes;
-
-        Cached prev = cache.get(name);
-        if (prev != null)
         {
-            if (prev == SENTINEL)
-                return bytes;
-            return prev.cached;
+            cache.put(internalName, peerGroup.unmodified);
+            return input;
         }
 
-        ClassTransformer transformer = new ClassTransformer(api, name, flags, monitorDelayChance, new NemesisGenerator(api, name, nemesisChance), nemesisFieldSelector, hashcode);
-        transformer.readAndTransform(bytes);
+        ClassTransformer transformer = new ClassTransformer(api, internalName, flags, monitorDelayChance, new NemesisGenerator(api, internalName, nemesisChance), nemesisFieldSelector, hashcode, dependentTypes);
+        transformer.readAndTransform(input);
 
         if (!transformer.isTransformed())
         {
-            cache.put(name, SENTINEL);
-            return bytes;
+            cache.put(internalName, peerGroup.unmodified);
+            return input;
         }
 
-        bytes = transformer.toBytes();
+        byte[] output = transformer.toBytes();
         if (transformer.isCacheablyTransformed())
-            cache.put(name, new Cached(bytes));
+        {
+            cache.put(internalName, new Cached(MODIFIED, output, peerGroup.uncacheablePeers));
+        }
+        else
+        {
+            if (peerGroup != null)
+            {
+                cache.put(internalName, new Cached(UNSHAREABLE, input, peerGroup.uncacheablePeers));
+                peerGroup.uncacheablePeers.add(internalName);
+            }
+            if (isolatedCache != null)
+                isolatedCache.put(internalName, output);
+        }
 
-        return bytes;
+        return output;
     }
 
     static String dotsToSlashes(String className)
@@ -151,6 +283,11 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
         return dotsToSlashes(clazz.getName());
     }
 
+    static String slashesToDots(String className)
+    {
+        return className.replace('/', '.');
+    }
+
     /**
      * Decide if we should insert our own hashCode() implementation that assigns deterministic hashes, i.e.
      *   - If it's one of our classes
@@ -160,14 +297,14 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
      *
      * Otherwise we either probably do not need it, or may break serialization between classloaders
      */
-    private Hashcode insertHashCode(String name)
+    private Hashcode insertHashCode(String externalName)
     {
         try
         {
-            if (!name.startsWith("org.apache.cassandra"))
+            if (!externalName.startsWith("org.apache.cassandra"))
                 return null;
 
-            Class<?> sharedClass = getClass().getClassLoader().loadClass(name);
+            Class<?> sharedClass = getClass().getClassLoader().loadClass(externalName);
             if (sharedClass.isInterface() || sharedClass.isEnum() || sharedClass.isArray() || sharedClass.isSynthetic())
                 return null;
 
@@ -197,14 +334,14 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
             }
             catch (NoSuchFieldException e)
             {
-                if (!Throwable.class.isAssignableFrom(sharedClass) && WARNED.add(name))
+                if (!Throwable.class.isAssignableFrom(sharedClass) && WARNED.add(externalName))
                     System.err.println("No serialVersionUID on Serializable " + sharedClass);
                 return null;
             }
         }
         catch (ClassNotFoundException e)
         {
-            System.err.println("Unable to determine if should insert hashCode() for " + name);
+            System.err.println("Unable to determine if should insert hashCode() for " + externalName);
             e.printStackTrace();
         }
         return null;
@@ -216,22 +353,22 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
     static final String shadowOuterTypePrefix = shadowRootType + '$';
     static final String originalOuterTypePrefix = originalRootType + '$';
 
-    protected byte[] maybeSynthetic(String name)
+    protected byte[] maybeSynthetic(String externalName)
     {
-        if (!name.startsWith(shadowRootExternalType))
+        if (!externalName.startsWith(shadowRootExternalType))
             return null;
 
         try
         {
-            String originalType, shadowType = Utils.toInternalName(name);
+            String originalType, shadowType = Utils.toInternalName(externalName);
             if (!shadowType.startsWith(shadowOuterTypePrefix))
                 originalType = originalRootType;
             else
-                originalType = originalOuterTypePrefix + name.substring(shadowOuterTypePrefix.length());
+                originalType = originalOuterTypePrefix + externalName.substring(shadowOuterTypePrefix.length());
 
             EnumSet<Flag> flags = EnumSet.of(Flag.GLOBAL_METHODS, Flag.MONITORS, Flag.LOCK_SUPPORT);
-            if (NEMESIS.matcher(name).matches()) flags.add(Flag.NEMESIS);
-            NemesisGenerator nemesis = new NemesisGenerator(api, name, nemesisChance);
+            if (NEMESIS.matcher(externalName).matches()) flags.add(Flag.NEMESIS);
+            NemesisGenerator nemesis = new NemesisGenerator(api, externalName, nemesisChance);
 
             ShadowingTransformer transformer;
             transformer = new ShadowingTransformer(InterceptClasses.BYTECODE_VERSION,
@@ -245,7 +382,6 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
         {
             throw new UncheckedIOException(e);
         }
-
     }
 
 }

@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.Label;
@@ -262,4 +263,28 @@ public class Utils
         };
     }
 
+    public static void visitEachRefType(String descriptor, Consumer<String> forEach)
+    {
+        Type[] argTypes = Type.getArgumentTypes(descriptor);
+        Type retType = Type.getReturnType(descriptor);
+        for (Type argType : argTypes)
+            visitIfRefType(argType.getDescriptor(), forEach);
+        visitIfRefType(retType.getDescriptor(), forEach);
+    }
+
+    public static void visitIfRefType(String descriptor, Consumer<String> forEach)
+    {
+        if (descriptor.charAt(0) != '[' && descriptor.charAt(descriptor.length() - 1) != ';')
+        {
+            if (descriptor.length() > 1)
+                forEach.accept(descriptor);
+        }
+        else
+        {
+            int i = 1;
+            while (descriptor.charAt(i) == '[') ++i;
+            if (descriptor.charAt(i) == 'L')
+                forEach.accept(descriptor.substring(i + 1, descriptor.length() - 1));
+        }
+    }
 }

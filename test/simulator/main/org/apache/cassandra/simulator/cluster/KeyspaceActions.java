@@ -79,6 +79,7 @@ public class KeyspaceActions extends ClusterActions
     final TokenMetadata tokenMetadata = new TokenMetadata(snitch.get());
     Topology topology;
     boolean haveChangedVariant;
+    int topologyChangeCount = 0;
 
     public KeyspaceActions(SimulatedSystems simulated,
                            String keyspace, String table, String createTableCql,
@@ -180,7 +181,10 @@ public class KeyspaceActions extends ClusterActions
 
     private Action next()
     {
-        while (!ops.isEmpty() && !prejoin.isEmpty() || (ops.contains(LEAVE) && joined.size() > sum(minRf)))
+        if (options.topologyChangeLimit >= 0 && topologyChangeCount++ > options.topologyChangeLimit)
+            return null;
+
+        while (!ops.isEmpty() && (!prejoin.isEmpty() || joined.size() > sum(minRf)))
         {
             if (options.changePaxosVariantTo != null && !haveChangedVariant && random.decide(1f / (1 + prejoin.size())))
             {
@@ -196,7 +200,7 @@ public class KeyspaceActions extends ClusterActions
             if (prejoin.size(dc) > 0 && joined.size(dc) > currentRf[dc]) next = options.allChoices.choose(random);
             else if (prejoin.size(dc) > 0 && ops.contains(JOIN)) next = options.choicesNoLeave.choose(random);
             else if (joined.size(dc) > currentRf[dc] && ops.contains(LEAVE)) next = options.choicesNoJoin.choose(random);
-            else if (joined.size(dc) > minRf[dc] && ops.contains(LEAVE)) next = CHANGE_RF;
+            else if (joined.size(dc) > minRf[dc]) next = CHANGE_RF;
             else continue;
 
             // TODO (feature): introduce some time period between cluster actions
@@ -292,7 +296,7 @@ public class KeyspaceActions extends ClusterActions
 
     private Action schedule(Action action)
     {
-        action.setDeadline(time.nanoTime() + options.topologyChangeInterval.get(random));
+        action.setDeadline(time, time.nanoTime() + options.topologyChangeInterval.get(random));
         return action;
     }
 

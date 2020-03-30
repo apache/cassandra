@@ -19,9 +19,7 @@
 package org.apache.cassandra.simulator.systems;
 
 import java.lang.reflect.Field;
-import java.security.SecureRandom;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.ToIntFunction;
@@ -62,6 +60,11 @@ public interface InterceptorOfSystemMethods
 
     long randomSeed();
     UUID randomUUID();
+
+    void threadLocalRandomCheck(long seed);
+
+    long nanoTime();
+    long currentTimeMillis();
 
     @SuppressWarnings("unused")
     public static class Global
@@ -182,6 +185,28 @@ public interface InterceptorOfSystemMethods
         public static UUID randomUUID()
         {
             return methods.randomUUID();
+        }
+
+        public static int threadLocalRandomCheck(int seed)
+        {
+            methods.threadLocalRandomCheck(seed);
+            return seed;
+        }
+
+        public static long threadLocalRandomCheck(long seed)
+        {
+            methods.threadLocalRandomCheck(seed);
+            return seed;
+        }
+
+        public static long nanoTime()
+        {
+            return methods.nanoTime();
+        }
+
+        public static long currentTimeMillis()
+        {
+            return methods.currentTimeMillis();
         }
 
         public static int identityHashCode(Object object)
@@ -367,6 +392,23 @@ public interface InterceptorOfSystemMethods
         public UUID randomUUID()
         {
             return UUID.randomUUID();
+        }
+
+        @Override
+        public long nanoTime()
+        {
+            return System.nanoTime();
+        }
+
+        @Override
+        public long currentTimeMillis()
+        {
+            return System.currentTimeMillis();
+        }
+
+        @Override
+        public void threadLocalRandomCheck(long seed)
+        {
         }
     }
 

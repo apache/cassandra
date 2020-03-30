@@ -19,7 +19,11 @@
 package org.apache.cassandra.locator;
 
 import com.google.common.base.Preconditions;
+
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -65,6 +69,11 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
         if (this.byEndpoint != null && list.isSubList(newList))
             byEndpoint = this.byEndpoint.forSubList(newList);
         return new EndpointsForToken(token, newList, byEndpoint);
+    }
+
+    public Replica lookup(InetAddressAndPort endpoint)
+    {
+        return byEndpoint().get(endpoint);
     }
 
     public static class Builder extends EndpointsForToken implements ReplicaCollection.Builder<EndpointsForToken>
@@ -145,5 +154,35 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
     {
         if (replicas.isEmpty()) return empty(token);
         return builder(token, replicas.size()).addAll(replicas).build();
+    }
+
+    public static EndpointsForToken natural(Keyspace keyspace, Token token)
+    {
+        return keyspace.getReplicationStrategy().getNaturalReplicasForToken(token);
+    }
+
+    public static EndpointsForToken natural(AbstractReplicationStrategy replicationStrategy, Token token)
+    {
+        return replicationStrategy.getNaturalReplicasForToken(token);
+    }
+
+    public static EndpointsForToken natural(TableMetadata table, Token token)
+    {
+        return natural(Keyspace.open(table.keyspace), token);
+    }
+
+    public static EndpointsForToken pending(TableMetadata table, Token token)
+    {
+        return pending(table.keyspace, token);
+    }
+
+    public static EndpointsForToken pending(Keyspace keyspace, Token token)
+    {
+        return pending(keyspace.getName(), token);
+    }
+
+    public static EndpointsForToken pending(String keyspace, Token token)
+    {
+        return StorageService.instance.getTokenMetadata().pendingEndpointsForToken(token, keyspace);
     }
 }

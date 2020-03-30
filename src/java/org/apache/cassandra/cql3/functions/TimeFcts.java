@@ -94,7 +94,7 @@ public abstract class TimeFcts
 
     /**
      * Function that convert a value of <code>TIMEUUID</code> into a value of type <code>TIMESTAMP</code>.
-     * @deprecated Replaced by the {@link #timeUuidToTimestamp} function
+     * @deprecated Replaced by the {@link #toTimestamp} function
      */
     public static final NativeScalarFunction dateOfFct = new NativeScalarFunction("dateof", TimestampType.instance, TimeUUIDType.instance)
     {
@@ -120,7 +120,7 @@ public abstract class TimeFcts
 
     /**
      * Function that convert a value of type <code>TIMEUUID</code> into an UNIX timestamp.
-     * @deprecated Replaced by the {@link #timeUuidToUnixTimestamp} function
+     * @deprecated Replaced by the {@link #toUnixTimestamp} function
      */
     public static final NativeScalarFunction unixTimestampOfFct = new NativeScalarFunction("unixtimestampof", LongType.instance, TimeUUIDType.instance)
     {

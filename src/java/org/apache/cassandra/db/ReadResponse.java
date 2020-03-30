@@ -34,6 +34,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.db.RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
+
 public abstract class ReadResponse
 {
     // Serializer for single partition read response
@@ -46,6 +48,11 @@ public abstract class ReadResponse
     public static ReadResponse createDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi)
     {
         return new LocalDataResponse(data, command, rdi);
+    }
+
+    public static ReadResponse createSimpleDataResponse(UnfilteredPartitionIterator data, ColumnFilter selection)
+    {
+        return new LocalDataResponse(data, selection);
     }
 
     @VisibleForTesting
@@ -182,6 +189,11 @@ public abstract class ReadResponse
                   rdi.getDigest(), rdi.isConclusive(),
                   MessagingService.current_version,
                   DeserializationHelper.Flag.LOCAL);
+        }
+
+        private LocalDataResponse(UnfilteredPartitionIterator iter, ColumnFilter selection)
+        {
+            super(build(iter, selection), null, false, MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
         }
 
         private static ByteBuffer build(UnfilteredPartitionIterator iter, ColumnFilter selection)

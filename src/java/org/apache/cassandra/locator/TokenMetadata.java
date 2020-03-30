@@ -1391,7 +1391,7 @@ public class TokenMetadata
      */
     public Topology getTopology()
     {
-        assert this != StorageService.instance.getTokenMetadata();
+        assert !DatabaseDescriptor.isDaemonInitialized() || this != StorageService.instance.getTokenMetadata();
         return topology;
     }
 

@@ -37,6 +37,10 @@ import org.junit.Assert;
 import io.netty.util.concurrent.GenericFutureListener;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
 {
     static
@@ -222,12 +226,12 @@ public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
         success(promise, Promise::isDone, false);
         success(promise, Promise::isCancelled, false);
         async.success(promise, Promise::get, value);
-        async.success(promise, p -> p.get(1L, TimeUnit.SECONDS), value);
+        async.success(promise, p -> p.get(1L, SECONDS), value);
         async.success(promise, Promise::await, promise);
         async.success(promise, Promise::awaitUninterruptibly, promise);
-        async.success(promise, p -> p.await(1L, TimeUnit.SECONDS), true);
+        async.success(promise, p -> p.await(1L, SECONDS), true);
         async.success(promise, p -> p.await(1000L), true);
-        async.success(promise, p -> p.awaitUninterruptibly(1L, TimeUnit.SECONDS), true);
+        async.success(promise, p -> p.awaitUninterruptibly(1L, SECONDS), true);
         async.success(promise, p -> p.awaitUninterruptibly(1000L), true);
         async.success(promise, Promise::sync, promise);
         async.success(promise, Promise::syncUninterruptibly, promise);
@@ -389,18 +393,18 @@ public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
         success(promise, Promise::getNow, null);
         success(promise, Promise::cause, null);
         async.failure(promise, p -> p.get(), ExecutionException.class);
-        async.failure(promise, p -> p.get(1L, TimeUnit.SECONDS), ExecutionException.class);
+        async.failure(promise, p -> p.get(1L, SECONDS), ExecutionException.class);
         async.success(promise, Promise::await, promise);
         async.success(promise, Promise::awaitThrowUncheckedOnInterrupt, promise);
         async.success(promise, Promise::awaitUninterruptibly, promise);
-        async.success(promise, p -> p.await(1L, TimeUnit.SECONDS), true);
+        async.success(promise, p -> p.await(1L, SECONDS), true);
         async.success(promise, p -> p.await(1000L), true);
-        async.success(promise, p -> p.awaitUninterruptibly(1L, TimeUnit.SECONDS), true);
-        async.success(promise, p -> p.awaitThrowUncheckedOnInterrupt(1L, TimeUnit.SECONDS), true);
+        async.success(promise, p -> p.awaitUninterruptibly(1L, SECONDS), true);
+        async.success(promise, p -> p.awaitThrowUncheckedOnInterrupt(1L, SECONDS), true);
         async.success(promise, p -> p.awaitUninterruptibly(1000L), true);
-        async.success(promise, p -> p.awaitUntil(System.nanoTime() + TimeUnit.SECONDS.toNanos(1L)), true);
-        async.success(promise, p -> p.awaitUntilUninterruptibly(System.nanoTime() + TimeUnit.SECONDS.toNanos(1L)), true);
-        async.success(promise, p -> p.awaitUntilThrowUncheckedOnInterrupt(System.nanoTime() + TimeUnit.SECONDS.toNanos(1L)), true);
+        async.success(promise, p -> p.awaitUntil(nanoTime() + SECONDS.toNanos(1L)), true);
+        async.success(promise, p -> p.awaitUntilUninterruptibly(nanoTime() + SECONDS.toNanos(1L)), true);
+        async.success(promise, p -> p.awaitUntilThrowUncheckedOnInterrupt(nanoTime() + SECONDS.toNanos(1L)), true);
         async.failure(promise, p -> p.sync(), cause);
         async.failure(promise, p -> p.syncUninterruptibly(), cause);
         if (tryOrSet) promise.tryFailure(cause);
@@ -449,18 +453,18 @@ public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
         success(promise, Promise::getNow, null);
         success(promise, Promise::cause, null);
         async.failure(promise, p -> p.get(), CancellationException.class);
-        async.failure(promise, p -> p.get(1L, TimeUnit.SECONDS), CancellationException.class);
+        async.failure(promise, p -> p.get(1L, SECONDS), CancellationException.class);
         async.success(promise, Promise::await, promise);
         async.success(promise, Promise::awaitThrowUncheckedOnInterrupt, promise);
         async.success(promise, Promise::awaitUninterruptibly, promise);
-        async.success(promise, p -> p.await(1L, TimeUnit.SECONDS), true);
+        async.success(promise, p -> p.await(1L, SECONDS), true);
         async.success(promise, p -> p.await(1000L), true);
-        async.success(promise, p -> p.awaitUninterruptibly(1L, TimeUnit.SECONDS), true);
-        async.success(promise, p -> p.awaitThrowUncheckedOnInterrupt(1L, TimeUnit.SECONDS), true);
+        async.success(promise, p -> p.awaitUninterruptibly(1L, SECONDS), true);
+        async.success(promise, p -> p.awaitThrowUncheckedOnInterrupt(1L, SECONDS), true);
         async.success(promise, p -> p.awaitUninterruptibly(1000L), true);
-        async.success(promise, p -> p.awaitUntil(System.nanoTime() + TimeUnit.SECONDS.toNanos(1L)), true);
-        async.success(promise, p -> p.awaitUntilUninterruptibly(System.nanoTime() + TimeUnit.SECONDS.toNanos(1L)), true);
-        async.success(promise, p -> p.awaitUntilThrowUncheckedOnInterrupt(System.nanoTime() + TimeUnit.SECONDS.toNanos(1L)), true);
+        async.success(promise, p -> p.awaitUntil(nanoTime() + SECONDS.toNanos(1L)), true);
+        async.success(promise, p -> p.awaitUntilUninterruptibly(nanoTime() + SECONDS.toNanos(1L)), true);
+        async.success(promise, p -> p.awaitUntilThrowUncheckedOnInterrupt(nanoTime() + SECONDS.toNanos(1L)), true);
         async.failure(promise, p -> p.sync(), CancellationException.class);
         async.failure(promise, p -> p.syncUninterruptibly(), CancellationException.class);
         promise.cancel(interruptIfRunning);
@@ -482,17 +486,17 @@ public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
     public <V> void testOneTimeout(Promise<V> promise)
     {
         Async async = new Async();
-        async.failure(promise, p -> p.get(1L, TimeUnit.MILLISECONDS), TimeoutException.class);
-        async.success(promise, p -> p.await(1L, TimeUnit.MILLISECONDS), false);
-        async.success(promise, p -> p.awaitThrowUncheckedOnInterrupt(1L, TimeUnit.MILLISECONDS), false);
+        async.failure(promise, p -> p.get(1L, MILLISECONDS), TimeoutException.class);
+        async.success(promise, p -> p.await(1L, MILLISECONDS), false);
+        async.success(promise, p -> p.awaitThrowUncheckedOnInterrupt(1L, MILLISECONDS), false);
         async.success(promise, p -> p.await(1L), false);
-        async.success(promise, p -> p.awaitUninterruptibly(1L, TimeUnit.MILLISECONDS), false);
-        async.success(promise, p -> p.awaitThrowUncheckedOnInterrupt(1L, TimeUnit.MILLISECONDS), false);
+        async.success(promise, p -> p.awaitUninterruptibly(1L, MILLISECONDS), false);
+        async.success(promise, p -> p.awaitThrowUncheckedOnInterrupt(1L, MILLISECONDS), false);
         async.success(promise, p -> p.awaitUninterruptibly(1L), false);
-        async.success(promise, p -> p.awaitUntil(System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(1L)), false);
-        async.success(promise, p -> p.awaitUntilUninterruptibly(System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(1L)), false);
-        async.success(promise, p -> p.awaitUntilThrowUncheckedOnInterrupt(System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(1L)), false);
-        Uninterruptibles.sleepUninterruptibly(10L, TimeUnit.MILLISECONDS);
+        async.success(promise, p -> p.awaitUntil(nanoTime() + MILLISECONDS.toNanos(1L)), false);
+        async.success(promise, p -> p.awaitUntilUninterruptibly(nanoTime() + MILLISECONDS.toNanos(1L)), false);
+        async.success(promise, p -> p.awaitUntilThrowUncheckedOnInterrupt(nanoTime() + MILLISECONDS.toNanos(1L)), false);
+        Uninterruptibles.sleepUninterruptibly(10L, MILLISECONDS);
         async.verify();
     }
 

@@ -150,27 +150,27 @@ public class WriteResponseHandlerTransientTest
         EndpointsForToken natural = EndpointsForToken.of(dummy.getToken(), full(EP1), full(EP2), trans(EP3), full(EP5));
         EndpointsForToken pending = EndpointsForToken.of(dummy.getToken(), full(EP4), trans(EP6));
         ReplicaLayout.ForTokenWrite layout = new ReplicaLayout.ForTokenWrite(ks.getReplicationStrategy(), natural, pending);
-        ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, layout, layout, ReplicaPlans.writeAll);
+        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, layout, layout, ReplicaPlans.writeAll);
 
         Assert.assertTrue(Iterables.elementsEqual(EndpointsForRange.of(full(EP4), trans(EP6)),
                                                   replicaPlan.pending()));
     }
 
-    private static ReplicaPlan.ForTokenWrite expected(EndpointsForToken natural, EndpointsForToken selected)
+    private static ReplicaPlan.ForWrite expected(EndpointsForToken natural, EndpointsForToken selected)
     {
-        return new ReplicaPlan.ForTokenWrite(ks, ks.getReplicationStrategy(), ConsistencyLevel.QUORUM, EndpointsForToken.empty(dummy.getToken()), natural, natural, selected);
+        return new ReplicaPlan.ForWrite(ks, ks.getReplicationStrategy(), ConsistencyLevel.QUORUM, EndpointsForToken.empty(dummy.getToken()), natural, natural, selected);
     }
 
-    private static ReplicaPlan.ForTokenWrite getSpeculationContext(EndpointsForToken natural, Predicate<InetAddressAndPort> livePredicate)
+    private static ReplicaPlan.ForWrite getSpeculationContext(EndpointsForToken natural, Predicate<InetAddressAndPort> livePredicate)
     {
         ReplicaLayout.ForTokenWrite liveAndDown = new ReplicaLayout.ForTokenWrite(ks.getReplicationStrategy(), natural, EndpointsForToken.empty(dummy.getToken()));
         ReplicaLayout.ForTokenWrite live = new ReplicaLayout.ForTokenWrite(ks.getReplicationStrategy(), natural.filter(r -> livePredicate.test(r.endpoint())), EndpointsForToken.empty(dummy.getToken()));
         return ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, liveAndDown, live, ReplicaPlans.writeNormal);
     }
 
-    private static void assertSpeculationReplicas(ReplicaPlan.ForTokenWrite expected, EndpointsForToken replicas, Predicate<InetAddressAndPort> livePredicate)
+    private static void assertSpeculationReplicas(ReplicaPlan.ForWrite expected, EndpointsForToken replicas, Predicate<InetAddressAndPort> livePredicate)
     {
-        ReplicaPlan.ForTokenWrite actual = getSpeculationContext(replicas, livePredicate);
+        ReplicaPlan.ForWrite actual = getSpeculationContext(replicas, livePredicate);
         assertEquals(expected.pending(), actual.pending());
         assertEquals(expected.live(), actual.live());
         assertEquals(expected.contacts(), actual.contacts());

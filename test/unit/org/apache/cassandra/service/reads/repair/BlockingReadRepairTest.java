@@ -51,7 +51,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     private static class InstrumentedReadRepairHandler
             extends BlockingPartitionRepair
     {
-        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
+        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
         {
             super(Util.dk("not a real usable value"), repairs, writePlan, e -> targets.contains(e));
         }
@@ -70,7 +70,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         configureClass(ReadRepairStrategy.BLOCKING);
     }
 
-    private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
+    private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
     {
         return new InstrumentedReadRepairHandler(repairs, writePlan);
     }
@@ -81,7 +81,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         return createRepairHandler(repairs, repairPlan(replicas, replicas));
     }
 
-    private static class InstrumentedBlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+    private static class InstrumentedBlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
             extends BlockingReadRepair<E, P> implements InstrumentedReadRepair<E, P>
     {
         public InstrumentedBlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
@@ -143,7 +143,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica1, repair1);
         repairs.put(replica2, repair2);
 
-        ReplicaPlan.ForTokenWrite writePlan = repairPlan(replicas, EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet())));
+        ReplicaPlan.ForWrite writePlan = repairPlan(replicas, EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet())));
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, writePlan);
 
         Assert.assertTrue(handler.mutationsSent.isEmpty());
@@ -269,7 +269,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(remote1, mutation(cell1));
 
         EndpointsForRange participants = EndpointsForRange.of(replica1, replica2, remote1, remote2);
-        ReplicaPlan.ForTokenWrite writePlan = repairPlan(replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, participants));
+        ReplicaPlan.ForWrite writePlan = repairPlan(replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, participants));
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, writePlan);
         handler.sendInitialRepairs();
         Assert.assertEquals(2, handler.mutationsSent.size());

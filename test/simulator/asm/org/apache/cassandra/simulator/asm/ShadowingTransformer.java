@@ -56,7 +56,7 @@ public class ShadowingTransformer extends ClassTransformer
 
     ShadowingTransformer(int api, String originalType, String shadowType, String originalRootType, String shadowRootType, String originalOuterTypePrefix, String shadowOuterTypePrefix, EnumSet<Flag> flags, ChanceSupplier monitorDelayChance, NemesisGenerator nemesis, NemesisFieldKind.Selector nemesisFieldSelector, Hashcode insertHashcode)
     {
-        super(api, shadowType, flags, monitorDelayChance, nemesis, nemesisFieldSelector, insertHashcode);
+        super(api, shadowType, flags, monitorDelayChance, nemesis, nemesisFieldSelector, insertHashcode, null);
         this.originalType = originalType;
         this.originalRootType = originalRootType;
         this.shadowRootType = shadowRootType;

@@ -32,15 +32,15 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
 
-public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
 {
     public interface Factory
     {
-        <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+        <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
         ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime);
     }
 
-    static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+    static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
     ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
         return command.metadata().params.readRepair.create(command, replicaPlan, queryStartNanoTime);
@@ -92,5 +92,5 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      * Repairs a partition _after_ receiving data responses. This method receives replica list, since
      * we will block repair only on the replicas that have responded.
      */
-    void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForTokenWrite writePlan);
+    void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan);
 }

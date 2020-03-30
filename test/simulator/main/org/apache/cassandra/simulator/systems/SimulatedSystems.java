@@ -38,7 +38,6 @@ public class SimulatedSystems
 {
     public final RandomSource random;
     public final SimulatedTime time;
-    public final SimulatedWaits waits;
     public final SimulatedMessageDelivery delivery;
     public final SimulatedExecution execution;
     public final SimulatedBallots ballots;
@@ -51,19 +50,18 @@ public class SimulatedSystems
 
     public SimulatedSystems(SimulatedSystems copy)
     {
-        this(copy.random, copy.time, copy.waits, copy.delivery, copy.execution, copy.ballots, copy.failureDetector, copy.snitch, copy.futureScheduler, copy.debug, copy.failures, copy.topologyListeners);
+        this(copy.random, copy.time, copy.delivery, copy.execution, copy.ballots, copy.failureDetector, copy.snitch, copy.futureScheduler, copy.debug, copy.failures, copy.topologyListeners);
     }
 
-    public SimulatedSystems(RandomSource random, SimulatedTime time, SimulatedWaits waits, SimulatedMessageDelivery delivery, SimulatedExecution execution, SimulatedBallots ballots, SimulatedFailureDetector failureDetector, SimulatedSnitch snitch, FutureActionScheduler futureScheduler, Debug debug, Failures failures)
+    public SimulatedSystems(RandomSource random, SimulatedTime time, SimulatedMessageDelivery delivery, SimulatedExecution execution, SimulatedBallots ballots, SimulatedFailureDetector failureDetector, SimulatedSnitch snitch, FutureActionScheduler futureScheduler, Debug debug, Failures failures)
     {
-        this(random, time, waits, delivery, execution, ballots, failureDetector, snitch, futureScheduler, debug, failures, new ArrayList<>());
+        this(random, time, delivery, execution, ballots, failureDetector, snitch, futureScheduler, debug, failures, new ArrayList<>());
     }
 
-    private SimulatedSystems(RandomSource random, SimulatedTime time, SimulatedWaits waits, SimulatedMessageDelivery delivery, SimulatedExecution execution, SimulatedBallots ballots, SimulatedFailureDetector failureDetector, SimulatedSnitch snitch, FutureActionScheduler futureScheduler, Debug debug, Failures failures, List<TopologyListener> topologyListeners)
+    private SimulatedSystems(RandomSource random, SimulatedTime time, SimulatedMessageDelivery delivery, SimulatedExecution execution, SimulatedBallots ballots, SimulatedFailureDetector failureDetector, SimulatedSnitch snitch, FutureActionScheduler futureScheduler, Debug debug, Failures failures, List<TopologyListener> topologyListeners)
     {
         this.random = random;
         this.time = time;
-        this.waits = waits;
         this.delivery = delivery;
         this.execution = execution;
         this.ballots = ballots;

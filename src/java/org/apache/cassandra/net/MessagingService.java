@@ -206,6 +206,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public static final int VERSION_30 = 10;
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
+    public static final int VERSION_41 = 13;
     public static final int minimum_version = VERSION_30;
     public static final int current_version = VERSION_40;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
@@ -365,6 +366,23 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public void send(Message message, InetAddressAndPort to)
     {
         send(message, to, null);
+    }
+
+    /**
+     * Send a message to a given endpoint. This method adheres to the fire and forget
+     * style messaging.
+     *
+     * @param message messages to be sent.
+     * @param response
+     */
+    public <V> void respond(V response, Message<?> message)
+    {
+        send(message.responseWith(response), message.respondTo());
+    }
+
+    public <V> void respondWithFailure(RequestFailureReason reason, Message<?> message)
+    {
+        send(Message.failureResponse(message.id(), message.expiresAtNanos(), reason), message.respondTo());
     }
 
     public void send(Message message, InetAddressAndPort to, ConnectionType specifyConnection)

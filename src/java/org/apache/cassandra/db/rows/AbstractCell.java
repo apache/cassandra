@@ -98,6 +98,11 @@ public abstract class AbstractCell<V> extends Cell<V>
         return this;
     }
 
+    public Cell<?> purgeDataOlderThan(long timestamp)
+    {
+        return this.timestamp() < timestamp ? null : this;
+    }
+
     public Cell<?> copy(AbstractAllocator allocator)
     {
         CellPath path = path();

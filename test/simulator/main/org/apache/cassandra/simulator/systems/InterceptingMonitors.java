@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.simulator.systems;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,21 +39,24 @@ import org.apache.cassandra.utils.concurrent.Threads;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SIMULATOR_DEBUG;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.NEMESIS;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.SLEEP_UNTIL;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.UNBOUNDED_WAIT;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.WAIT_UNTIL;
+import static org.apache.cassandra.simulator.systems.InterceptedWait.Trigger.SIGNAL;
+import static org.apache.cassandra.simulator.systems.InterceptibleThread.interceptorOrDefault;
 import static org.apache.cassandra.simulator.systems.InterceptingMonitors.WaitListAccessor.LOCK;
 import static org.apache.cassandra.simulator.systems.InterceptingMonitors.WaitListAccessor.NOTIFY;
-import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.relativeToGlobalAbsoluteNanos;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.relativeToGlobalNanos;
 
 @PerClassLoader
 @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
 public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods, Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(InterceptingMonitors.class);
+    private static final boolean DEBUG_MONITOR_STATE = TEST_SIMULATOR_DEBUG.getBoolean();
 
     static class MonitorState
     {
@@ -66,6 +71,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
         InterceptibleThread heldBy;
         int depth;
         int suspended;
+        Deque<Object> recentActions = DEBUG_MONITOR_STATE ? new ArrayDeque<>() : null;
 
         boolean isEmpty()
         {
@@ -94,6 +100,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
             {
                 InterceptedMonitorWait head = remove.waitingOn.head(this);
                 remove.waitingOn.setHead(this, head.remove(remove));
+                assert remove.next == null;
             }
         }
 
@@ -149,6 +156,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
             else
             {
                 list.setHead(this, wait);
+                wait.nextLength = 0;
             }
         }
 
@@ -165,9 +173,40 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
         {
             assert heldBy == null || heldBy == wait.waiting;
             assert depth == 0;
+            assert suspended > 0;
             heldBy = wait.waiting;
             depth = wait.unsuspendMonitor();
             --suspended;
+        }
+
+        void claim(InterceptedMonitorWait wait)
+        {
+            assert heldBy == null || heldBy == wait.waiting;
+            assert depth == 0;
+            heldBy = wait.waiting;
+            depth = wait.unsuspendMonitor();
+        }
+
+        void log(Object event, Thread toThread, Thread byThread)
+        {
+            if (recentActions != null)
+                log(event + " " + toThread + " by " + byThread);
+        }
+
+        void log(Object event, Thread toThread)
+        {
+            if (recentActions != null)
+                log(event + " " + toThread);
+        }
+
+        void log(Object event)
+        {
+            if (recentActions == null)
+                return;
+
+            if (recentActions.size() > 20)
+                recentActions.poll();
+            recentActions.add(event + " " + depth);
         }
     }
 
@@ -191,7 +230,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
 
     static class InterceptedMonitorWait implements InterceptedWait
     {
-        final Kind kind;
+        Kind kind;
         final long waitTime;
         final InterceptibleThread waiting;
         final CaptureSites captureSites;
@@ -200,7 +239,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
         final Object monitor;
         int suspendedMonitorDepth;
 
-        boolean isTriggeredByTimeout;
+        Trigger trigger;
         boolean isTriggered;
         final List<TriggerListener> onTrigger = new ArrayList<>(3);
 
@@ -259,13 +298,30 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
             return isTriggered;
         }
 
+        public boolean isInterruptible()
+        {
+            return true;
+        }
+
         @Override
         public long waitTime()
         {
             return waitTime;
         }
 
-        public void triggerAndAwaitDone(InterceptorOfConsequences interceptor, boolean isTimeout)
+        @Override
+        public void interceptWakeup(Trigger trigger, Thread by)
+        {
+            if (this.trigger != null && this.trigger.compareTo(trigger) >= 0)
+                return;
+
+            this.trigger = trigger;
+            if (captureSites != null)
+                captureSites.registerWakeup(by);
+            interceptorOrDefault(by).interceptWakeup(this, trigger, interceptedBy);
+        }
+
+        public void triggerAndAwaitDone(InterceptorOfConsequences interceptor, Trigger trigger)
         {
             if (isTriggered)
                 return;
@@ -277,10 +333,12 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
 
             // we may have been assigned ownership of the lock if we attempted to trigger but found the lock held
             if (state.heldBy != null && state.heldBy != waiting)
-            {
+            {   // reset this condition to wait on lock release
                 state.waitOn(LOCK, this);
+                this.kind = UNBOUNDED_WAIT;
+                this.trigger = null;
                 interceptor.beforeInvocation(waiting);
-                interceptor.interceptWait(null);
+                interceptor.interceptWait(this);
                 return;
             }
 
@@ -290,11 +348,11 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
                 {
                     waiting.beforeInvocation(interceptor, this);
 
-                    this.isTriggeredByTimeout = isTimeout;
                     isTriggered = true;
                     onTrigger.forEach(listener -> listener.onTrigger(this));
 
-                    monitor.notifyAll();
+                    if (!waiting.preWakeup(this))
+                        monitor.notifyAll(); // TODO: could use interrupts to target waiting anyway, avoiding notifyAll()
 
                     while (!notifiedOfPause)
                         monitor.wait();
@@ -302,7 +360,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
                     if (waitingOnRelinquish)
                     {
                         waitingOnRelinquish = false;
-                        monitor.notifyAll();
+                        monitor.notifyAll(); // TODO: could use interrupts to target waiting anyway, avoiding notifyAll()
                     }
                 }
             }
@@ -394,6 +452,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
             if (cur != null)
             {
                 cur.next = remove.next;
+                remove.next = null;
                 --nextLength;
             }
             return this;
@@ -405,15 +464,13 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
         }
     }
 
-    final InterceptorOfWaits interceptorOfWaits;
     final RandomSource random;
     private final Map<Object, MonitorState> monitors = new IdentityHashMap<>();
-    private boolean disabled;
     private final Map<Thread, Object> waitingOn = new IdentityHashMap<>();
+    protected boolean disabled;
 
-    public InterceptingMonitors(InterceptorOfWaits interceptorOfWaits, RandomSource random)
+    public InterceptingMonitors(RandomSource random)
     {
-        this.interceptorOfWaits = interceptorOfWaits;
         this.random = random;
     }
 
@@ -436,7 +493,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
     @Override
     public void waitUntil(long deadline) throws InterruptedException
     {
-        InterceptibleThread thread = interceptorOfWaits.ifIntercepted();
+        InterceptibleThread thread = ifIntercepted();
         if (thread == null)
         {
             Clock.waitUntil(deadline);
@@ -446,7 +503,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
         if (Thread.interrupted())
             throw new InterruptedException();
 
-        InterceptedMonitorWait trigger = new InterceptedMonitorWait(SLEEP_UNTIL, deadline, new MonitorState(), thread, interceptorOfWaits.captureWaitSite(thread));
+        InterceptedMonitorWait trigger = new InterceptedMonitorWait(SLEEP_UNTIL, deadline, new MonitorState(), thread, captureWaitSite(thread));
         thread.interceptWait(trigger);
         synchronized (trigger)
         {
@@ -484,7 +541,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
 
     public boolean waitUntil(Object monitor, long deadline) throws InterruptedException
     {
-        InterceptibleThread thread = interceptorOfWaits.ifIntercepted();
+        InterceptibleThread thread = ifIntercepted();
         if (thread == null) return SyncAwaitable.waitUntil(monitor, deadline);
         else return wait(monitor, thread, WAIT_UNTIL, deadline);
     }
@@ -492,7 +549,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
     @Override
     public void wait(Object monitor) throws InterruptedException
     {
-        InterceptibleThread thread = interceptorOfWaits.ifIntercepted();
+        InterceptibleThread thread = ifIntercepted();
         if (thread == null) monitor.wait();
         else wait(monitor, thread, UNBOUNDED_WAIT, -1L);
     }
@@ -500,17 +557,17 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
     @Override
     public void wait(Object monitor, long millis) throws InterruptedException
     {
-        InterceptibleThread thread = interceptorOfWaits.ifIntercepted();
+        InterceptibleThread thread = ifIntercepted();
         if (thread == null) monitor.wait(millis);
-        else wait(monitor, thread, WAIT_UNTIL, relativeToGlobalAbsoluteNanos(MILLISECONDS.toNanos(millis)));
+        else wait(monitor, thread, WAIT_UNTIL, relativeToGlobalNanos(MILLISECONDS.toNanos(millis)));
     }
 
     @Override
     public void wait(Object monitor, long millis, int nanos) throws InterruptedException
     {
-        InterceptibleThread thread = interceptorOfWaits.ifIntercepted();
+        InterceptibleThread thread = ifIntercepted();
         if (thread == null) monitor.wait(millis, nanos);
-        else wait(monitor, thread, WAIT_UNTIL, relativeToGlobalAbsoluteNanos(MILLISECONDS.toNanos(millis) + nanos));
+        else wait(monitor, thread, WAIT_UNTIL, relativeToGlobalNanos(MILLISECONDS.toNanos(millis) + nanos));
     }
 
     private boolean wait(Object monitor, InterceptibleThread thread, InterceptedWait.Kind kind, long waitNanos) throws InterruptedException
@@ -519,14 +576,22 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
             throw new InterruptedException();
 
         MonitorState state = state(monitor);
-        InterceptedMonitorWait trigger = new InterceptedMonitorWait(kind, waitNanos, state, thread, interceptorOfWaits.captureWaitSite(thread), monitor);
+        InterceptedMonitorWait trigger = new InterceptedMonitorWait(kind, waitNanos, state, thread, captureWaitSite(thread), monitor);
+        state.log("enterwait", thread);
         state.suspend(trigger);
         state.waitOn(NOTIFY, trigger);
         wakeOneWaitingOnLock(thread, state);
         thread.interceptWait(trigger);
-        trigger.await();
-        state.restore(trigger);
-        return !trigger.isTriggeredByTimeout;
+        try
+        {
+            trigger.await();
+        }
+        finally
+        {
+            state.restore(trigger);
+            state.log("exitwait", thread);
+        }
+        return trigger.trigger == SIGNAL;
     }
 
     public void notify(Object monitor)
@@ -534,12 +599,14 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
         MonitorState state = state(monitor);
         if (state != null)
         {
-            InterceptedMonitorWait wait = state.removeOneWaitingOn(NOTIFY, random);
-            if (wait != null)
+            InterceptedMonitorWait wake = state.removeOneWaitingOn(NOTIFY, random);
+            if (wake != null)
             {
-                assert wait.waitingOn == null;
+                // TODO: assign ownership on monitorExit
+                assert wake.waitingOn == null;
                 Thread waker = Thread.currentThread();
-                interceptorOfWaits.interceptSignal(waker, wait, wait.captureSites, wait.interceptedBy);
+                wake.interceptWakeup(SIGNAL, waker);
+                state.log("notify", wake.waiting, waker);
                 return;
             }
         }
@@ -552,18 +619,20 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
         MonitorState state = state(monitor);
         if (state != null)
         {
-            InterceptedMonitorWait wait = state.removeAllWaitingOn(NOTIFY);
-            if (wait != null)
+            InterceptedMonitorWait wake = state.removeAllWaitingOn(NOTIFY);
+            if (wake != null)
             {
                 Thread waker = Thread.currentThread();
-                interceptorOfWaits.interceptSignal(waker, wait, wait.captureSites, wait.interceptedBy);
+                wake.interceptWakeup(SIGNAL, waker);
+                state.log("notify", wake.waiting, waker);
 
-                wait = wait.next;
-                while (wait != null)
+                wake = wake.next;
+                while (wake != null)
                 {
-                    InterceptedMonitorWait next = wait.next;
-                    state.waitOn(LOCK, wait);
-                    wait = next;
+                    InterceptedMonitorWait next = wake.next;
+                    state.waitOn(LOCK, wake);
+                    state.log("movetowaitonlock ", wake.waiting, waker);
+                    wake = next;
                 }
                 return;
             }
@@ -581,62 +650,107 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
         if (!(anyThread instanceof InterceptibleThread))
             return;
 
+        boolean restoreInterrupt = false;
         InterceptibleThread thread = (InterceptibleThread) anyThread;
-        if (   !thread.isEvaluationDeterministic()
-            && random.decide(preMonitorDelayChance))
+        try
         {
-            // TODO (feature): hold a stack of threads already paused by the nemesis, and, if one of the threads
-            //        is entering the monitor, put the contents of this stack into `waitingOn` for this monitor.
-            InterceptedConditionWait signal = new InterceptedConditionWait(NEMESIS, 0L, thread, interceptorOfWaits.captureWaitSite(thread), null);
-            thread.interceptWait(signal);
-
-            // save interrupt state to restore afterwards - new ones only arrive if terminating simulation
-            boolean wasInterrupted = Thread.interrupted();
-            signal.awaitThrowUncheckedOnInterrupt();
-            if (wasInterrupted) thread.interrupt();
-        }
-
-        MonitorState state = state(monitor);
-        if (state.heldBy != thread)
-        {
-            if (state.heldBy != null)
+            if (   !thread.isEvaluationDeterministic()
+                && random.decide(preMonitorDelayChance))
             {
-                if (!thread.isIntercepting() && disabled) return;
-                else if (!thread.isIntercepting())
-                    throw new AssertionError();
+                // TODO (feature): hold a stack of threads already paused by the nemesis, and, if one of the threads
+                //        is entering the monitor, put the contents of this stack into `waitingOn` for this monitor.
+                InterceptedConditionWait signal = new InterceptedConditionWait(NEMESIS, 0L, thread, captureWaitSite(thread), null);
+                thread.interceptWait(signal);
 
-                checkForDeadlock(thread, state.heldBy);
-                InterceptedMonitorWait wait = new InterceptedMonitorWait(UNBOUNDED_WAIT, 0L, state, thread, interceptorOfWaits.captureWaitSite(thread));
-                wait.suspendedMonitorDepth = 1;
-                state.waitOn(LOCK, wait);
-                thread.interceptWait(wait);
-                synchronized (wait)
+                // save interrupt state to restore afterwards - new ones only arrive if terminating simulation
+                restoreInterrupt = Thread.interrupted();
+                while (true)
                 {
-                    waitingOn.put(thread, monitor);
                     try
                     {
-                        wait.await();
+                        signal.awaitDeclaredUninterruptible();
+                        break;
                     }
                     catch (InterruptedException e)
                     {
-                        throw new UncheckedInterruptedException(e);
-                    }
-                    finally
-                    {
-                        waitingOn.remove(thread);
+                        if (disabled)
+                            throw new UncheckedInterruptedException(e);
+                        restoreInterrupt = true;
                     }
                 }
-                state.restore(wait);
+            }
+
+            MonitorState state = state(monitor);
+            if (state.heldBy != thread)
+            {
+                if (state.heldBy != null)
+                {
+                    if (!thread.isIntercepting() && disabled) return;
+                    else if (!thread.isIntercepting())
+                        throw new AssertionError();
+
+                    checkForDeadlock(thread, state.heldBy);
+                    InterceptedMonitorWait wait = new InterceptedMonitorWait(UNBOUNDED_WAIT, 0L, state, thread, captureWaitSite(thread));
+                    wait.suspendedMonitorDepth = 1;
+                    state.log("monitorenter_wait", thread);
+                    state.waitOn(LOCK, wait);
+                    thread.interceptWait(wait);
+                    synchronized (wait)
+                    {
+                        waitingOn.put(thread, monitor);
+                        restoreInterrupt |= Thread.interrupted();
+                        try
+                        {
+                            while (true)
+                            {
+                                try
+                                {
+                                    wait.await();
+                                    break;
+                                }
+                                catch (InterruptedException e)
+                                {
+                                    if (disabled)
+                                    {
+                                        if (state.heldBy == thread)
+                                        {
+                                            state.heldBy = null;
+                                            state.depth = 0;
+                                        }
+                                        throw new UncheckedInterruptedException(e);
+                                    }
+
+                                    restoreInterrupt = true;
+                                    if (wait.isTriggered)
+                                        break;
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            waitingOn.remove(thread);
+                        }
+                    }
+                    state.claim(wait);
+                    state.log("monitorenter_claim", thread);
+                }
+                else
+                {
+                    state.log("monitorenter_free", thread);
+                    state.heldBy = thread;
+                    state.depth = 1;
+                }
             }
             else
             {
-                state.heldBy = thread;
-                state.depth = 1;
+                state.log("monitorreenter", thread);
+                state.depth++;
             }
         }
-        else
+        finally
         {
-            state.depth++;
+            if (restoreInterrupt)
+                thread.interrupt();
         }
     }
 
@@ -658,8 +772,12 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
             throw new AssertionError();
 
         if (--state.depth > 0)
+        {
+            state.log("monitorreexit", thread);
             return;
+        }
 
+        state.log("monitorexit", thread);
         state.heldBy = null;
 
         if (!wakeOneWaitingOnLock(thread, state))
@@ -668,7 +786,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
         }
     }
 
-    private boolean wakeOneWaitingOnLock(Thread thread, MonitorState state)
+    private boolean wakeOneWaitingOnLock(Thread waker, MonitorState state)
     {
         InterceptedMonitorWait wake = state.removeOneWaitingOn(LOCK, random);
         if (wake != null)
@@ -676,11 +794,12 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
             assert wake.waitingOn == null;
             assert !wake.isTriggered();
 
-            interceptorOfWaits.interceptSignal(thread, wake, wake.captureSites, wake.interceptedBy);
+            wake.interceptWakeup(SIGNAL, waker);
 
             // assign them the lock, so they'll definitely get it when they wake
             assert state.heldBy == null;
             state.heldBy = wake.waiting;
+            state.log("wake", wake.waiting);
             return true;
         }
         return false;

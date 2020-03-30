@@ -25,69 +25,89 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
-public abstract class ReplicaPlan<E extends Endpoints<E>>
+public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>>
 {
-    protected final Keyspace keyspace;
-    protected final ConsistencyLevel consistencyLevel;
-    // The snapshot of the replication strategy when instantiating.
-    // It could be different than the one fetched from Keyspace later, e.g. RS altered during the query.
-    // Use the snapshot to calculate {@code blockFor} in order to have a consistent view of RS for the query.
-    protected final AbstractReplicationStrategy replicationStrategy;
+    Keyspace keyspace();
+    AbstractReplicationStrategy replicationStrategy();
+    ConsistencyLevel consistencyLevel();
 
-    // all nodes we will contact via any mechanism, including hints
-    // i.e., for:
-    //  - reads, only live natural replicas
-    //      ==> live.natural().subList(0, blockFor + initial speculate)
-    //  - writes, includes all full, and any pending replicas, (and only any necessary transient ones to make up the difference)
-    //      ==> liveAndDown.natural().filter(isFull) ++ liveAndDown.pending() ++ live.natural.filter(isTransient, req)
-    //  - paxos, includes all live replicas (natural+pending), for this DC if SERIAL_LOCAL
-    //      ==> live.all()  (if consistencyLevel.isDCLocal(), then .filter(consistencyLevel.isLocal))
-    private final E contacts;
+    E contacts();
 
-    ReplicaPlan(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, E contacts)
+    Replica lookup(InetAddressAndPort endpoint);
+    P withContacts(E contacts);
+
+    interface ForRead<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ReplicaPlan<E, P>
     {
-        assert contacts != null;
-        this.keyspace = keyspace;
-        this.replicationStrategy = replicationStrategy;
-        this.consistencyLevel = consistencyLevel;
-        this.contacts = contacts;
+        int readQuorum();
+        E readCandidates();
+
+        default Replica firstUncontactedCandidate(Predicate<Replica> extraPredicate)
+        {
+            return Iterables.tryFind(readCandidates(), r -> extraPredicate.test(r) && !contacts().contains(r)).orNull();
+        }
     }
 
-    public abstract int blockFor();
+    abstract class AbstractReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>> implements ReplicaPlan<E, P>
+    {
+        protected final Keyspace keyspace;
+        protected final ConsistencyLevel consistencyLevel;
+        // The snapshot of the replication strategy when instantiating.
+        // It could be different than the one fetched from Keyspace later, e.g. RS altered during the query.
+        // Use the snapshot to calculate {@code blockFor} in order to have a consistent view of RS for the query.
+        protected final AbstractReplicationStrategy replicationStrategy;
 
-    public E contacts() { return contacts; }
+        // all nodes we will contact via any mechanism, including hints
+        // i.e., for:
+        //  - reads, only live natural replicas
+        //      ==> live.natural().subList(0, blockFor + initial speculate)
+        //  - writes, includes all full, and any pending replicas, (and only any necessary transient ones to make up the difference)
+        //      ==> liveAndDown.natural().filter(isFull) ++ liveAndDown.pending() ++ live.natural.filter(isTransient, req)
+        //  - paxos, includes all live replicas (natural+pending), for this DC if SERIAL_LOCAL
+        //      ==> live.all()  (if consistencyLevel.isDCLocal(), then .filter(consistencyLevel.isLocal))
+        private final E contacts;
 
-    // TODO: should this semantically return true if we contain the endpoint, not the exact replica?
-    public boolean contacts(Replica replica) { return contacts.contains(replica); }
-    public Keyspace keyspace() { return keyspace; }
-    public AbstractReplicationStrategy replicationStrategy() { return replicationStrategy; }
-    public ConsistencyLevel consistencyLevel() { return consistencyLevel; }
+        AbstractReplicaPlan(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, E contacts)
+        {
+            assert contacts != null;
+            this.keyspace = keyspace;
+            this.replicationStrategy = replicationStrategy;
+            this.consistencyLevel = consistencyLevel;
+            this.contacts = contacts;
+        }
 
-    public static abstract class ForRead<E extends Endpoints<E>> extends ReplicaPlan<E>
+        public E contacts() { return contacts; }
+
+        public Keyspace keyspace() { return keyspace; }
+        public AbstractReplicationStrategy replicationStrategy() { return replicationStrategy; }
+        public ConsistencyLevel consistencyLevel() { return consistencyLevel; }
+    }
+
+    public static abstract class AbstractForRead<E extends Endpoints<E>, P extends ForRead<E, P>> extends AbstractReplicaPlan<E, P> implements ForRead<E, P>
     {
         // all nodes we *could* contacts; typically all natural replicas that are believed to be alive
         // we will consult this collection to find uncontacted nodes we might contact if we doubt we will meet consistency level
-        private final E candidates;
+        final E candidates;
 
-        ForRead(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, E candidates, E contacts)
+        AbstractForRead(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, E candidates, E contacts)
         {
             super(keyspace, replicationStrategy, consistencyLevel, contacts);
             this.candidates = candidates;
         }
 
-        public int blockFor() { return consistencyLevel.blockFor(replicationStrategy); }
+        public int readQuorum() { return consistencyLevel.blockFor(replicationStrategy); }
 
-        public E candidates() { return candidates; }
+        public E readCandidates() { return candidates; }
 
         public Replica firstUncontactedCandidate(Predicate<Replica> extraPredicate)
         {
-            return Iterables.tryFind(candidates(), r -> extraPredicate.test(r) && !contacts(r)).orNull();
+            return Iterables.tryFind(readCandidates(), r -> extraPredicate.test(r) && !contacts().contains(r)).orNull();
         }
 
         public Replica lookup(InetAddressAndPort endpoint)
         {
-            return candidates().byEndpoint().get(endpoint);
+            return readCandidates().byEndpoint().get(endpoint);
         }
 
         public String toString()
@@ -96,7 +116,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         }
     }
 
-    public static class ForTokenRead extends ForRead<EndpointsForToken>
+    public static class ForTokenRead extends AbstractForRead<EndpointsForToken, ForTokenRead>
     {
         public ForTokenRead(Keyspace keyspace,
                             AbstractReplicationStrategy replicationStrategy,
@@ -107,13 +127,13 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
             super(keyspace, replicationStrategy, consistencyLevel, candidates, contacts);
         }
 
-        ForTokenRead withContact(EndpointsForToken newContact)
+        public ForTokenRead withContacts(EndpointsForToken newContact)
         {
-            return new ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates(), newContact);
+            return new ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, newContact);
         }
     }
 
-    public static class ForRangeRead extends ForRead<EndpointsForRange>
+    public static class ForRangeRead extends AbstractForRead<EndpointsForRange, ForRangeRead>
     {
         final AbstractBounds<PartitionPosition> range;
         final int vnodeCount;
@@ -138,20 +158,20 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
          */
         public int vnodeCount() { return vnodeCount; }
 
-        ForRangeRead withContact(EndpointsForRange newContact)
+        public ForRangeRead withContacts(EndpointsForRange newContact)
         {
-            return new ForRangeRead(keyspace, replicationStrategy, consistencyLevel, range, candidates(), newContact, vnodeCount);
+            return new ForRangeRead(keyspace, replicationStrategy, consistencyLevel, range, readCandidates(), newContact, vnodeCount);
         }
     }
 
-    public static abstract class ForWrite<E extends Endpoints<E>> extends ReplicaPlan<E>
+    public static class ForWrite extends AbstractReplicaPlan<EndpointsForToken, ForWrite>
     {
         // TODO: this is only needed because of poor isolation of concerns elsewhere - we can remove it soon, and will do so in a follow-up patch
-        final E pending;
-        final E liveAndDown;
-        final E live;
+        final EndpointsForToken pending;
+        final EndpointsForToken liveAndDown;
+        final EndpointsForToken live;
 
-        ForWrite(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, E pending, E liveAndDown, E live, E contact)
+        public ForWrite(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken live, EndpointsForToken contact)
         {
             super(keyspace, replicationStrategy, consistencyLevel, contact);
             this.pending = pending;
@@ -159,22 +179,35 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
             this.live = live;
         }
 
-        public int blockFor() { return consistencyLevel.blockForWrite(replicationStrategy, pending()); }
+        public int writeQuorum() { return consistencyLevel.blockForWrite(replicationStrategy, pending()); }
 
         /** Replicas that a region of the ring is moving to; not yet ready to serve reads, but should receive writes */
-        public E pending() { return pending; }
+        public EndpointsForToken pending() { return pending; }
+
         /** Replicas that can participate in the write - this always includes all nodes (pending and natural) in all DCs, except for paxos LOCAL_QUORUM (which is local DC only) */
-        public E liveAndDown() { return liveAndDown; }
+        public EndpointsForToken liveAndDown() { return liveAndDown; }
+
         /** The live replicas present in liveAndDown, usually derived from FailureDetector.isReplicaAlive */
-        public E live() { return live; }
+        public EndpointsForToken live() { return live; }
+
         /** Calculate which live endpoints we could have contacted, but chose not to */
-        public E liveUncontacted() { return live().filter(r -> !contacts(r)); }
+        public EndpointsForToken liveUncontacted() { return live().filter(r -> !contacts().contains(r)); }
+
         /** Test liveness, consistent with the upfront analysis done for this operation (i.e. test membership of live()) */
         public boolean isAlive(Replica replica) { return live.endpoints().contains(replica.endpoint()); }
+
         public Replica lookup(InetAddressAndPort endpoint)
         {
             return liveAndDown().byEndpoint().get(endpoint);
         }
+
+        private ForWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
+        {
+            return new ForWrite(keyspace, replicationStrategy, newConsistencyLevel, pending(), liveAndDown(), live(), newContact);
+        }
+
+        ForWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel) { return copy(newConsistencylevel, contacts()); }
+        public ForWrite withContacts(EndpointsForToken newContact) { return copy(consistencyLevel, newContact); }
 
         public String toString()
         {
@@ -182,23 +215,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         }
     }
 
-    public static class ForTokenWrite extends ForWrite<EndpointsForToken>
-    {
-        public ForTokenWrite(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken live, EndpointsForToken contact)
-        {
-            super(keyspace, replicationStrategy, consistencyLevel, pending, liveAndDown, live, contact);
-        }
-
-        private ReplicaPlan.ForTokenWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
-        {
-            return new ReplicaPlan.ForTokenWrite(keyspace, replicationStrategy, newConsistencyLevel, pending(), liveAndDown(), live(), newContact);
-        }
-
-        ForTokenWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel) { return copy(newConsistencylevel, contacts()); }
-        public ForTokenWrite withContact(EndpointsForToken newContact) { return copy(consistencyLevel, newContact); }
-    }
-
-    public static class ForPaxosWrite extends ForWrite<EndpointsForToken>
+    public static class ForPaxosWrite extends ForWrite
     {
         final int requiredParticipants;
 
@@ -219,8 +236,11 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
      * the constructor should be visible by the normal process of sharing data between threads (i.e. executors, etc)
      * and any updates will either be seen or not seen, perhaps not promptly, but certainly not incompletely.
      * The contained ReplicaPlan has only final member properties, so it cannot be seen partially initialised.
+     *
+     * TODO: there's no reason this couldn't be achieved instead by a ReplicaPlan with mutable contacts,
+     *       simplifying the hierarchy
      */
-    public interface Shared<E extends Endpoints<E>, P extends ReplicaPlan<E>>
+    public interface Shared<E extends Endpoints<E>, P extends ReplicaPlan<E, P>> extends Supplier<P>
     {
         /**
          * add the provided replica to this shared plan, by updating the internal reference
@@ -230,29 +250,22 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
          * get the shared replica plan, non-volatile (so maybe stale) but no risk of partially initialised
          */
         public P get();
-        /**
-         * get the shared replica plan, non-volatile (so maybe stale) but no risk of partially initialised,
-         * but replace its 'contacts' with those provided
-         */
-        public abstract P getWithContacts(E endpoints);
     }
 
     public static class SharedForTokenRead implements Shared<EndpointsForToken, ForTokenRead>
     {
         private ForTokenRead replicaPlan;
         SharedForTokenRead(ForTokenRead replicaPlan) { this.replicaPlan = replicaPlan; }
-        public void addToContacts(Replica replica) { replicaPlan = replicaPlan.withContact(Endpoints.append(replicaPlan.contacts(), replica)); }
+        public void addToContacts(Replica replica) { replicaPlan = replicaPlan.withContacts(Endpoints.append(replicaPlan.contacts(), replica)); }
         public ForTokenRead get() { return replicaPlan; }
-        public ForTokenRead getWithContacts(EndpointsForToken newContact) { return replicaPlan.withContact(newContact); }
     }
 
     public static class SharedForRangeRead implements Shared<EndpointsForRange, ForRangeRead>
     {
         private ForRangeRead replicaPlan;
         SharedForRangeRead(ForRangeRead replicaPlan) { this.replicaPlan = replicaPlan; }
-        public void addToContacts(Replica replica) { replicaPlan = replicaPlan.withContact(Endpoints.append(replicaPlan.contacts(), replica)); }
+        public void addToContacts(Replica replica) { replicaPlan = replicaPlan.withContacts(Endpoints.append(replicaPlan.contacts(), replica)); }
         public ForRangeRead get() { return replicaPlan; }
-        public ForRangeRead getWithContacts(EndpointsForRange newContact) { return replicaPlan.withContact(newContact); }
     }
 
     public static SharedForTokenRead shared(ForTokenRead replicaPlan) { return new SharedForTokenRead(replicaPlan); }

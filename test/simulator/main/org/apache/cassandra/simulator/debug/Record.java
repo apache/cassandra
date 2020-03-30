@@ -41,11 +41,16 @@ import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.RandomSource;
+import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
+import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Threads;
 
 import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.NONE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.VALUE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.WITH_CALLSITES;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 
 public class Record
@@ -54,17 +59,22 @@ public class Record
     private static final Pattern NORMALISE_THREAD_RECORDING_OUT = Pattern.compile("(Thread\\[[^]]+:[0-9]+),[0-9](,node[0-9]+)_[0-9]+]");
     private static final Pattern NORMALISE_LAMBDA = Pattern.compile("((\\$\\$Lambda\\$[0-9]+/[0-9]+)?(@[0-9a-f]+)?)");
 
-    public static void record(String saveToDir, long seed, boolean withRng, boolean withRngCallSites, ClusterSimulation.Builder<?> builder)
+    public static void record(String saveToDir, long seed, RecordOption withRng, RecordOption withTime, ClusterSimulation.Builder<?> builder)
     {
         File eventFile = new File(new File(saveToDir), Long.toHexString(seed) + ".gz");
         File rngFile = new File(new File(saveToDir), Long.toHexString(seed) + ".rng.gz");
+        File timeFile = new File(new File(saveToDir), Long.toHexString(seed) + ".time.gz");
 
         {
             Set<String> modifiers = new LinkedHashSet<>();
-            if (withRngCallSites)
+            if (withRng == WITH_CALLSITES)
                 modifiers.add("rngCallSites");
-            else if (withRng)
+            else if (withRng == VALUE)
                 modifiers.add("rng");
+            if (withTime == WITH_CALLSITES)
+                modifiers.add("timeCallSites");
+            else if (withTime == VALUE)
+                modifiers.add("time");
             if (builder.capture().waitSites)
                 modifiers.add("WaitSites");
             if (builder.capture().wakeSites)
@@ -73,22 +83,25 @@ public class Record
         }
 
         try (PrintWriter eventOut = new PrintWriter(new GZIPOutputStream(eventFile.newOutputStream(OVERWRITE), 1 << 16));
-             DataOutputStreamPlus rngOut = new BufferedDataOutputStreamPlus(Channels.newChannel(withRng ? new GZIPOutputStream(rngFile.newOutputStream(OVERWRITE), 1 << 16) : new ByteArrayOutputStream(0))))
+             DataOutputStreamPlus rngOut = new BufferedDataOutputStreamPlus(Channels.newChannel(withRng != NONE ? new GZIPOutputStream(rngFile.newOutputStream(OVERWRITE), 1 << 16) : new ByteArrayOutputStream(0)));
+             DataOutputStreamPlus timeOut = new BufferedDataOutputStreamPlus(Channels.newChannel(withTime != NONE ? new GZIPOutputStream(timeFile.newOutputStream(OVERWRITE), 1 << 16) : new ByteArrayOutputStream(0))))
         {
             eventOut.println("modifiers:"
-                             + (withRng ? "rng," : "") + (withRngCallSites ? "rngCallSites," : "")
+                             + (withRng == VALUE ? "rng," : "") + (withRng == WITH_CALLSITES ? "rngCallSites," : "")
+                             + (withTime == VALUE ? "time," : "") + (withTime == WITH_CALLSITES ? "timeCallSites," : "")
                              + (builder.capture().waitSites ? "waitSites," : "") + (builder.capture().wakeSites ? "wakeSites," : ""));
 
+            TimeRecorder time;
             RandomSourceRecorder random;
-            if (withRng)
+            if (withRng != NONE)
             {
-                random = new RandomSourceRecorder(rngOut, new RandomSource.Default(), withRngCallSites);
-                builder.random(random);
+                builder.random(random = new RandomSourceRecorder(rngOut, new RandomSource.Default(), withRng));
+                builder.onThreadLocalRandomCheck(random::onDeterminismCheck);
             }
-            else
-            {
-                random = null;
-            }
+            else random = null;
+
+            if (withTime != NONE) builder.timeListener(time = new TimeRecorder(timeOut, withTime));
+            else time = null;
 
             // periodic forced flush to ensure state is on disk after some kind of stall
             Thread flusher = new Thread(() -> {
@@ -103,6 +116,13 @@ public class Record
                             synchronized (random)
                             {
                                 rngOut.flush();
+                            }
+                        }
+                        if (time != null)
+                        {
+                            synchronized (time)
+                            {
+                                timeOut.flush();
                             }
                         }
                     }
@@ -171,6 +191,42 @@ public class Record
         ).replaceAll("$1$2]");
     }
 
+    public static class TimeRecorder extends AbstractRecorder implements SimulatedTime.Listener, java.io.Closeable
+    {
+        boolean disabled;
+
+        public TimeRecorder(DataOutputStreamPlus out, RecordOption option)
+        {
+            super(out, option);
+        }
+
+        @Override
+        public void close() throws IOException
+        {
+            disabled = true;
+            out.close();
+        }
+
+        @Override
+        public synchronized void accept(String kind, long value)
+        {
+            if (disabled)
+                return;
+
+            try
+            {
+                writeInterned(kind);
+                out.writeUnsignedVInt(value);
+                writeThread();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    // TODO: merge with TimeRecorder to produce one stream, use to support live reconciliation between two JVMs over socket
     public static class RandomSourceRecorder extends RandomSource.Abstract implements Supplier<RandomSource>, Closeable
     {
         private static final AtomicReferenceFieldUpdater<RandomSourceRecorder, Thread> lockedUpdater = AtomicReferenceFieldUpdater.newUpdater(Record.RandomSourceRecorder.class, Thread.class, "locked");
@@ -182,11 +238,11 @@ public class Record
         volatile Thread locked;
         volatile boolean disabled;
 
-        public RandomSourceRecorder(DataOutputStreamPlus out, RandomSource wrapped, boolean withCallSites)
+        public RandomSourceRecorder(DataOutputStreamPlus out, RandomSource wrapped, RecordOption option)
         {
             this.out = out;
             this.wrapped = wrapped;
-            this.threads = new AbstractRecorder(out, withCallSites);
+            this.threads = new AbstractRecorder(out, option);
         }
 
         private void enter()
@@ -212,6 +268,33 @@ public class Record
         private void exit()
         {
             locked = null;
+        }
+
+        // determinism check is exclusively a ThreadLocalRandom issue at the moment
+        public void onDeterminismCheck(long value)
+        {
+            if (disabled)
+                return;
+
+            enter();
+            try
+            {
+                synchronized (this)
+                {
+                    out.writeByte(7);
+                    out.writeVInt(count++);
+                    out.writeLong(value);
+                    threads.writeThread();
+                }
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            finally
+            {
+                exit();
+            }
         }
 
         public int uniform(int min, int max)
@@ -403,10 +486,10 @@ public class Record
         final boolean withCallSites;
         final Map<Object, Integer> objects = new IdentityHashMap<>();
 
-        public AbstractRecorder(DataOutputStreamPlus out, boolean withCallSites)
+        public AbstractRecorder(DataOutputStreamPlus out, RecordOption option)
         {
             this.out = out;
-            this.withCallSites = withCallSites;
+            this.withCallSites = option == WITH_CALLSITES;
         }
 
         public void writeThread() throws IOException
@@ -417,8 +500,10 @@ public class Record
             {
                 StackTraceElement[] ste = thread.getStackTrace();
                 String trace = Arrays.stream(ste, 3, ste.length)
-                                     .filter(st -> !st.getClassName().equals("org.apache.cassandra.simulator.debug.Record")
-                                                   && !st.getClassName().equals("org.apache.cassandra.simulator.SimulationRunner$Record"))
+                                     .filter(st ->    !st.getClassName().equals("org.apache.cassandra.simulator.debug.Record")
+                                                   && !st.getClassName().equals("org.apache.cassandra.simulator.SimulationRunner$Record")
+                                                   && !st.getClassName().equals("sun.reflect.NativeMethodAccessorImpl") // depends on async compile thread
+                                                   && !st.getClassName().startsWith("sun.reflect.GeneratedMethodAccessor")) // depends on async compile thread
                                      .collect(new Threads.StackTraceCombiner(true, "", "\n", ""));
                 out.writeUTF(trace);
             }

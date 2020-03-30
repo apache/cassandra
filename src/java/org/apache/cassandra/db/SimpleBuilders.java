@@ -36,7 +36,6 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUIDAsBytes;
 

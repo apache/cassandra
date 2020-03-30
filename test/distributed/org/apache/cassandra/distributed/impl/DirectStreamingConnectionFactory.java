@@ -23,8 +23,8 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayDeque;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -34,6 +34,7 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.RebufferingInputStream;
+import org.apache.cassandra.net.OutboundConnectionSettings;
 import org.apache.cassandra.streaming.StreamDeserializingTask;
 import org.apache.cassandra.streaming.StreamingDataInputPlus;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
@@ -41,12 +42,13 @@ import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataOutputPlusFixed;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
-import org.apache.cassandra.utils.concurrent.NotScheduledFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.locator.InetAddressAndPort.getByAddress;
 import static org.apache.cassandra.net.MessagingService.*;
 
+// TODO: Simulator should schedule based on some streaming data rate
 public class DirectStreamingConnectionFactory
 {
     static class DirectConnection
@@ -54,12 +56,14 @@ public class DirectStreamingConnectionFactory
         private static final AtomicInteger nextId = new AtomicInteger();
 
         final int protocolVersion;
+        final long sendBufferSize;
 
         // TODO rename
         private static class Buffer
         {
+            final Queue<byte[]> pending = new ArrayDeque<>();
             boolean isClosed;
-            byte[] pending;
+            int pendingBytes = 0;
         }
 
         @SuppressWarnings({"InnerClassMayBeStatic","unused"}) // helpful for debugging
@@ -86,14 +90,15 @@ public class DirectStreamingConnectionFactory
                     {
                         synchronized (out)
                         {
-                            while (out.pending != null && !out.isClosed)
+                            while (out.pendingBytes > 0 && count + out.pendingBytes > sendBufferSize && !out.isClosed)
                                 out.wait();
 
                             if (out.isClosed)
                                 throw new ClosedChannelException();
 
                             buffer.flip();
-                            out.pending = ByteBufferUtil.getArray(buffer);
+                            out.pendingBytes += buffer.remaining();
+                            out.pending.add(ByteBufferUtil.getArray(buffer));
                             buffer.clear();
 
                             out.notify();
@@ -182,16 +187,18 @@ public class DirectStreamingConnectionFactory
                     {
                         synchronized (in)
                         {
-                            byte[] bytes;
-                            while ((bytes = in.pending) == null && !in.isClosed)
+                            while (in.pendingBytes == 0 && !in.isClosed)
                                 in.wait();
 
-                            if (bytes == null)
+                            if (in.pendingBytes == 0)
                                 throw new ClosedChannelException();
 
-                            in.pending = null;
-                            buffer = ByteBuffer.wrap(bytes);
+                            byte[] bytes = in.pending.poll();
+                            if (bytes == null)
+                                throw new IllegalStateException();
 
+                            in.pendingBytes -= bytes.length;
+                            buffer = ByteBuffer.wrap(bytes);
                             in.notify();
                         }
                     }
@@ -322,9 +329,10 @@ public class DirectStreamingConnectionFactory
 
         private final DirectStreamingChannel outToRecipient, outToOriginator;
 
-        DirectConnection(int protocolVersion, InetSocketAddress originator, InetSocketAddress recipient)
+        DirectConnection(int protocolVersion, long sendBufferSize, InetSocketAddress originator, InetSocketAddress recipient)
         {
             this.protocolVersion = protocolVersion;
+            this.sendBufferSize = sendBufferSize;
             Buffer buffer1 = new Buffer(), buffer2 = new Buffer();
             outToRecipient = new DirectStreamingChannel(recipient, buffer1, buffer2);
             outToOriginator = new DirectStreamingChannel(originator, buffer2, buffer1);
@@ -349,7 +357,11 @@ public class DirectStreamingConnectionFactory
         @Override
         public StreamingChannel create(InetSocketAddress to, int messagingVersion, StreamingChannel.Kind kind)
         {
-            DirectConnection connection = new DirectConnection(messagingVersion, from, to);
+            long sendBufferSize = new OutboundConnectionSettings(getByAddress(to)).socketSendBufferSizeInBytes();
+            if (sendBufferSize <= 0)
+                sendBufferSize = 1 << 14;
+            
+            DirectConnection connection = new DirectConnection(messagingVersion, sendBufferSize, from, to);
             IInvokableInstance instance = cluster.get(to);
             instance.unsafeAcceptOnThisThread((channel, version) -> executorFactory().startThread(channel.description(), new StreamDeserializingTask(null, channel, version)),
                          connection.get(from), messagingVersion);

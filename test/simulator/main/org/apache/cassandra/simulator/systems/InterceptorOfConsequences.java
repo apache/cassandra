@@ -21,6 +21,7 @@ package org.apache.cassandra.simulator.systems;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.simulator.OrderOn;
+import org.apache.cassandra.simulator.systems.InterceptedWait.Trigger;
 import org.apache.cassandra.utils.Shared;
 
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
@@ -28,9 +29,49 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @Shared(scope = SIMULATION)
 public interface InterceptorOfConsequences
 {
+    public static final InterceptorOfConsequences DEFAULT_INTERCEPTOR = new InterceptorOfConsequences()
+    {
+        @Override
+        public void beforeInvocation(InterceptibleThread realThread)
+        {
+        }
+
+        @Override
+        public void interceptMessage(IInvokableInstance from, IInvokableInstance to, IMessage message)
+        {
+            throw new AssertionError();
+        }
+
+        @Override
+        public void interceptWait(InterceptedWait wakeupWith)
+        {
+            throw new AssertionError();
+        }
+
+        @Override
+        public void interceptWakeup(InterceptedWait wakeup, Trigger trigger, InterceptorOfConsequences waitWasInterceptedBy)
+        {
+            // TODO (now): should we be asserting here?
+            wakeup.triggerBypass();
+        }
+
+        @Override
+        public void interceptExecution(InterceptedExecution invoke, OrderOn orderOn)
+        {
+            throw new AssertionError();
+        }
+
+        @Override
+        public void interceptTermination(boolean isThreadTermination)
+        {
+            throw new AssertionError();
+        }
+    };
+
+
     void beforeInvocation(InterceptibleThread realThread);
     void interceptMessage(IInvokableInstance from, IInvokableInstance to, IMessage message);
-    void interceptWakeup(InterceptedWait wakeup, InterceptorOfConsequences waitWasInterceptedBy);
+    void interceptWakeup(InterceptedWait wakeup, Trigger trigger, InterceptorOfConsequences waitWasInterceptedBy);
     void interceptExecution(InterceptedExecution invoke, OrderOn orderOn);
     void interceptWait(InterceptedWait wakeupWith);
     void interceptTermination(boolean isThreadTermination);

@@ -66,7 +66,7 @@ public class UnfilteredRowIteratorSerializer
 {
     protected static final Logger logger = LoggerFactory.getLogger(UnfilteredRowIteratorSerializer.class);
 
-    private static final int IS_EMPTY               = 0x01;
+    public  static final int IS_EMPTY               = 0x01;
     private static final int IS_REVERSED            = 0x02;
     private static final int HAS_PARTITION_DELETION = 0x04;
     private static final int HAS_STATIC_ROW         = 0x08;

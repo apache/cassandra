@@ -20,7 +20,6 @@ package org.apache.cassandra.repair.messages;
 
 import java.io.IOException;
 
-import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 

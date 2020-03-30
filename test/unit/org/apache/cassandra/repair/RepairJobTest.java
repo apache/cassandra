@@ -46,6 +46,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
@@ -61,6 +62,10 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.paxos.Paxos;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupRequest;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupSession;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -72,12 +77,18 @@ import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.asserts.SyncTaskListAssert;
 
+import static java.util.Collections.emptySet;
+import static org.apache.cassandra.repair.RepairParallelism.SEQUENTIAL;
+import static org.apache.cassandra.streaming.PreviewKind.NONE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.asserts.SyncTaskAssert.assertThat;
 import static org.apache.cassandra.utils.asserts.SyncTaskListAssert.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_START_PREPARE_REQ;
+import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_REQ;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -114,9 +125,11 @@ public class RepairJobTest
 
         public MeasureableRepairSession(TimeUUID parentRepairSession, TimeUUID id, CommonRange commonRange, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
-                                        PreviewKind previewKind, boolean optimiseStreams, String... cfnames)
+                                        PreviewKind previewKind, boolean optimiseStreams, boolean repairPaxos, boolean paxosOnly,
+                                        String... cfnames)
         {
-            super(parentRepairSession, id, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair, previewKind, optimiseStreams, cfnames);
+            super(parentRepairSession, id, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair,
+                  previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
         }
 
         protected ExecutorPlus createExecutor()
@@ -176,9 +189,9 @@ public class RepairJobTest
                                                                  ActiveRepairService.UNREPAIRED_SSTABLE, false, PreviewKind.NONE);
 
         this.session = new MeasureableRepairSession(parentRepairSession, nextTimeUUID(),
-                                                    new CommonRange(neighbors, Collections.emptySet(), FULL_RANGE),
-                                                    KEYSPACE, RepairParallelism.SEQUENTIAL, false, false,
-                                                    PreviewKind.NONE, false, CF);
+                                                    new CommonRange(neighbors, emptySet(), FULL_RANGE),
+                                                    KEYSPACE, SEQUENTIAL, false, false,
+                                                    NONE, false, true, false, CF);
 
         this.job = new RepairJob(session, CF);
         this.sessionJobDesc = new RepairJobDesc(session.parentRepairSession, session.getId(),
@@ -212,6 +225,7 @@ public class RepairJobTest
 
         job.run();
 
+        Thread.sleep(1000);
         RepairResult result = job.get(TEST_TIMEOUT_S, TimeUnit.SECONDS);
 
         // Since there are no differences, there should be nothing to sync.
@@ -845,32 +859,49 @@ public class RepairJobTest
     {
         MessagingService.instance().inboundSink.add(message -> message.verb().isResponse());
         MessagingService.instance().outboundSink.add((message, to) -> {
-            if (message == null || !(message.payload instanceof RepairMessage))
+                if (message == null || !(message.payload instanceof RepairMessage))
+                    return false;
+
+                if (message.verb() == PAXOS2_CLEANUP_START_PREPARE_REQ)
+                {
+                    Message<?> messageIn = message.responseWith(Paxos.newBallot(null, ConsistencyLevel.SERIAL));
+                    MessagingService.instance().inboundSink.accept(messageIn);
+                    return false;
+                }
+
+                if (message.verb() == PAXOS2_CLEANUP_REQ)
+                {
+                    PaxosCleanupRequest request = (PaxosCleanupRequest) message.payload;
+                    PaxosCleanupSession.finishSession(to, new PaxosCleanupResponse(request.session, true, null));
+                    return false;
+                }
+
+                if (!(message.payload instanceof RepairMessage))
+                    return false;
+
+                // So different Thread's messages don't overwrite each other.
+                synchronized (MESSAGE_LOCK)
+                {
+                    messageCapture.add(message);
+                }
+
+                switch (message.verb())
+                {
+                    case SNAPSHOT_MSG:
+                        MessagingService.instance().callbacks.removeAndRespond(message.id(), to, message.emptyResponse());
+                        break;
+                    case VALIDATION_REQ:
+                        session.validationComplete(sessionJobDesc, to, mockTrees.get(to));
+                        break;
+                    case SYNC_REQ:
+                        SyncRequest syncRequest = (SyncRequest) message.payload;
+                        session.syncComplete(sessionJobDesc, new SyncNodePair(syncRequest.src, syncRequest.dst),
+                                             true, Collections.emptyList());
+                        break;
+                    default:
+                        break;
+                }
                 return false;
-
-            // So different Thread's messages don't overwrite each other.
-            synchronized (MESSAGE_LOCK)
-            {
-                messageCapture.add(message);
-            }
-
-            switch (message.verb())
-            {
-                case SNAPSHOT_MSG:
-                    MessagingService.instance().callbacks.removeAndRespond(message.id(), to, message.emptyResponse());
-                    break;
-                case VALIDATION_REQ:
-                    session.validationComplete(sessionJobDesc, to, mockTrees.get(to));
-                    break;
-                case SYNC_REQ:
-                    SyncRequest syncRequest = (SyncRequest) message.payload;
-                    session.syncComplete(sessionJobDesc, new SyncNodePair(syncRequest.src, syncRequest.dst),
-                                         true, Collections.emptyList());
-                    break;
-                default:
-                    break;
-            }
-            return false;
         });
     }
 }

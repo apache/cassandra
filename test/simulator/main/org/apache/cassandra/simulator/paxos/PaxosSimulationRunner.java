@@ -20,6 +20,7 @@ package org.apache.cassandra.simulator.paxos;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.airlift.airline.Cli;
 import io.airlift.airline.Command;
@@ -125,11 +126,17 @@ public class PaxosSimulationRunner extends SimulationRunner
         Optional.ofNullable(toVariant).map(Config.PaxosVariant::valueOf).ifPresent(builder::finalPaxosVariant);
     }
 
+    // for simple unit tests so we can simply invoke main()
+    private static final AtomicInteger uniqueNum = new AtomicInteger();
+
     /**
      * See {@link org.apache.cassandra.simulator} package info for execution tips
      */
     public static void main(String[] args) throws IOException
     {
+        PaxosClusterSimulation.Builder builder = new PaxosClusterSimulation.Builder();
+        builder.unique(uniqueNum.getAndIncrement());
+
         Cli.<SimulationRunner.ICommand<PaxosClusterSimulation.Builder>>builder("paxos")
            .withCommand(Run.class)
            .withCommand(Reconcile.class)
@@ -138,6 +145,6 @@ public class PaxosSimulationRunner extends SimulationRunner
            .withDefaultCommand(Help.class)
            .build()
            .parse(args)
-           .run(new PaxosClusterSimulation.Builder());
+           .run(builder);
     }
 }

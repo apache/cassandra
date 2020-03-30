@@ -34,7 +34,6 @@ import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

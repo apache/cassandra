@@ -22,11 +22,17 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.file.FileSystem;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
+import java.util.function.LongConsumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.google.common.jimfs.Configuration;
@@ -42,22 +48,28 @@ import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInstanceInitializer;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableBiConsumer;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableConsumer;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.impl.DirectStreamingConnectionFactory;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.service.paxos.BallotGenerator;
+import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.simulator.RandomSource.Choices;
+import org.apache.cassandra.simulator.asm.InterceptAsClassTransformer;
 import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
-import org.apache.cassandra.simulator.debug.Capture;
-import org.apache.cassandra.simulator.asm.InterceptClasses;
 import org.apache.cassandra.simulator.systems.Failures;
+import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
+import org.apache.cassandra.simulator.systems.InterceptingGlobalMethods;
+import org.apache.cassandra.simulator.systems.InterceptingGlobalMethods.ThreadLocalRandomCheck;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
 import org.apache.cassandra.simulator.systems.InterceptingExecutorFactory;
+import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods.IfInterceptibleThread;
 import org.apache.cassandra.simulator.systems.NetworkConfig;
 import org.apache.cassandra.simulator.systems.NetworkConfig.PhaseConfig;
 import org.apache.cassandra.simulator.systems.SchedulerConfig;
@@ -69,12 +81,12 @@ import org.apache.cassandra.simulator.systems.SimulatedFailureDetector;
 import org.apache.cassandra.simulator.systems.SimulatedMessageDelivery;
 import org.apache.cassandra.simulator.systems.SimulatedSnitch;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
-import org.apache.cassandra.simulator.systems.SimulatedWaits;
 import org.apache.cassandra.simulator.utils.ChanceRange;
 import org.apache.cassandra.simulator.utils.IntRange;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.simulator.utils.LongRange;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -90,6 +102,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.impl.AbstractCluster.getSharedClassPredicate;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
+import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
 import static org.apache.cassandra.utils.Shared.Scope.ANY;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
@@ -131,6 +144,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected IntRange nodeCount = new IntRange(4, 16), dcCount = new IntRange(1, 2),
                         primaryKeySeconds = new IntRange(5, 30), withinKeyConcurrency = new IntRange(2, 5);
         protected TopologyChange[] topologyChanges = TopologyChange.values();
+        protected int topologyChangeLimit = -1;
 
         protected int primaryKeyCount;
         protected int secondsToSimulate;
@@ -143,8 +157,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                     networkFlakyChance = new ChanceRange(randomSource -> randomSource.qlog2uniformFloat(4), 0.0f, 0.1f),
                                     monitorDelayChance = new ChanceRange(randomSource -> randomSource.qlog2uniformFloat(4), 0.01f, 0.1f),
                                   schedulerDelayChance = new ChanceRange(randomSource -> randomSource.qlog2uniformFloat(4), 0.01f, 0.1f),
-                                         timeoutChance = new ChanceRange(randomSource -> randomSource.qlog2uniformFloat(4),  0.01f, 0.1f),
-                                            readChance = new ChanceRange(RandomSource::uniformFloat,                         0.05f, 0.95f),
+                                         timeoutChance = new ChanceRange(randomSource -> randomSource.qlog2uniformFloat(4), 0.01f, 0.1f),
+                                            readChance = new ChanceRange(RandomSource::uniformFloat,                        0.05f, 0.95f),
                                          nemesisChance = new ChanceRange(randomSource -> randomSource.qlog2uniformFloat(4), 0.001f, 0.01f);
 
         protected LongRange normalNetworkLatencyNanos = new LongRange(1, 2, MILLISECONDS, NANOSECONDS),
@@ -171,6 +185,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected Debug debug = new Debug();
         protected Capture capture = new Capture(false, false, false);
         protected HeapPool.Logged.Listener memoryListener;
+        protected SimulatedTime.Listener timeListener = (i1, i2) -> {};
+        protected LongConsumer onThreadLocalRandomCheck;
 
         public Debug debug()
         {
@@ -257,6 +273,12 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         public Builder<S> topologyChangeIntervalNanos(LongRange topologyChangeIntervalNanos)
         {
             this.topologyChangeIntervalNanos = topologyChangeIntervalNanos;
+            return this;
+        }
+
+        public Builder<S> topologyChangeLimit(int topologyChangeLimit)
+        {
+            this.topologyChangeLimit = topologyChangeLimit;
             return this;
         }
 
@@ -470,6 +492,12 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return this;
         }
 
+        public Builder<S> timeListener(SimulatedTime.Listener timeListener)
+        {
+            this.timeListener = timeListener;
+            return this;
+        }
+
         public Builder<S> capture(Capture capture)
         {
             this.capture = capture;
@@ -479,6 +507,12 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         public Capture capture()
         {
             return capture;
+        }
+
+        public Builder<S> onThreadLocalRandomCheck(LongConsumer runnable)
+        {
+            this.onThreadLocalRandomCheck = runnable;
+            return this;
         }
 
         public abstract ClusterSimulation<S> create(long seed) throws IOException;
@@ -575,7 +609,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
     public final Cluster cluster;
     public final S simulation;
     private final FileSystem jimfs;
-    protected final Map<Integer, InterceptingExecutorFactory> factories = new TreeMap<>();
+    protected final Map<Integer, List<Closeable>> onUnexpectedShutdown = new TreeMap<>();
+    protected final List<Callable<Void>> onShutdown = new CopyOnWriteArrayList<>();
+    protected final ThreadLocalRandomCheck threadLocalRandomCheck;
 
     public ClusterSimulation(RandomSource random, long seed, int uniqueNum,
                              Builder<?> builder,
@@ -588,7 +624,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                                                                .build());
 
         final SimulatedMessageDelivery delivery;
-        final SimulatedWaits waits;
         final SimulatedExecution execution;
         final SimulatedBallots ballots;
         final SimulatedSnitch snitch;
@@ -596,7 +631,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         final SimulatedFailureDetector failureDetector;
 
         int numOfNodes = builder.nodeCount.select(random);
-        int numOfDcs = builder.dcCount.select(random, 0, numOfNodes / 3);
+        int numOfDcs = builder.dcCount.select(random, 0, numOfNodes / 4);
         int[] numInDcs = new int[numOfDcs];
         int[] nodeToDc = new int[numOfNodes];
 
@@ -618,24 +653,27 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         }
         snitch = new SimulatedSnitch(nodeToDc, numInDcs);
 
-        waits = new SimulatedWaits(random);
-        waits.captureStackTraces(builder.capture.waitSites, builder.capture.wakeSites, builder.capture.nowSites);
         execution = new SimulatedExecution();
 
         KindOfSequence kindOfDriftSequence = Choices.uniform(KindOfSequence.values()).choose(random);
         KindOfSequence kindOfDiscontinuitySequence = Choices.uniform(KindOfSequence.values()).choose(random);
-        time = new SimulatedTime(random, 1577836800000L /*Jan 1st UTC*/, builder.clockDriftNanos, kindOfDriftSequence,
-                                 kindOfDiscontinuitySequence.period(builder.clockDiscontinuitIntervalNanos, random));
+        time = new SimulatedTime(numOfNodes, random, 1577836800000L /*Jan 1st UTC*/, builder.clockDriftNanos, kindOfDriftSequence,
+                                 kindOfDiscontinuitySequence.period(builder.clockDiscontinuitIntervalNanos, random),
+                                 builder.timeListener);
         ballots = new SimulatedBallots(random, () -> {
             long max = random.uniform(2, 16);
             return () -> random.uniform(1, max);
         });
 
+        Predicate<String> sharedClassPredicate = getSharedClassPredicate(ISOLATE, SHARE, ANY, SIMULATION);
+        InterceptAsClassTransformer interceptClasses = new InterceptAsClassTransformer(builder.monitorDelayChance.asSupplier(random), builder.nemesisChance.asSupplier(random), NemesisFieldSelectors.get(), ClassLoader.getSystemClassLoader(), sharedClassPredicate.negate());
+        threadLocalRandomCheck = new ThreadLocalRandomCheck(builder.onThreadLocalRandomCheck);
+
         Failures failures = new Failures();
         ThreadAllocator threadAllocator = new ThreadAllocator(random, builder.threadCount, numOfNodes);
         cluster = snitch.setup(Cluster.build(numOfNodes)
                          .withRoot(jimfs.getPath("/cassandra"))
-                         .withSharedClasses(getSharedClassPredicate(ISOLATE, SHARE, ANY, SIMULATION))
+                         .withSharedClasses(sharedClassPredicate)
                          .withConfig(config -> configUpdater.accept(threadAllocator.update(config
                              .with(Feature.BLANK_GOSSIP)
                              .set("read_request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.readTimeoutNanos)))
@@ -655,56 +693,85 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              @Override
                              public void initialise(ClassLoader classLoader, ThreadGroup threadGroup, int num, int generation)
                              {
-                                 InterceptorOfGlobalMethods interceptorOfGlobalMethods = waits.interceptGlobalMethods(classLoader);
+                                 List<Closeable> onShutdown = new ArrayList<>();
+                                 InterceptorOfGlobalMethods interceptorOfGlobalMethods = IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableQuadFunction<Capture, LongConsumer, Consumer<Throwable>, RandomSource, InterceptorOfGlobalMethods>) InterceptingGlobalMethods::new, classLoader)
+                                                                                                         .apply(builder.capture, builder.onThreadLocalRandomCheck, failures, random);
+                                 onShutdown.add(interceptorOfGlobalMethods);
+
                                  InterceptingExecutorFactory factory = execution.factory(interceptorOfGlobalMethods, classLoader, threadGroup);
                                  IsolatedExecutor.transferAdhoc((SerializableConsumer<ExecutorFactory>) ExecutorFactory.Global::unsafeSet, classLoader)
                                                  .accept(factory);
+                                 onShutdown.add(factory);
+
                                  IsolatedExecutor.transferAdhoc((SerializableBiConsumer<InterceptorOfGlobalMethods, IntSupplier>) InterceptorOfGlobalMethods.Global::unsafeSet, classLoader)
                                                  .accept(interceptorOfGlobalMethods, () -> {
                                                      if (InterceptibleThread.isDeterministic())
                                                          throw failWithOOM();
                                                      return random.uniform(Integer.MIN_VALUE, Integer.MAX_VALUE);
                                                  });
-                                 time.setup(classLoader);
-                                 factories.put(num, factory);
+                                 onShutdown.add(IsolatedExecutor.transferAdhoc((SerializableRunnable)InterceptorOfGlobalMethods.Global::unsafeReset, classLoader)::run);
+                                 onShutdown.add(time.setup(num, classLoader));
+
+                                 onUnexpectedShutdown.put(num, onShutdown);
                              }
 
                              @Override
                              public void beforeStartup(IInstance i)
                              {
-                                 if (builder.memoryListener != null)
-                                    ((IInvokableInstance) i).unsafeAcceptOnThisThread(HeapPool.Logged::setListener, builder.memoryListener);
                                  ((IInvokableInstance) i).unsafeAcceptOnThisThread(FBUtilities::setAvailableProcessors, i.config().getInt("available_processors"));
+                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread(IfInterceptibleThread::setThreadLocalRandomCheck, (LongConsumer) threadLocalRandomCheck);
+
+                                 int num = i.config().num();
+                                 if (builder.memoryListener != null)
+                                 {
+                                    ((IInvokableInstance) i).unsafeAcceptOnThisThread(HeapPool.Logged::setListener, builder.memoryListener);
+                                     onUnexpectedShutdown.get(num).add(() -> ((IInvokableInstance) i).unsafeAcceptOnThisThread(HeapPool.Logged::setListener, (ignore1, ignore2) -> {}));
+                                 }
+
+                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread(PaxosPrepare::setOnLinearizabilityViolation, SimulatorUtils::failWithOOM);
+                                 onUnexpectedShutdown.get(num).add(() -> ((IInvokableInstance) i).unsafeRunOnThisThread(() -> PaxosPrepare.setOnLinearizabilityViolation(null)));
                              }
 
                              @Override
                              public void afterStartup(IInstance i)
                              {
+                                 int num = i.config().num();
                                  ((IInvokableInstance) i).unsafeAcceptOnThisThread(BallotGenerator.Global::unsafeSet, (BallotGenerator) ballots.get());
-                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread((SerializableConsumer<BufferPool.DebugLeaks>) debug -> BufferPools.forChunkCache().debug(null, debug), failures);
-                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread((SerializableConsumer<BufferPool.DebugLeaks>) debug -> BufferPools.forNetworking().debug(null, debug), failures);
-                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread((SerializableConsumer<Ref.OnLeak>) Ref::setOnLeak, failures);
-                             }
+                                 onUnexpectedShutdown.get(num).add(() -> ((IInvokableInstance) i).unsafeRunOnThisThread(() -> BallotGenerator.Global.unsafeSet(new BallotGenerator.Default())));
 
-                         }).withClassTransformer(new InterceptClasses(builder.monitorDelayChance.asSupplier(random), builder.nemesisChance.asSupplier(random), NemesisFieldSelectors.get())::apply)
+                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread((SerializableConsumer<BufferPool.DebugLeaks>) debug -> BufferPools.forChunkCache().debug(null, debug), failures);
+                                 onUnexpectedShutdown.get(num).add(() -> ((IInvokableInstance) i).unsafeRunOnThisThread(() -> BufferPools.forChunkCache().debug(null, null)));
+
+                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread((SerializableConsumer<BufferPool.DebugLeaks>) debug -> BufferPools.forNetworking().debug(null, debug), failures);
+                                 onUnexpectedShutdown.get(num).add(() -> ((IInvokableInstance) i).unsafeRunOnThisThread(() -> BufferPools.forNetworking().debug(null, null)));
+
+                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread((SerializableConsumer<Ref.OnLeak>) Ref::setOnLeak, failures);
+                                 onUnexpectedShutdown.get(num).add(() -> ((IInvokableInstance) i).unsafeRunOnThisThread(() -> Ref.setOnLeak(null)));
+                             }
+                         }).withClassTransformer(interceptClasses)
+                           .withShutdownExecutor((name, classLoader, shuttingDown, call) -> {
+                               onShutdown.add(call);
+                               return null;
+                           })
         ).createWithoutStarting();
 
+        IfInterceptibleThread.setThreadLocalRandomCheck(threadLocalRandomCheck);
         snitch.setup(cluster);
         DirectStreamingConnectionFactory.setup(cluster);
         delivery = new SimulatedMessageDelivery(cluster);
         failureDetector = new SimulatedFailureDetector(cluster);
         SimulatedFutureActionScheduler futureActionScheduler = builder.futureActionScheduler(numOfNodes, time, random);
-        simulated = new SimulatedSystems(random, time, waits, delivery, execution, ballots, failureDetector, snitch, futureActionScheduler, builder.debug, failures);
+        simulated = new SimulatedSystems(random, time, delivery, execution, ballots, failureDetector, snitch, futureActionScheduler, builder.debug, failures);
         simulated.register(futureActionScheduler);
 
         RunnableActionScheduler scheduler = builder.schedulerFactory.create(random);
-        ClusterActions.Options options = new ClusterActions.Options(Choices.uniform(KindOfSequence.values()).choose(random).period(builder.topologyChangeIntervalNanos, random),
+        ClusterActions.Options options = new ClusterActions.Options(builder.topologyChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.topologyChangeIntervalNanos, random),
                                                                     Choices.random(random, builder.topologyChanges),
                                                                     minRf, initialRf, maxRf, null);
         simulation = factory.create(simulated, scheduler, cluster, options);
     }
 
-    public void close() throws IOException
+    public synchronized void close() throws IOException
     {
         // Re-enable time on shutdown
         try
@@ -723,10 +790,19 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             throw new RuntimeException(e);
         }
 
-        simulated.waits.stop();
+        threadLocalRandomCheck.stop();
         simulated.execution.forceStop();
-        factories.values().forEach(InterceptingExecutorFactory::close);
+        SimulatedTime.Global.disable();
+
         Throwable fail = null;
+        for (int num = 1 ; num <= cluster.size() ; ++num)
+        {
+            if (!cluster.get(num).isShutdown())
+            {
+                fail = Throwables.close(fail, onUnexpectedShutdown.get(num));
+            }
+        }
+
         try
         {
             simulation.close();
@@ -735,6 +811,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         {
             fail = t;
         }
+
         try
         {
             cluster.close();
@@ -742,6 +819,17 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         catch (Throwable t)
         {
             fail = Throwables.merge(fail, t);
+        }
+        for (Callable<Void> call : onShutdown)
+        {
+            try
+            {
+                call.call();
+            }
+            catch (Throwable t)
+            {
+                fail = Throwables.merge(fail, t);
+            }
         }
         Throwables.maybeFail(fail, IOException.class);
     }

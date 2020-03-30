@@ -126,4 +126,10 @@ public interface StorageProxyMBean
 
     boolean getUseStatementsEnabled();
     void setUseStatementsEnabled(boolean enabled);
+
+    void setPaxosContentionStrategy(String variant);
+    String getPaxosContentionStrategy();
+
+    void setPaxosCoordinatorLockingDisabled(boolean disabled);
+    boolean getPaxosCoordinatorLockingDisabled();
 }

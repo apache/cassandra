@@ -22,17 +22,23 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLongArray;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
-import com.codahale.metrics.Clock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -78,7 +84,8 @@ import static java.lang.Math.min;
  */
 public class DecayingEstimatedHistogramReservoir implements Reservoir
 {
-
+    private static Logger logger = LoggerFactory.getLogger(DecayingEstimatedHistogramReservoir.class);
+    private static NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 5L, TimeUnit.MINUTES);
     /**
      * The default number of decayingBuckets. Use this bucket count to reduce memory allocation for bucket offsets.
      */
@@ -147,21 +154,20 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     public static final long HALF_TIME_IN_S = 60L;
     public static final double MEAN_LIFETIME_IN_S = HALF_TIME_IN_S / Math.log(2.0);
-    public static final long LANDMARK_RESET_INTERVAL_IN_MS = 30L * 60L * 1000L;
+    public static final long LANDMARK_RESET_INTERVAL_IN_NS = TimeUnit.MINUTES.toNanos(30L);
 
     private final AtomicBoolean rescaling = new AtomicBoolean(false);
     private volatile long decayLandmark;
 
     // Wrapper around System.nanoTime() to simplify unit testing.
-    private final Clock clock;
-
+    private final MonotonicClock clock;
 
     /**
      * Construct a decaying histogram with default number of buckets and without considering zeroes.
      */
     public DecayingEstimatedHistogramReservoir()
     {
-        this(DEFAULT_ZERO_CONSIDERATION, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, Clock.defaultClock());
+        this(DEFAULT_ZERO_CONSIDERATION, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, MonotonicClock.Global.approxTime);
     }
 
     /**
@@ -172,7 +178,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      */
     public DecayingEstimatedHistogramReservoir(boolean considerZeroes)
     {
-        this(considerZeroes, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, Clock.defaultClock());
+        this(considerZeroes, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, MonotonicClock.Global.approxTime);
     }
 
     /**
@@ -184,17 +190,17 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      */
     public DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, int stripes)
     {
-        this(considerZeroes, bucketCount, stripes, Clock.defaultClock());
+        this(considerZeroes, bucketCount, stripes, MonotonicClock.Global.approxTime);
     }
 
     @VisibleForTesting
-    public DecayingEstimatedHistogramReservoir(Clock clock)
+    public DecayingEstimatedHistogramReservoir(MonotonicClock clock)
     {
         this(DEFAULT_ZERO_CONSIDERATION, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, clock);
     }
 
     @VisibleForTesting
-    DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, int stripes, Clock clock)
+    DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, int stripes, MonotonicClock clock)
     {
         assert bucketCount <= MAX_BUCKET_COUNT : "bucket count cannot exceed: " + MAX_BUCKET_COUNT;
 
@@ -218,7 +224,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         decayingBuckets = new AtomicLongArray((bucketOffsets.length + 1) * nStripes);
         buckets = new AtomicLongArray((bucketOffsets.length + 1) * nStripes);
         this.clock = clock;
-        decayLandmark = clock.getTime();
+        decayLandmark = clock.now();
         int distributionPrime = 1;
         for (int prime : DISTRIBUTION_PRIMES)
         {
@@ -238,7 +244,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      */
     public void update(long value)
     {
-        long now = clock.getTime();
+        long now = clock.now();
         rescaleIfNeeded(now);
 
         int index = findIndex(bucketOffsets, value);
@@ -283,7 +289,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     private double forwardDecayWeight(long now)
     {
-        return Math.exp(((now - decayLandmark) / 1000.0) / MEAN_LIFETIME_IN_S);
+        return Math.exp(TimeUnit.NANOSECONDS.toSeconds(now - decayLandmark) / MEAN_LIFETIME_IN_S);
     }
 
     /**
@@ -345,7 +351,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     private void rescaleIfNeeded()
     {
-        rescaleIfNeeded(clock.getTime());
+        rescaleIfNeeded(clock.now());
     }
 
     private void rescaleIfNeeded(long now)
@@ -380,7 +386,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     private boolean needRescale(long now)
     {
-        return (now - decayLandmark) > LANDMARK_RESET_INTERVAL_IN_MS;
+        return (now - decayLandmark) > LANDMARK_RESET_INTERVAL_IN_NS;
     }
 
     @VisibleForTesting
@@ -452,7 +458,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         public EstimatedHistogramReservoirSnapshot(DecayingEstimatedHistogramReservoir reservoir)
         {
             final int length = reservoir.size();
-            final double rescaleFactor = reservoir.forwardDecayWeight(reservoir.clock.getTime());
+            final double rescaleFactor = reservoir.forwardDecayWeight(reservoir.clock.now());
 
             this.decayingBuckets = new long[length];
             this.values = new long[length];
@@ -482,7 +488,10 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
             final int lastBucket = decayingBuckets.length - 1;
 
             if (decayingBuckets[lastBucket] > 0)
-                throw new IllegalStateException("Unable to compute when histogram overflowed");
+            {
+                try { throw new IllegalStateException("EstimatedHistogram overflow: " + Arrays.toString(decayingBuckets)); }
+                catch (IllegalStateException e) { noSpamLogger.warn("", e); }
+            }
 
             final long qcount = (long) Math.ceil(count() * quantile);
             if (qcount == 0)
@@ -723,7 +732,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
             }
         }
 
-        public void rebaseReservoir() 
+        public void rebaseReservoir()
         {
             this.reservoir.rebase(this);
         }
@@ -752,6 +761,12 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         public int hashCode()
         {
             return Objects.hash(min, max);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "[" + min + ',' + max + ']';
         }
     }
 }

@@ -34,16 +34,20 @@ import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.RandomSource;
+import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
 import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptedWait;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
 import org.apache.cassandra.simulator.systems.InterceptorOfConsequences;
+import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.memory.HeapPool;
 
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.NONE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.WITH_CALLSITES;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 import static org.apache.cassandra.simulator.debug.Reconcile.NORMALISE_LAMBDA;
 import static org.apache.cassandra.simulator.debug.Reconcile.NORMALISE_THREAD;
@@ -56,7 +60,7 @@ public class SelfReconcile
     private static final Logger logger = LoggerFactory.getLogger(SelfReconcile.class);
     static final Pattern NORMALISE_RECONCILE_THREAD = Pattern.compile("(Thread\\[Reconcile:)[0-9]+,[0-9],Reconcile(_[0-9]+)?]");
 
-    static class InterceptReconciler implements InterceptorOfConsequences, Supplier<RandomSource>
+    static class InterceptReconciler implements InterceptorOfConsequences, Supplier<RandomSource>, SimulatedTime.Listener
     {
         final List<Object> events = new ArrayList<>();
         final boolean withRngCallsites;
@@ -82,7 +86,7 @@ public class SelfReconcile
         }
 
         @Override
-        public synchronized void interceptWakeup(InterceptedWait wakeup, InterceptorOfConsequences waitWasInterceptedBy)
+        public synchronized void interceptWakeup(InterceptedWait wakeup, InterceptedWait.Trigger trigger, InterceptorOfConsequences waitWasInterceptedBy)
         {
             verify(normalise("Wakeup " + wakeup.waiting() + wakeup));
         }
@@ -211,7 +215,7 @@ public class SelfReconcile
                             return result;
                     }
                     InterceptReconciler.this.verify(withRngCallsites ? event + result + ' ' + Thread.currentThread() + ' '
-                                                                       + new CaptureSites(Thread.currentThread(), false)
+                                                                       + new CaptureSites(Thread.currentThread())
                                                                          .toString(ste -> !ste.getClassName().startsWith(SelfReconcile.class.getName()))
                                                                      : event + result);
                     return result;
@@ -223,14 +227,21 @@ public class SelfReconcile
         {
             closed = true;
         }
+
+        @Override
+        public void accept(String kind, long value)
+        {
+            verify(Thread.currentThread() + ":" + kind + ':' + value);
+        }
     }
 
-    public static void reconcileWithSelf(long seed, boolean withRng, boolean withRngCallSites, boolean withAllocations, ClusterSimulation.Builder<?> builder)
+    public static void reconcileWithSelf(long seed, RecordOption withRng, RecordOption withTime, boolean withAllocations, ClusterSimulation.Builder<?> builder)
     {
         logger.error("Seed 0x{}", Long.toHexString(seed));
 
-        InterceptReconciler reconciler = new InterceptReconciler(withRngCallSites);
-        if (withRng) builder.random(reconciler);
+        InterceptReconciler reconciler = new InterceptReconciler(withRng == WITH_CALLSITES);
+        if (withRng != NONE) builder.random(reconciler);
+        if (withTime != NONE) builder.timeListener(reconciler);
 
         HeapPool.Logged.Listener memoryListener = withAllocations ? reconciler::interceptAllocation : null;
         ExecutorService executor = ExecutorFactory.Global.executorFactory().pooled("Reconcile", 2);
@@ -238,37 +249,44 @@ public class SelfReconcile
         try (ClusterSimulation<?> cluster1 = builder.unique(0).memoryListener(memoryListener).create(seed);
              ClusterSimulation<?> cluster2 = builder.unique(1).memoryListener(memoryListener).create(seed))
         {
-            InterceptibleThread.setDebugInterceptor(reconciler);
-            reconciler.verifyUninterceptedRng = true;
+            try
+            {
 
-            Future<?> f1 = executor.submit(() -> {
-                try (CloseableIterator<?> iter = cluster1.simulation.iterator())
-                {
-                    while (iter.hasNext())
+                InterceptibleThread.setDebugInterceptor(reconciler);
+                reconciler.verifyUninterceptedRng = true;
+
+                Future<?> f1 = executor.submit(() -> {
+                    try (CloseableIterator<?> iter = cluster1.simulation.iterator())
                     {
-                        Object o = iter.next();
-                        reconciler.verify(Pair.create(normalise(o.toString()), o));
+                        while (iter.hasNext())
+                        {
+                            Object o = iter.next();
+                            reconciler.verify(Pair.create(normalise(o.toString()), o));
+                        }
                     }
-                }
-                reconciler.verify("done");
-            });
-            Future<?> f2 = executor.submit(() -> {
-                try (CloseableIterator<?> iter = cluster2.simulation.iterator())
-                {
-                    while (iter.hasNext())
+                    reconciler.verify("done");
+                });
+                Future<?> f2 = executor.submit(() -> {
+                    try (CloseableIterator<?> iter = cluster2.simulation.iterator())
                     {
-                        Object o = iter.next();
-                        reconciler.verify(Pair.create(normalise(o.toString()), o));
+                        while (iter.hasNext())
+                        {
+                            Object o = iter.next();
+                            reconciler.verify(Pair.create(normalise(o.toString()), o));
+                        }
                     }
-                }
-                reconciler.verify("done");
-            });
-            f1.get();
-            f2.get();
+                    reconciler.verify("done");
+                });
+                f1.get();
+                f2.get();
+            }
+            finally
+            {
+                reconciler.close();
+            }
         }
         catch (Throwable t)
         {
-            reconciler.close();
             t.printStackTrace();
             throw new RuntimeException("Failed on seed " + Long.toHexString(seed), t);
         }

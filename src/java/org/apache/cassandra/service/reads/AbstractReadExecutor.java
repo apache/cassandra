@@ -198,7 +198,7 @@ public abstract class AbstractReadExecutor
 
         // There are simply no extra replicas to speculate.
         // Handle this separately so it can record failed attempts to speculate due to lack of replicas
-        if (replicaPlan.contacts().size() == replicaPlan.candidates().size())
+        if (replicaPlan.contacts().size() == replicaPlan.readCandidates().size())
         {
             boolean recordFailedSpeculation = consistencyLevel != ConsistencyLevel.ALL;
             return new NeverSpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime, recordFailedSpeculation);
@@ -273,7 +273,7 @@ public abstract class AbstractReadExecutor
             // We're hitting additional targets for read repair (??).  Since our "extra" replica is the least-
             // preferred by the snitch, we do an extra data read to start with against a replica more
             // likely to respond; better to let RR fail than the entire query.
-            super(cfs, command, replicaPlan, replicaPlan.blockFor() < replicaPlan.contacts().size() ? 2 : 1, queryStartNanoTime);
+            super(cfs, command, replicaPlan, replicaPlan.readQuorum() < replicaPlan.contacts().size() ? 2 : 1, queryStartNanoTime);
         }
 
         public void maybeTryAdditionalReplicas()
@@ -367,7 +367,7 @@ public abstract class AbstractReadExecutor
     public void setResult(PartitionIterator result)
     {
         Preconditions.checkState(this.result == null, "Result can only be set once");
-        this.result = DuplicateRowChecker.duringRead(result, this.replicaPlan.get().candidates().endpointList());
+        this.result = DuplicateRowChecker.duringRead(result, this.replicaPlan.get().readCandidates().endpointList());
     }
 
     /**

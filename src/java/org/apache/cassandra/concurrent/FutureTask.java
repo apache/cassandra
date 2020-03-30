@@ -30,9 +30,9 @@ import org.apache.cassandra.utils.concurrent.AsyncFuture;
  */
 public class FutureTask<V> extends AsyncFuture<V> implements RunnableFuture<V>
 {
-    private Callable<V> call;
+    private Callable<? extends V> call;
 
-    public FutureTask(Callable<V> call)
+    public FutureTask(Callable<? extends V> call)
     {
         this.call = call;
     }

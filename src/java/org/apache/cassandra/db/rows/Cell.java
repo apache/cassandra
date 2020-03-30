@@ -167,6 +167,10 @@ public abstract class Cell<V> extends ColumnData
     // Overrides super type to provide a more precise return type.
     public abstract Cell<?> purge(DeletionPurger purger, int nowInSec);
 
+    @Override
+    // Overrides super type to provide a more precise return type.
+    public abstract Cell<?> purgeDataOlderThan(long timestamp);
+
     /**
      * The serialization format for cell is:
      *     [ flags ][ timestamp ][ deletion time ][    ttl    ][ path size ][ path ][ value size ][ value ]

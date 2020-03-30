@@ -48,7 +48,7 @@ public interface ReadQuery
                 return ReadExecutionController.empty();
             }
 
-            public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
+            public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException
             {
                 return EmptyIterators.partition();
             }
@@ -140,12 +140,10 @@ public interface ReadQuery
      * Executes the query at the provided consistency level.
      *
      * @param consistency the consistency level to achieve for the query.
-     * @param clientState the {@code ClientState} for the query. In practice, this can be null unless
-     * {@code consistency} is a serial consistency.
-     *
+     * @param state client state
      * @return the result of the query.
      */
-    public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException;
+    public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException;
 
     /**
      * Execute the query for internal queries (that is, it basically executes the query locally).

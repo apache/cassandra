@@ -32,6 +32,7 @@ import org.apache.cassandra.simulator.utils.KindOfSequence.NetworkDecision;
 import org.apache.cassandra.simulator.utils.KindOfSequence.Period;
 
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.DELIVER;
+import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.DELIVER_AND_TIMEOUT;
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.FAILURE;
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.TIMEOUT;
 
@@ -148,10 +149,13 @@ public class SimulatedFutureActionScheduler implements FutureActionScheduler, To
         if (isInDropPartition.get(from) != isInDropPartition.get(to))
             return TIMEOUT;
 
-        if(!config.dropMessage.get(random, from, to))
+        if (!config.dropMessage.get(random, from, to))
             return DELIVER;
 
-        if(random.decide(0.5f))
+        if (random.decide(0.5f))
+            return DELIVER_AND_TIMEOUT;
+
+        if (random.decide(0.5f))
             return TIMEOUT;
 
         return FAILURE;
@@ -167,9 +171,9 @@ public class SimulatedFutureActionScheduler implements FutureActionScheduler, To
     }
 
     @Override
-    public long messageTimeoutNanos(long expiresAfterNanos)
+    public long messageTimeoutNanos(long expiresAtNanos, long expirationIntervalNanos)
     {
-        return time.nanoTime() + expiresAfterNanos + random.uniform(0, expiresAfterNanos / 2);
+        return expiresAtNanos + random.uniform(0, expirationIntervalNanos / 2);
     }
 
     @Override

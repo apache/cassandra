@@ -143,14 +143,14 @@ public interface MonotonicClock
         private static final long UPDATE_INTERVAL_MS = Long.getLong(UPDATE_INTERVAL_PROPERTY, 10000);
 
         @VisibleForTesting
-        static class AlmostSameTime implements MonotonicClockTranslation
+        public static class AlmostSameTime implements MonotonicClockTranslation
         {
             final long millisSinceEpoch;
             final long monotonicNanos;
             final long error; // maximum error of millis measurement (in nanos)
 
             @VisibleForTesting
-            AlmostSameTime(long millisSinceEpoch, long monotonicNanos, long errorNanos)
+            public AlmostSameTime(long millisSinceEpoch, long monotonicNanos, long errorNanos)
             {
                 this.millisSinceEpoch = millisSinceEpoch;
                 this.monotonicNanos = monotonicNanos;

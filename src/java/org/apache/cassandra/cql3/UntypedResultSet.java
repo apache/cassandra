@@ -374,6 +374,12 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return Int32Type.instance.compose(data.get(column));
         }
 
+        public int getInt(String column, int ifNull)
+        {
+            ByteBuffer bytes = data.get(column);
+            return bytes == null ? ifNull : Int32Type.instance.compose(bytes);
+        }
+
         public double getDouble(String column)
         {
             return DoubleType.instance.compose(data.get(column));
