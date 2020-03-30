@@ -33,7 +33,7 @@ public class PrepareAckMessage extends StreamMessage
             //nop
         }
 
-        public PrepareAckMessage deserialize(DataInputPlus in, int version, StreamSession session) throws IOException
+        public PrepareAckMessage deserialize(DataInputPlus in, int version) throws IOException
         {
             return new PrepareAckMessage();
         }

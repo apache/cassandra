@@ -25,7 +25,7 @@ public class SessionFailedMessage extends StreamMessage
 {
     public static Serializer<SessionFailedMessage> serializer = new Serializer<SessionFailedMessage>()
     {
-        public SessionFailedMessage deserialize(DataInputPlus in, int version, StreamSession session)
+        public SessionFailedMessage deserialize(DataInputPlus in, int version)
         {
             return new SessionFailedMessage();
         }

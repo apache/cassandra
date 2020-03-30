@@ -178,10 +178,24 @@ public class StreamManager implements StreamManagerMBean
 
     public StreamSession findSession(InetAddressAndPort peer, UUID planId, int sessionIndex)
     {
-        StreamSession session = findSession(initiatedStreams, peer, planId, sessionIndex);
+        // Search follower session first, because in some tests, eg. StreamingTransferTest, both initiator session
+        // and follower session are listening to local host.
+        // TODO it's more robust to add "isFollower" flag into {@link  StreamMessageHeader} to distinguish
+        // initiator session and follower session.
+        StreamSession session = findFollowerSession(peer, planId, sessionIndex);
         if (session !=  null)
             return session;
 
+        return findInitiatorSession(peer, planId, sessionIndex);
+    }
+
+    public StreamSession findInitiatorSession(InetAddressAndPort peer, UUID planId, int sessionIndex)
+    {
+        return findSession(initiatedStreams, peer, planId, sessionIndex);
+    }
+
+    public StreamSession findFollowerSession(InetAddressAndPort peer, UUID planId, int sessionIndex)
+    {
         return findSession(receivingStreams, peer, planId, sessionIndex);
     }
 
