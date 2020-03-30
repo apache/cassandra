@@ -78,6 +78,11 @@ public class Commit
         return this.ballot.equals(ballot);
     }
 
+    public boolean isEmpty()
+    {
+        return update.isEmpty();
+    }
+
     public Mutation makeMutation()
     {
         return new Mutation(update);

@@ -140,17 +140,22 @@ public class PaxosState
             // erase the in-progress update.
             // The table may have been truncated since the proposal was initiated. In that case, we
             // don't want to perform the mutation and potentially resurrect truncated data
-            if (UUIDGen.unixTimestamp(proposal.ballot) >= SystemKeyspace.getTruncatedAt(proposal.update.metadata().id))
+            // We also special case empty commits: they happen for both serial reads and CAS that don't apply, so it's
+            // worth optimizing a bit.
+            if (proposal.isEmpty())
+            {
+                Tracing.trace("Committing empty proposal for ballot {}", proposal.ballot);
+            }
+            else if (UUIDGen.unixTimestamp(proposal.ballot) < SystemKeyspace.getTruncatedAt(proposal.update.metadata().id))
+            {
+                Tracing.trace("Not committing proposal {} as ballot timestamp predates last truncation time", proposal);
+            }
+            else
             {
                 Tracing.trace("Committing proposal {}", proposal);
                 Mutation mutation = proposal.makeMutation();
                 Keyspace.open(mutation.getKeyspaceName()).apply(mutation, true);
             }
-            else
-            {
-                Tracing.trace("Not committing proposal {} as ballot timestamp predates last truncation time", proposal);
-            }
-            // We don't need to lock, we're just blindly updating
             SystemKeyspace.savePaxosCommit(proposal);
         }
         finally

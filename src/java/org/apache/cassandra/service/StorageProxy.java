@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
@@ -293,23 +294,15 @@ public class StorageProxy implements StorageProxyMBean
                                   long queryStartNanoTime)
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException, CasWriteUnknownResultException
     {
+        if (logger.isTraceEnabled())
+            logger.trace("Execute cas on {}.{} for pk {}", keyspaceName, cfName, key);
+
         final long startTimeForMetrics = System.nanoTime();
-        TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, cfName);
-        int contentions = 0;
         try
         {
-            consistencyForPaxos.validateForCas();
-            consistencyForCommit.validateForCasCommit(keyspaceName);
+            TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, cfName);
 
-            long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
-            while (System.nanoTime() - queryStartNanoTime < timeoutNanos)
-            {
-                // for simplicity, we'll do a single liveness check at the start of each attempt
-                ReplicaPlan.ForPaxosWrite replicaPlan = ReplicaPlans.forPaxos(Keyspace.open(keyspaceName), key, consistencyForPaxos);
-
-                final PaxosBallotAndContention pair = beginAndRepairPaxos(queryStartNanoTime, key, metadata, replicaPlan, consistencyForPaxos, consistencyForCommit, true, state);
-                final UUID ballot = pair.ballot;
-                contentions += pair.contentions;
+            Supplier<Pair<PartitionUpdate, RowIterator>> updateProposer = () -> {
 
                 // read the current values and check they validate the conditions
                 Tracing.trace("Reading existing values for CAS precondition");
@@ -324,13 +317,12 @@ public class StorageProxy implements StorageProxyMBean
 
                 if (!request.appliesTo(current))
                 {
-                    Tracing.trace("CAS precondition does not match current values {}", current);
                     casWriteMetrics.conditionNotMet.inc();
-                    return current.rowIterator();
+                    Tracing.trace("CAS precondition does not match current values {}", current);
+                    return Pair.create(PartitionUpdate.emptyUpdate(metadata, key), current.rowIterator());
                 }
 
-                // finish the paxos round w/ the desired updates
-                // TODO turn null updates into delete?
+                // Create the desired updates.
                 PartitionUpdate updates = request.makeUpdates(current);
 
                 long size = updates.dataSize();
@@ -346,42 +338,24 @@ public class StorageProxy implements StorageProxyMBean
                 // InvalidRequestException) any which aren't.
                 updates = TriggerExecutor.instance.execute(updates);
 
-
-                Commit proposal = Commit.newProposal(ballot, updates);
-                Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
-                if (proposePaxos(proposal, replicaPlan, true, queryStartNanoTime))
-                {
-                    commitPaxos(proposal, consistencyForCommit, true, queryStartNanoTime);
-                    Tracing.trace("CAS successful");
-                    return null;
-                }
-
-                Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
-                contentions++;
-                Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
-                // continue to retry
-            }
-
-            throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(keyspaceName)));
+                return Pair.create(updates, null);
+            };
+            return doPaxos(metadata,
+                           key,
+                           consistencyForPaxos,
+                           consistencyForCommit,
+                           state,
+                           queryStartNanoTime,
+                           casWriteMetrics,
+                           updateProposer);
         }
-        catch (CasWriteUnknownResultException e)
-        {
-            casWriteMetrics.unknownResult.mark();
-            throw e;
-        }
-        catch (WriteTimeoutException wte)
-        {
-            casWriteMetrics.timeouts.mark();
-            writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
-            throw new CasWriteTimeoutException(wte.writeType, wte.consistency, wte.received, wte.blockFor, contentions);
-        }
-        catch (ReadTimeoutException e)
+        catch (WriteTimeoutException | ReadTimeoutException e)
         {
             casWriteMetrics.timeouts.mark();
             writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
             throw e;
         }
-        catch (WriteFailureException|ReadFailureException e)
+        catch (WriteFailureException | ReadFailureException e)
         {
             casWriteMetrics.failures.mark();
             writeMetricsMap.get(consistencyForPaxos).failures.mark();
@@ -395,11 +369,80 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            recordCasContention(contentions);
-            Keyspace.open(keyspaceName).getColumnFamilyStore(cfName).metric.topCasPartitionContention.addSample(key.getKey(), contentions);
             final long latency = System.nanoTime() - startTimeForMetrics;
             casWriteMetrics.addNano(latency);
             writeMetricsMap.get(consistencyForPaxos).addNano(latency);
+        }
+    }
+
+    /**
+     * Performs the Paxos rounds for a given proposal, retrying when preempted until the timeout.
+     *
+     * <p>The main 'configurable' of this method is the {@code createUpdateProposal} method: it is called by the
+     * method once a ballot has been successfully 'prepared' to generate the update to 'propose' (and commit if the
+     * proposal is successful). That method also generates the result that the whole method will return. Note that
+     * due to retrying, this method may be called multiple times and does not have to return the same results.
+     */
+    private static RowIterator doPaxos(TableMetadata metadata,
+                                       DecoratedKey key,
+                                       ConsistencyLevel consistencyForPaxos,
+                                       ConsistencyLevel consistencyForCommit,
+                                       ClientState state,
+                                       long queryStartNanoTime,
+                                       CASClientRequestMetrics casMetrics,
+                                       Supplier<Pair<PartitionUpdate, RowIterator>> createUpdateProposal)
+    throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
+    {
+        int contentions = 0;
+        try
+        {
+            consistencyForPaxos.validateForCas();
+            consistencyForCommit.validateForCasCommit(metadata.keyspace);
+
+            long timeout = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
+            while (System.nanoTime() - queryStartNanoTime < timeout)
+            {
+                // for simplicity, we'll do a single liveliness check at the start of each attempt
+                // make sure any in-progress paxos writes are done (i.e., committed to a majority of replicas), before performing a quorum read
+                ReplicaPlan.ForPaxosWrite replicaPlan = ReplicaPlans.forPaxos(Keyspace.open(metadata.keyspace), key, consistencyForPaxos);
+
+                PaxosBallotAndContention pair = beginAndRepairPaxos(queryStartNanoTime,
+                                                                     key,
+                                                                     metadata,
+                                                                     replicaPlan,
+                                                                     consistencyForPaxos,
+                                                                     consistencyForCommit,
+                                                                     casMetrics,
+                                                                     state);
+                final UUID ballot = pair.ballot;
+                contentions += pair.contentions;
+
+                Pair<PartitionUpdate, RowIterator> proposalPair = createUpdateProposal.get();
+                Commit proposal = Commit.newProposal(ballot, proposalPair.left);
+                Tracing.trace("Proposing updates for {}", ballot);
+                if (proposePaxos(proposal, replicaPlan, true, queryStartNanoTime))
+                {
+                    commitPaxos(proposal, consistencyForCommit, true, queryStartNanoTime);
+                    RowIterator result = proposalPair.right;
+                    if (result != null)
+                        Tracing.trace("CAS did not apply");
+                    else
+                        Tracing.trace("CAS applied successfully");
+                    return result;
+                }
+
+                Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
+                contentions++;
+                Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), TimeUnit.MILLISECONDS);
+                // continue to retry
+            }
+
+            throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(metadata.keyspace)));
+        }
+        finally
+        {
+            if (contentions > 0)
+                casMetrics.contention.update(contentions);
         }
     }
 
@@ -421,7 +464,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                 ReplicaPlan.ForPaxosWrite paxosPlan,
                                                                 ConsistencyLevel consistencyForPaxos,
                                                                 ConsistencyLevel consistencyForCommit,
-                                                                final boolean isWrite,
+                                                                CASClientRequestMetrics casMetrics,
                                                                 ClientState state)
     throws WriteTimeoutException, WriteFailureException
     {
@@ -462,10 +505,7 @@ public class StorageProxy implements StorageProxyMBean
             if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
             {
                 Tracing.trace("Finishing incomplete paxos round {}", inProgress);
-                if(isWrite)
-                    casWriteMetrics.unfinishedCommit.inc();
-                else
-                    casReadMetrics.unfinishedCommit.inc();
+                casMetrics.unfinishedCommit.inc();
                 Commit refreshedInProgress = Commit.newProposal(ballot, inProgress.update);
                 if (proposePaxos(refreshedInProgress, paxosPlan, false, queryStartNanoTime))
                 {
@@ -1637,23 +1677,29 @@ public class StorageProxy implements StorageProxyMBean
         SinglePartitionReadCommand command = group.queries.get(0);
         TableMetadata metadata = command.metadata();
         DecoratedKey key = command.partitionKey();
+        // does the work of applying in-progress writes; throws UAE or timeout if it can't
+        final ConsistencyLevel consistencyForCommitOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
+                                                             ? ConsistencyLevel.LOCAL_QUORUM
+                                                             : ConsistencyLevel.QUORUM;
 
         PartitionIterator result = null;
         try
         {
-            // make sure any in-progress paxos writes are done (i.e., committed to a majority of replicas), before performing a quorum read
-            ReplicaPlan.ForPaxosWrite replicaPlan = ReplicaPlans.forPaxos(Keyspace.open(metadata.keyspace), key, consistencyLevel);
-
-            // does the work of applying in-progress writes; throws UAE or timeout if it can't
-            final ConsistencyLevel consistencyForCommitOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
-                                                                                   ? ConsistencyLevel.LOCAL_QUORUM
-                                                                                   : ConsistencyLevel.QUORUM;
-
             try
             {
-                final PaxosBallotAndContention pair = beginAndRepairPaxos(start, key, metadata, replicaPlan, consistencyLevel, consistencyForCommitOrFetch, false, state);
-                if (pair.contentions > 0)
-                    casReadMetrics.contention.update(pair.contentions);
+                Supplier<Pair<PartitionUpdate, RowIterator>> updateProposer =
+                () -> Pair.create(PartitionUpdate.emptyUpdate(metadata, key), null);
+
+                // Commit an empty update to make sure all in-progress updates that should be finished first is, _and_ that
+                // no other in-progress can get resurrected.
+                doPaxos(metadata,
+                        key,
+                        consistencyLevel,
+                        consistencyForCommitOrFetch,
+                        state,
+                        queryStartNanoTime,
+                        casReadMetrics,
+                        updateProposer);
             }
             catch (WriteTimeoutException e)
             {
