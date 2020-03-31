@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Fix CQLSH to avoid arguments being evaluated (CASSANDRA-15660)
  * Correct Visibility and Improve Safety of Methods in LatencyMetrics (CASSANDRA-15597)
  * Allow cqlsh to run with Python2.7/Python3.6+ (CASSANDRA-15659,CASSANDRA-15573)
  * Improve logging around incremental repair (CASSANDRA-15599)
