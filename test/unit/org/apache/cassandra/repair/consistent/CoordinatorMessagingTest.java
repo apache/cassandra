@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -96,9 +97,11 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     @Test
     public void testMockedMessagingHappyPath() throws InterruptedException, ExecutionException, TimeoutException
     {
+        CountDownLatch prepareLatch = createLatch();
+        CountDownLatch finalizeLatch = createLatch();
 
-        MockMessagingSpy spyPrepare = createPrepareSpy(Collections.emptySet(), Collections.emptySet());
-        MockMessagingSpy spyFinalize = createFinalizeSpy(Collections.emptySet(), Collections.emptySet());
+        MockMessagingSpy spyPrepare = createPrepareSpy(Collections.emptySet(), Collections.emptySet(), prepareLatch);
+        MockMessagingSpy spyFinalize = createFinalizeSpy(Collections.emptySet(), Collections.emptySet(), finalizeLatch);
         MockMessagingSpy spyCommit = createCommitSpy();
 
         UUID uuid = registerSession(cfs, true, true);
@@ -120,6 +123,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         Assert.assertFalse(sessionResult.isDone());
         Assert.assertFalse(hasFailures.get());
         // prepare completed
+        prepareLatch.countDown();
         spyPrepare.interceptMessageOut(3).get(1, TimeUnit.SECONDS);
         Assert.assertFalse(sessionResult.isDone());
         Assert.assertFalse(hasFailures.get());
@@ -128,9 +132,8 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         repairFuture.set(Lists.newArrayList(createResult(coordinator), createResult(coordinator), createResult(coordinator)));
 
         // finalize phase
+        finalizeLatch.countDown();
         spyFinalize.interceptMessageOut(3).get(1, TimeUnit.SECONDS);
-        Assert.assertFalse(sessionResult.isDone());
-        Assert.assertFalse(hasFailures.get());
 
         // commit phase
         spyCommit.interceptMessageOut(3).get(1, TimeUnit.SECONDS);
@@ -150,39 +153,44 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     @Test
     public void testMockedMessagingPrepareFailureP1() throws InterruptedException, ExecutionException, TimeoutException
     {
-        createPrepareSpy(Collections.singleton(PARTICIPANT1), Collections.emptySet());
-        testMockedMessagingPrepareFailure();
+        CountDownLatch latch = createLatch();
+        createPrepareSpy(Collections.singleton(PARTICIPANT1), Collections.emptySet(), latch);
+        testMockedMessagingPrepareFailure(latch);
     }
 
     @Test
     public void testMockedMessagingPrepareFailureP12() throws InterruptedException, ExecutionException, TimeoutException
     {
-        createPrepareSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2), Collections.emptySet());
-        testMockedMessagingPrepareFailure();
+        CountDownLatch latch = createLatch();
+        createPrepareSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2), Collections.emptySet(), latch);
+        testMockedMessagingPrepareFailure(latch);
     }
 
     @Test
     public void testMockedMessagingPrepareFailureP3() throws InterruptedException, ExecutionException, TimeoutException
     {
-        createPrepareSpy(Collections.singleton(PARTICIPANT3), Collections.emptySet());
-        testMockedMessagingPrepareFailure();
+        CountDownLatch latch = createLatch();
+        createPrepareSpy(Collections.singleton(PARTICIPANT3), Collections.emptySet(), latch);
+        testMockedMessagingPrepareFailure(latch);
     }
 
     @Test
     public void testMockedMessagingPrepareFailureP123() throws InterruptedException, ExecutionException, TimeoutException
     {
-        createPrepareSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3), Collections.emptySet());
-        testMockedMessagingPrepareFailure();
+        CountDownLatch latch = createLatch();
+        createPrepareSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3), Collections.emptySet(), latch);
+        testMockedMessagingPrepareFailure(latch);
     }
 
     @Test(expected = TimeoutException.class)
     public void testMockedMessagingPrepareFailureWrongSessionId() throws InterruptedException, ExecutionException, TimeoutException
     {
-        createPrepareSpy(Collections.singleton(PARTICIPANT1), Collections.emptySet(), (msgOut) -> UUID.randomUUID());
-        testMockedMessagingPrepareFailure();
+        CountDownLatch latch = createLatch();
+        createPrepareSpy(Collections.singleton(PARTICIPANT1), Collections.emptySet(), (msgOut) -> UUID.randomUUID(), latch);
+        testMockedMessagingPrepareFailure(latch);
     }
 
-    private void testMockedMessagingPrepareFailure() throws InterruptedException, ExecutionException, TimeoutException
+    private void testMockedMessagingPrepareFailure(CountDownLatch prepareLatch) throws InterruptedException, ExecutionException, TimeoutException
     {
         // we expect FailSession messages to all participants
         MockMessagingSpy sendFailSessionExpectedSpy = createFailSessionSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
@@ -204,6 +212,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         // execute repair and start prepare phase
         ListenableFuture<Boolean> sessionResult = coordinator.execute(sessionSupplier, proposeFailed);
         Assert.assertFalse(proposeFailed.get());
+        prepareLatch.countDown();
         // prepare completed
         try
         {
@@ -223,7 +232,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     @Test
     public void testMockedMessagingPrepareTimeout() throws InterruptedException, ExecutionException, TimeoutException
     {
-        MockMessagingSpy spyPrepare = createPrepareSpy(Collections.emptySet(), Collections.singleton(PARTICIPANT3));
+        MockMessagingSpy spyPrepare = createPrepareSpy(Collections.emptySet(), Collections.singleton(PARTICIPANT3), new CountDownLatch(0));
         MockMessagingSpy sendFailSessionUnexpectedSpy = createFailSessionSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
 
         UUID uuid = registerSession(cfs, true, true);
@@ -265,17 +274,24 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     }
 
     private MockMessagingSpy createPrepareSpy(Collection<InetAddressAndPort> failed,
-                                              Collection<InetAddressAndPort> timeout)
+                                              Collection<InetAddressAndPort> timeout,
+                                              CountDownLatch latch)
     {
-        return createPrepareSpy(failed, timeout, (msgOut) -> msgOut.parentSession);
+        return createPrepareSpy(failed, timeout, (msgOut) -> msgOut.parentSession, latch);
     }
 
     private MockMessagingSpy createPrepareSpy(Collection<InetAddressAndPort> failed,
                                               Collection<InetAddressAndPort> timeout,
-                                              Function<PrepareConsistentRequest, UUID> sessionIdFunc)
+                                              Function<PrepareConsistentRequest, UUID> sessionIdFunc,
+                                              CountDownLatch latch)
     {
         return MockMessagingService.when(verb(Verb.PREPARE_CONSISTENT_REQ)).respond((msgOut, to) ->
         {
+            try
+            {
+                latch.await();
+            }
+            catch (InterruptedException e) { }
             if (timeout.contains(to))
                 return null;
 
@@ -285,10 +301,16 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     }
 
     private MockMessagingSpy createFinalizeSpy(Collection<InetAddressAndPort> failed,
-                                               Collection<InetAddressAndPort> timeout)
+                                               Collection<InetAddressAndPort> timeout,
+                                               CountDownLatch latch)
     {
         return MockMessagingService.when(verb(Verb.FINALIZE_PROPOSE_MSG)).respond((msgOut, to) ->
         {
+            try
+            {
+                latch.await();
+            }
+            catch (InterruptedException e) { }
             if (timeout.contains(to))
                 return null;
 
@@ -309,5 +331,10 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     private static RepairSessionResult createResult(CoordinatorSession coordinator)
     {
         return new RepairSessionResult(coordinator.sessionID, "ks", coordinator.ranges, null, false);
+    }
+
+    private CountDownLatch createLatch()
+    {
+        return new CountDownLatch(1);
     }
 }
