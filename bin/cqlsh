@@ -25,6 +25,7 @@ if [ -n "$CQLSH_PYTHON" ]; then
     USER_SPECIFIED_PYTHON="$CQLSH_PYTHON"
 fi
 
+PARAMS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --python)
@@ -41,7 +42,7 @@ while [ $# -gt 0 ]; do
             break
             ;;
         *)
-            PARAMS="$PARAMS $1"
+            PARAMS+=("$1")
             shift
             ;;
     esac
@@ -66,13 +67,12 @@ is_supported_version() {
 
 run_if_supported_version() {
     interpreter="$1"
-    params="$2"
     version=$(get_python_version "$interpreter")
     if [ -n "$version" ]; then
         if [ "$(is_supported_version "$version")" = "supported" ]; then
             # We need the params to be unquoted, otherwise the shell will just interpret it as one giant string
             # shellcheck disable=SC2086
-            exec "$interpreter" "$($interpreter -c "import os; print(os.path.dirname(os.path.realpath('$0')))")/cqlsh.py" $params
+            exec "$interpreter" "$($interpreter -c "import os; print(os.path.dirname(os.path.realpath('$0')))")/cqlsh.py" "${@:2}"
             exit
         fi
     fi
@@ -81,11 +81,11 @@ run_if_supported_version() {
 
 if [ "$USER_SPECIFIED_PYTHON" != "" ]; then
     # run a user specified Python interpreter
-    run_if_supported_version "$USER_SPECIFIED_PYTHON" "$PARAMS"
+    run_if_supported_version "$USER_SPECIFIED_PYTHON" "${PARAMS[@]}"
 else
     # try unqualified python first, then python3, then python2.7
     for interpreter in python python3 python2.7; do
-        run_if_supported_version "$interpreter" "$PARAMS"
+        run_if_supported_version "$interpreter" "${PARAMS[@]}"
     done
 fi
 
