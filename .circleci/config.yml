@@ -11,7 +11,7 @@ jobs:
     - attach_workspace:
         at: /home/cassandra
     - run:
-        name: Determine distributed Tests to Run
+        name: Determine distributed Tests to Run 
         command: |
           # reminder: this code (along with all the steps) is independently executed on every circle container
           # so the goal here is to get the circleci script to return the tests *this* container will run
