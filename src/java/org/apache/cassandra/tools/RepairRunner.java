@@ -69,33 +69,22 @@ public class RepairRunner extends JMXNotificationProgressListener
         }
         else
         {
-            String previousName = Thread.currentThread().getName();
-            try
+            while (!condition.await(jmxNotificationPollIntervalSeconds, TimeUnit.SECONDS))
             {
-                Thread.currentThread().setName("RepairRunner #" + cmd
-                                               + " ks=" + keyspace
-                                               + " tables=" + options.get(RepairOption.COLUMNFAMILIES_KEY));
-                while (!condition.await(jmxNotificationPollIntervalSeconds, TimeUnit.SECONDS))
-                {
-                    queryForCompletedRepair(String.format("After waiting for poll interval of %s seconds",
-                                                          jmxNotificationPollIntervalSeconds));
-                }
-                Exception error = this.error;
-                if (error == null)
-                {
-                    // notifications are lossy so its possible to see complete and not error; request latest state
-                    // from the server
-                    queryForCompletedRepair("condition satisfied");
-                    error = this.error;
-                }
-                if (error != null)
-                {
-                    throw error;
-                }
+                queryForCompletedRepair(String.format("After waiting for poll interval of %s seconds",
+                                                      jmxNotificationPollIntervalSeconds));
             }
-            finally
+            Exception error = this.error;
+            if (error == null)
             {
-                Thread.currentThread().setName(previousName);
+                // notifications are lossy so its possible to see complete and not error; request latest state
+                // from the server
+                queryForCompletedRepair("condition satisfied");
+                error = this.error;
+            }
+            if (error != null)
+            {
+                throw error;
             }
         }
     }
