@@ -17,35 +17,38 @@
 
 # shell script to find a suitable Python interpreter and run cqlsh.py
 
-# parse arguments
-PARAMS=""
-
 # Use the Python that is specified in the env
 if [ -n "$CQLSH_PYTHON" ]; then
     USER_SPECIFIED_PYTHON="$CQLSH_PYTHON"
 fi
 
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --python)
-            if [ $# -lt 2 ]; then
-                echo "You must specify a python interpreter path with the --python option"
-                exit 1
-            fi
-            USER_SPECIFIED_PYTHON="$2"
-            shift
-            shift
-            ;;
-        --)
-            shift
-            break
-            ;;
-        *)
-            PARAMS="$PARAMS $1"
-            shift
-            ;;
-    esac
+
+# filter "--python" option and its value, and keep remaining arguments as it is
+USER_SPECIFIED_PYTHON_OPTION=false
+for arg do
+  shift
+  case "$arg" in
+    --python)
+        USER_SPECIFIED_PYTHON_OPTION=true
+        ;;
+    --)
+        break
+        ;;
+    *)
+        if [ "$USER_SPECIFIED_PYTHON_OPTION" = true ] ; then
+            USER_SPECIFIED_PYTHON_OPTION=false
+            USER_SPECIFIED_PYTHON="$arg"
+        else
+            set -- "$@" "$arg"
+        fi
+        ;;
+  esac
 done
+
+if [ "$USER_SPECIFIED_PYTHON_OPTION" = true ] ; then
+    echo "You must specify a python interpreter path with the --python option"
+    exit 1
+fi
 
 # get a version string for a Python interpreter
 get_python_version() {
@@ -68,14 +71,13 @@ is_supported_version() {
 }
 
 run_if_supported_version() {
-    interpreter="$1"
-    params="$2"
+    # get the interpreter and remove it from argument
+    interpreter="$1" shift
+
     version=$(get_python_version "$interpreter")
     if [ -n "$version" ]; then
         if [ "$(is_supported_version "$version")" = "supported" ]; then
-            # We need the params to be unquoted, otherwise the shell will just interpret it as one giant string
-            # shellcheck disable=SC2086
-            exec "$interpreter" "$($interpreter -c "import os; print(os.path.dirname(os.path.realpath('$0')))")/cqlsh.py" $params
+            exec "$interpreter" "$($interpreter -c "import os; print(os.path.dirname(os.path.realpath('$0')))")/cqlsh.py" "$@"
             exit
         fi
     fi
@@ -84,11 +86,11 @@ run_if_supported_version() {
 
 if [ "$USER_SPECIFIED_PYTHON" != "" ]; then
     # run a user specified Python interpreter
-    run_if_supported_version "$USER_SPECIFIED_PYTHON" "$PARAMS"
+    run_if_supported_version "$USER_SPECIFIED_PYTHON" "$@"
 else
     # try unqualified python first, then python3, then python2.7
     for interpreter in python python3 python2.7; do
-        run_if_supported_version "$interpreter" "$PARAMS"
+        run_if_supported_version "$interpreter" "$@"
     done
 fi
 
