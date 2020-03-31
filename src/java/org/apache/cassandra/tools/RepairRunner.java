@@ -44,18 +44,16 @@ public class RepairRunner extends JMXNotificationProgressListener
     private final String keyspace;
     private final Map<String, String> options;
     private final SimpleCondition condition = new SimpleCondition();
-    private final long jmxNotificationPollIntervalSeconds;
 
     private int cmd;
     private volatile Exception error;
 
-    public RepairRunner(PrintStream out, StorageServiceMBean ssProxy, String keyspace, Map<String, String> options, long jmxNotificationPollIntervalSeconds)
+    public RepairRunner(PrintStream out, StorageServiceMBean ssProxy, String keyspace, Map<String, String> options)
     {
         this.out = out;
         this.ssProxy = ssProxy;
         this.keyspace = keyspace;
         this.options = options;
-        this.jmxNotificationPollIntervalSeconds = jmxNotificationPollIntervalSeconds;
     }
 
     public void run() throws Exception
@@ -69,10 +67,10 @@ public class RepairRunner extends JMXNotificationProgressListener
         }
         else
         {
-            while (!condition.await(jmxNotificationPollIntervalSeconds, TimeUnit.SECONDS))
+            while (!condition.await(NodeProbe.JMX_NOTIFICATION_POLL_INTERVAL_SECONDS, TimeUnit.SECONDS))
             {
                 queryForCompletedRepair(String.format("After waiting for poll interval of %s seconds",
-                                                      jmxNotificationPollIntervalSeconds));
+                                                      NodeProbe.JMX_NOTIFICATION_POLL_INTERVAL_SECONDS));
             }
             Exception error = this.error;
             if (error == null)

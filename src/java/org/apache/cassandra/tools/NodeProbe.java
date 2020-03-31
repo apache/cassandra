@@ -108,6 +108,8 @@ public class NodeProbe implements AutoCloseable
     private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
     private static final int defaultPort = 7199;
 
+    static long JMX_NOTIFICATION_POLL_INTERVAL_SECONDS = Long.getLong("cassandra.nodetool.jmx_notification_poll_interval_seconds", TimeUnit.SECONDS.convert(5, TimeUnit.MINUTES));
+
     final String host;
     final int port;
     private String username;
@@ -403,7 +405,7 @@ public class NodeProbe implements AutoCloseable
 
     public void repairAsync(final PrintStream out, final String keyspace, Map<String, String> options) throws IOException
     {
-        RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, options, getJmxNotificationPollIntervalSeconds());
+        RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, options);
         try
         {
             if (jmxc != null)
@@ -1804,11 +1806,6 @@ public class NodeProbe implements AutoCloseable
     public MessagingServiceMBean getMessagingServiceProxy()
     {
         return msProxy;
-    }
-
-    public long getJmxNotificationPollIntervalSeconds()
-    {
-        return Long.getLong("cassandra.nodetool.jmx_notification_poll_interval_seconds", TimeUnit.SECONDS.convert(5, TimeUnit.MINUTES));
     }
 }
 
