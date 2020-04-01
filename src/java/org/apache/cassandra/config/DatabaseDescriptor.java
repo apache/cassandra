@@ -579,12 +579,12 @@ public class DatabaseDescriptor
 
             if (conf.cdc_total_space_in_mb == 0)
             {
-                int preferredSize = 4096;
-                int minSize = 0;
+                int preferredSizeInMB = 4096;
+                int minSizeInMB = 0;
                 try
                 {
                     // use 1/8th of available space.  See discussion on #10013 and #10199 on the CL, taking half that for CDC
-                    minSize = Ints.saturatedCast((guessFileStore(conf.cdc_raw_directory).getTotalSpace() / 1048576) / 8);
+                    minSizeInMB = Ints.saturatedCast((guessFileStore(conf.cdc_raw_directory).getTotalSpace() / 1048576) / 8);
                 }
                 catch (IOException e)
                 {
@@ -592,15 +592,15 @@ public class DatabaseDescriptor
                     throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
                                                                    conf.cdc_raw_directory), e);
                 }
-                if (minSize < preferredSize)
+                if (minSizeInMB < preferredSizeInMB)
                 {
                     logger.warn("Small cdc volume detected at {}; setting cdc_total_space_in_mb to {}.  You can override this in cassandra.yaml",
-                                conf.cdc_raw_directory, minSize);
-                    conf.cdc_total_space_in_mb = minSize;
+                                conf.cdc_raw_directory, minSizeInMB);
+                    conf.cdc_total_space_in_mb = minSizeInMB;
                 }
                 else
                 {
-                    conf.cdc_total_space_in_mb = preferredSize;
+                    conf.cdc_total_space_in_mb = preferredSizeInMB;
                 }
             }
 
