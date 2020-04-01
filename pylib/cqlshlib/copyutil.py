@@ -1846,7 +1846,7 @@ class ImportConversion(object):
             return converters.get(t.typename, convert_unknown)(v, ct=t)
 
         def convert_blob(v, **_):
-            return bytearray.fromhex(v[2:])
+            return v[2:].decode("hex")
 
         def convert_text(v, **_):
             return v
