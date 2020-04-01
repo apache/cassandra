@@ -186,9 +186,13 @@ public class CassandraOutgoingFile implements OutgoingStream
         if (sections == null || sections.isEmpty())
             return false;
 
+        // Range.normalize() will combine overlapping ranges, full containment must have only one section.
+        if (sections.size() > 1)
+            return false;
+
         // if transfer sections contain entire sstable
-        long transferLength = sections.stream().mapToLong(p -> p.upperPosition - p.lowerPosition).sum();
-        return transferLength == sstable.uncompressedLength();
+        SSTableReader.PartitionPositionBounds section = sections.get(0);
+        return (section.upperPosition - section.lowerPosition) == sstable.uncompressedLength();
     }
 
     @Override
