@@ -25,7 +25,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 /**
  * A message sink that all outbound messages go through.
  *
- * Default sink {@link Sink} used by {@link MessagingService} is MessagingService#doSend(), which proceeds to
+ * Default sink {@link Sink} used by {@link MessagingService} is {@link MessagingService#doSend(Message, InetAddressAndPort, ConnectionType)}, which proceeds to
  * send messages over the network, but it can be overridden to filter out certain messages, record the fact
  * of attempted delivery, or delay they delivery.
  *
