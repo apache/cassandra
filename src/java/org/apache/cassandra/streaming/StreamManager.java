@@ -176,17 +176,10 @@ public class StreamManager implements StreamManagerMBean
         return notifier.getNotificationInfo();
     }
 
-    public StreamSession findSession(InetAddressAndPort peer, UUID planId, int sessionIndex)
+    public StreamSession findSession(InetAddressAndPort peer, UUID planId, int sessionIndex, boolean searchInitiatorSessions)
     {
-        // Search follower session first, because in some tests, eg. StreamingTransferTest, both initiator session
-        // and follower session are listening to local host.
-        // TODO CASSANDRA-15665 it's more robust to add "isFollower" flag into {@link  StreamMessageHeader} to distinguish
-        // initiator session and follower session.
-        StreamSession session = findSession(followerStreams, peer, planId, sessionIndex);
-        if (session !=  null)
-            return session;
-
-        return findSession(initiatorStreams, peer, planId, sessionIndex);
+        Map<UUID, StreamResultFuture> streams = searchInitiatorSessions ? initiatorStreams : followerStreams;
+        return findSession(streams, peer, planId, sessionIndex);
     }
 
     private StreamSession findSession(Map<UUID, StreamResultFuture> streams, InetAddressAndPort peer, UUID planId, int sessionIndex)

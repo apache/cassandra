@@ -144,7 +144,7 @@ public class ZeroCopyStreamingBenchmark
                                      .build();
 
             blockStreamReader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id,
-                                                                                               peer, session.planId(),
+                                                                                               peer, session.planId(), false,
                                                                                                0, 0, 0,
                                                                                                null), entireSSTableStreamHeader, session);
 
@@ -167,7 +167,7 @@ public class ZeroCopyStreamingBenchmark
                                      .build();
 
             partialStreamReader = new CassandraStreamReader(new StreamMessageHeader(sstable.metadata().id,
-                                                                                    peer, session.planId(),
+                                                                                    peer, session.planId(), false,
                                                                                     0, 0, 0,
                                                                                     null),
                                                             partialSSTableStreamHeader, session);

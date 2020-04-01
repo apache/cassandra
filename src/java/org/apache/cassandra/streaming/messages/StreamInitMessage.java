@@ -20,6 +20,8 @@ package org.apache.cassandra.streaming.messages;
 import java.io.IOException;
 import java.util.UUID;
 
+import io.netty.channel.Channel;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
@@ -27,6 +29,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -58,6 +61,13 @@ public class StreamInitMessage extends StreamMessage
         this.streamOperation = streamOperation;
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
+    }
+
+    @Override
+    public StreamSession getOrCreateSession(Channel channel)
+    {
+        return StreamResultFuture.createFollower(sessionIndex, planId, streamOperation, from, channel, pendingRepair, previewKind)
+                                 .getSession(from, sessionIndex);
     }
 
     @Override
