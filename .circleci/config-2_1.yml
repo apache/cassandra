@@ -148,6 +148,9 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
     - j8_cqlsh-dtests-py3-with-vnodes:
         requires:
         - start_j8_cqlsh_tests-with-vnodes
+    - j8_cqlsh-dtests-py38-with-vnodes:
+        requires:
+        - start_j8_cqlsh_tests-with-vnodes
     - start_j8_cqlsh_tests-no-vnodes:
         type: approval
         requires:
@@ -158,6 +161,9 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
     - j8_cqlsh-dtests-py3-no-vnodes:
         requires:
         - start_j8_cqlsh_tests-no-vnodes
+    - j8_cqlsh-dtests-py38-no-vnodes:
+        requires:
+          - start_j8_cqlsh_tests-no-vnodes
     - start_j11_cqlsh_tests-with-vnodes:
         type: approval
         requires:
@@ -168,6 +174,9 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
     - j11_cqlsh-dtests-py3-with-vnodes:
         requires:
         - start_j11_cqlsh_tests-with-vnodes
+    - j11_cqlsh-dtests-py38-with-vnodes:
+        requires:
+          - start_j11_cqlsh_tests-with-vnodes
     - start_j11_cqlsh_tests-no-vnodes:
         type: approval
         requires:
@@ -178,6 +187,9 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
     - j11_cqlsh-dtests-py3-no-vnodes:
         requires:
         - start_j11_cqlsh_tests-no-vnodes
+    - j11_cqlsh-dtests-py38-no-vnodes:
+        requires:
+          - start_j11_cqlsh_tests-no-vnodes
 
 j11_with_dtests_jobs: &j11_with_dtests_jobs
   jobs:
@@ -214,6 +226,9 @@ j11_with_dtests_jobs: &j11_with_dtests_jobs
     - j11_cqlsh-dtests-py3-with-vnodes:
         requires:
         - start_j11_cqlsh_tests-with-vnodes
+    - j11_cqlsh-dtests-py38-with-vnodes:
+        requires:
+          - start_j11_cqlsh_tests-with-vnodes
     - start_j11_cqlsh_tests-no-vnodes:
         type: approval
         requires:
@@ -224,6 +239,9 @@ j11_with_dtests_jobs: &j11_with_dtests_jobs
     - j11_cqlsh-dtests-py3-no-vnodes:
         requires:
         - start_j11_cqlsh_tests-no-vnodes
+    - j11_cqlsh-dtests-py38-no-vnodes:
+        requires:
+          - start_j11_cqlsh_tests-no-vnodes
 
 j8_with_dtest_jobs_only: &j8_with_dtest_jobs_only
         jobs:
@@ -259,7 +277,7 @@ executors:
         type: string
         default: medium
     docker:
-      - image: spod/cassandra-testing-ubuntu1810-java11-w-dependencies:20190306
+      - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
     resource_class: << parameters.exec_resource_class >>
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -274,7 +292,7 @@ executors:
         type: string
         default: medium
     docker:
-    - image: spod/cassandra-testing-ubuntu1810-java11:20181210
+    - image: nastra/cassandra-testing-ubuntu1910-java11:20200406
     resource_class: << parameters.exec_resource_class >>
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -511,6 +529,24 @@ jobs:
           pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
 
+  j8_cqlsh-dtests-py38-with-vnodes:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.8'
+      - create_dtest_containers:
+          file_tag: j8_with_vnodes
+          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.8'
+      - run_dtests:
+          file_tag: j8_with_vnodes
+          pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
+          python_version: '3.8'
+
   j8_cqlsh-dtests-py2-no-vnodes:
     <<: *j8_par_executor
     steps:
@@ -540,6 +576,24 @@ jobs:
           file_tag: j8_without_vnodes
           pytest_extra_args: '--skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+
+  j8_cqlsh-dtests-py38-no-vnodes:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.8'
+      - create_dtest_containers:
+          file_tag: j8_without_vnodes
+          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.8'
+      - run_dtests:
+          file_tag: j8_without_vnodes
+          pytest_extra_args: '--skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
+          python_version: '3.8'
 
   j11_cqlsh-dtests-py2-with-vnodes:
     <<: *j11_par_executor
@@ -571,6 +625,24 @@ jobs:
           pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
 
+  j11_cqlsh-dtests-py38-with-vnodes:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.8'
+      - create_dtest_containers:
+          file_tag: j11_with_vnodes
+          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.8'
+      - run_dtests:
+          file_tag: j11_with_vnodes
+          pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
+          python_version: '3.8'
+
   j11_cqlsh-dtests-py2-no-vnodes:
     <<: *j11_par_executor
     steps:
@@ -600,6 +672,24 @@ jobs:
           file_tag: j11_without_vnodes
           pytest_extra_args: '--skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+
+  j11_cqlsh-dtests-py38-no-vnodes:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.8'
+      - create_dtest_containers:
+          file_tag: j11_without_vnodes
+          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.8'
+      - run_dtests:
+          file_tag: j11_without_vnodes
+          pytest_extra_args: '--skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
+          python_version: '3.8'
 
 commands:
   log_environment:
@@ -809,6 +899,11 @@ commands:
         destination: logs
 
   create_venv:
+    parameters:
+      python_version:
+        type: enum
+        default: "3.6"
+        enum: ["3.6", "3.7", "3.8"]
     steps:
     - run:
         name: Configure virtualenv and python Dependencies
@@ -817,7 +912,7 @@ commands:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env/bin/activate
+          source ~/env<<parameters.python_version>>/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -836,6 +931,10 @@ commands:
       tests_filter_pattern:
         type: string
         default: ''
+      python_version:
+        type: enum
+        default: "3.6"
+        enum: ["3.6", "3.7", "3.8"]
     steps:
     - run:
         name: Determine Tests to Run (<<parameters.file_tag>>)
@@ -846,7 +945,7 @@ commands:
           # which we do via the `circleci` cli tool.
 
           cd cassandra-dtest
-          source ~/env/bin/activate
+          source ~/env<<parameters.python_version>>/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
 
           if [ -n '<<parameters.extra_env_args>>' ]; then
@@ -874,6 +973,10 @@ commands:
       extra_env_args:
         type: string
         default: ''
+      python_version:
+        type: enum
+        default: "3.6"
+        enum: ["3.6", "3.7", "3.8"]
     steps:
       - run:
           name: Run dtests (<<parameters.file_tag>>)
@@ -882,7 +985,7 @@ commands:
             echo "cat /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt"
             cat /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt
 
-            source ~/env/bin/activate
+            source ~/env<<parameters.python_version>>/bin/activate
             export PATH=$JAVA_HOME/bin:$PATH
             if [ -n '<<parameters.extra_env_args>>' ]; then
               export <<parameters.extra_env_args>>

@@ -28,5 +28,5 @@ HIGHRES files, read below for details how to do it manually;
    the patch file based on the diff (don't commit it though).
 1. generate the HIGHRES file:
    `circleci config process config-2_1.yml.HIGHRES > config.yml.HIGHRES`
-1. and remove the temporary patched highres `config-2_1.yml.HIGHRES`
+1. and remove the temporary patched HIGHRES file: `rm config-2_1.yml.HIGHRES`
 
