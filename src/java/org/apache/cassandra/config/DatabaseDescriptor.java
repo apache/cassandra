@@ -542,28 +542,23 @@ public class DatabaseDescriptor
 
         if (conf.commitlog_total_space_in_mb == null)
         {
-            int preferredSize = 8192;
-            int minSize = 0;
+            final int preferredSizeInMB = 8192;
             try
             {
                 // use 1/4 of available space.  See discussion on #10013 and #10199
-                minSize = Ints.saturatedCast((guessFileStore(conf.commitlog_directory).getTotalSpace() / 1048576) / 4);
+                final long totalSpaceInBytes = guessFileStore(conf.commitlog_directory).getTotalSpace();
+                conf.cdc_total_space_in_mb = calculateDefaultSpaceInMB("commitlog",
+                                                                       conf.commitlog_directory,
+                                                                       "commitlog_total_space_in_mb",
+                                                                       preferredSizeInMB,
+                                                                       totalSpaceInBytes, 1, 4);
+
             }
             catch (IOException e)
             {
                 logger.debug("Error checking disk space", e);
-                throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
+                throw new ConfigurationException(String.format("Unable to check disk space available to '%s'. Perhaps the Cassandra user does not have the necessary permissions",
                                                                conf.commitlog_directory), e);
-            }
-            if (minSize < preferredSize)
-            {
-                logger.warn("Small commitlog volume detected at {}; setting commitlog_total_space_in_mb to {}.  You can override this in cassandra.yaml",
-                            conf.commitlog_directory, minSize);
-                conf.commitlog_total_space_in_mb = minSize;
-            }
-            else
-            {
-                conf.commitlog_total_space_in_mb = preferredSize;
             }
         }
 
