@@ -1727,10 +1727,10 @@ class ImportConversion(object):
 
         def convert_blob(v, **_):
             try:
-                return bytearray.fromhex(v[2:])
+                return v[2:].decode("hex")
             except TypeError:
                 # Work-around for Python 2.6 bug
-                return bytearray.fromhex(unicode(v[2:]))
+                return unicode(v[2:]).decode("hex"))
 
         def convert_text(v, **_):
             return v
