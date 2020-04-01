@@ -79,6 +79,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
+import static org.apache.cassandra.io.util.FileUtils.ONE_MB;
 
 public class DatabaseDescriptor
 {
@@ -579,28 +580,22 @@ public class DatabaseDescriptor
 
             if (conf.cdc_total_space_in_mb == 0)
             {
-                int preferredSizeInMB = 4096;
-                int minSizeInMB = 0;
+                final int preferredSizeInMB = 4096;
                 try
                 {
                     // use 1/8th of available space.  See discussion on #10013 and #10199 on the CL, taking half that for CDC
-                    minSizeInMB = Ints.saturatedCast((guessFileStore(conf.cdc_raw_directory).getTotalSpace() / 1048576) / 8);
+                    final long totalSpaceInBytes = guessFileStore(conf.cdc_raw_directory).getTotalSpace();
+                    conf.cdc_total_space_in_mb = calculateDefaultSpaceInMB("cdc",
+                                                                           conf.cdc_raw_directory,
+                                                                           "cdc_total_space_in_mb",
+                                                                           preferredSizeInMB,
+                                                                           totalSpaceInBytes, 1, 8);
                 }
                 catch (IOException e)
                 {
                     logger.debug("Error checking disk space", e);
-                    throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
+                    throw new ConfigurationException(String.format("Unable to check disk space available to '%s'. Perhaps the Cassandra user does not have the necessary permissions",
                                                                    conf.cdc_raw_directory), e);
-                }
-                if (minSizeInMB < preferredSizeInMB)
-                {
-                    logger.warn("Small cdc volume detected at {}; setting cdc_total_space_in_mb to {}.  You can override this in cassandra.yaml",
-                                conf.cdc_raw_directory, minSizeInMB);
-                    conf.cdc_total_space_in_mb = minSizeInMB;
-                }
-                else
-                {
-                    conf.cdc_total_space_in_mb = preferredSizeInMB;
                 }
             }
 
@@ -871,6 +866,23 @@ public class DatabaseDescriptor
         if (storagedir == null)
             throw new ConfigurationException(errMsgType + " is missing and -Dcassandra.storagedir is not set", false);
         return storagedir;
+    }
+
+    static int calculateDefaultSpaceInMB(String type, String path, String setting, int preferredSizeInMB, long totalSpaceInBytes, long totalSpaceNumerator, long totalSpaceDenominator)
+    {
+        final long totalSizeInMB = totalSpaceInBytes / ONE_MB;
+        final int minSizeInMB = Ints.saturatedCast(totalSpaceNumerator * totalSizeInMB / totalSpaceDenominator);
+
+        if (minSizeInMB < preferredSizeInMB)
+        {
+            logger.warn("Small {} volume detected at '{}'; setting {} to {}.  You can override this in cassandra.yaml",
+                        type, path, setting, minSizeInMB);
+            return minSizeInMB;
+        }
+        else
+        {
+            return preferredSizeInMB;
+        }
     }
 
     public static void applyAddressConfig() throws ConfigurationException
