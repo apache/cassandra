@@ -39,6 +39,7 @@ import org.junit.BeforeClass;
 
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.utils.FBUtilities.preventIllegalAccessWarnings;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -49,6 +50,11 @@ import static org.junit.Assert.fail;
  */
 public abstract class ToolsTester
 {
+    static
+    {
+        preventIllegalAccessWarnings();
+    }
+
     private static List<ThreadInfo> initialThreads;
 
     static final String[] EXPECTED_THREADS_WITH_SCHEMA = {

@@ -72,6 +72,11 @@ import org.apache.cassandra.net.AsyncOneResponse;
 
 public class FBUtilities
 {
+    static
+    {
+        preventIllegalAccessWarnings();
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
 
     private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
