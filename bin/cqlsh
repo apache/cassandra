@@ -57,7 +57,10 @@ get_python_version() {
 # test whether a version string matches one of the supported versions for cqlsh
 is_supported_version() {
     version=$1
-    if [ "$version" = "3.6" ] || [ "$version" = "2.7" ]; then
+    # shellcheck disable=SC2039
+    # shellcheck disable=SC2072
+    # python2.7 or python3.6+ is supported
+    if [ "$version" = "3.6" ] || [ "$version" \> "3.6" ] || [ "$version" = "2.7" ]; then
         echo "supported"
     else
         echo "unsupported"

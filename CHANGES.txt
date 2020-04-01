@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Allow cqlsh to run with Python2.7/Python3.6+ (CASSANDRA-15659)
  * Improve logging around incremental repair (CASSANDRA-15599)
  * Do not check cdc_raw_directory filesystem space if CDC disabled (CASSANDRA-15688)
  * Replace array iterators with get by index (CASSANDRA-15394)
