@@ -52,7 +52,7 @@ from cassandra.util import Date, Time
 
 from cql3handling import CqlRuleSet
 from displaying import NO_COLOR_MAP
-from formatting import format_value_default, EMPTY, get_formatter
+from formatting import format_value_default, EMPTY, get_formatter, BlobType
 from sslhandling import ssl_settings
 
 PROFILE_ON = False
@@ -1726,11 +1726,7 @@ class ImportConversion(object):
             return converters.get(t.typename, convert_unknown)(v, ct=t)
 
         def convert_blob(v, **_):
-            try:
-                return bytearray.fromhex(v[2:])
-            except TypeError:
-                # Work-around for Python 2.6 bug
-                return bytearray.fromhex(unicode(v[2:]))
+            return BlobType(unicode(v[2:]).decode("hex"))
 
         def convert_text(v, **_):
             return v
