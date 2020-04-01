@@ -96,6 +96,7 @@ else:
 # >>> webbrowser._tryorder
 # >>> webbrowser._browser
 #
+# webbrowser._tryorder is None in python3.7+
 if webbrowser._tryorder is None or len(webbrowser._tryorder) == 0:
     CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
 elif webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '') == '':
