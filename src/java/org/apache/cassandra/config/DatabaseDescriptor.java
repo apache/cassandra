@@ -539,15 +539,6 @@ public class DatabaseDescriptor
             conf.native_transport_max_concurrent_requests_in_bytes_per_ip = Runtime.getRuntime().maxMemory() / 40;
         }
 
-        if (conf.cdc_raw_directory == null)
-        {
-            conf.cdc_raw_directory = storagedirFor("cdc_raw");
-        }
-
-        // Windows memory-mapped CommitLog files is incompatible with CDC as we hard-link files in cdc_raw. Confirm we don't have both enabled.
-        if (FBUtilities.isWindows && conf.cdc_enabled && conf.commitlog_compression == null)
-            throw new ConfigurationException("Cannot enable cdc on Windows with uncompressed commitlog.");
-
         if (conf.commitlog_total_space_in_mb == null)
         {
             int preferredSize = 8192;
@@ -575,35 +566,44 @@ public class DatabaseDescriptor
             }
         }
 
-        if (conf.cdc_total_space_in_mb == 0)
-        {
-            int preferredSize = 4096;
-            int minSize = 0;
-            try
-            {
-                // use 1/8th of available space.  See discussion on #10013 and #10199 on the CL, taking half that for CDC
-                minSize = Ints.saturatedCast((guessFileStore(conf.cdc_raw_directory).getTotalSpace() / 1048576) / 8);
-            }
-            catch (IOException e)
-            {
-                logger.debug("Error checking disk space", e);
-                throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
-                                                               conf.cdc_raw_directory), e);
-            }
-            if (minSize < preferredSize)
-            {
-                logger.warn("Small cdc volume detected at {}; setting cdc_total_space_in_mb to {}.  You can override this in cassandra.yaml",
-                            conf.cdc_raw_directory, minSize);
-                conf.cdc_total_space_in_mb = minSize;
-            }
-            else
-            {
-                conf.cdc_total_space_in_mb = preferredSize;
-            }
-        }
-
         if (conf.cdc_enabled)
         {
+            // Windows memory-mapped CommitLog files is incompatible with CDC as we hard-link files in cdc_raw. Confirm we don't have both enabled.
+            if (FBUtilities.isWindows && conf.commitlog_compression == null)
+                throw new ConfigurationException("Cannot enable cdc on Windows with uncompressed commitlog.");
+
+            if (conf.cdc_raw_directory == null)
+            {
+                conf.cdc_raw_directory = storagedirFor("cdc_raw");
+            }
+
+            if (conf.cdc_total_space_in_mb == 0)
+            {
+                int preferredSize = 4096;
+                int minSize = 0;
+                try
+                {
+                    // use 1/8th of available space.  See discussion on #10013 and #10199 on the CL, taking half that for CDC
+                    minSize = Ints.saturatedCast((guessFileStore(conf.cdc_raw_directory).getTotalSpace() / 1048576) / 8);
+                }
+                catch (IOException e)
+                {
+                    logger.debug("Error checking disk space", e);
+                    throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
+                                                                   conf.cdc_raw_directory), e);
+                }
+                if (minSize < preferredSize)
+                {
+                    logger.warn("Small cdc volume detected at {}; setting cdc_total_space_in_mb to {}.  You can override this in cassandra.yaml",
+                                conf.cdc_raw_directory, minSize);
+                    conf.cdc_total_space_in_mb = minSize;
+                }
+                else
+                {
+                    conf.cdc_total_space_in_mb = preferredSize;
+                }
+            }
+
             logger.info("cdc_enabled is true. Starting casssandra node with Change-Data-Capture enabled.");
         }
 
@@ -1153,9 +1153,17 @@ public class DatabaseDescriptor
             catch (IOException e)
             {
                 if (e instanceof NoSuchFileException)
+                {
                     path = path.getParent();
+                    if (path == null)
+                    {
+                        throw new ConfigurationException("Unable to find filesystem for '" + dir + "'.");
+                    }
+                }
                 else
+                {
                     throw e;
+                }
             }
         }
     }
@@ -2798,6 +2806,7 @@ public class DatabaseDescriptor
         return conf.cdc_enabled;
     }
 
+    @VisibleForTesting
     public static void setCDCEnabled(boolean cdc_enabled)
     {
         conf.cdc_enabled = cdc_enabled;
