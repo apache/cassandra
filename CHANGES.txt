@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Do not check cdc_raw_directory filesystem space if CDC disabled (CASSANDRA-15688)
  * Replace array iterators with get by index (CASSANDRA-15394)
  * Minimize BTree iterator allocations (CASSANDRA-15389)
  * Add client request size server metrics (CASSANDRA-15704)

@@ -79,6 +79,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
+import static org.apache.cassandra.io.util.FileUtils.ONE_MB;
 
 public class DatabaseDescriptor
 {
@@ -539,71 +540,60 @@ public class DatabaseDescriptor
             conf.native_transport_max_concurrent_requests_in_bytes_per_ip = Runtime.getRuntime().maxMemory() / 40;
         }
 
-        if (conf.cdc_raw_directory == null)
-        {
-            conf.cdc_raw_directory = storagedirFor("cdc_raw");
-        }
-
-        // Windows memory-mapped CommitLog files is incompatible with CDC as we hard-link files in cdc_raw. Confirm we don't have both enabled.
-        if (FBUtilities.isWindows && conf.cdc_enabled && conf.commitlog_compression == null)
-            throw new ConfigurationException("Cannot enable cdc on Windows with uncompressed commitlog.");
-
         if (conf.commitlog_total_space_in_mb == null)
         {
-            int preferredSize = 8192;
-            int minSize = 0;
+            final int preferredSizeInMB = 8192;
             try
             {
                 // use 1/4 of available space.  See discussion on #10013 and #10199
-                minSize = Ints.saturatedCast((guessFileStore(conf.commitlog_directory).getTotalSpace() / 1048576) / 4);
-            }
-            catch (IOException e)
-            {
-                logger.debug("Error checking disk space", e);
-                throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
-                                                               conf.commitlog_directory), e);
-            }
-            if (minSize < preferredSize)
-            {
-                logger.warn("Small commitlog volume detected at {}; setting commitlog_total_space_in_mb to {}.  You can override this in cassandra.yaml",
-                            conf.commitlog_directory, minSize);
-                conf.commitlog_total_space_in_mb = minSize;
-            }
-            else
-            {
-                conf.commitlog_total_space_in_mb = preferredSize;
-            }
-        }
+                final long totalSpaceInBytes = guessFileStore(conf.commitlog_directory).getTotalSpace();
+                conf.commitlog_total_space_in_mb = calculateDefaultSpaceInMB("commitlog",
+                                                                             conf.commitlog_directory,
+                                                                             "commitlog_total_space_in_mb",
+                                                                             preferredSizeInMB,
+                                                                             totalSpaceInBytes, 1, 4);
 
-        if (conf.cdc_total_space_in_mb == 0)
-        {
-            int preferredSize = 4096;
-            int minSize = 0;
-            try
-            {
-                // use 1/8th of available space.  See discussion on #10013 and #10199 on the CL, taking half that for CDC
-                minSize = Ints.saturatedCast((guessFileStore(conf.cdc_raw_directory).getTotalSpace() / 1048576) / 8);
             }
             catch (IOException e)
             {
                 logger.debug("Error checking disk space", e);
-                throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
-                                                               conf.cdc_raw_directory), e);
-            }
-            if (minSize < preferredSize)
-            {
-                logger.warn("Small cdc volume detected at {}; setting cdc_total_space_in_mb to {}.  You can override this in cassandra.yaml",
-                            conf.cdc_raw_directory, minSize);
-                conf.cdc_total_space_in_mb = minSize;
-            }
-            else
-            {
-                conf.cdc_total_space_in_mb = preferredSize;
+                throw new ConfigurationException(String.format("Unable to check disk space available to '%s'. Perhaps the Cassandra user does not have the necessary permissions",
+                                                               conf.commitlog_directory), e);
             }
         }
 
         if (conf.cdc_enabled)
         {
+            // Windows memory-mapped CommitLog files is incompatible with CDC as we hard-link files in cdc_raw. Confirm we don't have both enabled.
+            if (FBUtilities.isWindows && conf.commitlog_compression == null)
+                throw new ConfigurationException("Cannot enable cdc on Windows with uncompressed commitlog.");
+
+            if (conf.cdc_raw_directory == null)
+            {
+                conf.cdc_raw_directory = storagedirFor("cdc_raw");
+            }
+
+            if (conf.cdc_total_space_in_mb == 0)
+            {
+                final int preferredSizeInMB = 4096;
+                try
+                {
+                    // use 1/8th of available space.  See discussion on #10013 and #10199 on the CL, taking half that for CDC
+                    final long totalSpaceInBytes = guessFileStore(conf.cdc_raw_directory).getTotalSpace();
+                    conf.cdc_total_space_in_mb = calculateDefaultSpaceInMB("cdc",
+                                                                           conf.cdc_raw_directory,
+                                                                           "cdc_total_space_in_mb",
+                                                                           preferredSizeInMB,
+                                                                           totalSpaceInBytes, 1, 8);
+                }
+                catch (IOException e)
+                {
+                    logger.debug("Error checking disk space", e);
+                    throw new ConfigurationException(String.format("Unable to check disk space available to '%s'. Perhaps the Cassandra user does not have the necessary permissions",
+                                                                   conf.cdc_raw_directory), e);
+                }
+            }
+
             logger.info("cdc_enabled is true. Starting casssandra node with Change-Data-Capture enabled.");
         }
 
@@ -871,6 +861,23 @@ public class DatabaseDescriptor
         if (storagedir == null)
             throw new ConfigurationException(errMsgType + " is missing and -Dcassandra.storagedir is not set", false);
         return storagedir;
+    }
+
+    static int calculateDefaultSpaceInMB(String type, String path, String setting, int preferredSizeInMB, long totalSpaceInBytes, long totalSpaceNumerator, long totalSpaceDenominator)
+    {
+        final long totalSizeInMB = totalSpaceInBytes / ONE_MB;
+        final int minSizeInMB = Ints.saturatedCast(totalSpaceNumerator * totalSizeInMB / totalSpaceDenominator);
+
+        if (minSizeInMB < preferredSizeInMB)
+        {
+            logger.warn("Small {} volume detected at '{}'; setting {} to {}.  You can override this in cassandra.yaml",
+                        type, path, setting, minSizeInMB);
+            return minSizeInMB;
+        }
+        else
+        {
+            return preferredSizeInMB;
+        }
     }
 
     public static void applyAddressConfig() throws ConfigurationException
@@ -1153,9 +1160,17 @@ public class DatabaseDescriptor
             catch (IOException e)
             {
                 if (e instanceof NoSuchFileException)
+                {
                     path = path.getParent();
+                    if (path == null)
+                    {
+                        throw new ConfigurationException("Unable to find filesystem for '" + dir + "'.");
+                    }
+                }
                 else
+                {
                     throw e;
+                }
             }
         }
     }
@@ -2798,6 +2813,7 @@ public class DatabaseDescriptor
         return conf.cdc_enabled;
     }
 
+    @VisibleForTesting
     public static void setCDCEnabled(boolean cdc_enabled)
     {
         conf.cdc_enabled = cdc_enabled;
